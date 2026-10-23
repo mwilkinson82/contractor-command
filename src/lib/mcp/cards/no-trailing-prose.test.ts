@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { TEXT_CARD_TOOLS } from "./native";
 import { CARD_TOOLS, attachAthenaCard } from "./attach";
 import { NAVY } from "./palette";
 import { CARD_WIDGET_URI } from "./widget";
@@ -56,6 +57,20 @@ describe("which-job and picker cards end on the pick", () => {
     const out = attachAthenaCard(tool, {
       content: [{ type: "text", text: companies }],
     }) as unknown as CardResult;
+    if (tool === "list_open_items") {
+      const text = out.content[0].text ?? "";
+      expect(text).toContain("1001");
+      expect(text).toContain("Lakeview Elementary Gym");
+      expect(text).not.toMatch(/REQUIRED VIEW|Card shown/);
+      expect(text).toContain("<!doctype html");
+      expect(out.structuredContent.html).toContain("<!doctype html>");
+      expect(out.structuredContent.assistant_guidance.at(-1)).toBe(CARD_SHOWN_PICK);
+      expect(out._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+      expect(out.structuredContent.which_job).toBe(true);
+      expect(out.structuredContent.card.title).toBe("Which job?");
+      expect(out.content[0].text?.startsWith("## 🔵 Which job?")).toBe(true);
+      return;
+    }
     assertCardContract(out, CARD_SHOWN_PICK);
     expect(out.structuredContent.which_job).toBe(true);
     expect(out.structuredContent.card.title).toBe("Which job?");
@@ -94,6 +109,18 @@ describe("every card tool follows the no-trailing-prose contract", () => {
       content: [{ type: "text", text: `${body}\n${PREVIEW}` }],
       structuredContent: tool === "contract_terms" ? { flags: [], contract_clauses: [] } : {},
     }) as unknown as CardResult;
+    if (TEXT_CARD_TOOLS.has(tool)) {
+      const text = out.content[0].text ?? "";
+      expect(text).toContain(body.includes("Buy the gear") ? "Buy the gear" : "Item one");
+      expect(text).not.toMatch(/REQUIRED VIEW|Card shown/);
+      expect(text).toContain("<!doctype html");
+      expect(out.structuredContent.html).toContain("<!doctype html>");
+      expect(out.structuredContent.assistant_guidance.at(-1)).toBe(CARD_SHOWN);
+      expect(out._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+      expect(out.structuredContent.which_job).toBeUndefined();
+      expect(text).not.toMatch(/I['’]ll pull the overdue items/);
+      return;
+    }
     assertCardContract(out, CARD_SHOWN);
     expect(out.structuredContent.which_job).toBeUndefined();
     expect(out.content[0].text).not.toMatch(/I['’]ll pull the overdue items/);

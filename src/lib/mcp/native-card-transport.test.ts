@@ -298,7 +298,7 @@ describe("native card presentation after the SDK", () => {
       const visit = await nativeCardVisit(
         makeRequest("tools/call", { name: "list_open_items", _meta: meta(host) }),
       );
-      expect(visit).toBeNull();
+      expect(visit?.calls[0]?.inlineHtml).toBe(true);
       const response = await nativeCardResponse(original, visit);
       expect(response).toBe(original);
       const returned = (await response.json()).result;
@@ -313,11 +313,91 @@ describe("native card presentation after the SDK", () => {
       expect(body).toContain(returned.structuredContent.html);
       expect(body).toContain("<!doctype html");
       expect(body).toContain("#1E5FED");
+      expect(body).not.toMatch(/REQUIRED VIEW|Card shown/);
     },
   );
+  it("drops the HTML document for a host that did not advertise a card", async () => {
+    const items = Array.from({ length: 17 }, (_, i) => ({
+      id: `item-${i}`,
+      action: `Job 2701 task ${i + 1}`,
+      owner: "Example PM",
+      due: i < 3 ? "2026-10-21" : i < 8 ? "2026-10-23" : "2026-11-02",
+    }));
+    const card = openItemsCard(
+      "2701 · Fictional job",
+      items,
+      { open: 17, overdue: 3, due_in_7_days: 5 },
+      "2026-10-22",
+    );
+    const fullReply = attachAthenaCard("list_open_items", {
+      content: [{ type: "text", text: "Full reply" }],
+      structuredContent: { card, items },
+    });
+    const original = Response.json(result(fullReply));
+    const request = makeRequest("tools/call", {
+      name: "list_open_items",
+      _meta: {
+        "io.modelcontextprotocol/clientInfo": { name: "Grok", version: "test" },
+        "io.modelcontextprotocol/clientCapabilities": {},
+      },
+    });
+    const visit = await nativeCardVisit(request);
+    const response = await nativeCardResponse(original, visit);
+    const returned = await response.json();
+    const body = returned.result.content.map((block: { text?: string }) => block.text ?? "").join("\n");
+    for (let i = 1; i <= 17; i++) expect(body).toContain(`Job 2701 task ${i}`);
+    expect(body).toContain("🔴");
+    expect(body).not.toContain("<!doctype");
+    expect(body).not.toMatch(/\bREQUIRED\b/);
+    expect(body).not.toMatch(/\bDo not\b/i);
+    expect(returned.result.structuredContent.html).toContain("<!doctype html");
+    expect(returned.result._meta).toEqual((fullReply as { _meta?: unknown })._meta);
+  });
+  it("remembers a Grok initialize and keeps Claude's later reply intact", async () => {
+    const grokInit = makeRequest("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "Grok", version: "1" },
+    });
+    const grokVisit = await nativeCardVisit(grokInit);
+    await nativeCardResponse(
+      Response.json(
+        { jsonrpc: "2.0", id: 1, result: { serverInfo: { name: "athena" } } },
+        { headers: { "content-type": "application/json", "mcp-session-id": "sess-grok" } },
+      ),
+      grokVisit,
+    );
+    const claudeInit = makeRequest("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "claude-ai", version: "1" },
+    });
+    await nativeCardResponse(
+      Response.json(
+        { jsonrpc: "2.0", id: 1, result: { serverInfo: { name: "athena" } } },
+        { headers: { "content-type": "application/json", "mcp-session-id": "sess-claude" } },
+      ),
+      await nativeCardVisit(claudeInit),
+    );
+    const input = result(cardResult);
+    const grokCall = makeRequest("tools/call", { name: "lookahead_get" });
+    grokCall.headers.set("mcp-session-id", "sess-grok");
+    const grok = await nativeCardPayload(input, await nativeCardVisit(grokCall));
+    expect((grok.value as { result: { content: { text: string }[] } }).result.content[0].text).not.toContain("<!doctype");
+    const claudeCall = makeRequest("tools/call", { name: "lookahead_get" });
+    claudeCall.headers.set("mcp-session-id", "sess-claude");
+    const claude = await nativeCardPayload(input, await nativeCardVisit(claudeCall));
+    expect(claude.value).toBe(input);
+  });
   it("keeps unknown/text-only hosts and errors on the full styled fallback", async () => {
     const input = result(cardResult);
-    expect((await transform("tools/call", { name: "list_open_items" }, input)).value).toBe(input);
+    const plain = await transform("tools/call", { name: "list_open_items" }, input);
+    expect(plain.changed).toBe(true);
+    const text = (plain.value as { result: { content: { text: string }[] } }).result.content[0].text;
+    expect(text).toContain("Full styled fallback");
+    expect(text).not.toContain("<!doctype");
+    expect((plain.value as { result: { structuredContent: { html: string }; _meta: unknown } }).result.structuredContent.html).toContain("<!doctype html");
+    expect((plain.value as { result: { _meta: { retained: boolean } } }).result._meta.retained).toBe(true);
     const noUi = { ...meta(), "io.modelcontextprotocol/clientCapabilities": {} };
     expect((await transform("tools/call", { name: "lookahead_get" }, input, noUi)).value).toBe(
       input,

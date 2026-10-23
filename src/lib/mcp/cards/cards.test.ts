@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inferCard } from "./infer";
 import { attachAthenaCard } from "./attach";
-import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
+import { CARD_SHOWN } from "./silence";
 import { CARD_WIDGET_URI, cardWidgetHtml } from "./widget";
 import { renderHtml } from "./html";
 import { renderMarkdown } from "./markdown";
@@ -112,7 +112,7 @@ describe("PM tools become cards", () => {
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
     expect(companyCard.content[0].text.startsWith("## 🔵 Which job?")).toBe(true);
     expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
-    expect(companyCard.content[0].text.trim().endsWith(CARD_SHOWN_PICK)).toBe(true);
+    expect(companyCard.content[0].text).not.toMatch(/REQUIRED VIEW|Card shown/);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";
     const itemCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: items }] }) as unknown as { structuredContent: { card: CardModel; html: string }; content: { text: string }[] };
     expect(itemCard.structuredContent.card.state).toBe("result");
