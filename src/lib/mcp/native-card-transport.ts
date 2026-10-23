@@ -21,6 +21,7 @@ import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, email
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 import { drawingFileMeta } from "./drawing-file-input";
+import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, drawingCardHtml, drawingCardMeta, drawingResourceMeta } from "./cards/drawing-card";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -44,10 +45,11 @@ type Host = { name: string; capabilities: unknown };
 const CARD_VIEWS: Record<string, { name: string; title: string; mimeType: string; html: () => string; meta: Record<string, unknown> }> = Object.fromEntries([
   ...[...NATIVE_CARD_URIS].map((uri) => [uri, { name: uri === NATIVE_CARD_URI ? "athena-native-card" : "athena-native-card-legacy", title: "Athena native card", mimeType: NATIVE_CARD_MIME, html: nativeCardHtml, meta: nativeResourceMeta }]),
   [EMAIL_CARD_URI, { name: "athena-email-card", title: "Athena email card", mimeType: EMAIL_CARD_MIME, html: emailCardHtml, meta: emailCardResourceMeta }],
+  [DRAWING_CARD_URI, { name: "athena-drawing-card", title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, html: drawingCardHtml, meta: drawingResourceMeta }],
 ]);
 const isCardUri = (uri: unknown): uri is string => typeof uri === "string" && uri in CARD_VIEWS;
 /** Tools that open on a card view, with the `_meta.ui` each advertises. */
-const cardMetaFor = (name: string) => (EMAIL_CARD_TOOLS.has(name) ? emailCardMeta.ui : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta.ui : null);
+const cardMetaFor = (name: string) => (DRAWING_CARD_TOOLS.has(name) ? drawingCardMeta.ui : EMAIL_CARD_TOOLS.has(name) ? emailCardMeta.ui : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta.ui : null);
 
 /** Session id from initialize → whether that client can show a card, and whether it is Claude or Grok. Same isolate only. */
 const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean; grok: boolean }>();
@@ -232,7 +234,7 @@ function acceptsJson(accept: string | null): boolean {
 }
 
 /** Listed views: the current native card and the email card (the legacy URI stays readable, not listed). */
-const LISTED_VIEWS = [NATIVE_CARD_URI, EMAIL_CARD_URI];
+const LISTED_VIEWS = [NATIVE_CARD_URI, EMAIL_CARD_URI, DRAWING_CARD_URI];
 const resourceEntry = (uri: string) => {
   const view = CARD_VIEWS[uri];
   return { uri, name: view.name, title: view.title, mimeType: view.mimeType, _meta: view.meta };

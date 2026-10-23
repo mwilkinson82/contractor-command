@@ -7,6 +7,7 @@ import { drawingFileMeta } from "./drawing-file-input";
 import { NATIVE_CARD_URIS, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta, emailCardResourceMeta } from "./cards/email-card";
+import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, drawingCardHtml, drawingCardMeta, drawingCardResultMeta, drawingResourceMeta } from "./cards/drawing-card";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
 const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
@@ -81,11 +82,17 @@ if (!proto[patched]) {
       }));
       (this as { _athenaEmailCard?: boolean })._athenaEmailCard = true;
     }
+    if (DRAWING_CARD_TOOLS.has(name) && typeof this.registerResource === "function" && !(this as { _athenaDrawingCard?: boolean })._athenaDrawingCard) {
+      this.registerResource("athena-drawing-card", DRAWING_CARD_URI, { title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, _meta: drawingResourceMeta }, async () => ({
+        contents: [{ uri: DRAWING_CARD_URI, mimeType: DRAWING_CARD_MIME, text: drawingCardHtml(), _meta: drawingResourceMeta }],
+      }));
+      (this as { _athenaDrawingCard?: boolean })._athenaDrawingCard = true;
+    }
     // openai/outputTemplate on tools/list makes ChatGPT
     // treat the tool as a widget, skip the styled card text, and hide the Athena icon.
     const fileMeta = drawingFileMeta(name);
     // The email view retains precedence for submittal_delivery.
-    const cardMeta = EMAIL_CARD_TOOLS.has(name) ? emailCardMeta : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta : {};
+    const cardMeta = DRAWING_CARD_TOOLS.has(name) ? drawingCardMeta : EMAIL_CARD_TOOLS.has(name) ? emailCardMeta : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta : {};
     const next = Object.keys(fileMeta).length || Object.keys(cardMeta).length
       ? { ...config, _meta: { ...config._meta, ...fileMeta, ...cardMeta } }
       : config;
@@ -94,7 +101,7 @@ if (!proto[patched]) {
       if (!CARD_WIDGET_TOOLS.has(name)) return result;
       if (name === "living_report_get" && (result.structuredContent as Record<string, unknown> | undefined)?.report_type !== "billing_forecast") return result;
       const safe = MEETINGS.has(name) ? boundMeetingResult(result) : result;
-      return { ...safe, _meta: { ...(safe._meta ?? {}), ...TEMPLATE } };
+      return { ...safe, _meta: { ...(safe._meta ?? {}), ...(DRAWING_CARD_TOOLS.has(name) ? drawingCardResultMeta : TEMPLATE) } };
     };
     return orig.call(this, name, next, wrapped);
   };

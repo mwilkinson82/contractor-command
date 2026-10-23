@@ -11,6 +11,7 @@ import {
   emailCardMeta,
 } from "./email-card";
 import { NATIVE_CARD_MIME, NATIVE_CARD_URI } from "./native";
+import { DRAWING_CARD_MIME, DRAWING_CARD_URI } from "./drawing-card";
 import { nativeCardPayload, nativeCardResponse, nativeCardVisit } from "../native-card-transport";
 import { claudeCardReply } from "./claude-reply";
 import { paletteViolations } from "./palette";
@@ -420,6 +421,7 @@ describe("email card on the wire", () => {
     expect(listed.result.resources.map((r) => [r.uri, r.mimeType])).toEqual([
       [NATIVE_CARD_URI, NATIVE_CARD_MIME],
       [EMAIL_CARD_URI, EMAIL_CARD_MIME],
+      [DRAWING_CARD_URI, DRAWING_CARD_MIME],
     ]);
     const read = await nativeCardVisit(request("resources/read", { uri: EMAIL_CARD_URI }));
     const res = await nativeCardResponse(
