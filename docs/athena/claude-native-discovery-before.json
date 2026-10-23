@@ -1,0 +1,68 @@
+{
+  "captured_at_utc": "2026-10-23T02:13:53.140021+00:00",
+  "endpoint": "https://app.meetathena.io/mcp",
+  "source": "Fresh authenticated Codex MCP client discovery (mcpServerStatus/list, full inventory) and mcpServer/resource/read. The client consumes the remote initialize/tools/list responses; this is a metadata projection, not a packet capture. No token was exported.",
+  "discovery": {
+    "name": "athena",
+    "httpOrigin": "https://app.meetathena.io",
+    "authStatus": "oAuth",
+    "serverInfo": {
+      "name": "athena",
+      "title": "Athena powered by ALP, construction agents",
+      "version": "0.8.18",
+      "description": "Athena powered by ALP, construction agents. Built by ALP.",
+      "icons": [
+        {
+          "src": "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "64x64"
+          ]
+        },
+        {
+          "src": "https://app.meetathena.io/brand/athena/athena-mono-blue-128.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "128x128"
+          ]
+        },
+        {
+          "src": "https://app.meetathena.io/brand/athena/athena-mono-blue-256.png",
+          "mimeType": "image/png",
+          "sizes": [
+            "256x256"
+          ]
+        }
+      ],
+      "websiteUrl": "https://app.meetathena.io"
+    },
+    "serverCapabilities": {
+      "tools": {
+        "listChanged": false
+      }
+    },
+    "toolsError": null,
+    "tools": {
+      "lookahead_get": {
+        "name": "lookahead_get",
+        "_meta": null
+      },
+      "lookahead_list": {
+        "name": "lookahead_list",
+        "_meta": null
+      },
+      "list_open_items": {
+        "name": "list_open_items",
+        "_meta": null
+      }
+    },
+    "resources": []
+  },
+  "native_resource_read": {
+    "error": {
+      "code": -32601,
+      "message": "Method not found"
+    },
+    "id": 903
+  }
+}

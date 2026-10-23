@@ -1,4 +1,7 @@
 import "./widget-bridge";
+// The toolkit has no definition-level capabilities option. The scoped /mcp presentation
+// middleware advertises this extension on successful initialize replies after SDK authorization.
+export { ATHENA_MCP_APPS_CAPABILITIES } from "./native-card-transport";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_VERSION } from "./server-info-branding";
 import { ATHENA_ROUTE_LINE, GREETING_RULE } from "./greeting";
