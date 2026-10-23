@@ -88,10 +88,14 @@ describe("normal lookahead read", () => {
       const original = Response.json({ jsonrpc: "2.0", id: 1, result: fullReply });
       const visit = await nativeCardVisit(request("tools/call", { name: "lookahead_get", arguments: { job_number: "2701" } }));
       const response = await nativeCardResponse(original, visit);
-      expect(response).toBe(original);
+      const claude = host === "claude-ai";
+      // ChatGPT's reply stays byte-for-byte. Claude keeps every row; the card view draws the HTML.
+      if (!claude) expect(response).toBe(original);
       const returned = (await response.json()).result as typeof fullReply;
-      expect(returned.content).toEqual(fullReply.content);
-      expect(returned.structuredContent).toEqual(fullReply.structuredContent);
+      if (!claude) expect(returned.content).toEqual(fullReply.content);
+      const { assistant_guidance: _g, ...facts } = fullReply.structuredContent as typeof fullReply.structuredContent & { assistant_guidance?: unknown };
+      if (claude) expect(returned.structuredContent).toEqual(JSON.parse(JSON.stringify(facts)));
+      else expect(returned.structuredContent).toEqual(fullReply.structuredContent);
       expect(returned.structuredContent.items).toHaveLength(6);
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Overdue on job", value: "3", flag: "overdue" });
       const body = returned.content.map((block) => block.text).join("\n");
@@ -102,12 +106,17 @@ describe("normal lookahead read", () => {
       expect(body).not.toMatch(/REQUIRED VIEW/);
       expect(body).not.toMatch(/Card shown/);
       expect(body).not.toMatch(/\bUse it and this window\b/);
-      expect(body).toContain("<!doctype html");
       expect(body).toContain("| Saved items |");
       expect(returned.structuredContent.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
       expect(returned.structuredContent.html).not.toContain("REQUIRED: the data date");
-      expect(body).toContain(returned.structuredContent.html);
-      expect(body).toContain("#1E5FED");
+      expect(returned.structuredContent.html).toContain("#1E5FED");
+      if (claude) {
+        expect(body).not.toContain("<!doctype html");
+        expect(body).toContain("The member sees this result as an Athena card.");
+      } else {
+        expect(body).toContain("<!doctype html");
+        expect(body).toContain(returned.structuredContent.html);
+      }
       expect(body).not.toContain("PRIVATE OTHER JOB");
       expect(state.writes).toEqual([]);
     } finally { vi.useRealTimers(); }
