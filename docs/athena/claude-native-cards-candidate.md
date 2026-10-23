@@ -74,7 +74,7 @@ Updated standalone default suite: **1,928 passed**. No production email was sent
 
 ## Card load timing (diagnostics)
 
-Live claude.ai reproduction on 2026-10-23: the contract terms and SOV cards rendered on the first try in two fresh chats, and the card that had failed earlier rendered from Claude's cache (`assets.claude.ai`) on reopening, with no new `resources/read`. The wire sequence was `server/discover` → `tools/list` (`_meta.ui.resourceUri`) → `resources/read` (`text/html;profile=mcp-app`, served) → card. No CSP or app errors in the console. The failure is intermittent and sits on the host's first fetch of the card HTML.
+Claude reported a live claude.ai reproduction on 2026-10-23: the contract terms and SOV cards rendered on the first try in two fresh chats, and the card that had failed earlier rendered from Claude's cache (`assets.claude.ai`) on reopening, with no new `resources/read`. The reported wire sequence was `server/discover` → `tools/list` (`_meta.ui.resourceUri`) → `resources/read` (`text/html;profile=mcp-app`, served) → card. No CSP or app errors were reported in the console. Those successful reads do not locate the intermittent failure or establish its cause.
 
 To place it, every native card request now logs milliseconds, never content:
 
@@ -83,4 +83,10 @@ To place it, every native card request now logs milliseconds, never content:
 - `[athena] mcp.entitlement` on tools/call: `ms` and `outcome` (`allowed` / `denied` / `check-failed`).
 - `[athena] card.presentation` only when the presentation pass itself throws.
 
-`cold` is true on the first MCP request an isolate serves; `isolateAgeMs` is how long the isolate had been up. A failed card whose `card.resource` line shows `served` with a large `totalMs` or `cold: true` is a deadline race on the host side, not a protocol fault. Authentication, the entitlement gate, the SDK path and ChatGPT's `openai/outputTemplate` templates are unchanged.
+`totalMs` begins at the MCP timing middleware, before membership checks and request-body inspection. `sdkMs` measures the downstream SDK-handler phase separately. Every request under `/mcp` is counted, including pings, notifications, non-card tools, and requests rejected by the membership gate. The timings are held per request and discarded when its middleware pipeline completes.
+
+`cold` means the first MCP request observed since this module loaded, not a measured platform cold start. `isolateAgeMs` measures module age. Neither field includes network latency or platform startup before the middleware runs. `served` means Athena constructed a static resource response, not that the host received or rendered it. Correlate the server logs with browser network timing and errors before concluding a host deadline was exceeded; a large `totalMs` or `cold: true` alone does not prove that diagnosis.
+
+Entitlement outcomes distinguish `allowed`, `denied`, and `check-failed`, including when the membership source returns `unavailable` without throwing. Authentication, the entitlement gate's decision, the SDK path and ChatGPT's `openai/outputTemplate` templates are unchanged.
+
+Corrected diagnostics verification: **1,995 tests passed across 187 files**, production build passed, and ESLint passed on the changed TypeScript files. The 12 new middleware regressions include the three review reproductions, allowed/denied responses, unchanged SDK authentication challenges, resource auth failures, non-card requests, and overlapping requests. No live-host acceptance or deployment is claimed for this instrumentation change.

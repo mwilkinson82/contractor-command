@@ -1,18 +1,19 @@
-/** Timing for the native card path. Numbers only: no tokens, headers, identifiers or tool data.
- *  A first-load card failure in a host is a race between the host's fetch deadline and Athena's
- *  reply, so every log carries how long the SDK took, how long the whole request took, and
- *  whether this isolate had just started (a cold Worker is the slowest first reply). */
+/** Application-side card timing. Numbers only: no tokens, headers, identifiers or tool data.
+ *  These measurements help investigate loading failures; they cannot establish whether a host
+ *  received the response or reached its own deadline. Platform startup and network time are excluded. */
 
 const ISOLATE_STARTED_AT = Date.now();
 let mcpRequests = 0;
 
 export type CardTiming = {
   startedAt: number;
+  /** Set immediately before invoking the downstream SDK handler. */
+  sdkStartedAt?: number;
   /** Set once the SDK (auth, server build, handler) has returned. */
   sdkDoneAt?: number;
   /** 1 for the first MCP request this isolate has seen since it started. */
   requestNo: number;
-  /** Milliseconds since this isolate loaded the module. Small means cold. */
+  /** Milliseconds since this module loaded, not a platform startup measurement. */
   isolateAgeMs: number;
 };
 
@@ -30,14 +31,23 @@ export function markSdkDone(timing: CardTiming, now = Date.now()): CardTiming {
   return timing;
 }
 
+export function markSdkStarted(timing: CardTiming, now = Date.now()): CardTiming {
+  timing.sdkStartedAt = now;
+  return timing;
+}
+
 /** Fields appended to every card log line. */
 export function timingFields(timing: CardTiming | undefined, now = Date.now()) {
   if (!timing) return {};
   return {
-    sdkMs: timing.sdkDoneAt == null ? null : timing.sdkDoneAt - timing.startedAt,
+    sdkMs:
+      timing.sdkDoneAt == null
+        ? null
+        : timing.sdkDoneAt - (timing.sdkStartedAt ?? timing.startedAt),
     totalMs: now - timing.startedAt,
     requestNo: timing.requestNo,
     isolateAgeMs: timing.isolateAgeMs,
+    // First MCP request observed by this module; not proof of a platform cold start.
     cold: timing.requestNo === 1,
   };
 }
