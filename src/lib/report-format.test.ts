@@ -28,4 +28,10 @@ describe("report number format", () => {
       "Planned billing this month $10,000.00. Realistic billing this month $8,000.00.",
     );
   });
+
+  it("keeps an ISO due date and still formats the billing amount", () => {
+    expect(formatBillingText("Planned billing this month 10000. Needed by: 2026-10-23.")).toBe(
+      "Planned billing this month $10,000.00. Needed by: 2026-10-23.",
+    );
+  });
 });

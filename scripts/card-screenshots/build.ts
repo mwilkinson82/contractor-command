@@ -104,7 +104,7 @@ window.addEventListener("message",function(e){
   if(m.method==="ui/initialize")reply(m.id,{protocolVersion:"2026-01-26",hostInfo:{name:"athena-screenshot-host",version:"1"},hostCapabilities:${caps},hostContext:{theme:"light",displayMode:"inline"}});
   else if(m.method==="ui/notifications/initialized")frame.contentWindow.postMessage({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result},"*");
   else if(m.method==="ui/notifications/size-changed"){frame.style.height=m.params.height+"px";document.body.dataset.ready="1"}
-  else if(m.method==="tools/call")setTimeout(function(){reply(m.id,{content:[{type:"text",text:"ok"}],structuredContent:{draft_key:"D0FIXTURE",delivery_id:"11111111-1111-4111-8111-111111111111",send_confirmed:true}})},400);
+  else if(m.method==="tools/call")setTimeout(function(){reply(m.id,{content:[{type:"text",text:"ok"}],structuredContent:{draft_key:(m.params.arguments.draft_key||"D0FIXTURE"),delivery_id:"11111111-1111-4111-8111-111111111111",send_confirmed:true}})},400);
   else if(m.method==="ui/message")reply(m.id,{});
 });
 frame.srcdoc=${view};
@@ -114,8 +114,8 @@ frame.srcdoc=${view};
 // Fictional submittal chase email on job 2701: what email_draft returns, signed as the job's PM.
 function emailDraft(): Result {
   const draft = {
-    to: "dana.ortiz@example-electrical.test",
-    cc: ["pm@example-alp.test"],
+    to: "dana.ortiz@example.com",
+    cc: ["pm@example.com"],
     subject: "Submittal 26 24 16-001 rev 1 – switchgear product data due 2026-10-31",
     body: "Hi Dana,\n\nThe switchgear product data (submittal 26 24 16-001, rev 1) is due back to us by Friday 2026-10-31 under §5.1. We need it to hold the 2026-11-19 underground inspection.\n\nPlease send the stamped set to this address, or tell me today if the date is at risk.\n\nThanks,\nElena Brooks\nProject Manager\nALP Construction",
     link: "https://app.meetathena.io/f/9hqX2yLw3T0dM8sVbA1cRfEuZp7kNjG4oWiH5tQyBe0",
