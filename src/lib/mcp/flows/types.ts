@@ -29,6 +29,11 @@ export type FlowData = {
   lookaheadLocked: boolean | null;
   onSchedule: boolean | null;
   crewsConfirmed: boolean | null;
+  /** Server-derived current lookahead/revision and CPM version, never a host guess. */
+  readinessContext?: string | null;
+  readinessAnswers?: { crews_confirmed?: boolean; lookahead_locked?: boolean };
+  /** Whether this call's explicit confirmation was saved and read back. */
+  confirmationSaved?: boolean;
   superKnowsPlan: boolean | null;
   progressLabel: string | null;
   percentComplete: number | null;
