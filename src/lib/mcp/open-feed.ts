@@ -58,9 +58,11 @@ export function isAffirmativeConfirmation(note: string): boolean {
 export function meetingItem(note: string): MeetingItem | null {
   const a = note.toLowerCase();
   if (/no change orders pending/.test(a) && /confirm/.test(a)) return { key: "pm:change_orders", close: true };
-  if (/(subcontractors|\bsubs\b|suppliers)/.test(a) && /crews/.test(a) && /confirm/.test(a)) {
-    // Keep one meeting item. A request, a conditional, or a real negative stays
-    // open. "No issues" and the other affirmative phrases still close it.
+  // "Subs, suppliers and crews confirmed" and "Crews — locked in, confirmed".
+  // A request, a conditional, or a real negative stays open. "No issues" still closes it.
+  if (/\bcrews?\b/.test(a) && /confirm/.test(a) && (
+    /(subcontractors|\bsubs\b|suppliers)/.test(a) || /\blocked[\s-]*in\b/.test(a)
+  )) {
     return { key: "pm:crews", close: isAffirmativeConfirmation(note) };
   }
   if (/planned billing|realistic billing/.test(a)) return { key: "pm:billing", close: false };

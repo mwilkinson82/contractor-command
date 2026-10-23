@@ -1,6 +1,6 @@
 import { activityTitle, pickLatestLookahead } from "../styled-views";
 import { visibleLookaheads } from "../lookahead-items";
-import { dedupeOpenRows, meetingItem } from "../open-feed";
+import { dedupeOpenRows, isAffirmativeConfirmation, meetingItem } from "../open-feed";
 import { blankFlowData } from "./job-2701";
 import type { FlowData, FlowItem, IorRow } from "./types";
 import { readReadiness, readinessAnswer, type ReadinessReader, type ReadinessRecord } from "./confirmation";
@@ -16,14 +16,40 @@ type Query = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>;
 };
 
-function kindOf(action: string, category: string): FlowItem["kind"] {
+const CREW_WORD = /\b(?:subs?|subcontract\w*|suppliers?|crews?|materials?)\b/i;
+const PROBLEM_WORD = /\b(?:delays?|delayed|delaying|slippage|slipped|slipping|slips|slip|shortages?|conflicts?|issues?|blockers?|risks?|risky|late|missing|short|behind|clashes?|clashed|rfis?|failed\s+inspections?|inspections?\s+failed)\b/gi;
+
+function negatedProblem(text: string, index: number): boolean {
+  const before = text.slice(0, index);
+  const breakAt = Math.max(before.lastIndexOf("."), before.lastIndexOf("!"), before.lastIndexOf("?"), before.lastIndexOf("\n"), before.lastIndexOf(";"));
+  const parts = before.slice(breakAt + 1).split(/\b(?:but|however|except|although)\b/i);
+  const clause = parts[parts.length - 1] ?? "";
+  return /(?:\b(?:no|not|never|nothing|without|zero|none)\b|n't\b)(?:\s+\w+){0,4}\s*$/i.test(clause);
+}
+
+/** Problem lines become risks. Confirmations and negated lines ("no issues", "nothing flagged", "no delays") do not. */
+export function isProblemLine(note: string): boolean {
+  if (isAffirmativeConfirmation(note)) return false;
+  const text = note.toLowerCase().replace(/[‘’]/g, "'");
+  const problem = new RegExp(PROBLEM_WORD.source, "gi");
+  let match: RegExpExecArray | null;
+  while ((match = problem.exec(text))) {
+    if (!negatedProblem(text, match.index)) return true;
+  }
+  return false;
+}
+
+export function kindOf(action: string, category: string): FlowItem["kind"] {
   const s = `${action} ${category}`;
-  if (/change order|\bCO[- ]?\d/i.test(s)) return "change";
-  if (/photo/i.test(s)) return "photo";
-  if (/daily/i.test(s)) return "daily";
-  if (/disrupt|slip|delay/i.test(s)) return "delay";
-  if (/risk|\brfi\b|inspect/i.test(s)) return "risk";
-  if (/sub|supplier|crew|material/i.test(s)) return "crew";
+  if (/\bchange orders?\b|\bCO[- ]?\d/i.test(s)) return "change";
+  if (/\bphoto(?:s|graph\w*)?\b/i.test(s)) return "photo";
+  if (/\bdail(?:y|ies)\b/i.test(s)) return "daily";
+  // Category Meeting is a meeting note. The risk log keeps only delay and risk kinds,
+  // and the morning brief classifies "meeting" before delay or risk, so this never renders red.
+  const meetingNote = /^meeting$/i.test(category.trim());
+  if (!meetingNote && /\bdisrupt\w*|\bslip(?:ped|page|ping|s)?\b|\bdelay(?:ed|ing|s)?\b/i.test(s)) return "delay";
+  if (!meetingNote && /\brisk\w*\b|\brfis?\b|\binspect\w*\b/i.test(s)) return "risk";
+  if (CREW_WORD.test(s)) return "crew";
   return "open";
 }
 
@@ -195,7 +221,7 @@ export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage
     const check = meeting ?? (answer?.lookahead_locked !== undefined ? { key: "pm:lookahead", close: answer.lookahead_locked } : null);
     const added = check
       ? await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: check.key, _action: note, _close: check.close })
-      : await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: flow === "pm_evening" ? "Daily" : "Risk", tool: flow, section: stage } });
+      : await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: flow === "pm_evening" ? "Daily" : isProblemLine(note) ? "Risk" : "Meeting", tool: flow, section: stage } });
     const missing = !!added.error && /does not exist|schema cache|PGRST202/i.test(String((added.error as { message?: string; code?: string }).message ?? "") + String((added.error as { code?: string }).code ?? ""));
     if (check && missing) {
       const fallback = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, check_key: check.key, category: "Meeting", tool: flow, section: stage } });
