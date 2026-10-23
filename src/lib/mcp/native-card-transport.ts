@@ -5,6 +5,7 @@ import {
   NATIVE_CARD_MIME,
   NATIVE_CARD_TOOLS,
   NATIVE_CARD_URI,
+  NATIVE_CARD_URIS,
   TEXT_CARD_TOOLS,
   nativeCardHtml,
   nativeResourceMeta,
@@ -29,7 +30,7 @@ type Call = {
   inlineHtml: boolean;
   claude: boolean;
 };
-type Visit = { calls: Call[] };
+type Visit = { calls: Call[]; acceptsJson?: boolean };
 type Host = { name: string; capabilities: unknown };
 
 /** Session id from initialize → whether that client can show a card, and whether it is Claude. Same isolate only. */
@@ -41,7 +42,9 @@ function hasUiCapability(capabilities: unknown): boolean {
   const ui = obj(extensions?.["io.modelcontextprotocol/ui"]);
   if (!ui) return false;
   const types = ui.mimeTypes;
-  return Array.isArray(types) ? types.some((type) => typeof type === "string" && type.length > 0) : true;
+  return Array.isArray(types)
+    ? types.some((type) => typeof type === "string" && type.length > 0)
+    : true;
 }
 
 /** Claude gets a facts-only reply on native card tools; the card view draws the HTML. */
@@ -68,13 +71,14 @@ function readHost(request: Request, params: Obj, meta: Obj | null): Host | null 
 
 /** Drop the dumped HTML document from a text block. Markdown rows stay. */
 export function stripInlineCardHtml(text: string): string {
-  return outsideFencedBlocks(text, (part) => part
-    .replace(/REQUIRED VIEW: render this HTML card as-is\.[^\n]*/g, "")
-    .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
-    .replace(/<!doctype html[\s\S]*$/gi, "")
-    .replace(/Card shown\. Do not add text(?:; wait for the user's pick)?\.?/g, "")
-    .replace(/\n{3,}/g, "\n\n"))
-    .trim();
+  return outsideFencedBlocks(text, (part) =>
+    part
+      .replace(/REQUIRED VIEW: render this HTML card as-is\.[^\n]*/g, "")
+      .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
+      .replace(/<!doctype html[\s\S]*$/gi, "")
+      .replace(/Card shown\. Do not add text(?:; wait for the user's pick)?\.?/g, "")
+      .replace(/\n{3,}/g, "\n\n"),
+  ).trim();
 }
 
 export async function nativeCardVisit(request: Request): Promise<Visit | null> {
@@ -108,7 +112,7 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       ].includes(method)
     )
       continue;
-    if (method === "resources/read" && params.uri !== NATIVE_CARD_URI) continue;
+    if (method === "resources/read" && !NATIVE_CARD_URIS.has(String(params.uri))) continue;
     const meta = obj(call._meta) ?? obj(params._meta);
     const host = readHost(request, params, meta);
     const session = request.headers.get("mcp-session-id");
@@ -128,7 +132,23 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
     });
   }
   if (!calls.length) return null;
-  return { calls };
+  return { calls, acceptsJson: acceptsJson(request.headers.get("accept")) };
+}
+
+// Do not switch a stream-only client to JSON, including an explicit q=0 refusal.
+function acceptsJson(accept: string | null): boolean {
+  if (!accept) return false;
+  const entries = accept.split(",").map((part) => {
+    const [type, ...params] = part.trim().toLowerCase().split(";");
+    const quality = params.map((param) => param.trim()).find((param) => param.startsWith("q="));
+    const q = quality == null ? 1 : Number(quality.slice(2));
+    return { type: type.trim(), q: Number.isFinite(q) && q >= 0 && q <= 1 ? q : 0 };
+  });
+  for (const type of ["application/json", "application/*", "*/*"]) {
+    const matches = entries.filter((entry) => entry.type === type);
+    if (matches.length) return matches.some((entry) => entry.q > 0);
+  }
+  return false;
 }
 
 const resourceEntry = () => ({
@@ -138,10 +158,10 @@ const resourceEntry = () => ({
   mimeType: NATIVE_CARD_MIME,
   _meta: nativeResourceMeta,
 });
-const resourceContents = () => ({
+const resourceContents = (uri: string) => ({
   contents: [
     {
-      uri: NATIVE_CARD_URI,
+      uri,
       mimeType: NATIVE_CARD_MIME,
       text: nativeCardHtml(),
       _meta: nativeResourceMeta,
@@ -234,12 +254,12 @@ export function nativeCardPayload(
       if (edited) next = { ...result, content };
     } else if (
       call.method === "resources/read" &&
-      call.params.uri === NATIVE_CARD_URI &&
+      NATIVE_CARD_URIS.has(String(call.params.uri)) &&
       missingMethod
     ) {
       // Some deployed SDK builds omit resource handlers. Only this static, non-personal shell is repaired,
       // after the SDK returns a method-not-found reply. Auth failures and other resource URIs are untouched.
-      next = resourceContents();
+      next = resourceContents(String(call.params.uri));
     }
     if (!next) return value;
     // The SDK's modern codec normally stamps these fields. Synthetic resource replies
@@ -269,24 +289,70 @@ export async function nativeCardResponse(
   visit: Visit | null,
 ): Promise<Response> {
   rememberCardSession(response, visit);
-  if (!visit || !response.body) return response;
+  if (!visit) return response;
+  const cardRead =
+    visit.calls.length === 1 && visit.calls[0].method === "resources/read" ? visit.calls[0] : null;
+  // Static shell diagnostics only: never log headers, identifiers, HTML or tool data.
+  const trace = (outcome: string, status = response.status, format?: string) => {
+    if (cardRead)
+      console.info("[athena] card.resource", {
+        protocol: cardRead.modern ? "modern" : "legacy",
+        sdkStatus: response.status,
+        status,
+        outcome,
+        ...(format ? { format } : {}),
+      });
+  };
   const resourceMiss =
     response.status === 404 &&
     visit.calls.length === 1 &&
     ["resources/list", "resources/templates/list", "resources/read"].includes(
       visit.calls[0].method,
     );
-  if (response.status !== 200 && !resourceMiss) return response;
+  if (response.status !== 200 && !resourceMiss) {
+    trace("sdk-rejected");
+    return response;
+  }
+  if (!response.body) {
+    trace("empty-response");
+    return response;
+  }
   const type = (response.headers.get("content-type") ?? "").toLowerCase();
-  if (!type.includes("application/json") && !type.includes("text/event-stream")) return response;
+  if (!type.includes("application/json") && !type.includes("text/event-stream")) {
+    trace("unsupported-response");
+    return response;
+  }
   const text = await response.clone().text();
   let changed = false;
+  let dataMessages = 0;
+  let staticReply: Obj | null = null;
   const transform = (raw: string) => {
+    dataMessages++;
     try {
       const payload = JSON.parse(raw);
       if (resourceMiss && obj(obj(payload)?.error)?.code !== -32601) return raw;
       const out = nativeCardPayload(payload, visit);
       changed ||= out.changed;
+      const message = obj(out.value);
+      const result = obj(message?.result);
+      const contents = result?.contents;
+      if (
+        cardRead &&
+        message &&
+        message.id === cardRead.id &&
+        !message.error &&
+        Array.isArray(contents) &&
+        contents.length === 1
+      ) {
+        const content = obj(contents[0]);
+        if (
+          content &&
+          content.uri === cardRead.params.uri &&
+          content.mimeType === NATIVE_CARD_MIME &&
+          typeof content.text === "string"
+        )
+          staticReply = message;
+      }
       return out.changed ? JSON.stringify(out.value) : raw;
     } catch {
       return raw;
@@ -300,11 +366,29 @@ export async function nativeCardResponse(
           line.startsWith("data:") ? `data: ${transform(line.slice(5).trimStart())}` : line,
         )
         .join("");
-  if (!changed) return response;
+  // Resource reads are finite RPC replies, not subscriptions. On the legacy SDK
+  // path the repaired shell used to inherit the SDK's SSE/keep-alive envelope.
+  // Prefer a single JSON response when negotiated; preserve SSE-only clients.
+  const jsonCard = staticReply && dataMessages === 1 && visit.acceptsJson;
+  if (!changed && !staticReply) {
+    trace("no-static-card");
+    return response;
+  }
   const headers = new Headers(response.headers);
   headers.delete("content-length");
   headers.delete("content-encoding");
-  return new Response(body, {
+  if (staticReply) headers.set("cache-control", "no-store");
+  if (jsonCard) {
+    headers.set("content-type", "application/json");
+    headers.delete("connection");
+    headers.delete("x-accel-buffering");
+  }
+  trace(
+    staticReply ? "served" : "no-static-card",
+    resourceMiss ? 200 : response.status,
+    jsonCard || type.includes("application/json") ? "json" : "sse",
+  );
+  return new Response(jsonCard ? JSON.stringify(staticReply) : body, {
     status: resourceMiss ? 200 : response.status,
     statusText: resourceMiss ? "OK" : response.statusText,
     headers,
