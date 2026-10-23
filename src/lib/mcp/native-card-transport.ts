@@ -13,6 +13,7 @@ import {
 import { isMcpPost } from "./server-info-branding";
 import { phoneHostText } from "./phone-reply";
 import { outsideFencedBlocks } from "./cards/verbatim";
+import { claudeCardReply } from "./cards/claude-reply";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -26,12 +27,13 @@ type Call = {
   params: Obj;
   modern: boolean;
   inlineHtml: boolean;
+  claude: boolean;
 };
 type Visit = { calls: Call[] };
 type Host = { name: string; capabilities: unknown };
 
-/** Session id from initialize → whether that client can show a card. Same isolate only. */
-const cardSessions = new Map<string, boolean>();
+/** Session id from initialize → whether that client can show a card, and whether it is Claude. Same isolate only. */
+const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean }>();
 
 function hasUiCapability(capabilities: unknown): boolean {
   const caps = obj(capabilities);
@@ -42,7 +44,12 @@ function hasUiCapability(capabilities: unknown): boolean {
   return Array.isArray(types) ? types.some((type) => typeof type === "string" && type.length > 0) : true;
 }
 
-/** ChatGPT and Claude keep the HTML in the text. Anyone else needs an advertised UI capability. */
+/** Claude gets a facts-only reply on native card tools; the card view draws the HTML. */
+export function isClaudeHost(host: Host | null): boolean {
+  return !!host && /claude|anthropic/i.test(host.name);
+}
+
+/** ChatGPT and Claude count as card hosts. Anyone else needs an advertised UI capability. */
 export function hostInlinesCard(host: Host | null): boolean {
   if (!host) return false;
   if (/claude|chatgpt|openai/i.test(host.name)) return true;
@@ -88,7 +95,7 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       params = obj(call?.params) ?? {};
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
-    if (method === "tools/call" && !TEXT_CARD_TOOLS.has(String(params.name ?? ""))) continue;
+    if (method === "tools/call" && !NATIVE_CARD_TOOLS.has(String(params.name ?? ""))) continue;
     if (
       ![
         "initialize",
@@ -110,7 +117,8 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       id: call.id,
       method,
       params,
-      inlineHtml: remembered ?? hostInlinesCard(host),
+      inlineHtml: remembered?.inlineHtml ?? hostInlinesCard(host),
+      claude: remembered?.claude ?? isClaudeHost(host),
       modern:
         String(
           meta?.["io.modelcontextprotocol/protocolVersion"] ??
@@ -196,6 +204,14 @@ export function nativeCardPayload(
       call.method === "tools/call" &&
       result &&
       result.isError !== true &&
+      call.claude &&
+      NATIVE_CARD_TOOLS.has(String(call.params.name ?? ""))
+    ) {
+      next = claudeCardReply(result);
+    } else if (
+      call.method === "tools/call" &&
+      result &&
+      result.isError !== true &&
       !call.inlineHtml &&
       TEXT_CARD_TOOLS.has(String(call.params.name ?? "")) &&
       Array.isArray(result.content)
@@ -245,7 +261,7 @@ export function nativeCardPayload(
 function rememberCardSession(response: Response, visit: Visit | null) {
   const id = response.headers.get("mcp-session-id");
   const init = visit?.calls.find((call) => call.method === "initialize");
-  if (id && init) cardSessions.set(id, init.inlineHtml);
+  if (id && init) cardSessions.set(id, { inlineHtml: init.inlineHtml, claude: init.claude });
 }
 
 export async function nativeCardResponse(

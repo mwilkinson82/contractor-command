@@ -5,7 +5,11 @@ import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
+/** Money, percents and line numbers: kept on one line. */
+const NUMERIC = /^[$\d][\d.,]*%?$/;
+
 function cellText(value: string): string {
+  if (!value.trim()) return "";
   const shown = plainLabel(value);
   return shown.refId && shown.label === "Item" ? "" : shown.label;
 }
@@ -66,6 +70,9 @@ export function renderHtml(card: CardModel): string {
     `.table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}`,
     `th{background:${blue};color:${white};text-align:left;padding:6px 8px;font-size:12px}`,
     `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
+    `.table-wrap{overflow-x:auto}.card td,.card th{overflow-wrap:break-word}td.num{white-space:nowrap;text-align:right}`,
+    // Phones: each row stacks into label / value pairs so money columns never sit off screen.
+    `@media (max-width:520px){.table-wrap table,.table-wrap tbody,.table-wrap tr,.table-wrap td{display:block;width:auto}.table-wrap thead{display:none}.table-wrap tr{padding:6px 0;border-bottom:1px solid ${gray}}.table-wrap td{display:flex;gap:8px;border-bottom:0;padding:2px 8px;text-align:left}.table-wrap td[data-label]::before{content:attr(data-label);flex:0 0 112px;color:${gray};font-size:12px}.table-wrap td.blank{display:none}}`,
     `a{color:${blue};text-decoration:none}`,
     `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${gray}}`,
     `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray};color:${navy}}`,
@@ -78,6 +85,11 @@ export function renderHtml(card: CardModel): string {
     `.placeholder li,.placeholder p{color:${gray}}`,
     `.next{margin:14px 0 0;font-weight:700}`,
     card.sections?.some((section) => section.rows.some((row) => row.tone === "literal")) ? `.tone-literal{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap;overflow-wrap:anywhere}` : "",
+    `.framed{margin:10px 0;border:1px solid ${gray};border-radius:12px;overflow:hidden}`,
+    `.framed h2{margin:0;padding:8px 12px;border-bottom:1px solid ${gray}}`,
+    `.framed ul{list-style:none;margin:0;padding:8px 12px}`,
+    `.framed li{margin:0 0 6px}`,
+    `.tone-quote{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap}`,
     alert ? `.alert,li.alert,p.alert,tr.alert{color:${alertColor}}` : "",
     alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alertColor};border-radius:12px;background:${white};overflow:hidden}` : "",
     alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${alertColor};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
@@ -87,6 +99,8 @@ export function renderHtml(card: CardModel): string {
     `.flag-body{padding:10px 12px}`,
 
     alert ? `tr.alert td{border:2px solid ${alertColor}}` : "",
+    alert ? `.framed.alert{border:2px solid ${alertColor};color:${navy}}` : "",
+    alert ? `.framed.alert h2{background:${alertColor};color:${white};border-bottom:0}` : "",
   ]
     .filter(Boolean)
     .join("");
@@ -119,12 +133,14 @@ export function renderHtml(card: CardModel): string {
             const cells = Array.from({ length: width }, (_, i) => {
               const text = cellText(r.cells[i] ?? "");
               const body = i === 0 ? linked(r, text) : esc(text);
-              return `<td>${i === 0 ? flagged(r, body) : body}</td>`;
+              const cls = !text && i > 0 ? ' class="blank"' : NUMERIC.test(text) ? ' class="num"' : "";
+              const label = s.columns?.[i] ? ` data-label="${esc(s.columns[i])}"` : "";
+              return `<td${cls}${label}>${i === 0 ? flagged(r, body) : body}</td>`;
             }).join("");
             return `<tr ${attr}>${cells}</tr>`;
           })
           .join("");
-        inner = `${heading}${s.scroll ? '<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">' : ""}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table>${s.scroll ? "</div>" : ""}`;
+        inner = `${heading}${s.scroll ? '<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">' : '<div class="table-wrap">'}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table></div>`;
       } else {
         const items = s.rows
           .map((r) => {
@@ -134,6 +150,10 @@ export function renderHtml(card: CardModel): string {
           })
           .join("");
         inner = `${heading}<ul>${items}</ul>`;
+      }
+      if (s.framed) {
+        const flag = isAlertLevel(s.flag) ? ` alert" data-alert="${s.flag}` : "";
+        return `<section class="framed${flag}">${inner}</section>`;
       }
       return s.placeholder ? `<section class="placeholder">${inner}</section>` : inner;
     })

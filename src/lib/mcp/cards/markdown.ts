@@ -1,7 +1,7 @@
+import { verbatimBlock } from "./verbatim";
 import { rowPlain } from "../plain-label";
 import { MARK, isAlertLevel } from "./palette";
 import { STATE_LABEL, type CardModel, type CardRow, type CardSection } from "./model";
-import { verbatimBlock } from "./verbatim";
 
 const cell = (s: string) => s.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
 
@@ -18,7 +18,7 @@ function linked(row: CardRow): string {
 }
 
 function section(s: CardSection): string[] {
-  const lines = [`### ${s.heading}`];
+  const lines = [`### ${isAlertLevel(s.flag) ? `${MARK.alert} ` : ""}${s.heading}`];
   if (!s.rows.length) {
     lines.push(`${MARK.neutral} Nothing on this card yet.`);
     return lines;
@@ -31,6 +31,7 @@ function section(s: CardSection): string[] {
     for (const row of s.rows) {
       const view = rowPlain(row);
       const cells = Array.from({ length: width }, (_, i) => {
+        if (!(row.cells[i] ?? "").trim()) return i === 0 ? cell(view.label) : "";
         const part = rowPlain({ cells: [row.cells[i] ?? ""] });
         const text = part.label === "Item" && part.refId ? "" : cell(part.label);
         return i === 0 ? (view.href ? `[${text || cell(view.label)}](${view.href})` : text || cell(view.label)) : text;
@@ -47,6 +48,10 @@ function section(s: CardSection): string[] {
   for (const row of s.rows) {
     if (row.tone === "literal") {
       lines.push(verbatimBlock(row.cells.join("\n")));
+      continue;
+    }
+    if (row.tone === "quote") {
+      lines.push(...row.cells.join("\n").split("\n").map((l) => `> ${l}`));
       continue;
     }
     if (row.raw) {

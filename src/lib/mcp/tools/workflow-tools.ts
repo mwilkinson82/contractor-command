@@ -12,7 +12,7 @@ import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
-import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
+import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
 import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
@@ -22,6 +22,7 @@ import { applyCardClosing } from "../cards/silence";
 import { cardWidgetMeta } from "../cards/widget";
 import { savedLookaheadItems, savedItemsSection, savedLookaheadCard } from "../lookahead-card";
 import type { CardSection } from "../cards/model";
+import { contractTermsCard, sovCard } from "../cards/structured";
 import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
 import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
@@ -1634,7 +1635,21 @@ export const contractTerms = defineTool({
             : ["", ...notice.lines, "", "CONTRACT TERMS (as saved)", ...clauses.map(termLine)]
           : ["", SUMMARY_OFFER]),
       ];
-      return { ...text(lines.join("\n")), structuredContent: { include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })), contract_value: showMoney ? picked.amount : null, contract_value_display: showMoney && picked.amount != null ? contractValueLine(picked.amount, picked.source, true) : null, contract_value_source: showMoney ? picked.source : null, substantial_completion: completion, board_links: boardLinks } };
+      // With clauses on file, the card is built from the clause rows: one card per clause, exact wording.
+      const card = cl.length
+        ? contractTermsCard({
+            job: named(job),
+            clauses: cl,
+            valueDisplay: contractValueLine(picked.amount, picked.source, showMoney),
+            completion,
+            missing: missingNotices(cl).map((m) => `Missing: ${m.label} (${missingNoticeNote(true)})`),
+            flags,
+            askSummary: !withSummary,
+            summary: withSummary ? [...notice.lines, ...clauses.map(termLine)] : undefined,
+            boardLinks,
+          })
+        : undefined;
+      return { ...text(lines.join("\n")), structuredContent: { ...(card ? { card } : {}), include_summary: withSummary, clauses: withSummary ? clauses : [], flags, notice_requirements: { status: notice.status, missing: notice.missing }, contract_clauses: cl.map((c) => ({ section: c.section, heading: c.heading, category: c.category, source: c.source, n_days: c.n_days, day_type: c.day_type, trigger: c.trigger_desc })), contract_value: showMoney ? picked.amount : null, contract_value_display: showMoney && picked.amount != null ? contractValueLine(picked.amount, picked.source, true) : null, contract_value_source: showMoney ? picked.source : null, substantial_completion: completion, board_links: boardLinks } };
     }),
 });
 
@@ -1692,6 +1707,17 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           footer: sovLayout(brand).footer,
           layout: sovLayout(brand),
         },
+        // Card drawn from the rows, every line (the inferred card stopped at eight text lines).
+        card: sovCard({
+          job: named(job),
+          rows: sovLineRows(sov),
+          divisions: sov.summary.divisions.map((d) => ({ division: d.division, title: d.title, scheduled_value_display: money(d.scheduled_value), pct_of_contract: d.pct_of_contract })),
+          fee: sov.summary.fee > 0 ? { display: money(sov.summary.fee), pct: sov.summary.fee_pct } : null,
+          totalDisplay: money(sov.summary.contract_total),
+          basis: jr.data?.sov_basis ?? null,
+          audience,
+          view,
+        }),
         // 0.8.7: the host draws this bar chart (scheduled value by line) in the fixed palette, every host.
         chart: sovChart(sovLineRows(sov)),
         // 0.8.8: same three delivery options (project software, Excel/PDF email, shared link) for every audience.
@@ -1701,7 +1727,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
       },
     },
     "To produce the SOV file, use structuredContent.sov exactly: numbers, column set and layout recipe come from the server. Do not recompute or reorder.",
-    `Present the SOV as a spreadsheet with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only. REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.${audience === "client" ? " This is the owner/client SOV: offer options 1 and 2 only; never offer a chat link." : ""}`,
+    `${SOV_PRESENTATION_LEAD} with the line-item view by default (structuredContent.sov.line_items: line no., cost code, division, description, scheduled value, % of total, then the total that ties to the contract sum). Always include a Cost Code column right after the line no., filled from line_items cost_code (e.g. 26-010); never show the item number in its place. Money with cents everywhere, exactly as in the visible text and the *_display fields (e.g. $1,400,000.00); never round or drop the .00. Do not put a date sweep or any other block before the SOV. Claude: an artifact table built from this result with no tool calls inside it; ChatGPT: a canvas or table; elsewhere: a table plus an offer to create an Excel file. Table style: ${SOV_TABLE_STYLE} Colors: blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most ONE line. The logo, footer gaps (structuredContent.sov.notes), billing note and the division roll-up offer only when the member asks. Line items carry cost_code and spec_section; keep both columns in any file. Chart colors: ${CHART_PALETTE.join(", ")} only.`,
+    `REQUIRED: end the reply with the SOV delivery question below, word for word, in every host including Claude.${audience === "client" ? " This is the owner/client SOV: offer options 1 and 2 only; never offer a chat link." : ""}`,
     SOV_CHART_RULE,
     sovDeliveryBlock(audience),
     EMAIL_CONTACT_RULE,
