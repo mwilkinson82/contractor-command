@@ -54,8 +54,10 @@ import {
   drawingTooBigMessage,
   drawingRecords,
   drawingOwned,
+  DrawingSheetIndexRequired,
   keepDrawingPaths,
   indexStoredDrawingSet,
+  readStoredDrawingSet,
   loadSheetPages,
   storedSheet,
   sheetsForMarkup,
@@ -1190,53 +1192,83 @@ function drawingReply(card: CardModel, extra: Record<string, JsonValueInput> = {
   };
 }
 
+function storedDrawingReply(job: { job_number: string; company_id: string; job_id: string; name: string }, stored: Awaited<ReturnType<typeof storeDrawingSet>>, requestedSheet?: string) {
+  const sheets = stored.sheets ?? [];
+  const needsIndex = !sheets.length || (stored.pageCount != null && sheets.length !== stored.pageCount);
+  const context = { job_number: job.job_number, company_id: job.company_id, source_id: stored.record.id };
+  return drawingReply({
+    state: needsIndex ? "ask" : "result",
+    title: needsIndex ? "Drawing stored — sheet names needed" : stored.duplicate ? "Drawing set recognized" : "Drawing set stored",
+    job: named(job),
+    kpis: [{ label: "Source revision", value: String(stored.record.version) }, { label: "Indexed sheets", value: String(sheets.length) }, ...(stored.pageCount ? [{ label: "PDF pages", value: String(stored.pageCount) }] : [])],
+    sections: [{ heading: "Drawing set", kind: "list", rows: [
+      { cells: [stored.name, stored.duplicate ? "Identical PDF already stored; no second file uploaded." : "PDF copied into secure job storage."] },
+      { cells: ["Source file", "Unchanged"] },
+      ...(stored.record.source_url ? [{ cells: ["Original source link"], href: stored.record.source_url }] : []),
+    ] }, ...(sheets.length ? [{ heading: "Sheet index", kind: "list" as const, rows: sheets.map((sheet, i) => ({ cells: [sheet, `PDF page ${i + 1}`] })) }] : [])],
+    ...(needsIndex ? { ask: { prompt: `What are the ${stored.pageCount ?? "PDF"} sheet names, in PDF page order? Save the answer once below; this PDF is already stored.` } } : {}),
+    next_move: needsIndex ? "Sheet names are needed before this set can be marked up. No older drawing was substituted; no re-upload is needed." : "Choose a stored sheet below to inspect it before markup.",
+  }, {
+    stored: true, index_synced: true, source: stored.record as unknown as JsonValueInput,
+    source_id: stored.record.id, duplicate: stored.duplicate, sheet_index_required: needsIndex,
+    page_count: stored.pageCount ?? null, drawing_source_context: context,
+    ...(needsIndex ? { sheet_index_context: { ...context, page_count: stored.pageCount ?? null } } : {}),
+    ...(requestedSheet ? { requested_sheet: requestedSheet } : {}),
+  });
+}
+
 export const drawingSetImport = defineTool({
   name: "drawing_set_import",
   title: "Store a drawing set",
-  description: "Stores an attached drawing PDF, recognizes identical files and indexes sheets, or opens the direct PDF upload card when the host cannot forward an attachment without passing base64 through the model, with Drive/Dropbox links optional.",
+  description: "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional.",
   inputSchema: {
     job_number: jobNumber, company_id: companyId, drawing: drawingUpload, file: drawingFile,
     stored_filename: z.string().trim().min(1).max(200).optional(),
+    source_id: z.string().uuid().optional(),
     sheets: z.array(z.string().trim().min(1).max(40)).min(1).max(400).optional(),
   },
   annotations: { ...SAVE, openWorldHint: true },
   handler: (args, ctx) => run("drawing_set_import", ctx, { jobNumber: args.job_number }, async (sb) => {
     let uploadContext: { job_number: string; company_id: string } | undefined;
     let imported: Awaited<ReturnType<typeof storeDrawingSet>> | undefined;
+    let selectedStored: { job: Awaited<ReturnType<typeof resolveJob>>; source: Awaited<ReturnType<typeof drawingRecords>>[number] } | undefined;
     try {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       uploadContext = { job_number: job.job_number, company_id: job.company_id };
       const prior = await load(sb, job.job_id);
       const upload = drawingWithFile(args.drawing, args.file, args.sheets);
       let indexed: Awaited<ReturnType<typeof storeDrawingSet>> | undefined;
-      if (args.stored_filename) {
-        if (upload || !args.sheets?.length) throw new ToolError("To index a stored set, give its filename and sheets in PDF page order, without another upload.");
+      if (args.source_id || args.stored_filename) {
+        if (upload) throw new ToolError("Choose a stored source or a new upload, not both. Nothing was changed.");
+        if (!args.source_id && !args.sheets?.length) throw new ToolError("To index a stored set, give its filename and sheets in PDF page order, without another upload.");
         const same = (name: string) => name.toLowerCase() === args.stored_filename!.toLowerCase();
         const records = await drawingRecords(sb, job);
-        const record = records.find((row) => same(row.filename));
-        const legacy = prior.setup.documents.find((doc) => same(doc.name));
+        const record = records.find((row) => args.source_id ? row.id === args.source_id : same(row.filename));
+        const legacy = args.source_id ? undefined : prior.setup.documents.find((doc) => same(doc.name));
         const path = record?.path ?? legacy?.path;
-        if (!path || !drawingOwned(path, job.company_id, job.job_id)) throw new ToolError("That drawing set is not stored on this job. Choose a stored filename.");
-        indexed = await indexStoredDrawingSet(sb, job, { path, filename: record?.filename ?? legacy!.name, sheets: args.sheets, record });
+        if (!path || !drawingOwned(path, job.company_id, job.job_id)) throw new ToolError("That drawing source is not stored on this job. No other set was selected.");
+        if (record) selectedStored = { job, source: record };
+        if (args.source_id && record && !args.sheets?.length)
+          return storedDrawingReply(job, await readStoredDrawingSet(sb, job, record));
+        indexed = await indexStoredDrawingSet(sb, job, { path, filename: record?.filename ?? legacy!.name, sheets: args.sheets!, record, complete: !!args.source_id });
       }
       if (!upload && !indexed) return drawingReply({ state: "ask", title: "Store your drawing PDF", job: named(job), sections: [{ heading: "Direct upload", kind: "list", rows: [{ cells: ["Choose the PDF in this card, then store it on this job.", "Up to 50 MB. A Drive or Dropbox link is optional. No drawing has been stored by this request."] }] }] }, { stored: false, upload_context: uploadContext });
       const stored = indexed ?? await storeDrawingSet(sb, job, upload!, prior.setup.documents);
       imported = stored;
       // Registry is authoritative. Keep the #190 document index in sync for takeoff reads.
       await rpc(sb, "mcp_estimate_setup_save", { _job: job.job_id, _patch: { documents: withDrawingPath(prior.setup.documents, stored) } });
-      return drawingReply({
-        state: "result", title: stored.duplicate ? "Drawing set recognized" : "Drawing set stored", job: named(job),
-        kpis: [{ label: "Source revision", value: String(stored.record.version) }, { label: "Indexed sheets", value: String(stored.sheets?.length ?? 0) }],
-        sections: [{ heading: "Drawing set", kind: "list", rows: [
-          { cells: [stored.name, stored.duplicate ? "Identical PDF already stored; no second file uploaded." : "PDF copied into secure job storage."] },
-          { cells: ["Source file", "Unchanged"] },
-          ...(stored.record.source_url ? [{ cells: ["Original source link"], href: stored.record.source_url }] : []),
-        ] }],
-        next_move: stored.sheets?.length ? `Name a sheet to mark up, such as ${stored.sheets[0]}. Why it matters: Athena opens the saved sheet without another upload.` : "Provide sheet names in PDF page order. Why it matters: Athena needs an exact sheet-to-page index before marking up a drawing.",
-      }, { stored: true, index_synced: true, source: stored.record as unknown as JsonValueInput, duplicate: stored.duplicate });
+      return storedDrawingReply(job, stored);
     } catch (e) {
       if (e instanceof WhichCompanyAsk) throw e;
       if (imported) return drawingReply({ state: "result", title: "Drawing stored; takeoff index needs a retry", sections: [{ heading: "Stored source", kind: "list", rows: [{ cells: [imported.name, "The original PDF and its source record are stored. The legacy takeoff index could not be updated."] }, { cells: ["Open this stored source for markup; a new upload is not needed."] }] }] }, { stored: true, index_synced: false, source: imported.record as unknown as JsonValueInput, duplicate: imported.duplicate });
+      if (selectedStored) {
+        const source = selectedStored.source;
+        const result = storedDrawingReply(selectedStored.job, { name: source.filename, path: source.path, sheets: source.sheets, record: source, duplicate: true });
+        const message = errorMessage(e, "The sheet index could not be changed. No re-upload is needed.");
+        result.structuredContent.card.sections?.unshift({ heading: "Sheet index not changed", kind: "list", rows: [{ cells: [message] }] });
+        const { card, html: _html, ...facts } = result.structuredContent;
+        return drawingReply(card, { ...facts, index_synced: false, index_error: message });
+      }
       const failed = errorCard("Drawing set", errorMessage(e, "The drawing could not be imported."));
       return { ...failed, structuredContent: { ...failed.structuredContent, stored: false, import_failed: true, ...(uploadContext ? { upload_context: uploadContext } : {}) } };
     }
@@ -1260,7 +1292,14 @@ export const drawingMarkup = defineTool({
     try {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
-      const source = await storedSheet(sb, job, prior.setup.documents, args.sheet, { sourceId: args.source_id, filename: args.source_filename });
+      let source: Awaited<ReturnType<typeof storedSheet>>;
+      try {
+        source = await storedSheet(sb, job, prior.setup.documents, args.sheet, { sourceId: args.source_id, filename: args.source_filename });
+      } catch (e) {
+        if (e instanceof DrawingSheetIndexRequired)
+          return storedDrawingReply(job, await readStoredDrawingSet(sb, job, e.record), args.sheet);
+        throw e;
+      }
       const annotations = args.annotations ?? savedDrawingAnnotations(source.sheet, prior.lines, prior.gaps);
       if (annotations.length > 100) throw new ToolError("This sheet has over 100 findings. Select up to 100 annotations for each markup version.");
       const needsSource = !args.source_id && !args.source_filename;
@@ -1275,6 +1314,7 @@ export const drawingMarkup = defineTool({
           source_selection_required: needsSource,
           sheet: source.sheet, page: source.page,
           job_number: job.job_number, company_id: job.company_id,
+          drawing_source_context: { job_number: job.job_number, company_id: job.company_id, source_id: source.record.id },
           drawing_annotations: annotations as unknown as JsonValueInput,
         }, source.png);
       }
@@ -1282,6 +1322,7 @@ export const drawingMarkup = defineTool({
       return drawingReply(drawingMarkupCard(named(job), source.record, source.sheet, annotations, saved), {
         saved: true, markup: saved.record as unknown as JsonValueInput,
         source: source.record as unknown as JsonValueInput, original_unchanged: true,
+        drawing_source_context: { job_number: job.job_number, company_id: job.company_id, source_id: source.record.id },
       }, saved.png);
     } catch (e) {
       if (e instanceof WhichCompanyAsk) throw e;
