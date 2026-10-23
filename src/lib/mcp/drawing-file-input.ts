@@ -28,5 +28,10 @@ export function drawingWithFile(
     throw new ToolError(
       "Provide one drawing source: the attached file, PDF bytes, or a source link. Nothing was stored.",
     );
-  return { ...drawing, file, sheets: drawing?.sheets ?? sheets };
+  return {
+    ...drawing,
+    filename: drawing?.filename ?? file.file_name ?? "drawing-set.pdf",
+    file,
+    sheets: drawing?.sheets ?? sheets,
+  };
 }
