@@ -1,6 +1,7 @@
 import { plainLabel, rowPlain } from "../plain-label";
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, isAlertLevel } from "./palette";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
+import { responsiveCardCss } from "./responsive";
 
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -71,14 +72,13 @@ export function renderHtml(card: CardModel): string {
     `th{background:${blue};color:${white};text-align:left;padding:6px 8px;font-size:12px}`,
     `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
     `.table-wrap{overflow-x:auto}.card td,.card th{overflow-wrap:break-word}td.num{white-space:nowrap;text-align:right}`,
-    // Phones: each row stacks into label / value pairs so money columns never sit off screen.
-    `@media (max-width:520px){.table-wrap table,.table-wrap tbody,.table-wrap tr,.table-wrap td{display:block;width:auto}.table-wrap thead{display:none}.table-wrap tr{padding:6px 0;border-bottom:1px solid ${gray}}.table-wrap td{display:flex;gap:8px;border-bottom:0;padding:2px 8px;text-align:left}.table-wrap td[data-label]::before{content:attr(data-label);flex:0 0 112px;color:${gray};font-size:12px}.table-wrap td.blank{display:none}}`,
     `a{color:${blue};text-decoration:none}`,
     `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${gray}}`,
     `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray};color:${navy}}`,
     `.tone-known{border-color:${blue};color:${blue}}`,
     `.tone-unknown{color:${gray}}`,
     `.tone-action{background:${blue};color:${white};border-color:${blue}}`,
+    `.chip.tone-action a{color:inherit}`,
     `.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue};background:${white}}`,
     `.placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px;background:${white}}`,
     `.placeholder h2{margin-top:0;color:${navy}}`,
@@ -101,6 +101,7 @@ export function renderHtml(card: CardModel): string {
     alert ? `tr.alert td{border:2px solid ${alertColor}}` : "",
     alert ? `.framed.alert{border:2px solid ${alertColor};color:${navy}}` : "",
     alert ? `.framed.alert h2{background:${alertColor};color:${white};border-bottom:0}` : "",
+    responsiveCardCss(alert),
   ]
     .filter(Boolean)
     .join("");
@@ -166,5 +167,5 @@ export function renderHtml(card: CardModel): string {
   const next = card.next_move ? `<p class="next">Next move: ${esc(card.next_move)}</p>` : "";
   const eyebrow = card.show_state === false ? "" : `<p class="eyebrow">${esc(STATE_LABEL[card.state])}</p>`;
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(card.title)}</title><style>${css}</style></head><body><article class="card" data-state="${card.state}"><header><p class="mark">Athena</p><h1>${esc(card.title)}</h1>${card.job ? `<p class="job">${esc(card.job)}</p>` : ""}</header><div class="body">${eyebrow}${progress}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${ask}${sections}${alerts}${next}</div></article></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(card.title)}</title><style>${css}</style></head><body><article class="card" data-state="${card.state}"><header><p class="mark">Athena</p><h1>${esc(card.title)}</h1>${card.job ? `<p class="job">${esc(card.job)}</p>` : ""}</header><div class="body">${eyebrow}${progress}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${ask}${sections}${alerts}${next}</div></article></body></html>`;
 }

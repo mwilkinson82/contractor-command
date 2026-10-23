@@ -1,6 +1,7 @@
 // ChatGPT MCP Apps card. Same shape as the team picker (ui:// resource, outputTemplate,
 // HTML stays out of the tool text). This one paints whatever card the tool put on structuredContent.card.
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
+import { responsiveCardCss } from "./responsive";
 
 export const CARD_WIDGET_URI = "ui://athena/card.html";
 export const CARD_WIDGET_MIME = "text/html+skybridge";
@@ -102,7 +103,7 @@ export function cardWidgetHtml(): string {
   const gray = cssColor(GRAY, "#6B7280");
   const white = cssColor(WHITE, "#FFFFFF");
   const alert = cssColor(ALERT, "#DC2626");
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
 body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}
 .stack{display:flex;flex-direction:column;gap:12px}
 .card{border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}
@@ -120,9 +121,9 @@ th{background:${blue};color:${white};text-align:left;padding:6px 8px}
 .table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}
 td{padding:6px 8px;border-bottom:1px solid ${gray}}
 .table-wrap{overflow-x:auto}td.num{white-space:nowrap;text-align:right}
-@media (max-width:520px){.table-wrap table,.table-wrap tbody,.table-wrap tr,.table-wrap td{display:block;width:auto}.table-wrap thead{display:none}.table-wrap tr{padding:6px 0;border-bottom:1px solid ${gray}}.table-wrap td{display:flex;gap:8px;border-bottom:0;padding:2px 8px;text-align:left}.table-wrap td[data-label]::before{content:attr(data-label);flex:0 0 112px;color:${gray};font-size:12px}.table-wrap td.blank{display:none}}
 .chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
 .tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
+.chip.tone-action a{color:inherit}
 a{color:${blue};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}
@@ -146,6 +147,7 @@ tr.alert td{border:2px solid ${alert}}
 .tone-quote{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap}
 .framed.alert{border:2px solid ${alert};color:${navy}}
 .framed.alert h2{background:${alert};color:${white};border-bottom:0}
+${responsiveCardCss(true)}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 

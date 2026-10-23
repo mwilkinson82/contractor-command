@@ -2,9 +2,19 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
-import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
+import {
+  brandInitializeResponse,
+  serverInfoRequestIds,
+  isMcpPost,
+} from "./lib/mcp/server-info-branding";
 import { nativeCardResponse, nativeCardVisit } from "./lib/mcp/native-card-transport";
-import { beginCardTiming, markSdkDone, timingFields } from "./lib/mcp/card-timing";
+import {
+  beginCardTiming,
+  markSdkStarted,
+  markSdkDone,
+  timingFields,
+  type CardTiming,
+} from "./lib/mcp/card-timing";
 import { isTrustedHost } from "./lib/trusted-hosts";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
 import { supabaseForToken } from "./lib/mcp/supabase";
@@ -31,6 +41,21 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
+// Observe every MCP request before membership checks and card filtering. WeakMap keeps
+// simultaneous requests separate without adding identifiers or changing their headers.
+const mcpRequestTimings = new WeakMap<Request, CardTiming>();
+const mcpRequestTiming = createMiddleware().server(async ({ next, request }) => {
+  const startedAt = Date.now();
+  const path = new URL(request.url).pathname;
+  if (path !== "/mcp" && !path.startsWith("/mcp/")) return next();
+  mcpRequestTimings.set(request, beginCardTiming(startedAt));
+  try {
+    return await next();
+  } finally {
+    mcpRequestTimings.delete(request);
+  }
+});
+
 /**
  * Same-origin CSRF guard for state-changing requests.
  *
@@ -48,10 +73,7 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   }
 
   const url = new URL(request.url);
-  if (
-    url.pathname.startsWith("/api/public/") ||
-    url.pathname.startsWith("/lovable/")
-  ) {
+  if (url.pathname.startsWith("/api/public/") || url.pathname.startsWith("/lovable/")) {
     return next();
   }
 
@@ -65,11 +87,7 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   // Sec-Fetch-Site is set by all modern browsers and cannot be forged by
   // cross-site attackers. Trust it as the primary signal.
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (
-    fetchSite === "same-origin" ||
-    fetchSite === "same-site" ||
-    fetchSite === "none"
-  ) {
+  if (fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none") {
     return next();
   }
 
@@ -101,7 +119,8 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
 async function hasToolCall(request: Request): Promise<boolean> {
   if (request.method.toUpperCase() !== "POST") return false;
   try {
-    const parsed = JSON.parse(await request.clone().text()) as { method?: string } | { method?: string }[];
+    const parsed = JSON.parse(await request.clone().text()) as
+      { method?: string } | { method?: string }[];
     const list = Array.isArray(parsed) ? parsed : [parsed];
     return list.some((m) => m?.method === "tools/call");
   } catch {
@@ -124,12 +143,15 @@ const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) =
   try {
     ent = await checkAthenaEntitlement(supabaseForToken(authz.slice(7).trim()));
   } catch {
-    console.info("[athena] mcp.entitlement", { ms: Date.now() - startedAt, outcome: "check-failed" });
+    console.info("[athena] mcp.entitlement", {
+      ms: Date.now() - startedAt,
+      outcome: "check-failed",
+    });
     return next();
   }
   console.info("[athena] mcp.entitlement", {
     ms: Date.now() - startedAt,
-    outcome: !ent.allowed && ent.reason === "no_entitlement" ? "denied" : "allowed",
+    outcome: ent.allowed ? "allowed" : ent.reason === "no_entitlement" ? "denied" : "check-failed",
   });
   if (!ent.allowed && ent.reason === "no_entitlement") {
     return new Response(JSON.stringify({ error: "forbidden", message: NO_ENTITLEMENT_MESSAGE }), {
@@ -141,14 +163,14 @@ const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) =
 });
 
 /**
- * Athena icon on the MCP initialize response (serverInfo.icons / websiteUrl).
- * Runs after the entitlement gate; only a 200 initialize result is rewritten.
+ * Athena branding in legacy serverInfo and modern result identity metadata.
+ * Runs after the entitlement gate; only existing identity on a 200 reply is supplemented.
  */
 const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }) => {
   if (!isMcpPost(request)) return next();
   let ids: unknown[] = [];
   try {
-    ids = initializeRequestIds(await request.clone().text());
+    ids = serverInfoRequestIds(await request.clone().text());
   } catch {
     ids = [];
   }
@@ -164,20 +186,31 @@ const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }
 const mcpNativeCardPresentation = createMiddleware().server(async ({ next, request }) => {
   // Presentation must never turn a successful SDK response into an application failure.
   const visit = await nativeCardVisit(request).catch(() => null);
-  const timing = visit ? beginCardTiming() : undefined;
+  const timing = mcpRequestTimings.get(request);
+  if (visit && timing) markSdkStarted(timing);
   const result = await next();
   if (!visit) return result;
   if (timing) markSdkDone(timing);
   try {
     return { ...result, response: await nativeCardResponse(result.response, visit, timing) };
   } catch (error) {
-    console.info("[athena] card.presentation", { outcome: "failed", ...timingFields(timing), error: error instanceof Error ? error.name : "unknown" });
+    console.info("[athena] card.presentation", {
+      outcome: "failed",
+      ...timingFields(timing),
+      error: error instanceof Error ? error.name : "unknown",
+    });
     return result;
   }
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, mcpEntitlementGate, mcpServerInfoBranding, mcpNativeCardPresentation, csrfOriginGuard],
+  requestMiddleware: [
+    errorMiddleware,
+    mcpRequestTiming,
+    mcpEntitlementGate,
+    mcpServerInfoBranding,
+    mcpNativeCardPresentation,
+    csrfOriginGuard,
+  ],
   functionMiddleware: [attachSupabaseAuth],
 }));
-
