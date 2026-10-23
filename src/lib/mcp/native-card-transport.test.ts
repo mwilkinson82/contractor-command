@@ -226,6 +226,23 @@ describe("native card presentation after the SDK", () => {
       }),
     );
   });
+  it("gives both morning tools the native card in Claude and keeps their ChatGPT template", async () => {
+    const input = result({
+      tools: [
+        { name: "pm_morning", _meta: { "openai/outputTemplate": CARD_WIDGET_URI } },
+        { name: "athena_morning_hitlist", _meta: { "openai/outputTemplate": CARD_WIDGET_URI } },
+      ],
+    });
+    const { value } = await transform("tools/list", {}, input);
+    const tools = (value as { result: { tools: { name: string; _meta: Record<string, any> }[] } })
+      .result.tools;
+    for (const name of ["pm_morning", "athena_morning_hitlist"]) {
+      const tool = tools.find((t) => t.name === name)!;
+      expect(tool._meta.ui.resourceUri).toBe(NATIVE_CARD_URI);
+      expect(NATIVE_CARD_URI).toBe("ui://athena/native-card.html");
+      expect(tool._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
+    }
+  });
   it("repairs a missing static native resource handler and discovery, never the ChatGPT widget", async () => {
     const read = await transform("resources/read", { uri: NATIVE_CARD_URI }, missing);
     expect(read.value).toMatchObject(
