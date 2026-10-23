@@ -1,6 +1,9 @@
 /** Card discovery/resource presentation after the SDK. Does not authorize requests.
  *  tools/call text for lookahead_get and list_open_items drops the inline HTML document
- *  when the host did not advertise a card. structuredContent, widget template, and resource URI stay. */
+ *  when the host did not advertise a card. structuredContent, widget template, and resource URI stay.
+ *  Grok Bot prints tool text to the member. Render orders on the contract, SOV, morning brief,
+ *  morning meeting and drawing markup move from that text into structuredContent.assistant_guidance.
+ *  ChatGPT and Claude results are not rewritten by that pass, so their cards stay byte-identical. */
 import {
   NATIVE_CARD_MIME,
   NATIVE_CARD_TOOLS,
@@ -32,6 +35,7 @@ type Call = {
   modern: boolean;
   inlineHtml: boolean;
   claude: boolean;
+  grok: boolean;
 };
 type Visit = { calls: Call[]; acceptsJson?: boolean };
 type Host = { name: string; capabilities: unknown };
@@ -45,8 +49,29 @@ const isCardUri = (uri: unknown): uri is string => typeof uri === "string" && ur
 /** Tools that open on a card view, with the `_meta.ui` each advertises. */
 const cardMetaFor = (name: string) => (EMAIL_CARD_TOOLS.has(name) ? emailCardMeta.ui : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta.ui : null);
 
-/** Session id from initialize → whether that client can show a card, and whether it is Claude. Same isolate only. */
-const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean }>();
+/** Session id from initialize → whether that client can show a card, and whether it is Claude or Grok. Same isolate only. */
+const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean; grok: boolean }>();
+
+/**
+ * Replies whose plain text still carries render orders Grok Bot would show.
+ * Contract, SOV (report) and the morning brief are already native-card tools.
+ * Morning meeting and drawing markup are visited only for this Grok pass.
+ * They are not added to NATIVE_CARD_TOOLS. ChatGPT and Claude payloads stay put.
+ */
+const GROK_PLAIN_TOOLS = new Set([
+  "contract_terms",
+  "report",
+  "morning_brief",
+  "pm_morning",
+  "pm_meeting",
+  "pm_evening",
+  "athena_morning_hitlist",
+  "athena_hello",
+  "drawing_markup",
+]);
+/** Lines Grok Bot would show the member. Matched on a whole line, outside fenced member text. */
+const GROK_INSTRUCTION_LINE =
+  /^(?:REQUIRED VIEW\b.*|REQUIRED: Any email card\b.*|Card shown\. Do not add text(?:; wait for the user's pick)?\.?)$/;
 
 function hasUiCapability(capabilities: unknown): boolean {
   const caps = obj(capabilities);
@@ -62,6 +87,48 @@ function hasUiCapability(capabilities: unknown): boolean {
 /** Claude gets a facts-only reply on native card tools; the card view draws the HTML. */
 export function isClaudeHost(host: Host | null): boolean {
   return !!host && /claude|anthropic/i.test(host.name);
+}
+
+/** Grok Bot shows tool text. "Grok Bot" and a Grok user-agent both count. */
+export function isGrokHost(host: Host | null): boolean {
+  return !!host && /grok/i.test(host.name);
+}
+
+/** Pull render orders out of the text Grok shows. The HTML document in that text is not edited. */
+export function relocateGrokInstructionText(text: string): { text: string; moved: string[] } {
+  const moved: string[] = [];
+  const next = outsideFencedBlocks(text, (part) =>
+    part
+      .split("\n")
+      .filter((line) => {
+        const trimmed = line.trim();
+        if (!GROK_INSTRUCTION_LINE.test(trimmed)) return true;
+        moved.push(trimmed);
+        return false;
+      })
+      .join("\n"),
+  );
+  return { text: next, moved };
+}
+
+function relocateGrokInstructions(result: Obj): Obj | null {
+  if (!Array.isArray(result.content)) return null;
+  const moved: string[] = [];
+  let changed = false;
+  const content = result.content.map((block) => {
+    const row = obj(block);
+    if (!row || row.type !== "text" || typeof row.text !== "string") return block;
+    const out = relocateGrokInstructionText(row.text);
+    if (!out.moved.length) return block;
+    changed = true;
+    moved.push(...out.moved);
+    return { ...row, text: out.text };
+  });
+  if (!changed) return null;
+  const sc = obj(result.structuredContent) ?? {};
+  const prior = Array.isArray(sc.assistant_guidance) ? [...sc.assistant_guidance] : [];
+  for (const line of moved) if (!prior.includes(line)) prior.push(line);
+  return { ...result, content, structuredContent: { ...sc, assistant_guidance: prior } };
 }
 
 /** ChatGPT and Claude count as card hosts. Anyone else needs an advertised UI capability. */
@@ -111,7 +178,7 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       params = obj(call?.params) ?? {};
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
-    if (method === "tools/call" && !cardMetaFor(String(params.name ?? ""))) continue;
+    if (method === "tools/call" && !cardMetaFor(String(params.name ?? "")) && !GROK_PLAIN_TOOLS.has(String(params.name ?? ""))) continue;
     if (
       ![
         "initialize",
@@ -135,6 +202,7 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       params,
       inlineHtml: remembered?.inlineHtml ?? hostInlinesCard(host),
       claude: remembered?.claude ?? isClaudeHost(host),
+      grok: remembered?.grok ?? isGrokHost(host),
       modern:
         String(
           meta?.["io.modelcontextprotocol/protocolVersion"] ??
@@ -264,6 +332,17 @@ export function nativeCardPayload(
       });
       if (edited) next = { ...result, content };
     } else if (
+      call.method === "tools/call" &&
+      result &&
+      result.isError !== true &&
+      call.grok &&
+      GROK_PLAIN_TOOLS.has(String(call.params.name ?? "")) &&
+      Array.isArray(result.content)
+    ) {
+      // Grok only. ChatGPT stays the original object. Claude keeps claudeCardReply above.
+      const relocated = relocateGrokInstructions(result);
+      if (relocated) next = relocated;
+    } else if (
       call.method === "resources/read" &&
       isCardUri(call.params.uri) &&
       missingMethod
@@ -292,7 +371,8 @@ export function nativeCardPayload(
 function rememberCardSession(response: Response, visit: Visit | null) {
   const id = response.headers.get("mcp-session-id");
   const init = visit?.calls.find((call) => call.method === "initialize");
-  if (id && init) cardSessions.set(id, { inlineHtml: init.inlineHtml, claude: init.claude });
+  if (id && init)
+    cardSessions.set(id, { inlineHtml: init.inlineHtml, claude: init.claude, grok: init.grok });
 }
 
 export async function nativeCardResponse(
