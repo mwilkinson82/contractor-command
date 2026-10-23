@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
@@ -40,7 +40,7 @@ beforeAll(async () => {
   db = await makeDb();
   await db.exec(readFileSync("supabase/migrations/20261022200000_athena_estimating.sql", "utf8"));
   await db.exec(
-    readFileSync("supabase/migrations/20261027120000_athena_drawing_versions.sql", "utf8"),
+    readFileSync("supabase/migrations/20261027130000_athena_drawing_versions.sql", "utf8"),
   );
   for (const id of [owner, outsider, estimator, superId]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [id, claims(id).email]);
@@ -75,6 +75,11 @@ afterAll(async () => {
 });
 
 describe("drawing version migration, real Postgres permissions", () => {
+  it("has no duplicate migration version alongside the current Athena migrations", () => {
+    const names = readdirSync("supabase/migrations").filter((name) => name.endsWith(".sql"));
+    const versions = names.map((name) => name.split("_")[0]);
+    expect(new Set(versions).size).toBe(versions.length);
+  });
   it("deduplicates source identity, revisions changed bytes, keeps all originals and source links", async () => {
     const first = await save();
     const repeat = await save();
