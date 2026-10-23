@@ -184,14 +184,16 @@ export function mergeBriefJobs(listed: { job_number: string; name: string | null
   return merged;
 }
 
-async function fillOpenItems(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
+export type BriefJobScope = { job_id: string; job_number: string; company_id: string };
+
+async function fillOpenItems(sb: Sb, jobs: BriefJob[], scope?: BriefJobScope): Promise<BriefJob[]> {
   // The feed already returned items for jobs it found. This query is only for a stub the feed dropped.
   const stubs = jobs.filter((job) => !job.job_id);
   if (!stubs.length) return jobs;
   const numbers = [...new Set(stubs.map((job) => job.job_number).filter(Boolean))];
   if (!numbers.length) return jobs;
   try {
-    const found = await sb.from("mcp_jobs").select("id, job_number").in("job_number", numbers);
+    const found = scope ? { data: [{ id: scope.job_id, job_number: scope.job_number }], error: null } : await sb.from("mcp_jobs").select("id, job_number").in("job_number", numbers);
     if (found.error || !Array.isArray(found.data)) return jobs;
     const idOf = new Map((found.data as { id: string; job_number: string }[]).map((row) => [row.job_number, row.id]));
     const ids = [...idOf.values()];
@@ -230,7 +232,7 @@ async function fillOpenItems(sb: Sb, jobs: BriefJob[]): Promise<BriefJob[]> {
   }
 }
 
-export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCompany: boolean; jobs: BriefJob[] }> {
+export async function loadBriefJobs(sb: Sb, companyId?: string, scope?: BriefJobScope): Promise<{ hasCompany: boolean; jobs: BriefJob[] }> {
   const cos = await companies(sb);
   if (cos && !cos.length) return { hasCompany: false, jobs: [] };
   void companyId;
@@ -253,7 +255,9 @@ export async function loadBriefJobs(sb: Sb, companyId?: string): Promise<{ hasCo
   }
   // An empty or filtered feed used to return no jobs, so 2701's saved open items never reached the card.
   const names = new Map((cos ?? []).map((company) => [company.id, company.name?.trim() || "Company"]));
-  const named = (await fillOpenItems(sb, mergeBriefJobs(listed, feed))).map((job) => ({
+  const scopedListed = scope ? listed.filter((job) => job.company_id === scope.company_id && job.job_number === scope.job_number) : listed;
+  const scopedFeed = scope ? feed.filter((job) => job.job_id === scope.job_id && job.company_id === scope.company_id) : feed;
+  const named = (await fillOpenItems(sb, mergeBriefJobs(scopedListed, scopedFeed), scope)).map((job) => ({
     ...job,
     company_name: names.get(job.company_id) || job.company_name,
   }));
@@ -269,8 +273,8 @@ async function markBriefShown(sb: Sb): Promise<void> {
   }
 }
 
-export async function loadMorningBrief(sb: Sb, companyId?: string) {
-  const loaded = await loadBriefJobs(sb, companyId);
+export async function loadMorningBrief(sb: Sb, companyId?: string, scope?: BriefJobScope) {
+  const loaded = await loadBriefJobs(sb, companyId, scope);
   let settings: BriefSettings | undefined;
   try {
     const res = await sb.rpc("mcp_morning_brief_settings_get");
@@ -283,7 +287,9 @@ export async function loadMorningBrief(sb: Sb, companyId?: string) {
   try {
     const due = await sb.rpc("mcp_submittal_chase_due");
     if (!due.error && Array.isArray(due.data) && due.data.length) {
-      const rows = chaseBriefRows(due.data as ChaseRow[]);
+      const chases = due.data as ChaseRow[];
+      // The chase feed is global too. Scope by job identity, never by an ambiguous number.
+      const rows = chaseBriefRows(scope ? chases.filter((row) => row.job_id === scope.job_id) : chases);
       const overdue = rows.filter((row) => row.flag === "overdue").length;
       built.card.sections = [...(built.card.sections ?? []), { heading: "Chases", kind: "list", rows }];
       built.card.kpis = [...(built.card.kpis ?? []), { label: "Chases", value: String(rows.length), flag: overdue ? "overdue" : null }];

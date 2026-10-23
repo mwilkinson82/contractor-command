@@ -322,6 +322,28 @@ describe("a second good morning", () => {
 });
 
 describe("job labels and every company", () => {
+  it("limits a named-job brief and chases to its resolved identity, leaving the default portfolio intact", async () => {
+    const rows = [
+      { job_id: "job-2701", job_number: "2701", company_id: "alp", name: "Harbor Point", scope: "full", items: [{ id: "a", action: "Only Harbor Point work" }] },
+      { job_id: "other-2701", job_number: "2701", company_id: "other", name: "Different company's 2701", scope: "full", items: [{ id: "b", action: "Other company work" }] },
+      { job_id: "job-1234", job_number: "1234", company_id: "alp", name: "Riverside", scope: "full", items: [{ id: "c", action: "Riverside work" }] },
+    ];
+    const chase = (job_id: string, title: string) => ({ job_id, number: "001", title, spec_section: "26 05 00", revision: 0, missing: "shop drawing", overdue: false, chase_count: 0 });
+    const sb = {
+      from: (table: string) => ({ select: () => table === "mcp_companies" ? Promise.resolve({ data: [{ id: "alp", name: "ALP" }, { id: "other", name: "Other" }], error: null }) : { maybeSingle: async () => ({ data: null, error: null }), in: async () => ({ data: [], error: null }) } }),
+      rpc: async (fn: string) => ({ data: fn === "mcp_morning_brief_feed" ? rows : fn === "mcp_submittal_chase_due" ? [chase("job-2701", "Harbor chase"), chase("other-2701", "Other company chase"), chase("job-1234", "Riverside chase")] : null, error: null }),
+    };
+    const scope = { job_id: "job-2701", job_number: "2701", company_id: "alp" };
+    const scoped = await loadMorningBrief(sb as never, "alp", scope);
+    const text = renderMarkdown(scoped.structuredContent.card);
+    expect(text).toContain("Harbor Point");
+    expect(text).toContain("Harbor chase");
+    expect(text).toContain("From your inbox and calendar");
+    expect(text).not.toMatch(/Riverside|Other company|Different company's/);
+    const portfolio = await loadMorningBrief(sb as never);
+    expect(renderMarkdown(portfolio.structuredContent.card)).toContain("Riverside");
+    expect(renderMarkdown(portfolio.structuredContent.card)).toContain("Other company chase");
+  });
   it("prints the job number once when the name already starts with it", () => {
     expect(jobTitle({ job_number: "1234", name: "1234 Riverside" })).toBe("1234 Riverside");
     expect(jobTitle({ job_number: "1234", name: "Riverside" })).toBe("1234 Riverside");
