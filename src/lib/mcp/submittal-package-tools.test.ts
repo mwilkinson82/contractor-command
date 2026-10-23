@@ -24,6 +24,7 @@ vi.mock("./tools/submittal-tools", () => ({
 }));
 import { submittalPackage, submittalDelivery } from "./tools/submittal-package-tools";
 import { sha256Hex } from "./file-share";
+import { submittalChase } from "./tools/submittal-chase-tool";
 const owner = "00000000-0000-4000-8000-000000000010",
   company = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   job = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -45,7 +46,9 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
           package?: { id: string; download_url: string; page_count: number; approved: boolean };
           card: { sections: { rows: { href?: string }[] }[] };
           delivery_id?: string;
-          draft_key?: string;
+          draft_key?: string | null;
+          draft?: { to: string; body: string };
+          preview_only?: boolean;
         };
       }>;
     }
@@ -65,7 +68,13 @@ async function create(number: string) {
         status: "in_prep",
         ball_in_court: "gc",
         package_items: [
-          { kind: "product_cut", source_party: "Example Manufacturer", required: true },
+          {
+            kind: "product_cut",
+            source_party: "Example Manufacturer",
+            required: true,
+            chase_name: "Fictional Supplier",
+            chase_email: "supplier@example.com",
+          },
           { kind: "shop_drawing", source_party: "Example Sub", required: true },
         ],
       }),
@@ -141,6 +150,37 @@ afterAll(async () => {
   await db?.close();
 });
 describe("real package handlers with local DB and immutable storage", () => {
+  it("previews without writing, then saves the exact chase draft before asking for approval", async () => {
+    const sid = await create("INTEGRATION-CHASE"),
+      ctx = await saved(sid);
+    const args = {
+      job_number: "2701",
+      submittal_id: sid,
+      package_item_id: ctx.items.find((item: { kind: string }) => item.kind === "product_cut").id,
+    };
+    const before = (await query("SELECT count(*)::int n FROM mcp_submittal_mail"))[0].n;
+    const preview = await call(submittalChase, { ...args, preview_only: true });
+    expect(preview.structuredContent.draft?.to).toBe("supplier@example.com");
+    expect(preview.structuredContent.delivery_id).toBeNull();
+    expect(preview.structuredContent.draft_key).toBeNull();
+    expect(preview.structuredContent.preview_only).toBe(true);
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_mail"))[0].n).toBe(before);
+    const draft = await call(submittalChase, args);
+    const data = draft.structuredContent;
+    expect(data.delivery_id).toBeTruthy();
+    expect(data.draft_key).toBeTruthy();
+    const row = (
+      await query("SELECT * FROM mcp_submittal_mail WHERE id=$1", [data.delivery_id])
+    )[0];
+    expect(row.draft).toEqual(data.draft);
+    expect(row.approved_at).toBeNull();
+    expect(row.sent_at).toBeNull();
+    const repeated = await call(submittalChase, args);
+    expect(repeated.structuredContent.delivery_id).toBe(data.delivery_id);
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_mail"))[0].n).toBe(
+      Number(before) + 1,
+    );
+  });
   it("collects files, builds once, retains original hashes and records delivery only after the receipt", async () => {
     const sid = await create("INTEGRATION-001"),
       ctx = await saved(sid);

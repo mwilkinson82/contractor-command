@@ -88,7 +88,7 @@ export default defineMcp({
     ESTIMATE_SERVER_RULE +
     FIELD_SERVER_RULE +
     SUBMITTAL_SERVER_RULE +
-    " Collect each required piece with submittal_log package_items, then submittal_package upload_piece to store received files, and build to create the company cover and package. Use submittal_delivery draft to save the exact recipient, subject, body and package link before asking yes. Approval is separate from sending. Only after a successful connected email send, record the provider message id and sent time with submittal_delivery record_sent. Do not claim submission complete from a status or approval alone. Packages use the existing revision transmittal number. " +
+    " Collect each required piece with submittal_log package_items, then submittal_package upload_piece to store received files, and build to create the company cover and package. Use submittal_delivery draft to save the exact recipient, subject, body and package link before asking yes. Approval is separate from sending. Only after a successful connected email send, record the provider message id and sent time with submittal_delivery record_sent. Do not claim submission complete from a status or approval alone. Packages use the existing revision transmittal number. Renew or turn off a submittal package link with submittal_package renew_link or revoke; retain all originals. " +
     PROJECT_RECORD_RULE +
     CHASE_SERVER_RULE +
     GETTING_STARTED_RULE,

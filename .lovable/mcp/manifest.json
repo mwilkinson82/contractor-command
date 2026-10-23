@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.20",
+      "version": "0.8.21",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -6382,9 +6382,9 @@
       {
         "name": "submittal_chase",
         "title": "Chase a missing or overdue submittal",
-        "description": "Drafts one chase email for an overdue, missing, registered submittal, shows that draft as not sent and needing confirm, and waits for a separate yes before anything is sent.",
+        "description": "Saves one exact chase draft for a missing or overdue registered submittal and waits for approval before sending, or previews it without saving when preview_only is true.",
         "annotations": {
-          "readOnlyHint": true,
+          "readOnlyHint": false,
           "destructiveHint": false,
           "idempotentHint": true,
           "openWorldHint": false
@@ -6412,6 +6412,9 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "preview_only": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false

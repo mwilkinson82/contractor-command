@@ -217,11 +217,19 @@ describe("receipt-backed submittal packages: real SQL and RLS", () => {
     await expect(
       delivery(sid, "approve", { delivery_id: mail.id, draft_key: "bad", confirmed: true }),
     ).rejects.toThrow("exact saved draft");
-    await delivery(sid, "approve", {
+    const firstApproval = await delivery(sid, "approve", {
       delivery_id: mail.id,
       draft_key: mail.draft_key,
       confirmed: true,
     });
+    expect(firstApproval.already_approved).toBe(false);
+    const repeatedApproval = await delivery(sid, "approve", {
+      delivery_id: mail.id,
+      draft_key: mail.draft_key,
+      confirmed: true,
+    });
+    expect(repeatedApproval.already_approved).toBe(true);
+    expect(repeatedApproval.approved_at).toBe(firstApproval.approved_at);
     const approved = await context(sid);
     expect(approved.submittal.status).toBe("in_prep");
     expect(approved.package.sent_at).toBeNull();
@@ -450,5 +458,45 @@ describe("receipt-backed submittal packages: real SQL and RLS", () => {
     }
     const same = await delivery(sid, "draft", { kind: "package", package_id: a.id, draft });
     expect(same.id).toBe(first.id);
+  });
+  it("keeps chasing missing required documents even when the review status was marked approved", async () => {
+    const sid = await create("PKG-010");
+    await rpc("mcp_submittal_log", [
+      job,
+      "update",
+      JSON.stringify({ submittal_id: sid, status: "approved" }),
+    ]);
+    const queue = await rpc("mcp_submittal_chase_rows", [job]);
+    expect(
+      queue.chases.filter((r: { submittal_id: string }) => r.submittal_id === sid),
+    ).toHaveLength(2);
+  });
+  it("updates a source contact without losing the received file or its chase history and denies foreign writes", async () => {
+    const sid = await create("PKG-011"),
+      c = await collect(sid),
+      piece = c.items[0];
+    await db.query("UPDATE mcp_submittal_package_items SET chase_count=2 WHERE id=$1", [piece.id]);
+    const change = [
+      {
+        id: piece.id,
+        kind: piece.kind,
+        source_party: piece.source_party,
+        chase_email: "updated@example.com",
+        chase_name: "Updated Sample",
+      },
+    ];
+    await rpc("mcp_submittal_log", [
+      job,
+      "update",
+      JSON.stringify({ submittal_id: sid, package_items: change }),
+    ]);
+    const updated = (await context(sid)).items.find((p: { id: string }) => p.id === piece.id);
+    expect(updated.file_ref).toBe(piece.file_ref);
+    expect(updated.status).toBe("received");
+    expect(updated.chase_count).toBe(2);
+    expect(updated.chase_email).toBe("updated@example.com");
+    await expect(
+      rpc("mcp_submittal_items_write", [job, company, sid, JSON.stringify(change)], outsider),
+    ).rejects.toThrow("Full access");
   });
 });

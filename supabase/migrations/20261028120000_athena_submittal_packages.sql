@@ -117,7 +117,7 @@ GRANT EXECUTE ON FUNCTION public.mcp_submittal_package_write(uuid,uuid,text,json
 
 CREATE FUNCTION public.mcp_submittal_delivery(_job uuid,_submittal uuid,_action text,_p jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
-DECLARE ctx jsonb; s public.mcp_submittals; j public.mcp_jobs; m public.mcp_submittal_mail; a public.mcp_submittal_packages; p public.mcp_submittal_package_items; d jsonb; k text; v_context_key text; day date; send_day date;
+DECLARE ctx jsonb; s public.mcp_submittals; j public.mcp_jobs; m public.mcp_submittal_mail; a public.mcp_submittal_packages; p public.mcp_submittal_package_items; d jsonb; k text; v_context_key text; day date; send_day date; already_approved boolean := false;
 BEGIN
  PERFORM public.mcp_assert_active();
  IF coalesce(public.mcp_job_scope(_job),'none')<>'full' THEN RAISE EXCEPTION 'MCP_BAD:Full job access is required.'; END IF;
@@ -144,7 +144,7 @@ BEGIN
     IF coalesce(p.chase_name,'')='' OR p.chase_email IS DISTINCT FROM d->>'to' THEN RAISE EXCEPTION 'MCP_BAD:Confirm the piece contact before drafting.'; END IF;
     v_context_key:=md5(to_jsonb(p)::text);
    ELSE
-    IF coalesce(s.chase_name,'')='' OR s.chase_email IS DISTINCT FROM d->>'to' THEN RAISE EXCEPTION 'MCP_BAD:Confirm the submittal contact before drafting.'; END IF;
+    IF coalesce(s.chase_name,(SELECT to_name FROM public.mcp_transmittals WHERE id=s.transmittal_id),s.ball_in_court_name,'')='' OR coalesce(s.chase_email,(SELECT to_email FROM public.mcp_transmittals WHERE id=s.transmittal_id)) IS DISTINCT FROM d->>'to' THEN RAISE EXCEPTION 'MCP_BAD:Confirm the submittal contact before drafting.'; END IF;
     v_context_key:=md5(to_jsonb(s)::text);
    END IF;
   ELSE RAISE EXCEPTION 'MCP_BAD:Choose package or chase.';
@@ -168,6 +168,7 @@ BEGIN
    IF m.sent_at IS NULL AND m.context_key IS DISTINCT FROM md5(to_jsonb(s)::text) THEN RAISE EXCEPTION 'MCP_BAD:The submittal changed; review a fresh chase draft.'; END IF;
   END IF;
   IF _action='approve' THEN
+   already_approved:=m.approved_at IS NOT NULL;
    IF coalesce((_p->>'confirmed')::boolean,false) IS NOT TRUE THEN RAISE EXCEPTION 'MCP_BAD:Wait for the member''s yes.'; END IF;
    UPDATE public.mcp_submittal_mail SET approved_at=coalesce(approved_at,now()) WHERE id=m.id RETURNING * INTO m;
    IF a.id IS NOT NULL THEN UPDATE public.mcp_submittal_packages SET approved_at=coalesce(approved_at,now()) WHERE id=a.id; END IF;
@@ -194,7 +195,7 @@ BEGIN
   ELSE RAISE EXCEPTION 'MCP_BAD:Unknown delivery action.';
   END IF;
  END IF;
- RETURN to_jsonb(m);
+ RETURN to_jsonb(m)||jsonb_build_object('already_approved',already_approved);
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_submittal_delivery(uuid,uuid,text,jsonb) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.mcp_submittal_delivery(uuid,uuid,text,jsonb) TO authenticated;
@@ -229,13 +230,13 @@ BEGIN
  ((s.required_by<today AND s.submitted_on IS NULL) OR (s.due_back<today AND s.returned_on IS NULL)) IS TRUE AS overdue,
  CASE WHEN p.id IS NOT NULL THEN replace(p.kind,'_',' ')||' from '||p.source_party ELSE '' END AS missing,
  CASE WHEN p.id IS NULL THEN s.chase_role ELSE p.chase_role END AS chase_role,
- CASE WHEN p.id IS NULL THEN s.chase_name ELSE p.chase_name END AS chase_name,
- CASE WHEN p.id IS NULL THEN s.chase_email ELSE p.chase_email END AS chase_email,
+ CASE WHEN p.id IS NULL THEN coalesce(s.chase_name,(SELECT to_name FROM public.mcp_transmittals WHERE id=s.transmittal_id),s.ball_in_court_name) ELSE p.chase_name END AS chase_name,
+ CASE WHEN p.id IS NULL THEN coalesce(s.chase_email,(SELECT to_email FROM public.mcp_transmittals WHERE id=s.transmittal_id)) ELSE p.chase_email END AS chase_email,
  CASE WHEN p.id IS NULL THEN s.chase_count ELSE p.chase_count END AS chase_count,
  CASE WHEN p.id IS NULL THEN s.last_chased_at ELSE p.last_chased_at END AS last_chased_at,
  CASE WHEN p.id IS NULL THEN s.next_chase_at ELSE p.next_chase_at END AS next_chase_at
  FROM current_subs s LEFT JOIN public.mcp_submittal_package_items p ON p.submittal_id=s.id AND p.required AND (p.status NOT IN ('received','approved') OR coalesce(btrim(p.file_ref),'')='')
- WHERE s.status NOT IN ('closed','approved','approved_as_noted')
+ WHERE s.required AND (p.id IS NOT NULL OR s.status NOT IN ('closed','approved','approved_as_noted'))
  ) SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.overdue DESC,t.number,t.package_item_id),'[]') INTO rows FROM targets t WHERE t.missing<>'' OR t.overdue;
  RETURN jsonb_build_object('job_number',j.job_number,'job_name',j.name,'today',to_char(today,'YYYY-MM-DD'),'read_only',sc<>'full','chases',rows);
 END $$;
@@ -287,5 +288,29 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_submittal_spec_required() FROM public,anon,authenticated;
 CREATE TRIGGER mcp_submittal_spec_required BEFORE INSERT OR UPDATE OF spec_section ON public.mcp_submittals FOR EACH ROW EXECUTE FUNCTION public.mcp_submittal_spec_required();
+
+
+-- Keep the existing allocator/log logic and grants; resolve its two shadowed RHS values explicitly.
+-- The package helper also needs the same job/member checks as its guarded outer tool.
+DO $patch$
+DECLARE routine regprocedure; definition text; revised text;
+BEGIN
+ FOREACH routine IN ARRAY ARRAY['public.mcp_submittal_log(uuid,text,jsonb)'::regprocedure,'public.mcp_submittal_items_write(uuid,uuid,uuid,jsonb)'::regprocedure] LOOP
+  definition:=pg_get_functiondef(routine);
+  revised:=replace(definition,E'AS $function$\n',E'AS $function$\n#variable_conflict use_variable\n');
+  IF revised=definition THEN RAISE EXCEPTION 'Submittal function format changed; review this migration before applying.'; END IF;
+  IF routine='public.mcp_submittal_items_write(uuid,uuid,uuid,jsonb)'::regprocedure THEN
+   revised:=replace(revised,E'BEGIN\n',E'BEGIN\n  PERFORM public.mcp_assert_active();\n  IF public.mcp_job_scope(_job) IS DISTINCT FROM ''full'' OR NOT EXISTS(SELECT 1 FROM public.mcp_submittals s WHERE s.id=_submittal AND s.job_id=_job AND s.company_id=_company) THEN RAISE EXCEPTION ''MCP_BAD:Full access to this job and submittal is required.''; END IF;\n');
+   revised:=replace(revised,'UPDATE public.mcp_submittal_package_items SET','UPDATE public.mcp_submittal_package_items AS existing SET');
+   revised:=replace(revised,$old$file_ref = nullif(btrim(coalesce(item->>'file_ref', '')), '')$old$,$new$file_ref = CASE WHEN item ? 'file_ref' THEN nullif(btrim(coalesce(item->>'file_ref', '')), '') ELSE existing.file_ref END$new$);
+   revised:=replace(revised,'status = st, required = req','status = CASE WHEN item ? ''status'' THEN st ELSE existing.status END, required = CASE WHEN item ? ''required'' THEN req ELSE existing.required END');
+   revised:=replace(revised,'chase_role = role','chase_role = CASE WHEN item ? ''chase_role'' THEN role ELSE existing.chase_role END');
+   revised:=replace(revised,$old$chase_name = nullif(btrim(coalesce(item->>'chase_name', '')), '')$old$,$new$chase_name = CASE WHEN item ? 'chase_name' THEN nullif(btrim(coalesce(item->>'chase_name', '')), '') ELSE existing.chase_name END$new$);
+   revised:=replace(revised,'chase_email = email','chase_email = CASE WHEN item ? ''chase_email'' THEN email ELSE existing.chase_email END');
+   revised:=replace(revised,'chase_count = n,','chase_count = CASE WHEN item ? ''chase_count'' THEN n ELSE existing.chase_count END,');
+  END IF;
+  EXECUTE revised;
+ END LOOP;
+END $patch$;
 
 COMMIT;

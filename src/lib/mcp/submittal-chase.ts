@@ -2,14 +2,12 @@
 import { addDays } from "./deadlines";
 import type { CardModel, CardRow } from "./cards/model";
 import type { EmailDraft } from "./email-safety";
-import type { ScheduleActivity } from "./schedule-submittals";
-import { scheduleGroupOverdue } from "./schedule-submittals";
 import { submittalOverdue, type SubmittalRecord, type PackageItem } from "./submittals";
 
 export const CHASE_FOLLOW_DAYS = 7;
 
 export const CHASE_SERVER_RULE =
-  " When someone says chase the missing submittals, chase the submittals, or a submittal is overdue or a required package item is missing, call submittal_chase and show that card. Only current saved submittals are chase targets; schedule milestones are not submittals. The card includes one draft marked Not sent. Needs confirm. Do not send the chase in that reply. Save the exact draft with submittal_delivery action draft and the package_item_id when present, then show the saved draft and wait for yes before action approve. Record a chase only after the email tool returns a successful provider receipt. A follow-up that is due appears on the morning brief. Nothing is sent automatically.";
+  " When someone says chase the missing submittals, chase the submittals, or a submittal is overdue or a required package item is missing, call submittal_chase and show that card. Only current saved submittals are chase targets; schedule milestones are not submittals. The card includes one draft marked Not sent. Needs confirm. Do not send the chase in that reply. The chase result contains the saved exact draft and its delivery id and key; on a separate yes use submittal_delivery action approve with them. For explicitly read-only requests, pass preview_only true and do not save or send. Record a chase only after the email tool returns a successful provider receipt. A follow-up that is due appears on the morning brief. Nothing is sent automatically.";
 
 export type ChaseRow = {
   submittal_id: string;
@@ -88,26 +86,6 @@ export function nextChaseDate(today: string): string {
   return addDays(today.slice(0, 10), CHASE_FOLLOW_DAYS);
 }
 
-/** Scheduled packages that are not already logged as submitted. No id is invented for the send. */
-export function chaseFromSchedule(groups: ScheduleActivity[], today: string): ChaseRow[] {
-  return groups.map((group) => {
-    const due = (group.finish ?? "").slice(0, 10);
-    const dated = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
-    return {
-      submittal_id: "",
-      number: group.id,
-      revision: 0,
-      title: group.name,
-      spec_section: "Needed",
-      overdue: scheduleGroupOverdue(group, today),
-      missing: "not submitted",
-      chase_count: 0,
-      required_by: dated,
-      due_back: dated,
-    };
-  });
-}
-
 export function chaseDraft(jobNumber: string, row: ChaseRow): EmailDraft {
   const who = row.chase_name?.trim();
   if (!who || !row.chase_email?.trim() || !row.spec_section?.trim() || /^(needed|unknown|n\/?a|tbd)$/i.test(row.spec_section.trim())) throw new Error("Confirm the contact name, email and required spec section before drafting.");
@@ -142,6 +120,7 @@ export function presentChaseCard(input: {
   chases: ChaseRow[];
   today: string;
   readOnly?: boolean;
+  previewOnly?: boolean;
 }): { text: string; card: CardModel; draft: EmailDraft | null; current: ChaseRow | null } {
   const due = input.chases.filter((row) => chaseIsDue(row, input.today));
   const ready = (row: ChaseRow) => !!row.chase_name?.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.chase_email ?? '') && !!row.spec_section?.trim() && !/^(needed|unknown|n\/?a|tbd)$/i.test(row.spec_section.trim());
@@ -150,6 +129,8 @@ export function presentChaseCard(input: {
   const rows: CardRow[] = due.map((row, index) => ({
     cells: [
       `${row.number} revision ${row.revision}, ${row.title}`,
+      row.missing || "Review response",
+      /^(needed|unknown|n\/?a|tbd)$/i.test(row.spec_section) ? "Which spec section requires it?" : row.spec_section,
       row.chase_name?.trim() || "Who should receive this piece request?",
       row.chase_email?.trim() || "What is their email?",
       String(row.chase_count),
@@ -165,7 +146,7 @@ export function presentChaseCard(input: {
     title: "Submittal chase",
     show_state: false,
     job: `${input.jobNumber} – ${input.jobName}`,
-    ask: draft ? { prompt: `Send this chase to ${draft.to || "the contact"}? Yes or no?` } : null,
+    ask: draft && !input.previewOnly ? { prompt: `Send this chase to ${draft.to || "the contact"}? Yes or no?` } : null,
     kpis: [
       { label: "Chases", value: String(due.length) },
       { label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null },
@@ -174,7 +155,8 @@ export function presentChaseCard(input: {
       {
         heading: "Due",
         kind: "table",
-        columns: ["Submittal", "Who", "Email", "Times", "Next"],
+        columns: ["Submittal", "Missing", "Spec", "Who", "Email", "Times", "Next"],
+        scroll: true,
         rows,
       },
       ...(draft
@@ -190,7 +172,7 @@ export function presentChaseCard(input: {
           }]
         : []),
     ],
-    next_move: input.readOnly
+    next_move: input.previewOnly ? "Preview only. Nothing saved or sent." : input.readOnly
       ? "Read only. Ask the PM to send the chase."
       : draft
         ? "Nothing is sent until you say yes."
@@ -202,7 +184,7 @@ export function presentChaseCard(input: {
     `Submittal chase: ${due.length} due, ${overdue} overdue.`,
     "",
     lines.length ? lines.join("\n") : "No chase is due.",
-    draft ? `\nNot sent. Needs confirm.\n\nTo: ${draft.to || "Needed"}\nSubject: ${draft.subject}\n\n${draft.body}\n\nSend this chase to ${draft.to || "the contact"}? Yes or no?` : "",
+    draft ? `\nNot sent. Needs confirm.\n\nTo: ${draft.to || "Needed"}\nSubject: ${draft.subject}\n\n${draft.body}${input.previewOnly ? "\n\nPreview only. Nothing saved or sent." : `\n\nSend this chase to ${draft.to || "the contact"}? Yes or no?`}` : "",
     !draft && current && !input.readOnly ? `Who is the named contact and email for ${current.number}, and which spec section requires it? No sendable draft until those are confirmed.` : "",
     input.readOnly ? "\nRead only." : "",
   ].join("\n");

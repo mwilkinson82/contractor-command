@@ -412,6 +412,7 @@ export const submittalDelivery = defineTool({
         draft_key: string;
         draft: { to: string; cc: string[]; subject: string; body: string };
         approved_at: string | null;
+        already_approved?: boolean;
         sent_at: string | null;
       }>(sb, "mcp_submittal_delivery", {
         _job: job.job_id,
@@ -423,7 +424,7 @@ export const submittalDelivery = defineTool({
         saved.sent_at
           ? "Send recorded from the email provider receipt."
           : saved.approved_at
-            ? "Approved for this exact email. Not sent yet."
+            ? "Approval saved. Send receipt not yet recorded."
             : "Draft saved. Not sent. Wait for a separate yes.",
         `To: ${saved.draft.to}`,
         `CC: ${saved.draft.cc.join(", ") || "None"}`,
@@ -438,9 +439,13 @@ export const submittalDelivery = defineTool({
           approved: !!saved.approved_at,
           sent: !!saved.sent_at,
         }),
-        saved.approved_at && !saved.sent_at
-          ? "The member approved this exact draft; use their connected email tool to send it unchanged, then call submittal_delivery record_sent with the successful provider message id and sent time; a failure must never be recorded as sent."
-          : "Show the full draft and wait for approval; never send automatically.",
+        saved.sent_at
+          ? "This send is already recorded. Show the card; do not send it again."
+          : saved.approved_at
+            ? args.action === "approve" && saved.already_approved !== true
+              ? "The member approved this exact draft; use their connected email tool to send it once unchanged, then call submittal_delivery record_sent with the successful provider message id and sent time; a failure must never be recorded as sent."
+              : "This draft was already approved but has no send receipt. Check connected Sent mail before retrying: record an existing successful receipt, or send once only if the provider confirms it was not sent."
+            : "Show the full draft and wait for approval; never send automatically.",
       );
     }),
 });

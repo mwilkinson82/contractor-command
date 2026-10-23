@@ -163,11 +163,11 @@ export const emailConfirmSend = defineTool({
         const call = async (action: string, payload: Record<string, unknown>) => {
           const result = await (sb as Sb).rpc("mcp_submittal_delivery", { _job: job.job_id, _submittal: args.submittal_id, _action: action, _p: payload });
           if (result.error) throw new ToolError(result.error.message.replace(/^MCP_BAD:/, ""));
-          return result.data as { id: string; draft_key: string };
+          return result.data as { id: string; draft_key: string; already_approved?: boolean };
         };
         const saved = await call("draft", { kind: "chase", package_item_id: args.package_item_id, draft: d });
-        await call("approve", { delivery_id: saved.id, draft_key: saved.draft_key, confirmed: true });
-        return guide({ ...text(`Approved: one chase to ${d.to}. Not sent yet.`), structuredContent: { send_confirmed: true, sent_by_athena: false, delivery_id: saved.id, draft_key: saved.draft_key, project_record: false } }, "Send this exact reviewed draft using the connected email tool, then call submittal_delivery record_sent with the successful provider receipt; do not count a failed send.");
+        const approved = await call("approve", { delivery_id: saved.id, draft_key: saved.draft_key, confirmed: true });
+        return guide({ ...text(approved.already_approved ? "Already approved. Check Sent mail before retrying this chase." : `Approved: one chase to ${d.to}. Send receipt still needed.`), structuredContent: { send_confirmed: !approved.already_approved, sent_by_athena: false, delivery_id: saved.id, draft_key: saved.draft_key, project_record: false } }, approved.already_approved ? "Check connected Sent mail before any retry and record an existing receipt; never send a duplicate." : "Send this exact reviewed draft once using the connected email tool, then call submittal_delivery record_sent with the successful provider receipt; do not count a failed send.");
       }
       // Reply outcomes are not recorded yet. A later pass uses kind email_reply.
       let recorded = false;
