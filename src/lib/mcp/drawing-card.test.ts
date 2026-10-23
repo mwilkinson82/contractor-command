@@ -166,6 +166,32 @@ describe("drawing card view", () => {
     v.message({ jsonrpc: "2.0", id: call.id, error: { code: -1 } });
     expect(v.status.textContent).toContain("could not be opened");
   });
+  it("renders and zooms the structured preview when the host omits image content", () => {
+    const v = view();
+    v.ready();
+    const p = payload();
+    v.result({
+      structuredContent: { ...p.structuredContent, drawing_preview: p.content[0] },
+      content: [{ type: "text", text: "S-100 preview" }],
+    });
+    const img = v.all().find((e) => e.tagName === "IMG")!;
+    expect(img.src).toBe("data:image/png;base64,iVBORw0KGgo=");
+    v.all()
+      .find((e) => e.textContent === "Zoom in")!
+      .handlers.click();
+    expect(img.style.width).toBe("150%");
+  });
+  it.each([
+    { type: "image", mimeType: "image/svg+xml", data: "PHN2Zz4=" },
+    { type: "image", mimeType: "image/png", data: "https://other.example.com/picture.png" },
+    { type: "image", mimeType: "image/png", data: "A".repeat(12000001) },
+  ])("rejects unsafe structured previews without fetching them", (drawing_preview) => {
+    const v = view();
+    v.ready();
+    const p = payload();
+    v.result({ structuredContent: { ...p.structuredContent, drawing_preview }, content: [] });
+    expect(v.all().some((e) => e.tagName === "IMG")).toBe(false);
+  });
   it.each([
     "https://other.example.com/storage/v1/object/sign/athena-files/company/job/drawing-markup-copy/S-100.pdf?token=fictional",
     "https://storage.example.com.evil.example.com/storage/v1/object/sign/athena-files/company/job/drawing-markup-copy/S-100.pdf?token=fictional",

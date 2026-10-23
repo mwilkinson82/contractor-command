@@ -1178,13 +1178,16 @@ const drawingAnnotation = z.object({
 
 function drawingReply(card: CardModel, extra: Record<string, JsonValueInput> = {}, png?: Uint8Array) {
   const html = renderHtml(card);
+  // Some hosts give the app structured data without forwarding the image content block.
+  // Keep the original image for model vision and include the same bytes for the app.
+  const preview = png ? { type: "image" as const, data: bytesToBase64(png), mimeType: "image/png" as const } : undefined;
   return {
     ...text(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`),
     content: [
       { type: "text" as const, text: `${renderMarkdown(card)}\n\n${htmlBlock(html)}` },
-      ...(png ? [{ type: "image" as const, data: bytesToBase64(png), mimeType: "image/png" as const }] : []),
+      ...(preview ? [preview] : []),
     ],
-    structuredContent: { card, html, ...extra },
+    structuredContent: { card, html, ...extra, ...(preview ? { drawing_preview: preview } : {}) },
   };
 }
 
