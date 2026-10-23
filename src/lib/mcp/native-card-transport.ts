@@ -309,7 +309,7 @@ export function nativeCardPayload(
       call.claude &&
       cardMetaFor(String(call.params.name ?? ""))
     ) {
-      next = claudeCardReply(result);
+      next = claudeCardReply(result, String(call.params.name ?? ""));
     } else if (
       call.method === "tools/call" &&
       result &&
