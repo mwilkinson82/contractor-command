@@ -210,7 +210,7 @@ describe("morning brief dispatch", () => {
     expect(await dispatchMorningBriefs(input)).toEqual({ sent: 0, failed: 0 });
     expect(dead).toEqual(["33333333-3333-4333-8333-333333333333"]);
     expect(send).toHaveBeenCalledTimes(1);
-    const message = (send.mock.calls[0] as unknown[])[1] as { body: string; url: string };
+    const message = send.mock.calls[0][1] as { body: string; url: string };
     expect(message.url).toBe("https://app.meetathena.io/today");
     expect(message.body).toMatch(/^Good morning\. \d+ overdue, \d+ today\. Don't forget: /);
     expect(message.body).toContain("delay notice");
@@ -315,7 +315,7 @@ describe("today board sign-in", () => {
     expect(todaySignInReturn("https://evil.example/today")).toBeUndefined();
     expect(todaySignInReturn("//evil.example/today")).toBeUndefined();
     expect(signInReturn("/today")).toBe("/today");
-    const html = renderToStaticMarkup(createElement((TodayRoute as unknown as { component: () => ReactNode }).component));
+    const html = renderToStaticMarkup(createElement((TodayRoute as { component: () => ReactNode }).component));
     expect(html).toContain(BOARD_SIGN_IN_TITLE);
     expect(html).toContain("No password required");
     expect(html).toContain("Email me a sign-in code");

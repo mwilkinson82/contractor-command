@@ -799,7 +799,7 @@ export const estimateTakeoffGet = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const loaded = await load(sb, job.job_id);
         await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
-        const withPages = async <R,>(
+        const withPages = async <R extends { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> }>(
           result: R,
           lines: { sheet?: string | null; markup_ref?: string | null }[],
         ) => {
@@ -811,7 +811,7 @@ export const estimateTakeoffGet = defineTool({
             loaded.setup.documents,
             requested,
           );
-          return pages.length ? (attachSheetPages(result as never, pages) as R) : result;
+          return pages.length ? attachSheetPages(result, pages) : result;
         };
         if (!loaded.version) return withPages(emptyTakeoff(`${named(job)}`), []);
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
