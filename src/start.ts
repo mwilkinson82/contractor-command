@@ -4,7 +4,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import {
   brandInitializeResponse,
-  initializeRequestIds,
+  serverInfoRequestIds,
   isMcpPost,
 } from "./lib/mcp/server-info-branding";
 import { nativeCardResponse, nativeCardVisit } from "./lib/mcp/native-card-transport";
@@ -163,14 +163,14 @@ const mcpEntitlementGate = createMiddleware().server(async ({ next, request }) =
 });
 
 /**
- * Athena icon on the MCP initialize response (serverInfo.icons / websiteUrl).
- * Runs after the entitlement gate; only a 200 initialize result is rewritten.
+ * Athena branding in legacy serverInfo and modern result identity metadata.
+ * Runs after the entitlement gate; only existing identity on a 200 reply is supplemented.
  */
 const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }) => {
   if (!isMcpPost(request)) return next();
   let ids: unknown[] = [];
   try {
-    ids = initializeRequestIds(await request.clone().text());
+    ids = serverInfoRequestIds(await request.clone().text());
   } catch {
     ids = [];
   }
