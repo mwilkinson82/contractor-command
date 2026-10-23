@@ -7,7 +7,7 @@ import { z } from "zod";
 import { attachAthenaCard } from "../cards/attach";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "../cards/silence";
 import { applyMeetingFigures, buildFlowCard, iorDelta, readMeetingMoney } from "./build";
-import { isProblemLine, kindOf, saveFlowNote, scheduleActivities, schedulePercent } from "./load";
+import { isProblemLine, kindOf, saveFlowNote, scheduleActivities, schedulePercent, splitNoteLines } from "./load";
 import { job2701FlowData } from "./job-2701";
 import { EVENING_STAGES, MORNING_STAGES, PM_MEETING_STAGES, stagesFor, type FlowName } from "./types";
 
@@ -298,9 +298,9 @@ describe("sample path on job 2701", () => {
 
 describe("meeting notes stay off the risk log", () => {
   const jobId = "11111111-1111-4111-8111-111111111111";
-  function noteClient() {
+  function noteClient(openItems: Record<string, unknown>[] = []) {
     const rpc = vi.fn(async () => ({ data: { item_id: "1" }, error: null }));
-    return { rpc, from: () => ({ select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) };
+    return { rpc, from: (table: string) => ({ select: () => ({ eq: () => Promise.resolve({ data: table === "mcp_open_items" ? openItems : [], error: null }) }) }) };
   }
   function categories(sb: { rpc: { mock: { calls: unknown[][] } } }) {
     return sb.rpc.mock.calls.filter((call) => call[0] === "mcp_add_item").map((call) => (call[1] as { _f: { category: string } })._f.category);
@@ -354,5 +354,92 @@ describe("meeting notes stay off the risk log", () => {
     expect(kindOf("Electrical subcontractor", "")).toBe("crew");
     expect(kindOf("Supplier confirmation", "")).toBe("crew");
     expect(kindOf("Crew count", "")).toBe("crew");
+  });
+
+  function added(sb: { rpc: { mock: { calls: unknown[][] } } }) {
+    return sb.rpc.mock.calls.filter((call) => call[0] === "mcp_add_item").map((call) => (call[1] as { _f: { action: string; category: string } })._f);
+  }
+
+  it.each([
+    "Owner walkthrough went well. Drywall sub says delivery slips 4 days.",
+    "Owner walkthrough went well.\nDrywall sub says delivery slips 4 days.",
+    "Owner walkthrough went well.\n- Drywall sub says delivery slips 4 days.",
+  ])("splits %s into one meeting note and one risk", async (note) => {
+    expect(splitNoteLines(note)).toEqual(["Owner walkthrough went well.", "Drywall sub says delivery slips 4 days."]);
+    const sb = noteClient();
+    const saved = await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    const rows = added(sb);
+    const meeting = rows.find((row) => row.category === "Meeting");
+    const risk = rows.find((row) => row.category === "Risk");
+    expect(rows.filter((row) => row.category === "Meeting")).toHaveLength(1);
+    expect(rows.filter((row) => row.category === "Risk")).toHaveLength(1);
+    expect(meeting?.action).toContain("Owner walkthrough went well");
+    expect(meeting?.action).not.toMatch(/slip/i);
+    expect(risk?.action).toContain("delivery slips 4 days");
+    expect(risk?.action).not.toContain("walkthrough");
+    expect(saved.categories).toEqual(["Meeting", "Risk"]);
+  });
+
+  it("closes the crews check from its own line and files the delay as a risk", async () => {
+    const note = "Subs and crews confirmed, no issues. Drywall sub says delivery slips 4 days.";
+    const sb = noteClient();
+    const saved = await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(sb.rpc).toHaveBeenCalledWith("mcp_meeting_item_save", {
+      _job: jobId, _key: "pm:crews", _action: "Subs and crews confirmed, no issues.", _close: true,
+    });
+    const rows = added(sb);
+    expect(rows.map((row) => row.category)).toEqual(["Risk"]);
+    expect(rows[0]?.action).toContain("Drywall");
+    expect(rows[0]?.action).not.toContain("crews confirmed");
+    expect(saved.categories).toEqual(["Meeting", "Risk"]);
+  });
+
+  it("does not create a new crews confirmed meeting note when an identical open one exists", async () => {
+    const note = "Crews confirmed";
+    const sb = noteClient([{ id: "open-1", action: "2701 \u2013 Crews confirmed", status: "open", category: "Meeting" }]);
+    const saved = await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(added(sb)).toEqual([]);
+    expect(saved.item).toBe(true);
+    expect(saved.categories).toEqual(["Meeting"]);
+  });
+
+  it("files crews confirmed when the earlier identical note is resolved", async () => {
+    const note = "Crews confirmed";
+    const sb = noteClient([{ id: "done-1", action: note, status: "resolved", category: "Meeting" }]);
+    await saveFlowNote(sb as never, jobId, "pm_meeting", "schedule", note, { note });
+    expect(categories(sb)).toEqual(["Meeting"]);
+  });
+
+  function confirmationLine(categories: Array<"Meeting" | "Daily" | "Risk">, logged = true): string {
+    const data = job2701FlowData({ note: "Noted on the job.", sample: false });
+    data.logged = logged;
+    data.itemFiled = true;
+    data.filedCategories = categories;
+    const section = buildFlowCard("pm_meeting", "schedule", data).sections?.find((s) => s.heading === "From this meeting");
+    return String(section?.rows[1]?.cells[0] ?? "");
+  }
+
+  it("names the place the line was filed", () => {
+    expect(confirmationLine(["Meeting"])).toBe("Filed as a meeting note and saved for the next IOR comparison.");
+    expect(confirmationLine(["Risk"])).toBe("Filed on the risk log and saved for the next IOR comparison.");
+    expect(confirmationLine(["Daily"])).toBe("Filed as a daily note and saved for the next IOR comparison.");
+    expect(confirmationLine(["Meeting", "Risk"])).toBe("Filed as a meeting note and on the risk log and saved for the next IOR comparison.");
+    expect(confirmationLine(["Meeting"], false)).toBe("Filed as a meeting note. The IOR snapshot was not stored.");
+    expect(confirmationLine(["Risk"], false)).toBe("Filed on the risk log. The IOR snapshot was not stored.");
+    expect(confirmationLine(["Daily"], false)).toBe("Filed as a daily note. The IOR snapshot was not stored.");
+    const confirmed = job2701FlowData({ note: "Subs and crews confirmed, no issues.", sample: false });
+    confirmed.logged = true;
+    confirmed.itemFiled = true;
+    confirmed.confirmationSaved = true;
+    confirmed.filedCategories = ["Meeting"];
+    const confirmedLine = buildFlowCard("pm_meeting", "schedule", confirmed).sections?.find((s) => s.heading === "From this meeting")?.rows[1]?.cells[0];
+    expect(confirmedLine).toBe("Meeting confirmation saved for this lookahead.");
+    const mixed = job2701FlowData({ note: "Subs and crews confirmed, no issues. Drywall slipped.", sample: false });
+    mixed.logged = true;
+    mixed.itemFiled = true;
+    mixed.confirmationSaved = true;
+    mixed.filedCategories = ["Meeting", "Risk"];
+    const mixedLine = buildFlowCard("pm_meeting", "schedule", mixed).sections?.find((s) => s.heading === "From this meeting")?.rows[1]?.cells[0];
+    expect(mixedLine).toBe("Meeting confirmation saved for this lookahead. Filed on the risk log and saved for the next IOR comparison.");
   });
 });

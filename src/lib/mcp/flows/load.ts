@@ -2,7 +2,7 @@ import { activityTitle, pickLatestLookahead } from "../styled-views";
 import { visibleLookaheads } from "../lookahead-items";
 import { dedupeOpenRows, isAffirmativeConfirmation, meetingItem } from "../open-feed";
 import { blankFlowData } from "./job-2701";
-import type { FlowData, FlowItem, IorRow } from "./types";
+import type { FiledCategory, FlowData, FlowItem, IorRow } from "./types";
 import { readReadiness, readinessAnswer, type ReadinessReader, type ReadinessRecord } from "./confirmation";
 
 type Query = {
@@ -199,9 +199,103 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   return data;
 }
 
-export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage: string, note: string, snapshot: unknown, context?: string | null): Promise<{ item: boolean; snapshot: boolean; confirmation?: boolean }> {
+/** Newlines, bullets, and sentence ends. One call often carries several lines. */
+export function splitNoteLines(note: string): string[] {
+  const out: string[] = [];
+  for (const raw of note.split(/\r?\n/)) {
+    const line = raw.trim().replace(/^(?:[-*•–—]+|\d+[.)])\s+/, "");
+    if (!line) continue;
+    for (const part of line.split(/(?<=[.!?])\s+/)) {
+      const text = part.trim();
+      if (text) out.push(text);
+    }
+  }
+  return out.length ? out : [note.trim()].filter(Boolean);
+}
+
+function normAction(action: string): string {
+  return action.replace(/^\s*\d[\w.-]*\s*[–-]\s*/, "").toLowerCase().replace(/[‘’]/g, "'").replace(/[^\p{L}\p{N}']+/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+function rpcMissing(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { message?: string; code?: string };
+  return /does not exist|schema cache|PGRST202/i.test(`${err.message ?? ""}${err.code ?? ""}`);
+}
+
+/** Open meeting rows keyed by normalized action. The value is the check key, or "" when the row has none. */
+function openMeetingTwins(existing: Record<string, unknown>[]): Map<string, string> {
+  const twins = new Map<string, string>();
+  for (const row of existing) {
+    const status = String(row.status ?? "open").toLowerCase();
+    if (status === "closed" || status === "resolved") continue;
+    const category = String(row.category ?? "");
+    const key = typeof row.check_key === "string" ? row.check_key : "";
+    if (!/^meeting$/i.test(category) && !key.startsWith("pm:")) continue;
+    const norm = normAction(String(row.action ?? ""));
+    if (norm && !twins.has(norm)) twins.set(norm, key);
+  }
+  return twins;
+}
+
+const CATEGORY_ORDER: FiledCategory[] = ["Meeting", "Daily", "Risk"];
+
+type CheckLine = { key: string; close: boolean; action: string };
+
+/** Each problem line is its own risk. The other lines become one meeting note. A confirmation line still closes its check. */
+async function fileSplitNote(sb: Query, jobId: string, flow: string, stage: string, note: string, wanted: Set<FiledCategory>): Promise<boolean> {
+  let filed = false;
+  const mark = (category: FiledCategory) => { wanted.add(category); filed = true; };
+  const existing = await rows(sb, "mcp_open_items", "id, action, status, check_key, category", jobId);
+  const twins = openMeetingTwins(existing);
+  const risks: string[] = [];
+  const notes: string[] = [];
+  const checks = new Map<string, CheckLine>();
+  for (const line of splitNoteLines(note)) {
+    if (isProblemLine(line)) { risks.push(line); continue; }
+    const meeting = meetingItem(line);
+    const lineAnswer = readinessAnswer(line);
+    const check = meeting ?? (lineAnswer?.lookahead_locked !== undefined ? { key: "pm:lookahead", close: lineAnswer.lookahead_locked } : null);
+    if (check) {
+      const prev = checks.get(check.key);
+      if (!prev || (check.close && !prev.close)) checks.set(check.key, { key: check.key, close: check.close, action: line });
+      continue;
+    }
+    notes.push(line);
+  }
+  const addItem = async (action: string, category: FiledCategory, checkKey?: string) => {
+    const norm = normAction(action);
+    if (category === "Meeting" && twins.has(norm)) { mark("Meeting"); return; }
+    try {
+      const added = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action, category, tool: flow, section: stage, ...(checkKey ? { check_key: checkKey } : {}) } });
+      if (!added.error) {
+        mark(category);
+        if (category === "Meeting") twins.set(norm, checkKey ?? "");
+      }
+    } catch { /* this line was not stored */ }
+  };
+  for (const check of checks.values()) {
+    const norm = normAction(check.action);
+    const twinKey = twins.get(norm);
+    // Same words already open under a different key would be a second note. Updating the same key is not.
+    if (twinKey !== undefined && twinKey !== check.key) { mark("Meeting"); continue; }
+    try {
+      const added = await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: check.key, _action: check.action, _close: check.close });
+      if (rpcMissing(added.error)) await addItem(check.action, "Meeting", check.key);
+      else if (!added.error) { mark("Meeting"); twins.set(norm, check.key); }
+    } catch { /* this check was not stored */ }
+  }
+  const meetingText = notes.join(" ").trim();
+  if (meetingText) await addItem(meetingText, "Meeting");
+  for (const risk of risks) await addItem(risk, "Risk");
+  return filed;
+}
+
+export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage: string, note: string, snapshot: unknown, context?: string | null): Promise<{ item: boolean; snapshot: boolean; confirmation?: boolean; categories: FiledCategory[] }> {
   let item = false;
   let snapshotOk = false;
+  const wanted = new Set<FiledCategory>();
+  const categories = () => CATEGORY_ORDER.filter((category) => wanted.has(category));
   const answer = readinessAnswer(note);
   const readiness: ReadinessRecord | null = answer && context ? { version: 1, context_key: context, ...answer } : null;
   const saveSnapshot = async () => {
@@ -214,22 +308,15 @@ export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage
   // A failed readiness save must not close/reopen the checklist independently.
   if (readiness) {
     await saveSnapshot();
-    if (!snapshotOk) return { item: false, snapshot: false, confirmation: false };
+    if (!snapshotOk) return { item: false, snapshot: false, confirmation: false, categories: [] };
   }
-  try {
-    const meeting = meetingItem(note);
-    const check = meeting ?? (answer?.lookahead_locked !== undefined ? { key: "pm:lookahead", close: answer.lookahead_locked } : null);
-    const added = check
-      ? await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: check.key, _action: note, _close: check.close })
-      : await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: flow === "pm_evening" ? "Daily" : isProblemLine(note) ? "Risk" : "Meeting", tool: flow, section: stage } });
-    const missing = !!added.error && /does not exist|schema cache|PGRST202/i.test(String((added.error as { message?: string; code?: string }).message ?? "") + String((added.error as { code?: string }).code ?? ""));
-    if (check && missing) {
-      const fallback = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, check_key: check.key, category: "Meeting", tool: flow, section: stage } });
-      item = !fallback.error;
-    } else item = !added.error;
-  } catch {
-    item = false;
-  }
+  if (flow === "pm_evening") {
+    try {
+      const added = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: "Daily", tool: flow, section: stage } });
+      item = !added.error;
+      if (item) wanted.add("Daily");
+    } catch { item = false; }
+  } else item = await fileSplitNote(sb, jobId, flow, stage, note, wanted);
   if (!readiness) await saveSnapshot();
-  return { item, snapshot: snapshotOk, ...(answer ? { confirmation: !!readiness && snapshotOk } : {}) };
+  return { item, snapshot: snapshotOk, categories: categories(), ...(answer ? { confirmation: !!readiness && snapshotOk } : {}) };
 }
