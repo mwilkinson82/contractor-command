@@ -120,7 +120,7 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
     const context = data.readinessContext;
     const expected = readinessAnswer(args.note);
     const saved = expected && !context
-      ? { item: false, snapshot: false, confirmation: false }
+      ? { item: false, snapshot: false, confirmation: false, categories: [] }
       : await saveFlowNote(sb as never, job.job_id, flow, stage, args.note, { stage, note: args.note, ior: data.iorNow, risks: card.alerts ?? [] }, context);
     // Render persisted state, including a failed save, instead of the pre-note card.
     Object.assign(data, await loadFlowData(sb as never, { job_id: job.job_id, job_number: job.job_number, name: job.name, scope: job.scope ?? "" }, selfPerform));
@@ -130,6 +130,7 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
       (expected?.lookahead_locked === undefined || data.readinessAnswers?.lookahead_locked === expected.lookahead_locked);
     data.itemFiled = saved.item;
     data.logged = saved.item && saved.snapshot;
+    data.filedCategories = [...saved.categories];
   }
   if (args.sample !== true) await audit(sb, job, flow, `guided_${stage}`, null);
   if (!data.showMoney) data.money = { plan: null, realistic: null, billed: null, contract: null, remaining: null, retentionHeld: null, retentionReleasable: data.money.retentionReleasable };
