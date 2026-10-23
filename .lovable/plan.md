@@ -1,22 +1,22 @@
-# OAUTH_CONTINUATION_SECRET — inspection report (read-only)
+# Athena release preflight (PRs #219, #221) — findings and release steps
 
-No files, secrets, database, branches or deployments were changed. No secret value or derived material was read.
+Read-only check. I changed nothing: no files, SQL, settings, emails, or publish.
 
-## 1. Configuration metadata (verified)
-- The project's secret list includes the name `OAUTH_CONTINUATION_SECRET`. This was a name-only listing. It confirms the secret is saved, not that a running server can read it.
+## Findings
 
-## 2. Runtime execution (pending)
-- No code in the current revision reads `OAUTH_CONTINUATION_SECRET`. A search of `src/` found nothing.
-- There is no supported read-only way to run a check in the server runtime. Running one would mean adding a check (the PR's code or a guarded probe) and building it into preview. Building counts as a mutation, so it is not allowed here.
-- So the synthetic HMAC checks (sign/verify, tamper rejection, expiry rejection) have **not run**. No PASS/FAIL is reported. Verification is still **pending**.
+1. **Code in this workspace:** HEAD is `4406c5ad4ec3e2a8c945694b145c00019abbe5a5` ("Split combined meeting notes… (#217)"). The local branch is a Lovable working branch (`edit/edt-86648b…`), and the working tree is clean. I cannot see the connected GitHub repo or which branch is selected for sync. The owner must confirm both under Project settings → Git. HEAD shows PR #217 as the latest merge. **I cannot see #219 or #221 in this checkout,** so they are not synced here yet.
+2. **Domains:** the published app is `contractor-command.lovable.app` (also the primary address). Custom domains are `app.meetathena.io` and `app.alpcontractorcircle.com`. My tools can't see the currently published commit or deploy id.
+3. **Shared deployment:** both custom domains belong to this one project. So `app.meetathena.io/mcp` is served from this project's single published build, and publishing also changes `app.alpcontractorcircle.com` and the Lovable address. You can't publish to one domain only.
+4. **Backend:** Lovable Cloud, managed. One live instance (ref `qcbbjjjxcacrscfhgfmf`) serves both the preview and the published app. Any database migration goes live as soon as it is applied, before you publish.
+5. **Pending database files:** the newest applied-tool record is `drizzle/migrations/0024_athena_reopen_open_item.sql`. The repo also has files in `supabase/migrations` dated 2026-10-26/27 (drawing_sets, report_item_severity, delay_notice_severity, drawing_versions). I have not checked whether these are already in the database. I'll check that before applying anything.
 
-## 3. Current Git revision
-- HEAD: `cf0957f10ec9983ea6574be401ba71c5352839cc` (Lovable working branch, not PR #56's head `6515e5f1…`).
+## Supported workflow (needs approval to run)
 
-## 4. Owner-approved step needed to verify without production
-1. Approve bringing PR #56's head (`6515e5f18c68…`) into this project's preview. Two ways to do it: switch this project to that branch in the editor's branch picker, or have me apply the diff here. Either way it builds the **preview only**. Production at app.alpcontractorcircle.com changes only when someone clicks Publish.
-2. Make sure the PR has a server-only check (a test or a guarded diagnostic) that runs the three synthetic checks in memory and returns only named PASS/FAIL results.
-3. Run that check against the preview build and report only PASS/FAIL.
-4. Do not publish.
+1. **Sync:** merge #219 and #221 into the synced branch on GitHub. Lovable pulls them automatically when that branch receives a push. Then I confirm HEAD equals the approved merge commit and that the diff covers only those PRs.
+2. **Find the one staged migration:** identify the single new SQL file from those PRs and check read-only that it isn't applied yet.
+3. **Apply the migration:** run it once, unchanged, through Lovable Cloud's migration tool. This takes effect on the live database immediately. The tool also writes its own drizzle copy and journal entry and refreshes `types.ts`. That's expected bookkeeping, not a code change.
+4. **Verify:** check the build log, typecheck, and confirm the migration's tables and functions exist. I won't count preview results or test runs as proof that the release is deployed.
+5. **Publish:** Publish → Publish changes, triggered by the owner or by me on explicit instruction. This updates all three domains together.
+6. **Post-check:** after publishing, read-only checks of `https://app.meetathena.io/mcp` metadata and the manifest version.
 
-Note: preview and production share one backend and one set of secrets. A preview result also confirms the secret is available to the published runtime once that code is published.
+Sign-in settings, Site URL, Hub, and permissions stay untouched throughout.
