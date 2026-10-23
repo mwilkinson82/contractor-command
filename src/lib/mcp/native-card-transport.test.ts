@@ -361,7 +361,7 @@ describe("native card presentation after the SDK", () => {
     expect(body.slice(body.indexOf("### Due within 7 days"), body.indexOf("### Coming up"))).not.toContain("🔴");
     expect(body.slice(body.indexOf("### Coming up"))).not.toContain("🔴");
     expect(body).not.toMatch(/^\s*\|/m);
-    expect(body.trim().endsWith("**Athena's next move:** Review “Job 2701 task 1” with Example PM (due Oct 21).")).toBe(true);
+    expect(body.trim().endsWith("**Athena's next move:** Clear Job 2701 task 1 with Example PM, overdue since Oct 21.")).toBe(true);
     expect(body).not.toContain("<!doctype");
     expect(body).not.toMatch(/\bREQUIRED\b/);
     expect(body).not.toMatch(/\bDo not\b/i);

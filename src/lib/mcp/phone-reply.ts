@@ -54,19 +54,28 @@ function ownerName(row: Row): string {
   return /^needed$/i.test(owner) ? "" : owner;
 }
 
-function nextMove(sc: Sc, card: CardModel | null, priority: Row[], job?: string | null): string {
-  const candidates = [card?.next_move, sc.next_move, sc.next_action, sc.top_priority];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return clean(candidate);
-  }
-  const row = priority[0];
-  if (!row) return "Review the job board for the next action.";
+function nextMove(overdue: Row[], delay: Row[], job?: string | null): string | null {
+  const row = overdue[0] ?? delay[0];
+  if (!row) return null;
   const title = splitAction(row.action ?? "Item", job).title;
   const owner = ownerName(row);
   const due = monthDay(asDate(row.due));
-  return owner
-    ? `Review “${title}” with ${owner}${due ? ` (due ${due})` : ""}.`
-    : `Assign an owner to review “${title}”${due ? ` (due ${due})` : ""}.`;
+  const timing = due ? `, ${overdue.length ? "overdue since" : "due"} ${due}` : "";
+  return `Clear ${title}${owner ? ` with ${owner}` : ""}${timing}.`;
+}
+
+/** A bounded subject from any note; the complete source stays in the bullet. */
+function shortTitle(text: string): string {
+  const clause = text.split(/[.!?](?:\s|$)|[;:]\s+/)[0] || "Item";
+  const subject = clause.split(/\s+(?:is|are|was|were|has|have|must|should|will)\b/i)[0]
+    .replace(/^(?:a|an|the)\s+/i, "").trim() || clause;
+  const words = subject.split(/\s+/);
+  let title = words[0].slice(0, 47);
+  for (const word of words.slice(1, 6)) {
+    if (`${title} ${word}`.length > 47) break;
+    title += ` ${word}`;
+  }
+  return `${title.charAt(0).toUpperCase()}${title.slice(1)}${title.length < subject.length ? "…" : ""}`;
 }
 
 function splitAction(action: string, job?: string | null, pending = true): { title: string; sentence: string } {
@@ -78,21 +87,13 @@ function splitAction(action: string, job?: string | null, pending = true): { tit
   }
   const checklist = /^Resolve:\s*/i.test(text);
   if (checklist) text = text.replace(/^Resolve:\s*(?:[A-Z]\d+\s+)?/i, "");
-  // These are topic labels, not rewritten requirements. Keep the complete note,
-  // including qualifications, amounts and clauses, beneath the shorter title.
-  const topic = /\bsubmittal and RFI turnaround times\b/i.test(text) ? "Turnaround times"
-    : /^A kickoff meeting has been held with the superintendent\b/i.test(text) ? "Superintendent kickoff"
-      : /^Price conditional .*project[- ]supervision exposure\b/i.test(text) ? "Project supervision exposure"
-        : null;
-  if (topic) return { title: topic, sentence: checklist && pending
-    ? `Can you confirm: ${text.replace(/[.!?]$/, "")}?`
-    : text.replace(/\.$/, "") };
-  if (checklist && pending) return { title: "Confirmation", sentence: `Can you confirm: ${text.replace(/[.!?]$/, "")}?` };
-  const label = text.match(/^(Schedule logic|Submittals|Deliveries|Inspections|RFIs):\s*(.+)$/i);
-  if (label) return { title: label[1], sentence: label[2].replace(/\.$/, "") };
+  const label = text.match(/^([^:]{1,80}):\s+(.+)$/);
+  const title = shortTitle(label?.[1] ?? text);
+  if (checklist && pending) return { title, sentence: `Can you confirm: ${text.replace(/[.!?]$/, "")}?` };
+  if (label) return { title, sentence: (title === label[1] ? label[2] : text).replace(/\.$/, "") };
+  if (title === text.replace(/[.!?]$/, "")) return { title: `${title}${text.endsWith("?") ? "?" : ""}`, sentence: "" };
   const cut = text.indexOf(". ");
-  if (cut < 0) return { title: text.replace(/\.$/, ""), sentence: "" };
-  return { title: text.slice(0, cut), sentence: text.slice(cut + 2).replace(/\.$/, "") };
+  return { title, sentence: (cut >= 0 && title === text.slice(0, cut) ? text.slice(cut + 2) : text).replace(/\.$/, "") };
 }
 
 function bullet(row: Row, job?: string | null): string {
@@ -103,7 +104,7 @@ function bullet(row: Row, job?: string | null): string {
   const waiting = !isResolved(row) && (/\b(?:unconfirmed|pending|awaiting|waiting)\b|\bnot\s+(?:yet\s+)?(?:confirmed|requested|sent|received|approved|resolved|complete(?:d)?)\b/i.test(row.action ?? "") || /^(?:pending|waiting|awaiting)$/i.test(row.status ?? ""));
   const question = waiting && !/\?$/.test(sentence || title) ? " What is the current status?" : "";
   const attribution = due ? `${who ? `${who}, ` : ""}due ${due}.` : `${who ? `${who}. ` : ""}Due date needed.`;
-  return `- **${title}${/[.!?]$/.test(title) ? "" : "."}**${detail}${question} ${attribution}`;
+  return `- **${title}${/[.!?…]$/.test(title) ? "" : "."}**${detail}${question} ${attribution}`;
 }
 
 function section(lines: string[], heading: string, rows: Row[], job?: string | null) {
@@ -151,7 +152,7 @@ export function phoneLookaheadText(sc: Sc): string | null {
     seen.add(key);
     bucket.push(row);
   };
-  for (const row of jobOverdue) push(overdue, row);
+  for (const row of jobOverdue) if (!isResolved(row)) push(overdue, row);
   const horizon = today ? addDays(today, 7) : null;
   for (const row of saved) {
     if (isResolved(row)) {
@@ -206,7 +207,8 @@ export function phoneLookaheadText(sc: Sc): string | null {
     .filter(Boolean);
   if (schedule.length) lines.push("", "### Schedule in this window", ...schedule);
   section(lines, "### Resolved", resolved, card?.job);
-  lines.push("", `**Athena's next move:** ${nextMove(sc, card, [...overdue, ...delay, ...due7, ...later], card?.job)}`);
+  const next = nextMove(overdue, delay, card?.job);
+  if (next) lines.push("", `**Athena's next move:** ${next}`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -278,7 +280,8 @@ export function phoneOpenItemsText(sc: Sc): string | null {
   section(lines, "### Coming up", later, card?.job);
   section(lines, "### 🔴 Delay notices", delay, card?.job);
   section(lines, "### Resolved", resolved, card?.job);
-  lines.push("", `**Athena's next move:** ${nextMove(sc, card, [...overdue, ...delay, ...due7, ...later], card?.job)}`);
+  const next = nextMove(overdue, delay, card?.job);
+  if (next) lines.push("", `**Athena's next move:** ${next}`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 

@@ -169,7 +169,7 @@ describe("normal lookahead read", () => {
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Saved items", value: "6" });
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Open saved items", value: "4" });
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Overdue on job", value: "3", flag: "overdue" });
-      expect(body.trim().endsWith("**Athena's next move:** Review “Job obligation 1” with Example PM (due Oct 14).")).toBe(true);
+      expect(body.trim().endsWith("**Athena's next move:** Clear Job obligation 1 with Example PM, overdue since Oct 14.")).toBe(true);
       expect(body).not.toContain("<!doctype");
       expect(body).not.toMatch(/\bREQUIRED\b/);
       expect(body).not.toMatch(/\bDo not\b/i);

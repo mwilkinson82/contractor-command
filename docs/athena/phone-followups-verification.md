@@ -1,15 +1,21 @@
 # Phone reply follow-ups after #207
 
-The generic-host lookahead and open-items replies now always end with Athena's
-next move. An explicit saved next action takes precedence; otherwise the footer
-asks for a review of the first overdue item, then a delay/risk, then an upcoming
-item. It uses the supplied owner and date and never marks work complete.
+The generic-host lookahead and open-items replies include Athena's next move
+only for an overdue item or a delay/risk. Overdue rows take precedence, followed
+by delay/risk rows. Due-within-seven and Coming up rows never supply the footer,
+and a saved next-action string cannot bypass that rule. With no qualifying row,
+the footer is omitted. An overdue example is "Clear Turnaround times with
+Example PM, overdue since Oct 14." A future-dated risk uses "due", not "overdue
+since". Missing owners or dates are not invented. This is a suggested action;
+it does not mark work complete.
 
-Known meeting-checklist headings use plain topic titles (Turnaround times,
-Superintendent kickoff, Project supervision exposure). Their full source notes,
-qualifications, money and clauses remain beneath those titles. Only the matching
-job prefix and a leading Resolve/checklist wrapper are removed. Other activity
-codes and other job numbers remain visible.
+One general title shortener applies to every note, including previously unseen
+checklist items. It uses a leading subject bounded to six words / 48 characters,
+with an ellipsis when that subject is shortened. There are no three-topic phrase
+aliases or generic "Confirmation" titles. Full source notes, qualifications,
+money and clauses remain in the bullet. Only the matching job prefix and a
+leading Resolve/checklist wrapper are removed. Other activity codes and other
+job numbers remain visible.
 
 Resolved lookahead items now have separate complete bullets. A note such as
 "Submittals: None block work in this window" retains the following preparation
@@ -27,8 +33,8 @@ assigned a date by this presentation change.
 
 ## Local verification
 
-- Default Vitest: **173 files / 1,850 tests passed**, including 17 phone
-  regressions. Focused phone/lookahead/transport run: **55 passed**.
+- Default Vitest: **173 files / 1,866 tests passed**, including 33 phone
+  regressions. Focused phone/lookahead/transport run: **71 passed**.
 - Production build passed; targeted semantic ESLint and diff whitespace checks
   passed. Typecheck retains the base's 34 errors with identical file/code pairs.
 - Separate role suite: **114 passed / 56 failed**, identical failing test names
@@ -49,12 +55,16 @@ crew answers and request/negative guards. This does not establish a live deploy.
 ## Team live acceptance
 
 Gage reviews; Tess retests after the team's approved release. On job 2701 in
-Grokbot, check the next-action footer without supplying one manually; plain
+Grokbot, check overdue-first, then delay/risk footer selection and the
+"Clear …, overdue since …" wording; plain
 overdue titles with complete underlying notes; separate complete resolved rows;
 all saved rows and correct current counts; owners/dates; existing section order;
 red limited to overdue, delay and risk indicators; one **Due date needed** prompt
 per undated row; and questions for pending confirmations. Markdown lists remain the
 fallback for a host without an interactive card surface.
+For empty, resolved-only, due-soon-only and Coming-up-only results, the footer
+must be absent. A future-dated risk must not be described as overdue. Check an
+unseen long checklist note for a short, distinct heading and complete detail.
 
 Rerun Marshall's do-not-break checklist in ChatGPT and Claude: hidden lookahead
 line, correct job data, panning Gantt, repeat full brief with inbox/calendar,

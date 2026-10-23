@@ -37,11 +37,11 @@ describe("phone reply follow-ups", () => {
     const original = structuredClone(sc);
     const body = phoneLookaheadText(sc)!;
     expect(body).toContain("**6 saved items · 4 open · 🔴 3 overdue on the job**");
-    expect(body).toContain("- **Turnaround times.** Can you confirm: Owner/engineer/architect submittal and RFI turnaround times are identified? Example PM, due Oct 14.");
-    expect(body).toContain("- **Superintendent kickoff.** Can you confirm: A kickoff meeting has been held with the superintendent?");
-    expect(body).toContain("- **Project supervision exposure.** Price conditional 30-day extended project-supervision exposure from redesign; track $140,000.00 gross billing displaced March to April.");
+    expect(body).toContain("Can you confirm: Owner/engineer/architect submittal and RFI turnaround times are identified? Example PM, due Oct 14.");
+    expect(body).toContain("- **Kickoff meeting.** Can you confirm: A kickoff meeting has been held with the superintendent?");
+    expect(body).toContain("Price conditional 30-day extended project-supervision exposure from redesign; track $140,000.00 gross billing displaced March to April.");
     expect(body).not.toMatch(/2701 – (Resolve|Price)|Resolve: [EF]\d+/);
-    expect(body.trim().endsWith("**Athena's next move:** Review “Turnaround times” with Example PM (due Oct 14).")).toBe(true);
+    expect(body.trim().endsWith("**Athena's next move:** Clear Owner/engineer/architect submittal and RFI… with Example PM, overdue since Oct 14.")).toBe(true);
     expect(body.split("\n").filter((line) => line.startsWith("- **"))).toHaveLength(9);
     expect(sc).toEqual(original);
   });
@@ -62,12 +62,12 @@ describe("phone reply follow-ups", () => {
     expect(body).not.toMatch(/<html|<!doctype|^\s*\||REQUIRED|Card shown/im);
   });
 
-  it.each(["card", "reply"])("preserves an explicit %s next action", (source) => {
+  it.each(["card", "reply"])("does not let an explicit %s next action override an overdue row", (source) => {
     const sc = lookahead();
     const body = phoneLookaheadText(source === "card"
       ? { ...sc, card: { ...sc.card, next_move: "Review the inspection request with Example PM." } }
       : { ...sc, next_action: "Review the inspection request with Example PM." });
-    expect(body?.endsWith("**Athena's next move:** Review the inspection request with Example PM.")).toBe(true);
+    expect(body?.endsWith("**Athena's next move:** Clear Owner/engineer/architect submittal and RFI… with Example PM, overdue since Oct 14.")).toBe(true);
   });
 
   it("retains legitimate activity codes and other job prefixes", () => {
@@ -75,7 +75,7 @@ describe("phone reply follow-ups", () => {
     sc.overdue_items = [{ action: "E14 circuit requires inspection.", owner: "Example PM", due: "2026-10-14" }, { action: "9999 – Resolve: E14 Check this other job.", owner: "Example PM", due: "2026-10-14" }];
     const body = phoneLookaheadText(sc)!;
     expect(body).toContain("**E14 circuit requires inspection.**");
-    expect(body).toContain("**9999 – Resolve: E14 Check this other job.**");
+    expect(body).toContain("**9999 – Resolve.** E14 Check this other job.");
   });
 
   it("keeps all 17 open rows and the pinned 3 overdue / 5 due counts without a next_move", () => {
@@ -90,7 +90,7 @@ describe("phone reply follow-ups", () => {
     expect(body.split("\n").filter((line) => line.startsWith("- **"))).toHaveLength(17);
     for (let i = 1; i <= 17; i++) expect(body).toContain(`**Example task ${i}.** Example PM, due `);
     expect(body.slice(body.indexOf("### Due within 7 days"))).not.toContain("🔴");
-    expect(body.endsWith("**Athena's next move:** Review “Example task 1” with Example PM (due Oct 21).")).toBe(true);
+    expect(body.endsWith("**Athena's next move:** Clear Example task 1 with Example PM, overdue since Oct 21.")).toBe(true);
     expect(sc).toEqual(original);
   });
 
@@ -98,13 +98,13 @@ describe("phone reply follow-ups", () => {
     const body = phoneOpenItemsText({ card: { title: "Open items" }, items: [{ action: "Check inspection readiness" }] })!;
     expect(body).toContain("**Check inspection readiness.** Due date needed.");
     expect(body).not.toContain("Needed,");
-    expect(body.endsWith("**Athena's next move:** Assign an owner to review “Check inspection readiness”.")).toBe(true);
+    expect(body).not.toContain("Athena's next move:");
   });
 
-  it("uses the board as the next action when every row is resolved", () => {
+  it("omits the next action when every row is resolved", () => {
     const body = phoneOpenItemsText({ card: { title: "Open items" }, counts: { open: 0 }, items: [{ action: "Inspection reviewed", status: "resolved" }] })!;
     expect(body).toContain("### Resolved");
-    expect(body.endsWith("**Athena's next move:** Review the job board for the next action.")).toBe(true);
+    expect(body).not.toContain("Athena's next move:");
   });
 
   it.each([phoneLookaheadText, phoneOpenItemsText])("prints one date prompt per undated row without a generic Needed placeholder", (render) => {
@@ -134,7 +134,7 @@ describe("phone reply follow-ups", () => {
   it("treats a card-only owner placeholder as missing instead of printing it", () => {
     const body = phoneOpenItemsText({ card: { title: "Open items", sections: [{ heading: "Items", rows: [{ cells: ["Check inspection", "Needed", "Needed"] }] }] } })!;
     expect(body).toContain("- **Check inspection.** Due date needed.");
-    expect(body.endsWith("**Athena's next move:** Assign an owner to review “Check inspection”.")).toBe(true);
+    expect(body).not.toContain("Athena's next move:");
   });
 
   it.each(["pending", "awaiting", "waiting"])("presents a %s item as a question without resolving it", (status) => {
@@ -153,7 +153,7 @@ describe("phone reply follow-ups", () => {
 
   it("asks for unresolved checklist confirmation without claiming the check happened", () => {
     const body = phoneOpenItemsText({ card: { title: "Open items" }, items: [{ action: "Resolve: F99 Review completed with Example PM.", status: "open" }] })!;
-    expect(body).toContain("- **Confirmation.** Can you confirm: Review completed with Example PM? Due date needed.");
+    expect(body).toContain("- **Review completed with Example PM.** Can you confirm: Review completed with Example PM? Due date needed.");
     expect(body).not.toContain("To confirm:");
     expect(body).not.toContain("?.");
   });
@@ -164,11 +164,73 @@ describe("phone reply follow-ups", () => {
       { action: "Inspection pending. Has it been booked?", status: "open" },
       { action: "Are crews confirmed?", status: "open" },
     ] })!;
-    expect(body).toContain("- **Superintendent kickoff.** A kickoff meeting has been held with the superintendent. Due date needed.");
+    expect(body).toContain("- **Kickoff meeting.** A kickoff meeting has been held with the superintendent. Due date needed.");
     expect(body).toContain("- **Inspection pending.** Has it been booked? Due date needed.");
     expect(body).toContain("- **Are crews confirmed?** Due date needed.");
     expect(body).not.toContain("current status?");
     expect(body).not.toContain("Can you confirm:");
     expect(body).not.toContain("?.");
+  });
+
+  describe.each([phoneLookaheadText, phoneOpenItemsText])("footer eligibility for %s", (render) => {
+    it.each([
+      [],
+      [{ action: "Inspection reviewed", status: "resolved", due: "2026-10-01", flag: "risk" }],
+      [{ action: "Book inspection", due: "2026-10-24" }],
+      [{ action: "Order fixtures", due: "2026-11-10" }],
+    ])("omits the footer without an overdue or delay/risk row: %j", (...items) => {
+      const sc = {
+        as_of: "2026-10-22", card: { title: "Example", next_move: "Review Coming up." },
+        next_action: "Review the job board.", items,
+      };
+      const original = structuredClone(sc);
+      const body = render(sc)!;
+      expect(body).not.toContain("Athena's next move:");
+      expect(body).not.toContain("Review the job board");
+      expect(sc).toEqual(original);
+    });
+
+    it("selects overdue first and then delay/risk, excluding ordinary upcoming work", () => {
+      const items = [
+        { action: "Ordinary upcoming item", owner: "Example Buyer", due: "2026-10-23" },
+        { action: "Delay notice", owner: "Example PM", due: "2026-11-04", flag: "delay" },
+        { action: "Drawing conflict", owner: "Example Engineer", due: "2026-11-05", type: "risk" },
+        { action: "Turnaround times", owner: "Example PM", due: "2026-10-14" },
+      ];
+      const sc = { as_of: "2026-10-22", card: { title: "Example" }, items };
+      expect(render(sc)?.endsWith("**Athena's next move:** Clear Turnaround times with Example PM, overdue since Oct 14.")).toBe(true);
+      const noOverdue = render({ ...sc, items: items.slice(0, 3) })!;
+      expect(noOverdue.endsWith("**Athena's next move:** Clear Delay notice with Example PM, due Nov 4.")).toBe(true);
+      expect(noOverdue.split("**Athena's next move:**")[1]).not.toContain("overdue since");
+      expect(render({ ...sc, items: [items[0], items[2]] })?.endsWith("**Athena's next move:** Clear Drawing conflict with Example Engineer, due Nov 5.")).toBe(true);
+    });
+
+    it("does not fabricate an owner or date on a qualifying row", () => {
+      const body = render({ card: { title: "Example" }, items: [{ action: "Unpriced risk", flag: "risk", owner: "Needed" }] })!;
+      expect(body.endsWith("**Athena's next move:** Clear Unpriced risk.")).toBe(true);
+      expect(body.match(/Due date needed/g)).toHaveLength(1);
+      expect(body).not.toContain("with Needed");
+      expect(body).not.toContain("overdue since");
+    });
+  });
+
+  it("does not revive resolved job-overdue records for a lookahead footer", () => {
+    const body = phoneLookaheadText({ card: { title: "Example" }, items: [], overdue_items: [{ action: "Old risk", status: "closed", flag: "risk", overdue: true }] })!;
+    expect(body).not.toContain("Athena's next move:");
+    expect(body).not.toContain("Old risk");
+  });
+
+  it.each([
+    "Resolve: G21 All equipment procurement and delivery milestones have been coordinated with the electrical superintendent and the mechanical foreman before installation starts.",
+    "Resolve: F99 The temporary power inspection has been booked with the authority having jurisdiction before the next work window.",
+    "Review the waterproofing warranty requirements with the enclosure subcontractor before approving any alternate membrane assembly; preserve the conditional $25,000.00 allowance (§8.2).",
+  ])("shortens an unseen long note without losing its full requirement: %s", (action) => {
+    const body = phoneOpenItemsText({ card: { title: "Example" }, items: [{ action, owner: "Example PM" }] })!;
+    const title = body.match(/^- \*\*(.+?)\*\*/m)![1].replace(/\.$/, "");
+    expect(title.length).toBeLessThanOrEqual(48);
+    expect(title.split(/\s+/).length).toBeLessThanOrEqual(6);
+    expect(title).not.toBe("Confirmation");
+    expect(body).toContain(action.replace(/^Resolve: [A-Z]\d+ /, "").replace(/\.$/, ""));
+    expect(body.match(/Due date needed/g)).toHaveLength(1);
   });
 });
