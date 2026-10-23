@@ -12,6 +12,10 @@ red badge and border still identify actual overdue, risk, and delay rows.
 Ordinary callouts retain their blue rule. Standalone HTML also declares the
 device viewport.
 
+The follow-up Claude screenshot also showed blank blue Job board buttons. The
+generic anchor color was blue even inside a blue action chip. Action-chip links
+now inherit their white text color in both renderers; ordinary links remain blue.
+
 ## Local verification, 2026-10-23
 
 The browser loaded the actual `cardWidgetHtml()` output and `renderHtml()` output,
@@ -27,6 +31,7 @@ These are local rendering checks, not proof of acceptance in a deployed host.
 | 320px lookahead action | 266px text width; badge height 21.4px |
 | Baseline comparison at 521 and 900px | 20 fixture comparisons; table cell text and geometry unchanged |
 | G703 continuation at 390px | Still 960px wide inside a 364px scrolling region; keyboard panning verified |
+| Action-chip links, both renderers at 390 and 900px | Before: blue text on blue; after: white on blue. Labels and destinations preserved; ordinary links remain blue |
 | Full Vitest suite | 1,978 tests passed in 185 files |
 | Production build | Passed |
 | Lint | New helper clean; existing renderers retain the same 12 pre-existing Prettier diagnostics as the base |

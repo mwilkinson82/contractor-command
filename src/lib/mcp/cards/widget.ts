@@ -123,6 +123,7 @@ td{padding:6px 8px;border-bottom:1px solid ${gray}}
 .table-wrap{overflow-x:auto}td.num{white-space:nowrap;text-align:right}
 .chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
 .tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
+.chip.tone-action a{color:inherit}
 a{color:${blue};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}

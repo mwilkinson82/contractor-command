@@ -78,6 +78,7 @@ export function renderHtml(card: CardModel): string {
     `.tone-known{border-color:${blue};color:${blue}}`,
     `.tone-unknown{color:${gray}}`,
     `.tone-action{background:${blue};color:${white};border-color:${blue}}`,
+    `.chip.tone-action a{color:inherit}`,
     `.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue};background:${white}}`,
     `.placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px;background:${white}}`,
     `.placeholder h2{margin-top:0;color:${navy}}`,
