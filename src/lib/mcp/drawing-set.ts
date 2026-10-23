@@ -71,7 +71,7 @@ export type DrawingUpload = {
 
 export type DrawingJob = { company_id: string; job_id: string };
 
-export type StoredDrawing = { name: string; path: string; sheets?: string[]; record: DrawingRecord; duplicate: boolean };
+export type StoredDrawing = { name: string; path: string; sheets?: string[]; record: DrawingRecord; duplicate: boolean; pageCount?: number };
 export type DrawingRecord = {
   id: string; path: string; filename: string; content_hash: string; source_key: string;
   source_url: string | null; sheets: string[]; version: number; created_at: string;
@@ -273,7 +273,7 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
   return out;
 }
 
-export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: Uint8Array; filename: string }> {
+export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: Uint8Array; filename: string; pageCount: number }> {
   const filename = upload.filename?.trim() || upload.file?.file_name?.trim() || (upload.source_url ? "drawing-set.pdf" : "");
   if (!filename) throw new ToolError("Name the drawing PDF. Nothing was stored.");
   try {
@@ -297,7 +297,7 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
       throw new FileRejected(/Nothing was stored\.$/.test(reason) ? reason : `${reason} Nothing was stored.`);
     }
     if (names.length > pageCount) throw new FileRejected("There are more sheet names than PDF pages. Correct the page index; nothing was stored.");
-    return { bytes, filename: checked.name };
+    return { bytes, filename: checked.name, pageCount };
   } catch (e) {
     if (e instanceof FileRejected)
       throw new ToolError(/over \d+ MB/.test(e.message) ? drawingTooBigMessage() : storedMessage(e.message));
@@ -328,7 +328,7 @@ async function readStoredOriginal(
 }
 
 export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload: DrawingUpload, prior: Doc[] = []): Promise<StoredDrawing> {
-  const { bytes, filename } = await readDrawingBytes(upload);
+  const { bytes, filename, pageCount } = await readDrawingBytes(upload);
   const hash = await sha256Hex(bytes);
   const records = await drawingRecords(sb, job);
   const source = upload.source_url ? drawingSource(upload.source_url) : null;
@@ -337,9 +337,16 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
   let legacy: Doc | undefined;
   let legacyBucket: string | undefined;
   if (!existing) {
+    // Registered originals already have a verified hash and bucket. They are not
+    // #190 legacy files: probing them in athena-files fails after a new import.
+    const indexedPaths = new Set(records.map((row) => row.path));
     for (const doc of prior) {
       if (!doc.path || !drawingOwned(doc.path, job.company_id, job.job_id)) continue;
+      // A registered source already compared its hash above. Do not re-download it.
+      if (indexedPaths.has(doc.path)) continue;
       const recorded = records.find((row) => row.path === doc.path);
+      // Unindexed paths have no registry row. The read still prefers a recorded
+      // bucket, then athena-drawings, then athena-files.
       const hits = await readStoredOriginal(sb, doc.path, recorded ? drawingBucket(recorded) : null);
       if (!hits.length) throw new ToolError("An existing drawing could not be checked for duplicates. Try again; nothing new was stored.");
       let matched: { bytes: Uint8Array; bucket: string } | undefined;
@@ -381,15 +388,71 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
       source_key: source?.key ?? existing?.source_key ?? `file:${filename.toLowerCase()}`,
       source_url: source?.url ?? existing?.source_url ?? null, sheets },
   });
-  return { name: record.filename, path: record.path, sheets: record.sheets, record, duplicate: !!existing || !!legacy };
+  return { name: record.filename, path: record.path, sheets: record.sheets, record, duplicate: !!existing || !!legacy, pageCount };
+}
+
+/** Read a job-owned original by identity, without rewriting its file or registry row. */
+export async function readStoredDrawingSet(sb: DrawingStore, job: DrawingJob, record: DrawingRecord): Promise<StoredDrawing> {
+  if (!drawingOwned(record.path, job.company_id, job.job_id))
+    throw new ToolError("That drawing source does not belong to this job.");
+  const file = await bucket(sb, drawingBucket(record)).download(record.path);
+  if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+  if (await sha256Hex(bytes) !== record.content_hash)
+    throw new ToolError("The stored drawing does not match its saved fingerprint. Review its source revision first.");
+  return { name: record.filename, path: record.path, sheets: record.sheets, record, duplicate: true, pageCount: await pdfPageCount(bytes) };
+}
+
+/** Re-index an existing original in place without encoding its bytes into a new upload. */
+export async function indexStoredDrawingSet(sb: DrawingStore, job: DrawingJob, input: {
+  path: string; filename: string; sheets: string[]; record?: DrawingRecord; complete?: boolean;
+}): Promise<StoredDrawing> {
+  if (!drawingOwned(input.path, job.company_id, job.job_id) || (input.record && input.record.path !== input.path))
+    throw new ToolError("That drawing source does not belong to this job. Nothing was indexed.");
+  const storageBucket = drawingBucket(input.record);
+  const file = await bucket(sb, storageBucket).download(input.path);
+  if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+  const checked = validateFile(bytes, input.filename, DRAWING_MAX_BYTES);
+  if (checked.ext !== "pdf") throw new ToolError("A drawing set has to be a PDF. Nothing was indexed.");
+  const hash = await sha256Hex(bytes);
+  if (input.record && hash !== input.record.content_hash)
+    throw new ToolError("The stored drawing does not match its saved fingerprint. Review its source revision first.");
+  if (new Set(input.sheets.map((name) => name.trim().toLowerCase())).size !== input.sheets.length)
+    throw new ToolError("Give each sheet one unique name in PDF page order. Nothing was indexed.");
+  const pageCount = await pdfPageCount(bytes);
+  if (input.sheets.length > pageCount)
+    throw new ToolError("There are more sheet names than PDF pages. Correct the page index; nothing was indexed.");
+  if (input.complete && input.sheets.length !== pageCount)
+    throw new ToolError(`This stored PDF has ${pageCount} pages. Give one sheet name per PDF page, in order. No index was changed; no re-upload is needed.`);
+  const record = await drawingRpc<DrawingRecord>(sb, "mcp_drawing_source_save", {
+    _job: job.job_id,
+    _record: { path: input.path, storage_bucket: storageBucket, filename: input.record?.filename ?? input.filename,
+      content_hash: hash, source_key: input.record?.source_key ?? `file:${input.filename.toLowerCase()}`,
+      source_url: input.record?.source_url ?? null, sheets: input.sheets },
+  });
+  return { name: record.filename, path: record.path, sheets: record.sheets, record, duplicate: true, pageCount };
+}
+
+export class DrawingSheetIndexRequired extends ToolError {
+  constructor(public record: DrawingRecord) {
+    super("This drawing is stored, but its sheet names need to be indexed. No older drawing was substituted.");
+  }
 }
 
 /** Current imported revisions first, then legacy #190 document entries. Original paths never change. */
-export async function storedSheet(sb: DrawingStore, job: DrawingJob, documents: Doc[], requested: string) {
+export async function storedSheet(sb: DrawingStore, job: DrawingJob, documents: Doc[], requested: string, selected?: { sourceId?: string; filename?: string }) {
   const records = await drawingRecords(sb, job);
-  let record = records.find((row) => sheetPageIndex(row.sheets, requested) != null && drawingOwned(row.path, job.company_id, job.job_id));
+  const selectedName = selected?.filename?.trim().toLowerCase();
+  // The identity returned by storage outranks a host's renamed attachment label.
+  const matches = (row: DrawingRecord) => selected?.sourceId ? row.id === selected.sourceId : !selectedName || row.filename.toLowerCase() === selectedName;
+  const chosen = records.find((row) => matches(row) && drawingOwned(row.path, job.company_id, job.job_id));
+  if (chosen && !chosen.sheets.length) throw new DrawingSheetIndexRequired(chosen);
+  let record = records.find((row) => matches(row) && sheetPageIndex(row.sheets, requested) != null && drawingOwned(row.path, job.company_id, job.job_id));
   if (!record) {
-    const doc = documents.find((row) => row.path && drawingOwned(row.path, job.company_id, job.job_id) && sheetPageIndex(row.sheets, requested) != null);
+    if (selected?.sourceId) throw new ToolError("The selected source does not contain this sheet on this job. No other drawing was substituted.");
+    const doc = documents.find((row) => (!selectedName || row.name.toLowerCase() === selectedName) && row.path && drawingOwned(row.path, job.company_id, job.job_id) && sheetPageIndex(row.sheets, requested) != null);
+    if (!doc?.path && selectedName) throw new ToolError(`The requested upload ${selected!.filename} is not stored with sheet ${requested}. Nothing was marked up; no older drawing was substituted.`);
     if (!doc?.path) throw new ToolError(`Sheet ${requested} is not indexed on this job. Name its stored drawing set and page order; do not re-upload a set already stored.`);
     const file = await bucket(sb).download(doc.path);
     if (file.error || !file.data) throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");

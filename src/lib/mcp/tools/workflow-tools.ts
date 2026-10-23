@@ -9,6 +9,7 @@ import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
 import { WARRANTY_CHECK_PREFIX, WARRANTY_SETUP_QUESTIONS, mapTrigger, nextWarrantyQuestion, CONTRACT_WARRANTY_KEY, alignCloseoutSource, renderWarrantyRegister, warrantyAnswerFacts, warrantyHow, warrantyOpenItems, type WarrantyKey } from "../warranty";
 import { EVIDENCE_ASK, evidenceProblem } from "../evidence";
+import { itemClosureKey, itemClosurePreview, itemClosureOutcome } from "../item-closure";
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
@@ -1366,7 +1367,7 @@ export const listOpenItems = defineTool({
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_type: itemType(i, nas) }));
+      const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_ref: itemRef(i), item_type: itemType(i, nas) }));
       const counts = { open: listed.length, overdue: listed.filter((i) => i.overdue).length, due_in_7_days: listed.filter((i) => i.due_in_7_days).length };
       const header = openItemsHeader(counts);
       const card = openItemsCard(`${named(job)}`, rows, counts, today);
@@ -1494,7 +1495,7 @@ export function closedWarrantyKey(checkKey: string | null | undefined, closed: b
 export const resolveItem = defineTool({
   name: "resolve_item",
   title: "Resolve or update an open item",
-  description: "Closes or updates an open item.",
+  description: "Previews a selected open item and its evidence, and closes it only after the member's separate yes with confirmed and the matching confirmation_key; update leaves it open.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1507,6 +1508,8 @@ export const resolveItem = defineTool({
     approval: z.string().max(1000).optional(),
     billing: z.string().max(1000).optional(),
     collection: z.string().max(1000).optional(),
+    confirmed: z.boolean().optional(),
+    confirmation_key: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   },
   annotations: { ...WRITE, idempotentHint: false },
   handler: (args, ctx) =>
@@ -1518,18 +1521,38 @@ export const resolveItem = defineTool({
       const hit = matchRef(args.item_id, (open ?? []) as { id: string; action: string | null; check_key: string | null }[]);
       if ("error" in hit) throw new ToolError(hit.error === "ambiguous" ? `More than one open item matches ${args.item_id}. Use the ref exactly as shown on the item line.` : `No open item ${args.item_id} on job ${job.job_number}. List the open items to see each ref.`);
       const itemId = hit.id;
-      const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type, action").eq("id", itemId).maybeSingle();
+      const { data: it, error } = await sb.from("mcp_open_items").select("id, job_id, section, check_key, item_type, action, accountable, owner, needed_by, due_date, updated_at").eq("id", itemId).maybeSingle();
       if (error) throw new Error(error.message);
       if (!it || it.job_id !== job.job_id) throw new ToolError(`Item not found on job ${job.job_number}.`);
       const ref = itemRef(it);
+      const me = await callerLabel(sb, job, ctx.getUserId?.());
+      const statedBy = args.kind === "member_statement" || args.kind === "update" ? (args.stated_by?.trim() || me) : args.stated_by ?? null;
+      const proposal = args.kind === "member_statement" ? { ...args, stated_by: statedBy ?? undefined } : args;
       // Closing needs real evidence: a document, a dated who-said-what statement, or an explicit waiver.
       if ((args.kind === "verified" || args.kind === "member_statement") && evidenceProblem(args.evidence)) {
         await audit(sb, job, "resolve_item", "close_rejected_no_evidence", itemId);
-        return { ...text(`${prefix(job)}${EVIDENCE_ASK}`), structuredContent: { item_id: itemId, item_ref: ref, item_type: itemType(it, await activeNa(sb, job.job_id)), closed: false } };
+        const preview = itemClosurePreview(named(job), it, ref, proposal, null, EVIDENCE_ASK);
+        return { ...text(renderMarkdown(preview.card)), structuredContent: { ...preview, item_id: itemId, item_ref: ref, item_type: itemType(it, await activeNa(sb, job.job_id)) } };
+      }
+      if (args.kind !== "update" && args.kind !== "na") {
+        const missingDetails = args.kind === "member_statement" && !args.stated_on
+          ? "What date was this statement made? Give the date as YYYY-MM-DD; this item stays open."
+          : args.kind === "waive" && !args.reason?.trim()
+            ? "What is the reason for waiving this item? It stays open until the reason is reviewed and you confirm."
+            : args.kind === "commercial_close" && (!args.approval?.trim() || !args.billing?.trim() || !args.collection?.trim())
+              ? "What are the approval, billing and collection records for this item? All three are needed before closure can be reviewed."
+              : null;
+        if (missingDetails) {
+          const preview = itemClosurePreview(named(job), it, ref, proposal, null, missingDetails);
+          return { ...text(renderMarkdown(preview.card)), structuredContent: { ...preview, item_id: itemId, item_ref: ref, item_type: itemType(it, await activeNa(sb, job.job_id)) } };
+        }
+        const key = await itemClosureKey(job.job_id, ctx.getUserId?.(), it, proposal);
+        if (args.confirmed !== true || args.confirmation_key !== key) {
+          const preview = itemClosurePreview(named(job), it, ref, proposal, key);
+          return { ...text(renderMarkdown(preview.card)), structuredContent: { ...preview, item_id: itemId, item_ref: ref, item_type: itemType(it, await activeNa(sb, job.job_id)) } };
+        }
       }
       // Statements are attributed to the calling user (name and role) unless the member named who said it.
-      const me = await callerLabel(sb, job, ctx.getUserId?.());
-      const statedBy = args.kind === "member_statement" || args.kind === "update" ? (args.stated_by?.trim() || me) : args.stated_by ?? null;
       const evidence = args.kind === "member_statement" && args.evidence ? `${args.evidence.trim()} (recorded by ${me})` : args.evidence ?? null;
       const r = await rpc<{ closed: boolean; resolution?: string }>(sb, "mcp_resolve_item", {
         _item: itemId, _kind: args.kind, _evidence: evidence, _stated_by: statedBy, _stated_on: args.stated_on ?? null,
@@ -1549,7 +1572,8 @@ export const resolveItem = defineTool({
       }
       const t = itemType(it, await activeNa(sb, job.job_id));
       const msg = r.closed ? `${prefix(job)}Item closed: ${(it.action ?? "").replace(/^\S+ – /, "")} (${r.resolution === "member_statement" ? "member statement" : r.resolution}). Evidence and history kept.${filled}` : `${prefix(job)}Item updated: ${(it.action ?? "").replace(/^\S+ – /, "")} (last reported by ${statedBy}). Still open.`;
-      return { ...text(msg), structuredContent: { item_id: itemId, item_ref: ref, item_type: t, closed: r.closed } };
+      const card = itemClosureOutcome(named(job), msg, r.closed);
+      return { ...text(renderMarkdown(card)), structuredContent: { card, item_id: itemId, item_ref: ref, item_type: t, closed: r.closed, confirmation_required: false } };
     }),
 });
 

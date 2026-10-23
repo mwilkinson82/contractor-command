@@ -251,6 +251,7 @@ export function drawingMarkupCard(
     kpis: [
       { label: "Source revision", value: String(source.version) },
       { label: "Callouts", value: String(annotations.length) },
+      { label: "Pins on sheet", value: String(annotations.filter((annotation) => annotation.geometry).length) },
       { label: "Markup version", value: saved ? String(saved.record.version) : "Preview" },
     ],
     sections: [
@@ -259,6 +260,8 @@ export function drawingMarkupCard(
         kind: "list",
         rows: [
           { cells: [source.filename, "Original preserved"] },
+          { cells: ["Stored source", source.created_at, `Revision ${source.version}`, `SHA-256 ${source.content_hash}`] },
+          { cells: ["This is the stored set used for this markup. A newly shared PDF is not included unless its import succeeded."] },
           ...(saved ? [{ cells: ["Saved", saved.record.created_at] }] : []),
           ...(saved?.url
             ? [{ cells: ["Open dated markup PDF (15-minute download link)"], href: saved.url }]

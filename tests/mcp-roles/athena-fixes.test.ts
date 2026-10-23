@@ -232,7 +232,10 @@ describe("resolve_item needs real evidence; warranty register in both reports", 
   });
   test("a dated statement closes it and is attributed to the calling user", async () => {
     const [it] = (await state.db!.query<{ id: string }>(`SELECT i.id FROM public.mcp_open_items i JOIN public.mcp_jobs j ON j.id = i.job_id WHERE j.job_number = 'J-2' AND i.check_key = 'warranty:warranty_start_basis'`)).rows;
-    const r = await call("resolve_item", { job_number: "J-2", item_id: it.id, kind: "member_statement", evidence: "Spec 01 77 00 says warranty starts at substantial completion", stated_on: "2026-10-19" });
+    const proposal = { job_number: "J-2", item_id: it.id, kind: "member_statement", evidence: "Spec 01 77 00 says warranty starts at substantial completion", stated_on: "2026-10-19" };
+    const preview = await call("resolve_item", proposal);
+    expect(preview.structured?.closed).toBe(false);
+    const r = await call("resolve_item", { ...proposal, confirmed: true, confirmation_key: preview.structured?.confirmation_key });
     expect(r.structured?.closed, r.text).toBe(true);
     const ev = (await state.db!.query<{ evidence: string }>(`SELECT evidence FROM public.mcp_item_evidence WHERE item_id = $1`, [it.id])).rows.map((x) => x.evidence).join(" ");
     expect(ev).toContain("recorded by Test Owner (Owner)");
@@ -379,7 +382,10 @@ describe("live retest 2 (637c36ac)", () => {
       evidence: "Owner Marshall confirms specifications are on file and reviewed: 'we're good' (October 19, 2026). No independent document verification provided." });
     expect(r.structured?.closed).toBe(false);
     expect(r.text).toContain("Still open");
-    const ok = await call("resolve_item", { job_number: "L-1", item_id: id, kind: "verified", evidence: "Spec book rev 3 (Section 01 33 00) uploaded to the job folder 2026-10-19" });
+    const proposal = { job_number: "L-1", item_id: id, kind: "verified", evidence: "Spec book rev 3 (Section 01 33 00) uploaded to the job folder 2026-10-19" };
+    const preview = await call("resolve_item", proposal);
+    expect(preview.structured?.closed).toBe(false);
+    const ok = await call("resolve_item", { ...proposal, confirmed: true, confirmation_key: preview.structured?.confirmation_key });
     expect(ok.structured?.closed, ok.text).toBe(true);
   });
 

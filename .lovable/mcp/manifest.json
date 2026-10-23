@@ -1302,7 +1302,7 @@
       {
         "name": "resolve_item",
         "title": "Resolve or update an open item",
-        "description": "Closes or updates an open item.",
+        "description": "Previews a selected open item and its evidence, and closes it only after the member's separate yes with confirmed and the matching confirmation_key; update leaves it open.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1366,6 +1366,13 @@
             "collection": {
               "type": "string",
               "maxLength": 1000
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "confirmation_key": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             }
           },
           "required": [
@@ -1951,7 +1958,7 @@
       {
         "name": "report_page_link",
         "title": "Job board link",
-        "description": "Returns the private job board link: items opens /items, ior opens /ior, and field opens /field.",
+        "description": "Returns private job board links; use page chat to refuse requests for owner or client chat access and offer a read-only client report instead.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -1988,7 +1995,7 @@
       {
         "name": "report_page_share",
         "title": "Share a report page (expiring link)",
-        "description": "Makes an expiring link to a report page.",
+        "description": "Creates only an expiring read-only report link after confirmation; use page chat to refuse chat access without creating a link.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2004,7 +2011,8 @@
               "enum": [
                 "ior",
                 "schedule",
-                "portfolio"
+                "portfolio",
+                "chat"
               ]
             },
             "job_number": {
@@ -2018,8 +2026,7 @@
               "maxLength": 200
             },
             "confirmed": {
-              "type": "boolean",
-              "const": true
+              "type": "boolean"
             },
             "expires_in_days": {
               "type": "integer",
@@ -2028,8 +2035,7 @@
             }
           },
           "required": [
-            "page",
-            "confirmed"
+            "page"
           ],
           "additionalProperties": false
         },
@@ -2304,7 +2310,7 @@
       {
         "name": "drawing_set_import",
         "title": "Store a drawing set",
-        "description": "Imports a Drive or Dropbox drawing PDF or uploaded bytes, recognizes identical files, and indexes stored sheets without another upload.",
+        "description": "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2400,6 +2406,11 @@
               "minLength": 1,
               "maxLength": 200
             },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
             "sheets": {
               "minItems": 1,
               "maxItems": 400,
@@ -2421,7 +2432,7 @@
       {
         "name": "drawing_markup",
         "title": "Mark up a stored drawing",
-        "description": "Marks up a stored job sheet with saved findings or supplied pins, lines and areas, preserving a dated copy.",
+        "description": "Prepares the stored sheet image and findings for inspection, then saves supplied pins, lines and areas in a dated copy using normalized 0..1 coordinates from the original image top-left, requiring source_id or source_filename to save the exact set and otherwise returning a source-selection preview, with unlocated findings kept in the key rather than guessed.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2446,6 +2457,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 80
+            },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "source_filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
             "operation": {
               "default": "save",
@@ -5718,7 +5739,7 @@
       {
         "name": "athena_hello",
         "title": "Athena hello",
-        "description": "Returns the full styled morning brief, including From your inbox and calendar, every time the user asks, including Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena.",
+        "description": "Returns the full styled morning brief, including From your inbox and calendar, every time the user asks, with job_number for one named job or without it for the full portfolio, including Good morning Athena, Hey Athena, what's on my plate today?, good morning, hey Athena, hello, or a misspelling like Athina, Athen, or Atena.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5732,6 +5753,11 @@
             "company_id": {
               "type": "string",
               "maxLength": 200
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
             }
           },
           "additionalProperties": false
@@ -5741,7 +5767,7 @@
       {
         "name": "morning_brief",
         "title": "Morning brief",
-        "description": "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the card always keeps the heading From your inbox and calendar, and when Gmail and Calendar can be read the placeholder rows are replaced with emails that came in overnight, unanswered emails that need a reply, and today's meetings, and when they cannot the placeholder rows stay and no error text is written, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, the reply is the full styled HTML card every time they ask, including From your inbox and calendar, and nothing is sent.",
+        "description": "Builds the member's construction morning brief across every job in every company they belong to, grouped by company when there is more than one, when they say Athena, good morning, Good morning Athena, Hey Athena, what's on my plate today?, Morning Athena, Athena at the start or mid-sentence, Athina, Athen, Atena, hitlist, morning briefing, what's on my plate today, overdue, or today's deadlines on my jobs, Athena leads, the card always keeps the heading From your inbox and calendar, and when Gmail and Calendar can be read the placeholder rows are replaced with emails that came in overnight, unanswered emails that need a reply, and today's meetings, and when they cannot the placeholder rows stay and no error text is written, then the job side follows with the schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today, the reply is the full styled HTML card every time they ask, including From your inbox and calendar, and nothing is sent, with job_number for a named-job brief or without it for the all-job portfolio brief.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -5755,6 +5781,11 @@
             "company_id": {
               "type": "string",
               "maxLength": 200
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
             }
           },
           "additionalProperties": false

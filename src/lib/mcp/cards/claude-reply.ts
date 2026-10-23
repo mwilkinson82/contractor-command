@@ -49,7 +49,7 @@ export function claudeCardText(text: string): string {
 
 /** Returns null when nothing in the result needed to change. Workflow guidance (which question to ask next,
  *  the SOV delivery options) stays; house style, card-shown orders and SOV table/chart styling go. */
-export function claudeCardReply(result: Obj): Obj | null {
+export function claudeCardReply(result: Obj, tool?: string): Obj | null {
   if (!Array.isArray(result.content)) return null;
   let changed = false;
   // No line claims the card is on screen: the host draws it only after the resource loads, and
@@ -70,6 +70,42 @@ export function claudeCardReply(result: Obj): Obj | null {
       changed = true;
       const { assistant_guidance: _drop, ...rest } = sc;
       structuredContent = kept.length ? { ...rest, assistant_guidance: kept } : rest;
+    }
+  }
+  // Claude's model may receive only content text, even while its app receives structuredContent.
+  // Follow-up tool arguments are factual data, not display instructions. Keep them in that text too.
+  const facts =
+    tool === "list_open_items" && Array.isArray(sc?.items)
+      ? {
+          item_references: sc.items.flatMap((value) => {
+            const item = value as Obj;
+            return item && typeof item.item_ref === "string" && typeof item.action === "string"
+              ? [{ item_ref: item.item_ref, title: item.action }]
+              : [];
+          }),
+        }
+      : tool === "resolve_item" &&
+          sc?.confirmation_required === true &&
+          typeof sc.confirmation_key === "string"
+        ? {
+            closure_review: {
+              item_ref: sc.item_ref,
+              confirmation_key: sc.confirmation_key,
+              closed: sc.closed,
+            },
+          }
+        : null;
+  if (facts && (facts.closure_review || (facts.item_references?.length ?? 0) > 0)) {
+    const data = `\n\n### Athena follow-up references\n\n\`\`\`json\n${JSON.stringify(facts)}\n\`\`\``;
+    const index = content.findIndex(
+      (block) => (block as Obj)?.type === "text" && typeof (block as Obj).text === "string",
+    );
+    if (index >= 0) {
+      const row = content[index] as Obj;
+      if (!(row.text as string).endsWith(data)) {
+        content[index] = { ...row, text: `${row.text}${data}` };
+        changed = true;
+      }
     }
   }
   if (!changed) return null;

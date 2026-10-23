@@ -7,7 +7,7 @@ import { drawingFileMeta } from "./drawing-file-input";
 import { NATIVE_CARD_URIS, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta, emailCardResourceMeta } from "./cards/email-card";
-import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, drawingCardHtml, drawingCardMeta, drawingCardResultMeta, drawingResourceMeta } from "./cards/drawing-card";
+import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, DRAWING_CARD_URIS, drawingCardHtml, drawingCardMeta, drawingCardResultMeta, drawingResourceMeta } from "./cards/drawing-card";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
 const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
@@ -83,8 +83,8 @@ if (!proto[patched]) {
       (this as { _athenaEmailCard?: boolean })._athenaEmailCard = true;
     }
     if (DRAWING_CARD_TOOLS.has(name) && typeof this.registerResource === "function" && !(this as { _athenaDrawingCard?: boolean })._athenaDrawingCard) {
-      this.registerResource("athena-drawing-card", DRAWING_CARD_URI, { title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, _meta: drawingResourceMeta }, async () => ({
-        contents: [{ uri: DRAWING_CARD_URI, mimeType: DRAWING_CARD_MIME, text: drawingCardHtml(), _meta: drawingResourceMeta }],
+      for (const uri of DRAWING_CARD_URIS) this.registerResource(uri === DRAWING_CARD_URI ? "athena-drawing-card" : "athena-drawing-card-legacy", uri, { title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, _meta: drawingResourceMeta }, async () => ({
+        contents: [{ uri, mimeType: DRAWING_CARD_MIME, text: drawingCardHtml(), _meta: drawingResourceMeta }],
       }));
       (this as { _athenaDrawingCard?: boolean })._athenaDrawingCard = true;
     }

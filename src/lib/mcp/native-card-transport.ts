@@ -21,7 +21,7 @@ import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, email
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 import { drawingFileMeta } from "./drawing-file-input";
-import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, drawingCardHtml, drawingCardMeta, drawingResourceMeta } from "./cards/drawing-card";
+import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, DRAWING_CARD_URIS, drawingCardHtml, drawingCardMeta, drawingResourceMeta } from "./cards/drawing-card";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -45,7 +45,7 @@ type Host = { name: string; capabilities: unknown };
 const CARD_VIEWS: Record<string, { name: string; title: string; mimeType: string; html: () => string; meta: Record<string, unknown> }> = Object.fromEntries([
   ...[...NATIVE_CARD_URIS].map((uri) => [uri, { name: uri === NATIVE_CARD_URI ? "athena-native-card" : "athena-native-card-legacy", title: "Athena native card", mimeType: NATIVE_CARD_MIME, html: nativeCardHtml, meta: nativeResourceMeta }]),
   [EMAIL_CARD_URI, { name: "athena-email-card", title: "Athena email card", mimeType: EMAIL_CARD_MIME, html: emailCardHtml, meta: emailCardResourceMeta }],
-  [DRAWING_CARD_URI, { name: "athena-drawing-card", title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, html: drawingCardHtml, meta: drawingResourceMeta }],
+  ...[...DRAWING_CARD_URIS].map((uri) => [uri, { name: uri === DRAWING_CARD_URI ? "athena-drawing-card" : "athena-drawing-card-legacy", title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, html: drawingCardHtml, meta: drawingResourceMeta }]),
 ]);
 const isCardUri = (uri: unknown): uri is string => typeof uri === "string" && uri in CARD_VIEWS;
 /** Tools that open on a card view, with the `_meta.ui` each advertises. */
@@ -308,7 +308,7 @@ export function nativeCardPayload(
       call.claude &&
       cardMetaFor(String(call.params.name ?? ""))
     ) {
-      next = claudeCardReply(result);
+      next = claudeCardReply(result, String(call.params.name ?? ""));
     } else if (
       call.method === "tools/call" &&
       result &&

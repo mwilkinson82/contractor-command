@@ -21,3 +21,13 @@ The view creates DOM nodes with literal text, never inserts result HTML/CSS, ren
 After exact release approval and publication, refresh the existing hosts' tool definitions using their supported refresh controls, then open the stored sheet and a dated markup in normal ChatGPT and Claude. Verify the actual card, preview, zoom and private PDF action; keep quantities and the source unchanged. Grok Bot live and real Drive/Dropbox-link acceptance remain outstanding; no public file staging was used.
 
 References: [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx), [OpenAI MCP Apps UI](https://developers.openai.com/plugins/build/chatgpt-ui).
+
+## Live #235 and structured preview follow-up
+
+#235 was approved, merged as decb9264 and published through Lovable deployment ab624792-417c-4ac0-b9da-cb6353a670aa. Both normal hosts load Athena's drawing card. ChatGPT displays the stored S-100 PNG; live zoom 732→1098px, keyboard pan 0→40px and reset pass. Claude displays the card but has no image/zoom section, although its separate tool image is present. This is a live FAIL for the embedded Claude preview. Claude did save one authorized QA pin as a separate dated version and its native card's PDF button opened the actual foundation-plan PDF successfully.
+
+The follow-up includes the exact same server-rendered PNG in `structuredContent.drawing_preview`, retaining the existing image content block for model vision and older card clients. The view prefers a validated structured PNG and falls back to content images; PNG-only/base64/size restrictions are identical on both paths. There is no extra rendering, download, upload or storage write. The image is represented twice in the serialized response, a compatibility cost; no additional image is generated.
+
+New discovery points at `ui://athena/drawing-card-v2.html` so Claude fetches updated HTML. The previous drawing URI remains readable for existing clients. Existing contract, SOV, morning-brief, email and ChatGPT widget templates are unchanged. No auth, migration, permission, connector or quantity changes.
+
+Verification: 2,100 tests/199 files and production build pass. Four new cases reproduce a host notification with no image content and reject unsafe structured previews. Actual tool-handler tests assert the structured preview equals the original PNG, and real SDK tests retain it for both hosts and read both drawing resource URIs. Strict lint passes on new view/test files; changed legacy files pass with their pre-existing formatting rule excluded. The same 34 baseline TypeScript diagnostics remain, with no additions. Live acceptance of this follow-up requires its own approved deployment and tool refresh.

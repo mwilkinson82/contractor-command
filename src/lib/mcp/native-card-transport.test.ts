@@ -573,3 +573,48 @@ describe("native card presentation after the SDK", () => {
     }
   });
 });
+
+describe("Claude follow-up arguments in host-readable text", () => {
+  const items = [{ item_id: "60fedbcc-24ca-4939-9af9-800099b554b7", item_ref: "#60fedb", action: "QA-237 — Closure confirmation verification" }];
+  it("retains every row and exposes item refs without changing the card or ChatGPT", async () => {
+    const fixture = { ...cardResult, structuredContent: { ...cardResult.structuredContent, items } };
+    const input = result(fixture);
+    const out = await transform("tools/call", { name: "list_open_items" }, input, meta("claude-ai"));
+    const returned = (out.value as { result: typeof fixture }).result;
+    expect(returned.content[0].text).toContain("Full styled fallback");
+    expect(returned.content[0].text).toContain('"item_ref":"#60fedb"');
+    expect(returned.content[0].text).toContain(items[0].action);
+    expect(returned.structuredContent).toEqual(fixture.structuredContent);
+    expect(returned._meta).toEqual(fixture._meta);
+    expect(returned.content[1]).toEqual(fixture.content[1]);
+    const gpt = await transform("tools/call", { name: "list_open_items" }, input, meta("ChatGPT"));
+    expect(gpt.value).toBe(input);
+    expect(gpt.changed).toBe(false);
+  });
+  it("makes the current review key readable to Claude while retaining the full review and card", async () => {
+    const key = "a".repeat(64);
+    const fixture = { ...cardResult, structuredContent: { ...cardResult.structuredContent, confirmation_required: true, confirmation_key: key, closed: false, item_ref: "#60fedb" } };
+    const input = result(fixture);
+    const out = await transform("tools/call", { name: "resolve_item" }, input, meta("claude-ai"));
+    const returned = (out.value as { result: typeof fixture }).result;
+    expect(returned.content[0].text).toContain('"confirmation_key":"' + key + '"');
+    expect(returned.content[0].text).toContain('"closed":false');
+    expect(returned.structuredContent).toEqual(fixture.structuredContent);
+    expect(returned.content[0].text).not.toMatch(/REQUIRED VIEW|Card shown|sees this result as/);
+    const gpt = await transform("tools/call", { name: "resolve_item" }, input, meta("ChatGPT"));
+    expect(gpt.value).toBe(input);
+  });
+  it("does not duplicate facts on a second presentation pass", async () => {
+    const first = await transform("tools/call", { name: "list_open_items" }, result({ ...cardResult, structuredContent: { ...cardResult.structuredContent, items } }), meta("claude-ai"));
+    const second = await transform("tools/call", { name: "list_open_items" }, first.value, meta("claude-ai"));
+    expect(second.changed).toBe(false);
+    expect(second.value).toBe(first.value);
+  });
+  it("keeps failed calls untouched and never invents a key for missing evidence", async () => {
+    const failed = result({ ...cardResult, isError: true, structuredContent: { confirmation_required: true, confirmation_key: "a".repeat(64) } });
+    expect((await transform("tools/call", { name: "resolve_item" }, failed, meta("claude-ai"))).value).toBe(failed);
+    const noKey = result({ ...cardResult, structuredContent: { confirmation_required: true, confirmation_key: null } });
+    const out = await transform("tools/call", { name: "resolve_item" }, noKey, meta("claude-ai"));
+    expect(JSON.stringify(out.value)).not.toContain("Athena follow-up references");
+  });
+});
