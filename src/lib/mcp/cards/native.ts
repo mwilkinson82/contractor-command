@@ -32,7 +32,7 @@ function receive(event){
  if(event.source!==window.parent)return;
  var m=event.data;if(!m||m.jsonrpc!=="2.0")return;
  if(!ready){
-  if(m.id!==1||m.error||!m.result||typeof m.result!=="object")return;
+  if(m.id!==1||!m.result||m.result.protocolVersion!=="2026-01-26")return;
   origin=event.origin;ready=true;send({method:"ui/notifications/initialized",params:{}});size();return;
  }
  if(event.origin!==origin)return;
@@ -47,5 +47,5 @@ send({id:1,method:"ui/initialize",params:{protocolVersion:"2026-01-26",appInfo:{
 })();`;
 
 export function nativeCardHtml(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style id="card-style"></style><style>body{margin:0;background:#FFFFFF;color:#1E3A5F;font:15px/1.45 system-ui,sans-serif}#app{min-width:0}#app>.card{border-top:4px solid #1E5FED}#app>p{margin:12px;padding:12px;border-left:4px solid #1E5FED;color:#6B7280}table{width:100%;border-collapse:collapse}td,th{overflow-wrap:anywhere}</style></head><body><main id="app" aria-live="polite"><p>Athena · Loading your card…</p></main><script>${SCRIPT}</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style id="card-style"></style><style>body{margin:0;background:#FFFFFF;color:#1E3A5F;font:15px/1.45 system-ui,sans-serif}#app{min-width:0}#app>p{margin:12px;padding:12px;border-left:4px solid #1E5FED;color:#6B7280}table{width:100%;border-collapse:collapse}td,th{overflow-wrap:anywhere}</style></head><body><main id="app" aria-live="polite"><p>Athena · Loading your card…</p></main><script>${SCRIPT}</script></body></html>`;
 }
