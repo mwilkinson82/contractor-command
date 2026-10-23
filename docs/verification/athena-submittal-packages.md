@@ -35,7 +35,7 @@ npx tsc --noEmit --pretty false
 
 The PR workflow runs the default suite and build only, never deploys or sends email. Its install explicitly uses MCP SDK 3.0.5 and Zod 4.4.3, matching the committed manifest; the inherited lock is incomplete for the MCP SDK, so `npm ci` cannot be used without a separate lock repair. The app's existing dependency ranges are unchanged except for adding pinned `pdf-lib` 1.17.1.
 
-Final local default suite (before incorporating #218): **1,928 tests passed across 180 files**. Production build passed. Separate role suite: **114 passed / 56 failed**, matching the base. Focused lint passed. Type checking: 34 existing diagnostics, no new file/error-code diagnostics compared with the starting base.
+Final local default suite (including #218): **1,929 tests passed across 180 files**. Production build passed. Separate role suite: **114 passed / 56 failed**, matching the base. Focused lint passed. Type checking: 34 existing diagnostics, no new file/error-code diagnostics compared with the starting base.
 
 Focused coverage includes the real local SQL/RLS, current revision transmittals, separate piece contacts, false received states without files, source immutability, cover-first page merging, native attachments, byte/hash preservation, actual handler upload/build/reuse, review vs send, changed recipients/body, stale packages, receipt idempotency, preview expiry, renewal/revocation, foreign-job/anon/inactive/role denial, resource discovery, complete row fallbacks and unchanged ChatGPT metadata. No real provider send is exercised.
 
@@ -48,7 +48,7 @@ python3 -m http.server 8769 --bind 127.0.0.1 --directory /absolute/private/outpu
 
 Open the local index. It uses the actual native resource and a local initialization/tool-result bridge, with prominently fictional job 2701 data. This checks the UI shell, not live Claude negotiation. The generated PDF and original source support independent text, page-order, attachment/hash and visual checks.
 
-The untouched starting base was `86f64db2`; the final candidate is updated onto `078c8564` (including #215 and #213), with Athena version 0.8.21 to refresh discovery for the two new tools. The legacy role suite is 114 passing / 56 failing on both base and candidate; these failures are not hidden in the default-suite count. Type checking has 34 pre-existing diagnostics on the starting base; compare diagnostic locations/codes (one SDK union message grows when tools are added). The default base suite had one stale version assertion, corrected here to use `ATHENA_VERSION`.
+The untouched starting base was `86f64db2`; the final candidate is updated onto `37d85089` (including #218, #215 and #213), with Athena version 0.8.21 to refresh discovery for the two new tools. The legacy role suite is 114 passing / 56 failing on both base and candidate; these failures are not hidden in the default-suite count. Type checking has 34 pre-existing diagnostics on the starting base; compare diagnostic locations/codes (one SDK union message grows when tools are added). The default base suite had one stale version assertion, corrected here to use `ATHENA_VERSION`.
 
 ## Live browser baseline, October 23, 2026
 
