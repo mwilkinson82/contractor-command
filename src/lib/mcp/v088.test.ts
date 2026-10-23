@@ -17,7 +17,7 @@ const jordan = {
 };
 
 describe("0.8.8 blue brand, To field, pinned REQUIRED lines, sweep cards", () => {
-  it("version is 0.8.8 or later (0.8.9)", () => expect(ATHENA_VERSION).toBe("0.8.19"));
+  it("version is 0.8.8 or later (0.8.9)", () => expect(ATHENA_VERSION).toBe("0.8.20"));
   it("connector icons are the mono-blue mark at new URLs", () => {
     expect(ATHENA_SERVER_ICONS.map((i) => i.src).filter((s) => !s.startsWith("data:"))).toEqual([
       "https://app.meetathena.io/brand/athena/athena-mono-blue-64.png",
