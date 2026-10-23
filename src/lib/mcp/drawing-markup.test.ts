@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   records: [] as Record<string, unknown>[],
   documents: [] as Record<string, unknown>[],
   objects: new Map<string, Uint8Array>(),
+  objectBuckets: new Map<string, string>(),
   uploaded: [] as string[],
   removed: [] as string[],
   failRecord: false,
@@ -128,12 +129,14 @@ function fakeSb() {
           if (state.objects.has(path)) return { error: { message: "Already exists" } };
           state.uploaded.push(path);
           state.objects.set(path, bytes.slice());
+          state.objectBuckets.set(path, bucketName);
           return { error: null };
         },
         download: async (path: string) => {
           state.downloads.push(path);
           const bytes = state.objects.get(path);
-          return bytes
+          const storedIn = state.objectBuckets.get(path) ?? "athena-files";
+          return bytes && storedIn === bucketName
             ? { data: { arrayBuffer: async () => new Uint8Array(bytes).buffer }, error: null }
             : { data: null, error: { message: "not found" } };
         },
@@ -143,7 +146,10 @@ function fakeSb() {
         }),
         remove: async (paths: string[]) => {
           state.removed.push(...paths);
-          paths.forEach((p) => state.objects.delete(p));
+          paths.forEach((p) => {
+            state.objects.delete(p);
+            state.objectBuckets.delete(p);
+          });
           return { error: null };
         },
       }); },
@@ -179,6 +185,7 @@ beforeEach(() => {
   state.records = [];
   state.documents = [];
   state.objects.clear();
+  state.objectBuckets.clear();
   state.uploaded = [];
   state.removed = [];
   state.failRecord = false;
@@ -201,6 +208,7 @@ describe("stored drawing markup tool", () => {
   it.each([
     "https://files.oaiusercontent.com/permit.pdf",
     "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional",
+    "https://oaisdmntpreastus2.blob.core.windows.net/fictional/permit.pdf?sig=fictional",
   ])("imports the host attachment once, then opens the stored sheet without another download (%s)", async (download_url) => {
     const bytes = pdf();
     const original = bytes.slice();
@@ -388,6 +396,47 @@ describe("drawing set identity and source revisions", () => {
     expect(marked.structuredContent.saved).toBe(true);
     expect((marked.structuredContent.markup as DrawingRecord).page).toBe(2);
   });
+  it("reads an athena-drawings original when a later byte upload is not in the version registry", async () => {
+    const original = pdf("CCW-003 stored");
+    const path = "c1/j1/drawing-ccw003/source.pdf";
+    state.objects.set(path, original);
+    state.objectBuckets.set(path, DRAWING_BUCKET);
+    const prior = [{ name: "CCW.pdf", kind: "base" as const, path, sheets: ["Cover", "S-100"] }];
+    const again = await storeDrawingSet(
+      fakeSb(),
+      job,
+      { filename: "CCW.pdf", content_base64: bytesToBase64(original), sheets: ["Cover", "S-100"] },
+      prior,
+    );
+    expect(again.duplicate).toBe(true);
+    expect(again.path).toBe(path);
+    expect(again.record.storage_bucket).toBe(DRAWING_BUCKET);
+    expect(state.uploaded).toEqual([]);
+    const other = pdf("CCW-003 replacement");
+    const stored = await storeDrawingSet(
+      fakeSb(),
+      job,
+      { filename: "CCW-new.pdf", content_base64: bytesToBase64(other), sheets: ["Cover", "S-100"] },
+      prior,
+    );
+    expect(stored.duplicate).toBe(false);
+    expect(stored.record.storage_bucket).toBe(DRAWING_BUCKET);
+    expect(state.uploaded).toHaveLength(1);
+  });
+
+  it("still refuses a byte upload when an owned drawing cannot be read from either bucket", async () => {
+    const prior = [{ name: "CCW.pdf", kind: "base" as const, path: "c1/j1/drawing-missing/source.pdf", sheets: ["S-100"] }];
+    await expect(
+      storeDrawingSet(
+        fakeSb(),
+        job,
+        { filename: "CCW.pdf", content_base64: bytesToBase64(pdf()), sheets: ["Cover", "S-100"] },
+        prior,
+      ),
+    ).rejects.toThrow("An existing drawing could not be checked for duplicates. Try again; nothing new was stored.");
+    expect(state.uploaded).toEqual([]);
+  });
+
   it("recognizes a re-shared legacy PDF even with another filename; uploads nothing", async () => {
     const original = await seed();
     const result = await storeDrawingSet(

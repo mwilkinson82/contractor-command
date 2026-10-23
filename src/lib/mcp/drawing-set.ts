@@ -209,17 +209,22 @@ function rejectedDrawingLink(raw: string): string {
   return `Athena does not yet accept attachment downloads from ${url.hostname}. Nothing was stored.`;
 }
 
-// Observed on the signed-in ChatGPT file-parameter handoff in the live #231 retest.
-// This is one storage account, not an Azure-wide hostname pattern.
-const CHATGPT_DRAWING_HOST = "oaisdmntprbrazilsouth.blob.core.windows.net";
+// Exact ChatGPT file-parameter storage accounts. Azure names are first-come,
+// so a prefix such as oai* would accept an account any customer can register.
+// oaisdmntprbrazilsouth: live #231 handoff. oaisdmntpreastus2: live 2026-10-23 handoff.
+export const CHATGPT_DRAWING_HOSTS = [
+  "oaisdmntprbrazilsouth.blob.core.windows.net",
+  "oaisdmntpreastus2.blob.core.windows.net",
+] as const;
+const CHATGPT_DRAWING_HOST_SET = new Set<string>(CHATGPT_DRAWING_HOSTS);
 
-function allowedDrawingDownloadUrl(raw: string): boolean {
+export function allowedDrawingDownloadUrl(raw: string): boolean {
   if (allowedDownloadUrl(raw)) return true;
   try {
     const url = new URL(raw);
     return (
       url.protocol === "https:" &&
-      url.hostname === CHATGPT_DRAWING_HOST &&
+      CHATGPT_DRAWING_HOST_SET.has(url.hostname) &&
       !url.username &&
       !url.password &&
       !url.port
@@ -229,7 +234,7 @@ function allowedDrawingDownloadUrl(raw: string): boolean {
   }
 }
 
-/** ChatGPT file fetch: existing hosts plus the observed storage account; no redirects, size-capped. */
+/** ChatGPT file fetch: existing hosts plus the observed storage accounts; no redirects, size-capped. */
 async function fetchDrawing(url: string): Promise<Uint8Array> {
   if (!allowedDrawingDownloadUrl(url)) throw new FileRejected(rejectedDrawingLink(url));
   // The deployed edge runtime supports manual/follow, but rejects redirect:"error".
@@ -300,6 +305,28 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
   }
 }
 
+/** Read one owned original. New originals live in athena-drawings; #190 originals stay in athena-files. */
+async function readStoredOriginal(
+  sb: DrawingStore,
+  path: string,
+  preferred?: string | null,
+): Promise<{ bytes: Uint8Array; bucket: string }[]> {
+  const names: string[] = [];
+  const add = (name?: string | null) => {
+    if ((name === FILE_BUCKET || name === DRAWING_BUCKET) && !names.includes(name)) names.push(name);
+  };
+  add(preferred);
+  add(DRAWING_BUCKET);
+  add(FILE_BUCKET);
+  const hits: { bytes: Uint8Array; bucket: string }[] = [];
+  for (const name of names) {
+    const file = await bucket(sb, name).download(path);
+    if (file.error || !file.data) continue;
+    hits.push({ bytes: new Uint8Array(await file.data.arrayBuffer()), bucket: name });
+  }
+  return hits;
+}
+
 export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload: DrawingUpload, prior: Doc[] = []): Promise<StoredDrawing> {
   const { bytes, filename } = await readDrawingBytes(upload);
   const hash = await sha256Hex(bytes);
@@ -308,16 +335,22 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
   const existing = records.find((row) => row.content_hash === hash);
   // Index #190 drawings lazily; a re-share of an older stored PDF must not upload a second copy.
   let legacy: Doc | undefined;
+  let legacyBucket: string | undefined;
   if (!existing) {
     for (const doc of prior) {
       if (!doc.path || !drawingOwned(doc.path, job.company_id, job.job_id)) continue;
-      const file = await bucket(sb).download(doc.path);
-      if (file.error || !file.data) throw new ToolError("An existing drawing could not be checked for duplicates. Try again; nothing new was stored.");
-      if (await sha256Hex(new Uint8Array(await file.data.arrayBuffer())) === hash) { legacy = doc; break; }
+      const recorded = records.find((row) => row.path === doc.path);
+      const hits = await readStoredOriginal(sb, doc.path, recorded ? drawingBucket(recorded) : null);
+      if (!hits.length) throw new ToolError("An existing drawing could not be checked for duplicates. Try again; nothing new was stored.");
+      let matched: { bytes: Uint8Array; bucket: string } | undefined;
+      for (const hit of hits) {
+        if (await sha256Hex(hit.bytes) === hash) { matched = hit; break; }
+      }
+      if (matched) { legacy = doc; legacyBucket = matched.bucket; break; }
     }
   }
   const path = existing?.path ?? legacy?.path ?? storagePath(job.company_id, job.job_id, `drawing-${hash}`, "source.pdf");
-  const storageBucket = existing ? drawingBucket(existing) : legacy ? FILE_BUCKET : DRAWING_BUCKET;
+  const storageBucket = existing ? drawingBucket(existing) : legacy ? (legacyBucket ?? FILE_BUCKET) : DRAWING_BUCKET;
   if (!drawingOwned(path, job.company_id, job.job_id))
     throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
   if (!existing && !legacy) {
