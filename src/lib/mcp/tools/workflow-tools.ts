@@ -1408,7 +1408,7 @@ export const lookaheadGet = defineTool({
       const jobOverdue = d.win ? lookaheadModel(d.win.start, d.win.end, d.acts, d.items, { today: d.today, dataDate: d.dataDate }).overdue.map((entry) => entry.item) : null;
       const card = savedLookaheadCard(named(job), d.ref, items, d.today, context, jobOverdue);
       const html = renderHtml(card);
-      return { ...text(applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false)),
+      return { ...text(`${renderMarkdown(card)}\n\n${html}`),
         structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, as_of: d.today, overdue_scope: jobOverdue ? "job" : "saved_items", overdue_items: jobOverdue ?? items.filter((item) => item.status === "open" && item.due && item.due < d.today), activities, items, card, html },
         _meta: { ...cardWidgetMeta } };
     }),

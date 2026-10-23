@@ -1,13 +1,17 @@
-/** Card discovery/resource presentation after the SDK. Never edits tools/call replies or authorizes requests. */
+/** Card discovery/resource presentation after the SDK. Does not authorize requests.
+ *  tools/call text for lookahead_get and list_open_items drops the inline HTML document
+ *  when the host did not advertise a card. structuredContent, widget template, and resource URI stay. */
 import {
   NATIVE_CARD_MIME,
   NATIVE_CARD_TOOLS,
   NATIVE_CARD_URI,
+  TEXT_CARD_TOOLS,
   nativeCardHtml,
   nativeResourceMeta,
   nativeCardMeta,
 } from "./cards/native";
 import { isMcpPost } from "./server-info-branding";
+import { phoneHostText } from "./phone-reply";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -20,8 +24,50 @@ type Call = {
   method: string;
   params: Obj;
   modern: boolean;
+  inlineHtml: boolean;
 };
 type Visit = { calls: Call[] };
+type Host = { name: string; capabilities: unknown };
+
+/** Session id from initialize → whether that client can show a card. Same isolate only. */
+const cardSessions = new Map<string, boolean>();
+
+function hasUiCapability(capabilities: unknown): boolean {
+  const caps = obj(capabilities);
+  const extensions = obj(caps?.extensions);
+  const ui = obj(extensions?.["io.modelcontextprotocol/ui"]);
+  if (!ui) return false;
+  const types = ui.mimeTypes;
+  return Array.isArray(types) ? types.some((type) => typeof type === "string" && type.length > 0) : true;
+}
+
+/** ChatGPT and Claude keep the HTML in the text. Anyone else needs an advertised UI capability. */
+export function hostInlinesCard(host: Host | null): boolean {
+  if (!host) return false;
+  if (/claude|chatgpt|openai/i.test(host.name)) return true;
+  return hasUiCapability(host.capabilities);
+}
+
+function readHost(request: Request, params: Obj, meta: Obj | null): Host | null {
+  const info = obj(params.clientInfo) ?? obj(meta?.["io.modelcontextprotocol/clientInfo"]);
+  const capabilities = meta?.["io.modelcontextprotocol/clientCapabilities"] ?? params.capabilities;
+  const named = typeof info?.name === "string" ? info.name : "";
+  const ua = request.headers.get("user-agent") ?? "";
+  const name = named || (/claude|chatgpt|openai|grok/i.test(ua) ? ua : "");
+  if (!name && capabilities == null) return null;
+  return { name, capabilities };
+}
+
+/** Drop the dumped HTML document from a text block. Markdown rows stay. */
+export function stripInlineCardHtml(text: string): string {
+  return text
+    .replace(/REQUIRED VIEW: render this HTML card as-is\.[^\n]*/g, "")
+    .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
+    .replace(/<!doctype html[\s\S]*$/gi, "")
+    .replace(/Card shown\. Do not add text(?:; wait for the user's pick)?\.?/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 export async function nativeCardVisit(request: Request): Promise<Visit | null> {
   if (!isMcpPost(request)) return null;
@@ -41,11 +87,13 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       params = obj(call?.params) ?? {};
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
+    if (method === "tools/call" && !TEXT_CARD_TOOLS.has(String(params.name ?? ""))) continue;
     if (
       ![
         "initialize",
         "server/discover",
         "tools/list",
+        "tools/call",
         "resources/list",
         "resources/templates/list",
         "resources/read",
@@ -54,10 +102,14 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       continue;
     if (method === "resources/read" && params.uri !== NATIVE_CARD_URI) continue;
     const meta = obj(call._meta) ?? obj(params._meta);
+    const host = readHost(request, params, meta);
+    const session = request.headers.get("mcp-session-id");
+    const remembered = session ? cardSessions.get(session) : undefined;
     calls.push({
       id: call.id,
       method,
       params,
+      inlineHtml: remembered ?? hostInlinesCard(host),
       modern:
         String(
           meta?.["io.modelcontextprotocol/protocolVersion"] ??
@@ -140,6 +192,30 @@ export function nativeCardPayload(
     } else if (call.method === "resources/templates/list" && missingMethod) {
       next = { resourceTemplates: [] };
     } else if (
+      call.method === "tools/call" &&
+      result &&
+      result.isError !== true &&
+      !call.inlineHtml &&
+      TEXT_CARD_TOOLS.has(String(call.params.name ?? "")) &&
+      Array.isArray(result.content)
+    ) {
+      let edited = false;
+      let wrotePhone = false;
+      const phone = phoneHostText(String(call.params.name ?? ""), obj(result.structuredContent));
+      const content = result.content.map((block) => {
+        const row = obj(block);
+        if (!row || row.type !== "text" || typeof row.text !== "string") return block;
+        if (phone && !wrotePhone) {
+          wrotePhone = true;
+          edited = true;
+          return { ...row, text: phone };
+        }
+        if (!/<!doctype html/i.test(row.text)) return block;
+        edited = true;
+        return { ...row, text: stripInlineCardHtml(row.text) };
+      });
+      if (edited) next = { ...result, content };
+    } else if (
       call.method === "resources/read" &&
       call.params.uri === NATIVE_CARD_URI &&
       missingMethod
@@ -165,10 +241,17 @@ export function nativeCardPayload(
 }
 
 /** Inspect finite selected replies. Only the SDK's exact static-resource method miss can turn 404 into 200. */
+function rememberCardSession(response: Response, visit: Visit | null) {
+  const id = response.headers.get("mcp-session-id");
+  const init = visit?.calls.find((call) => call.method === "initialize");
+  if (id && init) cardSessions.set(id, init.inlineHtml);
+}
+
 export async function nativeCardResponse(
   response: Response,
   visit: Visit | null,
 ): Promise<Response> {
+  rememberCardSession(response, visit);
   if (!visit || !response.body) return response;
   const resourceMiss =
     response.status === 404 &&

@@ -1,3 +1,4 @@
+import { TEXT_CARD_TOOLS } from "./native";
 import { htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
@@ -101,14 +102,17 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     // Card-first tools replace the body with the card. A pinned REQUIRED line would be dropped,
     // and the host skips the same line when it lives only in the tool description.
     const inboxLine = source.split("\n").some((line) => line.trim() === INBOX_HOST_LINE) ? `${INBOX_HOST_LINE}\n\n` : "";
-    const text = !keepBody
-      ? `${inboxLine}${cardText}`
-      : hasMarkdown || hasPlain
-        ? hasHtml
-          ? first.text
-          : `${source}\n\n${htmlBlock(html)}`
-        : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
-    const closed = applyCardClosing(text, askJob);
+    const rowReply = TEXT_CARD_TOOLS.has(tool);
+    const text = rowReply
+      ? `${inboxLine}${markdown}\n\n${html}`
+      : !keepBody
+        ? `${inboxLine}${cardText}`
+        : hasMarkdown || hasPlain
+          ? hasHtml
+            ? first.text
+            : `${source}\n\n${htmlBlock(html)}`
+          : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
+    const closed = rowReply ? text.trim() : applyCardClosing(text, askJob);
     const closing = cardClosing(askJob);
     const priorGuidance = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
     const content = res.content!.map((c) => (c === first ? { ...c, text: closed, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
