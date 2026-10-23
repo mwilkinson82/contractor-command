@@ -6,6 +6,7 @@ import { CARD_TOOLS } from "./cards/attach";
 import { drawingFileMeta } from "./drawing-file-input";
 import { NATIVE_CARD_URIS, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
+import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta, emailCardResourceMeta } from "./cards/email-card";
 
 const MEETINGS = new Set(["pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings"]);
 const CARD_WIDGET_TOOLS = new Set<string>([...CARD_TOOLS, "lookahead_list"]);
@@ -73,11 +74,20 @@ if (!proto[patched]) {
       }
       (this as { _athenaNativeCard?: boolean })._athenaNativeCard = true;
     }
+    if (EMAIL_CARD_TOOLS.has(name) && typeof this.registerResource === "function" && !(this as { _athenaEmailCard?: boolean })._athenaEmailCard) {
+      // The editable email card: its own resource, same MCP Apps profile as the native card.
+      this.registerResource("athena-email-card", EMAIL_CARD_URI, { title: "Athena email card", mimeType: EMAIL_CARD_MIME, _meta: emailCardResourceMeta }, async () => ({
+        contents: [{ uri: EMAIL_CARD_URI, mimeType: EMAIL_CARD_MIME, text: emailCardHtml(), _meta: emailCardResourceMeta }],
+      }));
+      (this as { _athenaEmailCard?: boolean })._athenaEmailCard = true;
+    }
     // openai/outputTemplate on tools/list makes ChatGPT
     // treat the tool as a widget, skip the styled card text, and hide the Athena icon.
     const fileMeta = drawingFileMeta(name);
-    const next = NATIVE_CARD_TOOLS.has(name) || Object.keys(fileMeta).length
-      ? { ...config, _meta: { ...config._meta, ...fileMeta, ...(NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta : {}) } }
+    // The email view retains precedence for submittal_delivery.
+    const cardMeta = EMAIL_CARD_TOOLS.has(name) ? emailCardMeta : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta : {};
+    const next = Object.keys(fileMeta).length || Object.keys(cardMeta).length
+      ? { ...config, _meta: { ...config._meta, ...fileMeta, ...cardMeta } }
       : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};

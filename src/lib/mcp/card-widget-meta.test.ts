@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
+import { EMAIL_CARD_TOOLS, EMAIL_CARD_URI } from "./cards/email-card";
 import { NATIVE_CARD_URI, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS } from "./cards/native";
 import { CARD_TOOLS } from "./cards/attach";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI } from "./cards/widget";
@@ -73,7 +74,8 @@ describe("native card resource", () => {
   it("links only the affected tools to a distinct standard UI resource, preserving ChatGPT metadata", async () => {
     const listed = await rpc("tools/list", 10);
     for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {
-      expect(tool._meta?.ui, tool.name).toEqual(NATIVE_CARD_TOOLS.has(tool.name) ? { resourceUri: NATIVE_CARD_URI } : undefined);
+      // The email card takes precedence for a tool in both sets (submittal_delivery).
+      expect(tool._meta?.ui, tool.name).toEqual(EMAIL_CARD_TOOLS.has(tool.name) ? { resourceUri: EMAIL_CARD_URI } : NATIVE_CARD_TOOLS.has(tool.name) ? { resourceUri: NATIVE_CARD_URI } : undefined);
       if (CARD_NAMES.has(tool.name)) expect(tool._meta?.["openai/outputTemplate"]).toBeUndefined();
     }
     const resource = await rpc("resources/read", 11, { uri: NATIVE_CARD_URI });
