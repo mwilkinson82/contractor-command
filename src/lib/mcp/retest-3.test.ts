@@ -1,3 +1,4 @@
+import { ATHENA_VERSION } from "./server-info-branding";
 import { describe, expect, it } from "vitest";
 import { defineMcp } from "@lovable.dev/mcp-js";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
@@ -6,7 +7,6 @@ import mcp from "./index";
 import { clauseFlag, effectiveFlag } from "./clauses";
 import { makeWho, UNASSIGNED } from "./people";
 import { draftHeader, draftIdentityText } from "./drafts";
-import { ATHENA_VERSION } from "./server-info-branding";
 
 describe("tools/list (retest 3, item 1)", () => {
   it("lists all 9 tools, contract_terms included, and answer exposes lookahead_help", async () => {
