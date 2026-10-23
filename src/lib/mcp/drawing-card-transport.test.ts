@@ -3,7 +3,11 @@ import { defineMcp, defineTool } from "@lovable.dev/mcp-js";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { z } from "zod";
 import "./widget-bridge";
-import { DRAWING_CARD_URI, drawingCardResultMeta } from "./cards/drawing-card";
+import {
+  DRAWING_CARD_URI,
+  LEGACY_DRAWING_CARD_URI,
+  drawingCardResultMeta,
+} from "./cards/drawing-card";
 import { NATIVE_CARD_URI } from "./cards/native";
 import { CARD_WIDGET_URI } from "./cards/widget";
 import { nativeCardPayload, nativeCardResponse, nativeCardVisit } from "./native-card-transport";
@@ -18,6 +22,7 @@ const fixture = {
   ],
   structuredContent: {
     saved: true,
+    drawing_preview: { type: "image", mimeType: "image/png", data: "iVBORw0KGgo=" },
     original_unchanged: true,
     card: {
       title: "S-100 drawing markup",
@@ -96,6 +101,11 @@ describe("drawing UI through the real MCP SDK", () => {
         mimeType: "text/html;profile=mcp-app",
       });
       expect(read.result.contents[0].text).toContain("Zoom in");
+      const oldRead = await post("resources/read", { uri: LEGACY_DRAWING_CARD_URI });
+      expect(oldRead.result.contents[0]).toMatchObject({
+        uri: LEGACY_DRAWING_CARD_URI,
+        mimeType: "text/html;profile=mcp-app",
+      });
       const call = await post("tools/call", {
         name: "drawing_markup",
         arguments: { sheet: "S-100" },

@@ -281,6 +281,8 @@ describe("stored drawing markup tool", () => {
     expect(result.structuredContent.saved).toBe(false);
     expect(state.uploaded).toEqual([]);
     expect(result.structuredContent.page).toBe(2);
+    expect(result.structuredContent.drawing_preview).toEqual(result.content.find((c) => c.type === "image"));
+    expect(result.structuredContent.drawing_preview).toMatchObject({ type: "image", mimeType: "image/png" });
   });
   it("does not use a foreign-company path or write when access is denied", async () => {
     await seed();
