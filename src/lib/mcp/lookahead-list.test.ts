@@ -28,7 +28,7 @@ const state = vi.hoisted(() => {
       ];
       return {
         from(table: string) {
-          let rows = table === "mcp_lookaheads" ? lookaheads : table === "mcp_open_items" ? items : table === "mcp_companies" ? [{ id: "co", name: "ALP" }] : [];
+          let rows: unknown[] = table === "mcp_lookaheads" ? lookaheads : table === "mcp_open_items" ? items : table === "mcp_companies" ? [{ id: "co", name: "ALP" }] : [];
           const api = {
             select() { return api; },
             eq(col: string, val: unknown) {
