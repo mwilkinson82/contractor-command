@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildFlowCard } from "./build";
 import { loadFlowData, saveFlowNote } from "./load";
-import { dedupeOpenRows, meetingItem } from "../open-feed";
+import { dedupeOpenRows, isAffirmativeConfirmation, meetingItem } from "../open-feed";
 import { renderHtml } from "../cards/html";
 import { paletteViolations } from "../cards/palette";
 
@@ -34,6 +34,60 @@ describe("PM meeting readiness uses evidence, not absence of issues", () => {
     "Subs and crews confirmed except the electrical crew",
     "Are all subs and crews confirmed?",
   ])("keeps the crew item open for %s", (note) => {
+    expect(meetingItem(note)).toEqual({ key: "pm:crews", close: false });
+  });
+
+  it.each([
+    "no issues",
+    "no problems",
+    "nothing open",
+    "no concerns",
+    "all good",
+    "none outstanding",
+    "nothing outstanding",
+    "Subs and crews confirmed, no issues.",
+  ])("counts %s as yes regardless of case or punctuation", (phrase) => {
+    expect(isAffirmativeConfirmation(phrase)).toBe(true);
+    expect(isAffirmativeConfirmation(`${phrase.toUpperCase()}!`)).toBe(true);
+    expect(isAffirmativeConfirmation(phrase.replace(/ /g, "-"))).toBe(true);
+    expect(isAffirmativeConfirmation(`(${phrase}).`)).toBe(true);
+  });
+
+  it.each([
+    "no issues",
+    "no problems",
+    "nothing open",
+    "no concerns",
+    "all good",
+    "none outstanding",
+    "nothing outstanding",
+  ])("closes the crew item when the confirmation says %s", (phrase) => {
+    expect(meetingItem(`Subs and crews confirmed, ${phrase}.`)).toEqual({ key: "pm:crews", close: true });
+    expect(meetingItem(`SUBS AND CREWS CONFIRMED — ${phrase.toUpperCase()}!`)).toEqual({ key: "pm:crews", close: true });
+  });
+
+  it.each([
+    "no",
+    "not confirmed",
+    "not yet",
+    "no, still waiting",
+    "subs not confirmed",
+    "issues with crews",
+  ])("keeps %s open regardless of case or punctuation", (phrase) => {
+    expect(isAffirmativeConfirmation(phrase)).toBe(false);
+    expect(isAffirmativeConfirmation(phrase.toUpperCase())).toBe(false);
+    expect(isAffirmativeConfirmation(`${phrase}.`)).toBe(false);
+    expect(isAffirmativeConfirmation(`${phrase}!`)).toBe(false);
+  });
+
+  it.each([
+    "Subs and crews confirmed? No.",
+    "Subs and crews are not confirmed",
+    "Subs and crews confirmed? Not yet.",
+    "Subs and crews confirmed: no, still waiting",
+    "Subs and crews, subs not confirmed",
+    "Subs and crews confirmed, issues with crews",
+  ])("keeps the crew meeting item open for %s", (note) => {
     expect(meetingItem(note)).toEqual({ key: "pm:crews", close: false });
   });
 

@@ -10,8 +10,13 @@ delay issues keep their red delay flag.
 
 Crew notes that explicitly say not confirmed, ask for confirmation or describe a
 conditional confirmation keep the existing meeting item open. An affirmative
-“All subs, suppliers and crews confirmed” still closes it. The meeting dedupe key
-is unchanged. The loader still reads current CPM
+“All subs, suppliers and crews confirmed” still closes it. So does a confirmation
+that uses an affirmative phrase containing a negating word: “no issues”,
+“no problems”, “nothing open”, “no concerns”, “all good”, “none outstanding”,
+and “nothing outstanding”. Those phrases match regardless of case or punctuation.
+A real negative still leaves the item open: “no”, “not confirmed”, “not yet”,
+“no, still waiting”, “subs not confirmed”, and “issues with crews”. The meeting
+dedupe key is unchanged. The loader still reads current CPM
 progress, forecast figures and the saved IOR comparison without writing them.
 
 There is currently no authoritative lock/confirmation record consumed by this
@@ -21,8 +26,9 @@ lookahead revision before the loader can report a positive confirmation.
 
 ## Local verification
 
-- Default Vitest: 172 files, 1,796 tests passed (1,782 on base plus 14 regression
-  cases). Focused meeting, readiness, open-feed and brief run: 65 passed.
+- Default Vitest: 172 files, 1,823 tests passed (1,796 on the previous head of
+  this branch, plus 27 affirmative and negative confirmation cases). The phrase
+  fix was checked by rerunning the default suite.
 - Production build passed.
 - Typecheck: 34 existing errors, same file/code pairs as base; no new errors in
   the changed loader or test.
