@@ -52,6 +52,9 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
         structuredContent: {
           ready?: boolean;
           sent?: boolean;
+          send_confirmed?: boolean;
+          already_approved?: boolean;
+          send_allowed?: boolean;
           package?: { id: string; download_url: string; page_count: number; approved: boolean };
           card: CardModel & { sections: { rows: CardRow[] }[] };
           delivery_id?: string;
@@ -265,6 +268,16 @@ describe("real package handlers with local DB and immutable storage", () => {
       confirmed: true,
     });
     await assertRendering(approved);
+    expect(approved.structuredContent).toMatchObject({ send_confirmed: true, already_approved: false, sent: false });
+    const repeated = await call(submittalDelivery, {
+      action: "approve",
+      job_number: "2701",
+      submittal_id: sid,
+      delivery_id: output.structuredContent.delivery_id,
+      draft_key: output.structuredContent.draft_key,
+      confirmed: true,
+    });
+    expect(repeated.structuredContent).toMatchObject({ send_confirmed: false, already_approved: true, sent: false });
     const afterApproval = (
       await query("SELECT draft, approved_at, sent_at FROM mcp_submittal_mail WHERE id=$1", [
         output.structuredContent.delivery_id,

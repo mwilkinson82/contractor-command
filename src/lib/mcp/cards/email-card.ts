@@ -28,9 +28,9 @@ function list(s){return text(s).split(",").map(function(x){return x.trim()}).fil
 function same(a,b){return a.to===b.to&&a.cc.join(",")===b.cc.join(",")&&a.subject===b.subject&&a.body===b.body}
 function norm(d){d=d||{};return{to:text(d.to).trim(),cc:Array.isArray(d.cc)?d.cc.map(text):[],subject:text(d.subject),body:text(d.body),link:d.link?text(d.link):null,attachment:d.attachment?text(d.attachment):null}}
 function fields(){return{to:el.to.value.trim(),cc:list(el.cc.value),subject:el.subject.value.trim(),body:el.body.value,link:S.original.link,attachment:S.original.attachment}}
-function pill(){var p=el.pill;p.className="pill";if(S.sent){p.textContent="Sent";p.className+=" done"}else if(S.approved){p.textContent="Approved";p.className+=" done"}else if(!S.allowed){p.textContent="Sending is off"}else{p.textContent="Not sent"}}
+function pill(){var p=el.pill;p.className="pill";if(S.sent){p.textContent="Sent";p.className+=" done"}else if(S.approved&&!edited()){p.textContent="Approved";p.className+=" done"}else if(!S.allowed){p.textContent="Sending is off"}else{p.textContent="Not sent"}}
 function edited(){return S.original&&!same(fields(),S.original)}
-function refresh(){pill();var can=S.allowed&&!S.sent&&!S.busy&&!!host.serverTools;el.send.disabled=!can;el.reset.hidden=!edited()||S.busy;el.send.textContent=S.approved?"Approved · ask again to send":"Approve and send";
+function refresh(){pill();var can=S.allowed&&!S.sent&&!S.busy&&!!host.serverTools&&(!S.approved||edited());el.send.disabled=!can;el.reset.hidden=!edited()||S.busy;el.send.textContent=S.approved&&!edited()?"Approved":"Approve and send";
  el.note.textContent=S.note||(!S.allowed?"Sending is turned off. Copy this into your email app.":!host.serverTools?"This host can't approve from the card. Answer yes in the chat instead.":S.approved?"Approved with Athena. Your connected email account sends it.":"Approving records the exact text with Athena. Your connected email account sends it.");size()}
 function grow(){el.body.style.height="auto";el.body.style.height=Math.min(600,el.body.scrollHeight+4)+"px";size()}
 function field(label,id,multi){var w=document.createElement("div");w.className="row";var l=document.createElement("label");l.textContent=label;l.htmlFor=id;var i=document.createElement(multi?"textarea":"input");i.id=id;if(!multi)i.type=id==="to"?"email":"text";i.addEventListener("input",function(){S.note="";if(multi)grow();refresh()});w.appendChild(l);w.appendChild(i);el[id]=i;return w}
@@ -51,18 +51,18 @@ function show(result){var sc=(result&&result.structuredContent)||{};if(!sc.draft
 function fail(r){var t=r&&r.content&&r.content.filter(function(c){return c.type==="text"}).map(function(c){return c.text}).join(" ");return (t||"Athena could not record this draft.").replace(/\\s+/g," ").trim().slice(0,300)}
 function callTool(name,args){return request("tools/call",{name:name,arguments:args}).then(function(r){if(!r||r.isError)throw new Error(fail(r));return r})}
 function withCtx(o){var c=S.ctx;if(c.job_number)o.job_number=c.job_number;if(c.company_id)o.company_id=c.company_id;return o}
-function approve(){if(S.busy)return;var d=fields();
+function approve(){if(S.busy||S.sent||!S.allowed||!host.serverTools||(S.approved&&!edited()))return;var d=fields();
  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(d.to)){S.note="Enter one recipient address.";refresh();return}
  if(!d.subject){S.note="Enter a subject.";refresh();return}if(!d.body.trim()){S.note="The body is empty.";refresh();return}
  S.busy=true;S.note="Recording the draft with Athena…";refresh();
  var changed=edited()||!S.key;var p;
  if(S.mode==="delivery"){var draftArgs=withCtx({action:"draft",kind:S.ctx.kind||"package",submittal_id:S.ctx.submittal_id,package_item_id:S.ctx.package_item_id||undefined,draft:{to:d.to,cc:d.cc,subject:d.subject,body:d.body,link:d.link}});
-  p=(changed||!S.deliveryId?callTool("submittal_delivery",draftArgs).then(function(r){var sc=r.structuredContent||{};S.deliveryId=sc.delivery_id||S.deliveryId;S.key=sc.draft_key||S.key}):Promise.resolve())
+  p=(changed||!S.deliveryId?callTool("submittal_delivery",draftArgs).then(function(r){var sc=r.structuredContent||{};if(!sc.delivery_id||!sc.draft_key)throw new Error(fail(r));S.deliveryId=sc.delivery_id;S.key=sc.draft_key}):Promise.resolve())
    .then(function(){return callTool("submittal_delivery",withCtx({action:"approve",delivery_id:S.deliveryId,draft_key:S.key,confirmed:true,submittal_id:S.ctx.submittal_id}))})}
  else{var base=withCtx({to:d.to,cc:d.cc,subject:d.subject,body:d.body});if(d.link)base.link=d.link;if(d.attachment)base.attachment=d.attachment;
-  p=(changed?callTool("email_draft",Object.assign({},base)).then(function(r){var sc=r.structuredContent||{};S.key=sc.draft_key||S.key}):Promise.resolve())
+  p=(changed?callTool("email_draft",Object.assign({},base)).then(function(r){var sc=r.structuredContent||{};if(!sc.draft_key)throw new Error(fail(r));S.key=sc.draft_key}):Promise.resolve())
    .then(function(){return callTool("email_confirm_send",Object.assign({},base,{draft_key:S.key,confirmed:true}))})}
- p.then(function(){S.original=d;S.approved=true;S.busy=false;S.note="";refresh();
+ p.then(function(r){var sc=r&&r.structuredContent;if(!sc||sc.send_confirmed!==true||sc.draft_key!==S.key||sc.sent===true||sc.already_approved===true)throw new Error(fail(r));S.original=d;S.approved=true;S.busy=false;S.note="";refresh();
    var lines=["Send this approved email now, exactly as below, from my connected email account, then tell me which account it went from."+(S.mode==="delivery"?" Then record the receipt with submittal_delivery record_sent.":""),"Draft key: "+S.key,"To: "+d.to];if(d.cc.length)lines.push("Cc: "+d.cc.join(", "));lines.push("Subject: "+d.subject,"",d.body);if(d.link)lines.push("",d.link);if(d.attachment)lines.push("","Attach: "+d.attachment);
    if(host.message)return request("ui/message",{role:"user",content:[{type:"text",text:lines.join("\\n")}]}).then(function(){S.note="Approved. The chat has the exact text and will send it from your connected email account."},function(){S.note="Approved with Athena. Tell the chat: send the approved email."}).then(refresh);
    S.note="Approved with Athena. Tell the chat: send the approved email.";refresh()})

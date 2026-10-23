@@ -454,6 +454,9 @@ export const submittalDelivery = defineTool({
           draft: saved.draft,
           approved: !!saved.approved_at,
           sent: !!saved.sent_at,
+          send_allowed: !outboundEmailDisabled(),
+          send_confirmed: args.action === "approve" && !!saved.approved_at && !saved.sent_at && saved.already_approved !== true,
+          already_approved: saved.already_approved === true,
           // The email card re-drafts and approves with these ids; nothing here is new to the caller.
           kind: args.kind ?? "package",
           submittal_id: sid,
