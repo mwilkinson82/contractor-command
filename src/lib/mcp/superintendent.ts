@@ -7,6 +7,7 @@ import { detailAnchor, mdLink, withAnchor } from "./plain-label";
 import { ALERT_HEX } from "./alert-color";
 import { DEFAULT_TZ, dateIn } from "./deadlines";
 import { activityTitle, lookaheadWindow, shortDate } from "./styled-views";
+import { isDelayNoticeTask } from "./delay-notice";
 import { dedupeOpenRows, itemName } from "./open-feed";
 import { SovMismatch, buildSov, lineBilling, money, type SovLineIn } from "./sov";
 import { jobHeading } from "./job-label";
@@ -869,7 +870,7 @@ const card = (inner: string, alert = false) =>
 const label = (t: string) => `<div style="font-size:12px;color:${FIELD_GRAY};margin-bottom:2px">${esc(t)}</div>`;
 const value = (t: string, alert = false) => `<div style="font-size:15px;color:${alert ? FIELD_RED : FIELD_NAVY};font-weight:${alert ? 700 : 600}">${esc(t)}</div>`;
 
-export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name?: string; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null }[] }): string {
+export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name?: string; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null; type?: string | null; item_type?: string | null; kind?: string | null; category?: string | null; check_key?: string | null }[] }): string {
   const board = projectField(src);
   const title = pageJobTitle(src.job_number, src.job_name, "Field board");
   const win = board.window ? `${shortDate(board.window.start)} – ${shortDate(board.window.end)}` : "Lookahead needed";
@@ -882,11 +883,23 @@ export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name
     return `<section id="${esc(anchor)}" data-id="${esc(r.id)}">${card(`${r.delay ? `<div style="color:${FIELD_RED};font-size:12px;font-weight:700">DELAY</div>` : ""}<div style="font-weight:700;color:${r.delay ? FIELD_RED : FIELD_NAVY}"><a href="#${esc(anchor)}" style="color:inherit;text-decoration:none">${esc(r.name || "Activity")}</a></div><div style="font-size:11px;color:${FIELD_GRAY}">${esc(r.id)}</div><div style="font-size:13px;color:${FIELD_BLUE};margin-top:4px">${esc(who)}</div>${extra}`, r.delay)}</section>`;
   }).join("");
   const today = src.today?.slice(0, 10) || "";
-  const items = dedupeOpenRows((src.items ?? []).map((i, n) => ({ id: i.id || String(n + 1), action: i.action || "Item", owner: i.owner, due: i.due }))).map((i, n) => {
+  const items = dedupeOpenRows((src.items ?? []).map((i, n) => ({
+    id: i.id || String(n + 1),
+    action: i.action || "Item",
+    owner: i.owner,
+    due: i.due,
+    type: i.type,
+    item_type: i.item_type,
+    kind: i.kind,
+    category: i.category,
+    check_key: i.check_key,
+  }))).map((i, n) => {
     const due = i.due?.slice(0, 10) ?? "";
     const late = !!(due && today && due < today);
+    const notice = isDelayNoticeTask(i);
+    const alert = late || notice;
     const anchor = detailAnchor("item", i.id || String(n + 1));
-    return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : "Lookahead")}${value(itemName(i.action || "Item"), late)}<div style="font-size:12px;color:${late ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, late)}</section>`;
+    return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : notice ? "Delay" : "Lookahead")}${value(itemName(i.action || "Item"), alert)}<div style="font-size:12px;color:${alert ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, alert)}</section>`;
   }).join("");
   const allItems = `<p style="margin:4px 0 12px"><a href="../items" style="color:${FIELD_BLUE};font-weight:700;text-decoration:none">View all open items</a></p>`;
   return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}${allItems}`);

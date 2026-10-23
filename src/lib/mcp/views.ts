@@ -11,7 +11,7 @@ export const LOOKAHEAD_VIEW_SPEC: string[] = [
   "3. Two-week calendar strip: 10 workday columns grouped Week 1 / Week 2, with the \"Highlight:\" date given above highlighted (today, or the data date when it is later), and weekends shaded or omitted.",
   "4. One row per activity, using the ID and name exactly as given. Critical activities (float 0) get ONE continuous rounded blue #1E5FED bar, others ONE continuous rounded gray #9CA3AF bar, from the first to the last of their workdays in the window with no gaps or breaks between days (never one block per day). Short inspections and deliveries (2 WD or less) keep their INSP/DLV marker instead of a bar.",
   "5. Icons on the day they fall: inspection/hold point = clipboard-check icon, material delivery = truck icon, milestone = diamond. Each has a small label.",
-  `6. Risk flags: a ${ALERT_COLOR} flag on the bar or day only for an item explicitly marked high severity, risk, delay or overdue in this result. An ordinary open RFI, follow-up, low float or date check alone is not a red risk. Ordinary callouts use navy text and a blue #1E5FED line.`,
+  `6. Risk flags: a ${ALERT_COLOR} flag on the bar or day only for an item explicitly marked high severity, risk, delay, delay notice, or overdue in this result. An ordinary open RFI, follow-up, low float or date check alone is not a red risk. Ordinary callouts use navy text and a blue #1E5FED line.`,
   "7. Risk cards below the strip, one per risk: what's at risk, its impact (activity and float), owner, due date, and the next action.",
   "8. Legend: Critical, Non-critical, Inspection, Delivery, Milestone, Risk.",
   `9. ${SHARED}`,

@@ -1,4 +1,5 @@
 import { SUMMARY_OFFER } from "../contract-clauses";
+import { isDelayNoticeTask, taskListFlag, type DelayNoticeFields } from "../delay-notice";
 import { whichJobAsk } from "../which-job";
 import { isAlertLevel, type AlertLevel } from "./palette";
 import type { CardModel, CardRow, CardSection } from "./model";
@@ -180,7 +181,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
       };
     }
     if (tool === "list_open_items" && Array.isArray(structured.items)) {
-      const listed = structured.items as { action?: string; owner?: string | null; due?: string | null; overdue?: boolean; due_in_7_days?: boolean }[];
+      const listed = structured.items as (DelayNoticeFields & { action?: string; owner?: string | null; due?: string | null; overdue?: boolean; due_in_7_days?: boolean })[];
       const openN = listed.length;
       const overdueN = listed.filter((item) => item.overdue).length;
       const dueN = listed.filter((item) => item.due_in_7_days).length;
@@ -193,15 +194,16 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
           { label: "Overdue", value: String(overdueN), flag: overdueN ? "overdue" : null },
           { label: "Due in 7 days", value: String(dueN) },
         ],
-        sections: [listSection("Items", listed.map((item) => ({ cells: [String(item.action ?? "Item"), item.owner ?? "Needed", item.due ?? "Needed"], flag: item.overdue ? ("overdue" as const) : null })))],
+        sections: [listSection("Items", listed.map((item) => ({ cells: [String(item.action ?? "Item"), item.owner ?? "Needed", item.due ?? "Needed"], flag: taskListFlag(item, item.overdue === true) })))],
         alerts: overdueN ? [{ level: "overdue" as const, text: `${overdueN} overdue` }] : [],
         next_move: overdueN ? "Close the overdue item first." : "Pick the next item.",
       };
     }
     if (tool === "list_open_items") {
     const rows = bullets.map((l) => {
+      const text = l.replace(/^- /, "");
       const overdue = /overdue/i.test(l);
-      return { cells: [l.replace(/^- /, "")], flag: overdue ? ("overdue" as const) : null };
+      return { cells: [text], flag: overdue ? ("overdue" as const) : isDelayNoticeTask({ action: text }) ? ("delay" as const) : null };
     });
     const overdueN = rows.filter((r) => r.flag === "overdue").length;
     return {

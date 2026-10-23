@@ -2,6 +2,7 @@
 // Meeting confirmations share a stable key, so a second run updates that row instead of adding another.
 import { addDays } from "./deadlines";
 import { formatBillingText } from "../report-format";
+import { taskListFlag, type DelayNoticeFields } from "./delay-notice";
 import type { CardModel } from "./cards/model";
 
 export type FeedRow = {
@@ -101,7 +102,7 @@ export function isDueIn7(it: FeedRow, today: string): boolean {
   return due <= addDays(today, 7);
 }
 
-export function openItemsCard(job: string, items: FeedRow[], counts: OpenCounts, today: string): CardModel {
+export function openItemsCard(job: string, items: (FeedRow & DelayNoticeFields)[], counts: OpenCounts, today: string): CardModel {
   return {
     state: "result",
     show_state: false,
@@ -117,7 +118,7 @@ export function openItemsCard(job: string, items: FeedRow[], counts: OpenCounts,
       kind: "list",
       rows: items.map((it) => ({
         cells: [formatBillingText(itemName(it.action)), it.accountable ?? it.owner ?? "Needed", dueOf(it) || "Needed"],
-        flag: isOverdue(it, today) ? ("overdue" as const) : null,
+        flag: taskListFlag(it, isOverdue(it, today)),
         refId: it.id,
       })),
     }],

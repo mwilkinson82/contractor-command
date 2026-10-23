@@ -3,6 +3,7 @@
 // Member-facing text never names tools, hosting or database vendors. Navy, blue and gray; red only for delays,
 // risks and overdue items. Scheduling term: "fragnet".
 import { ALERT_HEX } from "./mcp/alert-color";
+import { isDelayNoticeTask } from "./mcp/delay-notice";
 import { delayCallout, jobWorkingDays } from "./mcp/living";
 import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { activityLine, activityTitle, briefingModel, dayHead, lookaheadModel, lookaheadAlert, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
@@ -87,10 +88,10 @@ export type PortfolioPayload = { page: "portfolio"; company?: string; jobs: Port
 export type LookaheadPayload = { page: "lookahead"; company?: string; job_number?: string; job_name?: string; lookahead?: { id: string; start_date: string | null; end_date: string | null } | null; report: Report; items?: LaItem[]; today?: string };
 export type PayAppPayload = { page: "payapp"; company?: string; job_number?: string; job_name?: string; report: Report };
 export type BriefingPayload = { page: "briefing"; company?: string; job_number?: string; job_name?: string; today: string; items?: BriefItem[]; report?: Report };
-export type FieldPagePayload = { page: "field"; company?: string; job_number?: string; job_name?: string; scope?: string; data_date?: string | null; lookahead?: { start_date?: string | null; end_date?: string | null } | null; activities?: unknown; assignments?: unknown; materials?: unknown; rates?: unknown; installed?: unknown; items?: { action?: string; owner?: string | null; due?: string | null }[]; today?: string };
+export type FieldPagePayload = { page: "field"; company?: string; job_number?: string; job_name?: string; scope?: string; data_date?: string | null; lookahead?: { start_date?: string | null; end_date?: string | null } | null; activities?: unknown; assignments?: unknown; materials?: unknown; rates?: unknown; installed?: unknown; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null; type?: string | null; item_type?: string | null; kind?: string | null; category?: string | null; check_key?: string | null }[]; today?: string };
 export type DailyPagePayload = { page: "daily"; company?: string; job_number?: string; job_name?: string; found?: boolean; report_date?: string | null; weather?: string | null; manpower?: string | null; subs_on_site?: string | null; deliveries?: string | null; issues?: string | null; delays?: string | null; safety?: string | null; lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[] };
 export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { id?: string; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
-export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null }[] };
+export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null; type?: string | null; item_type?: string | null; kind?: string | null; category?: string | null; check_key?: string | null }[] };
 export type SubmittalsPagePayload = {
   page: "submittals";
   company?: string;
@@ -239,7 +240,10 @@ function payAppPageView(p: PayAppPayload): string {
 function briefingPageView(p: BriefingPayload): string {
   const m = briefingModel(p.items ?? [], p.today);
   const out = [tiles([tile("Overdue", String(m.overdue.length), m.overdue.length > 0), tile("Due today", String(m.today.length)), tile("Next 7 days", String(m.week.length)), tile("8–14 days", String(m.next.length))])];
-  const sec = (t: string, list: BriefItem[], flag = false) => list.length ? card(h2(t) + list.map((i) => `<div style="padding:8px 0;border-top:1px solid ${G4};${flag ? `border-left:4px solid ${RED};padding-left:8px;` : ""}"><div style="color:${flag ? RED : NAVY};font-weight:600">${esc(i.action)}</div><div style="font-size:12px;color:${G1}">Owner: ${esc(i.owner ?? "Needed")} · Due ${esc(i.due ? shortDate(i.due.slice(0, 10)) : "Needed")}</div></div>`).join("")) : "";
+  const sec = (t: string, list: BriefItem[], flag = false) => list.length ? card(h2(t) + list.map((i) => {
+    const alert = flag || isDelayNoticeTask(i);
+    return `<div style="padding:8px 0;border-top:1px solid ${G4};${alert ? `border-left:4px solid ${RED};padding-left:8px;` : ""}"><div style="color:${alert ? RED : NAVY};font-weight:600">${esc(i.action)}</div><div style="font-size:12px;color:${G1}">Owner: ${esc(i.owner ?? "Needed")} · Due ${esc(i.due ? shortDate(i.due.slice(0, 10)) : "Needed")}</div></div>`;
+  }).join("")) : "";
   out.push(sec("OVERDUE", m.overdue, true), sec("DUE TODAY", m.today), sec("NEXT 7 DAYS", m.week), sec("8–14 DAYS", m.next));
   if (!m.overdue.length && !m.today.length && !m.week.length && !m.next.length) out.push(card(`<p style="margin:0;color:${G1}">Nothing due in the next 14 days.</p>`));
   return out.join("");
@@ -252,12 +256,20 @@ function itemsPageHtml(p: ItemsPagePayload): string {
     action: item.action || "Item",
     due: item.due,
     owner: item.owner,
+    type: item.type ?? item.item_type,
+    item_type: item.item_type,
+    kind: item.kind,
+    category: item.category,
+    check_key: item.check_key,
   })));
   if (!items.length) return card(`<p style="margin:0;color:${G1}">No open items on this job.</p>`);
   return items.map((item, n) => {
     const id = item.id || String(n + 1);
     const due = item.due?.slice(0, 10) ?? "";
-    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""}>${card(`<div style="font-weight:700;color:${NAVY}">${esc(itemName(item.action || "Item"))}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`)}</section>`;
+    const notice = isDelayNoticeTask(item);
+    const color = notice ? RED : NAVY;
+    const border = notice ? `border-left:4px solid ${RED};` : "";
+    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""} style="${border}">${card(`<div style="font-weight:700;color:${color}">${esc(itemName(item.action || "Item"))}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`)}</section>`;
   }).join("");
 }
 
