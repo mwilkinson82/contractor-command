@@ -91,6 +91,36 @@ describe("PM meeting readiness uses evidence, not absence of issues", () => {
     expect(meetingItem(note)).toEqual({ key: "pm:crews", close: false });
   });
 
+  it.each([
+    "Subs confirmed, problems with electrical",
+    "Crews confirmed, but delivery is late",
+    "confirmed except the drywall crew",
+    "confirmed; inspection failed",
+  ])("does not count a confirmation that reports a problem as yes: %s", (note) => {
+    expect(isAffirmativeConfirmation(note)).toBe(false);
+    expect(isAffirmativeConfirmation(note.toUpperCase())).toBe(false);
+    expect(meetingItem(note)?.close ?? false).toBe(false);
+  });
+
+  it.each([
+    "Subs and crews confirmed, problems with electrical",
+    "Subs, suppliers and crews confirmed, but delivery is late",
+    "Subs and crews confirmed except the drywall crew",
+    "Subs, suppliers and crews confirmed; inspection failed",
+  ])("keeps the crew item open when the confirmation also reports a problem: %s", (note) => {
+    expect(isAffirmativeConfirmation(note)).toBe(false);
+    expect(meetingItem(note)).toEqual({ key: "pm:crews", close: false });
+  });
+
+  it.each([
+    "Subs and crews confirmed, no issues.",
+    "Subs and crews confirmed, no problems.",
+    "Subs and crews confirmed, nothing open.",
+  ])("still counts the clean confirmation %s as yes", (note) => {
+    expect(isAffirmativeConfirmation(note)).toBe(true);
+    expect(meetingItem(note)).toEqual({ key: "pm:crews", close: true });
+  });
+
   it.each(["no issues", "no problems", "nothing open"])("saves an affirmative crew answer with %s as closed", async (phrase) => {
     const sb = client();
     const note = `Subs and crews confirmed, ${phrase}.`;
