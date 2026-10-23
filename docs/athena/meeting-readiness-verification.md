@@ -19,6 +19,13 @@ A real negative still leaves the item open: “no”, “not confirmed”, “no
 dedupe key is unchanged. The loader still reads current CPM
 progress, forecast figures and the saved IOR comparison without writing them.
 
+The affirmative phrases apply to the crew confirmation, not unrelated notes.
+“Confirm subs and crews for Monday; no issues elsewhere” remains a request and
+keeps the crew item open. “Subs and crews are not confirmed; no issues with
+deliveries” also stays open. The full affirmative answers using “no issues”,
+“no problems” or “nothing open” are tested through the guarded save and pass
+`_close: true`; unrelated notes cannot close the crew meeting item.
+
 There is currently no authoritative lock/confirmation record consumed by this
 loader. This change does not invent one or infer confirmation from a resolved
 issue's text. A later workflow needs an explicit confirmation tied to the current
@@ -26,16 +33,18 @@ lookahead revision before the loader can report a positive confirmation.
 
 ## Local verification
 
-- Default Vitest: 172 files, 1,823 tests passed (1,796 on the previous head of
-  this branch, plus 27 affirmative and negative confirmation cases). The phrase
-  fix was checked by rerunning the default suite.
+- Default Vitest: 172 files, 1,833 tests passed. This includes the team's 27
+  affirmative/negative phrase cases and 10 additional guarded-save, request and
+  unrelated-note cases. Focused readiness run: 51 passed. Before the request
+  guard, the three new request cases failed; all now pass.
 - Production build passed.
 - Typecheck: 34 existing errors, same file/code pairs as base; no new errors in
   the changed loader or test.
 - Targeted semantic ESLint and `git diff --check` passed. Prettier checking was
   disabled for this targeted lint run, consistent with the existing source style.
 - The separate role suite is not included in the default Vitest command. It
-  remains a release concern; see the role-suite comparison in the PR.
+  remains 114 passed / 56 failed, identical failing test names to clean base
+  e8f66d3c. This is an existing release concern, not a passing permissions suite.
 
 No schema, auth, generated route, connector, ChatGPT template, widget or native
 transport changes. This branch remains independent of the drawing PR. It is now updated onto

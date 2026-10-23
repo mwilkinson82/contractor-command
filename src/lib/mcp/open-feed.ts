@@ -47,7 +47,9 @@ export function isAffirmativeConfirmation(note: string): boolean {
   if (/\?/.test(note)) return false;
   const text = confirmationText(note);
   const remaining = text.replace(AFFIRMATIVE_CONFIRMATION, " ").replace(/\s+/g, " ").trim();
-  if (CONFIRMATION_NEGATIVE.test(remaining)) return false;
+  // "Confirm subs and crews; no issues elsewhere" still asks for confirmation.
+  // The affirmative phrase must not promote that request into a completed check.
+  if (CONFIRMATION_NEGATIVE.test(remaining) || /\bconfirm\b/.test(remaining)) return false;
   if (remaining !== text) return true;
   return /\bconfirmed\b/.test(text);
 }

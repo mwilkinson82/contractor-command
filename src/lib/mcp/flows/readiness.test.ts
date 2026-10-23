@@ -91,6 +91,30 @@ describe("PM meeting readiness uses evidence, not absence of issues", () => {
     expect(meetingItem(note)).toEqual({ key: "pm:crews", close: false });
   });
 
+  it.each(["no issues", "no problems", "nothing open"])("saves an affirmative crew answer with %s as closed", async (phrase) => {
+    const sb = client();
+    const note = `Subs and crews confirmed, ${phrase}.`;
+    await saveFlowNote(sb, job.job_id, "pm_meeting", "schedule", note, { note });
+    expect(sb.rpc).toHaveBeenCalledWith("mcp_meeting_item_save", {
+      _job: job.job_id, _key: "pm:crews", _action: note, _close: true,
+    });
+  });
+
+  it.each(["no issues", "no problems", "nothing open"])("does not turn a request with %s into a confirmation", (phrase) => {
+    expect(meetingItem(`Confirm subs and crews for Monday; ${phrase} elsewhere.`)).toEqual({ key: "pm:crews", close: false });
+  });
+
+  it.each(["no issues", "no problems", "nothing open"])("retains an explicit negative despite %s", (phrase) => {
+    expect(meetingItem(`Subs and crews are not confirmed; ${phrase} with deliveries.`)).toEqual({ key: "pm:crews", close: false });
+  });
+
+  it("does not close a crew item from an unrelated no-issues note", async () => {
+    const sb = client();
+    const note = "No issues with owner selections.";
+    await saveFlowNote(sb, job.job_id, "pm_meeting", "schedule", note, { note });
+    expect(sb.rpc.mock.calls.some(([fn]) => fn === "mcp_meeting_item_save")).toBe(false);
+  });
+
   it("passes a negative crew answer to the guarded save as open and preserves meeting deduplication", async () => {
     const sb = client();
     const note = "Subs and crews are not confirmed";
