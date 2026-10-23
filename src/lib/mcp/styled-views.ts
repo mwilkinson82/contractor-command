@@ -230,8 +230,9 @@ export function lookaheadWindow(
     return { start: saved.start_date, end: saved.end_date, source: "saved", note: null };
   return null;
 }
+/** Fact line on the lookahead reply. The date and saved CPM version only. */
 export const dataDateRule = (dd: string, version?: number | null) =>
-  `REQUIRED: the data date is ${dd}${version ? ` (saved CPM v${version})` : " (saved CPM)"}. Use it and this window everywhere, including emails; never a date from a change-log note, an older lookahead or an earlier chat.`;
+  `Data date: ${dd}${version ? ` (saved CPM v${version})` : " (saved CPM)"}`;
 
 export function workdays(start: string, end: string): string[] {
   const out: string[] = [];

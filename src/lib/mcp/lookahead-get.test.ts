@@ -97,6 +97,9 @@ describe("normal lookahead read", () => {
       const body = returned.content.map((block) => block.text).join("\n");
       for (let i = 1; i <= 6; i++) expect(body).toContain(`Fictional construction item ${i}`);
       for (let i = 1; i <= 3; i++) expect(body).toContain(`Job obligation ${i}`);
+      expect(body).toContain("Data date: 2026-10-19 (saved CPM v3)");
+      expect(body).not.toMatch(/REQUIRED:\s*the data date/i);
+      expect(body).not.toMatch(/\bUse it and this window\b/);
       expect(body).toContain("<!doctype html");
       expect(body).toContain(returned.structuredContent.html);
       expect(body).toContain("#1E5FED");
@@ -136,6 +139,9 @@ describe("normal lookahead read", () => {
     expect(sc.revision).toBe(2);
     const reply = result.content[0].text;
     for (let i = 1; i <= 6; i++) expect(reply).toContain(`Fictional construction item ${i}`);
+    expect(reply).toContain("Data date: 2026-10-19 (saved CPM v3)");
+    expect(reply).not.toMatch(/REQUIRED:\s*the data date/i);
+    expect(reply).not.toMatch(/Use it and this window everywhere/i);
     expect(reply).toContain("<!doctype html");
     expect(reply).toContain("#1E5FED");
     expect(reply).not.toContain("PRIVATE OTHER JOB");

@@ -247,10 +247,10 @@ describe("lookahead window comes from the CPM data date", () => {
     });
     expect(h).toContain("Window Oct 26, 2026 – Nov 6, 2026");
   });
-  it("data date rule forbids change-log dates", () => {
-    expect(dataDateRule("2026-10-19", 3)).toMatch(
-      /2026-10-19 \(saved CPM v3\).*including emails; never a date from a change-log note/,
-    );
+  it("data date line is the date and saved CPM version only", () => {
+    expect(dataDateRule("2026-10-19", 3)).toBe("Data date: 2026-10-19 (saved CPM v3)");
+    expect(dataDateRule("2026-10-19")).toBe("Data date: 2026-10-19 (saved CPM)");
+    expect(dataDateRule("2026-10-19", 3)).not.toMatch(/\bREQUIRED\b|\byou must\b|\bnever\b|\bdo not\b/i);
   });
 });
 
