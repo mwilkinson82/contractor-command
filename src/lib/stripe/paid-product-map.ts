@@ -39,7 +39,7 @@ export const CIRCLE_LEGACY_PRICE_IDS = [
   "price_1TiUlGJdDAUSVXbNQRjv1ntA",
   // Founding Circle import price used before the current STRIPE_PRICE_ID_CIRCLE env var.
   "price_1TDR3aJdDAUSVXbNZOY6EXF3",
-  // $497/mo Circle price used for direct Stripe checkouts before the env-managed price.
+  // $497/mo Circle price on its own Stripe product, used for direct checkouts before the env-managed price.
   "price_1TDR3aJdDAUSVXbNWVzFLblo",
 ] as const;
 

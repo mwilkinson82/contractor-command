@@ -51,7 +51,7 @@ describe("checkAthenaEntitlement", () => {
   it("active member is allowed", async () => {
     const sb = clientFor({ status: "active" });
     expect(await checkAthenaEntitlement(sb)).toEqual({ allowed: true, source: "circle" });
-    expect(sb.calls).toEqual(["mcp_gate"]);
+    expect(sb.calls).toEqual(["mcp_gate", "mcp_athena_access"]);
   });
 
   it("trialing member is allowed", async () => {
