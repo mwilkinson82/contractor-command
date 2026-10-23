@@ -8,6 +8,8 @@ import {
   VISIBLE_STYLE_LINE,
 } from "../visible";
 import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
+import { EMAIL_CARD_RULE } from "../email-safety";
+import { EMAIL_DRAFT_ARTIFACT_LINE, EMAIL_DRAFT_VIEW_SPEC } from "../views";
 import { outsideFencedBlocks } from "./verbatim";
 
 type Obj = Record<string, unknown>;
@@ -18,7 +20,10 @@ const DISPLAY_GUIDANCE = new Set<string>([
   CARD_SHOWN,
   CARD_SHOWN_PICK,
   SOV_CHART_RULE,
+  EMAIL_CARD_RULE,
 ]);
+/** The email artifact spec lines: the email card draws the draft, so Claude builds no artifact. */
+const EMAIL_VIEW_LINES = new Set<string>([EMAIL_DRAFT_ARTIFACT_LINE, ...EMAIL_DRAFT_VIEW_SPEC]);
 
 function isDisplayGuidance(g: unknown): boolean {
   return (
@@ -36,7 +41,7 @@ export function claudeCardText(text: string): string {
       .replace(/<!doctype html[\s\S]*$/gi, "")
       .replace(/^Card shown\. Do not add text(?:; wait for the user's pick)?\.?$/gm, "")
       .split("\n")
-      .filter((line) => line.trim() !== VISIBLE_STYLE_LINE)
+      .filter((line) => line.trim() !== VISIBLE_STYLE_LINE && !EMAIL_VIEW_LINES.has(line.trim()))
       .join("\n")
       .replace(/\n{3,}/g, "\n\n"),
   ).trim();

@@ -109,6 +109,9 @@ export const emailDraft = defineTool({
             requires_confirm: true,
             send_allowed: !off,
             confirm_question: off ? null : confirmQuestion(d),
+            // The email card re-drafts and approves through these; both are already in the member's request.
+            job_number: args.job_number ?? null,
+            company_id: args.company_id ?? null,
           },
         },
         EMAIL_CARD_RULE,
