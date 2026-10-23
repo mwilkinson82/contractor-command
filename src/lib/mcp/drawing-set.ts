@@ -1,5 +1,7 @@
 /// <reference path="./pdfjs-legacy.d.ts" />
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
+import { installPdfDom } from "./pdf-dom";
+import { pdfPageCount } from "./pdf-pages";
 import { htmlBlock } from "./cards/markdown";
 // Stored drawing sets. New originals use a dedicated private drawing bucket; #190
 // originals remain in athena-files. Both use the same guarded
@@ -243,10 +245,16 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
     const names = upload.sheets ?? [];
     if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
       throw new FileRejected("Give each sheet one unique name in PDF page order. Nothing was stored.");
-    const pdf = await (await loadPdfjs()).getDocument({ data: bytes.slice(), disableWorker: true, isEvalSupported: false, useSystemFonts: true }).promise;
+    // Page count stays off pdf.js. The legacy build constructs DOMMatrix while the
+    // module loads, and this runtime has no canvas package to define it.
+    let pageCount: number;
     try {
-      if (names.length > pdf.numPages) throw new FileRejected("There are more sheet names than PDF pages. Correct the page index; nothing was stored.");
-    } finally { await pdf.destroy(); }
+      pageCount = pdfPageCount(bytes);
+    } catch (err) {
+      const reason = err instanceof Error && err.message ? err.message : "This PDF could not be read.";
+      throw new FileRejected(/Nothing was stored\.$/.test(reason) ? reason : `${reason} Nothing was stored.`);
+    }
+    if (names.length > pageCount) throw new FileRejected("There are more sheet names than PDF pages. Correct the page index; nothing was stored.");
     return { bytes, filename: checked.name };
   } catch (e) {
     if (e instanceof FileRejected)
@@ -373,11 +381,10 @@ type PdfDoc = {
 
 type PdfjsGlobal = typeof globalThis & { pdfjsWorker?: { WorkerMessageHandler?: unknown } };
 
-/** Legacy pdf.js, with the worker module imported directly.
- *  The edge runtime's module helper has no package-path resolve, so the
- *  entry cannot be located on disk. pdf.js uses this worker as its fake
- *  worker and does not look up ./pdf.worker.mjs. */
+/** Legacy pdf.js for markup rasters. DOMMatrix is installed first: the module
+ *  constructs one while loading, and the edge runtime does not provide it. */
 async function loadPdfjs(): Promise<PdfjsModule> {
+  installPdfDom();
   const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
   const scope = globalThis as PdfjsGlobal;
   if (!scope.pdfjsWorker?.WorkerMessageHandler) scope.pdfjsWorker = worker;
