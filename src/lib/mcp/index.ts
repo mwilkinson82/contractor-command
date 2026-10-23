@@ -13,6 +13,7 @@ import { CHASE_SERVER_RULE } from "./submittal-chase";
 import { SUBMITTAL_SERVER_RULE } from "./submittals";
 import { PROJECT_RECORD_RULE } from "./project-record";
 import { GETTING_STARTED_RULE } from "./getting-started";
+import { PRIVATE_CHAT_SHARE_RULE } from "./private-chat-sharing";
 import { pmEvening, pmMeeting, pmMorning, pmMorningMeeting } from "./tools/flow-tools";
 import { athenaHello, morningBrief, morningBriefSettings } from "./tools/morning-brief-tools";
 import {
@@ -77,6 +78,7 @@ export default defineMcp({
   version: ATHENA_VERSION,
   instructions:
     REFUSAL_RULE +
+    PRIVATE_CHAT_SHARE_RULE +
     " Athena powered by ALP, construction agents. " +
     GREETING_RULE +
     " " +
