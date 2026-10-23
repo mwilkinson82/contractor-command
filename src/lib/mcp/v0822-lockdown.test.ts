@@ -360,13 +360,13 @@ describe("0.8.22 run() wiring", () => {
     if (fn === "mcp_security_touch") return { data: touch, error: null };
     return { data: null, error: null };
   };
-  it("stamps the canary on a successful call after the membership check", async () => {
+  it("checks membership before security touch and keeps stamped display orders off the reply", async () => {
     rpc.mockImplementation(answers({ ok: true, canary: "K7Q2XA" }));
     const { run } = await import("./guard");
     const r = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "REQUIRED VIEW: x" }],
     }))) as { content: { text: string }[] };
-    expect(r.content[0].text).toContain("REQUIRED VIEW: x (spec K7Q2XA)");
+    expect(r.content[0].text).not.toMatch(/REQUIRED VIEW|spec K7Q2XA|Card shown\. Do not add text/);
     const order = rpc.mock.calls.map((c) => c[0]);
     expect(order.indexOf("mcp_gate")).toBeLessThan(order.indexOf("mcp_security_touch"));
   });

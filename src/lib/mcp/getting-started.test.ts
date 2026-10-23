@@ -229,9 +229,10 @@ describe("first tool call", () => {
     expect(first.content[0].text.indexOf(START_HEADLINE)).toBeLessThan(first.content[0].text.indexOf("Job 2701 is open."));
     const lead = first.content[0].text.slice(0, first.content[0].text.indexOf("Job 2701 is open."));
     expect(lead).toContain("@Athena, run my PM meeting");
-    expect(lead.split("REQUIRED VIEW:")[0].split("Hey Athena").length - 1).toBe(1);
+    expect(lead.split("<!doctype html>")[0].split("Hey Athena").length - 1).toBe(1);
     expect(lead).toContain("ChatGPT, Claude and Grok Bot");
-    expect(lead.split("REQUIRED VIEW:")[0]).not.toContain("🔵");
+    expect(lead.split("<!doctype html>")[0]).not.toContain("🔵");
+    expect(first.content[0].text).not.toMatch(/REQUIRED VIEW|Card shown\. Do not add text/);
     expect(first.structuredContent.getting_started.title).toBe(START_HEADLINE);
     expect(lead).toContain(MEMORY_LINE);
     expect(lead).toContain(START_HABIT);
@@ -300,7 +301,7 @@ describe("first tool call", () => {
     };
     expect(result.structuredContent.card.title).toBe("Let's set up your company");
     expect(result.structuredContent.getting_started).toMatchObject({ title: START_HEADLINE });
-    const parts = result.content[0].text.split("REQUIRED VIEW:");
+    const parts = result.content[0].text.split("<!doctype html>");
     const lead = parts[0];
     expect(lead.trimStart().startsWith(START_HEADLINE)).toBe(true);
     expect(lead).toContain(START_HABIT);
@@ -410,9 +411,10 @@ describe("getting_started tool never opens on a picker", () => {
       content: { text: string }[];
       structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
     };
-    const plain = result.content[0].text.split("REQUIRED VIEW:")[0];
+    const plain = result.content[0].text.split("<!doctype html>")[0];
     expect(result.structuredContent.card.title).toBe("Hey Athena, let's get started");
-    expect(plain.trimStart().startsWith(INBOX_HOST_LINE)).toBe(true);
+    expect(plain).not.toContain(INBOX_HOST_LINE);
+    expect(plain).toContain("From your inbox and calendar");
     expect(plain).toContain("Hey Athena, let's get started");
     expect(plain).toContain("Try one");
     expect(plain).toContain(START_MEMORY_OFFER);
@@ -427,8 +429,8 @@ describe("getting_started tool never opens on a picker", () => {
     expect(plain).toContain("1234 (Riverside)");
     expect(result.content[0].text).toContain('class="placeholder"');
     expect(result.content[0].text).toContain(INBOX_SECTION);
-    expect(result.content[0].text).toContain("Gmail and Calendar");
-    expect(result.content[0].text).toContain("overnight emails");
+    expect(result.content[0].text).not.toContain(INBOX_HOST_LINE);
+    expect(result.content[0].text).toMatch(/overnight emails/i);
     expect(result.content[0].text).toContain("unanswered emails");
     expect(result.content[0].text).toContain("today's meetings");
     expect(plain.trimStart().startsWith("Which job?")).toBe(false);

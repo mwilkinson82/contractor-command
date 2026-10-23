@@ -3,6 +3,7 @@ import { renderHtml } from "./cards/html";
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import type { CardModel } from "./cards/model";
 import { sealCardReply } from "./cards/silence";
+import { displayFactsResult } from "./cards/display-result";
 import { WhichCompanyAsk } from "./jobs";
 import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
@@ -119,12 +120,12 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const started = await attachGettingStarted(sb as never, reminded, { prepend: !cardFirst });
     const sealed = sealCardReply(tool, started);
     const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });
-    return stampCanary(morning, touch.canary);
+    return displayFactsResult(stampCanary(morning, touch.canary));
   } catch (e) {
     if (e instanceof WhichCompanyAsk) {
       const reply = whichCompanyReply(e);
       const carded = attachAthenaCard(tool, finalizeVisible(reply, tool.startsWith("submittal") ? [] : [HOST_DISPLAY_BLOCK]));
-      return stampCanary(sealCardReply(tool, carded), touch.canary) as R;
+      return displayFactsResult(stampCanary(sealCardReply(tool, carded), touch.canary)) as R;
     }
     await logWorkflow(sb, {
       event_type: "failure",
