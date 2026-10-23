@@ -60,7 +60,7 @@ export const CARD_TOOLS = new Set([
 /** Other living report types retain their existing Gantt/IOR presentation. */
 export function isCardFirstTool(tool: string, result: unknown): boolean {
   const sc = (result as Res)?.structuredContent;
-  return CARD_FIRST_TOOLS.has(tool) && (tool !== "living_report_get" || sc?.report_type === "billing_forecast");
+  return (tool === "resolve_item" && sc?.card !== undefined) || (CARD_FIRST_TOOLS.has(tool) && (tool !== "living_report_get" || sc?.report_type === "billing_forecast"));
 }
 
 function isCard(value: unknown): value is CardModel {

@@ -1302,7 +1302,7 @@
       {
         "name": "resolve_item",
         "title": "Resolve or update an open item",
-        "description": "Closes or updates an open item.",
+        "description": "Previews a selected open item and its evidence, and closes it only after the member's separate yes with confirmed and the matching confirmation_key; update leaves it open.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1366,6 +1366,13 @@
             "collection": {
               "type": "string",
               "maxLength": 1000
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "confirmation_key": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             }
           },
           "required": [
