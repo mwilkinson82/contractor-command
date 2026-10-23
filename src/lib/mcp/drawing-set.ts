@@ -211,8 +211,7 @@ function rejectedDrawingLink(raw: string): string {
 
 /** Same ChatGPT file fetch as file_share: https, OpenAI hosts only, no redirects, size-capped. */
 async function fetchDrawing(url: string): Promise<Uint8Array> {
-  if (!allowedDownloadUrl(url))
-    throw new FileRejected(rejectedDrawingLink(url));
+  if (!allowedDownloadUrl(url)) throw new FileRejected(rejectedDrawingLink(url));
   const res = await fetch(url, { redirect: "error" });
   if (!res.ok || !res.body)
     throw new FileRejected("Athena couldn't download that file. Pass the file's bytes as content_base64 instead. Nothing was stored.");
