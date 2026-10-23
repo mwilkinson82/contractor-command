@@ -49,6 +49,11 @@ function kpiNumber(card: CardModel | null, label: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function ownerName(row: Row): string {
+  const owner = clean(row.owner ?? "");
+  return /^needed$/i.test(owner) ? "" : owner;
+}
+
 function nextMove(sc: Sc, card: CardModel | null, priority: Row[], job?: string | null): string {
   const candidates = [card?.next_move, sc.next_move, sc.next_action, sc.top_priority];
   for (const candidate of candidates) {
@@ -57,14 +62,14 @@ function nextMove(sc: Sc, card: CardModel | null, priority: Row[], job?: string 
   const row = priority[0];
   if (!row) return "Review the job board for the next action.";
   const title = splitAction(row.action ?? "Item", job).title;
-  const owner = clean(row.owner ?? "");
+  const owner = ownerName(row);
   const due = monthDay(asDate(row.due));
   return owner
     ? `Review “${title}” with ${owner}${due ? ` (due ${due})` : ""}.`
     : `Assign an owner to review “${title}”${due ? ` (due ${due})` : ""}.`;
 }
 
-function splitAction(action: string, job?: string | null): { title: string; sentence: string } {
+function splitAction(action: string, job?: string | null, pending = true): { title: string; sentence: string } {
   let text = clean(action) || "Item";
   const jobNumber = job?.split(/\s+[·–—-]\s+/)[0]?.trim();
   if (jobNumber) {
@@ -79,7 +84,10 @@ function splitAction(action: string, job?: string | null): { title: string; sent
     : /^A kickoff meeting has been held with the superintendent\b/i.test(text) ? "Superintendent kickoff"
       : /^Price conditional .*project[- ]supervision exposure\b/i.test(text) ? "Project supervision exposure"
         : null;
-  if (topic) return { title: topic, sentence: `${checklist ? "To confirm: " : ""}${text.replace(/\.$/, "")}` };
+  if (topic) return { title: topic, sentence: checklist && pending
+    ? `Can you confirm: ${text.replace(/[.!?]$/, "")}?`
+    : text.replace(/\.$/, "") };
+  if (checklist && pending) return { title: "Confirmation", sentence: `Can you confirm: ${text.replace(/[.!?]$/, "")}?` };
   const label = text.match(/^(Schedule logic|Submittals|Deliveries|Inspections|RFIs):\s*(.+)$/i);
   if (label) return { title: label[1], sentence: label[2].replace(/\.$/, "") };
   const cut = text.indexOf(". ");
@@ -88,11 +96,14 @@ function splitAction(action: string, job?: string | null): { title: string; sent
 }
 
 function bullet(row: Row, job?: string | null): string {
-  const { title, sentence } = splitAction(row.action ?? "Item", job);
-  const who = clean(row.owner ?? "") || "Needed";
+  const { title, sentence } = splitAction(row.action ?? "Item", job, !isResolved(row));
+  const who = ownerName(row);
   const due = monthDay(asDate(row.due));
-  const detail = sentence ? ` ${sentence}.` : "";
-  return `- **${title}.**${detail} ${who}, ${due ? `due ${due}` : "due date needed"}.`;
+  const detail = sentence ? ` ${sentence}${/[.!?]$/.test(sentence) ? "" : "."}` : "";
+  const waiting = !isResolved(row) && (/\b(?:unconfirmed|pending|awaiting|waiting)\b|\bnot\s+(?:yet\s+)?(?:confirmed|requested|sent|received|approved|resolved|complete(?:d)?)\b/i.test(row.action ?? "") || /^(?:pending|waiting|awaiting)$/i.test(row.status ?? ""));
+  const question = waiting && !/\?$/.test(sentence || title) ? " What is the current status?" : "";
+  const attribution = due ? `${who ? `${who}, ` : ""}due ${due}.` : `${who ? `${who}. ` : ""}Due date needed.`;
+  return `- **${title}${/[.!?]$/.test(title) ? "" : "."}**${detail}${question} ${attribution}`;
 }
 
 function section(lines: string[], heading: string, rows: Row[], job?: string | null) {

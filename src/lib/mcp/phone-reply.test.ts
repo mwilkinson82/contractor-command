@@ -37,8 +37,8 @@ describe("phone reply follow-ups", () => {
     const original = structuredClone(sc);
     const body = phoneLookaheadText(sc)!;
     expect(body).toContain("**6 saved items · 4 open · 🔴 3 overdue on the job**");
-    expect(body).toContain("- **Turnaround times.** To confirm: Owner/engineer/architect submittal and RFI turnaround times are identified. Example PM, due Oct 14.");
-    expect(body).toContain("- **Superintendent kickoff.** To confirm: A kickoff meeting has been held with the superintendent.");
+    expect(body).toContain("- **Turnaround times.** Can you confirm: Owner/engineer/architect submittal and RFI turnaround times are identified? Example PM, due Oct 14.");
+    expect(body).toContain("- **Superintendent kickoff.** Can you confirm: A kickoff meeting has been held with the superintendent?");
     expect(body).toContain("- **Project supervision exposure.** Price conditional 30-day extended project-supervision exposure from redesign; track $140,000.00 gross billing displaced March to April.");
     expect(body).not.toMatch(/2701 – (Resolve|Price)|Resolve: [EF]\d+/);
     expect(body.trim().endsWith("**Athena's next move:** Review “Turnaround times” with Example PM (due Oct 14).")).toBe(true);
@@ -96,7 +96,8 @@ describe("phone reply follow-ups", () => {
 
   it("does not invent an owner or due date for an incomplete row", () => {
     const body = phoneOpenItemsText({ card: { title: "Open items" }, items: [{ action: "Check inspection readiness" }] })!;
-    expect(body).toContain("Needed, due date needed.");
+    expect(body).toContain("**Check inspection readiness.** Due date needed.");
+    expect(body).not.toContain("Needed,");
     expect(body.endsWith("**Athena's next move:** Assign an owner to review “Check inspection readiness”.")).toBe(true);
   });
 
@@ -104,5 +105,70 @@ describe("phone reply follow-ups", () => {
     const body = phoneOpenItemsText({ card: { title: "Open items" }, counts: { open: 0 }, items: [{ action: "Inspection reviewed", status: "resolved" }] })!;
     expect(body).toContain("### Resolved");
     expect(body.endsWith("**Athena's next move:** Review the job board for the next action.")).toBe(true);
+  });
+
+  it.each([phoneLookaheadText, phoneOpenItemsText])("prints one date prompt per undated row without a generic Needed placeholder", (render) => {
+    const sc = {
+      card: { title: "Example", job: "2701 – Fictional job" },
+      items: [
+        { action: "Order fixtures", owner: null, due: null },
+        { action: "Verify circuit", owner: "Needed", due: null },
+        { action: "Book inspection", owner: "Example PM", due: null },
+      ],
+    };
+    const original = structuredClone(sc);
+    const body = render(sc)!;
+    const bullets = body.split("\n").filter((line) => line.startsWith("- **"));
+    expect(bullets).toEqual([
+      "- **Order fixtures.** Due date needed.",
+      "- **Verify circuit.** Due date needed.",
+      "- **Book inspection.** Example PM. Due date needed.",
+    ]);
+    expect(body).not.toContain("Needed,");
+    expect(body).not.toContain("with Needed");
+    expect(body).not.toContain("current status?");
+    expect(body).not.toContain("🔴");
+    expect(sc).toEqual(original);
+  });
+
+  it("treats a card-only owner placeholder as missing instead of printing it", () => {
+    const body = phoneOpenItemsText({ card: { title: "Open items", sections: [{ heading: "Items", rows: [{ cells: ["Check inspection", "Needed", "Needed"] }] }] } })!;
+    expect(body).toContain("- **Check inspection.** Due date needed.");
+    expect(body.endsWith("**Athena's next move:** Assign an owner to review “Check inspection”.")).toBe(true);
+  });
+
+  it.each(["pending", "awaiting", "waiting"])("presents a %s item as a question without resolving it", (status) => {
+    const sc = { card: { title: "Open items" }, items: [{ action: "Inspection booking", status, owner: "Example PM", due: "2026-11-04" }] };
+    const original = structuredClone(sc);
+    const body = phoneOpenItemsText(sc)!;
+    expect(body).toContain("- **Inspection booking.** What is the current status? Example PM, due Nov 4.");
+    expect(body).not.toContain("### Resolved");
+    expect(sc).toEqual(original);
+  });
+
+  it("keeps a negative source note intact and asks for its status", () => {
+    const body = phoneOpenItemsText({ card: { title: "Open items" }, items: [{ action: "Deliveries: Ground rods are not confirmed; ask supplier@example.com.", owner: "Example Buyer" }] })!;
+    expect(body).toContain("- **Deliveries.** Ground rods are not confirmed; ask supplier@example.com. What is the current status? Example Buyer. Due date needed.");
+  });
+
+  it("asks for unresolved checklist confirmation without claiming the check happened", () => {
+    const body = phoneOpenItemsText({ card: { title: "Open items" }, items: [{ action: "Resolve: F99 Review completed with Example PM.", status: "open" }] })!;
+    expect(body).toContain("- **Confirmation.** Can you confirm: Review completed with Example PM? Due date needed.");
+    expect(body).not.toContain("To confirm:");
+    expect(body).not.toContain("?.");
+  });
+
+  it("does not turn resolved confirmations or explicit existing questions into new questions", () => {
+    const body = phoneOpenItemsText({ card: { title: "Open items" }, items: [
+      { action: "Resolve: F16 A kickoff meeting has been held with the superintendent.", status: "resolved" },
+      { action: "Inspection pending. Has it been booked?", status: "open" },
+      { action: "Are crews confirmed?", status: "open" },
+    ] })!;
+    expect(body).toContain("- **Superintendent kickoff.** A kickoff meeting has been held with the superintendent. Due date needed.");
+    expect(body).toContain("- **Inspection pending.** Has it been booked? Due date needed.");
+    expect(body).toContain("- **Are crews confirmed?** Due date needed.");
+    expect(body).not.toContain("current status?");
+    expect(body).not.toContain("Can you confirm:");
+    expect(body).not.toContain("?.");
   });
 });

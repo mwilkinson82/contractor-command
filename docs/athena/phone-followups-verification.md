@@ -16,14 +16,24 @@ Resolved lookahead items now have separate complete bullets. A note such as
 status and due date instead of becoming a garbled one-line summary. Section
 order, counts and existing red overdue/delay indicators remain unchanged.
 
+An undated row says **Due date needed** once. A missing owner or the card's
+literal `Needed` owner placeholder is omitted rather than producing
+"Needed, due date needed"; known owners and dates remain visible. Missing dates
+alone do not imply a waiting state. Unresolved checklist confirmations ask
+"Can you confirm…?"; explicitly pending/awaiting/unconfirmed items retain their
+source notes and ask for current status. Existing questions are not duplicated,
+and resolved confirmations do not become questions. No record is resolved or
+assigned a date by this presentation change.
+
 ## Local verification
 
-- Default Vitest: **172 files / 1,790 tests passed**, including eight new
-  regressions. Focused phone/lookahead/transport run: **46 passed**.
+- Default Vitest: **173 files / 1,850 tests passed**, including 17 phone
+  regressions. Focused phone/lookahead/transport run: **55 passed**.
 - Production build passed; targeted semantic ESLint and diff whitespace checks
   passed. Typecheck retains the base's 34 errors with identical file/code pairs.
 - Separate role suite: **114 passed / 56 failed**, identical failing test names
-  to clean base e8f66d3c. This is an existing release finding, not a passing suite.
+  to base d5472066 (#208; same tested tree as 341443ea). This is an existing
+  release finding, not a passing suite.
 - Transport tests cover actual card-builder replies with no injected next_move,
   all six saved lookahead items and three overdue obligations, all 17 open rows,
   and unchanged ChatGPT/Claude content, HTML, card metadata and response identity.
@@ -33,6 +43,8 @@ order, counts and existing red overdue/delay indicators remain unchanged.
 Only the generic-host phone renderer changes at runtime. No tool data, shared
 card model, ChatGPT template/widget, Claude resource, transport, auth, storage,
 schema or generated route changes. No merge or deployment was performed.
+The branch is updated onto the team's merged #208, preserving its affirmative
+crew answers and request/negative guards. This does not establish a live deploy.
 
 ## Team live acceptance
 
@@ -40,7 +52,8 @@ Gage reviews; Tess retests after the team's approved release. On job 2701 in
 Grokbot, check the next-action footer without supplying one manually; plain
 overdue titles with complete underlying notes; separate complete resolved rows;
 all saved rows and correct current counts; owners/dates; existing section order;
-red limited to overdue, delay and risk indicators. Markdown lists remain the
+red limited to overdue, delay and risk indicators; one **Due date needed** prompt
+per undated row; and questions for pending confirmations. Markdown lists remain the
 fallback for a host without an interactive card surface.
 
 Rerun Marshall's do-not-break checklist in ChatGPT and Claude: hidden lookahead
