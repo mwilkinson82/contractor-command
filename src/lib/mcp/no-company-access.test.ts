@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToolError } from "@lovable.dev/mcp-js";
 import {
@@ -13,7 +14,7 @@ import {
 import { paletteViolations } from "./cards/palette";
 import { renderHtml } from "./cards/html";
 import { checkAthenaEntitlement, type RpcClient } from "./entitlement";
-import { INACTIVE_MESSAGE, run } from "./guard";
+import { CompanySetupRequired, INACTIVE_MESSAGE, guard, run } from "./guard";
 import { visibleProblems } from "./visible";
 import { athenaHello, morningBrief } from "./tools/morning-brief-tools";
 import { gettingStarted } from "./tools/getting-started-tool";
@@ -130,6 +131,23 @@ describe("checkAthenaEntitlement detail", () => {
   it("does not call a Circle member with no company unentitled", async () => {
     const sb = client(access(), true);
     expect(await checkAthenaEntitlement(sb)).toEqual({ allowed: true, source: "circle", needsCompany: true });
+  });
+
+  it("company seat on a plan mcp_gate denies stays denied", async () => {
+    const sb = client(
+      access({
+        state: "ineligible",
+        reason: "no_current_entitlement",
+        has_access: true,
+        circle_active: false,
+        has_company: true,
+        company_seat: true,
+        past_due: false,
+        paid_period: "none",
+      }),
+      false,
+    );
+    expect(await checkAthenaEntitlement(sb)).toEqual({ allowed: false, reason: "no_entitlement" });
   });
 
   it("returns confirming instead of the paused reason", async () => {
@@ -316,12 +334,73 @@ describe("membership messages", () => {
   });
 });
 
+describe("guard() itself", () => {
+  it("refuses a confirming member before any job read", async () => {
+    const tables: string[] = [];
+    from.mockImplementation((table: string) => {
+      tables.push(table);
+      return { insert: async () => ({ error: null }), select: () => { throw new Error("job read"); } };
+    });
+    script(
+      access({
+        state: "review",
+        reason: "membership_review_required",
+        has_access: false,
+        circle_active: false,
+        has_company: true,
+        paid_period: "missing",
+        past_due: false,
+      }),
+    );
+    await expect(guard(ctx)).rejects.toThrow(CONFIRMING_MESSAGE);
+    expect(tables).toEqual(["mcp_workflow_log"]);
+    expect(rpc.mock.calls.map((c) => c[0])).not.toContain("mcp_security_touch");
+  });
+
+  it("refuses a circle member with no company before any job read", async () => {
+    const tables: string[] = [];
+    from.mockImplementation((table: string) => {
+      tables.push(table);
+      return { select: () => { throw new Error("job read"); } };
+    });
+    script(access());
+    await expect(guard(ctx)).rejects.toBeInstanceOf(CompanySetupRequired);
+    expect(tables).toEqual([]);
+  });
+});
+
+function productionSources(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules") continue;
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) out.push(...productionSources(path));
+    else if (path.endsWith(".ts") && !path.endsWith(".test.ts")) out.push(path);
+  }
+  return out;
+}
+
+describe("direct guard() callers", () => {
+  it("run() is the only production caller", () => {
+    const callers = productionSources("src").filter((file) => {
+      const text = readFileSync(file, "utf8");
+      return /\bawait guard\(/.test(text) || /\bguard\(ctx\b/.test(text);
+    });
+    expect(callers).toEqual(["src/lib/mcp/guard.ts"]);
+  });
+});
+
 describe("access migration", () => {
   const sql = readFileSync("supabase/migrations/20261026140000_athena_circle_access_detail.sql", "utf8");
 
   it("only adds mcp_athena_access", () => {
     expect(sql).toContain("CREATE OR REPLACE FUNCTION public.mcp_athena_access()");
     expect(sql).toContain("circle_active := circle_active OR past_due");
+    const cache = readFileSync("supabase/migrations/20261026160000_athena_access_cache.sql", "utf8");
+    expect(cache).toContain("interval '5 minutes'");
+    expect(cache).toContain("mcp_gate_cache");
+    expect(cache).toContain("user_id");
+    expect(cache).not.toMatch(/ALTER TABLE public\.mcp_gate_cache/);
     expect(sql).not.toMatch(/ALTER TABLE|UPDATE public\.|DELETE FROM|DROP TABLE|DROP FUNCTION/i);
     expect(renderHtml(companySetupCard())).toContain("#1E5FED");
     expect(companySetupCard().title).not.toMatch(/lovable/i);

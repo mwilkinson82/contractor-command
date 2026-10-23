@@ -6,6 +6,7 @@ import { sealCardReply } from "./cards/silence";
 import {
   COMPANY_SETUP_GUIDANCE,
   CONFIRMING_GUIDANCE,
+  CONFIRMING_MESSAGE,
   companySetupCard,
   confirmingCard,
 } from "./access";
@@ -17,6 +18,7 @@ import { HOST_DISPLAY_BLOCK, finalizeVisible, guide, splitGuidance, withStyleLin
 import { REMINDERS_VIEW_SPEC } from "./views";
 import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { supabaseForUser } from "./supabase";
 import { runSweep, type SweepScope } from "./sweep";
 import { clientSafe } from "./client-safe";
@@ -29,15 +31,24 @@ export const INACTIVE_MESSAGE = "Your membership isn't active, so Athena is paus
 
 export type Sb = ReturnType<typeof supabaseForUser>;
 
-type HeldAccess = { setup: boolean; confirming: { reason: string; paidPeriod: string } | null };
+type HeldAccess = { setup: boolean };
 const accessHold = new WeakMap<object, HeldAccess>();
+const companySetupAllowed = new AsyncLocalStorage<boolean>();
 
 function holdAccess(sb: object, held: HeldAccess) {
   accessHold.set(sb, held);
 }
 
 function heldAccess(sb: object): HeldAccess {
-  return accessHold.get(sb) ?? { setup: false, confirming: null };
+  return accessHold.get(sb) ?? { setup: false };
+}
+
+/** Thrown by guard() so a direct caller cannot read jobs before company setup. run() turns it into the setup card. */
+export class CompanySetupRequired extends Error {
+  constructor() {
+    super("Welcome. Let's set up your company");
+    this.name = "CompanySetupRequired";
+  }
 }
 
 // Per-account call cap: mcp_abuse_cap_check with the caps from ./limits. The member sees which limit and when it resets.
@@ -63,14 +74,19 @@ export async function guard(ctx: ToolContext): Promise<Sb> {
   const ent = await checkAthenaEntitlement(sb);
   if (!ent.allowed && ent.reason === "unavailable") throw new ToolError(DB_UNAVAILABLE);
   if (!ent.allowed && ent.reason === "confirming") {
-    holdAccess(sb, { setup: false, confirming: { reason: ent.confirmReason, paidPeriod: ent.paidPeriod } });
-    return sb;
+    await logWorkflow(sb, {
+      event_type: "failure",
+      tool: "guard",
+      error_code: `confirming:${ent.confirmReason}:${ent.paidPeriod}`,
+    });
+    throw new ToolError(CONFIRMING_MESSAGE);
   }
   if (!ent.allowed) {
     await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: "membership_inactive" });
     throw new ToolError(INACTIVE_MESSAGE);
   }
-  holdAccess(sb, { setup: ent.needsCompany === true, confirming: null });
+  if (ent.needsCompany && companySetupAllowed.getStore() !== true) throw new CompanySetupRequired();
+  holdAccess(sb, { setup: ent.needsCompany === true });
   return sb;
 }
 
@@ -112,20 +128,29 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   const o = typeof opts === "object" ? opts : { lookaheadId: opts };
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
+  try {
+    return await companySetupAllowed.run(tool === "onboarding", () => runGuarded(tool, ctx, fn, lookaheadId, sweepScope, o));
+  } catch (e) {
+    if (e instanceof CompanySetupRequired) {
+      return sealCardReply(tool, styledAccessReply(companySetupCard(), "company_setup", COMPANY_SETUP_GUIDANCE)) as R;
+    }
+    if (e instanceof ToolError && e.message === CONFIRMING_MESSAGE) {
+      return sealCardReply(tool, styledAccessReply(confirmingCard(), "membership_confirming", CONFIRMING_GUIDANCE)) as R;
+    }
+    throw e;
+  }
+}
+
+async function runGuarded<R>(
+  tool: string,
+  ctx: ToolContext,
+  fn: (sb: Sb) => Promise<R>,
+  lookaheadId: string | undefined,
+  sweepScope: SweepScope,
+  o: { lookaheadId?: string; jobNumber?: string; client?: boolean; ownerSov?: boolean; sweep?: boolean },
+): Promise<R> {
   const sb = await guard(ctx);
   const access = heldAccess(sb);
-  // Circle-active with no company: the card is the whole reply. No tool lookup runs first.
-  if (access.confirming) {
-    await logWorkflow(sb, {
-      event_type: "failure",
-      tool,
-      error_code: `confirming:${access.confirming.reason}:${access.confirming.paidPeriod}`,
-    });
-    return sealCardReply(tool, styledAccessReply(confirmingCard(), "membership_confirming", CONFIRMING_GUIDANCE)) as R;
-  }
-  if (access.setup && tool !== "onboarding") {
-    return sealCardReply(tool, styledAccessReply(companySetupCard(), "company_setup", COMPANY_SETUP_GUIDANCE)) as R;
-  }
   // 0.8.22: success-call log, heavy-tool cap, security flags, optional soft lock and the company canary.
   const sig = getCallSignals(ctx as unknown as object);
   const touch = await securityTouch(sb as never, tool, o.jobNumber ?? sig?.jobNumber ?? null, sig?.signals ?? []);

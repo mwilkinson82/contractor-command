@@ -9,10 +9,12 @@
 // another source; any source granting access is enough.
 //
 // Role/company access rules are separate and still apply inside each tool.
-// mcp_athena_access() adds company and paid-period detail when that function
-// is deployed. A missing function keeps this boolean check.
+// mcp_athena_access() adds company, past_due, and paid-period detail when that
+// function is deployed. It must not grant access that mcp_gate denies, except
+// a Circle or Hardcore subscription whose Stripe status is past_due.
+// A missing function keeps the boolean check.
 
-import { decideAccess, readAthenaAccess, type PaidPeriod } from "./access";
+import { decideAccess, readAthenaAccess, type AthenaAccess, type PaidPeriod } from "./access";
 
 export const ENTITLED_SUBSCRIPTION_STATUSES = ["active", "trialing", "comped"] as const;
 
@@ -59,6 +61,24 @@ export type AthenaEntitlement =
 export const NO_ENTITLEMENT_MESSAGE =
   "This account doesn't have an active membership that includes Athena.";
 
+/**
+ * Detail can classify a denial (confirming vs paused) and the no-company setup.
+ * It grants access mcp_gate denied only when the subscription status is past_due.
+ */
+function denialFromDetail(detail: AthenaAccess): AthenaEntitlement {
+  const decision = decideAccess({
+    ...detail,
+    has_access: false,
+    circle_active: false,
+    company_seat: false,
+    past_due: false,
+  });
+  if (decision.kind === "confirming") {
+    return { allowed: false, reason: "confirming", confirmReason: detail.reason, paidPeriod: detail.paid_period };
+  }
+  return { allowed: false, reason: "no_entitlement" };
+}
+
 /** Allowed if any source grants access. Denied (fail closed) otherwise. */
 export async function checkAthenaEntitlement(
   sb: RpcClient,
@@ -76,14 +96,16 @@ export async function checkAthenaEntitlement(
   }
   // Detail is read after mcp_gate so a pending invite is accepted first.
   const detail = await readAthenaAccess(sb);
-  if (detail) {
-    const decision = decideAccess(detail);
-    if (decision.kind === "setup") return { allowed: true, source: granted ?? "circle", needsCompany: true };
-    if (decision.kind === "allow") return { allowed: true, source: granted ?? "circle" };
-    if (decision.kind === "confirming" && !granted) {
-      return { allowed: false, reason: "confirming", confirmReason: decision.reason, paidPeriod: decision.paidPeriod };
+  if (!granted) {
+    if (unavailable) return { allowed: false, reason: "unavailable" };
+    if (detail?.past_due) {
+      return { allowed: true, source: "circle", ...(detail.has_company ? {} : { needsCompany: true }) };
     }
+    if (detail) return denialFromDetail(detail);
+    return { allowed: false, reason: "no_entitlement" };
   }
-  if (granted) return { allowed: true, source: granted };
-  return { allowed: false, reason: unavailable ? "unavailable" : "no_entitlement" };
+  if (detail && !detail.has_company && (detail.circle_active || detail.past_due)) {
+    return { allowed: true, source: granted, needsCompany: true };
+  }
+  return { allowed: true, source: granted };
 }
