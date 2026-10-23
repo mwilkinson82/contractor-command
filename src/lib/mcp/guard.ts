@@ -111,7 +111,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     let swept = sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r;
     const sweptText = (swept as { content?: { text?: string }[] })?.content?.find((c) => c.text)?.text ?? "";
     if (tool === "list_open_items" && /No job named/.test(sweptText)) swept = r;
-    const finalized = finalizeVisible(swept, [HOST_DISPLAY_BLOCK]);
+    const finalized = finalizeVisible(swept, tool.startsWith("submittal") ? [] : [HOST_DISPLAY_BLOCK]);
     const cardFirst = isCardFirstTool(tool, finalized);
     const visible = cardFirst ? finalized : withStyleLine(finalized);
     const carded = attachAthenaCard(tool, visible);
@@ -123,7 +123,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   } catch (e) {
     if (e instanceof WhichCompanyAsk) {
       const reply = whichCompanyReply(e);
-      const carded = attachAthenaCard(tool, finalizeVisible(reply, [HOST_DISPLAY_BLOCK]));
+      const carded = attachAthenaCard(tool, finalizeVisible(reply, tool.startsWith("submittal") ? [] : [HOST_DISPLAY_BLOCK]));
       return stampCanary(sealCardReply(tool, carded), touch.canary) as R;
     }
     await logWorkflow(sb, {

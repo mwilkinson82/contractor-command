@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { renderHtml } from "./cards/html";
 import { paletteViolations } from "./cards/palette";
-import { CARD_SHOWN } from "./cards/silence";
 import { attachAthenaCard } from "./cards/attach";
 import { renderReportBody, pageAllowed, pageUrl } from "../report-pages";
 import { boardPageFor, signedJobUrl } from "./board-url";
@@ -66,7 +65,7 @@ describe("submittal dates, overdue, and package", () => {
   it("treats an empty package as not complete and a received required set as complete", () => {
     expect(packageProgress([])).toEqual({ required: 0, received: 0, complete: false });
     expect(packageProgress([{ status: "received", required: true }, { status: "needed", required: true }]).complete).toBe(false);
-    expect(packageProgress([{ status: "approved", required: true }, { status: "needed", required: false }]).complete).toBe(true);
+    expect(packageProgress([{ status: "approved", required: true, file_ref: "athena-files/company/job/id/cut.pdf" }, { status: "needed", required: false }]).complete).toBe(true);
   });
 
   it("counts the latest revision once", () => {
@@ -150,7 +149,7 @@ describe("card and board", () => {
     const sealed = attachAthenaCard("submittals_list", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as {
       content: { text?: string }[];
     };
-    expect(sealed.content[0].text?.trim().endsWith(CARD_SHOWN)).toBe(true);
+    expect(sealed.content[0].text).toContain("#1E5FED");
     expect(sealed.content[0].text).toContain("Submittal log");
     expect(sealed.content[0].text).toContain("SAMPLE Switchgear");
   });

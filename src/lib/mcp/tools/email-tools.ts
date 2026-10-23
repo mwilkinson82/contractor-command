@@ -134,6 +134,7 @@ export const emailConfirmSend = defineTool({
     job_number: z.string().trim().max(40).optional(),
     company_id: z.string().trim().max(200).optional(),
     submittal_id: z.string().uuid().optional(),
+    package_item_id: z.string().uuid().optional(),
   },
   annotations: {
     readOnlyHint: false,
@@ -155,6 +156,19 @@ export const emailConfirmSend = defineTool({
         throw new ToolError(
           "This draft changed after it was reviewed. Show the new draft and ask again. Nothing was sent.",
         );
+      // Backward-compatible approval for a reviewed submittal chase; approval is not a send.
+      if (args.submittal_id) {
+        if (!args.job_number) throw new ToolError("Name the job before approving the chase.");
+        const job = await resolveJob(sb as Sb, args.job_number, args.company_id, "full");
+        const call = async (action: string, payload: Record<string, unknown>) => {
+          const result = await (sb as Sb).rpc("mcp_submittal_delivery", { _job: job.job_id, _submittal: args.submittal_id, _action: action, _p: payload });
+          if (result.error) throw new ToolError(result.error.message.replace(/^MCP_BAD:/, ""));
+          return result.data as { id: string; draft_key: string };
+        };
+        const saved = await call("draft", { kind: "chase", package_item_id: args.package_item_id, draft: d });
+        await call("approve", { delivery_id: saved.id, draft_key: saved.draft_key, confirmed: true });
+        return guide({ ...text(`Approved: one chase to ${d.to}. Not sent yet.`), structuredContent: { send_confirmed: true, sent_by_athena: false, delivery_id: saved.id, draft_key: saved.draft_key, project_record: false } }, "Send this exact reviewed draft using the connected email tool, then call submittal_delivery record_sent with the successful provider receipt; do not count a failed send.");
+      }
       // Reply outcomes are not recorded yet. A later pass uses kind email_reply.
       let recorded = false;
       if (args.job_number?.trim()) {
@@ -169,18 +183,6 @@ export const emailConfirmSend = defineTool({
           actor: "user",
         });
         recorded = id != null;
-        if (args.submittal_id) {
-          const marked = await (sb as Sb).rpc("mcp_submittal_chase_mark", {
-            _job: job.job_id,
-            _submittal: args.submittal_id,
-            _email: d.to,
-            _name: null,
-            _subject: d.subject,
-          });
-          if (marked.error && !/could not find the function|does not exist/i.test(marked.error.message ?? "") && marked.error.message?.startsWith("MCP_BAD:")) {
-            throw new ToolError(marked.error.message.slice(8));
-          }
-        }
       }
       return guide(
         {

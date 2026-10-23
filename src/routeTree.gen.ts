@@ -84,6 +84,8 @@ import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/bran
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$companyId'
 import { Route as RSTokenRouteImport } from './routes/r.s.$token'
+import { Route as RSubmittalFileTokenRouteImport } from './routes/r.submittal-file.$token'
+import { Route as RSubmittalPreviewTokenRouteImport } from './routes/r.submittal-preview.$token'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 import { Route as ApiPublicAthenaStripeWebhookRouteImport } from './routes/api/public/athena/stripe-webhook'
@@ -480,6 +482,16 @@ const RSTokenRoute = RSTokenRouteImport.update({
   path: '/r/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RSubmittalFileTokenRoute = RSubmittalFileTokenRouteImport.update({
+  id: '/r/submittal-file/$token',
+  path: '/r/submittal-file/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RSubmittalPreviewTokenRoute = RSubmittalPreviewTokenRouteImport.update({
+  id: '/r/submittal-preview/$token',
+  path: '/r/submittal-preview/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
   id: '/sop-edit/$packetId',
   path: '/sop-edit/$packetId',
@@ -639,6 +651,8 @@ export interface FileRoutesByFullPath {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
   '/r/s/$token': typeof RSTokenRoute
+  '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
+  '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
@@ -731,6 +745,8 @@ export interface FileRoutesByTo {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
   '/r/s/$token': typeof RSTokenRoute
+  '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
+  '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
@@ -824,6 +840,8 @@ export interface FileRoutesById {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
   '/r/s/$token': typeof RSTokenRoute
+  '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
+  '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
@@ -918,6 +936,8 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/r/portfolio/$companyId'
     | '/r/s/$token'
+    | '/r/submittal-file/$token'
+    | '/r/submittal-preview/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
@@ -1010,6 +1030,8 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/r/portfolio/$companyId'
     | '/r/s/$token'
+    | '/r/submittal-file/$token'
+    | '/r/submittal-preview/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
@@ -1102,6 +1124,8 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/r/portfolio/$companyId'
     | '/r/s/$token'
+    | '/r/submittal-file/$token'
+    | '/r/submittal-preview/$token'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
@@ -1191,6 +1215,8 @@ export interface RootRouteChildren {
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   RPortfolioCompanyIdRoute: typeof RPortfolioCompanyIdRoute
   RSTokenRoute: typeof RSTokenRoute
+  RSubmittalFileTokenRoute: typeof RSubmittalFileTokenRoute
+  RSubmittalPreviewTokenRoute: typeof RSubmittalPreviewTokenRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicAthenaStripeWebhookRoute: typeof ApiPublicAthenaStripeWebhookRoute
   ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
@@ -1734,6 +1760,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RSTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/submittal-file/$token': {
+      id: '/r/submittal-file/$token'
+      path: '/r/submittal-file/$token'
+      fullPath: '/r/submittal-file/$token'
+      preLoaderRoute: typeof RSubmittalFileTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/submittal-preview/$token': {
+      id: '/r/submittal-preview/$token'
+      path: '/r/submittal-preview/$token'
+      fullPath: '/r/submittal-preview/$token'
+      preLoaderRoute: typeof RSubmittalPreviewTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools/sop-edit/$packetId': {
       id: '/tools/sop-edit/$packetId'
       path: '/sop-edit/$packetId'
@@ -1946,6 +1986,8 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   RPortfolioCompanyIdRoute: RPortfolioCompanyIdRoute,
   RSTokenRoute: RSTokenRoute,
+  RSubmittalFileTokenRoute: RSubmittalFileTokenRoute,
+  RSubmittalPreviewTokenRoute: RSubmittalPreviewTokenRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicAthenaStripeWebhookRoute: ApiPublicAthenaStripeWebhookRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,

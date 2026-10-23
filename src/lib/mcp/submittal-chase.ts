@@ -9,10 +9,11 @@ import { submittalOverdue, type SubmittalRecord, type PackageItem } from "./subm
 export const CHASE_FOLLOW_DAYS = 7;
 
 export const CHASE_SERVER_RULE =
-  " When someone says chase the missing submittals, chase the submittals, or a submittal is overdue or a required package item is missing, call submittal_chase and show that card. Scheduled submittal groups that are not marked submitted are chase targets. The card includes one draft marked Not sent. Needs confirm. Do not send the chase in that reply. On yes, call email_confirm_send with confirmed true and the job number, and the submittal id only when the card has one. A follow-up that is due appears on the morning brief. Nothing is sent automatically.";
+  " When someone says chase the missing submittals, chase the submittals, or a submittal is overdue or a required package item is missing, call submittal_chase and show that card. Only current saved submittals are chase targets; schedule milestones are not submittals. The card includes one draft marked Not sent. Needs confirm. Do not send the chase in that reply. Save the exact draft with submittal_delivery action draft and the package_item_id when present, then show the saved draft and wait for yes before action approve. Record a chase only after the email tool returns a successful provider receipt. A follow-up that is due appears on the morning brief. Nothing is sent automatically.";
 
 export type ChaseRow = {
   submittal_id: string;
+  package_item_id?: string | null;
   job_id?: string;
   job_number?: string;
   job_name?: string;
@@ -41,7 +42,7 @@ const RECEIVED = new Set(["received", "approved"]);
 
 export function missingPackage(items: PackageItem[] | null | undefined): string {
   return (items ?? [])
-    .filter((item) => item.required !== false && !RECEIVED.has(item.status))
+    .filter((item) => item.required !== false && (!RECEIVED.has(item.status) || !item.file_ref?.trim()))
     .map((item) => item.kind.replace(/_/g, " "))
     .join(", ");
 }
@@ -57,7 +58,7 @@ export function chaseIsDue(row: ChaseRow, today: string): boolean {
 export function chaseFromSubmittal(row: SubmittalRecord, today: string): ChaseRow | null {
   const missing = missingPackage(row.package_items);
   const overdue = submittalOverdue(row, today);
-  const contact = (row.package_items ?? []).find((item) => item.chase_email && item.required !== false && !RECEIVED.has(item.status))
+  const contact = (row.package_items ?? []).find((item) => item.chase_email && item.required !== false && (!RECEIVED.has(item.status) || !item.file_ref?.trim()))
     ?? (row.package_items ?? []).find((item) => item.chase_email);
   const chase: ChaseRow = {
     submittal_id: row.id,
@@ -108,9 +109,10 @@ export function chaseFromSchedule(groups: ScheduleActivity[], today: string): Ch
 }
 
 export function chaseDraft(jobNumber: string, row: ChaseRow): EmailDraft {
-  const who = row.chase_name?.trim() || "there";
+  const who = row.chase_name?.trim();
+  if (!who || !row.chase_email?.trim() || !row.spec_section?.trim() || /^(needed|unknown|n\/?a|tbd)$/i.test(row.spec_section.trim())) throw new Error("Confirm the contact name, email and required spec section before drafting.");
   const gap = row.missing ? `Still needed: ${row.missing}.` : "The submittal is still open.";
-  const late = row.overdue ? `Due back ${row.due_back?.slice(0, 10) || "the required date"}. This one is overdue.` : `Due back ${row.due_back?.slice(0, 10) || "Needed"}.`;
+  const late = row.overdue ? `Due back ${row.due_back?.slice(0, 10) || "the required date"}. This one is overdue.` : `Due back ${row.due_back?.slice(0, 10) || row.required_by?.slice(0, 10) || "due date to confirm"}.`;
   const body = [
     `${who},`,
     "",
@@ -142,13 +144,14 @@ export function presentChaseCard(input: {
   readOnly?: boolean;
 }): { text: string; card: CardModel; draft: EmailDraft | null; current: ChaseRow | null } {
   const due = input.chases.filter((row) => chaseIsDue(row, input.today));
-  const current = due[0] ?? null;
-  const draft = current && !input.readOnly ? chaseDraft(input.jobNumber, current) : null;
+  const ready = (row: ChaseRow) => !!row.chase_name?.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.chase_email ?? '') && !!row.spec_section?.trim() && !/^(needed|unknown|n\/?a|tbd)$/i.test(row.spec_section.trim());
+  const current = due.find(ready) ?? due[0] ?? null;
+  const draft = current && ready(current) && !input.readOnly ? chaseDraft(input.jobNumber, current) : null;
   const rows: CardRow[] = due.map((row, index) => ({
     cells: [
       `${row.number} revision ${row.revision}, ${row.title}`,
-      row.chase_name?.trim() || "Needed",
-      row.chase_email?.trim() || "Needed",
+      row.chase_name?.trim() || "Who should receive this piece request?",
+      row.chase_email?.trim() || "What is their email?",
       String(row.chase_count),
       row.next_chase_at?.slice(0, 10) || "Now",
     ],
@@ -191,7 +194,7 @@ export function presentChaseCard(input: {
       ? "Read only. Ask the PM to send the chase."
       : draft
         ? "Nothing is sent until you say yes."
-        : "No chase is due.",
+        : current ? `Who is the named contact and email for ${current.number}, and which spec section requires it?` : "No chase is due.",
   };
   const lines = due.map((row) => `- ${row.number} revision ${row.revision}, ${row.title}. ${row.chase_name || "Needed"}. Chased ${row.chase_count} time${row.chase_count === 1 ? "" : "s"}.${row.overdue ? " Overdue." : ""}`);
   const text = [
@@ -200,6 +203,7 @@ export function presentChaseCard(input: {
     "",
     lines.length ? lines.join("\n") : "No chase is due.",
     draft ? `\nNot sent. Needs confirm.\n\nTo: ${draft.to || "Needed"}\nSubject: ${draft.subject}\n\n${draft.body}\n\nSend this chase to ${draft.to || "the contact"}? Yes or no?` : "",
+    !draft && current && !input.readOnly ? `Who is the named contact and email for ${current.number}, and which spec section requires it? No sendable draft until those are confirmed.` : "",
     input.readOnly ? "\nRead only." : "",
   ].join("\n");
   return { text, card, draft, current };

@@ -1,8 +1,5 @@
 // Living submittal log. Dates follow deadlines.ts: calendar days, job time zone, never rolled later.
-// Piece 2 fills the transmittal row (letterhead cover sheet). This file does not render one.
-// Piece 3 reads package_items.file_ref and builds the package PDF. This file does not.
-// Piece 4 can restyle the board. The page payload is the hook.
-// Piece 5 chases with email_draft, then a separate yes, then email_confirm_send. Nothing here sends email.
+// Package assembly and delivery use these same revision and item records.
 import { addDays } from "./deadlines";
 import { detailAnchor, withAnchor } from "./plain-label";
 import type { CardModel, CardRow, CardSection } from "./cards/model";
@@ -105,6 +102,7 @@ export type SubmittalRecord = {
   revision: number;
   previous_id?: string | null;
   transmittal_number: number;
+  submission_sent_at?: string | null;
   spec_section: string;
   title: string;
   submittal_type: string;
@@ -177,20 +175,20 @@ export function submittalOverdue(
 }
 
 /** Complete only when every required package item has been received or approved. An empty package is not complete. */
-export function packageProgress(items: Pick<PackageItem, "status" | "required">[] | null | undefined): {
+export function packageProgress(items: Pick<PackageItem, "status" | "required" | "file_ref">[] | null | undefined): {
   required: number;
   received: number;
   complete: boolean;
 } {
   const required = (items ?? []).filter((item) => item.required !== false);
-  const received = required.filter((item) => RECEIVED.has(item.status)).length;
+  const received = required.filter((item) => RECEIVED.has(item.status) && !!item.file_ref?.trim()).length;
   return { required: required.length, received, complete: required.length > 0 && received === required.length };
 }
 
 export function packageLine(items: PackageItem[] | null | undefined): string {
   const progress = packageProgress(items);
   if (!progress.required) return "Package not started";
-  if (progress.complete) return "Package complete";
+  if (progress.complete) return "All required files collected; package delivery tracked separately";
   return `Package ${progress.received} of ${progress.required} received`;
 }
 
@@ -253,7 +251,7 @@ export const SUBMITTAL_SERVER_RULE =
 export type Presented = { text: string; card: CardModel; rows: SubmittalRecord[] };
 
 function dueLabel(row: SubmittalRecord): string {
-  const due = (row.due_back ?? "").slice(0, 10);
+  const due = (row.due_back ?? row.required_by ?? "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : "Needed";
 }
 
@@ -264,7 +262,7 @@ function ballLabel(row: SubmittalRecord): string {
 
 function rowLine(row: SubmittalRecord, today: string): string {
   const overdue = submittalOverdue(row, today);
-  return `- ${row.number}. ${row.title}. ${labelOf(STATUS_LABEL, row.status)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}.${overdue ? " Overdue." : ""}`;
+  return `- ${row.number}. ${row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${labelOf(STATUS_LABEL, row.status)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. ${row.submission_sent_at ? `Package sent ${row.submission_sent_at.slice(0,10)}.` : "Package send receipt not recorded."}`;
 }
 
 /** Plain-text fallback. Header counts are the deduped rows, and the card uses that same list. */
@@ -310,7 +308,7 @@ export function presentSubmittalLog(input: {
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
-      cells: [row.number, row.title, labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Overdue" : ""],
+      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Yes" : "No", row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}` : "Send receipt not recorded"],
       flag: late ? "overdue" : null,
       href: input.boardUrl ? withAnchor(input.boardUrl, detailAnchor("submittal", row.id)) : null,
       refId: row.id,
@@ -356,7 +354,7 @@ export function presentSubmittalLog(input: {
         ? {
             heading: "Log",
             kind: "table" as const,
-            columns: ["Number", "Title", "Status", "Ball in court", "Due", "Overdue"],
+            columns: ["Number", "Title", "Spec section", "Transmittal", "Revision", "Status", "Ball in court", "Due", "Overdue", "Package delivery"],
             rows: tableRows,
           }
         : {
@@ -545,8 +543,8 @@ export function parseSubmittalImport(text: string, existing: { number: string; r
     const spec = (rec.spec_section ?? "").trim();
     const title = (rec.title ?? "").trim();
     const lineNo = header ? index + 2 : index + 1;
-    if (!number || !spec || !title) {
-      problems.push({ line: lineNo, text: line.slice(0, 120), why: !number ? "Number is missing" : !spec ? "Spec section is missing" : "Title is missing" });
+    if (!number || !spec || /^(needed|unknown|n\/?a|tbd|pending)$/i.test(spec) || !title) {
+      problems.push({ line: lineNo, text: line.slice(0, 120), why: !number ? "Number is missing" : !spec || /^(needed|unknown|n\/?a|tbd|pending)$/i.test(spec) ? "Required spec section is missing" : "Title is missing" });
       return;
     }
     const required = rec.required == null || rec.required === "" ? true : mapRequired(rec.required);

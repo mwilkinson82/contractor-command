@@ -1,9 +1,9 @@
 /** Standard MCP Apps view for the two Claude regressions. The existing ChatGPT resource is separate. */
 export const NATIVE_CARD_URI = "ui://athena/native-card.html";
 export const NATIVE_CARD_MIME = "text/html;profile=mcp-app";
-export const NATIVE_CARD_TOOLS = new Set(["lookahead_get", "lookahead_list", "list_open_items"]);
+export const NATIVE_CARD_TOOLS = new Set(["lookahead_get", "lookahead_list", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery"]);
 /** Replies whose text is the styled markdown, plus HTML only for a host that can show a card. */
-export const TEXT_CARD_TOOLS = new Set(["lookahead_get", "list_open_items"]);
+export const TEXT_CARD_TOOLS = new Set(["lookahead_get", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery"]);
 export const nativeCardMeta = { ui: { resourceUri: NATIVE_CARD_URI } } as const;
 export const nativeResourceMeta = { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true } };
 

@@ -11,16 +11,24 @@ const env = (names: string[]) => {
 type Opened = { filename: string; mime_type: string; size_bytes: number; signed_url: string } | null;
 export type Resolver = (hash: string, count: boolean) => Promise<Opened>;
 
-/** Anon client: mcp_file_share_open is the only thing it can call for files (SECURITY DEFINER, hash in, one row out). */
-const defaultResolver: Resolver = async (hash, count) => {
+/** Capability lookup only: legacy/approved downloads or short private previews, hash in and one row out. */
+export const fileResolver = (fn: "mcp_file_share_open" | "mcp_submittal_preview_open"): Resolver => async (hash, count) => {
   const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
   const key = env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]);
   if (!url || !key) throw new Error("Backend not configured");
   const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)("mcp_file_share_open", { _token_hash: hash, _count: count });
+  const { data, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(fn, { _token_hash: hash, _count: count });
   if (error) throw new Error("lookup failed");
-  return (data ?? null) as Opened;
+  const opened = (data ?? null) as (NonNullable<Opened> & { package_path?: string }) | null;
+  if (opened && fn === "mcp_submittal_preview_open" && !opened.package_path) throw new Error("Missing package storage path");
+  if (opened?.package_path) {
+    const signed = new URL(opened.signed_url);
+    if (signed.origin !== new URL(url).origin || decodeURIComponent(signed.pathname) !== `/storage/v1/object/sign/athena-submittals/${opened.package_path}`) throw new Error("Invalid package storage link");
+  }
+  return opened;
 };
+
+const defaultResolver = fileResolver("mcp_file_share_open");
 
 const gone = (status: number, head: boolean) =>
   new Response(head ? null : goneHtml(), { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex", "referrer-policy": "no-referrer" } });

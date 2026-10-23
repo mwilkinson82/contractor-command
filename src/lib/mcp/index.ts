@@ -8,6 +8,7 @@ import { emailConfirmSend, emailDraft } from "./tools/email-tools";
 import { gettingStarted } from "./tools/getting-started-tool";
 import { projectRecordSearch, submittalLog, submittalsImport, submittalsList } from "./tools/submittal-tools";
 import { submittalChase } from "./tools/submittal-chase-tool";
+import { submittalPackage, submittalDelivery } from "./tools/submittal-package-tools";
 import { CHASE_SERVER_RULE } from "./submittal-chase";
 import { SUBMITTAL_SERVER_RULE } from "./submittals";
 import { PROJECT_RECORD_RULE } from "./project-record";
@@ -68,7 +69,7 @@ import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimat
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
 /** All Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, gettingStarted];
+export const ATHENA_TOOLS = [onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, submittalPackage, submittalDelivery, gettingStarted];
 
 export default defineMcp({
   name: "athena",
@@ -87,6 +88,7 @@ export default defineMcp({
     ESTIMATE_SERVER_RULE +
     FIELD_SERVER_RULE +
     SUBMITTAL_SERVER_RULE +
+    " Collect each required piece with submittal_log package_items, then submittal_package upload_piece to store received files, and build to create the company cover and package. Use submittal_delivery draft to save the exact recipient, subject, body and package link before asking yes. Approval is separate from sending. Only after a successful connected email send, record the provider message id and sent time with submittal_delivery record_sent. Do not claim submission complete from a status or approval alone. Packages use the existing revision transmittal number. " +
     PROJECT_RECORD_RULE +
     CHASE_SERVER_RULE +
     GETTING_STARTED_RULE,

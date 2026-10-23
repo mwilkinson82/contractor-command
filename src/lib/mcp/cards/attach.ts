@@ -16,7 +16,7 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "lookahead_get", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "field_pay_app", "living_report_get", "drawing_set_import", "drawing_markup"]);
+export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "lookahead_get", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "submittal_package", "submittal_delivery", "field_pay_app", "living_report_get", "drawing_set_import", "drawing_markup"]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -54,7 +54,7 @@ export const CARD_TOOLS = new Set([
   "submittals_list",
   "submittals_import",
   "project_record_search",
-  "submittal_chase",
+  "submittal_chase", "submittal_package", "submittal_delivery",
 ]);
 
 /** Other living report types retain their existing Gantt/IOR presentation. */

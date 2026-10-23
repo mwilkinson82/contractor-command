@@ -7,9 +7,7 @@ import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
 import { whichJobAsk } from "../which-job";
 import { guide } from "../visible";
 import { draftKey } from "../email-safety";
-import { chaseFromSchedule, presentChaseCard, type ChaseRow } from "../submittal-chase";
-import { readScheduleActivities, scheduleSubmittalGroups } from "../schedule-submittals";
-import type { SubmittalRecord } from "../submittals";
+import { presentChaseCard, type ChaseRow } from "../submittal-chase";
 import type { CardModel } from "../cards/model";
 import { ToolError } from "@lovable.dev/mcp-js";
 
@@ -40,11 +38,12 @@ function whichJob(body: string) {
 export const submittalChase = defineTool({
   name: "submittal_chase",
   title: "Chase a missing or overdue submittal",
-  description: "Drafts one chase email for an overdue, missing, or scheduled submittal that is not marked submitted, shows that draft as not sent and needing confirm, and waits for a separate yes before anything is sent.",
+  description: "Drafts one chase email for an overdue, missing, registered submittal, shows that draft as not sent and needing confirm, and waits for a separate yes before anything is sent.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40).optional(),
     company_id: z.string().trim().min(1).max(200).optional(),
     submittal_id: z.string().uuid().optional(),
+    package_item_id: z.string().uuid().optional(),
   },
   annotations: READ,
   handler: (args, ctx) =>
@@ -55,25 +54,11 @@ export const submittalChase = defineTool({
       if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
       const payload = await call<{ job_number?: string; job_name?: string; today?: string; read_only?: boolean; chases?: ChaseRow[] }>(sb, "mcp_submittal_chase_rows", { _job: job.job_id });
       const today = (payload.today ?? "").slice(0, 10);
-      const [activities, logged] = await Promise.all([
-        readScheduleActivities(sb, job.job_id),
-        call<{ submittals?: SubmittalRecord[] }>(sb, "mcp_submittal_rows", { _job: job.job_id }).catch(() => ({ submittals: [] as SubmittalRecord[] })),
-      ]);
-      const submitted = new Set(
-        (logged.submittals ?? [])
-          .filter((row) => row.submitted_on || row.status === "submitted" || row.status === "approved" || row.status === "resubmitted")
-          .map((row) => row.number.trim().toLowerCase()),
-      );
-      const chases = (payload.chases ?? []).filter((row) => !args.submittal_id || row.submittal_id === args.submittal_id);
-      const known = new Set(chases.map((row) => row.number.trim().toLowerCase()));
-      const scheduled = chaseFromSchedule(
-        scheduleSubmittalGroups(activities).filter((group) => !submitted.has(group.id.trim().toLowerCase()) && !known.has(group.id.trim().toLowerCase())),
-        today,
-      );
+      const chases = (payload.chases ?? []).filter((row) => (!args.submittal_id || row.submittal_id === args.submittal_id) && (!args.package_item_id || row.package_item_id === args.package_item_id));
       const presented = presentChaseCard({
         jobNumber: payload.job_number ?? job.job_number,
         jobName: payload.job_name ?? job.name,
-        chases: [...chases, ...scheduled],
+        chases,
         today,
         readOnly: payload.read_only === true,
       });
@@ -86,10 +71,11 @@ export const submittalChase = defineTool({
             draft: presented.draft,
             draft_key: key,
             submittal_id: presented.current?.submittal_id || null,
+            package_item_id: presented.current?.package_item_id || null,
             sent: false,
           },
         },
-        "Show this chase card. The draft is not sent and needs confirm. Do not send the email in this reply. On yes, call email_confirm_send with the same draft, confirmed true, and the job number. Pass the submittal id only when this result has one.",
+        "Show this chase card. The draft is not sent and needs confirm. Do not send the email in this reply. Save the exact draft using submittal_delivery action draft kind chase, with the submittal_id and package_item_id from this card, then show that saved draft for a separate yes before action approve. Do not count a chase until a successful send receipt is recorded.",
       );
     }),
 });
