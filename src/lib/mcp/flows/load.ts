@@ -70,15 +70,14 @@ export function schedulePercent(activities: SchedAct[], root?: Record<string, un
   return Math.max(0, Math.min(100, Math.round(pcts.reduce((s, n) => s + n, 0) / pcts.length)));
 }
 
-/** Reads the job's lookahead, pay app, IOR, and open items. Does not write or delete. */
+/** Reads the job's pay app, IOR, schedule and open items. Does not write or delete. */
 export async function loadFlowData(sb: Query, job: { job_id: string; job_number: string; name: string; scope: string }, selfPerform: boolean): Promise<FlowData> {
   const showMoney = job.scope === "full";
   const data = blankFlowData(job.job_number, job.name, showMoney);
   data.jobId = job.job_id;
   data.selfPerform = selfPerform;
-  const [items, lookaheads, reports] = await Promise.all([
+  const [items, reports] = await Promise.all([
     rows(sb, "mcp_open_items", "id, action, owner, accountable, due_date, needed_by, status, category, check_key, updated_at", job.job_id),
-    rows(sb, "mcp_lookaheads", "id, start_date, end_date", job.job_id),
     (async () => {
       const out: Record<string, unknown> = {};
       for (const type of ["cpm", "billing_forecast", "ior"]) {
@@ -98,7 +97,9 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
       return out;
     })(),
   ]);
-  data.lookaheadLocked = lookaheads.some((l) => l.start_date && l.end_date) ? true : lookaheads.length ? false : null;
+  // A saved lookahead's dates do not record PM approval. Keep the question open
+  // until an authoritative confirmation is available to this loader.
+  data.lookaheadLocked = null;
   const open = items.filter((i) => i.status !== "closed" && i.status !== "resolved");
   const distinct = dedupeOpenRows(open.map((i) => ({
     id: String(i.id ?? ""),
@@ -121,8 +122,10 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
       status: "open" as const,
     };
   });
-  data.crewsConfirmed = data.items.some((i) => i.kind === "crew") ? false : data.items.length ? true : null;
-  data.onSchedule = data.items.some((i) => i.kind === "delay") ? false : data.lookaheadLocked ? true : null;
+  // An empty issue log (including a failed read) proves neither readiness nor
+  // schedule compliance. Known open issues still retain their existing flags.
+  data.crewsConfirmed = data.items.some((i) => i.kind === "crew") ? false : null;
+  data.onSchedule = data.items.some((i) => i.kind === "delay") ? false : null;
   const billing = (reports.billing_forecast as { found?: boolean; data?: { billing?: { billed_to_date?: number; months?: { amount?: number; kind?: string }[] } }; contract_total?: number } | undefined) ?? {};
   if (showMoney && billing.found) {
     const months = billing.data?.billing?.months ?? [];
