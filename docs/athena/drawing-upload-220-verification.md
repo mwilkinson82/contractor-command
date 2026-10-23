@@ -1,34 +1,27 @@
-# Drawing upload validation — PR #220
+# Drawing upload and stored-sheet markup — PR #220
 
-## Final change
+## Result
 
-Drawing imports validate their PDF page index with the existing `pdf-lib` dependency, without importing pdf.js or its worker, browser drawing globals, or native canvas. The parser is read-only: `updateMetadata:false`, no save or serialization, and the exact original bytes continue to the hash and storage paths. Encrypted, malformed and zero-page inputs are rejected before storage. Page-order sheet validation, duplicate detection, source revision history, the dedicated 50 MiB original bucket and immutable source protections remain in place.
+PDF intake reads the page count with the existing `pdf-lib` dependency instead of loading pdf.js and browser drawing globals. Validation is read-only (`updateMetadata:false`); malformed, encrypted and zero-page sets are rejected before storage. Ordinary catalog strings, escaped strings, compressed objects and xref streams are covered by tests.
 
-The custom PDF parser is replaced with the existing library, including support for ordinary language/catalog strings, compressed objects, xref streams and escaped strings. The partial `DOMMatrix` shim is removed. The original drawing renderer is unchanged from the base branch; an upload validation fix must not be presented as a Workers rasterization fix.
+Stored-sheet previews now use pinned `@hyzyla/pdfium` 3.0.0 and `fast-png` 6.4.0. The PDF engine is bundled as a compiled WebAssembly module in the backend deployment. It does not need DOMMatrix, Path2D, ImageData, native canvas, filesystem reads, remote rendering or runtime WASM compilation. Vite selects the package's browser implementation; Nitro's existing Workers preset emits the compiled binary alongside the server. Intake keeps the renderer lazy.
 
-No new dependency, migration, auth, Hub, Site URL, email-code, palette, widget, tool-list or connector-address change. The migration already deployed by #199 is not reapplied. #216 is not included.
+Each isolate serializes PDF rendering, closes documents/pages after use, recovers after invalid input, and retains the existing 1600-pixel preview bound. Existing stored-sheet selection, drawing geometry, dated markup versions, hash deduplication, source revisions and immutable-original protections remain in place. Athena draws supplied pins, lines and areas; it does not invent positions for saved findings without geometry. Unlocated findings remain in the numbered key.
+
+This updates onto the live branch including #216 (merge c7b9c11b). No migration, auth, Hub, Site URL, email-code, connector-address, card-template or permission change. No production data was written. Original sources stay in athena-drawings; derived copies stay in athena-files under the existing limits. Renderer license notices are retained in docs/athena/licenses/.
 
 ## Verification
 
-Updated onto live branch commit `255d5b26`. The default Vitest suite passes **2,010 tests across 191 files**; production `npm run build` passes. New/rewritten parser and runtime-test files pass ESLint. The legacy drawing-set file retains its existing formatting findings and the pre-existing triple-slash-reference lint error at line 1; its declaration reference is unchanged. TypeScript retains the same 34 baseline diagnostics/location-code pairs, with no added pair.
+- Parser regression cases cover compressed and classic PDF structures, malformed/encrypted/empty rejection, correct sheet indexing and byte preservation.
+- Intake runs with browser drawing globals absent and pdf.js imports mocked to fail if accidentally loaded.
+- Pixel-level renderer tests verify that different selected pages produce their corresponding colors, previews stay bounded, absent pages return null and a bad document does not block later rendering.
+- A real workerd test uses the actual storeDrawingSet, storedSheet and saveDrawingMarkup functions with in-memory storage/RPC and all outgoing network requests forbidden. It imports once, recognizes the duplicate, reopens S-100, saves two dated versions tied to the source, verifies the original bytes and inspects actual blue/red overlay pixels plus the generated PDF.
+- The private actual-file proof repeats that flow with the local 17,612,902-byte, 24-page permit set. It selects S-100 at page 15, records one source upload, two distinct dated markup paths, correct source parents and unchanged stored/local originals. DOMMatrix, Path2D and ImageData remain undefined. The complete local Workers request took about three seconds including cold startup.
+- Separately, the production-built renderer chunk and emitted WASM render the same S-100 in workerd. This verifies deployment packaging as well as the source test bundle.
+- The actual S-100 preview, marked sheet and both PDF pages were visually inspected. Test annotations are explicitly fictional supplied geometry, not measured takeoff quantities. Private drawings, paths and generated copies are excluded from the PR.
 
-New regression coverage:
+Final local validation: **2,015 tests across 193 files pass**, and the production build passes. New renderer, test/support and config files pass ESLint. TypeScript has the identical 34 baseline diagnostic location/code pairs, with no additions. The production-built renderer was rerun successfully in workerd after the final dependency install and build. GitHub check results are recorded in the PR description after push.
 
-- Valid PDFs with language/catalog strings and escaped parentheses/backslashes, with both classic and compressed object storage.
-- Compressed xref/object-stream fixture; encrypted, malformed and zero-page input rejection.
-- Byte-for-byte original preservation.
-- Actual `readDrawingBytes` with DOMMatrix, Path2D and ImageData absent and both pdf.js entry points mocked to throw if loaded. Correct sheet counts pass, excessive sheet indexes fail.
+## Release gate
 
-Private actual-file proof, with no production writes:
-
-- The approved local 17,612,902-byte, 24-page permit set passes the corrected parser in local **workerd**, using the generated deployment's compatibility date and `nodejs_compat` flag.
-- Actual `storeDrawingSet` also runs in workerd with in-memory storage/RPC: one source upload, identical second share recognized, `athena-drawings` bucket, saved S-100 index at page 15, and unchanged source/local-original bytes. DOMMatrix, Path2D and ImageData remain undefined.
-- The same set runs through the existing renderer in **Node with native canvas**, selects S-100 without re-upload, saves two distinct dated markup copies, and preserves the original. This is Node proof, not Workers rendering proof.
-
-The source PDF, private paths, fake-storage harness outputs and generated markup copies are not committed.
-
-## Remaining release gate
-
-A separate local workerd rasterization probe confirms that supplying the original #220 DOMMatrix shim is insufficient: pdf.js still requests `@napi-rs/canvas`, which workerd cannot resolve. This PR leaves the base renderer unchanged, rather than shipping a partial global shim. It repairs PDF intake; it does **not** establish that the complete stored-sheet/markup workflow works in the deployed Workers runtime.
-
-Before calling the complete drawing workflow ready, provide a supported renderer for that runtime and verify stored-sheet retrieval plus two dated markup copies through the actual connector. Hosted transfer, live ChatGPT/Claude/Grok acceptance and the full live do-not-break checklist remain untested for this candidate. The source checklist is `docs/verification/athena-do-not-break.md`; its stored-page requirement remains a release gate. No merge or publication is claimed.
+This is local Workers and production-build proof. Live storage, signed download links and host interaction on this candidate remain untested until an approved publication. Run the complete drawing acceptance workflow in ChatGPT, normal Claude chat and Grok Bot, then docs/verification/athena-do-not-break.md. Never describe local in-memory storage tests as a live connector pass. This PR is not merged or published.
