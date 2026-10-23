@@ -190,7 +190,7 @@ describe("no-company tool path", () => {
   beforeEach(() => script(noCompany));
 
   it("routes a plain greeting into company setup before any company lookup", async () => {
-    const result = (await athenaHello.handler({}, ctx)) as Reply;
+    const result = (await athenaHello.handler({ company_id: undefined }, ctx)) as Reply;
     const shown = textOf(result);
     expect(result.structuredContent?.company_setup).toBe(true);
     expect(result.structuredContent?.card?.title).toBe("Welcome. Let's set up your company");
@@ -207,7 +207,7 @@ describe("no-company tool path", () => {
   });
 
   it("routes a morning brief task ask into company setup", async () => {
-    const result = (await morningBrief.handler({}, ctx)) as Reply;
+    const result = (await morningBrief.handler({ company_id: undefined }, ctx)) as Reply;
     expect(result.structuredContent?.company_setup).toBe(true);
     expect(textOf(result)).toContain("Welcome. Let's set up your company");
     expect(from).not.toHaveBeenCalled();
