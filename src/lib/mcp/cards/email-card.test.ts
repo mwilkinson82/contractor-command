@@ -3,7 +3,7 @@ import { runInNewContext } from "node:vm";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_TOOLS } from "../index";
-import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta } from "./email-card";
+import { EMAIL_CARD_MIME, EMAIL_CARD_PALETTE, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta } from "./email-card";
 import { NATIVE_CARD_MIME, NATIVE_CARD_URI } from "./native";
 import { nativeCardPayload, nativeCardResponse, nativeCardVisit } from "../native-card-transport";
 import { claudeCardReply } from "./claude-reply";
@@ -207,8 +207,12 @@ describe("email card view", () => {
     expect(b.el((e) => e.className === "primary").disabled).toBe(true);
   });
 
-  it("stays on the palette and uses no red", () => {
-    expect(paletteViolations(emailCardHtml(), false)).toEqual([]);
+  it("uses only its own stone-and-teal scheme, no red, and nothing from outside it", () => {
+    const own = Object.values(EMAIL_CARD_PALETTE);
+    expect(paletteViolations(emailCardHtml(), false, own)).toEqual([]);
+    // The widening is this card's alone: without it the scheme is off the card palette.
+    expect(paletteViolations(emailCardHtml(), false).length).toBeGreaterThan(0);
+    expect(emailCardHtml()).not.toMatch(/#1E3A5F|#1E5FED|#2563EB/);
     expect(emailCardHtml()).not.toMatch(/innerHTML|eval\(|fetch\(|XMLHttpRequest/);
   });
 });
