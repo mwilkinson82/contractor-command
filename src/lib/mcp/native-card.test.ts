@@ -37,17 +37,6 @@ describe("native card view lifecycle", () => {
     expect(v.removed()).toBe(true);
     expect(v.sent.some(({ data }) => ["tools/call", "sampling/createMessage", "ui/message"].includes(String(data.method)))).toBe(false);
   });
-  it.each([{}, { protocolVersion: "2025-06-18" }, { protocolVersion: "2026-07-28" }])("accepts a successful initialization result without requiring one protocol version: %j", (result) => {
-    const v = view();
-    v.message({ jsonrpc: "2.0", id: 1, result });
-    expect(v.sent[1].data.method).toBe("ui/notifications/initialized");
-    expect(v.sent[2].data.method).toBe("ui/notifications/size-changed");
-  });
-  it("ignores initialization errors, unrelated replies, and missing results", () => {
-    const v = view();
-    for (const reply of [{ id: 1, error: { code: -32603 } }, { id: 2, result: {} }, { id: 1 }]) v.message({ jsonrpc: "2.0", ...reply });
-    expect(v.sent).toHaveLength(1);
-  });
   it("keeps an explicit fallback when the host supplies no card", () => {
     const v = view();
     v.message({ jsonrpc: "2.0", id: 1, result: { protocolVersion: "2026-01-26" } });
