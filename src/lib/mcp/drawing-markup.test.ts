@@ -198,6 +198,28 @@ async function seed() {
 }
 
 describe("stored drawing markup tool", () => {
+  it("imports the host attachment once, then opens the stored sheet without another download", async () => {
+    const bytes = pdf();
+    const original = bytes.slice();
+    const fetcher = vi.fn(async () => new Response(bytes.slice()));
+    vi.stubGlobal("fetch", fetcher);
+    const args = {
+      job_number: "2701", sheets: ["S-001", "S-100"],
+      file: { download_url: "https://files.oaiusercontent.com/permit.pdf", file_id: "fictional-file", file_name: "host-permit.pdf" },
+    };
+    const first = await call(drawingSetImport, args);
+    const second = await call(drawingSetImport, args);
+    expect(first.structuredContent.duplicate).toBe(false);
+    expect(second.structuredContent.duplicate).toBe(true);
+    expect(state.uploaded).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const prepared = await call(drawingMarkup, { job_number: "2701", sheet: "S-100", operation: "prepare" });
+    expect(prepared.structuredContent.page).toBe(2);
+    expect(prepared.content.some((block) => block.type === "image")).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(bytes).toEqual(original);
+    expect(state.objects.get(state.uploaded[0])).toEqual(original);
+  });
   it("pulls S-100 from a #190 stored set without an upload and saves a styled dated copy", async () => {
     const original = await seed();
     const result = await call(drawingMarkup, { job_number: "2701", sheet: "s-100" });

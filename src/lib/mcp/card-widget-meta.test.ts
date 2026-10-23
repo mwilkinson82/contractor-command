@@ -35,6 +35,17 @@ async function rpc(method: string, id: number, params?: Record<string, unknown>)
 }
 
 describe("ChatGPT card widget stays off tools/list", () => {
+  it("advertises top-level host attachment inputs on all three drawing intake tools", async () => {
+    const listed = await rpc("tools/list", 40);
+    for (const name of ["drawing_set_import", "estimate_intake", "estimate_takeoff_save"]) {
+      const tool = listed.tools.find((tool: { name: string }) => tool.name === name);
+      expect(tool._meta["openai/fileParams"]).toEqual(["file"]);
+      expect(Object.keys(tool.inputSchema.properties.file.properties).sort()).toEqual(["download_url", "file_id", "file_name", "mime_type"]);
+      expect(tool.inputSchema.properties.file.required.sort()).toEqual(["download_url", "file_id"]);
+      expect(tool._meta["openai/outputTemplate"]).toBeUndefined();
+    }
+    expect(listed.tools.find((tool: { name: string }) => tool.name === "drawing_markup")._meta?.["openai/fileParams"]).toBeUndefined();
+  });
   it("lists real drawing markup and import tools with input schemas, without widget metadata", async () => {
     const listed = await rpc("tools/list", 4);
     const tools = listed.tools as { name: string; inputSchema: { properties: Record<string, unknown> }; _meta?: Record<string, unknown> }[];

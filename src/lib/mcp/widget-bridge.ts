@@ -3,6 +3,7 @@
 // puts it back on the meeting tools and getting_started, and registers the card widget resource.
 import { McpServer } from "@modelcontextprotocol/server";
 import { CARD_TOOLS } from "./cards/attach";
+import { drawingFileMeta } from "./drawing-file-input";
 import { NATIVE_CARD_URIS, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS, nativeCardHtml, nativeCardMeta, nativeResourceMeta } from "./cards/native";
 import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
 import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta, emailCardResourceMeta } from "./cards/email-card";
@@ -82,8 +83,12 @@ if (!proto[patched]) {
     }
     // openai/outputTemplate on tools/list makes ChatGPT
     // treat the tool as a widget, skip the styled card text, and hide the Athena icon.
-    // The email card wins for a tool in both sets (submittal_delivery): its result is one draft to approve.
-    const next = EMAIL_CARD_TOOLS.has(name) ? { ...config, _meta: { ...config._meta, ...emailCardMeta } } : NATIVE_CARD_TOOLS.has(name) ? { ...config, _meta: { ...config._meta, ...nativeCardMeta } } : config;
+    const fileMeta = drawingFileMeta(name);
+    // The email view retains precedence for submittal_delivery.
+    const cardMeta = EMAIL_CARD_TOOLS.has(name) ? emailCardMeta : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta : {};
+    const next = Object.keys(fileMeta).length || Object.keys(cardMeta).length
+      ? { ...config, _meta: { ...config._meta, ...fileMeta, ...cardMeta } }
+      : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
       if (!CARD_WIDGET_TOOLS.has(name)) return result;

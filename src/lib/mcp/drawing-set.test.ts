@@ -313,6 +313,25 @@ describe("drawing import", () => {
 });
 
 describe("sharing a drawing set", () => {
+  it.each(["intake", "takeoff"])("downloads the host attachment through %s without sending its bytes through the model", async (mode) => {
+    const fetcher = vi.fn().mockImplementation(async () => new Response(state.pdf.slice()));
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      state.lines = [];
+      state.version = null;
+      const args = {
+        job_number: "CCW-003", reuse: "reuse", lines: [],
+        file: { download_url: "https://files.oaiusercontent.com/test.pdf", file_id: "fictional-file", file_name: "permit-host.pdf" },
+        drawing: { sheets: ["S-001", "S-100"] },
+      };
+      const output = await (mode === "intake" ? intake(args) : saveTakeoff(args));
+      expect(output.content[0].text).toContain("Drawing set stored: permit-host.pdf.");
+      expect(fetcher).toHaveBeenCalledWith(args.file.download_url, { redirect: "error" });
+      expect(state.uploads).toHaveLength(1);
+      expect(state.uploads[0]).toMatchObject({ bucket: DRAWING_BUCKET, size: state.pdf.length });
+      expect((state.patches[0] as { documents: Doc[] }).documents[0].sheets).toEqual(["S-001", "S-100"]);
+    } finally { vi.unstubAllGlobals(); }
+  });
   it("stores the PDF on the company job path and keeps the document entry", async () => {
     state.documents = [
       {
