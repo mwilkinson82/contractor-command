@@ -53,6 +53,6 @@ describe("0.8.5 job contacts and notice items", () => {
     expect(w).toContain("email_contact: ecDelay.structured");
     expect(w).toContain("dedupeNotices(");
   });
-  it("0.8.5 tests run on the current version", () => expect(ATHENA_VERSION).toBe("0.8.18"));
+  it("0.8.5 tests run on the current version", () => expect(ATHENA_VERSION).toBe("0.8.19"));
 });
 

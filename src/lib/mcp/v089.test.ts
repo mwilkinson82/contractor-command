@@ -51,7 +51,7 @@ const job2701 = (): Activity[] => [
 ];
 
 describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports", () => {
-  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.18"));
+  it("version is 0.8.9", () => expect(ATHENA_VERSION).toBe("0.8.19"));
 
   it("count check reads 39 of 39 with the allocated total, and names undated activities", () => {
     const acts = job2701();
