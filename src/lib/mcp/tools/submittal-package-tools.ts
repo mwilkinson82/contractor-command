@@ -3,7 +3,7 @@ import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
 import { resolveSubmittalJob } from "./submittal-tools";
 import { guide } from "../visible";
-import type { CardModel } from "../cards/model";
+import type { CardModel, CardRow } from "../cards/model";
 import {
   buildSubmittalPdf,
   packageGaps,
@@ -38,7 +38,7 @@ export async function submittalRpc<T>(
 export function packageCard(
   title: string,
   ctx: PackageContext,
-  lines: string[],
+  lines: (string | CardRow)[],
   extra: Record<string, unknown> = {},
 ) {
   const card: CardModel = {
@@ -56,18 +56,27 @@ export function packageCard(
         kind: "list",
         rows: [
           { cells: [`Submittal ${ctx.submittal.number} · Spec ${ctx.submittal.spec_section}`] },
-          ...lines.map((l) => ({
-            cells: [l],
-            href: l.startsWith("Private preview (10 minutes): ")
-              ? l.slice("Private preview (10 minutes): ".length)
-              : null,
-          })),
+          ...lines.map((l) =>
+            typeof l !== "string"
+              ? l
+              : {
+                  cells: [l],
+                  href: l.startsWith("Private preview (10 minutes): ")
+                    ? l.slice("Private preview (10 minutes): ".length)
+                    : null,
+                },
+          ),
         ],
       },
     ],
   };
   return guide(
-    { ...text(lines.join("\n")), structuredContent: { card, ...extra } },
+    {
+      ...text(
+        lines.map((line) => (typeof line === "string" ? line : line.cells.join("\n"))).join("\n"),
+      ),
+      structuredContent: { card, ...extra },
+    },
     "Show the Athena card and full details; never claim an email was sent without a successful provider receipt.",
   );
 }
@@ -426,10 +435,17 @@ export const submittalDelivery = defineTool({
           : saved.approved_at
             ? "Approval saved. Send receipt not yet recorded."
             : "Draft saved. Not sent. Wait for a separate yes.",
-        `To: ${saved.draft.to}`,
-        `CC: ${saved.draft.cc.join(", ") || "None"}`,
-        `Subject: ${saved.draft.subject}`,
-        saved.draft.body,
+        {
+          cells: [
+            `To: ${saved.draft.to}`,
+            `CC: ${saved.draft.cc.join(", ") || "None"}`,
+            `Subject: ${saved.draft.subject}`,
+            "",
+            saved.draft.body,
+          ],
+          tone: "literal" as const,
+          raw: true,
+        },
       ];
       return guide(
         packageCard("Submittal delivery", data, lines, {
@@ -443,7 +459,7 @@ export const submittalDelivery = defineTool({
           ? "This send is already recorded. Show the card; do not send it again."
           : saved.approved_at
             ? args.action === "approve" && saved.already_approved !== true
-              ? "The member approved this exact draft; use their connected email tool to send it once unchanged, then call submittal_delivery record_sent with the successful provider message id and sent time; a failure must never be recorded as sent."
+              ? "The member approved this exact draft; use structuredContent.draft.to, cc, subject and body unchanged with their connected email tool, never reconstruct them from card text. Send it once, then call submittal_delivery record_sent with the successful provider message id and sent time; a failure must never be recorded as sent."
               : "This draft was already approved but has no send receipt. Check connected Sent mail before retrying: record an existing successful receipt, or send once only if the provider confirms it was not sent."
             : "Show the full draft and wait for approval; never send automatically.",
       );

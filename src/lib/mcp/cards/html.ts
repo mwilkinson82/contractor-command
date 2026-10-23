@@ -77,6 +77,7 @@ export function renderHtml(card: CardModel): string {
     `.placeholder h2{margin-top:0;color:${navy}}`,
     `.placeholder li,.placeholder p{color:${gray}}`,
     `.next{margin:14px 0 0;font-weight:700}`,
+    card.sections?.some((section) => section.rows.some((row) => row.tone === "literal")) ? `.tone-literal{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap;overflow-wrap:anywhere}` : "",
     alert ? `.alert,li.alert,p.alert,tr.alert{color:${alertColor}}` : "",
     alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alertColor};border-radius:12px;background:${white};overflow:hidden}` : "",
     alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${alertColor};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
@@ -128,7 +129,7 @@ export function renderHtml(card: CardModel): string {
         const items = s.rows
           .map((r) => {
             const attr = rowClass(r);
-            const row = r.raw ? esc(r.cells.filter(Boolean).join(" · ")) : linked(r, "");
+            const row = r.tone === "literal" ? esc(r.cells.join("\n")) : r.raw ? esc(r.cells.filter(Boolean).join(" · ")) : linked(r, "");
             return `<li ${attr}>${flagged(r, row)}</li>`;
           })
           .join("");

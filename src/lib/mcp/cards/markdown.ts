@@ -1,6 +1,7 @@
 import { rowPlain } from "../plain-label";
 import { MARK, isAlertLevel } from "./palette";
 import { STATE_LABEL, type CardModel, type CardRow, type CardSection } from "./model";
+import { verbatimBlock } from "./verbatim";
 
 const cell = (s: string) => s.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
 
@@ -44,6 +45,10 @@ function section(s: CardSection): string[] {
     return lines;
   }
   for (const row of s.rows) {
+    if (row.tone === "literal") {
+      lines.push(verbatimBlock(row.cells.join("\n")));
+      continue;
+    }
     if (row.raw) {
       if (row.flag) lines.push(`- ${toneMark(row)} **${row.flag === "delay" ? "Delay" : row.flag === "overdue" ? "Overdue" : row.flag === "risk" ? "Risk" : "Callout"}**`);
       lines.push(row.cells.join("\n"));

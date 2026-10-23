@@ -25,6 +25,14 @@ vi.mock("./tools/submittal-tools", () => ({
 import { submittalPackage, submittalDelivery } from "./tools/submittal-package-tools";
 import { sha256Hex } from "./file-share";
 import { submittalChase } from "./tools/submittal-chase-tool";
+import { runInNewContext } from "node:vm";
+import { attachAthenaCard } from "./cards/attach";
+import { sealCardReply } from "./cards/silence";
+import { nativeCardPayload, nativeCardVisit } from "./native-card-transport";
+import { cardWidgetHtml } from "./cards/widget";
+import { renderHtml } from "./cards/html";
+import type { CardModel, CardRow } from "./cards/model";
+import { finalizeVisible } from "./visible";
 const owner = "00000000-0000-4000-8000-000000000010",
   company = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   job = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -40,14 +48,15 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
         a: unknown,
         c: unknown,
       ) => Promise<{
+        content: { type: string; text?: string }[];
         structuredContent: {
           ready?: boolean;
           sent?: boolean;
           package?: { id: string; download_url: string; page_count: number; approved: boolean };
-          card: { sections: { rows: { href?: string }[] }[] };
+          card: CardModel & { sections: { rows: CardRow[] }[] };
           delivery_id?: string;
           draft_key?: string | null;
-          draft?: { to: string; body: string };
+          draft?: { to: string; cc: string[]; subject: string; body: string };
           preview_only?: boolean;
         };
       }>;
@@ -150,6 +159,121 @@ afterAll(async () => {
   await db?.close();
 });
 describe("real package handlers with local DB and immutable storage", () => {
+  it("preserves the exact saved draft through ChatGPT, Claude and text-only rendering without sending", async () => {
+    const sid = await create("INTEGRATION-EXACT-DRAFT"),
+      ctx = await saved(sid);
+    const body = [
+      "  Fictional Supplier,",
+      "",
+      "",
+      "Spec 26 24 16 | cut and shop drawing",
+      "Reference #1234 / aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "````text",
+      "literal | columns",
+      "````",
+      "<!doctype html><html><body>Literal email example</body></html>",
+      "REQUIRED VIEW: quoted email text",
+      "Card shown. Do not add text.",
+      "Please quote this wording verbatim.",
+      "Keep  double spaces.  ",
+    ].join("\r\n");
+    const draft = {
+      to: "supplier@example.com",
+      cc: ["copy@example.com"],
+      subject: "2701 | fictional cut / revision 0",
+      body,
+      link: null,
+    };
+    const output = await call(submittalDelivery, {
+      action: "draft",
+      kind: "chase",
+      job_number: "2701",
+      submittal_id: sid,
+      package_item_id: ctx.items.find((i: { kind: string }) => i.kind === "product_cut").id,
+      draft,
+    });
+    const assertRendering = async (value: Awaited<ReturnType<typeof call>>) => {
+      const presented = sealCardReply(
+        "submittal_delivery",
+        attachAthenaCard("submittal_delivery", finalizeVisible(value)),
+      );
+      for (const name of ["ChatGPT", "claude-ai", "Grok Bot"]) {
+        const request = new Request("https://app.meetathena.io/mcp", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 73,
+            method: "tools/call",
+            params: {
+              name: "submittal_delivery",
+              arguments: {},
+              _meta: { "io.modelcontextprotocol/clientInfo": { name, version: "fixture" } },
+            },
+          }),
+        });
+        const visit = await nativeCardVisit(request);
+        expect(visit).not.toBeNull();
+        const envelope = { jsonrpc: "2.0", id: 73, result: presented };
+        const returned = nativeCardPayload(envelope, visit).value as typeof envelope;
+        expect(returned.result.structuredContent.draft).toEqual(draft);
+        const text = returned.result.content.map((c) => c.text ?? "").join("\n");
+        const literal = [...text.matchAll(/(?:^|\n)(`{3,})text\n([\s\S]*?)\n\1(?=\n|$)/g)].find(
+          (m) => m[2].startsWith("To:"),
+        )?.[2];
+        expect(literal).toBe(
+          [
+            `To: ${draft.to}`,
+            `CC: ${draft.cc.join(", ")}`,
+            `Subject: ${draft.subject}`,
+            "",
+            body,
+          ].join("\n"),
+        );
+      }
+      const node = { dataset: {}, innerHTML: "" };
+      runInNewContext(cardWidgetHtml().match(/<script>([\s\S]*?)<\/script>/)![1], {
+        window: { openai: { toolOutput: presented.structuredContent } },
+        document: { getElementById: () => node },
+      });
+      const encoded = body
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+      for (const html of [renderHtml(presented.structuredContent.card), node.innerHTML]) {
+        expect(html).toContain('class="tone-literal"');
+        expect(html).toContain(encoded);
+        expect(html).toContain(draft.subject);
+      }
+    };
+    await assertRendering(output);
+    const savedDraft = (
+      await query("SELECT draft, approved_at, sent_at FROM mcp_submittal_mail WHERE id=$1", [
+        output.structuredContent.delivery_id,
+      ])
+    )[0];
+    expect(savedDraft.draft).toEqual(draft);
+    expect(savedDraft.approved_at).toBeNull();
+    expect(savedDraft.sent_at).toBeNull();
+    const approved = await call(submittalDelivery, {
+      action: "approve",
+      job_number: "2701",
+      submittal_id: sid,
+      delivery_id: output.structuredContent.delivery_id,
+      draft_key: output.structuredContent.draft_key,
+      confirmed: true,
+    });
+    await assertRendering(approved);
+    const afterApproval = (
+      await query("SELECT draft, approved_at, sent_at FROM mcp_submittal_mail WHERE id=$1", [
+        output.structuredContent.delivery_id,
+      ])
+    )[0];
+    expect(afterApproval.draft).toEqual(draft);
+    expect(afterApproval.approved_at).toBeTruthy();
+    expect(afterApproval.sent_at).toBeNull();
+  });
   it("previews without writing, then saves the exact chase draft before asking for approval", async () => {
     const sid = await create("INTEGRATION-CHASE"),
       ctx = await saved(sid);
@@ -219,7 +343,7 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(build.structuredContent.sent).toBe(false);
     expect(JSON.stringify(build.structuredContent)).not.toContain("signed_url");
     expect(
-      build.structuredContent.card.sections[0].rows.some((r: { href?: string }) =>
+      build.structuredContent.card.sections[0].rows.some((r) =>
         r.href?.includes("/r/submittal-preview/"),
       ),
     ).toBe(true);

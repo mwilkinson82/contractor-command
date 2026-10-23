@@ -2,7 +2,7 @@ import { isAlertLevel, type AlertLevel } from "./palette";
 
 export type CardState = "intake" | "progress" | "ask" | "result";
 
-export type CardTone = "known" | "unknown" | "action";
+export type CardTone = "known" | "unknown" | "action" | "literal";
 
 export type CardRow = {
   cells: string[];

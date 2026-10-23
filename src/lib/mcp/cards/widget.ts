@@ -75,6 +75,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
   h+='<ul>';
   (s.rows||[]).forEach(function(r){
     var alert=isAlert(r.flag);
+    if(r.tone==="literal"){h+='<li class="tone-literal">'+esc((r.cells||[]).join("\\n"))+'</li>';return}
     h+='<li'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+((alert||r.flag==="callout")?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">':'')+linked(view(r))+((alert||r.flag==="callout")?'</div>':'')+'</li>';
   });
   h+='</ul>'+close;
@@ -118,6 +119,7 @@ th{background:${blue};color:${white};text-align:left;padding:6px 8px}
 td{padding:6px 8px;border-bottom:1px solid ${gray}}
 .chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
 .tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
+.tone-literal{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap;overflow-wrap:anywhere}
 a{color:${blue};text-decoration:none}
 .ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
 .ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}

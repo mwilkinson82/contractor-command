@@ -165,9 +165,7 @@ export function presentChaseCard(input: {
             kind: "list" as const,
             rows: [
               { cells: ["Not sent. Needs confirm."], tone: "action" as const },
-              { cells: [`To: ${draft.to || "Needed"}`], tone: "action" as const },
-              { cells: [`Subject: ${draft.subject}`] },
-              { cells: [draft.body], raw: true },
+              { cells: [`To: ${draft.to || "Needed"}`, `Subject: ${draft.subject}`, "", draft.body], tone: "literal" as const, raw: true },
             ],
           }]
         : []),
