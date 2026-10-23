@@ -90,10 +90,11 @@ export function formatMoneyPhrase(text: string): string | null {
     .join(" / ");
 }
 
-/** Bare billing amounts inside a sentence. Leaves the words, adds the dollar sign and cents. */
+/** Bare billing amounts inside a sentence. Leaves the words, adds the dollar sign and cents.
+ *  YYYY-MM-DD (open items, deadlines) is a date, so its year is not an amount. */
 export function formatBillingText(text: string): string {
   if (!/bill|plan|realistic/i.test(text)) return text;
-  return text.replace(/(?<![\w$.])(\d{1,3}(?:,\d{3})+|\d{4,})(?:\.\d+)?(?![\w])/g, (raw) => {
+  return text.replace(/(?<![\w$.])(?!\d{4}-\d{2}-\d{2}(?!\d))(\d{1,3}(?:,\d{3})+|\d{4,})(?:\.\d+)?(?![\w])/g, (raw) => {
     const n = Number(raw.replace(/,/g, ""));
     return Number.isFinite(n) ? money(n) : raw;
   });
