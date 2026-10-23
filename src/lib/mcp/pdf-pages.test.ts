@@ -1,5 +1,6 @@
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
+import { PDFDocument, PDFName, PDFString } from "pdf-lib";
 import { pdfPageCount } from "./pdf-pages";
 
 const enc = new TextEncoder();
@@ -38,7 +39,9 @@ function compressedPagePdf(): Uint8Array {
   const pages = "<< /Type /Pages /Count 1 /Kids [3 0 R] >>";
   const header = `1 0 2 ${catalog.length + 1}\n`;
   const stm = enc.encode(header + catalog + "\n" + pages);
-  const stmAt = add(`4 0 obj\n<< /Type /ObjStm /N 2 /First ${header.length} /Length ${stm.length} >>\nstream\n`);
+  const stmAt = add(
+    `4 0 obj\n<< /Type /ObjStm /N 2 /First ${header.length} /Length ${stm.length} >>\nstream\n`,
+  );
   add(stm);
   add("\nendstream\nendobj\n");
   const head = join(parts);
@@ -65,7 +68,43 @@ function compressedPagePdf(): Uint8Array {
 }
 
 describe("pdf page count", () => {
-  it("reads a compressed xref and an object stream", () => {
-    expect(pdfPageCount(compressedPagePdf())).toBe(1);
+  it("reads a compressed xref and an object stream", async () => {
+    await expect(pdfPageCount(compressedPagePdf())).resolves.toBe(1);
+  });
+  for (const useObjectStreams of [false, true]) {
+    it(`reads language and escaped catalog strings (object streams: ${useObjectStreams}) without changing bytes`, async () => {
+      const document = await PDFDocument.create();
+      document.addPage();
+      document.addPage();
+      document.setLanguage("en-US");
+      document.catalog.set(PDFName.of("Example"), PDFString.of("Drawing (S-100) \\ revision"));
+      const bytes = await document.save({ useObjectStreams });
+      const original = bytes.slice();
+      await expect(pdfPageCount(bytes)).resolves.toBe(2);
+      expect(bytes).toEqual(original);
+    });
+  }
+
+  it("rejects a malformed PDF", async () => {
+    await expect(pdfPageCount(enc.encode("%PDF-1.7\nnot a drawing"))).rejects.toThrow(
+      /could not be read/,
+    );
+  });
+
+  it("rejects a document with no pages", async () => {
+    const document = await PDFDocument.create();
+    const bytes = await document.save({ addDefaultPage: false });
+    await expect(pdfPageCount(bytes)).rejects.toThrow(/at least one page/);
+  });
+
+  it("rejects an encryption-marked PDF without ignoring encryption", async () => {
+    const document = await PDFDocument.create();
+    document.addPage();
+    const bytes = await document.save({ useObjectStreams: false });
+    const content = new TextDecoder().decode(bytes);
+    const encrypted = enc.encode(
+      content.replace(/trailer\s*<</, "trailer\n<< /Encrypt << /Filter /Standard >>"),
+    );
+    await expect(pdfPageCount(encrypted)).rejects.toThrow(/encrypted/);
   });
 });

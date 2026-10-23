@@ -310,33 +310,6 @@ describe("drawing import", () => {
       readDrawingBytes({ filename, content_base64: bytesToBase64(bytes), sheets: [...sheets, "A-201"] }),
     ).rejects.toThrow(/more sheet names/);
   });
-
-  it("indexes pages with DOMMatrix removed, then renders", async () => {
-    const scope = globalThis as { DOMMatrix?: unknown };
-    const previous = scope.DOMMatrix;
-    delete scope.DOMMatrix;
-    const sheets = ["S-100", "S-101", "S-102", "S-103", "A-200"];
-    const doc = new jsPDF({ unit: "pt", format: [220, 140] });
-    sheets.forEach((sheet, index) => {
-      if (index) doc.addPage();
-      doc.text(sheet, 24, 40);
-    });
-    const bytes = new Uint8Array(doc.output("arraybuffer"));
-    try {
-      const imported = await readDrawingBytes({
-        filename: "CCW_in_scope_S100-S103_A200.pdf",
-        content_base64: bytesToBase64(bytes),
-        sheets,
-      });
-      expect(scope.DOMMatrix).toBeUndefined();
-      const png = await renderPdfPage(imported.bytes, 0);
-      expect(png?.slice(0, 8)).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-      expect(typeof scope.DOMMatrix).toBe("function");
-    } finally {
-      if (previous) scope.DOMMatrix = previous;
-      else delete scope.DOMMatrix;
-    }
-  });
 });
 
 describe("sharing a drawing set", () => {

@@ -1,6 +1,5 @@
 /// <reference path="./pdfjs-legacy.d.ts" />
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
-import { installPdfDom } from "./pdf-dom";
 import { pdfPageCount } from "./pdf-pages";
 import { htmlBlock } from "./cards/markdown";
 // Stored drawing sets. New originals use a dedicated private drawing bucket; #190
@@ -245,11 +244,11 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
     const names = upload.sheets ?? [];
     if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
       throw new FileRejected("Give each sheet one unique name in PDF page order. Nothing was stored.");
-    // Page count stays off pdf.js. The legacy build constructs DOMMatrix while the
-    // module loads, and this runtime has no canvas package to define it.
+    // Import uses the existing pure-JavaScript PDF parser, without loading a
+    // renderer or requiring browser globals/native canvas support.
     let pageCount: number;
     try {
-      pageCount = pdfPageCount(bytes);
+      pageCount = await pdfPageCount(bytes);
     } catch (err) {
       const reason = err instanceof Error && err.message ? err.message : "This PDF could not be read.";
       throw new FileRejected(/Nothing was stored\.$/.test(reason) ? reason : `${reason} Nothing was stored.`);
@@ -381,10 +380,11 @@ type PdfDoc = {
 
 type PdfjsGlobal = typeof globalThis & { pdfjsWorker?: { WorkerMessageHandler?: unknown } };
 
-/** Legacy pdf.js for markup rasters. DOMMatrix is installed first: the module
- *  constructs one while loading, and the edge runtime does not provide it. */
+/** Legacy pdf.js, with the worker module imported directly.
+ *  The edge runtime's module helper has no package-path resolve, so the
+ *  entry cannot be located on disk. pdf.js uses this worker as its fake
+ *  worker and does not look up ./pdf.worker.mjs. */
 async function loadPdfjs(): Promise<PdfjsModule> {
-  installPdfDom();
   const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
   const scope = globalThis as PdfjsGlobal;
   if (!scope.pdfjsWorker?.WorkerMessageHandler) scope.pdfjsWorker = worker;
