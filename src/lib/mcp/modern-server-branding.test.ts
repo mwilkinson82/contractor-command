@@ -20,6 +20,7 @@ const handler = createTanStackMcpHandler(
     tools: [
       defineTool({
         name: "ping",
+        title: "Read-only branding probe",
         description: "Read-only probe.",
         handler: async () => ({ content: [{ type: "text", text: "pong" }] }),
       }),
