@@ -3,6 +3,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { brandInitializeResponse, initializeRequestIds, isMcpPost } from "./lib/mcp/server-info-branding";
+import { nativeCardResponse, nativeCardVisit } from "./lib/mcp/native-card-transport";
 import { isTrustedHost } from "./lib/trusted-hosts";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
 import { supabaseForToken } from "./lib/mcp/supabase";
@@ -152,8 +153,20 @@ const mcpServerInfoBranding = createMiddleware().server(async ({ next, request }
   }
 });
 
+const mcpNativeCardPresentation = createMiddleware().server(async ({ next, request }) => {
+  // Presentation must never turn a successful SDK response into an application failure.
+  const visit = await nativeCardVisit(request).catch(() => null);
+  const result = await next();
+  if (!visit) return result;
+  try {
+    return { ...result, response: await nativeCardResponse(result.response, visit) };
+  } catch {
+    return result;
+  }
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, mcpEntitlementGate, mcpServerInfoBranding, csrfOriginGuard],
+  requestMiddleware: [errorMiddleware, mcpEntitlementGate, mcpServerInfoBranding, mcpNativeCardPresentation, csrfOriginGuard],
   functionMiddleware: [attachSupabaseAuth],
 }));
 

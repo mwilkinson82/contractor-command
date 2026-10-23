@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CardModel } from "./cards/model";
 import type { SavedLookaheadItem } from "./lookahead-card";
 import { paletteViolations } from "./cards/palette";
+import { nativeCardResponse, nativeCardVisit } from "./native-card-transport";
+import { NATIVE_CARD_MIME, NATIVE_CARD_URI } from "./cards/native";
 
 const state = vi.hoisted(() => ({
   job: "10000000-0000-4000-8000-000000000001",
   la: "31be8000-0000-4000-8000-000000000001",
   cpmDate: "2026-10-19" as string | null,
-  failItems: false, foreignLa: false, rows: 6, writes: [] as string[], queries: [] as string[], rpcs: [] as string[],
+  liveShape: false, failItems: false, foreignLa: false, rows: 6, writes: [] as string[], queries: [] as string[], rpcs: [] as string[],
 }));
 const sb = () => ({
   from(table: string) {
@@ -22,7 +24,13 @@ const sb = () => ({
       : table === "mcp_open_items" ? [
         ...Array.from({ length: state.rows }, (_, i) => ({ id: `item-${i.toString().padStart(4, "0")}`, job_id: state.job, lookahead_id: state.la,
           action: `Fictional construction item ${i + 1}`, accountable: "Example PM", due_date: i === 0 ? "2020-01-01" : "2099-01-01",
-          status: i === 5 ? "resolved" : "open", severity: "low", item_type: i === 1 ? "delay" : "deadline", category: i === 3 ? "delay_notice" : null })),
+          ...(state.liveShape ? { due_date: "2026-11-02" } : {}),
+          status: state.liveShape ? (i < 2 ? "resolved" : "open") : i === 5 ? "resolved" : "open", severity: "low", item_type: i === 1 ? "delay" : "deadline", category: i === 3 ? "delay_notice" : null })),
+        ...(state.liveShape ? [
+          ...["2026-10-14", "2026-10-16", "2026-10-21"].map((due, i) => ({ id: `job-overdue-${i}`, job_id: state.job, lookahead_id: "other-la", action: `Job obligation ${i + 1}`, status: "open", due_date: due, owner: "Example PM" })),
+          { id: "due-today", job_id: state.job, lookahead_id: "other-la", action: "Due today obligation", status: "open", due_date: "2026-10-22" },
+          { id: "resolved-overdue", job_id: state.job, lookahead_id: "other-la", action: "Resolved obligation", status: "resolved", due_date: "2026-10-01" },
+        ] : []),
         { id: "foreign-item", job_id: "other-job", lookahead_id: state.la, action: "PRIVATE OTHER JOB" },
         { id: "other-lookahead", job_id: state.job, lookahead_id: "other-la", action: "OTHER LOOKAHEAD" },
       ] : [];
@@ -54,9 +62,70 @@ vi.mock("./guard", () => ({
 }));
 import { lookaheadGet } from "./tools/workflow-tools";
 const call = (args: Record<string, unknown> = {}) => (lookaheadGet as unknown as { handler: (a: unknown, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: { lookahead_ref: string; items: SavedLookaheadItem[]; window: unknown; activities: unknown[]; revision: number; html: string; card: CardModel } }> }).handler({ job_number: "2701", ...args }, {});
-beforeEach(() => { state.cpmDate = "2026-10-19"; state.foreignLa = false; state.failItems = false; state.rows = 6; state.writes = []; state.queries = []; state.rpcs = []; });
+beforeEach(() => { state.liveShape = false; state.cpmDate = "2026-10-19"; state.foreignLa = false; state.failItems = false; state.rows = 6; state.writes = []; state.queries = []; state.rpcs = []; });
 
 describe("normal lookahead read", () => {
+  it.each([
+    ["claude-ai", true], ["claude-ai", false],
+    ["ChatGPT", true], ["ChatGPT", false],
+  ])("job 2701 keeps all six items and three overdue in %s's full reply when card available=%s", async (host, cardAvailable) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-22T16:00:00Z"));
+    state.liveShape = true;
+    const request = (method: string, params: Record<string, unknown>) => new Request("https://app.meetathena.io/mcp", {
+      method: "POST", headers: { "content-type": "application/json", "user-agent": String(host) },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, _meta: {
+        "io.modelcontextprotocol/clientInfo": { name: host, version: "test" },
+        "io.modelcontextprotocol/clientCapabilities": { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } } },
+      } } }),
+    });
+    try {
+      // Card loading is an independent request. Neither success nor failure may edit tool text.
+      const resourceVisit = await nativeCardVisit(request("resources/read", { uri: NATIVE_CARD_URI }));
+      const resource = await nativeCardResponse(Response.json({ jsonrpc: "2.0", id: 1, error: { code: -32601, message: "Method not found" } }, { status: cardAvailable ? 404 : 503 }), resourceVisit);
+      expect(resource.status).toBe(cardAvailable ? 200 : 503);
+      const fullReply = await call();
+      const original = Response.json({ jsonrpc: "2.0", id: 1, result: fullReply });
+      const visit = await nativeCardVisit(request("tools/call", { name: "lookahead_get", arguments: { job_number: "2701" } }));
+      const response = await nativeCardResponse(original, visit);
+      expect(response).toBe(original);
+      const returned = (await response.json()).result as typeof fullReply;
+      expect(returned.content).toEqual(fullReply.content);
+      expect(returned.structuredContent).toEqual(fullReply.structuredContent);
+      expect(returned.structuredContent.items).toHaveLength(6);
+      expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Overdue on job", value: "3", flag: "overdue" });
+      const body = returned.content.map((block) => block.text).join("\n");
+      for (let i = 1; i <= 6; i++) expect(body).toContain(`Fictional construction item ${i}`);
+      for (let i = 1; i <= 3; i++) expect(body).toContain(`Job obligation ${i}`);
+      expect(body).toContain("<!doctype html");
+      expect(body).toContain(returned.structuredContent.html);
+      expect(body).toContain("#1E5FED");
+      expect(body).not.toContain("PRIVATE OTHER JOB");
+      expect(state.writes).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+  it("keeps six saved rows separate from the existing report's three job-overdue obligations", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-22T16:00:00Z"));
+    state.liveShape = true;
+    try {
+      const { structuredContent: sc, content } = await call();
+      expect(sc.items).toHaveLength(6);
+      expect(sc.card.kpis).toEqual([
+        { label: "Saved items", value: "6" },
+        { label: "Open saved items", value: "4" },
+        { label: "Overdue on job", value: "3", flag: "overdue" },
+      ]);
+      const overdue = sc.card.sections!.find((section) => section.heading.startsWith("Job overdue obligations"))!;
+      expect(overdue.rows).toHaveLength(3);
+      expect(overdue.rows.every((row) => row.flag === "overdue")).toBe(true);
+      expect(content[0].text).toContain("Job obligation 3");
+      expect(content[0].text).not.toContain("Due today obligation");
+      expect(content[0].text).not.toContain("Resolved obligation");
+      expect(content[0].text).not.toContain("PRIVATE OTHER JOB");
+      expect(state.writes).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
   it("returns all six saved items, current CPM window, and styled fallback without an export", async () => {
     const result = await call();
     const sc = result.structuredContent;

@@ -1403,10 +1403,13 @@ export const lookaheadGet = defineTool({
         rows: activities.length ? activities.map((a) => ({ cells: [a.name || a.description || a.id, a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
           : [{ cells: [d.acts.length ? "No saved activities overlap this window" : "No saved CPM activities yet", "", ""] }],
       }];
-      const card = savedLookaheadCard(named(job), d.ref, items, d.today, context);
+      // Match the existing report's job obligations, not just this lookahead's attached rows.
+      // A saved set may have four open future items while the job still has three overdue obligations.
+      const jobOverdue = d.win ? lookaheadModel(d.win.start, d.win.end, d.acts, d.items, { today: d.today, dataDate: d.dataDate }).overdue.map((entry) => entry.item) : null;
+      const card = savedLookaheadCard(named(job), d.ref, items, d.today, context, jobOverdue);
       const html = renderHtml(card);
       return { ...text(applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false)),
-        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, activities, items, card, html },
+        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, as_of: d.today, overdue_scope: jobOverdue ? "job" : "saved_items", overdue_items: jobOverdue ?? items.filter((item) => item.status === "open" && item.due && item.due < d.today), activities, items, card, html },
         _meta: { ...cardWidgetMeta } };
     }),
 });
