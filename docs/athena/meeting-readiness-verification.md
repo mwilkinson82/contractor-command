@@ -6,7 +6,12 @@ A dated lookahead is evidence of a saved date window, not PM approval. An issue
 log without crew or delay rows is not a crew confirmation or a schedule check.
 The meeting loader now leaves those unverified answers as `Needed`, including
 when an issue read fails. Existing open crew issues remain unconfirmed and open
-delay issues keep their red delay flag. The loader still reads current CPM
+delay issues keep their red delay flag.
+
+Crew notes that explicitly say not confirmed, ask for confirmation or describe a
+conditional confirmation keep the existing meeting item open. An affirmative
+“All subs, suppliers and crews confirmed” still closes it. The meeting dedupe key
+is unchanged. The loader still reads current CPM
 progress, forecast figures and the saved IOR comparison without writing them.
 
 There is currently no authoritative lock/confirmation record consumed by this
@@ -16,8 +21,8 @@ lookahead revision before the loader can report a positive confirmation.
 
 ## Local verification
 
-- Default Vitest: 172 files, 1,785 tests passed (1,779 on base plus six regression
-  cases). Focused meeting/readiness run: 20 passed.
+- Default Vitest: 172 files, 1,793 tests passed (1,779 on base plus 14 regression
+  cases). Focused meeting, readiness, open-feed and brief run: 65 passed.
 - Production build passed.
 - Typecheck: 34 existing errors, same file/code pairs as base; no new errors in
   the changed loader or test.

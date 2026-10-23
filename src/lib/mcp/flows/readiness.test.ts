@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildFlowCard } from "./build";
-import { loadFlowData } from "./load";
+import { loadFlowData, saveFlowNote } from "./load";
+import { dedupeOpenRows, meetingItem } from "../open-feed";
 import { renderHtml } from "../cards/html";
 import { paletteViolations } from "../cards/palette";
 
@@ -24,6 +25,33 @@ function client(items: Record<string, unknown>[] = [], readError = false) {
 }
 
 describe("PM meeting readiness uses evidence, not absence of issues", () => {
+  it.each([
+    "Subs and crews are not confirmed",
+    "Subs and crews aren't confirmed",
+    "Subs and crews remain unconfirmed",
+    "Confirm subs and crews for Monday",
+    "If subs and crews are confirmed, proceed",
+    "Subs and crews confirmed except the electrical crew",
+    "Are all subs and crews confirmed?",
+  ])("keeps the crew item open for %s", (note) => {
+    expect(meetingItem(note)).toEqual({ key: "pm:crews", close: false });
+  });
+
+  it("passes a negative crew answer to the guarded save as open and preserves meeting deduplication", async () => {
+    const sb = client();
+    const note = "Subs and crews are not confirmed";
+    await saveFlowNote(sb, job.job_id, "pm_meeting", "schedule", note, { note });
+    expect(sb.rpc).toHaveBeenCalledWith("mcp_meeting_item_save", {
+      _job: job.job_id, _key: "pm:crews", _action: note, _close: false,
+    });
+    const rows = dedupeOpenRows([
+      { id: "old", action: "All subs and crews confirmed", updated_at: "2026-10-20" },
+      { id: "new", action: note, updated_at: "2026-10-23" },
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(["new"]);
+    expect(meetingItem("All subs, suppliers and crews confirmed")).toEqual({ key: "pm:crews", close: true });
+  });
+
   it("does not confirm crews from an unrelated open item or infer a lock from lookahead dates", async () => {
     const data = await loadFlowData(client([{ id: "a", action: "Confirm owner selections", status: "open" }]), job, false);
     expect(data.items).toHaveLength(1);

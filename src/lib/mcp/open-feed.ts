@@ -25,7 +25,12 @@ export type MeetingItem = { key: string; close: boolean };
 export function meetingItem(note: string): MeetingItem | null {
   const a = note.toLowerCase();
   if (/no change orders pending/.test(a) && /confirm/.test(a)) return { key: "pm:change_orders", close: true };
-  if (/(subcontractors|\bsubs\b|suppliers)/.test(a) && /crews/.test(a) && /confirm/.test(a)) return { key: "pm:crews", close: true };
+  if (/(subcontractors|\bsubs\b|suppliers)/.test(a) && /crews/.test(a) && /confirm/.test(a)) {
+    // Keep one meeting item, but never close it for a request, a conditional or
+    // an explicit negative such as "subs and crews are not confirmed".
+    const unsettled = /\b(?:not|never|no|unconfirmed|pending|awaiting|except|unless|if|once|need|needs|needed|waiting)\b|n['’]t\b|\?/.test(a);
+    return { key: "pm:crews", close: /\bconfirmed\b/.test(a) && !unsettled };
+  }
   if (/planned billing|realistic billing/.test(a)) return { key: "pm:billing", close: false };
   return null;
 }
