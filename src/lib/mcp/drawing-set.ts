@@ -1,3 +1,4 @@
+/// <reference path="./pdfjs-legacy.d.ts" />
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
 import { htmlBlock } from "./cards/markdown";
 // Stored drawing sets. New originals use a dedicated private drawing bucket; #190
@@ -370,11 +371,17 @@ type PdfDoc = {
   destroy: () => Promise<void>;
 };
 
+type PdfjsGlobal = typeof globalThis & { pdfjsWorker?: { WorkerMessageHandler?: unknown } };
+
+/** Legacy pdf.js, with the worker module imported directly.
+ *  The edge runtime's module helper has no package-path resolve, so the
+ *  entry cannot be located on disk. pdf.js uses this worker as its fake
+ *  worker and does not look up ./pdf.worker.mjs. */
 async function loadPdfjs(): Promise<PdfjsModule> {
-  const { createRequire } = await import("node:module");
-  const { pathToFileURL } = await import("node:url");
-  const entry = createRequire(import.meta.url).resolve("pdfjs-dist/legacy/build/pdf.mjs");
-  return import(pathToFileURL(entry).href) as Promise<PdfjsModule>;
+  const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  const scope = globalThis as PdfjsGlobal;
+  if (!scope.pdfjsWorker?.WorkerMessageHandler) scope.pdfjsWorker = worker;
+  return import("pdfjs-dist/legacy/build/pdf.mjs");
 }
 
 /** Rasterize one PDF page. pageIndex is zero-based. Returns null when that page is not in the file. */

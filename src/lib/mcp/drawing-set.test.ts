@@ -15,6 +15,7 @@ import {
   drawingTooBigMessage,
   drawingUploadLimit,
   keepDrawingPaths,
+  readDrawingBytes,
   renderPdfPage,
   sheetPageIndex,
   sheetPageLine,
@@ -284,6 +285,30 @@ describe("stored sheet page", () => {
     expect(attachSheetPages({ content: [{ type: "text", text: "Same" }] }, [])).toEqual({
       content: [{ type: "text", text: "Same" }],
     });
+  });
+});
+
+describe("drawing import", () => {
+  it("parses a multi-page PDF without createRequire.resolve", async () => {
+    const source = readFileSync(new URL("./drawing-set.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/createRequire\s*\(/);
+    expect(source).not.toMatch(/\.resolve\s*\(\s*["']pdfjs-dist/);
+    const sheets = ["S-100", "S-101", "S-102", "S-103", "A-200"];
+    const doc = new jsPDF({ unit: "pt", format: [220, 140] });
+    sheets.forEach((sheet, index) => {
+      if (index) doc.addPage();
+      doc.text(sheet, 24, 40);
+    });
+    const bytes = new Uint8Array(doc.output("arraybuffer"));
+    const filename = "CCW_in_scope_S100-S103_A200.pdf";
+    const imported = await readDrawingBytes({ filename, content_base64: bytesToBase64(bytes), sheets });
+    expect(imported.filename).toBe(filename);
+    expect(imported.bytes).toEqual(bytes);
+    const png = await renderPdfPage(imported.bytes, sheets.length - 1);
+    expect(png?.slice(0, 8)).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    await expect(
+      readDrawingBytes({ filename, content_base64: bytesToBase64(bytes), sheets: [...sheets, "A-201"] }),
+    ).rejects.toThrow(/more sheet names/);
   });
 });
 
