@@ -103,6 +103,7 @@ describe("normal lookahead read", () => {
       expect(body).not.toMatch(/Card shown/);
       expect(body).not.toMatch(/\bUse it and this window\b/);
       expect(body).toContain("<!doctype html");
+      expect(body).toContain("| Saved items |");
       expect(returned.structuredContent.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
       expect(returned.structuredContent.html).not.toContain("REQUIRED: the data date");
       expect(body).toContain(returned.structuredContent.html);
@@ -135,6 +136,7 @@ describe("normal lookahead read", () => {
     });
     try {
       const fullReply = await call();
+      fullReply.structuredContent.card.next_move = "Close the overdue item first.";
       const original = Response.json({ jsonrpc: "2.0", id: 1, result: fullReply });
       const visit = await nativeCardVisit(request);
       const response = await nativeCardResponse(original, visit);
@@ -145,12 +147,30 @@ describe("normal lookahead read", () => {
         expect(body).toContain(`Fictional construction item ${i}`);
       }
       for (let i = 1; i <= 3; i++) expect(body).toContain(`Job obligation ${i}`);
-      expect(body).toContain("Data date: 2026-10-19 (saved CPM v3)");
-      expect(body).toContain("🔴");
+      expect(body).toContain("## 🔵 14-day lookahead");
+      expect(body).toContain("**2701 – Fictional Job**");
+      expect(body).toContain("Window: Oct 26 to Nov 6, Rev 2. Data date is Oct 19 (CPM v3).");
+      expect(body).toContain("**6 saved items · 4 open · 🔴 3 overdue on the job**");
+      expect(body).toContain("due Oct 14");
+      expect(body).toContain("due Oct 16");
+      expect(body).toContain("due Oct 21");
+      expect(body).toContain("✅ Resolved:");
+      const headings = ["### 🔴 Overdue", "### Coming up", "### 🔴 Delay / risk notices", "### Schedule in this window"];
+      let at = -1;
+      for (const heading of headings) {
+        const next = body.indexOf(heading);
+        expect(next, heading).toBeGreaterThan(at);
+        at = next;
+      }
+      expect(body.indexOf("### Due within 7 days")).toBe(-1);
+      expect(body.slice(body.indexOf("### Coming up"), body.indexOf("### 🔴 Delay / risk notices"))).not.toContain("🔴");
+      expect(body).not.toMatch(/^\s*\|/m);
       expect(returned.structuredContent.activities).toHaveLength(6);
       expect(returned.structuredContent.items).toHaveLength(6);
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Saved items", value: "6" });
+      expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Open saved items", value: "4" });
       expect(returned.structuredContent.card.kpis).toContainEqual({ label: "Overdue on job", value: "3", flag: "overdue" });
+      expect(body.trim().endsWith("**Athena's next move:** Close the overdue item first.")).toBe(true);
       expect(body).not.toContain("<!doctype");
       expect(body).not.toMatch(/\bREQUIRED\b/);
       expect(body).not.toMatch(/\bDo not\b/i);

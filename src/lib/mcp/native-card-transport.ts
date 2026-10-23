@@ -11,6 +11,7 @@ import {
   nativeCardMeta,
 } from "./cards/native";
 import { isMcpPost } from "./server-info-branding";
+import { phoneHostText } from "./phone-reply";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -199,10 +200,17 @@ export function nativeCardPayload(
       Array.isArray(result.content)
     ) {
       let edited = false;
+      let wrotePhone = false;
+      const phone = phoneHostText(String(call.params.name ?? ""), obj(result.structuredContent));
       const content = result.content.map((block) => {
         const row = obj(block);
-        if (!row || row.type !== "text" || typeof row.text !== "string" || !/<!doctype html/i.test(row.text))
-          return block;
+        if (!row || row.type !== "text" || typeof row.text !== "string") return block;
+        if (phone && !wrotePhone) {
+          wrotePhone = true;
+          edited = true;
+          return { ...row, text: phone };
+        }
+        if (!/<!doctype html/i.test(row.text)) return block;
         edited = true;
         return { ...row, text: stripInlineCardHtml(row.text) };
       });

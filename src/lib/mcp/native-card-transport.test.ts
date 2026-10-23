@@ -323,12 +323,15 @@ describe("native card presentation after the SDK", () => {
       owner: "Example PM",
       due: i < 3 ? "2026-10-21" : i < 8 ? "2026-10-23" : "2026-11-02",
     }));
-    const card = openItemsCard(
-      "2701 · Fictional job",
-      items,
-      { open: 17, overdue: 3, due_in_7_days: 5 },
-      "2026-10-22",
-    );
+    const card = {
+      ...openItemsCard(
+        "2701 · Fictional job",
+        items,
+        { open: 17, overdue: 3, due_in_7_days: 5 },
+        "2026-10-22",
+      ),
+      next_move: "Close the overdue item first.",
+    };
     const fullReply = attachAthenaCard("list_open_items", {
       content: [{ type: "text", text: "Full reply" }],
       structuredContent: { card, items },
@@ -346,7 +349,22 @@ describe("native card presentation after the SDK", () => {
     const returned = await response.json();
     const body = returned.result.content.map((block: { text?: string }) => block.text ?? "").join("\n");
     for (let i = 1; i <= 17; i++) expect(body).toContain(`Job 2701 task ${i}`);
-    expect(body).toContain("🔴");
+    expect(body).toContain("## 🔵 Open items");
+    expect(body).toContain("**17 open · 🔴 3 overdue · 5 due within 7 days**");
+    expect(body).toContain("due Oct 21");
+    expect(body).toContain("due Oct 23");
+    expect(body).toContain("due Nov 2");
+    const openHeadings = ["### 🔴 Overdue", "### Due within 7 days", "### Coming up"];
+    let openAt = -1;
+    for (const heading of openHeadings) {
+      const next = body.indexOf(heading);
+      expect(next, heading).toBeGreaterThan(openAt);
+      openAt = next;
+    }
+    expect(body.slice(body.indexOf("### Due within 7 days"), body.indexOf("### Coming up"))).not.toContain("🔴");
+    expect(body.slice(body.indexOf("### Coming up"))).not.toContain("🔴");
+    expect(body).not.toMatch(/^\s*\|/m);
+    expect(body.trim().endsWith("**Athena's next move:** Close the overdue item first.")).toBe(true);
     expect(body).not.toContain("<!doctype");
     expect(body).not.toMatch(/\bREQUIRED\b/);
     expect(body).not.toMatch(/\bDo not\b/i);
@@ -394,7 +412,9 @@ describe("native card presentation after the SDK", () => {
     const plain = await transform("tools/call", { name: "list_open_items" }, input);
     expect(plain.changed).toBe(true);
     const text = (plain.value as { result: { content: { text: string }[] } }).result.content[0].text;
-    expect(text).toContain("Full styled fallback");
+    expect(text).toContain("## 🔵 Open items");
+    expect(text).toContain("Fictional task");
+    expect(text).not.toMatch(/^\s*\|/m);
     expect(text).not.toContain("<!doctype");
     expect((plain.value as { result: { structuredContent: { html: string }; _meta: unknown } }).result.structuredContent.html).toContain("<!doctype html");
     expect((plain.value as { result: { _meta: { retained: boolean } } }).result._meta.retained).toBe(true);
