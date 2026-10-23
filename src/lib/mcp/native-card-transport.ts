@@ -1,0 +1,212 @@
+/** Card discovery/resource presentation after the SDK. Never edits tools/call replies or authorizes requests. */
+import {
+  NATIVE_CARD_MIME,
+  NATIVE_CARD_TOOLS,
+  NATIVE_CARD_URI,
+  nativeCardHtml,
+  nativeResourceMeta,
+  nativeCardMeta,
+} from "./cards/native";
+import { isMcpPost } from "./server-info-branding";
+
+export const ATHENA_MCP_APPS_CAPABILITIES = {
+  extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
+} as const;
+type Obj = Record<string, unknown>;
+const obj = (v: unknown): Obj | null =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null;
+type Call = {
+  id: unknown;
+  method: string;
+  params: Obj;
+  modern: boolean;
+};
+type Visit = { calls: Call[] };
+
+export async function nativeCardVisit(request: Request): Promise<Visit | null> {
+  if (!isMcpPost(request)) return null;
+  // Drawing uploads and unrelated large calls never enter this presentation pass.
+  if (Number(request.headers.get("content-length") ?? 0) > 65_536) return null;
+  let body: unknown;
+  try {
+    const raw = await request.clone().text();
+    if (raw.length > 65_536) return null;
+    body = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const calls: Call[] = [];
+  for (const value of Array.isArray(body) ? body : [body]) {
+    const call = obj(value),
+      params = obj(call?.params) ?? {};
+    if (!call || call.id == null || typeof call.method !== "string") continue;
+    const method = call.method;
+    if (
+      ![
+        "initialize",
+        "server/discover",
+        "tools/list",
+        "resources/list",
+        "resources/templates/list",
+        "resources/read",
+      ].includes(method)
+    )
+      continue;
+    if (method === "resources/read" && params.uri !== NATIVE_CARD_URI) continue;
+    const meta = obj(call._meta) ?? obj(params._meta);
+    calls.push({
+      id: call.id,
+      method,
+      params,
+      modern:
+        String(
+          meta?.["io.modelcontextprotocol/protocolVersion"] ??
+            request.headers.get("MCP-Protocol-Version") ??
+            "",
+        ) >= "2026-07-28",
+    });
+  }
+  if (!calls.length) return null;
+  return { calls };
+}
+
+const resourceEntry = () => ({
+  uri: NATIVE_CARD_URI,
+  name: "athena-native-card",
+  title: "Athena native card",
+  mimeType: NATIVE_CARD_MIME,
+  _meta: nativeResourceMeta,
+});
+const resourceContents = () => ({
+  contents: [
+    {
+      uri: NATIVE_CARD_URI,
+      mimeType: NATIVE_CARD_MIME,
+      text: nativeCardHtml(),
+      _meta: nativeResourceMeta,
+    },
+  ],
+});
+
+export function nativeCardPayload(
+  payload: unknown,
+  visit: Visit | null,
+): { value: unknown; changed: boolean } {
+  if (!visit) return { value: payload, changed: false };
+  let changed = false;
+  const transform = (value: unknown): unknown => {
+    const message = obj(value);
+    const call = visit.calls.find((c) => c.id === message?.id);
+    if (!message || !call) return value;
+    const result = obj(message.result);
+    const error = obj(message.error);
+    const missingMethod = error?.code === -32601;
+    let next: Obj | null = null;
+    if (
+      ((call.method === "initialize" && result?.serverInfo) ||
+        (call.method === "server/discover" && Array.isArray(result?.supportedVersions))) &&
+      !error
+    ) {
+      const caps = obj(result.capabilities) ?? {},
+        extensions = obj(caps.extensions) ?? {};
+      next = {
+        ...result,
+        capabilities: {
+          ...caps,
+          resources: caps.resources ?? (call.modern ? { listChanged: false } : {}),
+          extensions: { ...extensions, ...ATHENA_MCP_APPS_CAPABILITIES.extensions },
+        },
+      };
+    } else if (call.method === "tools/list" && Array.isArray(result?.tools) && !error) {
+      let repaired = false;
+      const tools = result.tools.map((value) => {
+        const tool = obj(value);
+        if (!tool || !NATIVE_CARD_TOOLS.has(String(tool.name))) return value;
+        const meta = obj(tool._meta) ?? {},
+          ui = obj(meta.ui) ?? {};
+        if (typeof ui.resourceUri === "string") return value;
+        repaired = true;
+        // Do not introduce, remove or alter openai/outputTemplate.
+        return { ...tool, _meta: { ...meta, ui: { ...ui, ...nativeCardMeta.ui } } };
+      });
+      if (repaired) next = { ...result, tools };
+    } else if (
+      call.method === "resources/list" &&
+      ((!error && Array.isArray(result?.resources)) || missingMethod)
+    ) {
+      const resources = Array.isArray(result?.resources) ? result.resources : [];
+      if (!resources.some((r) => obj(r)?.uri === NATIVE_CARD_URI))
+        next = { ...(result ?? {}), resources: [...resources, resourceEntry()] };
+    } else if (call.method === "resources/templates/list" && missingMethod) {
+      next = { resourceTemplates: [] };
+    } else if (
+      call.method === "resources/read" &&
+      call.params.uri === NATIVE_CARD_URI &&
+      missingMethod
+    ) {
+      // Some deployed SDK builds omit resource handlers. Only this static, non-personal shell is repaired,
+      // after the SDK returns a method-not-found reply. Auth failures and other resource URIs are untouched.
+      next = resourceContents();
+    }
+    if (!next) return value;
+    // The SDK's modern codec normally stamps these fields. Synthetic resource replies
+    // are created after that codec, so they must satisfy the same wire contract here.
+    if (
+      call.modern &&
+      ["resources/list", "resources/templates/list", "resources/read"].includes(call.method)
+    ) {
+      next = { resultType: "complete", ttlMs: 0, cacheScope: "private", ...next };
+    }
+    changed = true;
+    const { error: _error, ...rest } = message;
+    return { ...rest, result: next };
+  };
+  return { value: Array.isArray(payload) ? payload.map(transform) : transform(payload), changed };
+}
+
+/** Inspect finite selected replies. Only the SDK's exact static-resource method miss can turn 404 into 200. */
+export async function nativeCardResponse(
+  response: Response,
+  visit: Visit | null,
+): Promise<Response> {
+  if (!visit || !response.body) return response;
+  const resourceMiss =
+    response.status === 404 &&
+    visit.calls.length === 1 &&
+    ["resources/list", "resources/templates/list", "resources/read"].includes(
+      visit.calls[0].method,
+    );
+  if (response.status !== 200 && !resourceMiss) return response;
+  const type = (response.headers.get("content-type") ?? "").toLowerCase();
+  if (!type.includes("application/json") && !type.includes("text/event-stream")) return response;
+  const text = await response.clone().text();
+  let changed = false;
+  const transform = (raw: string) => {
+    try {
+      const payload = JSON.parse(raw);
+      if (resourceMiss && obj(obj(payload)?.error)?.code !== -32601) return raw;
+      const out = nativeCardPayload(payload, visit);
+      changed ||= out.changed;
+      return out.changed ? JSON.stringify(out.value) : raw;
+    } catch {
+      return raw;
+    }
+  };
+  const body = type.includes("application/json")
+    ? transform(text)
+    : text
+        .split(/(\r?\n)/)
+        .map((line) =>
+          line.startsWith("data:") ? `data: ${transform(line.slice(5).trimStart())}` : line,
+        )
+        .join("");
+  if (!changed) return response;
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  return new Response(body, {
+    status: resourceMiss ? 200 : response.status,
+    statusText: resourceMiss ? "OK" : response.statusText,
+    headers,
+  });
+}

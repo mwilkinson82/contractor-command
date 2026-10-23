@@ -3,7 +3,7 @@ import type { Job } from "./jobs";
 import type { CardModel, CardSection } from "./cards/model";
 import { dueOf, itemName } from "./open-feed";
 import { formatBillingText } from "../report-format";
-import { lookaheadAlert } from "./styled-views";
+import { lookaheadAlert, type LaItem } from "./styled-views";
 
 export type SavedLookaheadItem = {
   id: string; action: string; owner: string | null; due: string | null;
@@ -44,13 +44,18 @@ export function savedItemsSection(ref: string, items: SavedLookaheadItem[], toda
   };
 }
 
-export function savedLookaheadCard(job: string, ref: string, items: SavedLookaheadItem[], today: string, context: CardSection[]): CardModel {
+export function savedLookaheadCard(job: string, ref: string, items: SavedLookaheadItem[], today: string, context: CardSection[], jobOverdue: LaItem[] | null = null): CardModel {
   const open = items.filter((item) => item.status === "open");
   const overdue = open.filter((item) => item.due && item.due < today).length;
   return {
     state: "result", title: "14-day lookahead", show_state: false, job,
-    kpis: [{ label: "Saved items", value: String(items.length) }, { label: "Open", value: String(open.length) },
-      { label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null }],
-    sections: [...context, savedItemsSection(ref, items, today)],
+    kpis: [{ label: "Saved items", value: String(items.length) }, { label: "Open saved items", value: String(open.length) },
+      { label: jobOverdue ? "Overdue on job" : "Overdue saved items", value: String(jobOverdue?.length ?? overdue), flag: (jobOverdue?.length ?? overdue) ? "overdue" : null }],
+    sections: [...context, ...(jobOverdue ? [{
+      heading: `Job overdue obligations · as of ${today}`, kind: "table" as const,
+      columns: ["Item", "Accountable", "Needed by"],
+      rows: jobOverdue.length ? jobOverdue.map((item) => ({ cells: [item.action, item.owner || "Needed", item.due || "Needed"], flag: "overdue" as const }))
+        : [{ cells: ["None overdue", "", ""] }],
+    }] : []), savedItemsSection(ref, items, today)],
   };
 }
