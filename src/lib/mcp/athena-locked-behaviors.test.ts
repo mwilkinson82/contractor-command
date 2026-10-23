@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { verbatimBlock } from "./cards/verbatim";
 import { htmlBlock } from "./cards/markdown";
 import { NATIVE_CARD_TOOLS } from "./cards/native";
+import { CHATGPT_DRAWING_HOSTS, allowedDrawingDownloadUrl } from "./drawing-set";
 import {
   nativeCardPayload,
   nativeCardResponse,
@@ -204,5 +206,39 @@ describe("locked behaviors", () => {
     const { out } = await present("test-host", "drawing_markup", result, "sess-grok-plain");
     expect(textOf((out.value as { result: Reply }).result)).not.toMatch(LEAK);
     expect(htmlSlice(textOf((out.value as { result: Reply }).result))).toBe(HTML);
+  });
+
+  it("accepts only the observed ChatGPT drawing storage accounts", () => {
+    expect([...CHATGPT_DRAWING_HOSTS]).toEqual([
+      "oaisdmntprbrazilsouth.blob.core.windows.net",
+      "oaisdmntpreastus2.blob.core.windows.net",
+    ]);
+    for (const host of CHATGPT_DRAWING_HOSTS) {
+      expect(allowedDrawingDownloadUrl(`https://${host}/fictional/permit.pdf?sig=1`)).toBe(true);
+      expect(allowedDrawingDownloadUrl(`https://${host.toUpperCase()}/fictional/permit.pdf`)).toBe(true);
+      expect(allowedDrawingDownloadUrl(`http://${host}/fictional/permit.pdf`)).toBe(false);
+      expect(allowedDrawingDownloadUrl(`https://user:fictional@${host}/fictional/permit.pdf`)).toBe(false);
+      expect(allowedDrawingDownloadUrl(`https://${host}:444/fictional/permit.pdf`)).toBe(false);
+    }
+    expect(allowedDrawingDownloadUrl("https://files.oaiusercontent.com/file-abc?sig=1")).toBe(true);
+    for (const host of [
+      "oaiexample.blob.core.windows.net",
+      "oaisdmntpreastus3.blob.core.windows.net",
+      "evil-oaisdmntpre.blob.core.windows.net",
+      "oaisdmntpre.blob.core.windows.net.evil.com",
+      "contoso.blob.core.windows.net",
+    ]) {
+      expect(allowedDrawingDownloadUrl(`https://${host}/permit.pdf`)).toBe(false);
+    }
+    const source = readFileSync(new URL("./drawing-set.ts", import.meta.url), "utf8");
+    expect(source).toContain('redirect: "manual"');
+    expect(source).not.toMatch(/oai\[a-z0-9\]\*/);
+    expect(source).not.toMatch(/\*\.blob\.core\.windows\.net/);
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("oaisdmntpreastus2.blob.core.windows.net");
+    expect(doc).toContain("oaiexample.blob.core.windows.net");
+    expect(doc).toContain("oaisdmntpreastus3.blob.core.windows.net");
+    expect(doc).toContain("evil-oaisdmntpre.blob.core.windows.net");
+    expect(doc).toContain("oaisdmntpre.blob.core.windows.net.evil.com");
   });
 });

@@ -291,9 +291,16 @@ describe("stored sheet page", () => {
 describe("drawing import", () => {
   it.each([
     "http://oaisdmntprbrazilsouth.blob.core.windows.net/permit.pdf",
+    "http://oaisdmntpreastus2.blob.core.windows.net/permit.pdf",
     "https://oaisdmntprbrazilsouth.blob.core.windows.net:444/permit.pdf",
+    "https://oaisdmntpreastus2.blob.core.windows.net:444/permit.pdf",
     "https://user:fictional@oaisdmntprbrazilsouth.blob.core.windows.net/permit.pdf",
+    "https://user:fictional@oaisdmntpreastus2.blob.core.windows.net/permit.pdf",
     "https://oaisdmntprbrazilsouth.blob.core.windows.net.attacker.example.com/permit.pdf",
+    "https://oaisdmntpre.blob.core.windows.net.evil.com/permit.pdf",
+    "https://evil-oaisdmntpre.blob.core.windows.net/permit.pdf",
+    "https://oaiexample.blob.core.windows.net/permit.pdf",
+    "https://oaisdmntpreastus3.blob.core.windows.net/permit.pdf",
     "https://different-account.blob.core.windows.net/permit.pdf",
     "https://127.0.0.1/permit.pdf",
   ])("rejects an unapproved attachment destination before fetching (%s)", async (download_url) => {
@@ -312,6 +319,18 @@ describe("drawing import", () => {
     [
       "https://attachment.example.com/private-drawing.pdf?token=fictional-secret#private",
       "Athena does not yet accept attachment downloads from attachment.example.com. Nothing was stored.",
+    ],
+    [
+      "https://oaiexample.blob.core.windows.net/private-drawing.pdf?sig=fictional-secret",
+      "Athena does not yet accept attachment downloads from oaiexample.blob.core.windows.net. Nothing was stored.",
+    ],
+    [
+      "https://oaisdmntpreastus3.blob.core.windows.net/private-drawing.pdf?sig=fictional-secret",
+      "Athena does not yet accept attachment downloads from oaisdmntpreastus3.blob.core.windows.net. Nothing was stored.",
+    ],
+    [
+      "https://evil-oaisdmntpre.blob.core.windows.net/private-drawing.pdf?sig=fictional-secret",
+      "Athena does not yet accept attachment downloads from evil-oaisdmntpre.blob.core.windows.net. Nothing was stored.",
     ],
     [
       "file_fictional-local-reference",
@@ -345,6 +364,24 @@ describe("drawing import", () => {
       }
     },
   );
+
+  it("accepts the observed eastus2 ChatGPT attachment host and fetches it once", async () => {
+    const fetcher = vi.fn().mockImplementation(async () => new Response(state.pdf.slice()));
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      const download_url = "https://oaisdmntpreastus2.blob.core.windows.net/fictional/permit.pdf?sig=fictional";
+      const imported = await readDrawingBytes({
+        filename: "permit.pdf",
+        file: { download_url, file_id: "fictional-file" },
+        sheets: ["S-001", "S-100"],
+      });
+      expect(imported.bytes).toEqual(state.pdf);
+      expect(fetcher).toHaveBeenCalledExactlyOnceWith(download_url, { redirect: "manual" });
+      expect(state.uploads).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it.each([301, 302, 303, 307, 308])("refuses HTTP %s without following the redirect or storing a file", async (status) => {
     const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array([1])); } });
@@ -389,6 +426,8 @@ describe("sharing a drawing set", () => {
     ["takeoff", "https://files.oaiusercontent.com/test.pdf"],
     ["intake", "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional"],
     ["takeoff", "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/permit.pdf?sig=fictional"],
+    ["intake", "https://oaisdmntpreastus2.blob.core.windows.net/fictional/permit.pdf?sig=fictional"],
+    ["takeoff", "https://oaisdmntpreastus2.blob.core.windows.net/fictional/permit.pdf?sig=fictional"],
   ])("downloads the host attachment through %s without sending its bytes through the model (%s)", async (mode, download_url) => {
     const fetcher = vi.fn().mockImplementation(async () => new Response(state.pdf.slice()));
     vi.stubGlobal("fetch", fetcher);
