@@ -6,6 +6,7 @@ import { billingForecastCardModel, presentPayApp } from "./pay-app-card";
 // the saved CPM window, styled empty states with a Next move, and a check that a save note can't contradict saved dates.
 import { inclusiveCalendarDays, jobWorkingDays } from "./living";
 import { DEFAULT_TZ, addDays, todayIn } from "./deadlines";
+import { isDelayNoticeTask } from "./delay-notice";
 
 export type SAct = {
   id: string;
@@ -245,12 +246,23 @@ export function windowActivities(acts: SAct[], start: string, end: string): SAct
     )
     .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id));
 }
-export type LaItem = { id?: string | null; action: string; owner?: string | null; due?: string | null; severity?: string | null; type?: string | null; flag?: "risk" | "delay" | "overdue" | null };
-/** Being open or linked to an activity is not, by itself, a risk. */
+export type LaItem = {
+  id?: string | null;
+  action: string;
+  owner?: string | null;
+  due?: string | null;
+  severity?: string | null;
+  type?: string | null;
+  kind?: string | null;
+  category?: string | null;
+  check_key?: string | null;
+  flag?: "risk" | "delay" | "overdue" | null;
+};
+/** Being open or linked to an activity is not, by itself, a risk. A delay notice is. */
 export function lookaheadAlert(e: { item: LaItem; overdue: boolean }): "risk" | "delay" | "overdue" | null {
   if (e.overdue) return "overdue";
   if (e.item.flag) return e.item.flag;
-  if (e.item.type === "delay") return "delay";
+  if (isDelayNoticeTask(e.item)) return "delay";
   if (e.item.severity === "high" || e.item.type === "risk") return "risk";
   return null;
 }
@@ -523,11 +535,13 @@ export function lookaheadView(v: {
   );
   L.push("### Top 3 priorities", "| # | Action | Owner | Due |", "|---|---|---|---|");
   if (m.top.length)
-    m.top.forEach((t, i) =>
+    m.top.forEach((t, i) => {
+      const alert = lookaheadAlert(t);
+      const lead = t.overdue ? `${RED_MD("OVERDUE")} ` : alert === "delay" ? "🔴 " : t.dueToday ? "**DUE TODAY** " : "";
       L.push(
-        `| ${i + 1} | ${t.overdue ? `${RED_MD("OVERDUE")} ` : t.dueToday ? "**DUE TODAY** " : ""}${t.label.replace(/\|/g, "/")}${t.flags.map((f) => ` ⚪ ${f.text}`).join("")} | ${t.item.owner ?? "Needed"} | ${t.item.due ? (t.overdue ? RED_MD(shortDate(t.item.due)) : shortDate(t.item.due)) : "Needed"} |`,
-      ),
-    );
+        `| ${i + 1} | ${lead}${t.label.replace(/\|/g, "/")}${t.flags.map((f) => ` ⚪ ${f.text}`).join("")} | ${t.item.owner ?? "Needed"} | ${t.item.due ? (t.overdue ? RED_MD(shortDate(t.item.due)) : shortDate(t.item.due)) : "Needed"} |`,
+      );
+    });
   else L.push("| – | No open items in this window | – | – |");
   L.push(
     "",
@@ -643,6 +657,10 @@ export type BriefItem = {
   owner?: string | null;
   due?: string | null;
   type?: string | null;
+  item_type?: string | null;
+  kind?: string | null;
+  category?: string | null;
+  check_key?: string | null;
 };
 export function briefingModel(items: BriefItem[], today: string) {
   const in7 = addDays(today, 7),
@@ -675,10 +693,12 @@ export function briefingView(v: {
   const sec = (h: string, list: BriefItem[], flag = false) => {
     if (!list.length) return;
     L.push(`### ${h}`, "| Item | Owner | Due |", "|---|---|---|");
-    for (const i of list.slice(0, 12))
+    for (const i of list.slice(0, 12)) {
+      const alert = flag || isDelayNoticeTask(i);
       L.push(
-        `| ${flag ? "🔴 " : ""}${i.action.replace(/\|/g, "/").replace(/\s+/g, " ").slice(0, 160)} | ${i.owner ?? "Needed"} | ${i.due ? shortDate(i.due.slice(0, 10)) : "Needed"} |`,
+        `| ${alert ? "🔴 " : ""}${i.action.replace(/\|/g, "/").replace(/\s+/g, " ").slice(0, 160)} | ${i.owner ?? "Needed"} | ${i.due ? shortDate(i.due.slice(0, 10)) : "Needed"} |`,
       );
+    }
     if (list.length > 12) L.push(`| …and ${list.length - 12} more | | |`);
     L.push("");
   };

@@ -1,6 +1,7 @@
 // Project record for disputes and claims. One insert path: mcp_project_record_add.
 // Submittal writes call that function inside the same transaction (mcp_submittal_record).
 // This helper is what other tools call. email_reply is reserved and has no writer yet.
+import { taskListFlag } from "./delay-notice";
 import type { CardModel, CardRow } from "./cards/model";
 import { dbError, isMissingFunction, type Sb } from "./guard";
 import { ToolError } from "@lovable.dev/mcp-js";
@@ -110,7 +111,7 @@ export function presentJobRecord(input: {
         heading: "Open items",
         kind: "list",
         rows: input.items.length
-          ? input.items.map((item) => ({ cells: [item.action, item.due || "Needed"], flag: item.overdue ? ("overdue" as const) : null }))
+          ? input.items.map((item) => ({ cells: [item.action, item.due || "Needed"], flag: taskListFlag(item, item.overdue) }))
           : [{ cells: ["No open items."] }],
       },
     ],

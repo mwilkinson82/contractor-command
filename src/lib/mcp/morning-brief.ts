@@ -1,5 +1,6 @@
 // Per-user morning brief. Counts come from the same dedupe as open items.
 // Red is only for delays, risks, and overdue items. Nothing here sends mail or push.
+import { isDelayNoticeTask } from "./delay-notice";
 import { addDays, DEFAULT_TZ, diffDays, todayIn } from "./deadlines";
 import { clockLabel, parseSendTime } from "./field-reminder";
 import { countOpenItems, dedupeOpenRows, dueOf, isOverdue, itemName, openItemFeed, type FeedRow } from "./open-feed";
@@ -274,6 +275,7 @@ function inOpenList(view: BriefView, it: BriefItem): boolean {
 
 function rowFlag(it: BriefItem, today: string): CardRow["flag"] {
   if (isOverdue(it, today)) return "overdue";
+  if (isDelayNoticeTask(it)) return "delay";
   const kind = classifyItem(it);
   if (kind === "delay") return "delay";
   if (kind === "risk") return "risk";
@@ -402,7 +404,16 @@ function weekRows(jobs: BriefJob[], now: Date, viewOf: (job: BriefJob) => BriefV
       const due = dueOf(it);
       return !due || due <= end;
     });
-    const laItems: LaItem[] = visible.map((it) => ({ id: it.id, action: it.action, owner: it.accountable ?? it.owner, due: dueOf(it) || null }));
+    const laItems: LaItem[] = visible.map((it) => ({
+      id: it.id,
+      action: it.action,
+      owner: it.accountable ?? it.owner,
+      due: dueOf(it) || null,
+      type: it.item_type ?? it.kind,
+      kind: it.kind,
+      category: it.category,
+      check_key: it.check_key,
+    }));
     const model = lookaheadModel(start, end, actsOf(job), laItems, { today });
     for (const entry of model.top) {
       const source = visible.find((it) => it.id === entry.item.id) ?? visible.find((it) => it.action === entry.item.action);
