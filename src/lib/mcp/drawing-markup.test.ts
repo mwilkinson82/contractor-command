@@ -402,6 +402,29 @@ describe("drawing set identity and source revisions", () => {
     expect(result.path).toBe(legacy);
     expect(state.uploaded).toEqual([]);
   });
+  it("imports a changed set without probing an indexed drawing in the legacy bucket", async () => {
+    const first = await storeDrawingSet(fakeSb(), job, {
+      filename: "new-set.pdf", content_base64: bytesToBase64(pdf("first revision")),
+      sheets: ["Cover", "S-100"],
+    });
+    state.downloads = [];
+    const revisedBytes = pdf("changed revision");
+    const changed = await storeDrawingSet(fakeSb(), job, {
+      filename: "new-set.pdf", content_base64: bytesToBase64(revisedBytes),
+      sheets: ["Cover", "S-100"],
+    }, [{ name: first.name, kind: "base", path: first.path, sheets: first.sheets }]);
+    expect(changed.duplicate).toBe(false);
+    expect(changed.record.version).toBe(2);
+    expect(changed.path).not.toBe(first.path);
+    expect(state.downloads).not.toContain(first.path);
+    expect(state.uploaded).toHaveLength(2);
+    const repeated = await storeDrawingSet(fakeSb(), job, {
+      filename: "renamed.pdf", content_base64: bytesToBase64(revisedBytes),
+    });
+    expect(repeated.duplicate).toBe(true);
+    expect(repeated.path).toBe(changed.path);
+    expect(state.uploaded).toHaveLength(2);
+  });
   it("hashes new uploads and concurrent identical uploads converge on one object", async () => {
     const bytes = pdf();
     const upload = {

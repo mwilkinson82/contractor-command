@@ -309,8 +309,12 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
   // Index #190 drawings lazily; a re-share of an older stored PDF must not upload a second copy.
   let legacy: Doc | undefined;
   if (!existing) {
+    // Registered originals already have a verified hash and bucket. They are not
+    // #190 legacy files: probing them in athena-files fails after a new import.
+    const indexedPaths = new Set(records.map((row) => row.path));
     for (const doc of prior) {
       if (!doc.path || !drawingOwned(doc.path, job.company_id, job.job_id)) continue;
+      if (indexedPaths.has(doc.path)) continue;
       const file = await bucket(sb).download(doc.path);
       if (file.error || !file.data) throw new ToolError("An existing drawing could not be checked for duplicates. Try again; nothing new was stored.");
       if (await sha256Hex(new Uint8Array(await file.data.arrayBuffer())) === hash) { legacy = doc; break; }
