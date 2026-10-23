@@ -13,6 +13,7 @@ import {
   FileRejected, allowedDownloadUrl, decodeBase64, expiry, fmtDate, kindAllowed, newToken, sha256Hex, shareLink,
   storagePath, tokenFromLink, tokenHash, validateFile, type FileKind,
 } from "../file-share";
+import { immutableDrawingDeleteRefused } from "../drawing-set";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -46,6 +47,13 @@ async function fetchFile(url: string): Promise<Uint8Array> {
   return out;
 }
 
+/** Deletes a share object. Refuses stored drawing originals and saved markups. */
+async function removeStored(sb: Sb, path: string) {
+  const refusal = immutableDrawingDeleteRefused(FILE_BUCKET, path);
+  if (refusal) throw new ToolError(refusal);
+  await sb.storage.from(FILE_BUCKET).remove([path]);
+}
+
 /** Store a checked file privately for the job and make its share link (used by file_share and lookahead_pdf). */
 export async function storeFile(sb: Sb, job: { job_id: string; company_id: string }, kind: FileKind, f: { name: string; mime: string; size: number }, bytes: Uint8Array, days?: number) {
   const id = crypto.randomUUID();
@@ -57,7 +65,7 @@ export async function storeFile(sb: Sb, job: { job_id: string; company_id: strin
   if (up.error) throw new ToolError("Athena couldn't store that file right now. Nothing was shared. Try again in a moment.");
   const signed = await sb.storage.from(FILE_BUCKET).createSignedUrl(path, seconds);
   if (signed.error || !signed.data?.signedUrl) {
-    await sb.storage.from(FILE_BUCKET).remove([path]);
+    await removeStored(sb, path);
     throw new ToolError("Athena couldn't make a link for that file right now. Nothing was shared. Try again in a moment.");
   }
   try {
@@ -66,7 +74,7 @@ export async function storeFile(sb: Sb, job: { job_id: string; company_id: strin
       _path: path, _token_hash: await tokenHash(token), _signed_url: signed.data.signedUrl, _expires_at: exp.toISOString(),
     });
   } catch (e) {
-    await sb.storage.from(FILE_BUCKET).remove([path]);
+    await removeStored(sb, path);
     throw e;
   }
   return { id, link: shareLink(token), exp };
@@ -138,7 +146,7 @@ export const fileShareRevoke = defineTool({
       if (!token) throw new ToolError("That isn't an Athena file link. Nothing was changed.");
       const r = await rpc<{ id: string; path: string; filename: string } | null>(sb, "mcp_file_share_revoke", { _job: job.job_id, _token_hash: await tokenHash(token) });
       if (!r) throw new ToolError("No file link like that on this job. Nothing was changed.");
-      await sb.storage.from(FILE_BUCKET).remove([r.path]);
+      await removeStored(sb, r.path);
       await audit(sb, job, "file_share_revoke", "revoke_file_link", r.id);
       return guide(
         { ...text(`${prefix(job)}Link turned off: ${r.filename}. Anyone who opens it now sees that it's no longer available.`), structuredContent: { revoked: true, filename: r.filename } },

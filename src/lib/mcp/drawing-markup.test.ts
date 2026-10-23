@@ -3,7 +3,7 @@ import { jsPDF } from "jspdf";
 import { bytesToBase64 } from "./estimating-sheet";
 import { drawingSource, downloadDrawingSource, FILE_MAX_BYTES, sha256Hex, validateFile } from "./file-share";
 import { markupColor, renderDrawingMarkup } from "./drawing-markup-render";
-import { DRAWING_BUCKET, DRAWING_MAX_BYTES, drawingBucket, storeDrawingSet, storedSheet, type DrawingRecord } from "./drawing-set";
+import { DRAWING_BUCKET, DRAWING_MAX_BYTES, MARKUP_DELETE_REFUSAL, ORIGINAL_DELETE_REFUSAL, drawingBucket, removeDrawing, storeDrawingSet, storedSheet, type DrawingRecord } from "./drawing-set";
 import { attachAthenaCard } from "./cards/attach";
 
 const state = vi.hoisted(() => ({
@@ -277,6 +277,21 @@ describe("stored drawing markup tool", () => {
     );
     expect(state.uploaded).toEqual([]);
     expect(await sha256Hex(original)).not.toBe(await sha256Hex(state.objects.get(legacy)!));
+  });
+  it("never deletes a stored original or a saved markup", async () => {
+    const original = await seed();
+    state.records.push({
+      kind: "source",
+      path: "c1/j1/plain/original.pdf",
+      storage_bucket: "athena-files",
+      filename: "original.pdf",
+    });
+    await expect(removeDrawing(fakeSb(), legacy)).rejects.toThrow(ORIGINAL_DELETE_REFUSAL);
+    await expect(removeDrawing(fakeSb(), "c1/j1/drawing-markup-1/page.pdf", DRAWING_BUCKET)).rejects.toThrow(ORIGINAL_DELETE_REFUSAL);
+    await expect(removeDrawing(fakeSb(), "c1/j1/plain/original.pdf")).rejects.toThrow(ORIGINAL_DELETE_REFUSAL);
+    await expect(removeDrawing(fakeSb(), "c1/j1/drawing-markup-1/page.pdf")).rejects.toThrow(MARKUP_DELETE_REFUSAL);
+    expect(state.removed).toEqual([]);
+    expect(state.objects.get(legacy)).toEqual(original);
   });
   it("cleans up only an uncommitted markup if its record fails", async () => {
     await seed();

@@ -85,7 +85,8 @@ REVOKE EXECUTE ON FUNCTION public.mcp_drawing_records(uuid), public.mcp_drawing_
 GRANT EXECUTE ON FUNCTION public.mcp_drawing_records(uuid), public.mcp_drawing_source_save(uuid,jsonb), public.mcp_drawing_markup_save(uuid,uuid,jsonb) TO authenticated;
 
 -- Drawing originals can exceed file_share's unchanged 10 MiB limit. Keep its
--- bucket and all #190 paths intact. This only adds a separate PDF-only bucket.
+-- bucket and all #190 paths intact. athena-files stays at 10485760 bytes.
+-- This migration does not update that limit. It only adds a separate PDF-only bucket.
 INSERT INTO storage.buckets(id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('athena-drawings', 'athena-drawings', false, 52428800, ARRAY['application/pdf'])
 ON CONFLICT (id) DO NOTHING;

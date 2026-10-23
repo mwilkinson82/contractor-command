@@ -23,7 +23,9 @@ vi.mock("./jobs", () => ({
   audit: async () => {},
   prefix: () => "Job 2701 · ",
   named: (job: { job_number: string; name?: string | null }) =>
-    job.name && job.name.startsWith(job.job_number) ? job.name : `${job.job_number} – ${job.name ?? ""}`.trim(),
+    job.name && job.name.startsWith(job.job_number)
+      ? job.name
+      : `${job.job_number} – ${job.name ?? ""}`.trim(),
   resolveJob: async () => ({
     job_id: "j1",
     job_number: "2701",
@@ -142,5 +144,17 @@ describe("0.8.11 file_share tool", () => {
     await expect(revoke({ job_number: "2701", link: "https://example.com" })).rejects.toThrow(
       /isn't an Athena file link/,
     );
+  });
+  it("refuses to delete a stored original or markup while turning off other links", async () => {
+    const t = "B".repeat(43);
+    state.rpcResult = { id: "s1", path: "c1/j1/drawing-abc/source.pdf", filename: "source.pdf" };
+    await expect(
+      revoke({ job_number: "2701", link: `https://app.meetathena.io/f/${t}` }),
+    ).rejects.toThrow(/original drawings cannot be deleted/);
+    state.rpcResult = { id: "s2", path: "c1/j1/drawing-markup-1/page.pdf", filename: "page.pdf" };
+    await expect(
+      revoke({ job_number: "2701", link: `https://app.meetathena.io/f/${t}` }),
+    ).rejects.toThrow(/markups cannot be deleted/);
+    expect(state.removed).toEqual([]);
   });
 });

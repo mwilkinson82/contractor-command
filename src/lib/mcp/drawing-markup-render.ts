@@ -7,6 +7,7 @@ import type { StoredLine, StoredGap } from "./estimating";
 import {
   drawingOwned,
   drawingRpc,
+  originalDeleteRefused,
   renderPdfPage,
   type DrawingJob,
   type DrawingRecord,
@@ -228,7 +229,8 @@ export async function saveDrawingMarkup(
       },
     });
   } catch (e) {
-    await bucket.remove([path]);
+    // Roll back only this uncommitted markup. Never a stored original.
+    if (!originalDeleteRefused(FILE_BUCKET, path, [source.record])) await bucket.remove([path]);
     throw e;
   }
   const signed = await bucket.createSignedUrl(path, 15 * 60);

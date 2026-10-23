@@ -10,6 +10,7 @@ import { bytesToBase64 } from "./estimating-sheet";
 import type { Doc } from "./estimating";
 import {
   FILE_BUCKET,
+  FILE_MAX_BYTES,
   FileRejected,
   allowedDownloadUrl,
   downloadDrawingSource,
@@ -22,8 +23,41 @@ import {
 
 export const DRAWING_URL_SECONDS = 15 * 60;
 export const DRAWING_BUCKET = "athena-drawings";
+/** New original drawings. file_share and generated markup PDFs stay on FILE_MAX_BYTES. */
 export const DRAWING_MAX_BYTES = 50 * 1024 * 1024;
 export const DRAWING_B64_MAX_CHARS = Math.ceil(DRAWING_MAX_BYTES / 3) * 4 + 8;
+export const drawingTooBigMessage = () =>
+  `That drawing is over ${DRAWING_MAX_BYTES / 1024 / 1024} MB. Nothing was stored.`;
+export const ORIGINAL_DELETE_REFUSAL = "Stored original drawings cannot be deleted. Nothing was removed.";
+export const MARKUP_DELETE_REFUSAL = "Stored markups cannot be deleted. Nothing was removed.";
+
+type StoredObjectRow = { path?: string | null; kind?: string | null; storage_bucket?: string | null };
+
+/** 50 MB only when the object is written to athena-drawings. athena-files stays at 10 MB. */
+export function drawingUploadLimit(bucketName: string): number {
+  return bucketName === DRAWING_BUCKET ? DRAWING_MAX_BYTES : FILE_MAX_BYTES;
+}
+
+/** True for the drawings bucket, an original-set path, or any stored source record. */
+export function originalDeleteRefused(bucketName: string, path: string, records: StoredObjectRow[] = []): boolean {
+  if (bucketName === DRAWING_BUCKET) return true;
+  const folder = path.split("/")[2] ?? "";
+  if (folder.startsWith("drawing-") && !folder.startsWith("drawing-markup-")) return true;
+  return records.some((row) => {
+    if (!row.path || row.path !== path) return false;
+    if (row.kind === "markup") return false;
+    return row.kind == null || row.kind === "source" || row.storage_bucket === DRAWING_BUCKET;
+  });
+}
+
+/** Cleanup may not remove a stored original or a saved markup. */
+export function immutableDrawingDeleteRefused(bucketName: string, path: string, records: StoredObjectRow[] = []): string | null {
+  if (originalDeleteRefused(bucketName, path, records)) return ORIGINAL_DELETE_REFUSAL;
+  const folder = path.split("/")[2] ?? "";
+  if (folder.startsWith("drawing-markup-") || records.some((row) => row.path === path && row.kind === "markup"))
+    return MARKUP_DELETE_REFUSAL;
+  return null;
+}
 const MAX_PAGES = 4;
 const MAX_EDGE = 1600;
 
@@ -170,7 +204,7 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
   const len = Number(res.headers.get("content-length") ?? "0");
   if (len > DRAWING_MAX_BYTES) {
     await res.body.cancel();
-    throw new FileRejected("That drawing is over 50 MB. Nothing was stored.");
+    throw new FileRejected(drawingTooBigMessage());
   }
   const reader = res.body.getReader();
   const parts: Uint8Array[] = [];
@@ -181,7 +215,7 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
     n += value.length;
     if (n > DRAWING_MAX_BYTES) {
       await reader.cancel();
-      throw new FileRejected("That drawing is over 50 MB. Nothing was stored.");
+      throw new FileRejected(drawingTooBigMessage());
     }
     parts.push(value);
   }
@@ -214,7 +248,8 @@ export async function readDrawingBytes(upload: DrawingUpload): Promise<{ bytes: 
     } finally { await pdf.destroy(); }
     return { bytes, filename: checked.name };
   } catch (e) {
-    if (e instanceof FileRejected) throw new ToolError(storedMessage(e.message));
+    if (e instanceof FileRejected)
+      throw new ToolError(/over \d+ MB/.test(e.message) ? drawingTooBigMessage() : storedMessage(e.message));
     throw e;
   }
 }
@@ -240,6 +275,14 @@ export async function storeDrawingSet(sb: DrawingStore, job: DrawingJob, upload:
   if (!drawingOwned(path, job.company_id, job.job_id))
     throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
   if (!existing && !legacy) {
+    // New originals go to athena-drawings (50 MB). A write into athena-files keeps the 10 MB cap.
+    if (bytes.length > drawingUploadLimit(storageBucket)) {
+      throw new ToolError(
+        storageBucket === DRAWING_BUCKET
+          ? drawingTooBigMessage()
+          : `That drawing is over ${FILE_MAX_BYTES / 1024 / 1024} MB. Nothing was stored.`,
+      );
+    }
     const up = await bucket(sb, storageBucket).upload(path, bytes, {
     contentType: "application/pdf",
     upsert: false,
@@ -287,8 +330,20 @@ export async function storedSheet(sb: DrawingStore, job: DrawingJob, documents: 
   return { record, sheet: record.sheets[index], page: index + 1, png };
 }
 
-export async function removeDrawing(sb: DrawingStore, path: string): Promise<void> {
-  await bucket(sb).remove([path]);
+export async function removeDrawing(sb: DrawingStore, path: string, bucketName = FILE_BUCKET): Promise<void> {
+  const [companyId, jobId] = path.split("/");
+  let records: StoredObjectRow[] = [];
+  if (companyId && jobId) {
+    try {
+      records = await drawingRecords(sb, { company_id: companyId, job_id: jobId });
+    } catch {
+      // Path and bucket rules still apply when the version registry is not installed.
+      records = [];
+    }
+  }
+  const refusal = immutableDrawingDeleteRefused(bucketName, path, records);
+  if (refusal) throw new ToolError(refusal);
+  await bucket(sb, bucketName).remove([path]);
 }
 
 type PdfjsModule = {

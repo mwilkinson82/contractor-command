@@ -1,12 +1,19 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { jsPDF } from "jspdf";
+import { z } from "zod";
 import { bytesToBase64 } from "./estimating-sheet";
 import { visibleProblems } from "./visible";
+import { FILE_MAX_BYTES } from "./file-share";
 import {
+  DRAWING_B64_MAX_CHARS,
+  DRAWING_BUCKET,
+  DRAWING_MAX_BYTES,
   DRAWING_URL_SECONDS,
   attachSheetPages,
   drawingOwned,
+  drawingTooBigMessage,
+  drawingUploadLimit,
   keepDrawingPaths,
   renderPdfPage,
   sheetPageIndex,
@@ -23,7 +30,8 @@ const state = vi.hoisted(() => ({
   lines: [] as Record<string, unknown>[],
   version: 1 as number | null,
   downloads: [] as string[],
-  uploads: [] as string[],
+  uploads: [] as { bucket: string; path: string; size: number }[],
+  buckets: [] as string[],
   signed: [] as string[],
   patches: [] as unknown[],
   pdf: new Uint8Array(),
@@ -40,6 +48,7 @@ vi.mock("./guard", () => ({
 vi.mock("./jobs", () => ({
   FULL_ACCESS_MESSAGE: "This needs full access to the job. Your role can't do it.",
   READ_ONLY_MESSAGE: "Your role has a limited, read-only view of this job (no financials). Ask your owner or PM to make changes.",
+  WhichCompanyAsk: class extends Error {},
   audit: async () => {},
   prefix: () => "",
   named: (job: { job_number: string; name?: string | null }) => `${job.job_number} – ${job.name ?? ""}`.trim(),
@@ -60,9 +69,10 @@ function fakeSb() {
       }),
     }),
     storage: {
-      from: () => ({
-        upload: async (path: string) => {
-          state.uploads.push(path);
+      from: (bucket: string) => ({
+        upload: async (path: string, bytes: Uint8Array) => {
+          state.buckets.push(bucket);
+          state.uploads.push({ bucket, path, size: bytes.length });
           return { error: null };
         },
         download: async (path: string) => {
@@ -114,7 +124,7 @@ function fakeSb() {
   };
 }
 
-import { estimateIntake, estimateTakeoffGet } from "./tools/estimate-tools";
+import { estimateIntake, estimateTakeoffGet, estimateTakeoffSave } from "./tools/estimate-tools";
 
 type Block = { type: string; text?: string; data?: string; mimeType?: string };
 type Result = { content: Block[]; structuredContent?: Record<string, unknown> };
@@ -122,6 +132,8 @@ const get = (a: Record<string, unknown>) =>
   (estimateTakeoffGet as unknown as { handler: (a: Record<string, unknown>, c: unknown) => Promise<Result> }).handler(a, {});
 const intake = (a: Record<string, unknown>) =>
   (estimateIntake as unknown as { handler: (a: Record<string, unknown>, c: unknown) => Promise<Result> }).handler(a, {});
+const saveTakeoff = (a: Record<string, unknown>) =>
+  (estimateTakeoffSave as unknown as { handler: (a: Record<string, unknown>, c: unknown) => Promise<Result> }).handler(a, {});
 
 const OWNED = "c1/j1/drawing-11111111-1111-4111-8111-111111111111/CCW.pdf";
 const FOREIGN = "other-co/other-job/drawing-11111111-1111-4111-8111-111111111111/CCW.pdf";
@@ -156,6 +168,7 @@ beforeEach(() => {
   state.version = 1;
   state.downloads = [];
   state.uploads = [];
+  state.buckets = [];
   state.signed = [];
   state.patches = [];
   state.pdf = twoPagePdf();
@@ -292,7 +305,8 @@ describe("sharing a drawing set", () => {
       reuse: "reuse",
       drawing: { filename: "CCW.pdf", content_base64: bytesToBase64(state.pdf) },
     });
-    expect(state.uploads[0]).toMatch(/^c1\/j1\/drawing-[0-9a-f]{64}\/source\.pdf$/);
+    expect(state.uploads[0].bucket).toBe(DRAWING_BUCKET);
+    expect(state.uploads[0].path).toMatch(/^c1\/j1\/drawing-[0-9a-f]{64}\/source\.pdf$/);
     const patch = state.patches[0] as { documents: Doc[] };
     expect(patch.documents[0]).toMatchObject({
       name: "CCW.pdf",
@@ -300,12 +314,90 @@ describe("sharing a drawing set", () => {
       revision: "Permit / Revision 3",
       date: "2025-12-17",
       sheets: ["S-001", "S-100"],
-      path: state.uploads[0],
+      path: state.uploads[0].path,
     });
     expect(result.content[0].text).toContain("Drawing set stored: CCW.pdf.");
     expect(estimateTakeoffGet.name).toBe("estimate_takeoff_get");
     expect(estimateIntake.name).toBe("estimate_intake");
   });
+
+  it("stores a ~17.6 MB original in athena-drawings and rejects anything over 50 MB", async () => {
+    expect(drawingUploadLimit(DRAWING_BUCKET)).toBe(DRAWING_MAX_BYTES);
+    expect(drawingUploadLimit("athena-files")).toBe(FILE_MAX_BYTES);
+    expect(FILE_MAX_BYTES).toBe(10 * 1024 * 1024);
+    const chunks: Uint8Array[] = [];
+    const offsets = [0];
+    let length = 0;
+    const add = (s: string | Uint8Array) => {
+      const b = typeof s === "string" ? new TextEncoder().encode(s) : s;
+      chunks.push(b);
+      length += b.length;
+    };
+    add("%PDF-1.4\n");
+    for (const [i, body] of [
+      [1, "<< /Type /Catalog /Pages 2 0 R >>"],
+      [2, "<< /Type /Pages /Count 1 /Kids [3 0 R] >>"],
+      [3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 250] >>"],
+    ] as const) {
+      offsets.push(length);
+      add(`${i} 0 obj\n${body}\nendobj\n`);
+    }
+    offsets.push(length);
+    const padding = new Uint8Array(17_612_902).fill(32);
+    add(`4 0 obj\n<< /Length ${padding.length} >>\nstream\n`);
+    add(padding);
+    add("\nendstream\nendobj\n");
+    const xref = length;
+    add(`xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+    const bytes = new Uint8Array(length);
+    let at = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, at);
+      at += chunk.length;
+    }
+    expect(bytes.length).toBeGreaterThanOrEqual(17_612_902);
+    expect(bytes.length).toBeGreaterThan(FILE_MAX_BYTES);
+    expect(bytes.length).toBeLessThan(DRAWING_MAX_BYTES);
+    const drawing = { filename: "permit-set.pdf", content_base64: bytesToBase64(bytes), sheets: ["S-100"] };
+    state.lines = [];
+    state.version = null;
+    const saved = await intake({ job_number: "CCW-003", reuse: "fresh", drawing });
+    expect(saved.content[0].text).toContain("Drawing set stored: permit-set.pdf.");
+    expect(state.uploads[0]).toMatchObject({ bucket: DRAWING_BUCKET, size: bytes.length });
+    expect(state.buckets).not.toContain("athena-files");
+    state.uploads = [];
+    state.buckets = [];
+    const takeoff = await saveTakeoff({
+      job_number: "CCW-003",
+      lines: [{ item: "Continuous footing", basis: "measured", sheet: "S-100", value: 12 }],
+      drawing: { ...drawing, filename: "permit-takeoff.pdf" },
+    });
+    expect(takeoff.content[0].text).toContain("Drawing set stored: permit-takeoff.pdf.");
+    expect(state.uploads[0]).toMatchObject({ bucket: DRAWING_BUCKET, size: bytes.length });
+    expect(state.buckets).not.toContain("athena-files");
+    const tooBig = "A".repeat(DRAWING_B64_MAX_CHARS + 1);
+    const line = { item: "Continuous footing", basis: "measured" as const, sheet: "S-100", value: 12 };
+    for (const tool of [estimateIntake, estimateTakeoffSave]) {
+      const parsed = z.object(tool.inputSchema).safeParse({
+        job_number: "CCW-003",
+        lines: [line],
+        drawing: { filename: "over.pdf", content_base64: tooBig },
+      });
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) expect(parsed.error.issues.map((issue) => issue.message).join("\n")).toContain(drawingTooBigMessage());
+    }
+    state.uploads = [];
+    await expect(
+      intake({ job_number: "CCW-003", reuse: "fresh", drawing: { filename: "over.pdf", content_base64: tooBig } }),
+    ).rejects.toThrow(drawingTooBigMessage());
+    const rejected = await saveTakeoff({
+      job_number: "CCW-003",
+      lines: [{ item: "temp footing", basis: "measured", sheet: "S-100", value: 1 }],
+      drawing: { filename: "over.pdf", content_base64: tooBig },
+    });
+    expect(rejected.content[0].text).toContain(drawingTooBigMessage());
+    expect(state.uploads).toEqual([]);
+  }, 60_000);
 
   it("allows contract scope to read and write only drawing objects", () => {
     const sql = readFileSync("supabase/migrations/20261026120000_athena_drawing_sets.sql", "utf8");

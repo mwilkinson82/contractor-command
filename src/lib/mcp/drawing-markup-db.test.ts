@@ -45,7 +45,10 @@ beforeAll(async () => {
     CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text);
     ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
     GRANT USAGE ON SCHEMA storage TO authenticated;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;`);
+    GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
+    INSERT INTO storage.buckets(id, name, public, file_size_limit, allowed_mime_types) VALUES
+      ('athena-files', 'athena-files', false, 10485760, ARRAY['application/pdf']),
+      ('athena-progress', 'athena-progress', false, 8388608, ARRAY['image/jpeg']);`);
   await db.exec(
     readFileSync("supabase/migrations/20261027130000_athena_drawing_versions.sql", "utf8"),
   );
@@ -167,6 +170,11 @@ describe("drawing version migration, real Postgres permissions", () => {
   it("adds a PDF-only private 50 MiB originals bucket without changing legacy buckets", async () => {
     const bucket = await db.query("SELECT public, file_size_limit::integer AS bytes, allowed_mime_types FROM storage.buckets WHERE id='athena-drawings'");
     expect(bucket.rows[0]).toEqual({ public: false, bytes: 52428800, allowed_mime_types: ["application/pdf"] });
+    const legacy = await db.query<{ id: string; bytes: number }>("SELECT id, file_size_limit::integer AS bytes FROM storage.buckets WHERE id IN ('athena-files','athena-progress') ORDER BY id");
+    expect(legacy.rows).toEqual([
+      { id: "athena-files", bytes: 10485760 },
+      { id: "athena-progress", bytes: 8388608 },
+    ]);
     const original = await save({ ...src("6".repeat(64), "file:new-bucket"), storage_bucket: "athena-drawings" } as ReturnType<typeof src>);
     expect(original.storage_bucket).toBe("athena-drawings");
     await expect(save({ ...src("7".repeat(64), "file:bad"), storage_bucket: "public" } as ReturnType<typeof src>)).rejects.toThrow(/check constraint/);

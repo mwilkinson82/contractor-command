@@ -50,6 +50,7 @@ import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import {
   attachSheetPages,
   DRAWING_B64_MAX_CHARS,
+  drawingTooBigMessage,
   drawingBucket,
   drawingRecords,
   drawingOwned,
@@ -225,7 +226,7 @@ const doc = z.object({
 const drawingUpload = z
   .object({
     filename: z.string().trim().min(1).max(120).optional(),
-    content_base64: z.string().max(DRAWING_B64_MAX_CHARS).optional(),
+    content_base64: z.string().max(DRAWING_B64_MAX_CHARS, drawingTooBigMessage()).optional(),
     file: z
       .object({
         download_url: z.string(),
