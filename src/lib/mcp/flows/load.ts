@@ -1,7 +1,9 @@
-import { activityTitle } from "../styled-views";
+import { activityTitle, pickLatestLookahead } from "../styled-views";
+import { visibleLookaheads } from "../lookahead-items";
 import { dedupeOpenRows, meetingItem } from "../open-feed";
 import { blankFlowData } from "./job-2701";
 import type { FlowData, FlowItem, IorRow } from "./types";
+import { readReadiness, readinessAnswer, type ReadinessReader, type ReadinessRecord } from "./confirmation";
 
 type Query = {
   from: (table: string) => {
@@ -76,8 +78,9 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   const data = blankFlowData(job.job_number, job.name, showMoney);
   data.jobId = job.job_id;
   data.selfPerform = selfPerform;
-  const [items, reports] = await Promise.all([
-    rows(sb, "mcp_open_items", "id, action, owner, accountable, due_date, needed_by, status, category, check_key, updated_at", job.job_id),
+  const [items, lookaheads, reports] = await Promise.all([
+    rows(sb, "mcp_open_items", "id, action, owner, accountable, due_date, needed_by, status, category, check_key, updated_at, lookahead_id", job.job_id),
+    rows(sb, "mcp_lookaheads", "id, start_date, end_date, current_rev, created_at, inputs", job.job_id),
     (async () => {
       const out: Record<string, unknown> = {};
       for (const type of ["cpm", "billing_forecast", "ior"]) {
@@ -126,6 +129,20 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   // schedule compliance. Known open issues still retain their existing flags.
   data.crewsConfirmed = data.items.some((i) => i.kind === "crew") ? false : null;
   data.onSchedule = data.items.some((i) => i.kind === "delay") ? false : null;
+  const la = pickLatestLookahead(visibleLookaheads(lookaheads).filter((l) => typeof l.id === "string" && typeof l.current_rev === "number").map((l) => ({
+    id: String(l.id), start_date: typeof l.start_date === "string" ? l.start_date : null,
+    end_date: typeof l.end_date === "string" ? l.end_date : null, created_at: String(l.created_at ?? ""),
+    items: items.filter((i) => i.lookahead_id === l.id).length,
+  })));
+  const revision = lookaheads.find((l) => l.id === la?.id)?.current_rev;
+  const currentCpm = reports.cpm as { found?: boolean; version?: number; data_date?: string } | undefined;
+  data.readinessContext = la ? JSON.stringify([la.id, revision, la.start_date, la.end_date, currentCpm?.found ? currentCpm.version ?? null : null, currentCpm?.found ? currentCpm.data_date ?? null : null, selfPerform]) : null;
+  if (data.readinessContext) {
+    const confirmed = await readReadiness(sb as unknown as ReadinessReader, job.job_id, data.readinessContext);
+    data.readinessAnswers = confirmed;
+    if (confirmed.crews_confirmed !== undefined) data.crewsConfirmed = confirmed.crews_confirmed;
+    if (confirmed.lookahead_locked !== undefined) data.lookaheadLocked = confirmed.lookahead_locked;
+  }
   const billing = (reports.billing_forecast as { found?: boolean; data?: { billing?: { billed_to_date?: number; months?: { amount?: number; kind?: string }[] } }; contract_total?: number } | undefined) ?? {};
   if (showMoney && billing.found) {
     const months = billing.data?.billing?.months ?? [];
@@ -156,27 +173,37 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
   return data;
 }
 
-export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage: string, note: string, snapshot: unknown): Promise<{ item: boolean; snapshot: boolean }> {
+export async function saveFlowNote(sb: Query, jobId: string, flow: string, stage: string, note: string, snapshot: unknown, context?: string | null): Promise<{ item: boolean; snapshot: boolean; confirmation?: boolean }> {
   let item = false;
   let snapshotOk = false;
+  const answer = readinessAnswer(note);
+  const readiness: ReadinessRecord | null = answer && context ? { version: 1, context_key: context, ...answer } : null;
+  const saveSnapshot = async () => {
+    try {
+      const payload = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot : {};
+      const saved = await sb.rpc("mcp_guided_save", { _job: jobId, _flow: flow, _stage: stage, _snapshot: { ...payload, ...(readiness ? { readiness } : {}) } });
+      snapshotOk = !saved.error && !!saved.data && (saved.data as { saved?: boolean }).saved === true;
+    } catch { snapshotOk = false; }
+  };
+  // A failed readiness save must not close/reopen the checklist independently.
+  if (readiness) {
+    await saveSnapshot();
+    if (!snapshotOk) return { item: false, snapshot: false, confirmation: false };
+  }
   try {
     const meeting = meetingItem(note);
-    const added = meeting
-      ? await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: meeting.key, _action: note, _close: meeting.close })
+    const check = meeting ?? (answer?.lookahead_locked !== undefined ? { key: "pm:lookahead", close: answer.lookahead_locked } : null);
+    const added = check
+      ? await sb.rpc("mcp_meeting_item_save", { _job: jobId, _key: check.key, _action: note, _close: check.close })
       : await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, category: flow === "pm_evening" ? "Daily" : "Risk", tool: flow, section: stage } });
     const missing = !!added.error && /does not exist|schema cache|PGRST202/i.test(String((added.error as { message?: string; code?: string }).message ?? "") + String((added.error as { code?: string }).code ?? ""));
-    if (meeting && missing) {
-      const fallback = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, check_key: meeting.key, category: "Meeting", tool: flow, section: stage } });
+    if (check && missing) {
+      const fallback = await sb.rpc("mcp_add_item", { _job: jobId, _f: { action: note, check_key: check.key, category: "Meeting", tool: flow, section: stage } });
       item = !fallback.error;
     } else item = !added.error;
   } catch {
     item = false;
   }
-  try {
-    const saved = await sb.rpc("mcp_guided_save", { _job: jobId, _flow: flow, _stage: stage, _snapshot: snapshot });
-    snapshotOk = !saved.error;
-  } catch {
-    snapshotOk = false;
-  }
-  return { item, snapshot: snapshotOk };
+  if (!readiness) await saveSnapshot();
+  return { item, snapshot: snapshotOk, ...(answer ? { confirmation: !!readiness && snapshotOk } : {}) };
 }

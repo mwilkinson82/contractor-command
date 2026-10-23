@@ -11,6 +11,7 @@ import { applyMeetingFigures, buildFlowCard } from "../flows/build";
 import { isUuid } from "../../report-pages";
 import { job2701FlowData } from "../flows/job-2701";
 import { loadFlowData, saveFlowNote } from "../flows/load";
+import { readinessAnswer } from "../flows/confirmation";
 import { STAGE_LABEL, stagesFor, type FlowData, type FlowName } from "../flows/types";
 import { errorCard, errorMessage } from "../error-card";
 import { run, type Sb } from "../guard";
@@ -32,7 +33,8 @@ function present(flow: FlowName, stage: string, data: FlowData) {
   const card = buildFlowCard(flow, stage, data);
   const html = renderHtml({ ...card, show_state: false });
   const stages = [...stagesFor(flow)];
-  const next = stages[stages.indexOf(stage) + 1] ?? null;
+  const pendingSchedule = (stage === "schedule" || stage === "crews") && card.state === "ask";
+  const next = pendingSchedule ? stage : stages[stages.indexOf(stage) + 1] ?? null;
   const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
     {
@@ -49,7 +51,9 @@ function present(flow: FlowName, stage: string, data: FlowData) {
       _meta: { ...cardWidgetMeta },
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
-    next
+    pendingSchedule
+      ? `Record the PM's answer with ${flow}, stage ${stage}, note containing their answer. Crew confirmation does not lock the lookahead; ask the remaining question on this card. ${CARD_SHOWN}`
+      : next
       ? `When the PM continues, call ${flow} with stage ${next} only. Do not add field readiness, financial, open actions, or closeout. Record a planned bill and a realistic bill as plan and realistic on stage accounting. Do not call living_report_save for those two figures. ${CARD_SHOWN}`
       : CARD_SHOWN,
   );
@@ -113,7 +117,17 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
   if (args.sample !== true && args.note) {
     data.note = args.note;
     const card = buildFlowCard(flow, stage, data);
-    const saved = await saveFlowNote(sb as never, job.job_id, flow, stage, args.note, { stage, note: args.note, ior: data.iorNow, risks: card.alerts ?? [] });
+    const context = data.readinessContext;
+    const expected = readinessAnswer(args.note);
+    const saved = expected && !context
+      ? { item: false, snapshot: false, confirmation: false }
+      : await saveFlowNote(sb as never, job.job_id, flow, stage, args.note, { stage, note: args.note, ior: data.iorNow, risks: card.alerts ?? [] }, context);
+    // Render persisted state, including a failed save, instead of the pre-note card.
+    Object.assign(data, await loadFlowData(sb as never, { job_id: job.job_id, job_number: job.job_number, name: job.name, scope: job.scope ?? "" }, selfPerform));
+    data.note = args.note;
+    data.confirmationSaved = saved.confirmation === undefined ? undefined : saved.confirmation && context === data.readinessContext &&
+      (expected?.crews_confirmed === undefined || data.readinessAnswers?.crews_confirmed === expected.crews_confirmed) &&
+      (expected?.lookahead_locked === undefined || data.readinessAnswers?.lookahead_locked === expected.lookahead_locked);
     data.itemFiled = saved.item;
     data.logged = saved.item && saved.snapshot;
   }
@@ -134,7 +148,7 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
 export const pmMeeting = defineTool({
   name: "pm_meeting",
   title: "Run construction PM meeting (Athena)",
-  description: "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget.",
+  description: "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget; records named confirmations such as subs and crews confirmed, no issues through note and returns the saved checks, with crew confirmation and lookahead lock as separate answers.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

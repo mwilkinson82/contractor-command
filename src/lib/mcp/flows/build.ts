@@ -78,6 +78,8 @@ function noteSection(data: FlowData): CardModel["sections"] {
   if (!data.note) return [];
   const line = data.sample
     ? "Sample on job 2701. Nothing was saved."
+    : data.confirmationSaved !== undefined
+      ? data.confirmationSaved ? "Meeting confirmation saved for this lookahead." : "Could not verify the meeting confirmation. Try again."
     : data.logged
       ? "Filed on the risk log and saved for the next IOR comparison."
       : data.itemFiled

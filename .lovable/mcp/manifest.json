@@ -5431,7 +5431,7 @@
       {
         "name": "pm_meeting",
         "title": "Run construction PM meeting (Athena)",
-        "description": "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget.",
+        "description": "Runs the construction PM meeting in Athena as a styled card, the job meeting on the schedule rather than a calendar appointment, when someone says run my PM meeting or start the project meeting, through schedule progress, the locked lookahead, subs suppliers and crews, change orders, billing, and the IOR, using the only job when one exists, and must not fill job_number from chat context or build a generic meeting widget; records named confirmations such as subs and crews confirmed, no issues through note and returns the saved checks, with crew confirmation and lookahead lock as separate answers.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
