@@ -2,7 +2,9 @@
  *  These measurements help investigate loading failures; they cannot establish whether a host
  *  received the response or reached its own deadline. Platform startup and network time are excluded. */
 
-const ISOLATE_STARTED_AT = Date.now();
+// Workers may evaluate module-scope Date.now() as zero before the first I/O.
+// Anchor the diagnostic clock to the first observed request instead.
+let firstMcpRequestAt: number | undefined;
 let mcpRequests = 0;
 
 export type CardTiming = {
@@ -13,16 +15,17 @@ export type CardTiming = {
   sdkDoneAt?: number;
   /** 1 for the first MCP request this isolate has seen since it started. */
   requestNo: number;
-  /** Milliseconds since this module loaded, not a platform startup measurement. */
+  /** Milliseconds since the first observed MCP request, not platform startup. */
   isolateAgeMs: number;
 };
 
 export function beginCardTiming(now = Date.now()): CardTiming {
+  firstMcpRequestAt ??= now;
   mcpRequests += 1;
   return {
     startedAt: now,
     requestNo: mcpRequests,
-    isolateAgeMs: Math.max(0, now - ISOLATE_STARTED_AT),
+    isolateAgeMs: Math.max(0, now - firstMcpRequestAt),
   };
 }
 
