@@ -83,6 +83,14 @@ describe("ChatGPT card widget stays off tools/list", () => {
 
 
 describe("native card resource", () => {
+  it("links field pay apps and the hello brief to Claude's existing native view", async () => {
+    const listed = await rpc("tools/list", 90);
+    for (const name of ["field_pay_app", "athena_hello"]) {
+      const tool = listed.tools.find((tool: { name: string }) => tool.name === name);
+      expect(tool._meta.ui.resourceUri).toBe(NATIVE_CARD_URI);
+      expect(tool._meta["openai/outputTemplate"]).toBeUndefined();
+    }
+  });
   it("links only the affected tools to a distinct standard UI resource, preserving ChatGPT metadata", async () => {
     const listed = await rpc("tools/list", 10);
     for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {

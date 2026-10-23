@@ -8,11 +8,10 @@ export const CARD_WIDGET_MIME = "text/html+skybridge";
 
 const SCRIPT = `(function(){
 var root=window.openai||{};
-var output=root.toolOutput||{};
 var P=${JSON.stringify({ navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert: ALERT })};
 var app=document.getElementById("app");
-if(!app||app.dataset.painted==="1")return;
-app.dataset.painted="1";
+if(!app||app.dataset.subscribed==="1")return;
+app.dataset.subscribed="1";
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
 function isAlert(level){return level==="risk"||level==="delay"||level==="overdue"}
 function raw(c){return /^(#[0-9A-Fa-f]{3,8}|#\\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
@@ -92,9 +91,21 @@ if(card.next_move)h+='<p class="next">Next move: '+esc(card.next_move)+'</p>';
 h+='</div></article>';
 return h;
 }
-var main=paint(output.card||{});
-var lead=output.getting_started;
-app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':main;
+var lastOutput="";
+function display(output){
+ if(!output||!output.card||typeof output.card.title!=="string")return;
+ var key=JSON.stringify(output);if(key===lastOutput)return;lastOutput=key;
+ var main=paint(output.card),lead=output.getting_started;
+ app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':main;
+ app.dataset.painted="1";
+}
+// ChatGPT can deliver toolOutput after the resource script has run. Subscribe
+// before the initial read so a late result is not permanently replaced by an empty card.
+if(typeof window.addEventListener==="function")window.addEventListener("openai:set_globals",function(event){
+ var globals=event&&event.detail&&event.detail.globals;
+ if(globals&&Object.prototype.hasOwnProperty.call(globals,"toolOutput"))display(globals.toolOutput);
+});
+display((window.openai||root).toolOutput);
 })();`;
 
 export function cardWidgetHtml(): string {
