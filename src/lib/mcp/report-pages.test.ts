@@ -262,3 +262,30 @@ describe("0.8.14 page refresh", () => {
     expect(m).toMatch(/GRANT EXECUTE ON FUNCTION public\.mcp_report_page_stamp\(text, uuid, uuid\) TO authenticated;/);
   });
 });
+
+
+describe("private chat access refusal", () => {
+  it.each([undefined, false])("still refuses a normal report share without confirmation: %s", async (confirmed) => {
+    await expect(call(reportPageShare, { page: "ior", job_number: "2701", confirmed })).rejects.toThrow(/Confirm/);
+    expect(state.rpcs).toEqual([]);
+  });
+  it("refuses chat access without needing a selected job", async () => {
+    const r = await call(reportPageLink, { page: "chat" });
+    expect(r.structuredContent).toMatchObject({ refused: true, created: false });
+    expect(state.rpcs).toEqual([]);
+  });
+  it.each(["chat", "owner chat", "conversation", "chat_history", "transcript"])("refuses %s without signing a board link", async (page) => {
+    const r = await call(reportPageLink, { page, job_number: "2701" });
+    expect(r.structuredContent).toMatchObject({ refused: true, created: false, alternative: "read_only_client_report" });
+    expect(r.structuredContent.url).toBeUndefined();
+    expect(r.content[0].text).toContain("No. Athena cannot");
+    expect(r.structuredContent.html).toContain("#1E5FED");
+    expect(state.rpcs).toEqual([]);
+  });
+  it.each([true, false, undefined])("cannot grant chat access even with confirmed=%s", async (confirmed) => {
+    const r = await call(reportPageShare, { page: "chat", job_number: "2701", confirmed });
+    expect(r.structuredContent).toMatchObject({ refused: true, created: false });
+    expect(r.structuredContent.link).toBeUndefined();
+    expect(state.rpcs).toEqual([]);
+  });
+});
