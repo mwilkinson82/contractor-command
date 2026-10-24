@@ -68,6 +68,22 @@ BEGIN
   revised := replace(definition,old,replacement);
   IF revised = definition THEN RAISE EXCEPTION 'Package writer declaration changed'; END IF;
   definition := revised;
+  old := $old$IF NOT EXISTS(SELECT 1 FROM public.mcp_submittal_package_items WHERE id=pid AND submittal_id=s.id) THEN$old$;
+  replacement := $new$IF _p ? 'new_piece' THEN
+    IF jsonb_typeof(_p->'new_piece') IS DISTINCT FROM 'object' OR pid IS NULL
+       OR coalesce(_p->'new_piece'->>'kind','') NOT IN ('product_cut','shop_drawing','sample','calc','warranty','other')
+       OR length(btrim(coalesce(_p->'new_piece'->>'source_party',''))) NOT BETWEEN 1 AND 120
+       OR ((_p->'new_piece') ? 'required' AND jsonb_typeof(_p->'new_piece'->'required') IS DISTINCT FROM 'boolean') THEN
+      RAISE EXCEPTION 'MCP_BAD:A new piece needs its kind, source and required flag. Nothing was added.';
+    END IF;
+    INSERT INTO public.mcp_submittal_package_items(id,company_id,job_id,submittal_id,kind,source_party,status,required)
+    VALUES(pid,j.company_id,_job,s.id,_p->'new_piece'->>'kind',btrim(_p->'new_piece'->>'source_party'),
+      'needed',coalesce((_p->'new_piece'->>'required')::boolean,true));
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.mcp_submittal_package_items WHERE id=pid AND submittal_id=s.id) THEN$new$;
+  revised := replace(definition,old,replacement);
+  IF revised = definition THEN RAISE EXCEPTION 'Package attachment branch changed'; END IF;
+  definition := revised;
   old := $old$ELSIF _action='save' THEN$old$;
   replacement := $new$ELSIF _action='save' THEN
   IF _p->>'fingerprint' IS DISTINCT FROM ctx->>'fingerprint' THEN

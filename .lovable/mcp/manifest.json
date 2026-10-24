@@ -7692,7 +7692,7 @@
       {
         "name": "submittal_package",
         "title": "Collect and build a submittal package",
-        "description": "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview; each explicit build creates a new immutable package and transmittal; get retrieves the current package without rebuilding.",
+        "description": "Stores received files against existing piece IDs, P-numbers or new_piece kind/source metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and private previews; get retrieves the current package without rebuilding.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -7743,6 +7743,36 @@
               "minLength": 1,
               "maxLength": 200
             },
+            "new_piece": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "product_cut",
+                    "shop_drawing",
+                    "sample",
+                    "calc",
+                    "warranty",
+                    "other"
+                  ]
+                },
+                "source_party": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "required": {
+                  "default": true,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "source_party"
+              ],
+              "additionalProperties": false
+            },
             "package_id": {
               "type": "string",
               "format": "uuid",
@@ -7763,6 +7793,17 @@
                 "download_url": {
                   "type": "string",
                   "format": "uri"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "mime_type": {
+                  "type": "string"
                 }
               },
               "required": [

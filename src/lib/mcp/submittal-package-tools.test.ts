@@ -172,6 +172,113 @@ afterAll(async () => {
   await db?.close();
 });
 describe("real package handlers with local DB and immutable storage", () => {
+  it("uploads an unlogged piece to an empty package and builds from the named sources", async () => {
+    const added = (await query("SELECT mcp_submittal_log($1,$2,$3::jsonb) data", [job, "add", JSON.stringify({
+      number: "INTEGRATION-NEW-PIECES", spec_section: "26 24 16", title: "Fictional unlogged pieces",
+      submittal_type: "product_data", status: "in_prep", ball_in_court: "gc", package_items: [],
+    })]))[0].data;
+    const sid = added.saved_id as string;
+    expect((await saved(sid)).items).toEqual([]);
+    const original = await PDFDocument.create();
+    original.addPage();
+    const bytes = await original.save();
+    const base64 = Buffer.from(bytes).toString("base64");
+    for (const filename of ["shop-drawing.pdf", "supporting-calcs.pdf"]) {
+      const uploaded = await call(submittalPackage, {
+        action: "upload_piece", job_number: "2701", submittal_id: sid, filename,
+        // Two deliberately distinct pieces may come from the same source and kind.
+        new_piece: { kind: "other", source_party: "Fictional Supplier", required: true },
+        content_base64: base64,
+      });
+      expect(uploaded.structuredContent.sent).toBeFalsy();
+      expect(JSON.stringify(uploaded.structuredContent.card)).toContain(filename);
+    }
+    const ctx = await saved(sid);
+    expect(ctx.items).toHaveLength(2);
+    expect(new Set(ctx.items.map((p: { id: string }) => p.id)).size).toBe(2);
+    expect(ctx.items.every((p: { status: string }) => p.status === "received")).toBe(true);
+    const built = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    expect(built.structuredContent.ready).toBe(true);
+    expect(built.structuredContent.package!.page_count).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(built.structuredContent.card)).toContain("Draft, not sent");
+    expect(JSON.stringify(built.structuredContent.card)).toContain("Fictional Supplier");
+    if (process.env.ATHENA_RENDER_PROOF_DIR) {
+      mkdirSync(process.env.ATHENA_RENDER_PROOF_DIR, { recursive: true });
+      writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/new-piece-card.html`, renderHtml(built.structuredContent.card));
+    }
+    for (const item of ctx.items) {
+      const path = item.file_ref.replace("athena-submittals/", "");
+      expect(await sha256Hex(blobs.get(path)!)).toBe(await sha256Hex(bytes));
+    }
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_mail WHERE submittal_id=$1", [sid]))[0].n).toBe(0);
+  });
+  it("adds a received piece without replacing any existing log piece", async () => {
+    const sid = await create("INTEGRATION-APPEND-PIECE"), before = await saved(sid);
+    await call(submittalPackage, {
+      action: "upload_piece", job_number: "2701", submittal_id: sid,
+      new_piece: { kind: "calc", source_party: "Fictional Engineer", required: true },
+      filename: "calculations.pdf", content_base64: Buffer.from("fictional fixture").toString("base64"),
+    });
+    const after = await saved(sid);
+    expect(after.items).toHaveLength(3);
+    for (const item of before.items) expect(after.items.find((p: { id: string }) => p.id === item.id)).toEqual(item);
+    expect(after.items.find((p: { kind: string }) => p.kind === "calc")).toMatchObject({ status: "received", source_party: "Fictional Engineer" });
+    const count = blobs.size;
+    await expect(call(submittalPackage, {
+      action: "upload_piece", job_number: "2701", submittal_id: sid, package_item: "P1",
+      new_piece: { kind: "calc", source_party: "Fictional Engineer" }, filename: "no.pdf", content_base64: "YQ==",
+    })).rejects.toThrow("not both");
+    expect(blobs.size).toBe(count);
+  });
+  it("rolls back a new piece when storage or its metadata is invalid", async () => {
+    const sid = await create("INTEGRATION-ATOMIC-NEW-PIECE"), before = await saved(sid);
+    const id = crypto.randomUUID(), path = `${company}/${job}/pieces/${crypto.randomUUID()}/missing.pdf`;
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'attach',$3::jsonb)", [job, sid, JSON.stringify({
+      item_id: id, path, new_piece: { kind: "calc", source_party: "Fictional Engineer" },
+    })])).rejects.toThrow("stored on this job");
+    expect((await saved(sid)).items).toEqual(before.items);
+    await query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-submittals',$1)", [path]);
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'attach',$3::jsonb)", [job, sid, JSON.stringify({
+      item_id: id, path, new_piece: { kind: "calc", source_party: "", required: true },
+    })])).rejects.toThrow("new piece needs");
+    expect((await saved(sid)).items).toEqual(before.items);
+  });
+  it("uses the host attachment filename for a new piece and refuses ambiguous file sources", async () => {
+    const sid = await create("INTEGRATION-HOST-NEW-PIECE");
+    const pdf = await PDFDocument.create(); pdf.addPage(); const bytes = await pdf.save();
+    const hostFile = { download_url: "https://files.oaiusercontent.com/fictional/calcs.pdf", file_id: "fictional-upload", file_name: "supplier-calcs.pdf", mime_type: "application/pdf" };
+    const fetchFile = vi.fn(async () => new Response(bytes as BodyInit));
+    vi.stubGlobal("fetch", fetchFile);
+    try {
+      const args = { action: "upload_piece", job_number: "2701", submittal_id: sid,
+        new_piece: { kind: "calc", source_party: "Fictional Engineer", required: true }, file: hostFile };
+      await call(submittalPackage, args);
+      const c = await saved(sid);
+      expect(c.items).toHaveLength(3);
+      const piece = c.items.find((p: { kind: string }) => p.kind === "calc");
+      expect(piece.file_ref).toMatch(/\/supplier-calcs\.pdf$/);
+      expect(fetchFile).toHaveBeenCalledTimes(1);
+      const count = blobs.size;
+      await expect(call(submittalPackage, { ...args, content_base64: "YQ==" })).rejects.toThrow("one received file");
+      expect(blobs.size).toBe(count);
+      expect((await saved(sid)).items).toHaveLength(3);
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it("requires full job access before adding an unlogged piece", async () => {
+    const sid = await create("INTEGRATION-NEW-PIECE-ACCESS"), before = await saved(sid);
+    const path = `${company}/${job}/pieces/${crypto.randomUUID()}/source.pdf`;
+    await query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-submittals',$1)", [path]);
+    for (const [id, role] of [["00000000-0000-4000-8000-000000000070", null], ["00000000-0000-4000-8000-000000000071", "estimating"]] as const) {
+      await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [id, `fictional-${id.slice(-2)}@example.com`]);
+      await db.query("INSERT INTO test_active_members VALUES ($1)", [id]);
+      if (role) await db.query("INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES ($1,$2,$3,'Fictional Estimator')", [company, id, role]);
+      await expect(asUser(db, { ...claims, sub: id }, async (tx) => tx.query(
+        "SELECT mcp_submittal_package_write($1,$2,'attach',$3::jsonb)", [job, sid, JSON.stringify({ item_id: crypto.randomUUID(), path,
+          new_piece: { kind: "calc", source_party: "Fictional Engineer", required: true } })],
+      ))).rejects.toThrow(/Full job access/);
+    }
+    expect((await saved(sid)).items).toEqual(before.items);
+  });
   it("attaches a named piece from an approved host using the edge-safe download mode and refuses redirects", async () => {
     const sid = await create("INTEGRATION-NAMED-ATTACHMENT");
     const original = await PDFDocument.create();

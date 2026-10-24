@@ -21,7 +21,7 @@ import { submittalRecordUrl } from "../board-url";
 import { callHost } from "../call-host";
 import { allowedDrawingDownloadUrl } from "../drawing-set";
 import { renderMarkdown } from "../cards/markdown";
-import { PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
+import { PACKAGE_KINDS, PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
 import { submittalLogUrl } from "../submittal-record-url";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
@@ -118,7 +118,7 @@ export function packageCard(
                     item.source_party,
                     labelOf(PACKAGE_STATUS_LABEL, item.status),
                     item.file_ref && ["received", "approved"].includes(item.status)
-                      ? "Stored"
+                      ? `Stored · ${item.file_ref.split("/").at(-1)}`
                       : "Not collected",
                   ],
                   refId: item.id,
@@ -199,19 +199,29 @@ export const submittalPackage = defineTool({
   name: "submittal_package",
   title: "Collect and build a submittal package",
   description:
-    "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview; each explicit build creates a new immutable package and transmittal; get retrieves the current package without rebuilding.",
+    "Stores received files against existing piece IDs, P-numbers or new_piece kind/source metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and private previews; get retrieves the current package without rebuilding.",
   inputSchema: {
     ...ids,
     action: z.enum(["get", "upload_piece", "build", "renew_link", "revoke"]),
     package_item_id: z.string().uuid().optional(),
     package_item: z.string().trim().min(1).max(200).optional(),
+    new_piece: z.object({
+      kind: z.enum(PACKAGE_KINDS),
+      source_party: z.string().trim().min(1).max(120),
+      required: z.boolean().default(true),
+    }).strict().optional(),
     package_id: z.string().uuid().optional(),
     filename: z.string().trim().min(1).max(120).optional(),
     content_base64: z
       .string()
       .max(Math.ceil(PACKAGE_MAX_BYTES / 3) * 4)
       .optional(),
-    file: z.object({ download_url: z.string().url() }).optional(),
+    file: z.object({
+      download_url: z.string().url(),
+      file_id: z.string().optional(),
+      file_name: z.string().trim().min(1).max(120).optional(),
+      mime_type: z.string().optional(),
+    }).optional(),
   },
   annotations: {
     readOnlyHint: false,
@@ -234,22 +244,27 @@ export const submittalPackage = defineTool({
         throw new ToolError("Use the latest revision from the living log.");
       if (args.action === "upload_piece") {
         const named = args.package_item ?? args.package_item_id;
-        if (!named || !args.filename)
+        const filename = args.filename ?? args.file?.file_name;
+        if (args.content_base64 && args.file)
+          throw new ToolError("Provide one received file source. Nothing was stored.");
+        if (args.new_piece && named)
+          throw new ToolError("Choose an existing piece or add a new piece, not both. Nothing was stored.");
+        if ((!named && !args.new_piece) || !filename)
           throw new ToolError(
-            `Name the package piece and its filename. Pieces on this submittal: ${data.items.length ? data.items.map(pieceLine).join("; ") : "none logged yet; add them with submittal_log package_items first"}.`,
+            `Name an existing piece or provide new_piece with its kind and source, plus the filename. Pieces on this submittal: ${data.items.length ? data.items.map(pieceLine).join("; ") : "none logged yet"}.`,
           );
-        let piece: PackageContext["items"][number] | null;
+        let piece: PackageContext["items"][number] | null = null;
         try {
-          piece = findPackagePiece(data.items, named);
+          if (named) piece = findPackagePiece(data.items, named);
         } catch (e) {
           throw new ToolError(e instanceof Error ? e.message : "Name one piece.");
         }
-        if (!piece?.id)
+        if (!args.new_piece && !piece?.id)
           throw new ToolError(
-            `That piece is not on this submittal. Pieces: ${data.items.length ? data.items.map(pieceLine).join("; ") : "none logged yet; add them with submittal_log package_items first"}.`,
+            `That piece is not on this submittal. Provide new_piece with its kind and source to add it during upload. Pieces: ${data.items.length ? data.items.map(pieceLine).join("; ") : "none logged yet"}.`,
           );
-        const pieceId = piece.id;
-        const mime = fileType(args.filename);
+        const pieceId = piece?.id ?? crypto.randomUUID();
+        const mime = fileType(filename);
         let bytes: Uint8Array;
         if (args.content_base64) {
           if (!/^[A-Za-z0-9+/]*={0,2}$/.test(args.content_base64) || args.content_base64.length % 4)
@@ -276,7 +291,7 @@ export const submittalPackage = defineTool({
           );
         if (!bytes.length || bytes.length > PACKAGE_MAX_BYTES)
           throw new ToolError("The file must be between 1 byte and 50 MB.");
-        const path = `${job.company_id}/${job.job_id}/pieces/${crypto.randomUUID()}/${args.filename}`;
+        const path = `${job.company_id}/${job.job_id}/pieces/${crypto.randomUUID()}/${filename}`;
         const up = await sb.storage
           .from(SUBMITTAL_BUCKET)
           .upload(path, bytes, { contentType: mime, upsert: false });
@@ -285,7 +300,7 @@ export const submittalPackage = defineTool({
           _job: job.job_id,
           _submittal: sid,
           _action: "attach",
-          _p: { item_id: pieceId, path },
+          _p: { item_id: pieceId, path, ...(args.new_piece ? { new_piece: args.new_piece } : {}) },
         });
       }
       if (args.action === "revoke") {

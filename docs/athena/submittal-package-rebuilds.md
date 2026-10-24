@@ -21,6 +21,9 @@ through the existing Lovable Cloud project as part of an approved release.
 - The new function requires the existing active entitlement and full job access. Read
   permissions, board authorization, sign-in, Hub, AI boundaries and send approval stay intact.
 
+- A logged submittal with zero package pieces can receive an attachment directly with `upload_piece` and `new_piece` (`kind`, `source_party`, optional `required`). The piece gets its own ID and P-number in the reply; a second upload preserves all earlier pieces. The host-supplied filename is retained and shown on the card. Existing pieces still use their ID or P-number.
+- File-source ambiguity, unsupported filenames, failed downloads and invalid metadata never create a new log piece. The writer adds the piece and attaches its already-stored file in one transaction, under the existing entitlement and full-job gate. A bad storage reference rolls the new row back. Distinct pieces from the same supplier/kind remain distinct.
+
 ## Implementation
 
 The old build was idempotent only while its fingerprint matched. A changed source could
@@ -49,7 +52,7 @@ sign-in flow changed.
 
 ## Verification
 
-- Full Vitest suite: **2,448 tests across 233 files**, including **17/17 locked behaviors**.
+- Full Vitest suite: **2,453 tests across 233 files**, including **17/17 locked behaviors**.
   Production build passes; changed-file semantic lint has no errors (three existing
   React Fast Refresh warnings). Type output is byte-identical to the 32-diagnostic baseline.
   One run alongside the Vite build hit an inherited five-second drawing-test timeout;
@@ -77,3 +80,14 @@ submittal, and the live log link preserves those results. Send nothing.
 
 Job 2701's stored name remains unchanged. Marketing should use a separate clearly named
 demo job rather than changing the construction record to improve a screenshot.
+
+## Tess release acceptance — required in all three hosts
+
+This candidate is not done until Tess passes these live in normal ChatGPT, Claude and Grok Bot:
+
+1. On the existing owner-only fictional QA submittal, start with an empty piece list; upload a received PDF with its kind and fictional supplier source, without first editing the log. Its ID, P-number, filename, source and received state appear. Add a second piece and verify the first is unchanged; build a real merged package with its cover/transmittal. Send nothing.
+2. Rebuild twice. All three PDFs and original attachments remain available and unchanged. Exactly one copy is current, older copies say Superseded, and all covers and filenames carry distinct transmittals.
+3. Open the live-log link on the log, package and Collect cards. It keeps the same job and authorized access; the row opens the current PDF, and the separate record link keeps the same submittal. Draft, not sent is visible, with no new send receipt.
+4. Retry after a failed/invalid file input. No blank piece or replacement of another piece appears. A caller without full job access cannot add one.
+
+Code/tests passed, published, and Tess passed are separate states. No live-host pass is claimed by a local integration or screenshot. Estimating PR #276 is parked while submittals, PM, follow-ups and accounting complete in that order.
