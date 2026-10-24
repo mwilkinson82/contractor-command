@@ -45,8 +45,11 @@ export function itemsFromField(payload: PagePayload): PagePayload {
 
 /** Sibling board pages (../items) and submittal records (submittal/<number>) keep the live token when the host adds utm params. */
 export function signSiblingLinks(body: string, token: string): string {
-  const tokenQuery = `t=${encodeURIComponent(token)}`;
-  return body.replace(/href="(\.\.\/[a-z]+|submittal\/[^"?#]+)(?:\?[^"#]*)?"/g, (_match, path: string) => `href="${path}?${tokenQuery}"`);
+  return body.replace(/href="(\.\.\/[a-z]+|submittal\/[^"?#]+)(?:\?([^"#]*))?"/g, (_match, path: string, search: string | undefined) => {
+    const query = new URLSearchParams((search ?? "").replace(/&amp;/g, "&"));
+    query.set("t", token);
+    return `href="${path}?${query.toString().replace(/&/g, "&amp;")}"`;
+  });
 }
 
 export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPage; jobId?: string; companyId?: string; token?: string }) {

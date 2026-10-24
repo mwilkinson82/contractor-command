@@ -11,7 +11,7 @@ import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintenden
 import { renderIorLayout, type ReportNames } from "./ior-layout";
 import { formatReportNumber, money } from "./report-format";
 import { dedupeOpenRows, itemName } from "./mcp/open-feed";
-import { BALL_LABEL, currentSubmittals, labelOf, packageLine, postureSentence, resolvePosture, sourceLine, STATUS_LABEL, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
+import { BALL_LABEL, currentSubmittals, labelOf, packageLine, packageDelivery, submittalDisplayStatus, postureSentence, resolvePosture, sourceLine, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
 import { jobHeading } from "./mcp/job-label";
 
 function jobPageTitle(number?: string | null, name?: string | null): string {
@@ -286,8 +286,10 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
     const border = late ? `border-left:4px solid ${RED};` : "";
     const color = late ? RED : NAVY;
     // Every row is a link to its record: submittal/<number> resolves beside this page at /r/job/<job>/submittal/<number>.
-    const href = `submittal/${encodeURIComponent(row.number.trim())}`;
-    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}"><a href="${esc(href)}" data-record="${esc(row.number)}" style="color:${color};text-decoration:none">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</a></div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(labelOf(STATUS_LABEL, row.status))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))} · Overdue: ${late ? "Yes" : "No"} · ${row.submission_sent_at ? `Package sent ${esc(row.submission_sent_at.slice(0, 10))}` : "Package send receipt not recorded"}</div>`)}</section>`;
+    const recordHref = `submittal/${encodeURIComponent(row.number.trim())}`;
+    const href = row.built_package && isUuid(row.built_package.id)
+      ? `${recordHref}?open=package&package_id=${encodeURIComponent(row.built_package.id)}` : recordHref;
+    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}"><a href="${esc(href)}" data-record="${esc(row.number)}" style="color:${color};text-decoration:none">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</a></div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(submittalDisplayStatus(row))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))} · Overdue: ${late ? "Yes" : "No"}${packageDelivery(row) ? ` · ${esc(packageDelivery(row))}` : ""}${row.built_package ? ` · ${esc(row.built_package.filename)} · <a href="${esc(recordHref)}" style="color:${BLUE}">Open record</a>` : ""}</div>`)}</section>`;
   }).join("");
 }
 

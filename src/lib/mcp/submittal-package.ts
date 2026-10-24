@@ -33,6 +33,7 @@ export type PackageContext = {
   job_name: string;
   today: string;
   transmittal_number: number;
+  build_transmittal_id?: string;
   fingerprint: string;
   package: PackageArtifact | null;
 };

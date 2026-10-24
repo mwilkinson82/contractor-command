@@ -22,6 +22,7 @@ import { callHost } from "../call-host";
 import { allowedDrawingDownloadUrl } from "../drawing-set";
 import { renderMarkdown } from "../cards/markdown";
 import { PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
+import { submittalLogUrl } from "../submittal-record-url";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -198,7 +199,7 @@ export const submittalPackage = defineTool({
   name: "submittal_package",
   title: "Collect and build a submittal package",
   description:
-    "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview.",
+    "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview; each explicit build creates a new immutable package and transmittal; get retrieves the current package without rebuilding.",
   inputSchema: {
     ...ids,
     action: z.enum(["get", "upload_piece", "build", "renew_link", "revoke"]),
@@ -299,9 +300,10 @@ export const submittalPackage = defineTool({
           "The link is off. Original files and saved packages are preserved.",
         ]);
       }
-      const recordUrl = submittalRecordUrl(await boardFor(sb, job), data.submittal.number);
+      const logUrl = submittalLogUrl(await boardFor(sb, job));
+      const recordUrl = submittalRecordUrl(logUrl, data.submittal.number);
       const recordRow: CardRow[] = recordUrl
-        ? [{ cells: ["Open submittal record"], href: recordUrl }]
+        ? [{ cells: ["Open submittal record"], href: recordUrl }, ...(logUrl ? [{ cells: ["Open live submittal log"], href: logUrl }] : [])]
         : [];
       const gaps = packageGaps(data);
       if (gaps.length)
@@ -310,7 +312,7 @@ export const submittalPackage = defineTool({
           items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
           record_url: recordUrl,
         });
-      if (args.action === "build" && !data.package) {
+      if (args.action === "build") {
         const files: PackageFile[] = [];
         let total = 0;
         for (const item of data.items.filter(
@@ -353,6 +355,11 @@ export const submittalPackage = defineTool({
             logo = undefined;
           }
         }
+        // Reserve a job-wide number only for an explicit build. The current package remains
+        // untouched if PDF generation or storage fails; save commits the new identity atomically.
+        data = await submittalRpc<PackageContext>(sb, "mcp_submittal_package_reserve", {
+          _job: job.job_id, _submittal: sid, _fingerprint: data.fingerprint,
+        });
         const built = await buildSubmittalPdf(data, files, logo);
         const id = crypto.randomUUID();
         const filename = `Submittal-${data.submittal.number.replace(/[^A-Za-z0-9-]/g, "-")}-R${data.submittal.revision}-T${data.transmittal_number}-${data.today}.pdf`;
@@ -374,6 +381,7 @@ export const submittalPackage = defineTool({
             path,
             filename,
             fingerprint: data.fingerprint,
+            transmittal_id: data.build_transmittal_id,
             sha256: await sha256Hex(built.bytes),
             size_bytes: built.bytes.length,
             page_count: built.pageCount,

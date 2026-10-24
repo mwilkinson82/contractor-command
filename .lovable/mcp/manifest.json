@@ -7692,7 +7692,7 @@
       {
         "name": "submittal_package",
         "title": "Collect and build a submittal package",
-        "description": "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview.",
+        "description": "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview; each explicit build creates a new immutable package and transmittal; get retrieves the current package without rebuilding.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,

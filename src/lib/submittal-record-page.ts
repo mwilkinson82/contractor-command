@@ -27,6 +27,9 @@ export type RecordPackage = {
   id: string;
   submittal_id: string;
   revision: number;
+  is_current?: boolean;
+  transmittal_id?: string | null;
+  transmittal_number?: number | null;
   filename: string;
   path: string;
   size_bytes?: number | null;
@@ -232,13 +235,18 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[])
           ? `Sent ${day(p.sent_at)}`
           : p.approved_at
             ? "Approved, send receipt not recorded"
-            : "Built, not sent";
-      const t = transmittals.find((row) => row.revision === p.revision);
+            : "Draft, not sent";
+      const t = p.transmittal_id
+        ? transmittals.find((row) => row.id === p.transmittal_id)
+        : p.transmittal_id === undefined && transmittals.filter((row) => row.revision === p.revision).length === 1
+          ? transmittals.find((row) => row.revision === p.revision) : undefined;
+      const number = p.transmittal_number ?? t?.number;
+      const version = p.is_current === true ? "Current package" : p.is_current === false ? "Superseded" : "Historical package";
       const expiry =
         p.download_url && p.expires_at
           ? ` · Recipient link works until ${esc(day(p.expires_at))}`
           : "";
-      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${t ? ` · ${esc(transmittalLabel(t.number))}` : ""} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(day(p.created_at))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
+      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(day(p.created_at))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
     })
     .join("");
   return card(

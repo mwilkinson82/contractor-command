@@ -10,7 +10,7 @@ import {
 import { renderReportBody } from "./report-pages";
 import { boardReturnForVisit, boardSignInReturn } from "./board-sign-in";
 import { jobLinksMissingToken, submittalRecordUrl } from "./mcp/board-url";
-import { submittalPackageUrl } from "./mcp/submittal-record-url";
+import { submittalPackageUrl, submittalLogUrl } from "./mcp/submittal-record-url";
 import { findPackagePiece } from "./mcp/submittal-package";
 import { hostFromClientName, hostLabel } from "./mcp/call-host";
 import { headerMatchesRows, presentSubmittalLog, type SubmittalRecord } from "./mcp/submittals";
@@ -21,6 +21,22 @@ const JOB = "11111111-1111-4111-8111-111111111111";
 const TOKEN = "t".repeat(43);
 const BOARD = `https://app.meetathena.io/r/job/${JOB}/submittals?t=${TOKEN}`;
 const TODAY = "2026-10-24";
+
+describe("the live submittal log's own link", () => {
+  it("keeps the authorized job and key on the card and factual fallback, including an empty log", () => {
+    const view = presentSubmittalLog({jobNumber:"2701",jobName:"Fictional",rows:[],today:TODAY,boardUrl:BOARD});
+    expect(submittalLogUrl(BOARD)).toBe(BOARD);
+    expect(view.card.sections?.find(s => s.heading === "Live log")?.rows[0].href).toBe(BOARD);
+    expect(view.text).toContain(`[Open live submittal log](${BOARD})`);
+  });
+  it("never invents a missing link or substitutes a foreign host or blank job", () => {
+    for (const bad of [null,"https://example.com/r/job/"+JOB+"/submittals","https://app.meetathena.io/r/job/%20/submittals"]) {
+      expect(submittalLogUrl(bad)).toBeNull();
+      const view = presentSubmittalLog({jobNumber:"2701",jobName:"Fictional",rows:[],today:TODAY,boardUrl:bad});
+      expect(view.card.sections?.some(s=>s.heading === "Live log")).toBe(false);
+    }
+  });
+});
 
 function row(
   over: Partial<SubmittalRecord> & Pick<SubmittalRecord, "id" | "number" | "revision">,
@@ -256,6 +272,25 @@ describe("record page", () => {
     expect(html).toContain(ALERT_HEX);
   });
 
+  it("labels only the bound current PDF and shows each rebuild's own transmittal", () => {
+    const base = payload.packages![0];
+    const html = renderSubmittalRecordBody({...payload, packages:[
+      {...base,id:"new",filename:"new-T5.pdf",is_current:true,transmittal_number:5,transmittal_id:"t5",sent_at:null,approved_at:null},
+      {...base,id:"old",filename:"old-T4.pdf",is_current:false,transmittal_number:4,transmittal_id:"t4"},
+    ]});
+    expect(html.match(/Current package/g)).toHaveLength(1);
+    expect(html.match(/Superseded/g)).toHaveLength(1);
+    expect(html).toContain("Transmittal T-5");
+    expect(html).toContain("Transmittal T-4");
+    expect(html).toContain("Sent 2026-10-01");
+  });
+
+  it("does not borrow today's transmittal for a historical PDF whose number was not recorded", () => {
+    const html = renderSubmittalRecordBody({...payload, packages:[{...payload.packages![0],transmittal_id:null,transmittal_number:null,is_current:false}]});
+    expect(html).toContain("Transmittal not recorded");
+    expect(html).toContain("Superseded");
+  });
+
   it("keeps red off a record that is not overdue and offers the conversation note only to its owner", () => {
     const calm: SubmittalRecordPayload = {
       ...payload,
@@ -283,6 +318,13 @@ describe("record page", () => {
     expect(
       jobLinksMissingToken(`https://app.meetathena.io/r/job/${JOB}/submittal/26%2024%2016-001`),
     ).toHaveLength(1);
+  });
+
+  it("keeps the exact package query when the live log adds its existing board key", () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const signed = signSiblingLinks(`<a href="submittal/S1?open=package&amp;package_id=${id}">PDF</a>`,TOKEN);
+    expect(signed).toContain(`open=package&amp;package_id=${id}&amp;t=${TOKEN}`);
+    expect(signSiblingLinks(`<a href="submittal/S1?t=old">Record</a>`,TOKEN)).toBe(`<a href="submittal/S1?t=${TOKEN}">Record</a>`);
   });
 
   it("returns to the record after sign-in and keeps the token on the log's row links", () => {
