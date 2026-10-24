@@ -78,17 +78,21 @@ describe("real AI SDK provider request with an intercepted network", () => {
     expect(body.response_format).toEqual({ type: "json_object" });
     const messages = body.messages as { role: string; content: unknown }[];
     expect(messages[0].content).toContain("untrusted data");
+    // Every schema coordinate and the actual message image order must agree.
+    expect(messages[0].content).not.toContain("FIRST target image");
     const schema = JSON.parse(String(messages[0].content).split("OUTPUT_SCHEMA:\n")[1]);
     expect(schema.required).toEqual(["findings", "uncertainties"]);
     expect(schema.properties.findings.items.properties.points.items.properties.x).toMatchObject({
       type: "number",
       minimum: 0,
       maximum: 1000,
+      description: "Horizontal position on the final TARGET TILE image, normalized 0-1000",
     });
     expect(schema.properties.findings.items.properties.points.items.properties.y).toMatchObject({
       type: "number",
       minimum: 0,
       maximum: 1000,
+      description: "Vertical position on the final TARGET TILE image, normalized 0-1000",
     });
     expect(schema.properties.findings.items.properties.confidence).toMatchObject({
       minimum: 0,
