@@ -260,6 +260,87 @@ describe("sheet read", () => {
     expect(picked.lines.map((l) => l.line_no)).not.toContain(2);
   });
 
+  it("continues a wider line through every tile separately without changing the narrower checkpoint", async () => {
+    const f = await fixture(1500, [0]);
+    f.state.passes[0].pass_summary.count_area = {
+      name: "Fictional first room only",
+      bounds: { x: 0, y: 0, width: 0.1, height: 1 },
+      confirmed: true,
+    };
+    const original = JSON.stringify(f.state.passes[0]);
+    await expect(
+      proposeSheetStep(f.sb, f.job, f.page, f.state, {
+        calibration_id: f.calibration_id,
+      }),
+    ).rejects.toThrow(/line_nos: \[2\]/);
+    expect(f.rpc).not.toHaveBeenCalled();
+    const visited: number[] = [];
+    for (let cursor = 0; cursor < f.page.inspection.tiles.length; cursor++) {
+      const prepared = await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+        line_nos: [2],
+        calibration_id: f.calibration_id,
+      }).catch((e) => e);
+      expect(prepared).toBeInstanceOf(HostSheetReadRequired);
+      const read = (prepared as HostSheetReadRequired).read;
+      visited.push(read.tile.index);
+      expect(read.cursor).toBe(cursor);
+      const saved = await proposeSheetStep(
+        f.sb,
+        f.job,
+        f.page,
+        f.state,
+        {
+          line_nos: [2],
+          calibration_id: f.calibration_id,
+        },
+        {
+          cursor,
+          lines: read.lines.map((line) => ({
+            line_no: line.line_no,
+            pass_id: line.pass_id!,
+            findings: [],
+            uncertainties: [],
+          })),
+        },
+      );
+      expect(saved.complete).toBe(cursor === f.page.inspection.tiles.length - 1);
+      // Replay the actual persisted checkpoint into the next request's snapshot.
+      f.state.passes.find((p) => p.pass_summary.line_no === 2)!.pass_summary =
+        f.rpc.mock.calls.at(-1)![1]._record.pass_summary;
+    }
+    expect(new Set(visited).size).toBe(f.page.inspection.tiles.length);
+    expect(JSON.stringify(f.state.passes.find((p) => p.pass_summary.line_no === 1))).toBe(original);
+  });
+
+  it("keeps a recorded non-drawable exception out of whole-sheet reads", async () => {
+    const f = await fixture();
+    f.state.geometry = [
+      {
+        id: "exception",
+        geometry_id: "exception",
+        version: 1,
+        line_id: "line-2",
+        source_id: null,
+        page: null,
+        calibration_id: null,
+        shape: { kind: "not_drawable", exception_kind: "by_others" },
+        measured: null,
+        unit: "LF",
+        status: "not_drawable",
+        source: "estimator",
+        reason: "Included by another trade",
+        created_by: "estimator",
+        created_at: "2026-10-24T01:00:00Z",
+        evidence: {},
+      },
+    ];
+    const picked = sheetLines(f.page, f.state, { calibration_id: f.calibration_id });
+    expect(picked.lines.map((l) => l.line_no)).not.toContain(2);
+    expect(picked.skipped.find((l) => l.line_no === 2)?.reason).toContain(
+      "Included by another trade",
+    );
+  });
+
   it("names the lines a sheet read can carry and why the others wait", async () => {
     const f = await fixture();
     const picked = sheetLines(f.page, f.state, { calibration_id: f.calibration_id });

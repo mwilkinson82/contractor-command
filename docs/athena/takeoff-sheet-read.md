@@ -1,6 +1,6 @@
 # Sheet read: every open line per tile
 
-Base: `codex/athena-passwordless-login-only` at `3f5cc59b` (after #270 and #272). Branch `claude/takeoff-multi-line-tiles`. Not merged, not deployed, no data changed. No migration: the per-line pass tables and `mcp_takeoff_pass_save` are unchanged.
+Release integration: current `codex/athena-passwordless-login-only` at `992991b8`, preserving published #267, #270 and #272. No migration: the per-line pass tables and `mcp_takeoff_pass_save` are unchanged. Release status and live evidence are recorded separately; passing fixture tests are not a completed takeoff or a benchmark pass.
 
 ## Codex review of a17c03c3 (addressed in the second commit)
 
@@ -8,6 +8,12 @@ Base: `codex/athena-passwordless-login-only` at `3f5cc59b` (after #270 and #272)
 2. A sheet read took every line on the takeoff, including lines assigned to another sheet. It now takes only lines whose `sheet` is this sheet; a line assigned elsewhere is listed as not ready with the reason, and a line with no sheet joins only when named in `line_nos`. Regression test covers both.
 
 Design: "Athena Drawing Takeoff Engine", next phase, piece 1.
+
+## Additional review fixes
+
+- Reuses the established measurement status before enrolling a line. Explicit exclusions and recorded non-drawable exceptions stay out of the model's sheet read and appear with their saved reason.
+- Checks that a saved shared order covers every participating region before rendering or writing. An older room/count pass cannot truncate a wider measurement. Existing database orders are immutable: incompatible regions are read separately using the line numbers returned in the error, preserving their checkpoints and geometry. This is a grouping limit, not a completed takeoff.
+- Regression verification includes the original two review cases, a five-tile dimensional read beside a one-tile count region, continuing that wider line independently through every tile without changing the count checkpoint, and explicit exclusion/non-drawable cases.
 
 ## Why
 
@@ -32,5 +38,5 @@ The host read loop after #270 is one line, one tile, one round trip. A 60-line s
 ## Verification
 
 - Vitest: full suite passes. New `takeoff/sheet-pass.test.ts` on a real PDF through `inspectSheet`: which lines are ready and why the others wait; one tile prepared for two lines with one checkpoint write for the new pass and none on a repeat; one observation set verified and saved per line with the host-reported model on each proposal; refusals for a skipped line, an unknown line, a wrong cursor and a wrong pass; lockstep when one line is ahead; nothing ready.
-- Production build, typecheck and ESLint on the changed files: pass. Manifest regenerated.
-- **Not a live pass.** After #270 and this change are released: on 2701 S-100, one sheet read over the open foundation lines in Claude and in ChatGPT; count the tool calls; compare the footing run to Darian's 345 LF.
+- Production build and ESLint on the changed files are required; record the exact final test counts and existing typecheck diagnostics in the release evidence. Manifest regenerated with the current submittal tools preserved.
+- Live verification starts on an owner-only QA job in Claude and ChatGPT, without accepting geometry or changing real job quantities. The separate CCW-003 S-100 footing benchmark against Darian's 345 LF remains an accuracy requirement; it is not established by the fixture loop.

@@ -9,7 +9,7 @@ import type { Job } from "../jobs";
 import type { Bounds, Shape } from "./geometry";
 import { renderPlanReference, renderTile, type Tile } from "./pdf";
 import type { StoredPage } from "./service";
-import type { EngineSnapshot } from "./state";
+import { measurementLines, type EngineSnapshot } from "./state";
 import {
   HostDrawingReadRequired,
   hostDrawingReader,
@@ -111,12 +111,20 @@ export function sheetLines(
     : state.lines;
   const lines: SheetLine[] = [],
     skipped: SheetSkip[] = [];
+  const measurements = new Map(measurementLines(state).map((line) => [line.line_no, line]));
   const here = (sheet: string | null | undefined) =>
     (sheet ?? "").trim().toLowerCase() === page.sheet.trim().toLowerCase();
   for (const line of wanted) {
     const kind = measureKind(line.unit);
     const skip = (reason: string) =>
       skipped.push({ line_no: line.line_no, item: line.item, reason });
+    const measurement = measurements.get(line.line_no);
+    if (measurement?.status === "not_drawable") {
+      skip(
+        `This line is excluded or has a recorded non-drawable basis${measurement.reason ? `: ${measurement.reason}` : "."}`,
+      );
+      continue;
+    }
     if (!kind) {
       skip("Only EA, LF, SF and CY lines are located on a drawing; record a non-drawable basis.");
       continue;
@@ -254,6 +262,19 @@ export async function proposeSheetStep(
     );
   const order: number[] = orders.size ? JSON.parse([...orders][0]) : sheetOrder(page, picked.lines);
   if (!order.length) throw new ToolError("No stored tile touches these lines' regions.");
+  // A saved order is immutable in the database. Sharing it is safe only if it covers every
+  // participating region. Never narrow a new line to an older room/count read and then
+  // label it complete. Name the wider lines so the host can prepare their own grouped read.
+  const covered = new Set(order);
+  const wider = picked.lines.filter((line) =>
+    candidateOrder(page, line.item, line.scope.bounds).some((index) => !covered.has(index)),
+  );
+  if (wider.length)
+    throw new ToolError(
+      `The existing tile order does not cover the complete region for ${wider.map((line) => `L${line.line_no}`).join(", ")}. ` +
+        `Keep the existing checkpoints and prepare those lines separately with line_nos: [${wider.map((line) => line.line_no).join(", ")}]. ` +
+        "No new checkpoint or measurement was saved. Resume the other lines separately; do not report this sheet complete.",
+    );
   // Lockstep: the read sits at the lowest cursor; lines already past it wait for the others.
   const cursor = Math.min(...picked.lines.map((l) => l.next_cursor));
   const active = picked.lines.filter((l) => l.next_cursor === cursor);
