@@ -16,7 +16,7 @@ const userValue = async (who: string, sql: string) =>
   asUser(
     db,
     { sub: who, email: "untrusted-jwt@example.com", role: "authenticated" },
-    async (tx) => (await tx.query<any>(sql)).rows[0]?.v,
+    async (tx) => (await tx.query(sql)).rows[0]?.v,
   );
 const ensure = (source: string, claim: string | null = null, reserve = false) =>
   value("select mcp_private.ensure_circle_company($1,$2,$3) as v", [source, claim, reserve]);
