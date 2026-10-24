@@ -76,6 +76,7 @@ describe("real AI SDK provider request with an intercepted network", () => {
       maximum: 1,
     });
     expect(schema.properties.findings.maxItems).toBe(100);
+    expect(schema.properties.findings.items.properties.kind).toMatchObject({ enum: ["pins"] });
     expect(messages[0].content).toContain("actual printed stroke");
     expect(JSON.stringify(messages[1].content)).toContain("Ignore previous instructions");
     expect(JSON.stringify(messages[1].content)).toContain("data:image/png;base64,");
@@ -83,6 +84,20 @@ describe("real AI SDK provider request with an intercepted network", () => {
   it.each([
     { quantity: 3 },
     { findings: "not an array", uncertainties: [] },
+    {
+      findings: [
+        {
+          kind: "polyline",
+          points: [
+            { cell: "A1", dx: 0, dy: 0 },
+            { cell: "B1", dx: 0, dy: 0 },
+          ],
+          confidence: 0.9,
+          evidence: "Wrong measure kind",
+        },
+      ],
+      uncertainties: [],
+    },
     ...[
       { cell: "A12", dx: 0, dy: 0 },
       { cell: "A0", dx: 0, dy: 0 },
