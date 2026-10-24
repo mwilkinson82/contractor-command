@@ -14,6 +14,54 @@ const png = encode({
   depth: 8,
 });
 describe("real AI SDK provider request with an intercepted network", () => {
+  it.each(["length", "stop"])(
+    "handles lazy empty JSON output after a successful SDK request (%s) without advancing or retrying",
+    async (finish_reason) => {
+      vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
+      const fetch = vi.fn(async (_url, init) => {
+        expect(JSON.parse(String(init?.body)).max_tokens).toBe(8000);
+        return new Response(
+          JSON.stringify({
+            id: "fixture",
+            created: 0,
+            model: "fixture",
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: "assistant",
+                  content: "",
+                  reasoning_content: "Fictional private reasoning must not leak",
+                },
+                finish_reason,
+              },
+            ],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 8000,
+              total_tokens: 8010,
+              completion_tokens_details: { reasoning_tokens: 8000 },
+            },
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      });
+      vi.stubGlobal("fetch", fetch);
+      const result = readVisionTile({
+        item: "Fictional wall",
+        measure_type: "linear",
+        png,
+        hints: [],
+      });
+      await expect(result).rejects.toThrow(
+        finish_reason === "length"
+          ? "This drawing region reached its response limit."
+          : "This drawing region could not be read.",
+      );
+      await expect(result).rejects.toThrow("Your previous checkpoints are preserved");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
   it("preserves the resumable checkpoint on malformed provider JSON without exposing its response or retrying silently", async () => {
     vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
     const fetch = vi.fn(
