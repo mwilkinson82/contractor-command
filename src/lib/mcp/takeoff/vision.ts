@@ -74,6 +74,17 @@ const kindsByMeasure = {
   volume: ["polygon", "rect"],
 } as const;
 export type VisionAnswer = z.infer<typeof answer> & { reader_model?: string };
+function readerOutputFailure(error: unknown, finishReason?: string): never {
+  if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error))
+    throw new Error(
+      ((finishReason ??
+        (NoObjectGeneratedError.isInstance(error) ? error.finishReason : undefined)) === "length"
+        ? "This drawing region reached its response limit. "
+        : "This drawing region could not be read. ") +
+        "Nothing from this region was saved. Your previous checkpoints are preserved; continue the read to retry this region.",
+    );
+  throw error;
+}
 export type VisionRead = (request: {
   item: string;
   measure_type: string;
@@ -181,7 +192,9 @@ export const readVisionTile: VisionRead = async (request) => {
   const result = await generateText({
     model: gateway(model),
     output: Output.json(),
-    maxOutputTokens: 4000,
+    // Reasoning also consumes the provider's output budget. Leave room for the
+    // actual structured locations; the existing 35-second request cap remains.
+    maxOutputTokens: 8000,
     maxRetries: 0,
     abortSignal: request.signal ?? AbortSignal.timeout(20000),
     system:
@@ -234,14 +247,17 @@ export const readVisionTile: VisionRead = async (request) => {
         ],
       },
     ],
-  }).catch((error: unknown) => {
-    if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error))
-      throw new Error(
-        "This drawing region could not be read. Nothing from this region was saved. Your previous checkpoints are preserved; continue the read to retry this region.",
-      );
-    throw error;
-  });
-  const parsed = responseSchema.safeParse(result.output);
+  }).catch((error: unknown) => readerOutputFailure(error));
+  // Output.json() can defer failure until this lazy accessor is read, after
+  // generateText's promise succeeded. Protect both paths, without inspecting or
+  // leaking model text or retrying a paid read implicitly.
+  let output: unknown;
+  try {
+    output = result.output;
+  } catch (error) {
+    readerOutputFailure(error, result.finishReason);
+  }
+  const parsed = responseSchema.safeParse(output);
   if (!parsed.success) {
     const reasons: Record<string, string> = {
       x: "invalid horizontal image coordinate",

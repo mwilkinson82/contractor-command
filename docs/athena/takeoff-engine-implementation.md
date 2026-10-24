@@ -292,3 +292,27 @@ the original pass, allows a fresh pass after rejection, blocks a manual-placemen
 race, denies an outsider, and verifies unchanged function metadata and source
 hash. Fresh migration ordering also passes. No new vision calls or host UI changes.
 
+# Empty reader output and bounded response headroom
+
+The live wall read retained two correct fragments totaling 20.043093 LF but a
+later region returned `No output generated`. The SDK can resolve `generateText`
+successfully and then throw from its lazy `.output` accessor. Catching only the
+promise did not cover that path. Both stages now return factual resume guidance,
+using only the fixed finish category when a response limit is reached. Model
+text and reasoning are never included, and there is no implicit paid retry.
+
+The takeoff-only output ceiling is now 8,000 tokens rather than 4,000, leaving
+space for structured locations after provider reasoning. The existing 35-second
+step deadline, model/override, image input, schema, geometry validation, source
+hash, acceptance gate and card resource are unchanged. No migration or host
+refresh is needed. This changes no accepted geometry or saved checkpoints.
+
+Verification: 2,298 tests/217 files, all 17 locked behaviors, build and changed
+ESLint pass; same 32 baseline TypeScript diagnostics and none in the changed
+files. Real SDK/network-interception tests cover both reasoning-only length
+exhaustion and ordinary empty output, assert the 8,000-token wire parameter,
+preserved checkpoint guidance, no response leak and exactly one provider request.
+The private wall read is held at its latest checkpoint for post-publication
+resume; its independent endpoint/overlap check already matches the actual wall,
+but final acceptance still requires complete coverage.
+
