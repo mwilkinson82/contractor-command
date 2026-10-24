@@ -63,14 +63,20 @@ describe("real AI SDK provider request with an intercepted network", () => {
     expect(messages[0].content).toContain("untrusted data");
     const schema = JSON.parse(String(messages[0].content).split("OUTPUT_SCHEMA:\n")[1]);
     expect(schema.required).toEqual(["findings", "uncertainties"]);
-    expect(
-      schema.properties.findings.items.properties.points.items.properties.column,
-    ).toMatchObject({ type: "integer", minimum: 0, maximum: 10 });
+    expect(schema.properties.findings.items.properties.points.items.properties.cell).toMatchObject({
+      type: "string",
+      pattern: "^[A-K](?:[1-9]|10|11)$",
+    });
+    expect(schema.properties.findings.items.properties.points.items.properties.dx).toMatchObject({
+      minimum: 0,
+      maximum: 100,
+    });
     expect(schema.properties.findings.items.properties.confidence).toMatchObject({
       minimum: 0,
       maximum: 1,
     });
     expect(schema.properties.findings.maxItems).toBe(100);
+    expect(schema.properties.findings.items.properties.kind).toMatchObject({ enum: ["pins"] });
     expect(messages[0].content).toContain("actual printed stroke");
     expect(JSON.stringify(messages[1].content)).toContain("Ignore previous instructions");
     expect(JSON.stringify(messages[1].content)).toContain("data:image/png;base64,");
@@ -81,8 +87,33 @@ describe("real AI SDK provider request with an intercepted network", () => {
     {
       findings: [
         {
+          kind: "polyline",
+          points: [
+            { cell: "A1", dx: 0, dy: 0 },
+            { cell: "B1", dx: 0, dy: 0 },
+          ],
+          confidence: 0.9,
+          evidence: "Wrong measure kind",
+        },
+      ],
+      uncertainties: [],
+    },
+    ...[
+      { cell: "A12", dx: 0, dy: 0 },
+      { cell: "A0", dx: 0, dy: 0 },
+      { cell: "a1", dx: 0, dy: 0 },
+      { cell: "E8", dx: 101, dy: 0 },
+      { column: 4, row: 700, dx: 25, dy: 40 },
+      { cell: "E8", row: 700, dx: 25, dy: 40 },
+    ].map((point) => ({
+      findings: [{ kind: "pins", points: [point], confidence: 0.9, evidence: "Visible stroke" }],
+      uncertainties: [],
+    })),
+    {
+      findings: [
+        {
           kind: "pins",
-          points: [{ column: 11, row: 0, dx: 0, dy: 0 }],
+          points: [{ cell: "L1", dx: 0, dy: 0 }],
           confidence: 0.9,
           evidence: "Visible stroke",
         },
@@ -93,7 +124,7 @@ describe("real AI SDK provider request with an intercepted network", () => {
       findings: [
         {
           kind: "pins",
-          points: [{ column: 0, row: 0, dx: 0, dy: 0 }],
+          points: [{ cell: "A1", dx: 0, dy: 0 }],
           confidence: 2,
           evidence: "Visible stroke",
         },
@@ -124,8 +155,67 @@ describe("real AI SDK provider request with an intercepted network", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(
       readVisionTile({ item: "Fictional fixtures", measure_type: "count", png, hints: [] }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/invalid grid locations/);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("decodes printed labels for pins and holes without moving the supplied location", async () => {
+    vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "fixture",
+            created: 0,
+            model: "fixture",
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: "assistant",
+                  content: JSON.stringify({
+                    findings: [
+                      {
+                        kind: "polygon",
+                        points: [
+                          { cell: "A1", dx: 0, dy: 0 },
+                          { cell: "K1", dx: 20, dy: 0 },
+                          { cell: "K11", dx: 20, dy: 20 },
+                        ],
+                        holes: [
+                          [
+                            { cell: "E8", dx: 25, dy: 40 },
+                            { cell: "E8", dx: 50, dy: 40 },
+                            { cell: "F8", dx: 0, dy: 50 },
+                          ],
+                        ],
+                        confidence: 0.9,
+                        evidence: "Visible boundary",
+                      },
+                    ],
+                    uncertainties: [],
+                  }),
+                },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+    );
+    const result = await readVisionTile({
+      item: "Fictional area",
+      measure_type: "area",
+      png,
+      hints: [],
+    });
+    expect(result.findings[0].points).toEqual([
+      { column: 0, row: 0, dx: 0, dy: 0 },
+      { column: 10, row: 0, dx: 20, dy: 0 },
+      { column: 10, row: 10, dx: 20, dy: 20 },
+    ]);
+    expect(result.findings[0].holes?.[0][0]).toEqual({ column: 4, row: 7, dx: 25, dy: 40 });
   });
   it("propagates a provider rejection without retrying or inventing an empty successful read", async () => {
     vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");

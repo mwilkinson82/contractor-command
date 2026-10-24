@@ -136,6 +136,12 @@ gateway. No edits to the live 2701/CCW estimates, no email, public share, new
 connector, auth/Hub changes, or original-file changes. Posting a user update
 email is outside this release and needs its own exact content approval.
 
+# Printed-grid coordinate contract after live #248
+
+The gateway now reads real tiles and saves resumable checkpoints. On the private live QA pass, two successive responses for the same next tile returned row numbers outside the allowed 0–10 grid; validation rejected both without saving their findings. Four tiles were checkpointed, all candidates so far rejected for ink evidence; this is not an accuracy pass.
+
+The provider contract now asks for the actual printed label (`A1` through `K11`) plus bounded pixel offsets. The server decodes that exact label to its existing zero-based grid coordinates, then runs the unchanged geometry and raster checks. Invalid labels, absolute pixel rows, and out-of-range offsets are refused, never clamped or snapped. Polygon holes use the same decoder. The live pass also rejected line traces returned for a count request; the provider schema now permits only the geometry kind appropriate to that measure type (pins for EA, polylines for LF, areas for SF/CY), before the independent server check. Invalid reader responses produce a plain explanation rather than exposing raw validation internals. Existing checkpoints and stored geometry remain compatible because only the provider wire representation changes.
+
 # Gateway compatibility after live #247
 
 The published native `json_schema` configuration was rejected by the existing gateway with `Request contains an invalid argument`; no AI checkpoint or geometry was saved. This establishes a request-format incompatibility, not a measurement pass or a specific unsupported schema keyword.
