@@ -184,6 +184,7 @@ describe("MCP manifest is in sync with source", () => {
     for (const t of manifest.mcp.tools) expect(t.inputSchema, t.name).toEqual(lv[t.name]);
     // Assert the actual SDK discovery wire, not just our Zod object or a committed manifest.
     const pkg = live.find(t => t.name === "submittal_package")!;
+    expect(pkg.inputSchema.properties.rebuild_from_package_id).toMatchObject({ type: "string", format: "uuid" });
     expect(pkg.inputSchema.properties.new_piece).toMatchObject({
       type: "object", required: ["kind", "source_party"], additionalProperties: false,
       properties: {

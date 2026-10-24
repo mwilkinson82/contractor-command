@@ -39,6 +39,14 @@ export type PackageContext = {
   package: PackageArtifact | null;
 };
 export type PackageFile = { item: PackageItem; name: string; bytes: Uint8Array };
+/** Existing primary-key uniqueness makes a repeated snapshot safe across Worker isolates. */
+export async function packageBuildId(ctx: PackageContext): Promise<string> {
+  const hash = await sha256Hex(new TextEncoder().encode(JSON.stringify([
+    "athena-submittal-build-v1", ctx.submittal.job_id, ctx.submittal.id,
+    ctx.fingerprint, ctx.package?.id ?? null,
+  ])));
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
 export function storedPiece(
   ref: string,
   company: string,

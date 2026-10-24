@@ -359,8 +359,7 @@ export function presentSubmittalLog(input: {
     return {
       cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), submittalDisplayStatus(row), ballLabel(row), dueLabel(row), late ? "Yes" : "No", packageDelivery(row), sourceLine(row), row.built_package?.filename ?? (row.has_package ? "Rebuild needed" : "")],
       flag: late ? "overdue" : null,
-      // Built rows open their exact package through the authorized record route; other rows open the record.
-      href: (row.built_package ? submittalPackageUrl(input.boardUrl, row.number, row.built_package.id) : null) ?? submittalRecordUrl(input.boardUrl, row.number),
+      href: submittalRecordUrl(input.boardUrl, row.number),
       refId: row.id,
     };
   });
@@ -419,8 +418,8 @@ export function presentSubmittalLog(input: {
             kind: "list" as const,
             rows: [{ cells: [noMatch ? noMatchLine : nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
           },
-      ...(rows.some(row => row.built_package) ? [{ heading: "Submittal records", kind: "list" as const,
-        rows: rows.filter(row => row.built_package).map(row => ({ cells: [`Open record · ${row.number}`], href: submittalRecordUrl(input.boardUrl, row.number) })) }] : []),
+      ...(rows.some(row => row.built_package) ? [{ heading: "Package PDFs", kind: "list" as const,
+        rows: rows.filter(row => row.built_package).map(row => ({ cells: [`Open package PDF · ${row.number} · ${row.built_package!.filename}`], href: submittalPackageUrl(input.boardUrl, row.number, row.built_package!.id) })) }] : []),
       ...(logUrl && rows.length ? [{ heading: "Upload package pieces", kind: "list" as const,
         rows: rows.map(row => ({ cells: [`Upload a piece · ${row.number}`], href: submittalUploadUrl(logUrl, row.number) })) }] : []),
       ...(focus
