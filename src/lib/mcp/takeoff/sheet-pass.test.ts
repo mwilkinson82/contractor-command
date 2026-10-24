@@ -5,7 +5,7 @@ import type { Sb } from "../guard";
 import { sha256Hex } from "../file-share";
 import { inspectSheet, sheetSpace } from "./pdf";
 import type { StoredPage } from "./service";
-import type { EngineSnapshot, EngineLine } from "./state";
+import { measurementLines, type EngineSnapshot, type EngineLine } from "./state";
 import { calibrate } from "./geometry";
 import {
   HostSheetReadRequired,
@@ -184,6 +184,82 @@ async function fixture(width = 144, countOrder?: number[]) {
 }
 
 describe("sheet read", () => {
+  it("Codex original regression: does not select a dimensional line assigned to another sheet", async () => {
+    const f = await fixture();
+    f.state.lines[1].sheet = "S-200";
+    const picked = sheetLines(f.page, f.state, { calibration_id: f.calibration_id });
+    expect(picked.lines.map((l) => l.line_no)).not.toContain(2);
+  });
+
+  it("Codex original regression: new checkpoint uses the exact shared order returned to the host", async () => {
+    const f = await fixture(1008);
+    expect(f.page.inspection.tiles.length).toBeGreaterThan(1);
+    f.state.passes[0].pass_summary.order = f.page.inspection.tiles.map((t) => t.index).reverse();
+    const pending = await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+    }).catch((e) => e);
+    expect(pending).toBeInstanceOf(HostSheetReadRequired);
+    const read = (pending as HostSheetReadRequired).read;
+    const created = f.rpc.mock.calls[0][1]._record.pass_summary;
+    expect(created.order).toEqual(read.order);
+  });
+
+  it("Codex review: a narrow existing count read cannot truncate a new full-sheet dimensional read", async () => {
+    const f = await fixture(1500, [0]);
+    f.state.passes[0].pass_summary.count_area = {
+      name: "Fictional first room only",
+      bounds: { x: 0, y: 0, width: 0.1, height: 1 },
+      confirmed: true,
+    };
+    const pending = await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+    }).catch((e) => e);
+    // Safely refusing incompatible coverage is acceptable; silently declaring a wider line
+    // complete after only the first room is not.
+    if (!(pending instanceof HostSheetReadRequired)) {
+      expect(String(pending)).toMatch(/scope|region|coverage|tile order/i);
+      return;
+    }
+    expect(pending.read.lines.map((l) => l.line_no)).toContain(2);
+    const result = await proposeSheetStep(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      { calibration_id: f.calibration_id },
+      {
+        cursor: pending.read.cursor,
+        lines: pending.read.lines.map((l) => ({
+          line_no: l.line_no,
+          pass_id: l.pass_id!,
+          findings: [],
+          uncertainties: [],
+        })),
+      },
+    );
+    expect(result.lines.find((l) => l.line_no === 2)?.complete).toBe(false);
+    expect(pending.read.order).toEqual(
+      expect.arrayContaining(f.page.inspection.tiles.map((t) => t.index)),
+    );
+  });
+
+  it("Codex review: an explicitly excluded line is not enrolled by the whole-sheet action", async () => {
+    const f = await fixture();
+    f.state.verdicts = [
+      {
+        item_kind: "line",
+        line_no: 2,
+        item_text: f.state.lines[1].item,
+        mark: "not_relevant",
+        note: "By others; excluded from our scope",
+        created_at: "2026-10-24T01:00:00Z",
+      },
+    ] as NonNullable<EngineSnapshot["verdicts"]>;
+    expect(measurementLines(f.state).find((l) => l.line_no === 2)?.status).toBe("not_drawable");
+    const picked = sheetLines(f.page, f.state, { calibration_id: f.calibration_id });
+    expect(picked.lines.map((l) => l.line_no)).not.toContain(2);
+  });
+
   it("names the lines a sheet read can carry and why the others wait", async () => {
     const f = await fixture();
     const picked = sheetLines(f.page, f.state, { calibration_id: f.calibration_id });
