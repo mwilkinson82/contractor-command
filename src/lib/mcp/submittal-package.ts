@@ -9,6 +9,7 @@ export type PackageArtifact = {
   filename: string;
   path: string;
   fingerprint: string;
+  transmittal_id?: string | null;
   download_url: string;
   signed_url: string;
   expires_at: string;
@@ -20,7 +21,7 @@ export type PackageArtifact = {
 };
 export type PackageContext = {
   is_current?: boolean;
-  submittal: SubmittalRecord & { company_id: string; job_id: string };
+  submittal: SubmittalRecord & { company_id: string; job_id: string; transmittal_id?: string | null };
   items: PackageItem[];
   brand: {
     name: string;

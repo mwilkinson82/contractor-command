@@ -39,6 +39,7 @@ import { finalizeVisible } from "./visible";
 import { readSubmittalRows } from "./tools/submittal-tools";
 import { presentSubmittalLog } from "./submittals";
 import { renderMarkdown } from "./cards/markdown";
+import { uploadSubmittalPiece, type PieceUploadClient } from "../submittal-piece-upload";
 import type { Sb } from "./guard";
 const owner = "00000000-0000-4000-8000-000000000010",
   company = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -137,7 +138,7 @@ beforeAll(async () => {
     storage: {
       from(bucket: string) {
         return {
-          async upload(path: string, bytes: Uint8Array, options: { upsert: boolean }) {
+          async upload(path: string, bytes: Uint8Array | Blob, options: { upsert: boolean }) {
             expect(bucket).toBe("athena-submittals");
             expect(options.upsert).toBe(false);
             if (blobs.has(path)) return { error: { message: "exists" } };
@@ -145,7 +146,7 @@ beforeAll(async () => {
               bucket,
               path,
             ]);
-            blobs.set(path, bytes.slice());
+            blobs.set(path, bytes instanceof Uint8Array ? bytes.slice() : new Uint8Array(await bytes.arrayBuffer()));
             return { error: null };
           },
           async download(path: string) {
@@ -567,7 +568,7 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(JSON.stringify(build.structuredContent)).not.toContain("signed_url");
     expect(
       build.structuredContent.card.sections[0].rows.some((r) =>
-        r.href?.includes("/r/submittal-preview/"),
+        r.href?.includes(`open=package&package_id=${a.id}`),
       ),
     ).toBe(true);
     const again = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
@@ -636,6 +637,8 @@ describe("real package handlers with local DB and immutable storage", () => {
     for (let i = 0; i < 3; i++) {
       const result = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
       versions.push((await saved(sid)).package);
+      expect(result.structuredContent.package?.id).toBe(versions.at(-1).id);
+      expect(result.structuredContent.package?.filename).toBe(versions.at(-1).filename);
       hashes.push(await sha256Hex(blobs.get(versions.at(-1).path)!));
       expect(result.structuredContent.sent).toBe(false);
     }
@@ -670,6 +673,84 @@ describe("real package handlers with local DB and immutable storage", () => {
       writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/rebuild-history.html`, renderSubmittalRecordBody(payload));
       for (const [i,p] of versions.entries()) writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/rebuild-${i+1}.pdf`,blobs.get(p.path)!);
     }
+  });
+  it("renders the committed build identity even when the writer returns its preceding snapshot", async () => {
+    const sid = await ready("STALE-WRITE-REPLY");
+    await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const previous = await saved(sid), original = state.sb as Sb;
+    state.sb = { ...original, rpc: async (fn: string, args: Record<string, unknown>) => {
+      const result = await (original.rpc as unknown as ReturnType<typeof fakeClient>["rpc"])(fn, args);
+      return fn === "mcp_submittal_package_write" ? { ...result, data: previous } : result;
+    } };
+    try {
+      const rebuilt = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+      const current = await saved(sid);
+      expect(current.package.id).not.toBe(previous.package.id);
+      expect(rebuilt.structuredContent.package).toMatchObject({ id: current.package.id, filename: current.package.filename });
+      expect(rebuilt.structuredContent.card.kpis?.[0].value).toBe(`T-${current.transmittal_number}`);
+      expect(JSON.stringify(rebuilt.structuredContent.card)).not.toContain(previous.package.filename);
+    } finally { state.sb = original; }
+  });
+  it("keeps the first exact PDF link valid across subsequent host reads without rotating previews", async () => {
+    const sid = await ready("MULTI-HOST-LINK");
+    const built = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const artifact = (await saved(sid)).package;
+    const before = (await query("SELECT preview_hash,preview_expires_at FROM mcp_submittal_packages WHERE id=$1", [artifact.id]))[0];
+    const open = built.structuredContent.card.sections[0].rows.find(r=>r.cells[0].startsWith("Open package PDF"))!.href!;
+    for (const name of ["ChatGPT", "claude-ai", "Grok Bot"]) {
+      const got = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
+      const visit = await nativeCardVisit(new Request("https://app.meetathena.io/mcp", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({jsonrpc:"2.0",id:73,method:"tools/call",params:{name:"submittal_package",arguments:{},_meta:{"io.modelcontextprotocol/clientInfo":{name,version:"fixture"}}}}) }));
+      const transformed = nativeCardPayload({jsonrpc:"2.0",id:73,result:got},visit).value as {result: typeof got};
+      expect(transformed.result.structuredContent.package?.id).toBe(artifact.id);
+      expect(JSON.stringify(transformed.result)).toContain(open);
+      expect(transformed.result.structuredContent.card.kpis?.[0].value).toBe(`T-${(await saved(sid)).transmittal_number}`);
+    }
+    expect(new URL(open).searchParams.get("package_id")).toBe(artifact.id);
+    expect((await query("SELECT preview_hash,preview_expires_at FROM mcp_submittal_packages WHERE id=$1", [artifact.id]))[0]).toEqual(before);
+    const { submittalPackageTarget } = await import("../submittal-record-page");
+    const record = (await query("SELECT mcp_submittal_record_get($1,$2) data",[job,"MULTI-HOST-LINK"]))[0].data;
+    record.packages = record.packages.map((p:{path:string})=>({...p,url:`https://fixture.supabase.co/storage/v1/object/sign/athena-submittals/${p.path}?token=private-fixture`}));
+    expect(submittalPackageTarget(record,artifact.id)).toContain(artifact.path);
+  });
+  it("does not label a mismatched historical artifact as current on get", async () => {
+    const sid = await ready("HISTORICAL-GET");
+    await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    const previous = (await saved(sid)).package;
+    await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    const original = state.sb as Sb;
+    state.sb = {...original,rpc:async(fn:string,args:Record<string,unknown>)=>{
+      const result = await (original.rpc as unknown as ReturnType<typeof fakeClient>["rpc"])(fn,args);
+      return fn === "mcp_submittal_package_context" ? {...result,data:{...result.data,package:previous}} : result;
+    }};
+    try {
+      const got = await call(submittalPackage,{action:"get",job_number:"2701",submittal_id:sid});
+      expect(got.structuredContent.package).toBeNull();
+      expect(got.structuredContent.ready).toBe(false);
+      expect(JSON.stringify(got.structuredContent.card)).not.toContain(previous.filename);
+    } finally { state.sb = original; }
+  });
+  it("uploads through the browser member flow, preserves pieces, verifies a lost write reply and builds the received PDFs", async () => {
+    const sid = await ready("MEMBER-UPLOAD"), before = await saved(sid);
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const bytes = await pdf.save();
+    const original = state.sb as Sb;
+    const client = { ...original, rpc: async (fn: string, args: Record<string, unknown>) => {
+      const result = await (original.rpc as unknown as ReturnType<typeof fakeClient>["rpc"])(fn,args);
+      if (fn === "mcp_submittal_package_write") throw new Error("lost response after commit");
+      return result;
+    }} as unknown as PieceUploadClient;
+    const stored = await uploadSubmittalPiece(client, { jobId: job, number: "MEMBER-UPLOAD",
+      file: new File([bytes as BlobPart],"fictional-p3.pdf",{type:"application/pdf"}),
+      newPiece: {kind:"other",source_party:"Example Steel Fabricators",required:true} });
+    expect(stored.ref).toBe("P3");
+    const after = await saved(sid);
+    expect(after.items).toHaveLength(3);
+    for (const p of before.items) expect(after.items.find((row:{id:string})=>row.id===p.id)).toEqual(p);
+    expect(after.items[2]).toMatchObject({id:stored.pieceId,status:"received",source_party:"Example Steel Fabricators"});
+    expect(await sha256Hex(blobs.get(after.items[2].file_ref.replace("athena-submittals/",""))!)).toBe(await sha256Hex(bytes));
+    const built = await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    expect(built.structuredContent.package?.page_count).toBe(4);
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_mail WHERE submittal_id=$1",[sid]))[0].n).toBe(0);
   });
   it("reserves concurrent numbers without changing the current PDF, and rolls back a bad save", async () => {
     const sid = await ready("REBUILD-002");

@@ -10,7 +10,7 @@ import {
 import { renderReportBody } from "./report-pages";
 import { boardReturnForVisit, boardSignInReturn } from "./board-sign-in";
 import { jobLinksMissingToken, submittalRecordUrl } from "./mcp/board-url";
-import { submittalPackageUrl, submittalLogUrl } from "./mcp/submittal-record-url";
+import { submittalPackageUrl, submittalLogUrl, submittalUploadUrl } from "./mcp/submittal-record-url";
 import { findPackagePiece } from "./mcp/submittal-package";
 import { hostFromClientName, hostLabel } from "./mcp/call-host";
 import { headerMatchesRows, presentSubmittalLog, type SubmittalRecord } from "./mcp/submittals";
@@ -267,6 +267,8 @@ describe("record page", () => {
     expect(html).not.toContain("Conversation reference on file");
     expect(html).toContain("Revision 0");
     expect(html).toContain(`href="/r/job/${JOB}/submittals"`);
+    expect(html).toContain('href="#upload"');
+    expect(html).toContain("Upload a package piece");
     expect(html).not.toMatch(/supabase|lovable|cloudflare|openai/i);
     // The page palette is the hosted-page one (navy, blue, gray); red appears only because the clock is overdue.
     expect(html).toContain(ALERT_HEX);
@@ -347,6 +349,24 @@ describe("record page", () => {
     expect(signSiblingLinks(`<a href="../items">x</a>`, TOKEN)).toContain(
       `href="../items?t=${TOKEN}"`,
     );
+  });
+});
+
+describe("package uploads from the card and living log", () => {
+  it("preserves the job, record number and board key while directing a member to the uploader", () => {
+    const upload = submittalUploadUrl(BOARD,"05 12 00-001")!;
+    const url = new URL(upload);
+    expect(url.pathname).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001`);
+    expect(url.searchParams.get("t")).toBe(TOKEN);
+    expect(url.searchParams.get("upload")).toBe("1");
+    expect(url.hash).toBe("#upload");
+    expect(boardSignInReturn(url.pathname+url.search+url.hash)).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001?upload=1#upload`);
+    const rows = [row({id:"fictional",number:"05 12 00-001",revision:0})];
+    const shown = presentSubmittalLog({jobNumber:"2701",jobName:"Fictional",rows,today:TODAY,boardUrl:BOARD});
+    expect(shown.text).toContain(upload);
+    expect(shown.card.sections?.find(s=>s.heading === "Upload package pieces")?.rows[0].href).toBe(upload);
+    const html = signSiblingLinks(renderReportBody({page:"submittals",submittals:rows,today:TODAY}),TOKEN);
+    expect(html).toContain(`href="submittal/05%2012%2000-001?upload=1&amp;t=${TOKEN}"`);
   });
 });
 

@@ -15,6 +15,7 @@ import { boardReturnForVisit } from "@/lib/board-sign-in";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { REFRESH_MS, usePageVisible } from "@/components/athena/ReportPage";
 import { SUBMITTAL_BUCKET } from "@/lib/mcp/submittal-package";
+import { SubmittalPieceUpload } from "./SubmittalPieceUpload";
 
 type Rpc = (
   f: string,
@@ -107,9 +108,24 @@ export function SubmittalRecordView({
     );
   }, [payload, token]);
   const packageTarget = payload ? submittalPackageTarget(payload, packageId) : null;
+  const hasPayload = !!payload;
   useEffect(() => {
     if (packageTarget) window.location.replace(packageTarget);
   }, [packageTarget]);
+  useEffect(() => {
+    if (
+      hasPayload &&
+      (window.location.hash === "#upload" ||
+        new URLSearchParams(window.location.search).get("upload") === "1")
+    )
+      document.getElementById("upload")?.scrollIntoView();
+  }, [hasPayload]);
+  const location =
+    typeof window === "undefined"
+      ? undefined
+      : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const returnTo =
+    boardReturnForVisit("submittals", jobId, location) ?? submittalRecordPath(jobId, number);
   if (authLoading || (!payload && ((session && q.isLoading) || (token && linked.isLoading))))
     return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   if (payload) {
@@ -122,14 +138,42 @@ export function SubmittalRecordView({
           </p>
         ) : null}
         <div dangerouslySetInnerHTML={{ __html: html }} />
+        <section
+          id="upload"
+          style={{
+            maxWidth: 1068,
+            margin: "0 auto 24px",
+            padding: 20,
+            background: "#FFFFFF",
+            color: "#1E3A5F",
+            border: "1px solid #D1D5DB",
+            borderRadius: 12,
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+            Upload a package piece
+          </h2>
+          {memberPayload?.read_only === false ? (
+            <SubmittalPieceUpload
+              payload={memberPayload}
+              onSaved={() => {
+                void q.refetch();
+                if (token) void linked.refetch();
+              }}
+            />
+          ) : !session ? (
+            <>
+              <p style={{ marginBottom: 12 }}>
+                Sign in with your job account to upload. This board link remains read only.
+              </p>
+              <BoardSignIn returnTo={returnTo} />
+            </>
+          ) : (
+            <p>Full job access is required to upload a piece. This view remains read only.</p>
+          )}
+        </section>
       </div>
     );
   }
-  const location =
-    typeof window === "undefined"
-      ? undefined
-      : `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  const returnTo =
-    boardReturnForVisit("submittals", jobId, location) ?? submittalRecordPath(jobId, number);
   return <BoardSignIn returnTo={returnTo} />;
 }

@@ -21,8 +21,9 @@ import { submittalRecordUrl } from "../board-url";
 import { callHost } from "../call-host";
 import { allowedDrawingDownloadUrl } from "../drawing-set";
 import { renderMarkdown } from "../cards/markdown";
-import { PACKAGE_KINDS, PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
-import { submittalLogUrl } from "../submittal-record-url";
+import { PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
+import { submittalLogUrl, submittalPackageUrl, submittalUploadUrl } from "../submittal-record-url";
+import { newSubmittalPiece, submittalPieceMime } from "../../submittal-piece-input";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -151,10 +152,15 @@ async function identify(sb: Sb, job: string, id?: string, number?: string) {
   return result.data[0].id as string;
 }
 async function context(sb: Sb, job: string, submittal: string) {
-  return submittalRpc<PackageContext>(sb, "mcp_submittal_package_context", {
+  const value = await submittalRpc<PackageContext>(sb, "mcp_submittal_package_context", {
     _job: job,
     _submittal: submittal,
   });
+  // A historical artifact may be returned for an earlier submittal revision, but
+  // it must never be presented as this revision's current package.
+  if (value.package && (value.package.fingerprint !== value.fingerprint ||
+    value.package.transmittal_id !== value.submittal.transmittal_id)) value.package = null;
+  return value;
 }
 async function bounded(response: Response) {
   if (!response.ok || !response.body)
@@ -181,35 +187,22 @@ async function bounded(response: Response) {
   return bytes;
 }
 function fileType(name: string) {
-  const ext = name.split(".").at(-1)?.toLowerCase();
-  const types: Record<string, string> = {
-    pdf: "application/pdf",
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    csv: "text/csv",
-  };
-  if (!ext || !types[ext] || /[\\/]/.test(name) || /\p{Cc}/u.test(name))
+  const mime = submittalPieceMime(name);
+  if (!mime)
     throw new ToolError("Use a PDF, PNG, JPEG, DOCX, XLSX or CSV filename.");
-  return types[ext];
+  return mime;
 }
 export const submittalPackage = defineTool({
   name: "submittal_package",
   title: "Collect and build a submittal package",
   description:
-    "Stores received files against existing piece IDs, P-numbers or new_piece kind/source metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and private previews; get retrieves the current package without rebuilding.",
+    "Stores received files against existing piece IDs, P-numbers or new_piece kind/source_party metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and authorized package links; get retrieves the current package without rebuilding.",
   inputSchema: {
     ...ids,
     action: z.enum(["get", "upload_piece", "build", "renew_link", "revoke"]),
     package_item_id: z.string().uuid().optional(),
     package_item: z.string().trim().min(1).max(200).optional(),
-    new_piece: z.object({
-      kind: z.enum(PACKAGE_KINDS),
-      source_party: z.string().trim().min(1).max(120),
-      required: z.boolean().default(true),
-    }).strict().optional(),
+    new_piece: newSubmittalPiece.optional(),
     package_id: z.string().uuid().optional(),
     filename: z.string().trim().min(1).max(120).optional(),
     content_base64: z
@@ -302,6 +295,11 @@ export const submittalPackage = defineTool({
           _action: "attach",
           _p: { item_id: pieceId, path, ...(args.new_piece ? { new_piece: args.new_piece } : {}) },
         });
+        // Read in a separate committed RPC, rather than trusting a writer's
+        // embedded snapshot for the member's receipt.
+        data = await context(sb, job.job_id, sid);
+        if (!data.items.some(item => item.id === pieceId && item.file_ref === `${SUBMITTAL_BUCKET}/${path}`))
+          throw new ToolError("The attachment could not be verified. Open the record before trying again.");
       }
       if (args.action === "revoke") {
         if (!args.package_id) throw new ToolError("Which package link should be turned off?");
@@ -317,8 +315,9 @@ export const submittalPackage = defineTool({
       }
       const logUrl = submittalLogUrl(await boardFor(sb, job));
       const recordUrl = submittalRecordUrl(logUrl, data.submittal.number);
+      const uploadUrl = submittalUploadUrl(logUrl, data.submittal.number);
       const recordRow: CardRow[] = recordUrl
-        ? [{ cells: ["Open submittal record"], href: recordUrl }, ...(logUrl ? [{ cells: ["Open live submittal log"], href: logUrl }] : [])]
+        ? [{ cells: ["Open submittal record"], href: recordUrl }, ...(logUrl ? [{ cells: ["Open live submittal log"], href: logUrl }] : []), ...(uploadUrl ? [{ cells: ["Upload a package piece"], href: uploadUrl }] : [])]
         : [];
       const gaps = packageGaps(data);
       if (gaps.length)
@@ -326,6 +325,8 @@ export const submittalPackage = defineTool({
           ready: false,
           items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
           record_url: recordUrl,
+          upload_url: uploadUrl,
+          as_of: new Date().toISOString(),
         });
       if (args.action === "build") {
         const files: PackageFile[] = [];
@@ -387,6 +388,8 @@ export const submittalPackage = defineTool({
         if (signed.error || !signed.data?.signedUrl)
           throw new ToolError("The private package link could not be prepared.");
         const token = newToken();
+        const expectedTransmittal = data.build_transmittal_id;
+        const expectedNumber = data.transmittal_number;
         data = await submittalRpc(sb, "mcp_submittal_package_write", {
           _job: job.job_id,
           _submittal: sid,
@@ -408,6 +411,11 @@ export const submittalPackage = defineTool({
             expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
           },
         });
+        data = await context(sb, job.job_id, sid);
+        if (data.package?.id !== id || data.package.path !== path ||
+          data.package.filename !== filename || data.package.transmittal_id !== expectedTransmittal ||
+          data.transmittal_number !== expectedNumber)
+          throw new ToolError("The PDF was stored, but its current record could not be verified. Open the record before rebuilding.");
       }
       if (args.action === "renew_link") {
         if (!data.package) throw new ToolError("Build a current package before renewing its link.");
@@ -429,28 +437,19 @@ export const submittalPackage = defineTool({
             expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
           },
         });
+        data = await context(sb, job.job_id, sid);
       }
       const artifact = data.package;
       const lines: (string | CardRow)[] = [...recordRow];
       if (artifact) {
-        const privatePreview = await sb.storage
-          .from(SUBMITTAL_BUCKET)
-          .createSignedUrl(artifact.path, 600);
-        if (privatePreview.error || !privatePreview.data?.signedUrl)
-          throw new ToolError("The private preview could not be prepared.");
-        const previewToken = newToken();
-        await submittalRpc(sb, "mcp_submittal_preview", {
-          _job: job.job_id,
-          _package: artifact.id,
-          _token_hash: await tokenHash(previewToken),
-          _signed_url: privatePreview.data.signedUrl,
-        });
-        const previewUrl = `https://app.meetathena.io/r/submittal-preview/${previewToken}`;
+        // The existing record authorizes each open and signs the exact immutable
+        // package. Reads no longer rotate another host's short-lived preview token.
+        const previewUrl = submittalPackageUrl(logUrl, data.submittal.number, artifact.id);
         lines.unshift(
           `Package ready: ${artifact.filename} · ${artifact.page_count} pages.`,
           {
             cells: [
-              "Open package PDF · cover sheet and transmittal first (10-minute private preview)",
+              "Open package PDF · cover sheet and transmittal first",
             ],
             href: previewUrl,
           },
@@ -462,10 +461,16 @@ export const submittalPackage = defineTool({
       return guide(
         packageCard("Submittal package", data, lines, {
           record_url: recordUrl,
+          upload_url: uploadUrl,
+          as_of: new Date().toISOString(),
           package: artifact
             ? {
                 id: artifact.id,
                 filename: artifact.filename,
+                transmittal_number: data.transmittal_number,
+                revision: data.submittal.revision,
+                current: true,
+                open_url: submittalPackageUrl(logUrl, data.submittal.number, artifact.id),
                 download_url: artifact.download_url,
                 expires_at: artifact.expires_at,
                 sent_at: artifact.sent_at ?? null,
