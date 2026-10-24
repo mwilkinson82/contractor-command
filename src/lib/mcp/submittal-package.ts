@@ -16,6 +16,7 @@ export type PackageArtifact = {
   sent_at?: string | null;
   revoked_at: string | null;
   page_count: number;
+  cover_date?: string;
 };
 export type PackageContext = {
   is_current?: boolean;

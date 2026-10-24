@@ -5,6 +5,12 @@ import { responsiveCardCss } from "./responsive";
 
 export const CARD_WIDGET_URI = "ui://athena/card.html";
 export const CARD_WIDGET_MIME = "text/html+skybridge";
+/** The card is self-contained: no fetch, external assets or embedded frames. */
+export const cardWidgetResourceMeta = {
+  ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true },
+  "openai/widgetCSP": { connect_domains: [], resource_domains: [] },
+  "openai/widgetPrefersBorder": true,
+};
 
 const SCRIPT = `(function(){
 var root=window.openai||{};

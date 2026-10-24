@@ -21,3 +21,18 @@ export function submittalRecordUrl(
   url.hash = "";
   return url.toString();
 }
+
+/** Opens an exact package after the existing record page has authorized the member or board key. */
+export function submittalPackageUrl(
+  board: string | null | undefined,
+  number: string,
+  packageId: string,
+): string | null {
+  const record = submittalRecordUrl(board, number);
+  if (!record || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(packageId))
+    return null;
+  const url = new URL(record);
+  url.searchParams.set("open", "package");
+  url.searchParams.set("package_id", packageId);
+  return url.toString();
+}

@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
@@ -13,7 +13,8 @@ vi.mock("./guard", () => ({
   },
   isMissingFunction: () => false,
 }));
-vi.mock("./tools/submittal-tools", () => ({
+vi.mock("./tools/submittal-tools", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./tools/submittal-tools")>(),
   boardFor: async () =>
     `https://app.meetathena.io/r/job/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/submittals?t=${"x".repeat(43)}`,
   resolveSubmittalJob: async () => ({
@@ -35,6 +36,10 @@ import { cardWidgetHtml } from "./cards/widget";
 import { renderHtml } from "./cards/html";
 import type { CardModel, CardRow } from "./cards/model";
 import { finalizeVisible } from "./visible";
+import { readSubmittalRows } from "./tools/submittal-tools";
+import { presentSubmittalLog } from "./submittals";
+import { renderMarkdown } from "./cards/markdown";
+import type { Sb } from "./guard";
 const owner = "00000000-0000-4000-8000-000000000010",
   company = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   job = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -393,6 +398,14 @@ describe("real package handlers with local DB and immutable storage", () => {
       submittal_id: sid,
     });
     expect(before.structuredContent.ready).toBe(false);
+    for (const result of [before]) {
+      const rendered = renderHtml(result.structuredContent.card);
+      const markdown = renderMarkdown(result.structuredContent.card);
+      expect(rendered).toContain("Draft, not sent");
+      expect(markdown).toContain(`/r/job/${job}/submittal/INTEGRATION-001?t=`);
+      expect(markdown).not.toMatch(/\/r\/job\/(?: |%20)\//);
+      expect(rendered).not.toMatch(/\/r\/job\/(?: |%20)\//);
+    }
     expect(blobs.size).toBe(originalCount);
     for (const item of ctx.items)
       await call(submittalPackage, {
@@ -414,6 +427,32 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(a.page_count).toBe(5);
     expect(a.approved).toBe(false);
     expect(build.structuredContent.sent).toBe(false);
+    const packageCard = build.structuredContent.card;
+    expect(packageCard.sections.map(s => s.heading)).toEqual(expect.arrayContaining(["Cover sheet", "Transmittal", "Items included"]));
+    expect(packageCard.sections.find(s => s.heading === "Items included")?.columns).toContain("Source");
+    expect(renderMarkdown(packageCard)).toContain("Example Manufacturer");
+    expect(renderHtml(packageCard)).toContain("Draft, not sent");
+    mkdirSync("artifacts/submittal-polish", { recursive: true });
+    writeFileSync("artifacts/submittal-polish/package-card.html", renderHtml(packageCard));
+    writeFileSync("artifacts/submittal-polish/collect-card.html", renderHtml(before.structuredContent.card));
+    const widgetNode = { dataset: {}, innerHTML: "" };
+    runInNewContext(cardWidgetHtml().match(/<script>([\s\S]*?)<\/script>/)![1], {
+      window: { openai: { toolOutput: { card: packageCard } } }, document: { getElementById: () => widgetNode },
+    });
+    expect(widgetNode.innerHTML).toContain(`/r/job/${job}/submittal/INTEGRATION-001?t=`);
+    expect(widgetNode.innerHTML).not.toMatch(/\/r\/job\/(?: |%20)\//);
+    const logRows = await readSubmittalRows(state.sb as Sb, job);
+    const builtRow = logRows.find(r => r.id === sid)!;
+    expect(builtRow.built_package?.id).toBe(a.id);
+    expect(builtRow.status).toBe("in_prep"); // Building does not claim submission.
+    const log = presentSubmittalLog({ jobNumber: "2701", jobName: "Fictional", rows: [builtRow], today: "2026-10-24", boardUrl: `https://app.meetathena.io/r/job/${job}/submittals?t=${"x".repeat(43)}` });
+    const logRow = log.card.sections?.find(s => s.heading === "Log")?.rows[0];
+    expect(logRow?.cells[5]).toBe("Package built · Draft, not sent");
+    expect(new URL(logRow!.href!).searchParams.get("package_id")).toBe(a.id);
+    expect(new URL(logRow!.href!).searchParams.get("open")).toBe("package");
+    expect(new URL(logRow!.href!).pathname).toBe(`/r/job/${job}/submittal/INTEGRATION-001`);
+    expect(log.card.sections?.find(s => s.heading === "Submittal records")?.rows[0].href).not.toContain("open=package");
+    writeFileSync("artifacts/submittal-polish/log-card.html", renderHtml(log.card));
     expect(JSON.stringify(build.structuredContent)).not.toContain("signed_url");
     expect(
       build.structuredContent.card.sections[0].rows.some((r) =>

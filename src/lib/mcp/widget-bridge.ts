@@ -21,7 +21,7 @@ import {
   nativeCardMeta,
   nativeResourceMeta,
 } from "./cards/native";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta, cardWidgetResourceMeta } from "./cards/widget";
 import {
   EMAIL_CARD_MIME,
   EMAIL_CARD_TOOLS,
@@ -150,10 +150,10 @@ if (!proto[patched]) {
         this.registerResource(
           "athena-card",
           CARD_WIDGET_URI,
-          { title: "Athena card", mimeType: CARD_WIDGET_MIME },
+          { title: "Athena card", mimeType: CARD_WIDGET_MIME, _meta: cardWidgetResourceMeta },
           async () => ({
             contents: [
-              { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml() },
+              { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml(), _meta: cardWidgetResourceMeta },
             ],
           }),
         );

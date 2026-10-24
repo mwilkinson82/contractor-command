@@ -20,6 +20,8 @@ import { outboundEmailDisabled } from "../email-safety";
 import { submittalRecordUrl } from "../board-url";
 import { callHost } from "../call-host";
 import { allowedDrawingDownloadUrl } from "../drawing-set";
+import { renderMarkdown } from "../cards/markdown";
+import { PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -55,6 +57,7 @@ export function packageCard(
   lines: (string | CardRow)[],
   extra: Record<string, unknown> = {},
 ) {
+  const sent = typeof extra.sent === "boolean" ? extra.sent : !!ctx.package?.sent_at;
   const card: CardModel = {
     state: "result",
     title,
@@ -63,6 +66,7 @@ export function packageCard(
     kpis: [
       { label: "Transmittal", value: `T-${ctx.transmittal_number}` },
       { label: "Revision", value: String(ctx.submittal.revision) },
+      { label: "Delivery", value: sent ? "Sent · receipt recorded" : "Draft, not sent" },
     ],
     sections: [
       {
@@ -70,26 +74,63 @@ export function packageCard(
         kind: "list",
         rows: [
           { cells: [`Submittal ${ctx.submittal.number} · Spec ${ctx.submittal.spec_section}`] },
-          ...lines.map((l) =>
-            typeof l !== "string"
-              ? l
-              : {
-                  cells: [l],
-                  href: l.startsWith("Private preview (10 minutes): ")
-                    ? l.slice("Private preview (10 minutes): ".length)
-                    : null,
-                },
-          ),
+          ...lines.map((l) => (typeof l !== "string" ? l : { cells: [l] })),
         ],
+      },
+      {
+        heading: "Cover sheet",
+        kind: "list",
+        framed: true,
+        rows: [
+          { cells: [ctx.brand.name] },
+          { cells: [`Job ${ctx.job_number} · ${ctx.job_name}`] },
+          { cells: [`${ctx.submittal.number} · ${ctx.submittal.title}`] },
+          { cells: [`Spec section ${ctx.submittal.spec_section}`] },
+          { cells: [`Date ${ctx.package?.cover_date ?? ctx.today}`] },
+        ],
+      },
+      {
+        heading: "Transmittal",
+        kind: "list",
+        framed: true,
+        rows: [
+          {
+            cells: [
+              `T-${ctx.transmittal_number} · Revision ${ctx.submittal.revision}`,
+              sent ? "Sent · receipt recorded" : "Draft, not sent",
+            ],
+          },
+        ],
+      },
+      {
+        heading: ctx.package ? "Items included" : "Package items",
+        kind: "table",
+        columns: ["Piece", "Item", "Source", "Status", "File"],
+        rows: ctx.items.flatMap((item, n) =>
+          ctx.package && (!item.file_ref?.trim() || !["received", "approved"].includes(item.status))
+            ? []
+            : [
+                {
+                  cells: [
+                    pieceRef(n),
+                    labelOf(PACKAGE_KIND_LABEL, item.kind),
+                    item.source_party,
+                    labelOf(PACKAGE_STATUS_LABEL, item.status),
+                    item.file_ref && ["received", "approved"].includes(item.status)
+                      ? "Stored"
+                      : "Not collected",
+                  ],
+                  refId: item.id,
+                },
+              ],
+        ),
       },
     ],
   };
   return guide(
     {
-      ...text(
-        lines.map((line) => (typeof line === "string" ? line : line.cells.join("\n"))).join("\n"),
-      ),
-      structuredContent: { card, ...extra },
+      ...text(renderMarkdown(card)),
+      structuredContent: { card, job_id: ctx.submittal.job_id, ...extra },
     },
     "Show the Athena card and full details; never claim an email was sent without a successful provider receipt.",
   );
@@ -260,7 +301,7 @@ export const submittalPackage = defineTool({
       }
       const recordUrl = submittalRecordUrl(await boardFor(sb, job), data.submittal.number);
       const recordRow: CardRow[] = recordUrl
-        ? [{ cells: [`Record page: ${recordUrl}`], href: recordUrl }]
+        ? [{ cells: ["Open submittal record"], href: recordUrl }]
         : [];
       const gaps = packageGaps(data);
       if (gaps.length)
@@ -367,7 +408,7 @@ export const submittalPackage = defineTool({
         });
       }
       const artifact = data.package;
-      const lines: (string | CardRow)[] = [...data.items.map(pieceLine), ...recordRow];
+      const lines: (string | CardRow)[] = [...recordRow];
       if (artifact) {
         const privatePreview = await sb.storage
           .from(SUBMITTAL_BUCKET)
@@ -384,10 +425,15 @@ export const submittalPackage = defineTool({
         const previewUrl = `https://app.meetathena.io/r/submittal-preview/${previewToken}`;
         lines.unshift(
           `Package ready: ${artifact.filename} · ${artifact.page_count} pages.`,
-          `Private preview (10 minutes): ${previewUrl}`,
+          {
+            cells: [
+              "Open package PDF · cover sheet and transmittal first (10-minute private preview)",
+            ],
+            href: previewUrl,
+          },
           artifact.sent_at
             ? `Package sent ${artifact.sent_at.slice(0, 10)}; provider receipt recorded.`
-            : "Not sent. Review the exact recipient, email and package before approving delivery.",
+            : "Draft, not sent. Review the exact recipient, email and package before approving delivery.",
         );
       } else lines.unshift("Every required file is collected. Build the package next.");
       return guide(
