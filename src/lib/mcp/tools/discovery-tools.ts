@@ -127,7 +127,9 @@ export async function readDrawingSets(sb: Sb, jobNumber: string, named?: string)
             {
               cells: ["Sheets", s.sheets.length ? s.sheets.join(", ") : "Sheet names not indexed"],
             },
-            { cells: ["Source ID", s.source_id] },
+            // This identifier is the member-requested reference for subsequent
+            // drawing calls, rather than an internal ID to hide in a label.
+            { cells: ["Source ID", s.source_id], raw: true },
           ],
         }))
       : [
