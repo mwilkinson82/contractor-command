@@ -201,11 +201,21 @@ describe("Circle companies from real guarded SQL", () => {
     const s = await source("override", newUid, "override@example.com", false),
       cid = await ensure(s, null, true);
     await query(
+      "insert into circle_subscription_evidence values('sub_override',now(),now()-interval '1 day','renewal_payment_pending')",
+    );
+    await query(
       "update mcp_circle_provisioning set override_until=now()+interval '1 day',override_by=$2,override_reason='Owner-confirmed active account' where source_subscription_id=$1",
       [s, uid],
     );
     await ensure(s);
     expect(await value("select mcp_company_plan_live($1) as v", [cid])).toBe(true);
+    await query(
+      "update circle_subscription_evidence set review_reason='stripe_payment_fully_refunded' where stripe_subscription_id='sub_override'",
+    );
+    expect(await value("select mcp_company_plan_live($1) as v", [cid])).toBe(false);
+    await query(
+      "update circle_subscription_evidence set review_reason='renewal_payment_pending' where stripe_subscription_id='sub_override'",
+    );
     await query(
       "update mcp_circle_provisioning set override_until=now()-interval '1 day' where source_subscription_id=$1",
       [s],
