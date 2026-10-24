@@ -246,7 +246,7 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[])
         p.download_url && p.expires_at
           ? ` · Recipient link works until ${esc(day(p.expires_at))}`
           : "";
-      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(day(p.created_at))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
+      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(p.created_at)} · Copy ${esc(p.id.slice(0, 8))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
     })
     .join("");
   return card(
@@ -308,7 +308,7 @@ export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
   const logHref = p.job_id ? `/r/job/${p.job_id}/submittals` : null;
   const head =
     `<div data-submittal-record="${esc(row.number)}" data-revision="${esc(String(row.revision))}" data-overdue="${late ? 1 : 0}">` +
-    `<p style="margin:0 0 12px;font-size:13px;color:${G1}">${logHref ? `<a href="${esc(logHref)}" style="color:${BLUE};text-decoration:none">Submittal log</a> · ` : ""}${late ? `<strong style="color:${RED}">Overdue</strong> · ` : ""}${esc(labelOf(STATUS_LABEL, row.status))} · Ball in court: ${esc(who)}${p.read_only ? " · Read only" : ""}</p>` +
+    `<p style="margin:0 0 12px;font-size:13px;color:${G1}">${logHref ? `<a href="${esc(logHref)}" style="color:${BLUE};text-decoration:none">Submittal log</a> · ` : ""}${link("#upload", "Upload a package piece")} · ${late ? `<strong style="color:${RED}">Overdue</strong> · ` : ""}${esc(labelOf(STATUS_LABEL, row.status))} · Ball in court: ${esc(who)}${p.read_only ? " · Read only" : ""}</p>` +
     tiles([
       tile("Revision", String(row.revision)),
       tile(

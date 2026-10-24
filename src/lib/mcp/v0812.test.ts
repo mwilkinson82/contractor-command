@@ -27,7 +27,7 @@ const ALL_VIEWS = [
 ];
 
 describe("0.8.12 alert color", () => {
-  it("version is 0.8.12 or later", () => expect(ATHENA_VERSION).toBe("0.8.21"));
+  it("version is 0.8.12 or later", () => expect(ATHENA_VERSION).toBe("0.8.22"));
   it("one constant, defaulting to red #DC2626, drives the delay callout", () => {
     expect(ALERT_COLOR).toBe("red #DC2626");
     expect(ALERT_HEX).toBe("#DC2626");

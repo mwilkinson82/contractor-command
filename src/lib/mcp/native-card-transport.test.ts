@@ -563,6 +563,12 @@ describe("native card presentation after the SDK", () => {
           ATHENA_MCP_APPS_CAPABILITIES.extensions,
         );
       if (method === "tools/list") {
+        const packageTool = json.result.tools.find((t: { name: string }) => t.name === "submittal_package");
+        expect(packageTool.inputSchema.properties.new_piece).toMatchObject({
+          type: "object", required: ["kind", "source_party"],
+          properties: { kind: { enum: ["product_cut", "shop_drawing", "sample", "calc", "warranty", "other"] }, source_party: {type:"string"} },
+        });
+        expect(packageTool._meta["openai/fileParams"]).toEqual(["file"]);
         for (const tool of json.result.tools)
           if (["lookahead_get", "lookahead_list", "list_open_items"].includes(tool.name)) {
             expect(tool._meta.ui.resourceUri).toBe(NATIVE_CARD_URI);

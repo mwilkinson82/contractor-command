@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.21",
+      "version": "0.8.22",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -7692,7 +7692,7 @@
       {
         "name": "submittal_package",
         "title": "Collect and build a submittal package",
-        "description": "Stores received files against existing piece IDs, P-numbers or new_piece kind/source metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and private previews; get retrieves the current package without rebuilding.",
+        "description": "Stores received files against existing piece IDs, P-numbers or new_piece kind/source_party metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and authorized package links; get retrieves the current package without rebuilding.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,

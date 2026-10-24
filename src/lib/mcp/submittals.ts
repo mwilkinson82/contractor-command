@@ -1,7 +1,7 @@
 // Living submittal log. Dates follow deadlines.ts: calendar days, job time zone, never rolled later.
 // Package assembly and delivery use these same revision and item records.
 import { addDays } from "./deadlines";
-import { submittalRecordUrl, submittalPackageUrl, submittalLogUrl } from "./submittal-record-url";
+import { submittalRecordUrl, submittalPackageUrl, submittalLogUrl, submittalUploadUrl } from "./submittal-record-url";
 import type { CardModel, CardRow, CardSection } from "./cards/model";
 import { scheduleGroupOverdue, type ScheduleActivity, type TrackingItem } from "./schedule-submittals";
 
@@ -353,7 +353,7 @@ export function presentSubmittalLog(input: {
   const note = input.note?.trim() ? `${input.note.trim()}\n\n` : "";
   const access = input.readOnly ? "\n\nRead only." : "";
   const logUrl = submittalLogUrl(input.boardUrl);
-  const text = `${note}${head}\n\n${body}${access}${logUrl ? `\n\n[Open live submittal log](${logUrl})` : ""}`;
+  const text = `${note}${head}\n\n${body}${access}${logUrl ? `\n\n[Open live submittal log](${logUrl})${rows.map(row => `\n[Upload a piece · ${row.number}](${submittalUploadUrl(logUrl, row.number)})`).join("")}` : ""}`;
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
@@ -421,6 +421,8 @@ export function presentSubmittalLog(input: {
           },
       ...(rows.some(row => row.built_package) ? [{ heading: "Submittal records", kind: "list" as const,
         rows: rows.filter(row => row.built_package).map(row => ({ cells: [`Open record · ${row.number}`], href: submittalRecordUrl(input.boardUrl, row.number) })) }] : []),
+      ...(logUrl && rows.length ? [{ heading: "Upload package pieces", kind: "list" as const,
+        rows: rows.map(row => ({ cells: [`Upload a piece · ${row.number}`], href: submittalUploadUrl(logUrl, row.number) })) }] : []),
       ...(focus
         ? [{
             heading: `Package pieces for ${focus.number}`,
