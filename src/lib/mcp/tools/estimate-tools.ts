@@ -796,7 +796,9 @@ export const estimateTakeoffSave = defineTool({
             `Example lines are not saved on a job: ${examples
               .slice(0, 5)
               .map((l) => `"${l.item}"`)
-              .join(", ")}${examples.length > 5 ? ` and ${examples.length - 5} more` : ""}. Remove the EXAMPLE tag, or leave the line out. Nothing was saved.`,
+              .join(
+                ", ",
+              )}${examples.length > 5 ? ` and ${examples.length - 5} more` : ""}. Remove the EXAMPLE tag, or leave the line out. Nothing was saved.`,
           );
         const prior = await load(sb, job.job_id);
         const saved = await savedProfileRecord(sb, job.job_id);

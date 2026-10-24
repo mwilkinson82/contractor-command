@@ -277,12 +277,14 @@ describe("takeoff actual database functions", () => {
     );
     const rows = (
       await db.query<any>(
-        "SELECT proname,provolatile FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('mcp_takeoff_get','mcp_takeoff_carry_line') ORDER BY proname",
+        "SELECT proname,provolatile FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('mcp_takeoff_get','mcp_takeoff_carry_line','mcp_takeoff_carry_lines','mcp_takeoff_line_map') ORDER BY proname",
       )
     ).rows;
+    // The per-row carry is gone; the statement-level carry and its line map replace it.
     expect(rows).toEqual([
-      { proname: "mcp_takeoff_carry_line", provolatile: "v" },
+      { proname: "mcp_takeoff_carry_lines", provolatile: "v" },
       { proname: "mcp_takeoff_get", provolatile: "v" },
+      { proname: "mcp_takeoff_line_map", provolatile: "s" },
     ]);
     const state = await rpc("mcp_takeoff_get", [job]);
     expect(state.dropped_lines).toEqual([]);
@@ -1232,6 +1234,126 @@ describe("takeoff actual database functions", () => {
       const moved = await rpc("mcp_takeoff_get", [job]);
       expect(heads(moved, target.item)).toEqual([]);
       expect((moved.dropped_lines as any[]).map((d) => d.item)).toEqual([`${target.item} sleeves`]);
+    });
+  });
+  describe("carry is one-to-one across the whole save (PR 262 re-review)", () => {
+    const base = (line_no: number, item: string, extra: Record<string, unknown> = {}) => ({
+      line_no,
+      item,
+      qty: null,
+      missing_input: "drawing location and measurement",
+      unit: "EA",
+      measure_type: "count",
+      basis: "measured",
+      math: "fixture",
+      confidence: "low",
+      sheet: "S-100",
+      inputs: [],
+      ...extra,
+    });
+    const saveLines = (lines: unknown[]) =>
+      rpc("mcp_estimate_takeoff_save", [job, "QA", "[]", JSON.stringify(lines)]);
+    const acceptedLineNos = (state: any) =>
+      [
+        ...new Set(
+          (state.geometry as any[])
+            .filter((g) => g.status === "accepted")
+            .map((g) => state.lines.find((l: any) => l.id === g.line_id)?.line_no),
+        ),
+      ].sort();
+    /** A fresh takeoff holding one line with an accepted pin, plus a partial reader checkpoint. */
+    const seed = async (item: string, line_no = 1) => {
+      await saveLines([base(line_no, item)]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      const g = await save({
+        line_no,
+        takeoff_version: state.takeoff_version,
+        shape: { kind: "pins", points: [{ x: 0.3, y: 0.3 }] },
+      });
+      await save(
+        { geometry_id: g.geometry_id, line_no, takeoff_version: state.takeoff_version },
+        "accept",
+        g.version,
+      );
+      const passId = crypto.randomUUID();
+      await db.query(
+        "INSERT INTO public.mcp_takeoff_markups(job_id,company_id,source_id,page,kind,geometry_revs,pass_summary,created_by) VALUES($1,$2,$3,1,'pass','[]',$4,$5)",
+        [
+          job,
+          company,
+          source,
+          JSON.stringify({
+            pass_id: passId,
+            line_no,
+            takeoff_version: state.takeoff_version,
+            complete: false,
+          }),
+          owner,
+        ],
+      );
+      return { version: (await rpc("mcp_takeoff_get", [job])).takeoff_version, passId };
+    };
+    const checkpoints = (state: any, passId: string) =>
+      (state.passes as any[])
+        .filter(
+          (p) =>
+            p.pass_summary.pass_id === passId &&
+            p.pass_summary.takeoff_version === state.takeoff_version,
+        )
+        .map((p) => p.pass_summary.line_no);
+    it("keeps the accepted measurement on the original line when a same-description row is added after it", async () => {
+      const { passId } = await seed("Fictional scope");
+      await saveLines([
+        base(1, "Fictional scope"),
+        base(2, "Fictional scope", { location_text: "Another wall" }),
+      ]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(state)).toEqual([1]);
+      expect(checkpoints(state, passId)).toEqual([1]);
+      expect(state.dropped_lines).toEqual([]);
+    });
+    it("keeps it on the original line when the new row is saved first (Codex repro A)", async () => {
+      const { passId } = await seed("Fictional scope");
+      await saveLines([
+        base(2, "Fictional scope", { location_text: "Another wall" }),
+        base(1, "Fictional scope"),
+      ]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(state)).toEqual([1]);
+      expect(checkpoints(state, passId)).toEqual([1]);
+    });
+    it("copies a reader checkpoint to exactly one line (Codex repro B)", async () => {
+      const { passId } = await seed("Fictional scope");
+      await saveLines([base(1, "Fictional scope"), base(2, "Fictional scope")]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      const copies = (
+        await db.query<{ n: string }>(
+          "SELECT count(*) AS n FROM public.mcp_takeoff_markups WHERE job_id=$1 AND kind='pass' AND pass_summary->>'pass_id'=$2 AND (pass_summary->>'takeoff_version')::int=$3",
+          [job, passId, state.takeoff_version],
+        )
+      ).rows[0].n;
+      expect(Number(copies)).toBe(1);
+      expect(checkpoints(state, passId)).toEqual([1]);
+    });
+    it("follows a true renumber, and leaves repeated descriptions unlocated when the match is ambiguous", async () => {
+      const { passId } = await seed("Fictional scope", 4);
+      await saveLines([base(9, "Fictional scope")]);
+      const renumbered = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(renumbered)).toEqual([9]);
+      expect(checkpoints(renumbered, passId)).toEqual([9]);
+      // Two new rows, neither keeping the old number: no unique successor, so nothing carries and the old line is reported.
+      await saveLines([base(21, "Fictional scope"), base(22, "Fictional scope")]);
+      const ambiguous = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(ambiguous)).toEqual([]);
+      expect(checkpoints(ambiguous, passId)).toEqual([]);
+      expect(ambiguous.dropped_lines).toEqual([
+        {
+          line_no: 9,
+          item: "Fictional scope",
+          version: renumbered.takeoff_version,
+          had_geometry: true,
+        },
+      ]);
     });
   });
 });

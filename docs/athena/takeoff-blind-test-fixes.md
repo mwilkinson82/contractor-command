@@ -20,8 +20,9 @@ Codex's passing run was on the job "QA-246 Private Takeoff Verification" (53 mea
 `mcp_takeoff_get` reads the latest takeoff version, and geometry joins to that version's line ids. Every `estimate_takeoff_save` creates a new version. The trigger that carried geometry forward required the new row to be byte-identical to the old one, so any edit to a note, confidence or math silently orphaned a line's measurements.
 
 Migration `20261024160000_athena_takeoff_carry_by_identity.sql`:
-- `mcp_takeoff_carry_line` carries geometry when `line_no`, item, sheet, measure type and unit match, or when everything but `line_no` matches exactly one previous line (a renumber). A changed unit or measure type is a different line: nothing carries, and the old line is reported dropped. Reader checkpoints follow a renumber and record the new `line_no`.
-- `mcp_takeoff_get` adds `dropped_lines`: lines in the previous version with no current line of the same identity, with `had_geometry`. The card lists them under "Dropped since takeoff v<n>".
+- `mcp_takeoff_line_map(previous, current)` builds a one-to-one map between two versions: exact identities (`line_no`, item, sheet, measure type, unit) are reserved first; a renumber maps only when exactly one unmatched previous line and exactly one unmatched new line share the rest of the identity. Anything ambiguous maps to nothing. A changed unit or measure type is a different line.
+- `mcp_takeoff_carry_lines` is a deferred constraint trigger: the save inserts lines one at a time, so it runs at commit, when every line of the new version exists, and each line takes only its own partner from the map. Geometry and reader checkpoints both move along the map, the checkpoint recording the new `line_no`. The per-row trigger `mcp_takeoff_carry_line` is dropped.
+- `mcp_takeoff_get` adds `dropped_lines`: previous-version lines with no partner in that same map, with `had_geometry`. The card lists them under "Dropped since takeoff v<n>".
 - Reads stay VOLATILE (the earlier compatibility migration's rule). Guards, grants and existing rows are unchanged.
 
 ## Verification
@@ -39,3 +40,7 @@ Migration `20261024160000_athena_takeoff_carry_by_identity.sql`:
 5. The key page still printed `L2` twice. Sheet and key read one label map.
 
 Prettier: the takeoff files this branch touches are formatted; `tools/estimate-tools.ts` keeps its pre-existing formatting state.
+
+## Codex re-review of f51cd771 (addressed in the third commit)
+
+Carry was per inserted row, so a same-description row added in the same save could take the original line's accepted measurement, and a checkpoint could be copied to both rows, depending on insertion order. The carry now runs once per line at commit over a one-to-one map of the whole save (above). SQL tests cover both insertion orders, a true renumber, a checkpoint carried exactly once, and repeated descriptions with no unique successor, which stay unlocated and are reported dropped. The added example-line error text is formatted.
