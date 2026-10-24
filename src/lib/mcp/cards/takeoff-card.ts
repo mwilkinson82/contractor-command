@@ -1,6 +1,7 @@
 import takeoffClient from "./takeoff-client.js?raw";
 /** Self-contained MCP Apps measurement viewer. No fetch, external scripts or model display commands. */
-export const TAKEOFF_CARD_URI = "ui://athena/takeoff-v1.html";
+export const TAKEOFF_CARD_URI = "ui://athena/takeoff-v2.html";
+export const TAKEOFF_CARD_URIS = new Set([TAKEOFF_CARD_URI, "ui://athena/takeoff-v1.html"]);
 export const TAKEOFF_CARD_MIME = "text/html;profile=mcp-app";
 export const TAKEOFF_CARD_TOOLS = new Set([
   "sheet_calibrate",
@@ -17,6 +18,7 @@ export const takeoffCardMeta = { ui: { resourceUri: TAKEOFF_CARD_URI } };
 export const takeoffResourceMeta = {
   ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } },
   "openai/widgetPrefersBorder": true,
+  "openai/ui": { availableDisplayModes: ["inline", "fullscreen"], preferredDisplayMode: "inline" },
 };
 export function takeoffCardHtml() {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
