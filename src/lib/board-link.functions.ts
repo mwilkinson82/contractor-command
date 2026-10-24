@@ -4,6 +4,7 @@ import { z } from "zod";
 import { TOKEN_RE, tokenHash } from "@/lib/mcp/file-share";
 import { BOARD_PAGES, type BoardLinkStatus } from "@/lib/mcp/board-link";
 import type { PagePayload } from "@/lib/report-pages";
+import type { SubmittalRecordPayload } from "@/lib/submittal-record-page";
 
 const PHOTO_BUCKET = "athena-progress";
 
@@ -44,6 +45,57 @@ async function withPhotoUrls(payload: PagePayload): Promise<PagePayload> {
   }));
   return { ...payload, photos };
 }
+
+const RecordInput = z.object({
+  token: z.string().trim().max(80),
+  jobId: z.string().uuid(),
+  number: z.string().trim().min(1).max(40),
+});
+
+const SUBMITTAL_BUCKET = "athena-submittals";
+
+/** Signed file links for a token reader, service role only after the token already authorized this job's record. */
+async function withSubmittalUrls(payload: SubmittalRecordPayload): Promise<SubmittalRecordPayload> {
+  const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+  const key = env(["SUPABASE_SERVICE_ROLE_KEY"]);
+  if (!url || !key) return payload;
+  const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const sign = async (path: string | null) => {
+    if (!path || path.includes("..") || path.startsWith("/")) return null;
+    const signed = await sb.storage.from(SUBMITTAL_BUCKET).createSignedUrl(path, 3600);
+    return signed.data?.signedUrl ?? null;
+  };
+  const packages = await Promise.all((payload.packages ?? []).map(async (p) => ({ ...p, url: p.revoked_at ? null : await sign(p.path) })));
+  const items = await Promise.all((payload.current.package_items ?? []).map(async (item) => {
+    const match = /^athena-submittals\/(.+)$/.exec(item.file_ref ?? "");
+    return { ...item, url: await sign(match ? match[1] : null) };
+  }));
+  return { ...payload, packages, current: { ...payload.current, package_items: items } };
+}
+
+/** The submittal record behind a log row, opened with the job's board token. Same checks as the log page. */
+export const openSubmittalRecord = createServerFn({ method: "GET" })
+  .inputValidator(RecordInput.parse)
+  .handler(async ({ data }): Promise<BoardOpen> => {
+    if (!TOKEN_RE.test(data.token)) return { status: "unknown", payload: null };
+    const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+    const key = env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]);
+    if (!url || !key) return { status: "unknown", payload: null };
+    const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: row, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+      "mcp_submittal_record_open",
+      { _token_hash: await tokenHash(data.token), _job: data.jobId, _number: data.number },
+    );
+    if (error || !row || typeof row !== "object") return { status: "unknown", payload: null };
+    const status = (row as { status?: string }).status;
+    if (status !== "ok") {
+      const refused = status === "expired" || status === "revoked" || status === "wrong_job" || status === "denied" ? status : "unknown";
+      return { status: refused, payload: null };
+    }
+    const payload = (row as { payload?: SubmittalRecordPayload | null }).payload;
+    if (!payload || payload.page !== "submittal") return { status: "denied", payload: null };
+    return { status: "ok", payload: JSON.stringify(await withSubmittalUrls(payload)) };
+  });
 
 /** GET so the CSRF guard is unchanged. The token is the secret; the database stores only its hash. */
 export const openBoardPage = createServerFn({ method: "GET" })

@@ -4,7 +4,7 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, prefix, resolveJob } from "../jobs";
-import { signedJobPages } from "../board-url";
+import { signedJobPages, submittalRecordUrl } from "../board-url";
 import { isUuid } from "../../report-pages";
 import { listCompaniesAndJobs, namedOrSoleJob } from "./workflow-tools";
 import { whichJobAsk } from "../which-job";
@@ -24,6 +24,7 @@ import {
   SUBMITTAL_TYPES,
   CHASE_ROLES,
   parseSubmittalImport,
+  pieceRef,
   postureSentence,
   presentImportPreview,
   presentSubmittalLog,
@@ -81,7 +82,8 @@ type LogPayload = {
   saved_id?: string;
 };
 
-async function boardFor(sb: Sb, job: { job_id: string; scope?: string | null }): Promise<string | null> {
+/** The signed submittal log link for this job; every row's record link borrows its token. */
+export async function boardFor(sb: Sb, job: { job_id: string; scope?: string | null }): Promise<string | null> {
   if (!isUuid(job.job_id) || (job.scope !== "full" && job.scope !== "super")) return null;
   const pages = await signedJobPages((fn, args) => sb.rpc(fn, args), job.job_id, job.scope);
   return pages.submittals ?? null;
@@ -92,7 +94,7 @@ function shown(
   boardUrl: string | null,
   filter?: { status?: string | null; overdue?: boolean | null; ball?: string | null },
   note?: string,
-  extra?: { schedule?: ScheduleActivity[]; tracking?: TrackingItem[] },
+  extra?: { schedule?: ScheduleActivity[]; tracking?: TrackingItem[]; focusId?: string | null },
 ) {
   const today = (payload.today ?? "").slice(0, 10) || "1970-01-01";
   const posture = postureSentence(resolvePosture(payload.posture_set ?? payload.posture, payload.public_job));
@@ -110,6 +112,7 @@ function shown(
     filter,
     schedule,
     tracking: extra?.tracking ?? [],
+    focusId: extra?.focusId ?? null,
   });
 }
 
@@ -122,7 +125,7 @@ function cardResult(_body: string, card: CardModel, extra: Record<string, unknow
       structuredContent: { card, html, ...extra },
       _meta: { ...cardWidgetMeta },
     },
-    "Show this card. Do not add text after it. Red only on an overdue row.",
+    "Show this card. Do not add text after it. Red only on an overdue row. Each row's link opens that submittal's record page; give it when asked to see a submittal. Pieces are named by their short name P1, P2 or their piece id.",
   );
 }
 
@@ -186,18 +189,24 @@ async function showListedLog(
   job: { job_id: string; job_number: string; name: string; scope?: string | null },
   filter?: { status?: string | null; overdue?: boolean | null; ball?: string | null },
 ) {
-  const [rows, zone] = await Promise.all([readSubmittalRows(sb, job.job_id), jobTimeZone(sb, job.job_id)]);
+  // One board-link mint per list so every row can open its record; the living report is still never read here.
+  const [rows, zone, boardUrl] = await Promise.all([readSubmittalRows(sb, job.job_id), jobTimeZone(sb, job.job_id), boardFor(sb, job)]);
   const today = todayIn(zone);
   const presented = presentSubmittalLog({
     jobNumber: job.job_number,
     jobName: job.name,
     rows,
     today,
-    boardUrl: null,
+    boardUrl,
     readOnly: job.scope !== "full",
     filter,
   });
-  return cardResult(presented.text, presented.card, { read_only: job.scope !== "full", job_id: job.job_id });
+  return cardResult(presented.text, presented.card, {
+    read_only: job.scope !== "full",
+    job_id: job.job_id,
+    log_url: boardUrl,
+    records: presented.rows.map((row) => ({ id: row.id, number: row.number, record_url: submittalRecordUrl(boardUrl, row.number) })),
+  });
 }
 
 function whichJobCard(tool: "submittal_log" | "submittals_list" | "submittals_import" | "project_record_search", body: string) {
@@ -260,8 +269,15 @@ export const submittalLog = defineTool({
       await audit(sb, job, "submittal_log", args.action, saved.saved_id ?? null);
       const row = (saved.submittals ?? []).find((item) => item.id === saved.saved_id);
       const note = row ? `Saved ${row.number} revision ${row.revision}, ${row.title}. Transmittal T-${row.transmittal_number}.` : "Saved.";
-      const presented = shown(saved, await boardFor(sb, job), undefined, note);
-      return cardResult(presented.text, presented.card, { saved_id: saved.saved_id ?? null, read_only: false });
+      const boardUrl = await boardFor(sb, job);
+      const presented = shown(saved, boardUrl, undefined, note, { focusId: saved.saved_id ?? null });
+      return cardResult(presented.text, presented.card, {
+        saved_id: saved.saved_id ?? null,
+        read_only: false,
+        record_url: row ? submittalRecordUrl(boardUrl, row.number) : null,
+        // Pieces with their ids and short names, so any host can name one when a received file is attached.
+        items: (row?.package_items ?? []).map((item, n) => ({ ref: pieceRef(n), ...item })),
+      });
     }),
 });
 
