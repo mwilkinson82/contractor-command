@@ -14,6 +14,7 @@
     reading = false,
     zoom = 1,
     selectedLine = null,
+    selectedCalibration = null,
     selectedGeometry = null,
     mode = "inspect",
     draft = [],
@@ -110,6 +111,8 @@
         throw Error(failureText(r));
       localResult = true;
       sc = r.structuredContent;
+      if (sc.saved_calibration && sc.saved_calibration.id)
+        selectedCalibration = sc.saved_calibration.id;
       draft = [];
       holes = [];
       mode = "inspect";
@@ -126,6 +129,64 @@
       });
       size();
     }
+  }
+  function readPasses(data, lineNo, calibration) {
+    var line = data.engine.lines.find(function (l) {
+      return l.line_no === lineNo;
+    });
+    if (!line) return [];
+    var count = /^(ea|each)$/i.test(line.unit || "");
+    return data.engine.passes.filter(function (p) {
+      var s = p.pass_summary;
+      return (
+        p.source_id === data.source.id &&
+        p.page === data.source.page &&
+        s.line_no === lineNo &&
+        s.takeoff_version === data.engine.takeoff_version &&
+        s.source_hash === data.source.content_hash &&
+        (count
+          ? s.count_area && s.count_area.confirmed
+          : calibration && s.calibration_id === calibration)
+      );
+    });
+  }
+  function freshReadArguments(data, lineNo, calibration) {
+    var pass = readPasses(data, lineNo, calibration)[0];
+    var line = data.engine.lines.find(function (l) {
+      return l.line_no === lineNo;
+    });
+    if (!pass || !line)
+      throw Error("Confirm the current plan area or calibration before starting a fresh read.");
+    if (
+      data.engine.geometry.some(function (g) {
+        return (
+          g.line_id === line.id &&
+          g.source_id === data.source.id &&
+          g.page === data.source.page &&
+          g.status !== "rejected"
+        );
+      })
+    )
+      throw Error("Review or reject this line's geometry before starting a fresh read.");
+    if (/^(ea|each)$/i.test(line.unit || ""))
+      return {
+        operation: "scope",
+        source_id: data.source.id,
+        sheet: data.source.sheet,
+        line_no: lineNo,
+        confirm: true,
+        count_area: {
+          name: pass.pass_summary.count_area.name,
+          bounds: pass.pass_summary.count_area.bounds,
+        },
+      };
+    return {
+      operation: "propose",
+      source_id: data.source.id,
+      sheet: data.source.sheet,
+      line_no: lineNo,
+      calibration_id: calibration,
+    };
   }
   function confirmBox(text, fn) {
     var old = root.querySelector(".confirmation");
@@ -516,10 +577,12 @@
         lineSelect.value = selectedLine;
       }
       if (g.calibration_id) cal.value = g.calibration_id;
+      selectedCalibration = cal.value;
       mode = "inspect";
       draft = [];
       holes = [];
       showSelected();
+      showReadStatus();
     }
     function geometry(shape, color, fill, id, offset) {
       if (!shape || !Array.isArray(shape.points) || !shape.points.every(validPoint)) return;
@@ -712,6 +775,7 @@
     });
     if (selectedLine) lineSelect.value = selectedLine;
     lineSelect.addEventListener("change", function () {
+      reading = false;
       selectedLine = lineSelect.value;
       selectedGeometry = null;
       selectedPoint = -1;
@@ -720,6 +784,7 @@
       mode = "inspect";
       showSelected();
       overlay();
+      showReadStatus();
     });
     selectedLine = lineSelect.value;
     var cal = node("select");
@@ -740,7 +805,15 @@
         o.value = c.id;
         cal.append(o);
       });
-    if (cal.options.length === 2) cal.selectedIndex = 1;
+    if (
+      selectedCalibration !== null &&
+      Array.from(cal.options).some(function (o) {
+        return o.value === selectedCalibration;
+      })
+    )
+      cal.value = selectedCalibration;
+    else if (cal.options.length === 2) cal.selectedIndex = 1;
+    selectedCalibration = cal.value;
     var modes = node("div", null, "tools");
     ["pins", "polyline", "polygon", "rect", "calibrate"].forEach(function (m) {
       modes.append(
@@ -773,7 +846,12 @@
           : previewValue({ kind: mode, points: draft, holes: holes })) +
         " · Server confirms on save.";
     }
-    cal.addEventListener("change", showPreview);
+    cal.addEventListener("change", function () {
+      reading = false;
+      selectedCalibration = cal.value;
+      showPreview();
+      showReadStatus();
+    });
     var detail = node("input");
     detail.placeholder = "Depth citation: detail or note";
     detail.ariaLabel = "Depth citation";
@@ -1269,6 +1347,7 @@
                     mode = "inspect";
                     showSelected();
                     overlay();
+                    showReadStatus();
                   },
                 ),
               );
@@ -1287,22 +1366,24 @@
     });
     right.append(node("h2", "Measurement review"), filter, list);
     showList();
-    var passes = sc.engine.passes.filter(function (p) {
-      return (
-        p.source_id === sc.source.id &&
-        p.page === sc.source.page &&
-        (p.pass_summary.calibration_id ||
-          (p.pass_summary.count_area && p.pass_summary.count_area.confirmed))
-      );
-    });
-    if (passes.length) {
+    var readPanel = node("div");
+    right.append(readPanel);
+    function showReadStatus() {
+      if (!readPanel) return;
+      readPanel.replaceChildren();
+      var line = Number(lineSelect.value),
+        calibration = cal.value || undefined;
+      var passes = readPasses(sc, line, calibration);
+      if (!passes.length) return;
       var p = passes[0].pass_summary;
       if (p.count_area)
-        right.append(node("p", "Confirmed count area: " + p.count_area.name, "note"));
-      right.append(
+        readPanel.append(node("p", "Confirmed count area: " + p.count_area.name, "note"));
+      readPanel.append(
         node(
           "p",
-          "Athena read: " +
+          "L" +
+            line +
+            " · Athena read: " +
             p.tiles_read +
             " / " +
             p.tiles_total +
@@ -1312,10 +1393,10 @@
         ),
       );
       (p.uncertainties || []).slice(-8).forEach(function (u) {
-        right.append(node("p", u, "note small"));
+        readPanel.append(node("p", u, "note small"));
       });
       if (!p.complete)
-        right.append(
+        readPanel.append(
           button("Continue Athena read", function () {
             act("takeoff_geometry", {
               operation: "propose",
@@ -1326,77 +1407,94 @@
             });
           }),
         );
-    }
-    right.append(
-      button(reading ? "Pause Athena read" : "Athena: read selected line", async function () {
-        if (reading) {
-          reading = false;
-          notice("Pausing after the current tile.");
-          return;
-        }
-        reading = true;
-        var line = Number(lineSelect.value),
-          calibration = cal.value || undefined;
-        var currentLine = sc.engine.lines.find(function (l) {
-          return l.line_no === line;
-        });
-        var countLine = currentLine && /^(ea|each)$/i.test(currentLine.unit || "");
-        if (
-          countLine &&
-          !passes.some(function (p) {
-            return (
-              p.pass_summary.line_no === line &&
-              p.pass_summary.count_area &&
-              p.pass_summary.count_area.confirmed
+      try {
+        var fresh = freshReadArguments(sc, line, calibration);
+        readPanel.append(
+          button("Start a fresh read", function () {
+            if (reading) return notice("Pause the current read before starting a fresh one.");
+            var selection = JSON.stringify([
+              sc.source.id,
+              sc.source.page,
+              sc.engine.takeoff_version,
+              lineSelect.value,
+              cal.value,
+            ]);
+            confirmBox(
+              "Start a new read of L" +
+                line +
+                " on " +
+                sc.source.sheet +
+                " in the same confirmed scope? Earlier checkpoints and rejected geometry stay in history. New proposals need review.",
+              async function () {
+                if (
+                  selection !==
+                  JSON.stringify([
+                    sc.source.id,
+                    sc.source.page,
+                    sc.engine.takeoff_version,
+                    lineSelect.value,
+                    cal.value,
+                  ])
+                )
+                  return notice("The selection changed. Review the fresh read again.");
+                if (await act("takeoff_geometry", fresh)) await runRead();
+              },
             );
-          })
-        ) {
-          reading = false;
-          notice(
-            "Confirm the complete plan or room count area before reading this line. Counts need no scale.",
-          );
-          return;
-        }
-        try {
-          for (var iteration = 0; iteration < 2000 && reading; iteration++) {
-            var previous = sc.engine.passes.find(function (p) {
-              return (
-                p.source_id === sc.source.id &&
-                p.page === sc.source.page &&
-                p.pass_summary.line_no === line &&
-                (!countLine ||
-                  (p.pass_summary.count_area && p.pass_summary.count_area.confirmed)) &&
-                !p.pass_summary.complete
-              );
-            });
-            var p = previous && previous.pass_summary;
-            var ok = await act("takeoff_geometry", {
-              operation: "propose",
-              line_no: line,
-              calibration_id: calibration,
-              pass_id: p && p.pass_id,
-              cursor: p && p.next_cursor,
-            });
-            if (!ok || sc.pass_paused) {
-              if (sc.pass_pause_reason) notice(sc.pass_pause_reason);
-              break;
-            }
-            var next = sc.engine.passes.find(function (p) {
-              return (
-                p.source_id === sc.source.id &&
-                p.page === sc.source.page &&
-                p.pass_summary.line_no === line
-              );
-            });
-            if (next && next.pass_summary.complete) break;
+          }),
+        );
+      } catch (_) {
+        /* Active geometry must be reviewed before another pass. */
+      }
+      size();
+    }
+    showReadStatus();
+    async function runRead() {
+      if (reading) {
+        reading = false;
+        notice("Pausing after the current tile.");
+        return;
+      }
+      reading = true;
+      var line = Number(lineSelect.value),
+        calibration = cal.value || undefined;
+      var currentLine = sc.engine.lines.find(function (l) {
+        return l.line_no === line;
+      });
+      var countLine = currentLine && /^(ea|each)$/i.test(currentLine.unit || "");
+      if (countLine && !readPasses(sc, line, calibration).length) {
+        reading = false;
+        notice(
+          "Confirm the complete plan or room count area before reading this line. Counts need no scale.",
+        );
+        return;
+      }
+      try {
+        for (var iteration = 0; iteration < 2000 && reading; iteration++) {
+          // Prefer the current completed read too; do not fall back to an older
+          // unfinished checkpoint after finishing or changing calibrations.
+          var previous = readPasses(sc, line, calibration)[0];
+          var p = previous && previous.pass_summary;
+          var ok = await act("takeoff_geometry", {
+            operation: "propose",
+            line_no: line,
+            calibration_id: calibration,
+            pass_id: p && p.pass_id,
+            cursor: p && p.next_cursor,
+          });
+          if (!ok || sc.pass_paused) {
+            if (sc.pass_pause_reason) notice(sc.pass_pause_reason);
+            break;
           }
-        } finally {
-          reading = false;
-          draw();
-          size();
+          var next = readPasses(sc, line, calibration)[0];
+          if (next && next.pass_summary.complete) break;
         }
-      }),
-    );
+      } finally {
+        reading = false;
+        draw();
+        size();
+      }
+    }
+    right.append(button(reading ? "Pause Athena read" : "Athena: read selected line", runRead));
     var proposals = rows().filter(function (g) {
       return (
         g.status === "proposed" &&

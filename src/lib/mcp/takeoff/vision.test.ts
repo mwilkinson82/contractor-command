@@ -105,6 +105,49 @@ describe("independent proposal checks", () => {
       check(answer("polyline", [p(200, 200), p(700, 200)]), rgba, "linear").accepted,
     ).toHaveLength(1);
   });
+  it("keeps a clipped run endpoint exactly on the tile edge using only real inward ink", () => {
+    const rgba = image();
+    for (let x = 200; x < tile.width; x++) ink(rgba, x, 200);
+    const edge = p(tile.width, 200);
+    const result = check(answer("polyline", [p(200, 200), edge]), rgba, "linear");
+    expect(result.rejected).toEqual([]);
+    expect(result.accepted[0].shape.points).toEqual([
+      { x: 0.2, y: 0.2 },
+      { x: 1, y: 0.2 },
+    ]);
+    // Neither a point beyond the edge nor a pin on the mathematical boundary
+    // becomes a drawable point. The original coordinates are never repaired.
+    expect(
+      check(answer("polyline", [p(200, 200), p(tile.width + 0.01, 200)]), rgba, "linear")
+        .rejected[0],
+    ).toMatch(/outside/);
+    expect(check(answer("pins", [edge]), rgba).rejected[0]).toMatch(/outside/);
+    expect(check(answer("polyline", [p(200, 200), edge]), image(), "linear").rejected[0]).toMatch(
+      /ink/,
+    );
+    // Ink at the first endpoint alone cannot verify an invented crossing.
+    const broken = image();
+    ink(broken, 200, 200);
+    ink(broken, tile.width - 1, 200);
+    expect(check(answer("polyline", [p(200, 200), edge]), broken, "linear").rejected[0]).toMatch(
+      /follow/,
+    );
+  });
+  it("allows a bottom-edge run without inventing an area closure at a tile edge", () => {
+    const rgba = image();
+    for (let y = 200; y < tile.height; y++) ink(rgba, 200, y);
+    expect(
+      check(answer("polyline", [p(200, 200), p(200, tile.height)]), rgba, "linear").accepted[0]
+        .shape.points,
+    ).toEqual([
+      { x: 0.2, y: 0.2 },
+      { x: 0.2, y: 1 },
+    ]);
+    expect(
+      check(answer("polygon", [p(200, 200), p(200, tile.height), p(400, 400)]), rgba, "area")
+        .rejected[0],
+    ).toMatch(/outside/);
+  });
   it("will not measure a volume without its cited depth", () => {
     const rgba = image();
     for (const [x, y] of [

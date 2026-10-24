@@ -1,4 +1,4 @@
-import { generateText, Output } from "ai";
+import { generateText, Output, NoObjectGeneratedError, NoOutputGeneratedError } from "ai";
 import { z } from "zod";
 import { encode } from "fast-png";
 import { createLovableAiGatewayProvider } from "../../ai-gateway";
@@ -234,6 +234,12 @@ export const readVisionTile: VisionRead = async (request) => {
         ],
       },
     ],
+  }).catch((error: unknown) => {
+    if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error))
+      throw new Error(
+        "This drawing region could not be read. Nothing from this region was saved. Your previous checkpoints are preserved; continue the read to retry this region.",
+      );
+    throw error;
   });
   const parsed = responseSchema.safeParse(result.output);
   if (!parsed.success) {
@@ -307,12 +313,17 @@ export function verifyVisionAnswer(input: {
       const convert = (p: z.infer<typeof gridPoint>): Point => {
         const x = p.column * 100 + p.dx,
           y = p.row * 100 + p.dy;
-        if (x >= input.tile.width || y >= input.tile.height)
+        const closedRunEdge = finding.kind === "polyline";
+        if (
+          closedRunEdge
+            ? x > input.tile.width || y > input.tile.height
+            : x >= input.tile.width || y >= input.tile.height
+        )
           throw new Error("Candidate is outside the tile.");
         const page = tilePoint(input.tile, { x: x / input.tile.width, y: y / input.tile.height });
         if (input.count_area && !pointInScope(page, input.count_area))
           throw new Error("Candidate is outside the confirmed count area.");
-        if (!hasInk(input.rgba, input.tile, page))
+        if (!hasInk(input.rgba, input.tile, page, 6, closedRunEdge))
           throw new Error("Candidate has no drawing ink at its supplied location.");
         return page;
       };
@@ -342,10 +353,16 @@ export function verifyVisionAnswer(input: {
           let hits = 0;
           for (let j = 0; j <= steps; j++)
             if (
-              hasInk(input.rgba, input.tile, {
-                x: a.x + ((b.x - a.x) * j) / steps,
-                y: a.y + ((b.y - a.y) * j) / steps,
-              })
+              hasInk(
+                input.rgba,
+                input.tile,
+                {
+                  x: a.x + ((b.x - a.x) * j) / steps,
+                  y: a.y + ((b.y - a.y) * j) / steps,
+                },
+                6,
+                true,
+              )
             )
               hits++;
           if (hits / (steps + 1) < 0.85)

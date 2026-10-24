@@ -238,3 +238,33 @@ the original unchanged. A second count is still being checked. The ordinal wall
 case selected the neighboring span and was rejected; its new reader wording
 must be verified live after release. Automated checks are not that live pass.
 
+# Exact run edges and selected-line read controls
+
+The live reader now chose the requested wall span, but its adjoining tile was
+rejected because a valid normalized endpoint of 1000 maps exactly to the
+mathematical right edge. Linear runs may now end on that closed boundary without
+moving their coordinates. Ink checking examines only existing pixels in the
+inward six-pixel neighborhood; path continuity and overlap ownership remain
+required. Out-of-range points, edge pins, unsupported area closures and blank
+crossings remain refused. This does not snap a location or fit a target quantity.
+
+The viewer's progress/continue controls now follow the selected line, exact
+source hash, takeoff version and calibration. Calibration selection persists
+through results and newly saved calibrations are selected. Completed reads take
+precedence over older unfinished ones. After geometry is rejected, an explicit
+confirmed fresh read preserves its old history and uses the same stored scope;
+a changed selection cancels that pending confirmation. Ordinary malformed reader
+JSON now produces factual resume guidance without exposing the reply or silently
+retrying. No acceptance happens automatically.
+
+Resource v4 keeps v1/v2/v3 resource reads supported. No changes to the general
+ChatGPT card, email templates, auth, Hub, permissions or schema; no migration.
+Verification: 2,295 tests/216 files, all 17 locked behaviors, build and changed-file
+ESLint pass; same 32 baseline TypeScript diagnostics, none in the changed takeoff
+files. A real-PDF test crosses three overlapping 200-dpi tiles and reconciles its
+full run once, preserving exact endpoints and the source hash. Actual browser
+fixture interactions verify line/calibration progress, no request on a stale
+confirmation, the source/scope restart payload, preserved calibration after
+results, and the 390-pixel layout. Fixture results are not real-sheet accuracy.
+The private live wall accuracy case must still be rerun after publication.
+
