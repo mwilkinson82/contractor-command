@@ -62,6 +62,10 @@ const ascii = (s: string) =>
     .replace(/[^\x20-\x7e\n]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+/** "L2" for a line with one shape; "L2.1", "L2.2" when several shapes measure one line. */
+export function geometryLabel(lineNo: number | string, ordinal: number, count: number): string {
+  return count > 1 ? `L${lineNo}.${ordinal}` : `L${lineNo}`;
+}
 /** Original PDF vectors stay vector sharp. Only the newly copied page is changed. */
 export async function measuredPdf(
   page: StoredPage,
@@ -78,7 +82,18 @@ export async function measuredPdf(
   const rows = pageGeometry(state, page, includeRejected),
     scale = Math.max(page.space.width, page.space.height) / 1600;
   const pinNumbers = new Map<string, number>();
+  // A line with several measured shapes labels each one L2.1, L2.2 so two lengths never share a label.
+  const perLine = new Map<string, number>();
+  for (const row of rows) perLine.set(row.line_id, (perLine.get(row.line_id) ?? 0) + 1);
+  const seen = new Map<string, number>();
   for (const row of rows) {
+    const ordinal = (seen.get(row.line_id) ?? 0) + 1;
+    seen.set(row.line_id, ordinal);
+    const label = geometryLabel(
+      state.lines.find((l) => l.id === row.line_id)?.line_no ?? "?",
+      ordinal,
+      perLine.get(row.line_id) ?? 1,
+    );
     const shape = row.shape as Shape,
       color = row.status === "rejected" ? GRAY : BLUE;
     if (shape.kind === "pins")
@@ -141,7 +156,7 @@ export async function measuredPdf(
     const first = displayToPdf(sheet, shape.points[0]),
       line = state.lines.find((l) => l.id === row.line_id);
     sheet.drawText(
-      `L${line?.line_no ?? "?"} ${Number(row.measured).toFixed(2)} ${row.unit ?? ""}`,
+      `${label} ${Number(row.measured).toFixed(2)} ${row.unit ?? ""}`,
       {
         x: first.x + 9 * scale,
         y: first.y + 9 * scale,

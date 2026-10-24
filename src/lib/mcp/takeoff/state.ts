@@ -55,6 +55,8 @@ export type EngineSnapshot = {
   sources?: { id: string; stale: boolean }[];
   accepted_history?: GeometryRevision[];
   takeoff_version: number | null;
+  /** Lines in the previous takeoff version that the latest save left out. */
+  dropped_lines?: { line_no: number; item: string; version: number; had_geometry: boolean }[];
   lines: EngineLine[];
   geometry: GeometryRevision[];
   calibrations: CalibrationRevision[];
