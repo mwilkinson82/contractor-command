@@ -45,9 +45,9 @@ function line(
   } as EngineLine;
 }
 
-async function fixture() {
+async function fixture(width = 144, countOrder?: number[]) {
   const doc = await PDFDocument.create();
-  const pdfPage = doc.addPage([144, 144]);
+  const pdfPage = doc.addPage([width, 144]);
   pdfPage.drawRectangle({ x: 32, y: 68, width: 8, height: 8, color: rgb(0, 0, 0) });
   const bytes = await doc.save(),
     hash = await sha256Hex(bytes);
@@ -108,6 +108,22 @@ async function fixture() {
         measure_type: "volume",
       }),
       line({ id: "line-5", line_no: 5, item: "Fictional bollards", unit: "EA" }),
+      line({
+        id: "line-6",
+        line_no: 6,
+        item: "Fictional footing on S-100",
+        unit: "LF",
+        sheet: "S-100",
+        measure_type: "linear",
+      }),
+      line({
+        id: "line-7",
+        line_no: 7,
+        item: "Fictional unassigned run",
+        unit: "LF",
+        sheet: undefined,
+        measure_type: "linear",
+      }),
     ],
     geometry: [],
     calibrations: [
@@ -140,7 +156,7 @@ async function fixture() {
             bounds: { x: 0, y: 0, width: 1, height: 1 },
             confirmed: true,
           },
-          order: inspection.tiles.map((t) => t.index),
+          order: countOrder ?? inspection.tiles.map((t) => t.index),
           cursor: 0,
           next_cursor: 0,
           complete: false,
@@ -186,7 +202,16 @@ describe("sheet read", () => {
       [3, expect.stringMatching(/non-drawable/)],
       [4, expect.stringMatching(/cited depth/)],
       [5, expect.stringMatching(/count line's plan or room area/)],
+      [6, expect.stringMatching(/assigned to sheet S-100, not E-100/)],
+      [7, expect.stringMatching(/names no sheet; include it with line_nos/)],
     ]);
+    // Another sheet's line never joins, even when named; an unassigned line joins only when named.
+    const named = sheetLines(f.page, f.state, {
+      line_nos: [6, 7],
+      calibration_id: f.calibration_id,
+    });
+    expect(named.lines.map((l) => l.line_no)).toEqual([7]);
+    expect(named.skipped.map((s) => s.line_no)).toEqual([6]);
     expect(sheetLines(f.page, f.state, {}).lines.map((l) => l.line_no)).toEqual([1]);
     expect(sheetLines(f.page, f.state, {}).skipped.find((s) => s.line_no === 2)?.reason).toMatch(
       /calibration/,
@@ -344,6 +369,78 @@ describe("sheet read", () => {
     expect(pending.read.cursor).toBe(0);
     expect(pending.read.lines.map((l) => l.line_no)).toEqual([2]);
     expect(pending.read.waiting).toEqual([expect.objectContaining({ line_no: 1, next_cursor: 1 })]);
+  });
+
+  it("gives a new line the shared tile order, so the tile the host saw is the tile its pass records", async () => {
+    // Five tiles; the count line's existing pass reads them back to front. A new line's own
+    // candidate order would start at tile 0 and disagree with the shared image.
+    const f = await fixture(1500, [4, 3, 2, 1, 0]);
+    expect(f.page.inspection.tiles.length).toBe(5);
+    const pending = (await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+    }).catch((e) => e)) as HostSheetReadRequired;
+    expect(pending).toBeInstanceOf(HostSheetReadRequired);
+    expect(pending.read.order).toEqual([4, 3, 2, 1, 0]);
+    expect(pending.read.tile.index).toBe(4);
+    const created = f.rpc.mock.calls[0][1]._record.pass_summary;
+    expect(created.line_no).toBe(2);
+    expect(created.order).toEqual([4, 3, 2, 1, 0]);
+    f.rpc.mockClear();
+    const result = await proposeSheetStep(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      { calibration_id: f.calibration_id },
+      {
+        cursor: 0,
+        lines: pending.read.lines.map((l) => ({
+          line_no: l.line_no,
+          pass_id: l.pass_id!,
+          findings: [],
+          uncertainties: [],
+        })),
+      },
+    );
+    expect(result.next_cursor).toBe(1);
+    expect(result.tiles_total).toBe(5);
+    expect(f.rpc.mock.calls.map((c) => c[1]._record.pass_summary.order)).toEqual([
+      [4, 3, 2, 1, 0],
+      [4, 3, 2, 1, 0],
+    ]);
+    expect(
+      f.rpc.mock.calls.every(
+        (c) => (c[1]._record.pass_summary as { tiles_read: number }).tiles_read === 1,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses to run a line's pass against a tile that is not the one its order names", async () => {
+    const f = await fixture(1500, [4, 3, 2, 1, 0]);
+    const pending = (await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+    }).catch((e) => e)) as HostSheetReadRequired;
+    // Corrupt the new line's stored order as an older build would have saved it.
+    const stray = f.state.passes.find((p) => p.pass_summary.line_no === 2)!;
+    stray.pass_summary.order = [0, 1, 2, 3, 4];
+    await expect(
+      proposeSheetStep(
+        f.sb,
+        f.job,
+        f.page,
+        f.state,
+        { calibration_id: f.calibration_id },
+        {
+          cursor: 0,
+          lines: pending.read.lines.map((l) => ({
+            line_no: l.line_no,
+            pass_id: l.pass_id!,
+            findings: [],
+            uncertainties: [],
+          })),
+        },
+      ),
+    ).rejects.toThrow(/different tile orders|different tile order|disagree/);
   });
 
   it("refuses a sheet read with nothing ready and says why", async () => {

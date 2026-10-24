@@ -111,12 +111,24 @@ export function sheetLines(
     : state.lines;
   const lines: SheetLine[] = [],
     skipped: SheetSkip[] = [];
+  const here = (sheet: string | null | undefined) =>
+    (sheet ?? "").trim().toLowerCase() === page.sheet.trim().toLowerCase();
   for (const line of wanted) {
     const kind = measureKind(line.unit);
     const skip = (reason: string) =>
       skipped.push({ line_no: line.line_no, item: line.item, reason });
     if (!kind) {
       skip("Only EA, LF, SF and CY lines are located on a drawing; record a non-drawable basis.");
+      continue;
+    }
+    // A line belongs to the sheet its takeoff names. Another sheet's line is never read here, and a
+    // line with no sheet joins only when the member names it.
+    if (line.sheet?.trim() && !here(line.sheet)) {
+      skip(`This line is assigned to sheet ${line.sheet.trim()}, not ${page.sheet}.`);
+      continue;
+    }
+    if (!line.sheet?.trim() && !input.line_nos?.includes(line.line_no)) {
+      skip("This line names no sheet; include it with line_nos to read it here.");
       continue;
     }
     const active = state.geometry.filter(
@@ -253,12 +265,14 @@ export async function proposeSheetStep(
   const raster = await renderTile(page.bytes, page.page - 1, tile);
   const reference = await renderPlanReference(page.bytes, page.page - 1, scope);
   const prepared = { raster, reference, scope, writePending: false };
+  // Every line, new or resumed, runs on the shared order, so the tile the host saw is the tile each pass records.
   const lineInput = (line: SheetLine) => ({
     line_no: line.line_no,
     calibration_id: line.measure_type === "count" ? undefined : input.calibration_id,
     pass_id: line.pass_id ?? undefined,
     cursor,
     depth: line.depth ?? undefined,
+    order,
   });
   if (!observations) {
     // Create the pass for any line that has none, so the host gets a pass_id for every line.

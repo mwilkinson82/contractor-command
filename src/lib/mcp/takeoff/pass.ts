@@ -255,6 +255,8 @@ export async function proposeTakeoffBatch(
     depth?: Shape["depth"];
     legend?: { source_id: string; sheet: string; tile_index: number };
     deadline?: number;
+    /** A sheet read's shared tile order, adopted by a line that has no pass yet. */
+    order?: number[];
   },
   read: VisionRead = readVisionTile,
   /** A sheet read renders the tile once and runs every line against it; the pending checkpoint
@@ -363,9 +365,20 @@ export async function proposeTakeoffBatch(
   const passId = input.pass_id ?? (summary?.pass_id as string | undefined) ?? crypto.randomUUID(),
     order =
       (summary?.order as number[] | undefined) ??
+      input.order ??
       candidateOrder(page, line.item, countArea?.bounds ?? cal?.bounds),
     tile = page.inspection.tiles[order[cursor]];
   if (!tile) throw new ToolError("The pass has no next tile. Reload the sheet.");
+  if (prepared && prepared.raster.tile.index !== tile.index)
+    throw new ToolError(
+      "The shared tile and this line's pass order disagree. Reload the sheet read.",
+    );
+  if (
+    input.order &&
+    summary?.order &&
+    JSON.stringify(summary.order) !== JSON.stringify(input.order)
+  )
+    throw new ToolError("This line's pass uses a different tile order. Reload the sheet read.");
   const raster = prepared?.raster ?? (await renderTile(page.bytes, page.page - 1, tile));
   const reference =
     prepared?.reference ??

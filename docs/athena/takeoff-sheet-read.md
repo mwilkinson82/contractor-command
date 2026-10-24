@@ -1,6 +1,11 @@
 # Sheet read: every open line per tile
 
-Base: `codex/athena-host-drawing-read` at `627fc93e` (PR #270). Branch `claude/takeoff-multi-line-tiles`. Not merged, not deployed, no data changed. No migration: the per-line pass tables and `mcp_takeoff_pass_save` are unchanged.
+Base: `codex/athena-passwordless-login-only` at `3f5cc59b` (after #270 and #272). Branch `claude/takeoff-multi-line-tiles`. Not merged, not deployed, no data changed. No migration: the per-line pass tables and `mcp_takeoff_pass_save` are unchanged.
+
+## Codex review of a17c03c3 (addressed in the second commit)
+
+1. A line with no pass took its own candidate order when its pass was created, so its saved order could disagree with the shared tile the host had seen; the next submission then ran against the wrong tile. The sheet read now passes the shared order into `proposeTakeoffBatch`, a new pass adopts it, and two guards refuse a line whose stored order differs from the shared one or whose order names a different tile than the rendered one. Regression test: five tiles read back to front; the new line's saved order equals the shared order and the submission advances every pass by one.
+2. A sheet read took every line on the takeoff, including lines assigned to another sheet. It now takes only lines whose `sheet` is this sheet; a line assigned elsewhere is listed as not ready with the reason, and a line with no sheet joins only when named in `line_nos`. Regression test covers both.
 
 Design: "Athena Drawing Takeoff Engine", next phase, piece 1.
 
