@@ -14,6 +14,35 @@ const png = encode({
   depth: 8,
 });
 describe("real AI SDK provider request with an intercepted network", () => {
+  it("preserves the resumable checkpoint on malformed provider JSON without exposing its response or retrying silently", async () => {
+    vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "fixture",
+            created: 0,
+            model: "fixture",
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: "Fictional invalid reply, not JSON" },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await expect(
+      readVisionTile({ item: "Fictional fixtures", measure_type: "count", png, hints: [] }),
+    ).rejects.toThrow(
+      "Your previous checkpoints are preserved; continue the read to retry this region.",
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it("uses the existing gateway, keeps drawing text as data, has no action tools and validates structured findings", async () => {
     vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
     let body: Record<string, unknown> = {};

@@ -321,10 +321,24 @@ export const tilePoint = (tile: Tile, local: Point): Point => ({
   x: (tile.x + local.x * tile.width) / tile.pageWidth,
   y: (tile.y + local.y * tile.height) / tile.pageHeight,
 });
-export function hasInk(rgba: Uint8Array, tile: Tile, p: Point, radius = 6): boolean {
+export function hasInk(
+  rgba: Uint8Array,
+  tile: Tile,
+  p: Point,
+  radius = 6,
+  closedRunEdge = false,
+): boolean {
   const x = Math.round(p.x * tile.pageWidth - tile.x),
     y = Math.round(p.y * tile.pageHeight - tile.y);
-  if (x < 0 || y < 0 || x >= tile.width || y >= tile.height) return false;
+  // A clipped run can end on the mathematical edge of the tile. Keep that
+  // coordinate intact and inspect only existing pixels in its inward ink
+  // neighborhood. Pins and area vertices retain their strict bitmap bounds.
+  if (
+    x < 0 ||
+    y < 0 ||
+    (closedRunEdge ? x > tile.width || y > tile.height : x >= tile.width || y >= tile.height)
+  )
+    return false;
   for (let dy = -radius; dy <= radius; dy++)
     for (let dx = -radius; dx <= radius; dx++) {
       const xx = x + dx,

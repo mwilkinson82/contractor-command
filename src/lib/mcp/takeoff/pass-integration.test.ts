@@ -2,13 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { PDFDocument, rgb } from "pdf-lib";
 import type { Sb } from "../guard";
 import { sha256Hex } from "../file-share";
-import { renderPlanReference } from "./pdf";
+import { renderPlanReference, renderTile } from "./pdf";
 import { inspectSheet, sheetSpace } from "./pdf";
-import { proposeTakeoffBatch, proposeTakeoffStep, saveCountArea } from "./pass";
+import { proposeTakeoffBatch, proposeTakeoffStep, saveCountArea, partitionShape } from "./pass";
 import type { StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import type { VisionAnswer, VisionRead } from "./vision";
 import { markTargetTile } from "./scope";
+import { verifyVisionAnswer } from "./vision";
+import { calibrate, measure } from "./geometry";
 
 async function fixture(size = 144) {
   const doc = await PDFDocument.create();
@@ -107,6 +109,79 @@ async function fixture(size = 144) {
 }
 
 describe("actual PDF tile to resumable proposal pipeline", () => {
+  it("measures a real PDF run across exact tile edges once without shifting the supplied endpoints", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([720, 144]).drawLine({
+      start: { x: 72, y: 72 },
+      end: { x: 684, y: 72 },
+      thickness: 2,
+      color: rgb(0, 0, 0),
+    });
+    const bytes = await doc.save();
+    const hash = await sha256Hex(bytes),
+      inspection = await inspectSheet(bytes, 0);
+    const f = await fixture();
+    const source = { ...f.page.source, content_hash: hash };
+    const space = sheetSpace(source, 1, inspection);
+    const calibration = calibrate(space, {
+      region: "Fictional full plan",
+      bounds: { x: 0, y: 0, width: 1, height: 1 },
+      version: 1,
+      reference: {
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+        distance: 100,
+        unit: "ft",
+      },
+      method: "estimator",
+      confidence: "high",
+      confirmed: true,
+    });
+    let total = 0,
+      edgeEndpoints = 0;
+    for (const tile of inspection.tiles) {
+      const raster = await renderTile(bytes, 0, tile);
+      const left = Math.max(0.1 * tile.pageWidth, tile.x) - tile.x;
+      const right = Math.min(0.95 * tile.pageWidth, tile.x + tile.width) - tile.x;
+      const y = 0.5 * tile.pageHeight - tile.y;
+      if (left >= right || y < 0 || y >= tile.height) continue;
+      const point = (x: number) => ({
+        column: Math.floor(x / 100),
+        row: Math.floor(y / 100),
+        dx: x % 100,
+        dy: y % 100,
+      });
+      if (right === tile.width) edgeEndpoints++;
+      const checked = verifyVisionAnswer({
+        answer: {
+          findings: [
+            {
+              kind: "polyline",
+              points: [point(left), point(right)],
+              confidence: 0.95,
+              evidence: "Visible source-backed fictional wall",
+            },
+          ],
+          uncertainties: [],
+        },
+        rgba: raster.rgba,
+        tile,
+        space,
+        calibration,
+        measure_type: "linear",
+      });
+      expect(checked.rejected).toEqual([]);
+      expect(checked.accepted[0].shape.points[1].x).toBe((tile.x + right) / tile.pageWidth);
+      for (const candidate of checked.accepted)
+        for (const shape of partitionShape(candidate.shape, tile, inspection.tiles))
+          total += measure(space, shape, calibration).value;
+    }
+    expect(edgeEndpoints).toBeGreaterThan(0);
+    expect(total).toBeCloseTo(85, 10);
+    expect(await sha256Hex(bytes)).toBe(hash);
+  });
   it("reuses a completed equivalent read when an old card requests an unfinished pass", async () => {
     const f = await fixture();
     const old = f.state.passes[0];
