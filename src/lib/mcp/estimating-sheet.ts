@@ -11,6 +11,10 @@ export type SheetRow = {
   math: string;
   sheet: string;
   spec: string;
+  geometry_kind?: string;
+  measured_value?: string;
+  geometry_refs?: string;
+  sheet_png?: string;
 };
 
 const CRC_TABLE = (() => {
@@ -129,15 +133,38 @@ function cell(col: string, row: number, value: string): string {
   return `<c r="${col}${row}" t="inlineStr"><is><t>${xml(value)}</t></is></c>`;
 }
 
-const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+const COLS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 const HEAD = ["Group", "Item", "Unit", "Qty", "Basis", "Verify", "Math", "Sheet", "Spec", "Ref"];
 
 export function groupedCsv(rows: SheetRow[]): string {
-  const lines = ["group,item,unit,qty,basis,verify,math,sheet,spec,ref"];
+  const extended = rows.some((r) => r.geometry_kind !== undefined);
+  const lines = [
+    "group,item,unit,qty,basis,verify,math,sheet,spec,ref" +
+      (extended ? ",geometry_kind,measured_value,geometry_refs,sheet_png" : ""),
+  ];
   for (const r of rows) {
     if (!r.item.trim() && !r.ref.trim()) continue;
     lines.push(
-      [r.group, r.item, r.unit, r.qty, r.basis, r.verify, r.math, r.sheet, r.spec, r.ref]
+      [
+        r.group,
+        r.item,
+        r.unit,
+        r.qty,
+        r.basis,
+        r.verify,
+        r.math,
+        r.sheet,
+        r.spec,
+        r.ref,
+        ...(extended
+          ? [
+              r.geometry_kind || "",
+              r.measured_value || "",
+              r.geometry_refs || "",
+              r.sheet_png || "",
+            ]
+          : []),
+      ]
         .map(csvCell)
         .join(","),
     );
@@ -151,6 +178,10 @@ function csvCell(v: string): string {
 }
 
 export function takeoffXlsx(rows: SheetRow[]): Uint8Array {
+  const extended = rows.some((r) => r.geometry_kind !== undefined);
+  const headings = extended
+    ? [...HEAD, "Geometry kind", "Measured value", "Geometry revisions", "Sheet PNG"]
+    : HEAD;
   const body = rows
     .map((r, i) => {
       const n = i + 2;
@@ -165,11 +196,19 @@ export function takeoffXlsx(rows: SheetRow[]): Uint8Array {
         r.sheet,
         r.spec,
         r.ref,
+        ...(extended
+          ? [
+              r.geometry_kind || "",
+              r.measured_value || "",
+              r.geometry_refs || "",
+              r.sheet_png || "",
+            ]
+          : []),
       ];
       return `<row r="${n}">${vals.map((v, c) => cell(COLS[c], n, v)).join("")}</row>`;
     })
     .join("");
-  const header = `<row r="1">${HEAD.map((h, c) => cell(COLS[c], 1, h)).join("")}</row>`;
+  const header = `<row r="1">${headings.map((h, c) => cell(COLS[c], 1, h)).join("")}</row>`;
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${header}${body}</sheetData></worksheet>`;
   const files = [
