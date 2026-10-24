@@ -56,3 +56,28 @@ old address cannot take an already claimed slot. Neither a typed payment email,
 an unverified address, a name match, nor an unpaid/review-held source can claim
 ownership. The claim changes only Athena membership/settings and its audit;
 Hub identity, auth confirmation and payment evidence remain untouched.
+
+## Company-specific subscription cutoff
+
+A provisioned company gets Circle access only while its own bound source is live.
+Its source period end is an exclusive cutoff: access is allowed before that
+instant and refused at or after it, including when Stripe still reports active,
+its cancel-at-period-end boolean is false, an older invoice extends paid-through,
+or the user has a warm positive gate cache or unrelated owner grant. The three
+reviewed scheduled cancellations have a Stripe cancel_at equal to the source's
+current_period_end; keep those timestamps intact and use their actual instant,
+not a calendar-date guess. Existing source/evidence triggers continue to process
+renewals and payment holds. No timer, email, auth hook or Hub change is required.
+
+The cutoff covers owner/team administration, company membership, job access and
+all Circle roles. A seat's own active company cannot reopen an ended company.
+A separate active Athena PM/Office plan continues with its own narrower roles;
+legacy companies without a Circle provisioning binding keep existing behavior.
+Nothing deletes companies, memberships, jobs, files or audit history. A verified
+renewal restores access to the same company. A stored provisioning/entitlement
+status is descriptive, never authority to bypass the live cutoff.
+
+Apply the forward expiry migration through Lovable Cloud only, after review.
+SQL regressions cover before/at/after expiry, stale cache/owner grants, a seat
+with another live company, denied owner/job/team writes, preserved records,
+standalone PM restrictions, and renewal of the original workspace.

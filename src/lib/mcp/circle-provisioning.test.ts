@@ -85,6 +85,9 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/20261024111650_athena_circle_company_expiry.sql", "utf8"),
+  );
 }, 30000);
 afterAll(async () => {
   await db?.close();
@@ -421,5 +424,110 @@ describe("Circle companies from real guarded SQL", () => {
     expect(
       await value("select count(*)::int as v from mcp_company_members where company_id=$1", [cid]),
     ).toBe(2);
+  });
+});
+
+describe("Circle company cancellation cutoff", () => {
+  async function expiring(tag: string, suffix: number) {
+    const owner = `00000000-0000-4000-8000-${String(suffix).padStart(12, "0")}`;
+    await query("insert into auth.users values($1,$2,now())", [owner, `${tag}@example.com`]);
+    const sid = await source(tag, owner, `${tag}@example.com`);
+    const cid = await ensure(sid);
+    await query(
+      "update subscriptions set current_period_end=now()+interval '1 day',cancel_at_period_end=false where id=$1",
+      [sid],
+    );
+    return { owner, sid, cid };
+  }
+  it("expires at the exact paid-period boundary without waiting for a cancellation webhook", async () => {
+    const { owner, sid, cid } = await expiring("boundary", 301);
+    expect(await value("select mcp_company_plan_live($1) as v", [cid])).toBe(true);
+    // A scheduled Stripe cancel_at may exist even with cancel_at_period_end=false.
+    // Its verified current_period_end still supplies the exact access boundary.
+    await query("update subscriptions set current_period_end=now() where id=$1", [sid]);
+    expect(await value("select mcp_company_plan_live($1) as v", [cid])).toBe(false);
+    expect(await value("select mcp_company_tier($1) as v", [cid])).toBeNull();
+    expect(await userValue(owner, "select mcp_gate() as v")).toBe(false);
+    expect(await userValue(owner, `select mcp_is_company_owner('${cid}') as v`)).toBe(false);
+    expect(await userValue(owner, `select mcp_member_role('${cid}') as v`)).toBeNull();
+  });
+  it("does not borrow another company, an owner grant, or a warm positive cache", async () => {
+    const { owner, sid, cid } = await expiring("borrow", 302);
+    const seat = "00000000-0000-4000-8000-000000000303";
+    await query("insert into auth.users values($1,'other-company@example.com',now())", [seat]);
+    const other = await ensure(await source("othercompany", seat, "other-company@example.com"));
+    await query(
+      "insert into mcp_company_members(company_id,user_id,display_name,role) values($1,$2,'Fictional member','ap')",
+      [cid, seat],
+    );
+    await query(
+      "insert into circle_owner_grants(user_id,email,granted_by,reason) values($1,'borrow@example.com',$1,'Fictional unrelated grant')",
+      [owner],
+    );
+    await query(
+      "insert into mcp_gate_cache values($1,true,now()) on conflict(user_id) do update set active=true,checked_at=now()",
+      [owner],
+    );
+    await query(
+      "update subscriptions set current_period_end=now()-interval '1 second' where id=$1",
+      [sid],
+    );
+    expect(await userValue(owner, "select mcp_gate() as v")).toBe(false);
+    expect(await userValue(seat, "select mcp_gate() as v")).toBe(true);
+    expect(await value("select mcp_company_plan_live($1) as v", [other])).toBe(true);
+    expect(await userValue(seat, `select mcp_is_company_member('${cid}') as v`)).toBe(false);
+    expect(
+      await value(
+        "select bool_or(mcp_role_allowed($1,r)) as v from unnest(array['owner','pm','all_access','ap','estimating','contracts','super']) r",
+        [cid],
+      ),
+    ).toBe(false);
+    const job = await value(
+      "insert into mcp_jobs(company_id,job_number,name,user_id) values($1,'QA-END','Fictional ended job',$2) returning id as v",
+      [cid, owner],
+    );
+    expect(await userValue(owner, `select mcp_can_access_job('${job}') as v`)).toBe(false);
+    expect(await userValue(seat, `select mcp_can_access_job('${job}') as v`)).toBe(false);
+    await expect(
+      userValue(
+        owner,
+        `select mcp_team_invite('${cid}','no-send@example.com','Fictional seat','ap',array[]::text[]) as v`,
+      ),
+    ).rejects.toThrow();
+    expect(await value("select count(*)::int as v from mcp_jobs where id=$1", [job])).toBe(1);
+    expect(
+      await value("select count(*)::int as v from mcp_company_members where company_id=$1", [cid]),
+    ).toBe(2);
+  });
+  it("retains a separately paid Athena plan with only its own allowed roles", async () => {
+    const { owner, sid, cid } = await expiring("standaloneend", 304);
+    await query(
+      "update mcp_company_entitlements set plan='athena_pm',stripe_subscription_id='sub_separate',extra_seats=2 where company_id=$1",
+      [cid],
+    );
+    await query("update subscriptions set current_period_end=now()-interval '1 day' where id=$1", [
+      sid,
+    ]);
+    expect(await value("select mcp_company_tier($1) as v", [cid])).toBe("athena_pm");
+    expect(await userValue(owner, "select mcp_gate() as v")).toBe(true);
+    expect(await value("select mcp_role_allowed($1,'pm') as v", [cid])).toBe(true);
+    expect(await value("select mcp_role_allowed($1,'ap') as v", [cid])).toBe(false);
+    expect(await value("select mcp_role_allowed($1,'estimating') as v", [cid])).toBe(false);
+  });
+  it("restores the same company after a verified renewal, without recreating records", async () => {
+    const { owner, sid, cid } = await expiring("renewafterend", 305);
+    await query("update subscriptions set current_period_end=now()-interval '1 day' where id=$1", [
+      sid,
+    ]);
+    expect(await userValue(owner, "select mcp_gate() as v")).toBe(false);
+    await query(
+      "update subscriptions set current_period_end=now()+interval '1 month' where id=$1",
+      [sid],
+    );
+    await query(
+      "update circle_subscription_evidence set paid_through=now()+interval '1 month',observed_at=now() where stripe_subscription_id='sub_renewafterend'",
+    );
+    expect(await userValue(owner, "select mcp_gate() as v")).toBe(true);
+    expect(await ensure(sid)).toBe(cid);
   });
 });
