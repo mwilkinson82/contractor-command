@@ -342,6 +342,11 @@
       kpis.append(d);
     });
     main.append(kpis);
+    var workflow = (sc.card.sections || []).find(function (section) {
+      return section.heading === "Before your AI reads the drawings";
+    });
+    if (workflow && workflow.rows && workflow.rows[0])
+      main.append(node("p", workflow.rows[0].cells.join(" "), "note"));
     function extraSections(target) {
       (sc.card.sections || [])
         .filter(function (section) {
