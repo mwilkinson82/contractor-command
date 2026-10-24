@@ -25,7 +25,12 @@ import { reviseGeometry } from "../takeoff/revision";
 import { automaticCalibration } from "../takeoff/calibration";
 import { readPointCrop } from "../takeoff/verify";
 import { bytesToBase64 } from "../estimating-sheet";
-import { hostContextForTile } from "../takeoff/host-workflow";
+import { hostContextForTile, hostReviewContext } from "../takeoff/host-workflow";
+import {
+  HostSheetReadRequired,
+  proposeSheetStep,
+  sheetObservationsSchema,
+} from "../takeoff/sheet-pass";
 import { downloadMeasuredExport, exportMeasuredSheet } from "../takeoff/export";
 
 const point = z.object({
@@ -145,7 +150,7 @@ export const takeoffGeometry = defineTool({
   title: "Measure and review a drawing takeoff",
   description:
     "At the start of estimating, ask the member to select their strongest available image-reading model and deeper reasoning; Athena cannot switch it. Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. " +
-    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. Propose with no line_no (or with line_nos) is a sheet read: the one target tile is returned with every open line that may appear on it, and the connected AI returns sheet_observations with that cursor and one entry per listed line, empty findings where nothing is visible; each line keeps its own pass and checkpoint, and lines not ready are listed with the reason. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
   inputSchema: {
     ...scope,
     operation: z
@@ -202,6 +207,8 @@ export const takeoffGeometry = defineTool({
     crop_point: point.optional(),
     tile_index: z.number().int().min(0).optional(),
     observations: hostObservationsSchema.optional(),
+    line_nos: z.array(z.number().int().min(1).max(9999)).min(1).max(200).optional(),
+    sheet_observations: sheetObservationsSchema.optional(),
     split_region: z.boolean().optional(),
     reload_context: z.boolean().optional(),
     pass_id: z.string().uuid().optional(),
@@ -352,139 +359,267 @@ export const takeoffGeometry = defineTool({
             edge: 160,
           };
         } else if (operation === "propose") {
-          if (args.reload_context && args.observations)
+          if (args.reload_context && (args.observations || args.sheet_observations))
             throw new ToolError(
               "Reload the project context in a prepare call before submitting observations.",
             );
-          if (!args.line_no)
-            throw new ToolError("Choose the takeoff line Athena should locate on this sheet.");
-          if (args.observations && (!args.pass_id || args.cursor == null))
-            throw new ToolError(
-              "Prepare the exact target tile first, then return its pass_id, cursor and observations.",
-            );
-          try {
-            extra.pass = await proposeTakeoffStep(
-              sb,
-              job,
-              page!,
-              state,
-              {
-                line_no: args.line_no,
-                calibration_id: args.calibration_id,
-                pass_id: args.pass_id,
-                cursor: args.cursor,
-                depth: args.depth,
-                legend: args.legend,
-              },
-              args.observations ? hostDrawingReader(args.observations) : undefined,
-            );
-          } catch (error) {
-            if (!(error instanceof HostDrawingReadRequired) || !error.tile || !error.checkpoint)
-              throw error;
-            const request = error.request;
-            const parts = args.split_region ? splitHostTile(request.png) : null;
-            const projectContext = await hostContextForTile(
-              sb,
-              job,
-              {
-                pass_id: String(error.checkpoint.pass_id),
-                cursor: Number(error.checkpoint.next_cursor),
-                line_no: args.line_no,
+          if (!args.line_no || args.line_nos?.length || args.sheet_observations) {
+            // A sheet read: every open line on one tile, one observation set back.
+            if (args.observations)
+              throw new ToolError(
+                "A sheet read takes sheet_observations with one entry per line, not single-line observations.",
+              );
+            try {
+              extra.sheet_read = await proposeSheetStep(
+                sb,
+                job,
+                page!,
+                state,
+                { line_nos: args.line_nos, calibration_id: args.calibration_id },
+                args.sheet_observations,
+              );
+            } catch (error) {
+              if (!(error instanceof HostSheetReadRequired)) throw error;
+              const read = error.read;
+              const included = read.cursor === 0 || args.reload_context === true;
+              const reload = {
+                operation: "propose",
+                job_number: job.job_number,
+                company_id: job.company_id,
+                source_id: page!.source.id,
                 sheet: page!.sheet,
-                source_id: page!.source.id,
-                source_hash: page!.source.content_hash,
-                takeoff_version: state.takeoff_version,
-                calibration_id: args.calibration_id,
-              },
-              args.reload_context === true,
-            );
-            const view = await viewEngine(sb, job, await requiredSnapshot(sb, job), page, {
-              pass: error.checkpoint,
-              pass_paused: true,
-              pass_pause_reason:
-                "The target region is ready for your connected AI. No proposal or quantity has been saved from it.",
-              read_request: {
-                ...projectContext,
-                pass_id: error.checkpoint.pass_id,
-                cursor: error.checkpoint.next_cursor,
-                line_no: args.line_no,
-                item: state.lines.find((l) => l.line_no === args.line_no)?.item,
-                measure_type: request.measure_type,
-                target_tile: error.tile,
-                coordinate_system: parts ? "part-image-0-1000" : "target-tile-image-0-1000",
-                parts: parts?.map(({ part, frame }) => ({ part, frame })),
-                frame: request.frame,
-                source_id: page!.source.id,
-                source_hash: page!.source.content_hash,
-                calibration_id: args.calibration_id ?? null,
-                takeoff_version: state.takeoff_version,
-                vector_text: request.hints
-                  .filter((h) => h.kind === "text" && h.text)
-                  .slice(0, 80)
-                  .map((h) => h.text!.slice(0, 300)),
-              },
-            });
-            return {
-              ...view,
-              content: [
-                ...view.content,
-                {
-                  type: "text" as const,
-                  text:
-                    "### Target and project references\n\n```json\n" +
-                    JSON.stringify(
-                      (view.structuredContent as Record<string, unknown>).read_request,
-                    ) +
-                    "\n```",
+                line_nos: read.lines.map((l) => l.line_no),
+                calibration_id: read.calibration_id ?? undefined,
+                reload_context: true,
+              };
+              const view = await viewEngine(sb, job, await requiredSnapshot(sb, job), page, {
+                sheet_read: {
+                  cursor: read.cursor,
+                  tiles_total: read.order.length,
+                  lines: read.lines,
+                  waiting: read.waiting,
+                  skipped: read.skipped,
                 },
-                ...(request.overview
-                  ? [
-                      {
-                        type: "text" as const,
-                        text: "Reference plan for orientation only; not the coordinate image.",
-                      },
-                      {
-                        type: "image" as const,
-                        mimeType: "image/png",
-                        data: bytesToBase64(request.overview),
-                      },
-                    ]
-                  : []),
-                ...(request.legend
-                  ? [
-                      { type: "text" as const, text: "Reference legend only; not counted." },
-                      {
-                        type: "image" as const,
-                        mimeType: "image/png",
-                        data: bytesToBase64(request.legend),
-                      },
-                    ]
-                  : []),
-                ...(parts
-                  ? parts.flatMap((part) => [
-                      {
-                        type: "text" as const,
-                        text: `TARGET PART ${part.part}. Local coordinates x/y 0–1000. All four parts form the same pending region; references are not counted.`,
-                      },
-                      {
-                        type: "image" as const,
-                        mimeType: "image/png",
-                        data: bytesToBase64(part.png),
-                      },
-                    ])
-                  : [
-                      {
-                        type: "text" as const,
-                        text: "TARGET TILE. Observations use x/y 0–1000 on this image only. Outside-scope pixels are masked white. Quantities remain proposals until estimator acceptance.",
-                      },
-                      {
-                        type: "image" as const,
-                        mimeType: "image/png",
-                        data: bytesToBase64(request.png),
-                      },
-                    ]),
-              ],
-            };
+                pass_paused: true,
+                pass_pause_reason:
+                  "The sheet region is ready for your connected AI, for every open line at once. No proposal or quantity has been saved from it.",
+                read_request: {
+                  kind: "sheet",
+                  project_context_reference: {
+                    job_id: job.job_id,
+                    source_id: page!.source.id,
+                    source_hash: page!.source.content_hash,
+                    takeoff_version: state.takeoff_version,
+                    initial_cursor: 0,
+                    context_included: included,
+                    reload,
+                  },
+                  ...(included ? { project_context: await hostReviewContext(sb, job.job_id) } : {}),
+                  cursor: read.cursor,
+                  tiles_total: read.order.length,
+                  coordinate_system: "target-tile-image-0-1000",
+                  target_tile: read.tile,
+                  frame: {
+                    sheet: page!.sheet,
+                    tile_bounds: read.tile.bounds,
+                    reference_bounds: read.reference_bounds,
+                    region: { name: "union of the lines' regions", bounds: read.scope },
+                  },
+                  lines: read.lines.map((l) => ({
+                    line_no: l.line_no,
+                    item: l.item,
+                    measure_type: l.measure_type,
+                    pass_id: l.pass_id,
+                    region: l.scope,
+                    depth: l.depth,
+                  })),
+                  waiting: read.waiting.map((l) => ({
+                    line_no: l.line_no,
+                    next_cursor: l.next_cursor,
+                  })),
+                  skipped: read.skipped,
+                  source_id: page!.source.id,
+                  source_hash: page!.source.content_hash,
+                  calibration_id: read.calibration_id,
+                  takeoff_version: state.takeoff_version,
+                  vector_text: read.hints,
+                  submit: {
+                    operation: "propose",
+                    sheet_observations: {
+                      cursor: read.cursor,
+                      lines: read.lines.map((l) => ({
+                        line_no: l.line_no,
+                        pass_id: l.pass_id,
+                        findings: [],
+                        uncertainties: [],
+                      })),
+                    },
+                  },
+                },
+              });
+              return {
+                ...view,
+                content: [
+                  ...view.content,
+                  {
+                    type: "text" as const,
+                    text:
+                      "### Sheet read: target, lines and references\n\n```json\n" +
+                      JSON.stringify(
+                        (view.structuredContent as Record<string, unknown>).read_request,
+                      ) +
+                      "\n```",
+                  },
+                  {
+                    type: "text" as const,
+                    text: "Reference plan for orientation only; not the coordinate image.",
+                  },
+                  {
+                    type: "image" as const,
+                    mimeType: "image/png",
+                    data: bytesToBase64(read.overview),
+                  },
+                  {
+                    type: "text" as const,
+                    text: `TARGET TILE ${read.cursor + 1} of ${read.order.length}. Inspect it once for every line listed under lines. Return sheet_observations with cursor ${read.cursor} and one entry per line (same pass_id), findings as x/y 0–1000 on this image, confidence and visible evidence; empty findings means inspected and none visible. Outside-scope pixels are masked white. Each line's own region still bounds what Athena keeps. Quantities remain proposals until estimator acceptance.`,
+                  },
+                  {
+                    type: "image" as const,
+                    mimeType: "image/png",
+                    data: bytesToBase64(read.png),
+                  },
+                ],
+              };
+            }
+          } else {
+            if (args.observations && (!args.pass_id || args.cursor == null))
+              throw new ToolError(
+                "Prepare the exact target tile first, then return its pass_id, cursor and observations.",
+              );
+            try {
+              extra.pass = await proposeTakeoffStep(
+                sb,
+                job,
+                page!,
+                state,
+                {
+                  line_no: args.line_no,
+                  calibration_id: args.calibration_id,
+                  pass_id: args.pass_id,
+                  cursor: args.cursor,
+                  depth: args.depth,
+                  legend: args.legend,
+                },
+                args.observations ? hostDrawingReader(args.observations) : undefined,
+              );
+            } catch (error) {
+              if (!(error instanceof HostDrawingReadRequired) || !error.tile || !error.checkpoint)
+                throw error;
+              const request = error.request;
+              const parts = args.split_region ? splitHostTile(request.png) : null;
+              const projectContext = await hostContextForTile(
+                sb,
+                job,
+                {
+                  pass_id: String(error.checkpoint.pass_id),
+                  cursor: Number(error.checkpoint.next_cursor),
+                  line_no: args.line_no,
+                  sheet: page!.sheet,
+                  source_id: page!.source.id,
+                  source_hash: page!.source.content_hash,
+                  takeoff_version: state.takeoff_version,
+                  calibration_id: args.calibration_id,
+                },
+                args.reload_context === true,
+              );
+              const view = await viewEngine(sb, job, await requiredSnapshot(sb, job), page, {
+                pass: error.checkpoint,
+                pass_paused: true,
+                pass_pause_reason:
+                  "The target region is ready for your connected AI. No proposal or quantity has been saved from it.",
+                read_request: {
+                  ...projectContext,
+                  pass_id: error.checkpoint.pass_id,
+                  cursor: error.checkpoint.next_cursor,
+                  line_no: args.line_no,
+                  item: state.lines.find((l) => l.line_no === args.line_no)?.item,
+                  measure_type: request.measure_type,
+                  target_tile: error.tile,
+                  coordinate_system: parts ? "part-image-0-1000" : "target-tile-image-0-1000",
+                  parts: parts?.map(({ part, frame }) => ({ part, frame })),
+                  frame: request.frame,
+                  source_id: page!.source.id,
+                  source_hash: page!.source.content_hash,
+                  calibration_id: args.calibration_id ?? null,
+                  takeoff_version: state.takeoff_version,
+                  vector_text: request.hints
+                    .filter((h) => h.kind === "text" && h.text)
+                    .slice(0, 80)
+                    .map((h) => h.text!.slice(0, 300)),
+                },
+              });
+              return {
+                ...view,
+                content: [
+                  ...view.content,
+                  {
+                    type: "text" as const,
+                    text:
+                      "### Target and project references\n\n```json\n" +
+                      JSON.stringify(
+                        (view.structuredContent as Record<string, unknown>).read_request,
+                      ) +
+                      "\n```",
+                  },
+                  ...(request.overview
+                    ? [
+                        {
+                          type: "text" as const,
+                          text: "Reference plan for orientation only; not the coordinate image.",
+                        },
+                        {
+                          type: "image" as const,
+                          mimeType: "image/png",
+                          data: bytesToBase64(request.overview),
+                        },
+                      ]
+                    : []),
+                  ...(request.legend
+                    ? [
+                        { type: "text" as const, text: "Reference legend only; not counted." },
+                        {
+                          type: "image" as const,
+                          mimeType: "image/png",
+                          data: bytesToBase64(request.legend),
+                        },
+                      ]
+                    : []),
+                  ...(parts
+                    ? parts.flatMap((part) => [
+                        {
+                          type: "text" as const,
+                          text: `TARGET PART ${part.part}. Local coordinates x/y 0–1000. All four parts form the same pending region; references are not counted.`,
+                        },
+                        {
+                          type: "image" as const,
+                          mimeType: "image/png",
+                          data: bytesToBase64(part.png),
+                        },
+                      ])
+                    : [
+                        {
+                          type: "text" as const,
+                          text: "TARGET TILE. Observations use x/y 0–1000 on this image only. Outside-scope pixels are masked white. Quantities remain proposals until estimator acceptance.",
+                        },
+                        {
+                          type: "image" as const,
+                          mimeType: "image/png",
+                          data: bytesToBase64(request.png),
+                        },
+                      ]),
+                ],
+              };
+            }
           }
         } else if (operation === "export")
           extra.export = await exportMeasuredSheet(sb, job, page!, state);
