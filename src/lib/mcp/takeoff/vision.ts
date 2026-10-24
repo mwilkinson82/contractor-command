@@ -160,6 +160,8 @@ const flatObservations = modelAnswer
     reported_model: z.string().trim().min(1).max(120).optional(),
   })
   .strict();
+/** One line's observations on the shared target tile of a sheet read. */
+export const lineObservationsSchema = flatObservations;
 export const hostObservationsSchema = z.union([
   flatObservations,
   z

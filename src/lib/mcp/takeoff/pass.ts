@@ -255,8 +255,18 @@ export async function proposeTakeoffBatch(
     depth?: Shape["depth"];
     legend?: { source_id: string; sheet: string; tile_index: number };
     deadline?: number;
+    /** A sheet read's shared tile order, adopted by a line that has no pass yet. */
+    order?: number[];
   },
   read: VisionRead = readVisionTile,
+  /** A sheet read renders the tile once and runs every line against it; the pending checkpoint
+   * is written only for a pass that does not exist yet, so a prepare never re-saves a line. */
+  prepared?: {
+    raster: Awaited<ReturnType<typeof renderTile>>;
+    reference: Awaited<ReturnType<typeof renderPlanReference>>;
+    scope: Bounds;
+    writePending: boolean;
+  },
 ) {
   const line = state.lines.find((l) => l.line_no === input.line_no);
   if (!line) throw new ToolError("Choose a line from the current saved takeoff first.");
@@ -355,15 +365,24 @@ export async function proposeTakeoffBatch(
   const passId = input.pass_id ?? (summary?.pass_id as string | undefined) ?? crypto.randomUUID(),
     order =
       (summary?.order as number[] | undefined) ??
+      input.order ??
       candidateOrder(page, line.item, countArea?.bounds ?? cal?.bounds),
     tile = page.inspection.tiles[order[cursor]];
   if (!tile) throw new ToolError("The pass has no next tile. Reload the sheet.");
-  const raster = await renderTile(page.bytes, page.page - 1, tile);
-  const reference = await renderPlanReference(
-    page.bytes,
-    page.page - 1,
-    countArea?.bounds ?? cal!.bounds,
-  );
+  if (prepared && prepared.raster.tile.index !== tile.index)
+    throw new ToolError(
+      "The shared tile and this line's pass order disagree. Reload the sheet read.",
+    );
+  if (
+    input.order &&
+    summary?.order &&
+    JSON.stringify(summary.order) !== JSON.stringify(input.order)
+  )
+    throw new ToolError("This line's pass uses a different tile order. Reload the sheet read.");
+  const raster = prepared?.raster ?? (await renderTile(page.bytes, page.page - 1, tile));
+  const reference =
+    prepared?.reference ??
+    (await renderPlanReference(page.bytes, page.page - 1, countArea?.bounds ?? cal!.bounds));
   const hints = page.inspection.objects.filter(
     (o) =>
       o.bounds.x < tile.bounds.x + tile.bounds.width &&
@@ -385,7 +404,7 @@ export async function proposeTakeoffBatch(
     answer = await read({
       item: line.item,
       measure_type: kind,
-      png: scopedTarget(raster.rgba, tile, countArea?.bounds ?? cal!.bounds),
+      png: scopedTarget(raster.rgba, tile, prepared?.scope ?? countArea?.bounds ?? cal!.bounds),
       overview: markTargetTile(reference.png, referenceFootprint(tile.bounds, reference.bounds)),
       frame: {
         sheet: page.sheet,
@@ -424,15 +443,16 @@ export async function proposeTakeoffBatch(
         verification_rejections: Number(summary?.verification_rejections ?? 0),
         uncertainties: (summary?.uncertainties as string[] | undefined) ?? [],
       };
-      await engineRpc(sb, "mcp_takeoff_pass_save", {
-        _job: job.job_id,
-        _record: {
-          source_id: page.source.id,
-          page: page.page,
-          pass_summary: pending,
-          proposals: [],
-        },
-      });
+      if (prepared?.writePending !== false || !prior)
+        await engineRpc(sb, "mcp_takeoff_pass_save", {
+          _job: job.job_id,
+          _record: {
+            source_id: page.source.id,
+            page: page.page,
+            pass_summary: pending,
+            proposals: [],
+          },
+        });
       error.checkpoint = pending;
       error.tile = tile;
     }

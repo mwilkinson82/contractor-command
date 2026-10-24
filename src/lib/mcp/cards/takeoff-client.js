@@ -1530,6 +1530,55 @@
         runRead(true);
       }),
     );
+    // A sheet read: every open line on each tile, one observation set back per tile.
+    async function runSheetRead() {
+      var calibration = cal.value || undefined;
+      if (!host.message)
+        return notice(
+          "Ask your AI in chat to read every open line on " +
+            sc.source.sheet +
+            " with takeoff_geometry propose and no line_no. Athena supplies the stored regions.",
+        );
+      try {
+        await rpc("ui/message", {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                "Use Athena to read every open takeoff line on this sheet, one tile at a time, for " +
+                JSON.stringify(Object.assign(context(), { calibration_id: calibration })) +
+                ". Remind me to select my strongest available image-reading model with deeper reasoning if I have not already. Call takeoff_geometry propose with no line_no (and this calibration_id) to prepare the next tile; it lists every line to look for on that tile. Inspect the target image once for all of them and submit sheet_observations with that cursor and one entry per listed line, with empty findings where nothing is visible. Repeat until the read is complete. Reconcile with the saved drawings, notes, specifications and contract; record cited gaps and questions with estimate_gap_analysis. Keep quantities as proposals for my review; do not accept them.",
+            },
+          ],
+        });
+        notice(
+          "Sent to your connected AI. Athena verifies and measures every line's returned locations.",
+        );
+      } catch (_) {
+        notice(
+          "Continue in chat: ask your AI to read every open line on this sheet with Athena's stored regions.",
+        );
+      }
+    }
+    right.append(button("Ask your AI to read the whole sheet", runSheetRead));
+    if (sc.sheet_read)
+      right.append(
+        node(
+          "p",
+          "Sheet read: tile " +
+            (sc.sheet_read.cursor + 1) +
+            " of " +
+            sc.sheet_read.tiles_total +
+            " · " +
+            (sc.sheet_read.lines || []).length +
+            " lines on this tile" +
+            ((sc.sheet_read.skipped || []).length
+              ? " · " + sc.sheet_read.skipped.length + " lines not ready"
+              : ""),
+          "note",
+        ),
+      );
     var proposals = rows().filter(function (g) {
       return reviewableProposal(sc, g);
     });
