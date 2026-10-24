@@ -296,9 +296,15 @@ export function presentSubmittalLog(input: {
   });
   const trackingLines = tracking.map((item) => `- ${item.action}${item.due ? `. Due ${item.due}.` : ""}${item.overdue ? " Overdue." : ""}`);
   const nothing = !rows.length && !schedule.length && !tracking.length;
+  const savedCount = currentSubmittals(input.rows).length;
+  const noFilterMatches = !rows.length && savedCount > 0 &&
+    !!(input.filter?.overdue || input.filter?.status || input.filter?.ball);
+  const emptyLog = noFilterMatches
+    ? `${input.filter?.overdue ? "No overdue submittals match this view." : "No submittals match these filters."} The full log contains ${savedCount} current submittals.`
+    : nothing ? "No submittals on this job yet." : "No submittals logged yet.";
   const loggedBody = rows.length
     ? rows.map((row) => rowLine(row, input.today)).join("\n")
-    : nothing
+    : noFilterMatches ? emptyLog : nothing
       ? "No submittals on this job yet. Set the log up: say log a submittal, or paste the log to import it."
       : "No submittals logged yet.";
   const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody].filter(Boolean).join("\n\n");
@@ -360,12 +366,12 @@ export function presentSubmittalLog(input: {
         : {
             heading: "Log",
             kind: "list" as const,
-            rows: [{ cells: [nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
+            rows: [{ cells: [emptyLog] }],
           },
     ] as CardSection[],
     next_move: input.readOnly
       ? "Read only on this job."
-      : nothing
+      : noFilterMatches ? "Show the full submittal log or change the filters." : nothing
         ? "Set the log up: say log a submittal, or paste the log to import it."
         : "Log the next submittal when it is ready.",
   };
