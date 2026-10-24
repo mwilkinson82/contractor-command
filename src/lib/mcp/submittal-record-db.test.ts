@@ -191,6 +191,7 @@ describe("submittal record page readers", () => {
     expect(page.page).toBe("submittal");
     expect(page.number).toBe(NUMBER);
     expect(page.job_id).toBe(job);
+    expect(page.company_id).toBe(company);
     expect(page.read_only).toBe(false);
     expect(page.current.id).toBe(sid);
     expect(page.current.status).toBe("submitted");

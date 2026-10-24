@@ -46,6 +46,7 @@ describe("drawing attachment handoff", () => {
       "drawing_set_import",
       "estimate_intake",
       "estimate_takeoff_save",
+      "submittal_package",
       "email_draft",
       "cpm_activities",
     ].map((name) => ({
@@ -55,10 +56,10 @@ describe("drawing attachment handoff", () => {
     }));
     const result = nativeCardPayload({ jsonrpc: "2.0", id: 1, result: { tools } }, visit);
     const returned = (result.value as { result: { tools: typeof tools } }).result.tools;
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < 4; i++)
       expect(returned[i]._meta).toMatchObject({ ...tools[i]._meta, "openai/fileParams": ["file"] });
-    expect(returned[3]._meta).toMatchObject(tools[3]._meta);
-    expect(returned[4]).toBe(tools[4]);
+    expect(returned[4]._meta).toMatchObject(tools[4]._meta);
+    expect(returned[5]).toBe(tools[5]);
     expect(nativeCardPayload(result.value, visit).changed).toBe(false);
   });
 });

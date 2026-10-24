@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   renderSubmittalRecordBody,
   submittalRecordPath,
+  submittalRecordFile,
   type SubmittalRecordPayload,
 } from "./submittal-record-page";
 import { renderReportBody } from "./report-pages";
@@ -78,6 +79,25 @@ const items = [
 ];
 
 describe("record page", () => {
+  it("signs stored references only inside the authorized company's job across supported buckets", () => {
+    const scope = { company_id: "company", job_id: "job" };
+    for (const bucket of ["athena-submittals", "athena-files", "athena-drawings"])
+      expect(submittalRecordFile(scope, `${bucket}/company/job/pieces/x/source.pdf`)).toMatchObject(
+        {
+          bucket,
+          path: "company/job/pieces/x/source.pdf",
+        },
+      );
+    for (const ref of [
+      "athena-submittals/another-company/job/source.pdf",
+      "athena-submittals/company/another-job/source.pdf",
+      "athena-submittals/company/job/../source.pdf",
+      "athena-submittals/company/job/source.pdf?token=other",
+      "another-bucket/company/job/source.pdf",
+    ])
+      expect(submittalRecordFile(scope, ref)).toBeNull();
+    expect(submittalRecordFile({}, "athena-submittals/company/job/source.pdf")).toBeNull();
+  });
   const payload: SubmittalRecordPayload = {
     page: "submittal",
     company: "Fictional Construction",

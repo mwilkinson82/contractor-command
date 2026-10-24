@@ -26,3 +26,15 @@ Design: "Athena Logs and Portfolio Rollup", Phase 1, as revised by the team revi
 - Production build: pass (route tree regenerated). ESLint on the new files: pass. Prettier: new files formatted; files that were unformatted on the live branch keep their state.
 - Manifest: `.lovable/mcp/manifest.json` carries the `submittal_package` change only. The extractor also adds `jobs_list` and `drawing_sets_list`, which the committed manifest and `manifest-sync.test.ts` do not yet carry; that drift predates this branch.
 - **Not a live pass.** After deployment: on 2701, log a submittal, attach a file by `P1`, build, open the log link, click the row, reach the package PDF and the transmittal; repeat in ChatGPT, Claude and Grok Bot; rerun do-not-break.
+
+## Release candidate verification
+
+Updated onto the live Athena branch through #272 (`3f5cc59b`). The takeoff v6 resource and preview metadata changes are retained. The manifest is regenerated from this combined source.
+
+- Record-file signing now checks the authorized company and job before either the member client or token server signs a path. Existing same-job references in the submittal, file and drawing buckets remain supported; another company's or job's path is refused.
+- `submittal_package` receives the existing ChatGPT file handoff metadata. Its downloads support the same exact observed attachment hosts as drawing imports, without a wildcard, and use edge-compatible manual redirects. A redirected response is refused without following its destination or storing a file.
+- Invalid logo bytes no longer abort the company cover. The company name, job, required spec section, revision and transmittal remain present.
+- Full suite: **2,396 tests across 229 files**, including **17/17 locked behaviors**. Production build and lint on the changed release files pass. Typecheck has the same 32 baseline diagnostics, byte-for-byte.
+- Local PDF fixture: a cover/transmittal followed by two fictional source pages, with original hashes retained. The cover and the record page were visually checked; the record page was checked at desktop and 390 px width. No real file was uploaded or email sent.
+
+Production preflight through Lovable Cloud confirms the existing package builder, delivery function and private package bucket are present. The record reader and host column are not present, so the one staged record-page migration is required. No production migration or publication has been performed for this candidate. After approval, use owner-only fictional QA data for host attachment/build/link verification; do not modify real job records or record a synthetic send receipt in production.

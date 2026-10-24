@@ -187,9 +187,13 @@ export async function buildSubmittalPdf(
     }
   }
   if (logo) {
-    const image = logo[0] === 137 ? await doc.embedPng(logo) : await doc.embedJpg(logo);
-    const fit = image.scaleToFit(145, 45);
-    page.drawImage(image, { x: 420, y: 735, width: fit.width, height: fit.height });
+    try {
+      const image = logo[0] === 137 ? await doc.embedPng(logo) : await doc.embedJpg(logo);
+      const fit = image.scaleToFit(145, 45);
+      page.drawImage(image, { x: 420, y: 735, width: fit.width, height: fit.height });
+    } catch {
+      // Company text remains on the cover when a configured image is unreadable.
+    }
   }
   line(ctx.brand.name, 20, true);
   line(

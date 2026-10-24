@@ -74,6 +74,19 @@ describe("submittal package documents", () => {
     const pdf = await PDFDocument.load(built.bytes);
     expect(pdf.catalog.has(PDFName.of("Names"))).toBe(true);
   });
+  it("retains the company cover and original pages when the configured logo bytes are invalid", async () => {
+    const original = await PDFDocument.create();
+    original.addPage();
+    const bytes = await original.save();
+    const built = await buildSubmittalPdf(
+      ctx,
+      [{ item: ctx.items[0], name: "cuts.pdf", bytes }],
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(built.coverPages).toBe(1);
+    expect(built.pageCount).toBe(2);
+    expect(hash(bytes)).toBe(hash(await original.save()));
+  });
   it("blocks missing files even if someone marked a piece received", async () => {
     const incomplete = { ...ctx, items: [{ ...ctx.items[0], file_ref: null }] };
     expect(packageGaps(incomplete).join()).toContain("stored file needed");

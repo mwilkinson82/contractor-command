@@ -13,7 +13,12 @@ export const drawingFile = z
   })
   .optional();
 
-const FILE_TOOLS = new Set(["drawing_set_import", "estimate_intake", "estimate_takeoff_save"]);
+const FILE_TOOLS = new Set([
+  "drawing_set_import",
+  "estimate_intake",
+  "estimate_takeoff_save",
+  "submittal_package",
+]);
 export function drawingFileMeta(name: string): Record<string, unknown> {
   return FILE_TOOLS.has(name) ? { "openai/fileParams": ["file"] } : {};
 }

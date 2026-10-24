@@ -20,6 +20,7 @@ import {
 } from "./mcp/submittals";
 import { jobHeading } from "./mcp/job-label";
 import { kindLabel } from "./mcp/project-record";
+import { storedPiece } from "./mcp/submittal-package";
 import { esc } from "./report-pages";
 
 export type RecordPackage = {
@@ -99,6 +100,7 @@ export type RecordEventRow = {
 };
 export type SubmittalRecordPayload = {
   page: "submittal";
+  company_id?: string;
   company?: string;
   job_id?: string;
   job_number?: string;
@@ -119,6 +121,19 @@ export type SubmittalRecordPayload = {
 export function submittalStoragePath(fileRef: string | null | undefined): string | null {
   const match = /^athena-submittals\/(.+)$/.exec(fileRef ?? "");
   return match && !match[1].includes("..") && !match[1].startsWith("/") ? match[1] : null;
+}
+
+/** The authorized record bounds every storage signature, including service-role token reads. */
+export function submittalRecordFile(
+  payload: Pick<SubmittalRecordPayload, "company_id" | "job_id">,
+  fileRef: string | null | undefined,
+): { bucket: string; path: string; name: string } | null {
+  if (!payload.company_id || !payload.job_id || !fileRef) return null;
+  try {
+    return storedPiece(fileRef, payload.company_id, payload.job_id);
+  } catch {
+    return null;
+  }
 }
 
 /** /r/job/<job>/submittal/<number>; the number is percent-encoded once. */

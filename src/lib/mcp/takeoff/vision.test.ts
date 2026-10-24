@@ -86,10 +86,22 @@ describe("independent proposal checks", () => {
     expect(r.accepted[0]).not.toHaveProperty("measured");
     expect(r.accepted[0]).not.toHaveProperty("status");
   });
-  it("refuses weak, wrong-kind and off-image proposals", () => {
+  it.each([0, 0.6, 0.79])(
+    "retains a physically supported finding at reported confidence %s for estimator review",
+    (confidence) => {
+      const rgba = image();
+      ink(rgba, 200, 200);
+      const result = check(answer("pins", [p(200, 200)], confidence), rgba);
+      expect(result.accepted).toHaveLength(1);
+      expect(result.accepted[0].confidence).toBe(confidence);
+      expect(result.rejected).toEqual([]);
+      expect(result.accepted[0]).not.toHaveProperty("status");
+      expect(check(answer("pins", [p(200, 200)], confidence), image()).rejected[0]).toMatch(/ink/);
+    },
+  );
+  it("refuses wrong-kind and off-image proposals regardless of reported confidence", () => {
     const rgba = image();
     ink(rgba, 200, 200);
-    expect(check(answer("pins", [p(200, 200)], 0.7), rgba).rejected).toHaveLength(1);
     expect(check(answer("polyline", [p(200, 200), p(300, 200)]), rgba).accepted).toEqual([]);
     expect(check(answer("pins", [p(1023, 200)]), rgba).accepted).toEqual([]);
   });

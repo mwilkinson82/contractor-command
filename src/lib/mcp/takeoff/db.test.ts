@@ -268,6 +268,27 @@ describe("takeoff actual database functions", () => {
     for (const field of ["lines", "geometry", "calibrations", "passes", "exports"])
       expect(final[field]).toEqual(initial[field]);
   });
+  it("applies the carry-by-identity migration after the compatibility one and keeps reads VOLATILE", async () => {
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261024160000_athena_takeoff_carry_by_identity.sql",
+        "utf8",
+      ),
+    );
+    const rows = (
+      await db.query<any>(
+        "SELECT proname,provolatile FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('mcp_takeoff_get','mcp_takeoff_carry_line','mcp_takeoff_carry_lines','mcp_takeoff_line_map') ORDER BY proname",
+      )
+    ).rows;
+    // The per-row carry is gone; the statement-level carry and its line map replace it.
+    expect(rows).toEqual([
+      { proname: "mcp_takeoff_carry_lines", provolatile: "v" },
+      { proname: "mcp_takeoff_get", provolatile: "v" },
+      { proname: "mcp_takeoff_line_map", provolatile: "s" },
+    ]);
+    const state = await rpc("mcp_takeoff_get", [job]);
+    expect(state.dropped_lines).toEqual([]);
+  });
   it("keeps legacy lines readable with no invented geometry", async () => {
     const state = await rpc("mcp_takeoff_get", [job]);
     expect(state.available).toBe(true);
@@ -1065,6 +1086,275 @@ describe("takeoff actual database functions", () => {
     await db.query("DELETE FROM public.test_active_members WHERE user_id=$1", [estimator]);
     await db.query("DELETE FROM public.mcp_gate_cache WHERE user_id=$1", [estimator]);
     await expect(rpc("mcp_takeoff_get", [job], estimator)).rejects.toThrow();
+  });
+  describe("geometry carries across takeoff versions by line identity", () => {
+    // Re-save whatever the takeoff holds at this point, so the tests do not depend on earlier fixtures.
+    const asInput = (l: any, extra: Record<string, unknown> = {}) => ({
+      line_no: l.line_no,
+      item: l.item,
+      qty: l.qty ?? null,
+      missing_input: l.qty == null ? (l.missing_input ?? "drawing location and measurement") : null,
+      // Identity fields pass through exactly as stored; a null stays null.
+      ...(l.unit == null ? {} : { unit: l.unit }),
+      ...(l.measure_type == null ? {} : { measure_type: l.measure_type }),
+      basis: l.basis ?? "measured",
+      math: l.math ?? "carried",
+      confidence: l.confidence ?? "low",
+      sheet: l.sheet ?? "S-100",
+      inputs: [],
+      ...extra,
+    });
+    const heads = (state: any, item: string) =>
+      (state.geometry as any[]).filter(
+        (g) =>
+          g.status !== "rejected" &&
+          state.lines.find((l: any) => l.id === g.line_id)?.item === item,
+      );
+    const measuredLine = (state: any) =>
+      state.lines.find((l: any) =>
+        state.geometry.some((g: any) => g.line_id === l.id && g.status === "accepted"),
+      );
+    const saveLines = (lines: unknown[]) =>
+      rpc("mcp_estimate_takeoff_save", [job, "QA", "[]", JSON.stringify(lines)]);
+    it("keeps measured geometry when only a note, math or confidence changes", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before);
+      expect(target).toBeTruthy();
+      const count = heads(before, target.item).length;
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id
+            ? asInput(l, { note: "estimator note added", confidence: "high", math: "re-read" })
+            : asInput(l),
+        ),
+      );
+      const after = await rpc("mcp_takeoff_get", [job]);
+      expect(after.takeoff_version).toBe(before.takeoff_version + 1);
+      expect(heads(after, target.item)).toHaveLength(count);
+      expect(after.dropped_lines).toEqual([]);
+    });
+    it("follows a renumbered line when its item and sheet match one previous line", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before);
+      const count = heads(before, target.item).length;
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { line_no: 77 }) : asInput(l),
+        ),
+      );
+      const after = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(after, target.item)).toHaveLength(count);
+      expect(after.lines.find((l: any) => l.item === target.item).line_no).toBe(77);
+      expect(after.dropped_lines).toEqual([]);
+    });
+    it("carries the reader checkpoint with a renumbered line and rewrites its line number", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before);
+      const passId = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+      await db.query(
+        "INSERT INTO public.mcp_takeoff_markups(job_id,company_id,source_id,page,kind,geometry_revs,pass_summary,created_by) VALUES($1,$2,$3,1,'pass','[]',$4,$5)",
+        [
+          job,
+          company,
+          source,
+          JSON.stringify({
+            pass_id: passId,
+            line_no: target.line_no,
+            takeoff_version: before.takeoff_version,
+            complete: true,
+          }),
+          owner,
+        ],
+      );
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { line_no: 88 }) : asInput(l),
+        ),
+      );
+      const after = await rpc("mcp_takeoff_get", [job]);
+      const carried = (after.passes as any[]).find((p) => p.pass_summary.pass_id === passId);
+      expect(carried.pass_summary).toMatchObject({
+        line_no: 88,
+        carried_from_line_no: target.line_no,
+        takeoff_version: after.takeoff_version,
+        carried_from_takeoff_version: before.takeoff_version,
+        complete: true,
+      });
+      expect(heads(after, target.item).length).toBeGreaterThan(0);
+    });
+    it("treats a changed unit or measure type as a different line: nothing carries, the old line is reported dropped", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before);
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { unit: "SF", measure_type: "area" }) : asInput(l),
+        ),
+      );
+      const changed = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(changed, target.item)).toEqual([]);
+      expect(changed.dropped_lines).toEqual([
+        {
+          line_no: target.line_no,
+          item: target.item,
+          version: before.takeoff_version,
+          had_geometry: true,
+        },
+      ]);
+      // Put the line back as it was for the next test; its geometry stays historical (two versions back).
+      await saveLines(before.lines.map((l: any) => asInput(l)));
+      const back = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(back, target.item)).toEqual([]);
+    });
+    it("never moves geometry onto a different item, and names the lines a save left out", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before) ?? before.lines[0];
+      const hadGeometry = heads(before, target.item).length > 0;
+      await saveLines(
+        before.lines
+          .filter((l: any) => l.id !== target.id)
+          .map((l: any) => asInput(l))
+          .concat([asInput(target, { item: `${target.item} sleeves` })]),
+      );
+      const after = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(after, `${target.item} sleeves`)).toEqual([]);
+      expect(after.dropped_lines).toEqual([
+        {
+          line_no: target.line_no,
+          item: target.item,
+          version: before.takeoff_version,
+          had_geometry: hadGeometry,
+        },
+      ]);
+      // A line whose sheet is corrected keeps nothing from a different sheet: identity is item and sheet.
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { sheet: "Z-999" }) : asInput(l),
+        ),
+      );
+      const moved = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(moved, target.item)).toEqual([]);
+      expect((moved.dropped_lines as any[]).map((d) => d.item)).toEqual([`${target.item} sleeves`]);
+    });
+  });
+  describe("carry is one-to-one across the whole save (PR 262 re-review)", () => {
+    const base = (line_no: number, item: string, extra: Record<string, unknown> = {}) => ({
+      line_no,
+      item,
+      qty: null,
+      missing_input: "drawing location and measurement",
+      unit: "EA",
+      measure_type: "count",
+      basis: "measured",
+      math: "fixture",
+      confidence: "low",
+      sheet: "S-100",
+      inputs: [],
+      ...extra,
+    });
+    const saveLines = (lines: unknown[]) =>
+      rpc("mcp_estimate_takeoff_save", [job, "QA", "[]", JSON.stringify(lines)]);
+    const acceptedLineNos = (state: any) =>
+      [
+        ...new Set(
+          (state.geometry as any[])
+            .filter((g) => g.status === "accepted")
+            .map((g) => state.lines.find((l: any) => l.id === g.line_id)?.line_no),
+        ),
+      ].sort();
+    /** A fresh takeoff holding one line with an accepted pin, plus a partial reader checkpoint. */
+    const seed = async (item: string, line_no = 1) => {
+      await saveLines([base(line_no, item)]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      const g = await save({
+        line_no,
+        takeoff_version: state.takeoff_version,
+        shape: { kind: "pins", points: [{ x: 0.3, y: 0.3 }] },
+      });
+      await save(
+        { geometry_id: g.geometry_id, line_no, takeoff_version: state.takeoff_version },
+        "accept",
+        g.version,
+      );
+      const passId = crypto.randomUUID();
+      await db.query(
+        "INSERT INTO public.mcp_takeoff_markups(job_id,company_id,source_id,page,kind,geometry_revs,pass_summary,created_by) VALUES($1,$2,$3,1,'pass','[]',$4,$5)",
+        [
+          job,
+          company,
+          source,
+          JSON.stringify({
+            pass_id: passId,
+            line_no,
+            takeoff_version: state.takeoff_version,
+            complete: false,
+          }),
+          owner,
+        ],
+      );
+      return { version: (await rpc("mcp_takeoff_get", [job])).takeoff_version, passId };
+    };
+    const checkpoints = (state: any, passId: string) =>
+      (state.passes as any[])
+        .filter(
+          (p) =>
+            p.pass_summary.pass_id === passId &&
+            p.pass_summary.takeoff_version === state.takeoff_version,
+        )
+        .map((p) => p.pass_summary.line_no);
+    it("keeps the accepted measurement on the original line when a same-description row is added after it", async () => {
+      const { passId } = await seed("Fictional scope");
+      await saveLines([
+        base(1, "Fictional scope"),
+        base(2, "Fictional scope", { location_text: "Another wall" }),
+      ]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(state)).toEqual([1]);
+      expect(checkpoints(state, passId)).toEqual([1]);
+      expect(state.dropped_lines).toEqual([]);
+    });
+    it("keeps it on the original line when the new row is saved first (Codex repro A)", async () => {
+      const { passId } = await seed("Fictional scope");
+      await saveLines([
+        base(2, "Fictional scope", { location_text: "Another wall" }),
+        base(1, "Fictional scope"),
+      ]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(state)).toEqual([1]);
+      expect(checkpoints(state, passId)).toEqual([1]);
+    });
+    it("copies a reader checkpoint to exactly one line (Codex repro B)", async () => {
+      const { passId } = await seed("Fictional scope");
+      await saveLines([base(1, "Fictional scope"), base(2, "Fictional scope")]);
+      const state = await rpc("mcp_takeoff_get", [job]);
+      const copies = (
+        await db.query<{ n: string }>(
+          "SELECT count(*) AS n FROM public.mcp_takeoff_markups WHERE job_id=$1 AND kind='pass' AND pass_summary->>'pass_id'=$2 AND (pass_summary->>'takeoff_version')::int=$3",
+          [job, passId, state.takeoff_version],
+        )
+      ).rows[0].n;
+      expect(Number(copies)).toBe(1);
+      expect(checkpoints(state, passId)).toEqual([1]);
+    });
+    it("follows a true renumber, and leaves repeated descriptions unlocated when the match is ambiguous", async () => {
+      const { passId } = await seed("Fictional scope", 4);
+      await saveLines([base(9, "Fictional scope")]);
+      const renumbered = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(renumbered)).toEqual([9]);
+      expect(checkpoints(renumbered, passId)).toEqual([9]);
+      // Two new rows, neither keeping the old number: no unique successor, so nothing carries and the old line is reported.
+      await saveLines([base(21, "Fictional scope"), base(22, "Fictional scope")]);
+      const ambiguous = await rpc("mcp_takeoff_get", [job]);
+      expect(acceptedLineNos(ambiguous)).toEqual([]);
+      expect(checkpoints(ambiguous, passId)).toEqual([]);
+      expect(ambiguous.dropped_lines).toEqual([
+        {
+          line_no: 9,
+          item: "Fictional scope",
+          version: renumbered.takeoff_version,
+          had_geometry: true,
+        },
+      ]);
+    });
   });
 });
 

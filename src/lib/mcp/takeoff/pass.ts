@@ -5,7 +5,12 @@ import { distance, measure, type Bounds, type Point, type Shape } from "./geomet
 import { renderTile, renderPlanReference, type Tile } from "./pdf";
 import { engineRpc, loadStoredPage, type StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
-import { readVisionTile, verifyVisionAnswer, type VisionRead } from "./vision";
+import {
+  HostDrawingReadRequired,
+  readVisionTile,
+  verifyVisionAnswer,
+  type VisionRead,
+} from "./vision";
 import { markTargetTile, assertScopeBounds, scopedTarget, referenceFootprint } from "./scope";
 
 /** Partition overlaps at their midpoints. Linear fragments are measured once,
@@ -375,27 +380,64 @@ export async function proposeTakeoffBatch(
     if (!region) throw new ToolError("Choose a valid stored legend tile.");
     legend = (await renderTile(legendPage.bytes, legendPage.page - 1, region)).png;
   }
-  const answer = await read({
-    item: line.item,
-    measure_type: kind,
-    png: scopedTarget(raster.rgba, tile, countArea?.bounds ?? cal!.bounds),
-    overview: markTargetTile(reference.png, referenceFootprint(tile.bounds, reference.bounds)),
-    frame: {
-      sheet: page.sheet,
-      tile_bounds: tile.bounds,
-      reference_bounds: reference.bounds,
-      ...(countArea
-        ? { region: { name: countArea.name, bounds: countArea.bounds } }
-        : cal
-          ? { region: { name: cal.region, bounds: cal.bounds } }
-          : {}),
-    },
-    hints,
-    legend,
-    signal: input.deadline
-      ? AbortSignal.timeout(Math.max(1, input.deadline - Date.now()))
-      : undefined,
-  });
+  let answer;
+  try {
+    answer = await read({
+      item: line.item,
+      measure_type: kind,
+      png: scopedTarget(raster.rgba, tile, countArea?.bounds ?? cal!.bounds),
+      overview: markTargetTile(reference.png, referenceFootprint(tile.bounds, reference.bounds)),
+      frame: {
+        sheet: page.sheet,
+        tile_bounds: tile.bounds,
+        reference_bounds: reference.bounds,
+        ...(countArea
+          ? { region: { name: countArea.name, bounds: countArea.bounds } }
+          : cal
+            ? { region: { name: cal.region, bounds: cal.bounds } }
+            : {}),
+      },
+      hints,
+      legend,
+      signal: input.deadline
+        ? AbortSignal.timeout(Math.max(1, input.deadline - Date.now()))
+        : undefined,
+    });
+  } catch (error) {
+    if (error instanceof HostDrawingReadRequired) {
+      const pending = {
+        ...summary,
+        pass_id: passId,
+        line_no: line.line_no,
+        takeoff_version: state.takeoff_version,
+        calibration_id: cal?.id ?? null,
+        source_hash: page.source.content_hash,
+        ...(countArea ? { count_area: countArea } : {}),
+        legend: legendRef ?? null,
+        depth: input.depth ?? summary?.depth ?? null,
+        order,
+        cursor,
+        next_cursor: cursor,
+        complete: false,
+        tiles_read: cursor,
+        tiles_total: order.length,
+        verification_rejections: Number(summary?.verification_rejections ?? 0),
+        uncertainties: (summary?.uncertainties as string[] | undefined) ?? [],
+      };
+      await engineRpc(sb, "mcp_takeoff_pass_save", {
+        _job: job.job_id,
+        _record: {
+          source_id: page.source.id,
+          page: page.page,
+          pass_summary: pending,
+          proposals: [],
+        },
+      });
+      error.checkpoint = pending;
+      error.tile = tile;
+    }
+    throw error;
+  }
   const checked = verifyVisionAnswer({
     answer,
     rgba: raster.rgba,
@@ -495,7 +537,8 @@ export async function proposeTakeoffBatch(
       measurement: measure(page.space, shape, cal),
       crop_refs: shape.points.map((point) => ({ tile_index: tile.index, point, edge: 160 })),
       verification: "raster-ink-and-topology",
-      model: answer.reader_model ?? process.env.ATHENA_TAKEOFF_MODEL ?? "google/gemini-3.8-flash",
+      model: answer.reader_model ?? "unspecified-reader",
+      ...(answer.host_reported_model ? { model_reported_by_host: answer.host_reported_model } : {}),
       dpi: 200,
       locator_schema: "athena-image-1000-v1",
       source_hash: page.source.content_hash,

@@ -162,7 +162,7 @@ BEGIN
         IN (SELECT s.id FROM public.mcp_submittals s WHERE s.job_id = _job AND lower(btrim(s.number)) = key)
     );
   RETURN jsonb_build_object(
-    'page', 'submittal', 'company', co, 'job_id', j.id, 'job_number', j.job_number, 'job_name', j.name, 'scope', sc,
+    'page', 'submittal', 'company_id', j.company_id, 'company', co, 'job_id', j.id, 'job_number', j.job_number, 'job_name', j.name, 'scope', sc,
     'read_only', sc <> 'full', 'review_days', j.submittal_review_days, 'time_zone', zone,
     'today', to_char((now() AT TIME ZONE zone)::date, 'YYYY-MM-DD'),
     'number', cur.number, 'current', current_row, 'revisions', revisions, 'packages', packages,

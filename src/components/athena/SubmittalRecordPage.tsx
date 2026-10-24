@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   renderSubmittalRecordBody,
   submittalRecordPath,
-  submittalStoragePath,
+  submittalRecordFile,
   type SubmittalRecordPayload,
 } from "@/lib/submittal-record-page";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,21 +25,22 @@ type Cached = { stamp: string | null; payload: SubmittalRecordPayload };
 
 /** Members sign each stored file with their own session; the storage policy decides what they may read. */
 async function withMemberUrls(payload: SubmittalRecordPayload): Promise<SubmittalRecordPayload> {
-  const sign = async (path: string | null) => {
-    if (!path) return null;
-    const signed = await supabase.storage.from(SUBMITTAL_BUCKET).createSignedUrl(path, 3600);
+  const sign = async (fileRef: string | null) => {
+    const file = submittalRecordFile(payload, fileRef);
+    if (!file) return null;
+    const signed = await supabase.storage.from(file.bucket).createSignedUrl(file.path, 3600);
     return signed.data?.signedUrl ?? null;
   };
   const packages = await Promise.all(
     (payload.packages ?? []).map(async (p) => ({
       ...p,
-      url: p.revoked_at ? null : await sign(p.path),
+      url: p.revoked_at ? null : await sign(`${SUBMITTAL_BUCKET}/${p.path}`),
     })),
   );
   const items = await Promise.all(
     (payload.current.package_items ?? []).map(async (item) => ({
       ...item,
-      url: await sign(submittalStoragePath(item.file_ref)),
+      url: await sign(item.file_ref ?? null),
     })),
   );
   return { ...payload, packages, current: { ...payload.current, package_items: items } };

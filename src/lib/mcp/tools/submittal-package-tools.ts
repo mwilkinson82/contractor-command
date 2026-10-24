@@ -19,6 +19,7 @@ import { newToken, tokenHash, sha256Hex, allowedDownloadUrl } from "../file-shar
 import { outboundEmailDisabled } from "../email-safety";
 import { submittalRecordUrl } from "../board-url";
 import { callHost } from "../call-host";
+import { allowedDrawingDownloadUrl } from "../drawing-set";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -27,7 +28,7 @@ function pieceLine(item: PackageContext["items"][number], n: number): string {
 }
 
 const COVER_RULE =
-  "The cover and the transmittal are the first pages of the package Athena built; never write, draft or format a cover or transmittal yourself in any host.";
+  "Built packages contain the server-generated company cover and transmittal before the included documents.";
 const ids = {
   job_number: z.string().trim().min(1).max(40),
   company_id: z.string().uuid().optional(),
@@ -216,10 +217,14 @@ export const submittalPackage = defineTool({
           } catch {
             throw new ToolError("The file bytes are invalid.");
           }
-        } else if (args.file?.download_url && allowedDownloadUrl(args.file.download_url))
+        } else if (
+          args.file?.download_url &&
+          (allowedDownloadUrl(args.file.download_url) ||
+            allowedDrawingDownloadUrl(args.file.download_url))
+        )
           bytes = await bounded(
             await fetch(args.file.download_url, {
-              redirect: "error",
+              redirect: "manual",
               signal: AbortSignal.timeout(30000),
             }),
           );
@@ -254,7 +259,9 @@ export const submittalPackage = defineTool({
         ]);
       }
       const recordUrl = submittalRecordUrl(await boardFor(sb, job), data.submittal.number);
-      const recordRow: CardRow[] = recordUrl ? [{ cells: [`Record page: ${recordUrl}`], href: recordUrl }] : [];
+      const recordRow: CardRow[] = recordUrl
+        ? [{ cells: [`Record page: ${recordUrl}`], href: recordUrl }]
+        : [];
       const gaps = packageGaps(data);
       if (gaps.length)
         return packageCard("Collect the missing pieces", data, [...gaps, ...recordRow], {
@@ -385,22 +392,22 @@ export const submittalPackage = defineTool({
       } else lines.unshift("Every required file is collected. Build the package next.");
       return guide(
         packageCard("Submittal package", data, lines, {
-        record_url: recordUrl,
-        package: artifact
-          ? {
-              id: artifact.id,
-              filename: artifact.filename,
-              download_url: artifact.download_url,
-              expires_at: artifact.expires_at,
-              sent_at: artifact.sent_at ?? null,
-              page_count: artifact.page_count,
-              approved: !!artifact.approved_at,
-              revoked: !!artifact.revoked_at,
-            }
-          : null,
-        items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
-        ready: !!artifact,
-        sent: !!artifact?.sent_at,
+          record_url: recordUrl,
+          package: artifact
+            ? {
+                id: artifact.id,
+                filename: artifact.filename,
+                download_url: artifact.download_url,
+                expires_at: artifact.expires_at,
+                sent_at: artifact.sent_at ?? null,
+                page_count: artifact.page_count,
+                approved: !!artifact.approved_at,
+                revoked: !!artifact.revoked_at,
+              }
+            : null,
+          items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
+          ready: !!artifact,
+          sent: !!artifact?.sent_at,
         }),
         artifact
           ? `${COVER_RULE} Give the member the private preview link and the record page link as they are.`
@@ -494,7 +501,11 @@ export const submittalDelivery = defineTool({
           approved: !!saved.approved_at,
           sent: !!saved.sent_at,
           send_allowed: !outboundEmailDisabled(),
-          send_confirmed: args.action === "approve" && !!saved.approved_at && !saved.sent_at && saved.already_approved !== true,
+          send_confirmed:
+            args.action === "approve" &&
+            !!saved.approved_at &&
+            !saved.sent_at &&
+            saved.already_approved !== true,
           already_approved: saved.already_approved === true,
           // The email card re-drafts and approves with these ids; nothing here is new to the caller.
           kind: args.kind ?? "package",

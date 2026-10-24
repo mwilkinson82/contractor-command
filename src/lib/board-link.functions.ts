@@ -5,6 +5,7 @@ import { TOKEN_RE, tokenHash } from "@/lib/mcp/file-share";
 import { BOARD_PAGES, type BoardLinkStatus } from "@/lib/mcp/board-link";
 import type { PagePayload } from "@/lib/report-pages";
 import type { SubmittalRecordPayload } from "@/lib/submittal-record-page";
+import { submittalRecordFile } from "@/lib/submittal-record-page";
 
 const PHOTO_BUCKET = "athena-progress";
 
@@ -16,10 +17,11 @@ const Input = z.object({
 
 /** payload is JSON text so the server function stays serializable. The page parses it. */
 export type BoardOpen =
-  | { status: Exclude<BoardLinkStatus, "ok">; payload: null }
-  | { status: "ok"; payload: string };
+  { status: Exclude<BoardLinkStatus, "ok">; payload: null } | { status: "ok"; payload: string };
 
-type RuntimeGlobals = typeof globalThis & { process?: { env?: Record<string, string | undefined> } };
+type RuntimeGlobals = typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> };
+};
 
 function env(names: string[]): string | undefined {
   const r = globalThis as RuntimeGlobals;
@@ -37,12 +39,14 @@ async function withPhotoUrls(payload: PagePayload): Promise<PagePayload> {
   const key = env(["SUPABASE_SERVICE_ROLE_KEY"]);
   if (!url || !key) return payload;
   const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const photos = await Promise.all(payload.photos.map(async (ph) => {
-    const path = ph.storage_path ?? "";
-    if (ph.url || !path || path.includes("..") || path.startsWith("/")) return ph;
-    const signed = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
-    return { ...ph, url: signed.data?.signedUrl ?? null };
-  }));
+  const photos = await Promise.all(
+    payload.photos.map(async (ph) => {
+      const path = ph.storage_path ?? "";
+      if (ph.url || !path || path.includes("..") || path.startsWith("/")) return ph;
+      const signed = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
+      return { ...ph, url: signed.data?.signedUrl ?? null };
+    }),
+  );
   return { ...payload, photos };
 }
 
@@ -60,16 +64,23 @@ async function withSubmittalUrls(payload: SubmittalRecordPayload): Promise<Submi
   const key = env(["SUPABASE_SERVICE_ROLE_KEY"]);
   if (!url || !key) return payload;
   const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const sign = async (path: string | null) => {
-    if (!path || path.includes("..") || path.startsWith("/")) return null;
-    const signed = await sb.storage.from(SUBMITTAL_BUCKET).createSignedUrl(path, 3600);
+  const sign = async (fileRef: string | null) => {
+    const file = submittalRecordFile(payload, fileRef);
+    if (!file) return null;
+    const signed = await sb.storage.from(file.bucket).createSignedUrl(file.path, 3600);
     return signed.data?.signedUrl ?? null;
   };
-  const packages = await Promise.all((payload.packages ?? []).map(async (p) => ({ ...p, url: p.revoked_at ? null : await sign(p.path) })));
-  const items = await Promise.all((payload.current.package_items ?? []).map(async (item) => {
-    const match = /^athena-submittals\/(.+)$/.exec(item.file_ref ?? "");
-    return { ...item, url: await sign(match ? match[1] : null) };
-  }));
+  const packages = await Promise.all(
+    (payload.packages ?? []).map(async (p) => ({
+      ...p,
+      url: p.revoked_at ? null : await sign(`${SUBMITTAL_BUCKET}/${p.path}`),
+    })),
+  );
+  const items = await Promise.all(
+    (payload.current.package_items ?? []).map(async (item) => {
+      return { ...item, url: await sign(item.file_ref ?? null) };
+    }),
+  );
   return { ...payload, packages, current: { ...payload.current, package_items: items } };
 }
 
@@ -79,17 +90,33 @@ export const openSubmittalRecord = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<BoardOpen> => {
     if (!TOKEN_RE.test(data.token)) return { status: "unknown", payload: null };
     const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
-    const key = env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]);
+    const key = env([
+      "SUPABASE_PUBLISHABLE_KEY",
+      "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_ANON_KEY",
+    ]);
     if (!url || !key) return { status: "unknown", payload: null };
     const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: row, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
-      "mcp_submittal_record_open",
-      { _token_hash: await tokenHash(data.token), _job: data.jobId, _number: data.number },
-    );
+    const { data: row, error } = await (
+      sb.rpc as unknown as (
+        f: string,
+        a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )("mcp_submittal_record_open", {
+      _token_hash: await tokenHash(data.token),
+      _job: data.jobId,
+      _number: data.number,
+    });
     if (error || !row || typeof row !== "object") return { status: "unknown", payload: null };
     const status = (row as { status?: string }).status;
     if (status !== "ok") {
-      const refused = status === "expired" || status === "revoked" || status === "wrong_job" || status === "denied" ? status : "unknown";
+      const refused =
+        status === "expired" ||
+        status === "revoked" ||
+        status === "wrong_job" ||
+        status === "denied"
+          ? status
+          : "unknown";
       return { status: refused, payload: null };
     }
     const payload = (row as { payload?: SubmittalRecordPayload | null }).payload;
@@ -103,17 +130,33 @@ export const openBoardPage = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<BoardOpen> => {
     if (!TOKEN_RE.test(data.token)) return { status: "unknown", payload: null };
     const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
-    const key = env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]);
+    const key = env([
+      "SUPABASE_PUBLISHABLE_KEY",
+      "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_ANON_KEY",
+    ]);
     if (!url || !key) return { status: "unknown", payload: null };
     const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: row, error } = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
-      "mcp_board_link_open",
-      { _token_hash: await tokenHash(data.token), _job: data.jobId, _page: data.page },
-    );
+    const { data: row, error } = await (
+      sb.rpc as unknown as (
+        f: string,
+        a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )("mcp_board_link_open", {
+      _token_hash: await tokenHash(data.token),
+      _job: data.jobId,
+      _page: data.page,
+    });
     if (error || !row || typeof row !== "object") return { status: "unknown", payload: null };
     const status = (row as { status?: string }).status;
     if (status !== "ok") {
-      const refused = status === "expired" || status === "revoked" || status === "wrong_job" || status === "denied" ? status : "unknown";
+      const refused =
+        status === "expired" ||
+        status === "revoked" ||
+        status === "wrong_job" ||
+        status === "denied"
+          ? status
+          : "unknown";
       return { status: refused, payload: null };
     }
     const payload = (row as { payload?: PagePayload | null }).payload;

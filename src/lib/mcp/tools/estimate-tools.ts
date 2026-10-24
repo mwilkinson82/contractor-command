@@ -1,3 +1,5 @@
+import { EXAMPLE_LINE_RE } from "../takeoff/history";
+import { TAKEOFF_MODEL_NOTICE, TAKEOFF_REVIEW_WORKFLOW } from "../takeoff/host-workflow";
 import { drawingCardResultMeta } from "../cards/drawing-card";
 import { verifyLocatedShape } from "../takeoff/verify";
 import { saveTakeoffArtifact, artifactRecord } from "../takeoff/artifacts";
@@ -560,7 +562,7 @@ export const estimateIntake = defineTool({
   name: "estimate_intake",
   title: "Estimating intake",
   description:
-    "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
+    "Starts estimating by asking the member to select their strongest image-reading model with deeper reasoning, confirms role and scope, warns before reusing a saved takeoff, stores supplied drawings and prepares a cited drawing/specification/contract review through estimate_doc_review and estimate_gap_analysis.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -603,8 +605,14 @@ export const estimateIntake = defineTool({
           forms_faces: args.forms_faces ?? profileOnFile?.forms_faces ?? null,
         });
         return reply({
-          text: [warning, ...pending.map((q) => `- ${q}`)].join("\n"),
-          structured: { complete: false, reused: false, saved: false },
+          text: [TAKEOFF_MODEL_NOTICE, warning, ...pending.map((q) => `- ${q}`)].join("\n"),
+          structured: {
+            complete: false,
+            reused: false,
+            saved: false,
+            model_selection: TAKEOFF_MODEL_NOTICE,
+            review_workflow: TAKEOFF_REVIEW_WORKFLOW,
+          },
           guidance: [
             "Ask reuse or fresh before using the takeoff on file. Do not assume self-performer.",
           ],
@@ -671,11 +679,16 @@ export const estimateIntake = defineTool({
               : "Reuse confirmed. Nothing was copied onto this job. The other takeoff stays where it is."
             : "";
       const drawingLine = drawingName ? `Drawing set stored: ${drawingName}.` : "";
-      const lead = [fresh, drawingLine].filter(Boolean).join("\n");
+      const lead = [TAKEOFF_MODEL_NOTICE, fresh, drawingLine].filter(Boolean).join("\n");
       return reply({
         ...view,
         text: lead ? `${lead}\n${view.text}` : view.text,
-        structured: { ...view.structured, reuse: args.reuse ?? null },
+        structured: {
+          ...view.structured,
+          reuse: args.reuse ?? null,
+          model_selection: TAKEOFF_MODEL_NOTICE,
+          review_workflow: TAKEOFF_REVIEW_WORKFLOW,
+        },
       });
     }),
 });
@@ -745,6 +758,8 @@ export const estimateDocReview = defineTool({
     }),
 });
 
+/** "Tire seal pit - EXAMPLE", "EXAMPLE: footing", "(sample)". A word, not a substring: "sampler" is fine. */
+export { EXAMPLE_LINE_RE } from "../takeoff/history";
 export const estimateTakeoffSave = defineTool({
   name: "estimate_takeoff_save",
   title: "Save a takeoff",
@@ -787,6 +802,17 @@ export const estimateTakeoffSave = defineTool({
         }
         const drawing = drawingWithFile(args.drawing, args.file);
         const mode = args.mode ?? "upsert";
+        // Placeholder lines never reach a job's takeoff: they pad the drawing lines and survive into the bid.
+        const examples = args.lines.filter((l) => EXAMPLE_LINE_RE.test(l.item ?? ""));
+        if (examples.length)
+          throw new ToolError(
+            `Example lines are not saved on a job: ${examples
+              .slice(0, 5)
+              .map((l) => `"${l.item}"`)
+              .join(
+                ", ",
+              )}${examples.length > 5 ? ` and ${examples.length - 5} more` : ""}. Remove the EXAMPLE tag, or leave the line out. Nothing was saved.`,
+          );
         const prior = await load(sb, job.job_id);
         const saved = await savedProfileRecord(sb, job.job_id);
         const convention = conventionFor(
@@ -1165,7 +1191,7 @@ export const estimateGapAnalysis = defineTool({
   name: "estimate_gap_analysis",
   title: "Estimate gap analysis",
   description:
-    "Saves sheet-cited gaps after reading the estimator's basis notes and scope callouts, and must not back-solve a quantity to the estimator's number when the drawings do not define it.",
+    "Reconciles the host AI's takeoff with drawings, notes, specifications, contract and agreed scope, saving cited findings and estimator questions that distinguish supported quantities from uncertain readings, missing requirements, conflicts and unavailable context without back-solving quantities or treating confidence as measured accuracy.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1845,7 +1871,8 @@ export const drawingMarkup = defineTool({
           throw e;
         }
         const measurement = await engineSnapshot(sb, job.job_id);
-        if (measurement && !args.annotations) {
+        // prepare is the findings preview; only a save without annotations opens the measured takeoff.
+        if (measurement && !args.annotations && args.operation !== "prepare") {
           const page = await loadStoredPage(sb, job, source.sheet, source.record.id);
           const extra =
             args.operation === "save" &&

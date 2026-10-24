@@ -1,3 +1,5 @@
+import { currentDroppedLines } from "./history";
+import { hostWorkflowSection, measurementEvidence } from "./host-workflow";
 import { ToolError, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "../guard";
 import { type Job, named } from "../jobs";
@@ -12,13 +14,14 @@ import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
 import { cachedSource } from "./cache";
 import { automaticCalibration } from "./calibration";
+import { drawingReferences, drawingReferenceSection } from "./drawing-references";
 import { highlightedPreview } from "./render";
 import { renderMarkdown } from "../cards/markdown";
 import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
 import { calibrate, measure, type Calibration, type Shape } from "./geometry";
 import { inspectSheet, renderTile, scaleProposals, sheetSpace, type SheetInspection } from "./pdf";
-import { parseState, settle } from "../estimating";
+import { foundationGapPrompts, parseState, settle, takeoffLineFor } from "../estimating";
 import {
   engineSnapshot,
   measurementStatus,
@@ -46,6 +49,65 @@ export type StoredPage = {
   inspection: SheetInspection;
   space: ReturnType<typeof sheetSpace>;
 };
+/** One line per stored set, so a host can pass source_id on the next call. */
+export function describeStoredSets(sources: DrawingRecord[]): string {
+  if (!sources.length) return "No drawing set is stored on this job.";
+  return (
+    "Stored sets: " +
+    sources
+      .map(
+        (s) =>
+          `${s.filename} (revision ${s.version}, ${s.sheets.length} sheet${s.sheets.length === 1 ? "" : "s"}, source_id ${s.id})`,
+      )
+      .join("; ") +
+    "."
+  );
+}
+/** The stored set that holds the sheet. Without a source_id, every set on the job is searched and the
+ *  newest revision that contains the sheet wins, the same rule drawing_markup uses; the newest set on the
+ *  job is never assumed to be the right one. */
+export function resolveStoredSource(
+  sources: DrawingRecord[],
+  sheet: string,
+  sourceId?: string,
+): DrawingRecord {
+  const selected = sourceId ? sources.find((s) => s.id === sourceId) : undefined;
+  if (sourceId && !selected)
+    throw new ToolError(
+      `No stored drawing set has source_id ${sourceId} on this job. ${describeStoredSets(sources)} No older drawing was substituted.`,
+    );
+  if (selected) {
+    if (!selected.sheets.length)
+      throw new ToolError(
+        "This PDF is stored but its sheet names are needed. Save its page order once in the drawing library; no re-upload is needed.",
+      );
+    if (sheetPageIndex(selected.sheets, sheet) == null) {
+      const elsewhere = sources.filter((s) => sheetPageIndex(s.sheets, sheet) != null);
+      throw new ToolError(
+        `Sheet ${sheet} is not in ${selected.filename} (source_id ${selected.id}).` +
+          (elsewhere.length
+            ? ` It is in ${elsewhere.map((s) => `${s.filename} (source_id ${s.id})`).join(" and ")}.`
+            : " No stored set on this job has it.") +
+          " No older drawing was substituted.",
+      );
+    }
+    return selected;
+  }
+  // Records arrive newest first, so the first set holding the sheet is its newest revision.
+  const holder = sources.find((s) => sheetPageIndex(s.sheets, sheet) != null);
+  if (holder) return holder;
+  if (!sources.length)
+    throw new ToolError(
+      "Choose a drawing set stored on this job. No other source was substituted.",
+    );
+  if (sources.every((s) => !s.sheets.length))
+    throw new ToolError(
+      "This PDF is stored but its sheet names are needed. Save its page order once in the drawing library; no re-upload is needed.",
+    );
+  throw new ToolError(
+    `Sheet ${sheet} is not in any stored set on this job. ${describeStoredSets(sources)} No older drawing was substituted.`,
+  );
+}
 export async function loadStoredPage(
   sb: Sb,
   job: Job,
@@ -53,20 +115,8 @@ export async function loadStoredPage(
   sourceId?: string,
 ): Promise<StoredPage> {
   const sources = await drawingRecords(sb, job);
-  const source = sourceId ? sources.find((s) => s.id === sourceId) : sources[0];
-  if (!source)
-    throw new ToolError(
-      "Choose a drawing set stored on this job. No other source was substituted.",
-    );
-  if (!source.sheets.length)
-    throw new ToolError(
-      "This PDF is stored but its sheet names are needed. Save its page order once in the drawing library; no re-upload is needed.",
-    );
-  const index = sheetPageIndex(source.sheets, sheet);
-  if (index == null)
-    throw new ToolError(
-      `Sheet ${sheet} is not in the selected stored set. No older drawing was substituted.`,
-    );
+  const source = resolveStoredSource(sources, sheet, sourceId);
+  const index = sheetPageIndex(source.sheets, sheet)!;
   // Read/hash validation is shared with direct imports; a source reference alone
   // never establishes ownership or authorizes a different bucket/job.
   const bytes = await cachedSource(
@@ -83,6 +133,34 @@ export async function loadStoredPage(
     space: sheetSpace(source, index + 1, inspection),
   };
 }
+/** A review row is red only for a recorded risk: a conflict between the documents that holds the bid.
+ *  A missing or unmeasured quantity is work to do, not a risk, however hard the gap. */
+export function reviewFlag(i: { holdsBid: boolean; category?: string | null }): "risk" | null {
+  return i.holdsBid && i.category === "conflict" ? "risk" : null;
+}
+/** settle() keeps no category on its items, so the flag reads it from the gap the row came from. */
+export function reviewRows(
+  items: {
+    kind: "line" | "gap";
+    ref: string;
+    title: string;
+    status: string;
+    holdsBid: boolean;
+    followUp: string | null;
+    math: string | null;
+  }[],
+  gaps: { ref: string; category?: string | null }[],
+) {
+  return items
+    .filter((i) => i.kind === "gap")
+    .map((i) => ({
+      cells: [`${i.ref} · ${i.title}`, i.status, i.followUp ?? i.math ?? ""],
+      flag: reviewFlag({
+        holdsBid: i.holdsBid,
+        category: gaps.find((g) => g.ref === i.ref)?.category,
+      }),
+    }));
+}
 export async function viewEngine(
   sb: Sb,
   job: Job,
@@ -91,6 +169,31 @@ export async function viewEngine(
   extra: Record<string, unknown> = {},
 ) {
   const summary = measurementStatus(state);
+  const evidenceReview = measurementEvidence(state);
+  const droppedLines = currentDroppedLines(state.dropped_lines ?? []);
+  const drawingScopeReview = page
+    ? {
+        source_id: page.source.id,
+        source_hash: page.source.content_hash,
+        page: page.page,
+        ...drawingReferences(page.inspection, page.sheet, state.lines),
+      }
+    : null;
+  const allSources = await drawingRecords(sb, job);
+  const storedSheets = new Set(
+    allSources.flatMap((s) => s.sheets.map((name) => name.trim().toLowerCase())),
+  );
+  // A line whose sheet is not in any stored set is not a drawing line the engine can locate: it is
+  // shown as such instead of padding the unlocated count (general conditions, allowances, typos).
+  const noSheet = (l: { line_no: number }) => {
+    const sheet = state.lines
+      .find((row) => row.line_no === l.line_no)
+      ?.sheet?.trim()
+      .toLowerCase();
+    return !sheet || !storedSheets.has(sheet);
+  };
+  const unlocatedOnSheets = summary.lines.filter((l) => l.status === "unlocated" && !noSheet(l));
+  const noStoredSheet = summary.lines.filter((l) => l.status === "unlocated" && noSheet(l));
   const card: CardModel = {
     state: summary.settled ? "result" : "progress",
     show_state: false,
@@ -99,10 +202,14 @@ export async function viewEngine(
     kpis: [
       { label: "Located and accepted", value: String(summary.located) },
       { label: "Proposals to review", value: String(summary.proposed) },
-      { label: "Unlocated", value: String(summary.unlocated) },
+      { label: "Unlocated", value: String(unlocatedOnSheets.length) },
       { label: "Not drawable", value: String(summary.not_drawable) },
+      ...(noStoredSheet.length
+        ? [{ label: "No stored sheet", value: String(noStoredSheet.length) }]
+        : []),
     ],
     sections: [
+      hostWorkflowSection(),
       {
         heading: "Measured takeoff",
         kind: "table",
@@ -114,15 +221,51 @@ export async function viewEngine(
             l.accepted == null ? "Not established" : String(l.accepted),
             l.proposed == null ? "" : String(l.proposed),
             l.unit || "",
-            l.status.replace("_", " "),
+            l.status === "unlocated" && noSheet(l)
+              ? "no stored sheet (name its set, or mark it not drawable)"
+              : l.status.replace("_", " "),
           ],
         })),
       },
+      ...(droppedLines.length
+        ? [
+            {
+              heading: `Dropped since takeoff v${droppedLines[0].version}`,
+              kind: "list" as const,
+              rows: droppedLines.map((d) => ({
+                cells: [
+                  `L${d.line_no} · ${d.item}`,
+                  d.had_geometry
+                    ? "Had measured geometry. Re-save the line to restore it, or it stays historical."
+                    : "Not in the current takeoff. Re-save it if it still belongs.",
+                ],
+                tone: "unknown" as const,
+              })),
+            },
+          ]
+        : []),
+      ...(drawingScopeReview ? [drawingReferenceSection(drawingScopeReview)] : []),
     ],
     next_move: summary.settled
-      ? "Review the measured takeoff and contractor rates before building the bid."
+      ? "Current lines are settled. Reconcile their coverage with the drawings, specifications and contract, and resolve cited questions before building the bid."
       : "Locate missing work, confirm its scale and review proposals. A quantity is confirmed only from accepted geometry or a recorded non-drawable basis.",
   };
+  const locatedReview = evidenceReview.filter((line) => line.references.length);
+  if (locatedReview.length)
+    card.sections?.push({
+      heading: "Measurement confidence and verification",
+      kind: "list",
+      rows: locatedReview.map((line) => ({
+        cells: [
+          `L${line.line_no} · ${line.item} · ${line.status} · ${line.measurement_classification}`,
+          `Scale: ${line.scale_status}`,
+          line.reported_confidence_range
+            ? `AI-reported confidence ${Math.round(line.reported_confidence_range.low * 100)}–${Math.round(line.reported_confidence_range.high * 100)}%. This is not an accuracy probability.`
+            : "No AI confidence recorded.",
+          line.verification_needed,
+        ],
+      })),
+    });
   if (typeof extra.report_title === "string") card.title = extra.report_title;
   if (Array.isArray(extra.report_rows))
     card.sections?.push({
@@ -169,6 +312,29 @@ export async function viewEngine(
     review.verdicts.map((v) => (v.item_kind === "line" ? { ...v, corrected_qty: null } : v)),
     { role: review.setup.role, trades: review.setup.trades },
   );
+  // Scope the takeoff never included is a coverage gap, not an unlocated line. The fixed foundation
+  // checklist names what every foundation takeoff must quantify or mark N/A; it is not a reading of the
+  // drawings, so scope beyond it (piers, bollards, pole foundations) still has to come from the sheets.
+  const uncovered = foundationGapPrompts(review.lines).filter(
+    (g) => !takeoffLineFor(review.lines, g.title),
+  );
+  if (uncovered.length)
+    card.sections?.push({
+      heading: "Foundation checklist items with no takeoff line",
+      kind: "list",
+      rows: [
+        ...uncovered.map((g) => ({
+          cells: [g.title, "Add a takeoff line and locate it, or mark it N/A with a reason."],
+          tone: "unknown" as const,
+        })),
+        {
+          cells: [
+            "This checklist is fixed. Scope the drawings show beyond it is not checked here.",
+          ],
+          tone: "unknown" as const,
+        },
+      ],
+    });
   card.sections?.push({
     heading: "Estimate review",
     kind: "list",
@@ -178,12 +344,8 @@ export async function viewEngine(
           `Open ${settled.counts.open} · Settled ${settled.counts.settled} · Dropped ${settled.counts.dropped}`,
         ],
       },
-      ...settled.items
-        .filter((i) => i.kind === "gap")
-        .map((i) => ({
-          cells: [`${i.ref} · ${i.title}`, i.status, i.followUp ?? i.math ?? ""],
-          flag: i.holdsBid ? ("risk" as const) : null,
-        })),
+      // Red is for a recorded conflict, never for an open quantity that is only waiting to be measured.
+      ...reviewRows(settled.items, review.gaps),
     ],
   });
   if (
@@ -266,6 +428,7 @@ export async function viewEngine(
     available_sources: availableSources,
     card,
     engine: { ...state, summary },
+    measurement_review: evidenceReview,
     context: {
       job_id: job.job_id,
       job_number: job.job_number,
@@ -286,6 +449,7 @@ export async function viewEngine(
           space: page.space,
           tiles: page.inspection.tiles,
           scale_proposals: scaleProposals(page.inspection.text),
+          drawing_scope_review: drawingScopeReview,
           automatic_calibration: automaticCalibration(page.space, page.inspection),
           preview: preview ? `data:image/png;base64,${bytesToBase64(preview)}` : null,
         }
