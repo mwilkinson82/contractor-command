@@ -6,6 +6,7 @@ import { guide } from "../visible";
 import type { CardModel, CardRow } from "../cards/model";
 import {
   buildSubmittalPdf,
+  packageBuildId,
   findPackagePiece,
   packageGaps,
   pieceRef,
@@ -23,7 +24,8 @@ import { allowedDrawingDownloadUrl } from "../drawing-set";
 import { renderMarkdown } from "../cards/markdown";
 import { PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals";
 import { submittalLogUrl, submittalPackageUrl, submittalUploadUrl } from "../submittal-record-url";
-import { newSubmittalPiece, submittalPieceMime } from "../../submittal-piece-input";
+import { duplicatePieceWarnings, newSubmittalPiece, submittalPieceMime } from "../../submittal-piece-input";
+import type { SubmittalRecordPayload } from "../../submittal-record-page";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -60,6 +62,8 @@ export function packageCard(
   extra: Record<string, unknown> = {},
 ) {
   const sent = typeof extra.sent === "boolean" ? extra.sent : !!ctx.package?.sent_at;
+  const warnings = duplicatePieceWarnings(ctx.items);
+  const history = extra.history as { id: string; filename: string; transmittal_number: number | null; revision: number; current: boolean; revoked: boolean; created_at: string; open_url: string | null }[] | undefined;
   const card: CardModel = {
     state: "result",
     title,
@@ -71,6 +75,8 @@ export function packageCard(
       { label: "Delivery", value: sent ? "Sent · receipt recorded" : "Draft, not sent" },
     ],
     sections: [
+      ...(warnings.length ? [{ heading: "Filename check", kind: "list" as const,
+        rows: warnings.map((warning) => ({ cells: [warning.message], flag: "callout" as const })) }] : []),
       {
         heading: ctx.submittal.title,
         kind: "list",
@@ -127,12 +133,19 @@ export function packageCard(
               ],
         ),
       },
+      ...(history?.length ? [{ heading: "Package history", kind: "table" as const,
+        columns: ["Package version", "Status"],
+        rows: history.map((p) => ({
+          cells: [`${p.transmittal_number ? `T-${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${p.created_at} · Copy ${p.id.slice(0, 8)}`,
+            p.revoked ? "Link turned off" : p.current ? "Current package" : "Superseded"],
+          href: p.open_url,
+        })) }] : []),
     ],
   };
   return guide(
     {
       ...text(renderMarkdown(card)),
-      structuredContent: { card, job_id: ctx.submittal.job_id, ...extra },
+      structuredContent: { card, job_id: ctx.submittal.job_id, warnings, ...extra },
     },
     "Show the Athena card and full details; never claim an email was sent without a successful provider receipt.",
   );
@@ -196,7 +209,7 @@ export const submittalPackage = defineTool({
   name: "submittal_package",
   title: "Collect and build a submittal package",
   description:
-    "Stores received files against existing piece IDs, P-numbers or new_piece kind/source_party metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and authorized package links; get retrieves the current package without rebuilding.",
+    "Collects immutable files using piece IDs, P-numbers or new_piece kind/source_party metadata; get reads the current package and full history without building, build creates missing content or reuses the current package, and rebuild_from_package_id targets an explicit replacement safely across repeated calls.",
   inputSchema: {
     ...ids,
     action: z.enum(["get", "upload_piece", "build", "renew_link", "revoke"]),
@@ -204,6 +217,7 @@ export const submittalPackage = defineTool({
     package_item: z.string().trim().min(1).max(200).optional(),
     new_piece: newSubmittalPiece.optional(),
     package_id: z.string().uuid().optional(),
+    rebuild_from_package_id: z.string().uuid().optional(),
     filename: z.string().trim().min(1).max(120).optional(),
     content_base64: z
       .string()
@@ -233,6 +247,7 @@ export const submittalPackage = defineTool({
       if (!job) throw new ToolError("Which job has this submittal?");
       const sid = await identify(sb, job.job_id, args.submittal_id, args.submittal_number);
       let data = await context(sb, job.job_id, sid);
+      let buildResult = "not_requested";
       if (data.is_current === false && !["get", "revoke"].includes(args.action))
         throw new ToolError("Use the latest revision from the living log.");
       if (args.action === "upload_piece") {
@@ -319,6 +334,17 @@ export const submittalPackage = defineTool({
       const recordRow: CardRow[] = recordUrl
         ? [{ cells: ["Open submittal record"], href: recordUrl }, ...(logUrl ? [{ cells: ["Open live submittal log"], href: logUrl }] : []), ...(uploadUrl ? [{ cells: ["Upload a package piece"], href: uploadUrl }] : [])]
         : [];
+      const readHistory = async () => {
+        const record = await submittalRpc<SubmittalRecordPayload>(sb, "mcp_submittal_record_get", {
+          _job: job.job_id, _number: data.submittal.number,
+        });
+        return (record.packages ?? []).map((p) => ({
+          id: p.id, filename: p.filename, transmittal_number: p.transmittal_number ?? null,
+          revision: p.revision, created_at: p.created_at, current: p.id === data.package?.id,
+          revoked: !!p.revoked_at, sent_at: p.sent_at ?? null,
+          open_url: p.revoked_at ? null : submittalPackageUrl(logUrl, data.submittal.number, p.id),
+        }));
+      };
       const gaps = packageGaps(data);
       if (gaps.length)
         return packageCard("Collect the missing pieces", data, [...gaps, ...recordRow], {
@@ -327,8 +353,26 @@ export const submittalPackage = defineTool({
           record_url: recordUrl,
           upload_url: uploadUrl,
           as_of: new Date().toISOString(),
+          history: await readHistory(),
         });
+      // A host may repeat build while collecting a reply. An already-current artifact
+      // is returned unchanged unless the member's rebuild targets that exact copy.
+      let createBuild = args.action === "build" && !data.package;
       if (args.action === "build") {
+        if (args.rebuild_from_package_id) {
+          const history = await readHistory();
+          if (!history.some((p) => p.id === args.rebuild_from_package_id))
+            throw new ToolError("That package is not in this submittal's history. Read the record before rebuilding.");
+          if (!data.package && history[0]?.id !== args.rebuild_from_package_id)
+            throw new ToolError("The collected files changed after that build. Read the current record before rebuilding.");
+          createBuild = data.package ? data.package.id === args.rebuild_from_package_id : history[0]?.id === args.rebuild_from_package_id;
+        }
+        buildResult = createBuild ? "created" : "reused";
+      }
+      if (createBuild) {
+        // Computed before reservation changes the printed transmittal. Two hosts
+        // building this same snapshot share one existing database primary key.
+        const id = await packageBuildId(data);
         const files: PackageFile[] = [];
         let total = 0;
         for (const item of data.items.filter(
@@ -377,7 +421,6 @@ export const submittalPackage = defineTool({
           _job: job.job_id, _submittal: sid, _fingerprint: data.fingerprint,
         });
         const built = await buildSubmittalPdf(data, files, logo);
-        const id = crypto.randomUUID();
         const filename = `Submittal-${data.submittal.number.replace(/[^A-Za-z0-9-]/g, "-")}-R${data.submittal.revision}-T${data.transmittal_number}-${data.today}.pdf`;
         const path = `${job.company_id}/${job.job_id}/packages/${id}/${filename}`;
         const up = await sb.storage
@@ -390,31 +433,40 @@ export const submittalPackage = defineTool({
         const token = newToken();
         const expectedTransmittal = data.build_transmittal_id;
         const expectedNumber = data.transmittal_number;
-        data = await submittalRpc(sb, "mcp_submittal_package_write", {
-          _job: job.job_id,
-          _submittal: sid,
-          _action: "save",
-          _p: {
-            id,
-            path,
-            filename,
-            fingerprint: data.fingerprint,
-            transmittal_id: data.build_transmittal_id,
-            sha256: await sha256Hex(built.bytes),
-            size_bytes: built.bytes.length,
-            page_count: built.pageCount,
-            cover_date: data.today,
-            manifest: built.manifest,
-            token_hash: await tokenHash(token),
-            download_url: `https://app.meetathena.io/r/submittal-file/${token}`,
-            signed_url: signed.data.signedUrl,
-            expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-          },
-        });
+        try {
+          data = await submittalRpc(sb, "mcp_submittal_package_write", {
+            _job: job.job_id,
+            _submittal: sid,
+            _action: "save",
+            _p: {
+              id,
+              path,
+              filename,
+              fingerprint: data.fingerprint,
+              transmittal_id: data.build_transmittal_id,
+              sha256: await sha256Hex(built.bytes),
+              size_bytes: built.bytes.length,
+              page_count: built.pageCount,
+              cover_date: data.today,
+              manifest: built.manifest,
+              token_hash: await tokenHash(token),
+              download_url: `https://app.meetathena.io/r/submittal-file/${token}`,
+              signed_url: signed.data.signedUrl,
+              expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+            },
+          });
+        } catch (error) {
+          const committed = await context(sb, job.job_id, sid);
+          if (committed.package?.id !== id) throw error;
+          // The same build won in another request, or our committed response was
+          // lost. Return its actual identity; never reserve or save a second time.
+          data = committed;
+          if (data.package!.path !== path) buildResult = "reused";
+        }
         data = await context(sb, job.job_id, sid);
-        if (data.package?.id !== id || data.package.path !== path ||
+        if (data.package?.id !== id || (buildResult !== "reused" && (data.package.path !== path ||
           data.package.filename !== filename || data.package.transmittal_id !== expectedTransmittal ||
-          data.transmittal_number !== expectedNumber)
+          data.transmittal_number !== expectedNumber)))
           throw new ToolError("The PDF was stored, but its current record could not be verified. Open the record before rebuilding.");
       }
       if (args.action === "renew_link") {
@@ -458,6 +510,8 @@ export const submittalPackage = defineTool({
             : "Draft, not sent. Review the exact recipient, email and package before approving delivery.",
         );
       } else lines.unshift("Every required file is collected. Build the package next.");
+      if (buildResult === "reused") lines.unshift("The current package is already built. No additional package was committed.");
+      const history = await readHistory();
       return guide(
         packageCard("Submittal package", data, lines, {
           record_url: recordUrl,
@@ -471,6 +525,8 @@ export const submittalPackage = defineTool({
                 revision: data.submittal.revision,
                 current: true,
                 open_url: submittalPackageUrl(logUrl, data.submittal.number, artifact.id),
+                // The card open_url authorizes the exact immutable record. The existing
+                // delivery link preserves its approval gate; drafts redirect to member sign-in.
                 download_url: artifact.download_url,
                 expires_at: artifact.expires_at,
                 sent_at: artifact.sent_at ?? null,
@@ -482,10 +538,12 @@ export const submittalPackage = defineTool({
           items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
           ready: !!artifact,
           sent: !!artifact?.sent_at,
+          build_result: buildResult,
+          history,
         }),
         artifact
           ? `${COVER_RULE} Give the member the private preview link and the record page link as they are.`
-          : `${COVER_RULE} Call submittal_package build when the member asks for the package.`,
+          : `${COVER_RULE} No package has been built for the current collected files.`,
       );
     }),
 });

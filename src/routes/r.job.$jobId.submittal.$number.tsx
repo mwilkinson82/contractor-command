@@ -26,6 +26,12 @@ function SubmittalRecordRoute() {
   const packageId =
     search.open === "package" && isUuid(search.package_id ?? "") ? search.package_id : undefined;
   return (
-    <SubmittalRecordView jobId={jobId} number={number.trim()} token={token} packageId={packageId} />
+    <SubmittalRecordView
+      jobId={jobId}
+      number={number.trim()}
+      token={token}
+      packageId={packageId}
+      uploadRequested={search.upload === "1"}
+    />
   );
 }

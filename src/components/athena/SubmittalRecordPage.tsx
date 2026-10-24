@@ -16,6 +16,7 @@ import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { REFRESH_MS, usePageVisible } from "@/components/athena/ReportPage";
 import { SUBMITTAL_BUCKET } from "@/lib/mcp/submittal-package";
 import { SubmittalPieceUpload } from "./SubmittalPieceUpload";
+import { loadMemberSubmittalRecord, type MemberRecordCache } from "@/lib/submittal-member-record";
 
 type Rpc = (
   f: string,
@@ -23,15 +24,20 @@ type Rpc = (
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
 
-type Cached = { stamp: string | null; payload: SubmittalRecordPayload };
+type Cached = MemberRecordCache;
 
 /** Members sign each stored file with their own session; the storage policy decides what they may read. */
 async function withMemberUrls(payload: SubmittalRecordPayload): Promise<SubmittalRecordPayload> {
   const sign = async (fileRef: string | null) => {
     const file = submittalRecordFile(payload, fileRef);
     if (!file) return null;
-    const signed = await supabase.storage.from(file.bucket).createSignedUrl(file.path, 3600);
-    return signed.data?.signedUrl ?? null;
+    try {
+      const signed = await supabase.storage.from(file.bucket).createSignedUrl(file.path, 3600);
+      return signed.data?.signedUrl ?? null;
+    } catch {
+      // A missing preview is independent of the member's permission to add a piece.
+      return null;
+    }
   };
   const packages = await Promise.all(
     (payload.packages ?? []).map(async (p) => ({
@@ -55,17 +61,25 @@ export function SubmittalRecordView({
   number,
   token,
   packageId,
+  uploadRequested = false,
 }: {
   jobId: string;
   number: string;
   token?: string;
   packageId?: string;
+  uploadRequested?: boolean;
 }) {
   const openLink = useServerFn(openSubmittalRecord);
   const { session, loading: authLoading } = useAuth();
   const visible = usePageVisible();
   const qc = useQueryClient();
-  const key = ["athena-submittal-record", jobId, number, session?.user?.id ?? null] as const;
+  const key = [
+    "athena-submittal-record",
+    jobId,
+    number,
+    session?.user?.id ?? null,
+    uploadRequested,
+  ] as const;
   const args = { _job: jobId, _number: number };
   const q = useQuery({
     queryKey: key,
@@ -74,13 +88,7 @@ export function SubmittalRecordView({
     refetchIntervalInBackground: false,
     queryFn: async (): Promise<Cached> => {
       const prev = qc.getQueryData<Cached>(key);
-      const st = await rpc("mcp_submittal_record_stamp", args);
-      if (st.error) throw new Error(st.error.message);
-      const stamp = typeof st.data === "string" ? st.data : null;
-      if (prev && stamp !== null && prev.stamp === stamp) return prev;
-      const { data, error } = await rpc("mcp_submittal_record_get", args);
-      if (error) throw new Error(error.message);
-      return { stamp, payload: await withMemberUrls(data as SubmittalRecordPayload) };
+      return loadMemberSubmittalRecord(rpc, args, prev, withMemberUrls, uploadRequested);
     },
     retry: false,
   });
@@ -115,11 +123,12 @@ export function SubmittalRecordView({
   useEffect(() => {
     if (
       hasPayload &&
-      (window.location.hash === "#upload" ||
+      (uploadRequested ||
+        window.location.hash === "#upload" ||
         new URLSearchParams(window.location.search).get("upload") === "1")
     )
       document.getElementById("upload")?.scrollIntoView();
-  }, [hasPayload]);
+  }, [hasPayload, uploadRequested, payload?.current.id]);
   const location =
     typeof window === "undefined"
       ? undefined
@@ -168,8 +177,31 @@ export function SubmittalRecordView({
               </p>
               <BoardSignIn returnTo={returnTo} />
             </>
+          ) : q.isLoading || q.isFetching ? (
+            <p role="status">Checking your job upload access…</p>
+          ) : q.error ? (
+            <div>
+              <p role="alert">
+                Your signed-in account could not load this job's upload access. Retry, or sign in
+                with the account connected to Athena in your chat.
+              </p>
+              <button
+                type="button"
+                onClick={() => void q.refetch()}
+                className="my-3 rounded bg-[#1E5FED] px-4 py-2 text-white"
+              >
+                Retry upload access
+              </button>
+              <BoardSignIn returnTo={returnTo} />
+            </div>
           ) : (
-            <p>Full job access is required to upload a piece. This view remains read only.</p>
+            <div>
+              <p>
+                This signed-in account has read-only access to the job. Uploads require full job
+                access. Sign in with the job account connected to Athena in your chat.
+              </p>
+              <BoardSignIn returnTo={returnTo} />
+            </div>
           )}
         </section>
       </div>

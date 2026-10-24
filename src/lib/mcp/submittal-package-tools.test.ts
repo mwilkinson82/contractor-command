@@ -69,6 +69,9 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
           draft_key?: string | null;
           draft?: { to: string; cc: string[]; subject: string; body: string };
           preview_only?: boolean;
+          build_result?: string;
+          history?: { id: string; filename: string; current: boolean; open_url: string; transmittal_number: number }[];
+          warnings?: { code: string; message: string; pieces: string[] }[];
         };
       }>;
     }
@@ -560,10 +563,10 @@ describe("real package handlers with local DB and immutable storage", () => {
     const logRow = log.card.sections?.find(s => s.heading === "Log")?.rows[0];
     expect(logRow?.cells[5]).toBe("Ready for internal review · Draft, not sent");
     expect(log.card.sections?.find(s => s.heading === "Live log")?.rows[0].href).toBe(`https://app.meetathena.io/r/job/${job}/submittals?t=${"x".repeat(43)}`);
-    expect(new URL(logRow!.href!).searchParams.get("package_id")).toBe(a.id);
-    expect(new URL(logRow!.href!).searchParams.get("open")).toBe("package");
+    expect(new URL(logRow!.href!).searchParams.get("package_id")).toBeNull();
+    expect(new URL(logRow!.href!).searchParams.get("open")).toBeNull();
     expect(new URL(logRow!.href!).pathname).toBe(`/r/job/${job}/submittal/INTEGRATION-001`);
-    expect(log.card.sections?.find(s => s.heading === "Submittal records")?.rows[0].href).not.toContain("open=package");
+    expect(log.card.sections?.find(s => s.heading === "Package PDFs")?.rows[0].href).toContain(`open=package&package_id=${a.id}`);
     writeFileSync("artifacts/submittal-polish/log-card.html", renderHtml(log.card));
     expect(JSON.stringify(build.structuredContent)).not.toContain("signed_url");
     expect(
@@ -630,12 +633,85 @@ describe("real package handlers with local DB and immutable storage", () => {
     });
     return sid;
   }
+  it("creates one package for repeat host build calls, never builds on get, and safely replays an explicit rebuild", async () => {
+    const sid = await ready("ONE-REQUEST-ONE-BUILD");
+    const initial = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
+    expect(initial.structuredContent.ready).toBe(false);
+    const count = async () => (await query("SELECT count(*)::int n FROM mcp_submittal_packages WHERE submittal_id=$1", [sid]))[0].n;
+    expect(await count()).toBe(0);
+    const first = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const id = first.structuredContent.package!.id;
+    const original = state.sb as Sb, methods: string[] = [];
+    state.sb = { ...original, rpc: async (fn: string, args: Record<string, unknown>) => {
+      methods.push(fn);
+      return (original.rpc as unknown as ReturnType<typeof fakeClient>["rpc"])(fn, args);
+    } };
+    try {
+      for (const action of ["get", "get", "build", "get", "build"]) {
+        const reply = await call(submittalPackage, { action, job_number: "2701", submittal_id: sid });
+        expect(reply.structuredContent.package!.id).toBe(id);
+      }
+      expect(methods).not.toContain("mcp_submittal_package_write");
+      expect(methods).not.toContain("mcp_submittal_package_reserve");
+      expect(await count()).toBe(1);
+    } finally { state.sb = original; }
+    const args = { action: "build", job_number: "2701", submittal_id: sid, rebuild_from_package_id: id };
+    const rebuilt = await call(submittalPackage, args);
+    expect(rebuilt.structuredContent.package!.id).not.toBe(id);
+    expect(rebuilt.structuredContent.build_result).toBe("created");
+    const replay = await call(submittalPackage, args);
+    expect(replay.structuredContent.package!.id).toBe(rebuilt.structuredContent.package!.id);
+    expect(replay.structuredContent.build_result).toBe("reused");
+    expect(await count()).toBe(2);
+    await expect(call(submittalPackage, { ...args, rebuild_from_package_id: crypto.randomUUID() })).rejects.toThrow("not in this submittal");
+    expect(await count()).toBe(2);
+  });
+  it("returns every saved build and filename collision in Athena's own card and host facts", async () => {
+    const sid = await ready("HISTORY-AND-DUPLICATES");
+    const source = await PDFDocument.create(); source.addPage();
+    for (let n = 0; n < 2; n++) await call(submittalPackage, {
+      action: "upload_piece", job_number: "2701", submittal_id: sid, filename: "Repeated.pdf",
+      content_base64: Buffer.from(await source.save()).toString("base64"),
+      new_piece: { kind: "other", source_party: `Fictional Source ${n}`, required: true },
+    });
+    let prior: string | undefined;
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const reply = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid, rebuild_from_package_id: prior });
+      prior = reply.structuredContent.package!.id;
+      ids.push(prior);
+      expect(reply.structuredContent.history).toHaveLength(i + 1);
+      expect(reply.structuredContent.warnings?.[0]).toMatchObject({ code: "DUPLICATE_FILENAME", pieces: ["P3", "P4"] });
+      expect(JSON.stringify(reply.structuredContent.card)).toContain("Duplicate filename: Repeated.pdf");
+    }
+    const got = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
+    expect(got.structuredContent.history?.map((p) => p.id)).toEqual([...ids].reverse());
+    expect(got.structuredContent.history?.filter((p) => p.current)).toHaveLength(1);
+    const history = got.structuredContent.card.sections.find((s) => s.heading === "Package history")!;
+    expect(history.rows).toHaveLength(4);
+    expect(history.rows.filter((r) => r.cells.at(-1) === "Superseded")).toHaveLength(3);
+    expect(history.rows.every((r) => r.href?.includes("open=package&package_id="))).toBe(true);
+    if (process.env.ATHENA_RENDER_PROOF_DIR) {
+      mkdirSync(process.env.ATHENA_RENDER_PROOF_DIR, { recursive: true });
+      writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/package-history-card.html`, renderHtml(got.structuredContent.card));
+    }
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_mail WHERE submittal_id=$1", [sid]))[0].n).toBe(0);
+  });
+  it("commits at most one package when two hosts race the same unchanged build", async () => {
+    const sid = await ready("RACING-HOST-BUILD");
+    const args = { action: "build", job_number: "2701", submittal_id: sid };
+    const results = await Promise.allSettled([call(submittalPackage, args), call(submittalPackage, args)]);
+    expect(results.some((r) => r.status === "fulfilled")).toBe(true);
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_packages WHERE submittal_id=$1", [sid]))[0].n).toBe(1);
+    const got = await call(submittalPackage, { ...args, action: "get" });
+    expect(got.structuredContent.history).toHaveLength(1);
+  });
   it("rebuilds three immutable PDFs with distinct transmittals, one current copy and two superseded copies", async () => {
     const sid = await ready("REBUILD-001"), versions = [], hashes = [];
     const sourcePaths = (await saved(sid)).items.map((p: { file_ref: string }) => p.file_ref.replace("athena-submittals/", ""));
     const sourceHashes = await Promise.all(sourcePaths.map((path: string) => sha256Hex(blobs.get(path)!)));
     for (let i = 0; i < 3; i++) {
-      const result = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+      const result = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid, rebuild_from_package_id: versions.at(-1)?.id });
       versions.push((await saved(sid)).package);
       expect(result.structuredContent.package?.id).toBe(versions.at(-1).id);
       expect(result.structuredContent.package?.filename).toBe(versions.at(-1).filename);
@@ -683,12 +759,12 @@ describe("real package handlers with local DB and immutable storage", () => {
       return fn === "mcp_submittal_package_write" ? { ...result, data: previous } : result;
     } };
     try {
-      const rebuilt = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+      const rebuilt = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid, rebuild_from_package_id: previous.package.id });
       const current = await saved(sid);
       expect(current.package.id).not.toBe(previous.package.id);
       expect(rebuilt.structuredContent.package).toMatchObject({ id: current.package.id, filename: current.package.filename });
       expect(rebuilt.structuredContent.card.kpis?.[0].value).toBe(`T-${current.transmittal_number}`);
-      expect(JSON.stringify(rebuilt.structuredContent.card)).not.toContain(previous.package.filename);
+      expect(JSON.stringify(rebuilt.structuredContent.card.sections[0])).not.toContain(previous.package.filename);
     } finally { state.sb = original; }
   });
   it("keeps the first exact PDF link valid across subsequent host reads without rotating previews", async () => {
@@ -716,7 +792,7 @@ describe("real package handlers with local DB and immutable storage", () => {
     const sid = await ready("HISTORICAL-GET");
     await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
     const previous = (await saved(sid)).package;
-    await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid,rebuild_from_package_id:previous.id});
     const original = state.sb as Sb;
     state.sb = {...original,rpc:async(fn:string,args:Record<string,unknown>)=>{
       const result = await (original.rpc as unknown as ReturnType<typeof fakeClient>["rpc"])(fn,args);
@@ -726,7 +802,7 @@ describe("real package handlers with local DB and immutable storage", () => {
       const got = await call(submittalPackage,{action:"get",job_number:"2701",submittal_id:sid});
       expect(got.structuredContent.package).toBeNull();
       expect(got.structuredContent.ready).toBe(false);
-      expect(JSON.stringify(got.structuredContent.card)).not.toContain(previous.filename);
+      expect(JSON.stringify(got.structuredContent.card.sections[0])).not.toContain(previous.filename);
     } finally { state.sb = original; }
   });
   it("uploads through the browser member flow, preserves pieces, verifies a lost write reply and builds the received PDFs", async () => {
@@ -764,7 +840,7 @@ describe("real package handlers with local DB and immutable storage", () => {
     await expect(query("SELECT mcp_submittal_package_write($1,$2,'save',$3::jsonb)", [job,sid,JSON.stringify({fingerprint:original.fingerprint,transmittal_id:a.build_transmittal_id,filename:'wrong.pdf'})])).rejects.toThrow("filename must match");
     expect((await saved(sid)).package.id).toBe(original.package.id);
     expect((await saved(sid)).submittal.transmittal_id).toBe(original.submittal.transmittal_id);
-    await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid, rebuild_from_package_id: original.package.id });
     await expect(query("SELECT mcp_submittal_package_write($1,$2,'save',$3::jsonb)", [job,sid,JSON.stringify({fingerprint:original.fingerprint,transmittal_id:b.build_transmittal_id})])).rejects.toThrow("changed while building");
   });
   it("does not carry an old send receipt onto a rebuilt draft or allow delivery of its superseded copy", async () => {
@@ -775,7 +851,7 @@ describe("real package handlers with local DB and immutable storage", () => {
       draft:{to:"reviewer@example.com",cc:[],subject:"Fictional rebuild check",body:`Please review ${a.download_url}`,link:a.download_url}});
     await call(submittalDelivery,{action:"approve",job_number:"2701",submittal_id:sid,delivery_id:draft.structuredContent.delivery_id,draft_key:draft.structuredContent.draft_key,confirmed:true});
     await call(submittalDelivery,{action:"record_sent",job_number:"2701",submittal_id:sid,delivery_id:draft.structuredContent.delivery_id,draft_key:draft.structuredContent.draft_key,provider:"local-test-only",message_id:"synthetic-rebuild-receipt",sent_at:new Date().toISOString()});
-    const rebuilt = await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    const rebuilt = await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid,rebuild_from_package_id:a.id});
     expect(rebuilt.structuredContent.package!.id).not.toBe(a.id);
     const row = (await readSubmittalRows(state.sb as Sb,job)).find(r=>r.id===sid)!;
     expect(row.submission_sent_at).toBeNull();

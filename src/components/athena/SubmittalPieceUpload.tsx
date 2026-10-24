@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { uploadSubmittalPiece, type PieceUploadClient } from "@/lib/submittal-piece-upload";
 import { PACKAGE_KINDS, PACKAGE_KIND_LABEL, labelOf, type PackageKind } from "@/lib/mcp/submittals";
 import type { SubmittalRecordPayload } from "@/lib/submittal-record-page";
+import { duplicatePieceWarnings } from "@/lib/submittal-piece-input";
 
 export function SubmittalPieceUpload({
   payload,
@@ -22,6 +23,14 @@ export function SubmittalPieceUpload({
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const warnings = duplicatePieceWarnings(payload.current.package_items ?? []);
+  const selectedDuplicate =
+    file &&
+    (payload.current.package_items ?? []).some(
+      (p) =>
+        p.file_ref?.split("/").at(-1)?.normalize("NFKC").toLowerCase() ===
+        file.name.normalize("NFKC").toLowerCase(),
+    );
   async function save(event: FormEvent) {
     event.preventDefault();
     if (busy || !file || !payload.job_id) return;
@@ -62,6 +71,21 @@ export function SubmittalPieceUpload({
         Attach a received file to a listed piece, or name a new piece and its source. Supplier
         originals and earlier packages are kept.
       </p>
+      {warnings.map((warning) => (
+        <p
+          key={warning.filename}
+          role="status"
+          className="rounded border-l-4 border-[#1E5FED] bg-gray-50 p-3"
+        >
+          {warning.message}
+        </p>
+      ))}
+      {selectedDuplicate ? (
+        <p role="status" className="rounded border-l-4 border-[#1E5FED] bg-gray-50 p-3">
+          Duplicate filename: {file.name} is already on this submittal. Uploading keeps a separate
+          copy; check whether both belong in the package.
+        </p>
+      ) : null}
       <label className="grid min-w-0 gap-1">
         Package piece
         <select

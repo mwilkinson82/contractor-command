@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.22",
+      "version": "0.8.23",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -7692,7 +7692,7 @@
       {
         "name": "submittal_package",
         "title": "Collect and build a submittal package",
-        "description": "Stores received files against existing piece IDs, P-numbers or new_piece kind/source_party metadata without overwriting originals, and builds submittal PDFs with company cover sheets, distinct transmittals and authorized package links; get retrieves the current package without rebuilding.",
+        "description": "Collects immutable files using piece IDs, P-numbers or new_piece kind/source_party metadata; get reads the current package and full history without building, build creates missing content or reuses the current package, and rebuild_from_package_id targets an explicit replacement safely across repeated calls.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -7774,6 +7774,11 @@
               "additionalProperties": false
             },
             "package_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "rebuild_from_package_id": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"

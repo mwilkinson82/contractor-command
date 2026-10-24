@@ -30,6 +30,14 @@ function view() {
 }
 
 describe("native card view lifecycle", () => {
+  it("opens the 03 30 00-001 uploader with its encoded number, board key and upload destination intact", () => {
+    const v = view();
+    v.message({ jsonrpc: "2.0", id: 1, result: {} });
+    const href = "https://app.meetathena.io/r/job/11111111-1111-4111-8111-111111111111/submittal/03%2030%2000-001?t=fixture&upload=1#upload";
+    v.click(href);
+    expect(v.sent.at(-1)?.data).toMatchObject({ method: "ui/open-link", params: { url: href } });
+    expect(v.sent.filter((m) => m.data.method === "ui/open-link")).toHaveLength(1);
+  });
   it("opens exact signed package and record links through the initialized host instead of a sandbox popup", () => {
     const v = view();
     const href = "https://app.meetathena.io/r/job/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/submittal/QA?" +
