@@ -61,7 +61,15 @@ describe("real AI SDK provider request with an intercepted network", () => {
         depth: 8,
       }),
       frame: { sheet: "E-100", tile_bounds: { x: 0.2, y: 0.3, width: 0.1, height: 0.2 } },
-      hints: [],
+      hints: [
+        {
+          kind: "path",
+          bounds: { x: 0.9, y: 0.4, width: 0.02, height: 0.02 },
+          points: [{ x: 0.9, y: 0.4 }],
+          signature: "unrelated-native-path",
+        },
+        { kind: "text", text: "F1 fixture", bounds: { x: 0.2, y: 0.3, width: 0.02, height: 0.02 } },
+      ],
     });
     expect(result.findings).toEqual([]);
     expect(destination).toBe("https://ai.gateway.lovable.dev/v1/chat/completions");
@@ -94,6 +102,9 @@ describe("real AI SDK provider request with an intercepted network", () => {
     expect(JSON.stringify(messages[1].content)).toContain("scope and orientation only");
     const content = messages[1].content as { type: string; text?: string; image_url?: unknown }[];
     const input = JSON.parse(content.at(-1)!.text!);
+    expect(input.vector_text).toEqual(["F1 fixture"]);
+    expect(input).not.toHaveProperty("vector_candidates");
+    expect(JSON.stringify(input)).not.toContain("unrelated-native-path");
     expect(content.at(-2)!.type).toBe("image_url");
     expect(content.at(-2)!.image_url).toMatchObject({
       url: "data:image/png;base64," + Buffer.from(png).toString("base64"),

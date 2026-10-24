@@ -222,7 +222,13 @@ export const readVisionTile: VisionRead = async (request) => {
               target_pixels: { width, height },
               coordinate_system: "target-tile-image-0-1000",
               target_frame: request.frame,
-              vector_candidates: request.hints.slice(0, 80),
+              // Raw PDF path vertices use page coordinates, not target-image
+              // coordinates. Keep them in native indexing/verification only;
+              // mixing those numbers into vision invites the wrong frame.
+              vector_text: request.hints
+                .filter((h) => h.kind === "text" && h.text)
+                .slice(0, 80)
+                .map((h) => h.text!.slice(0, 300)),
             }),
           },
         ],
