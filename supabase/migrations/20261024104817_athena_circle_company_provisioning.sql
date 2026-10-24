@@ -64,7 +64,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public,pg_catalog AS $$
       AND u.email_confirmed_at IS NOT NULL
       AND s.tier IN ('circle','hardcore')
       AND (membership_private.subscription_state(s,now())='eligible'
-        OR (p.override_until>now() AND s.status='active'))
+        OR (p.override_until>now() AND s.status='active' AND EXISTS (
+          SELECT 1 FROM public.circle_subscription_evidence e WHERE e.stripe_subscription_id=s.stripe_subscription_id
+            AND e.review_reason='renewal_payment_pending')))
   )
 $$;
 
@@ -77,6 +79,13 @@ BEGIN
   SELECT * INTO s FROM public.subscriptions WHERE id=_source;
   IF NOT FOUND OR s.tier NOT IN ('circle','hardcore') OR coalesce(s.stripe_subscription_id,'') !~ '^sub_[A-Za-z0-9]+$'
     OR coalesce(s.stripe_customer_id,'') !~ '^cus_[A-Za-z0-9]+$' THEN RETURN NULL; END IF;
+  -- Always lock owner before customer: a webhook for a second customer must not
+  -- invert the first-request sweep's lock order for the same owner.
+  uid := coalesce((SELECT owner_user_id FROM public.mcp_circle_provisioning
+    WHERE source_subscription_id=s.id),s.user_id,_claim_user);
+  IF uid IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended('athena-circle-owner:'||uid::text,0));
+  END IF;
   -- Serialize source renewals and a first verified claim before selecting/creating a workspace.
   PERFORM pg_advisory_xact_lock(hashtextextended('athena-circle-customer:'||s.stripe_customer_id,0));
   SELECT * INTO p FROM public.mcp_circle_provisioning WHERE source_subscription_id=s.id FOR UPDATE;
@@ -101,9 +110,6 @@ BEGIN
   END IF;
   IF uid IS NOT NULL AND NOT EXISTS(SELECT 1 FROM auth.users WHERE id=uid AND email_confirmed_at IS NOT NULL)
     THEN uid := NULL; END IF;
-  IF uid IS NOT NULL THEN
-    PERFORM pg_advisory_xact_lock(hashtextextended('athena-circle-owner:'||uid::text,0));
-  END IF;
   cid := p.company_id;
   IF cid IS NULL THEN
     SELECT old.company_id INTO cid FROM public.mcp_circle_provisioning old
@@ -130,7 +136,9 @@ BEGIN
       ON CONFLICT(user_id) DO UPDATE SET current_company=EXCLUDED.current_company
       WHERE mcp_user_settings.current_company IS NULL;
   END IF;
-  next_state := CASE WHEN source_state='eligible' OR (p.override_until>now() AND s.status='active')
+  next_state := CASE WHEN source_state='eligible' OR (p.override_until>now() AND s.status='active' AND EXISTS (
+    SELECT 1 FROM public.circle_subscription_evidence e WHERE e.stripe_subscription_id=s.stripe_subscription_id
+      AND e.review_reason='renewal_payment_pending'))
     THEN CASE WHEN uid IS NULL THEN 'unclaimed' ELSE 'ready' END
     WHEN source_state='review' THEN 'review' ELSE 'inactive' END;
   INSERT INTO public.mcp_circle_provisioning(source_subscription_id,stripe_subscription_id,stripe_customer_id,
