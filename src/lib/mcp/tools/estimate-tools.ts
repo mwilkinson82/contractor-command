@@ -745,6 +745,8 @@ export const estimateDocReview = defineTool({
     }),
 });
 
+/** "Tire seal pit - EXAMPLE", "EXAMPLE: footing", "(sample)". A word, not a substring: "sampler" is fine. */
+export const EXAMPLE_LINE_RE = /(^|[\s(\-–—:])(example|sample|placeholder)(?=$|[\s)\-–—:,.])/i;
 export const estimateTakeoffSave = defineTool({
   name: "estimate_takeoff_save",
   title: "Save a takeoff",
@@ -787,6 +789,17 @@ export const estimateTakeoffSave = defineTool({
         }
         const drawing = drawingWithFile(args.drawing, args.file);
         const mode = args.mode ?? "upsert";
+        // Placeholder lines never reach a job's takeoff: they pad the drawing lines and survive into the bid.
+        const examples = args.lines.filter((l) => EXAMPLE_LINE_RE.test(l.item ?? ""));
+        if (examples.length)
+          throw new ToolError(
+            `Example lines are not saved on a job: ${examples
+              .slice(0, 5)
+              .map((l) => `"${l.item}"`)
+              .join(
+                ", ",
+              )}${examples.length > 5 ? ` and ${examples.length - 5} more` : ""}. Remove the EXAMPLE tag, or leave the line out. Nothing was saved.`,
+          );
         const prior = await load(sb, job.job_id);
         const saved = await savedProfileRecord(sb, job.job_id);
         const convention = conventionFor(
@@ -1845,7 +1858,8 @@ export const drawingMarkup = defineTool({
           throw e;
         }
         const measurement = await engineSnapshot(sb, job.job_id);
-        if (measurement && !args.annotations) {
+        // prepare is the findings preview; only a save without annotations opens the measured takeoff.
+        if (measurement && !args.annotations && args.operation !== "prepare") {
           const page = await loadStoredPage(sb, job, source.sheet, source.record.id);
           const extra =
             args.operation === "save" &&
