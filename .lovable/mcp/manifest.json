@@ -7679,7 +7679,7 @@
       {
         "name": "submittal_package",
         "title": "Collect and build a submittal package",
-        "description": "Stores received submittal pieces without overwriting originals and builds a versioned package with a company cover, transmittal number and private download preview.",
+        "description": "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -7724,6 +7724,11 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "package_item": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
             "package_id": {
               "type": "string",

@@ -1,7 +1,7 @@
 // Living submittal log. Dates follow deadlines.ts: calendar days, job time zone, never rolled later.
 // Package assembly and delivery use these same revision and item records.
 import { addDays } from "./deadlines";
-import { detailAnchor, withAnchor } from "./plain-label";
+import { submittalRecordUrl } from "./submittal-record-url";
 import type { CardModel, CardRow, CardSection } from "./cards/model";
 import { scheduleGroupOverdue, type ScheduleActivity, type TrackingItem } from "./schedule-submittals";
 
@@ -222,6 +222,29 @@ export function transmittalLabel(n: number): string {
   return `Transmittal T-${n}`;
 }
 
+/** The short name a member uses for a piece in chat: P1, P2… in the order the pieces were logged. */
+export function pieceRef(index: number): string {
+  return `P${index + 1}`;
+}
+
+/** One line per piece with its short name and id, so any host can name the piece to attach a file. */
+export function pieceLines(items: PackageItem[] | null | undefined): string[] {
+  return (items ?? []).map((item, n) => {
+    const stored = !!item.file_ref?.trim() && RECEIVED.has(item.status);
+    const contact = item.chase_name?.trim() ? ` Contact ${labelOf(CHASE_ROLE_LABEL, item.chase_role ?? "")} ${item.chase_name.trim()}${item.chase_email ? ` ${item.chase_email}` : ""}.` : "";
+    return `${pieceRef(n)}. ${labelOf(PACKAGE_KIND_LABEL, item.kind)} from ${item.source_party}. ${labelOf(PACKAGE_STATUS_LABEL, item.status)}.${item.required === false ? " Not required." : ""} ${stored ? "Stored file on record." : "No stored file yet."}${contact}${item.id ? ` Piece id ${item.id}.` : ""}`;
+  });
+}
+
+/** Words for an empty filtered view: the log is not empty, nothing matches. Starts with "No submittals" so the header check still holds. */
+export function filterWords(filter: Omit<SubmittalFilter, "today"> | undefined): string {
+  const parts: string[] = [];
+  if (filter?.overdue) parts.push("overdue");
+  if (filter?.status) parts.push(labelOf(STATUS_LABEL, filter.status).toLowerCase());
+  if (filter?.ball) parts.push(`with ${labelOf(BALL_LABEL, filter.ball)}`);
+  return parts.join(", ");
+}
+
 export type SubmittalRoute =
   | { tool: "submittal_log"; action: "add" }
   | { tool: "submittals_list"; overdue: boolean; jobNumber: string | null }
@@ -278,11 +301,16 @@ export function presentSubmittalLog(input: {
   filter?: Omit<SubmittalFilter, "today">;
   schedule?: ScheduleActivity[];
   tracking?: TrackingItem[];
+  /** The submittal just saved: its pieces are listed with their short names and ids. */
+  focusId?: string | null;
 }): Presented {
   const loggedNumbers = new Set(input.rows.map((row) => row.number.trim().toLowerCase()));
   const schedule = (input.schedule ?? []).filter((group) => !loggedNumbers.has(group.id.trim().toLowerCase()));
   const tracking = input.tracking ?? [];
   const rows = filterSubmittals(input.rows, { ...input.filter, today: input.today });
+  const logged = currentSubmittals(input.rows);
+  const filtered = !!(input.filter?.overdue || input.filter?.status || input.filter?.ball);
+  const focus = input.focusId ? input.rows.find((row) => row.id === input.focusId) ?? null : null;
   const scheduleLate = schedule.filter((group) => scheduleGroupOverdue(group, input.today)).length;
   const trackingLate = tracking.filter((item) => item.overdue).length;
   const loggedLate = rows.filter((row) => submittalOverdue(row, input.today)).length;
@@ -295,13 +323,22 @@ export function presentSubmittalLog(input: {
     return `- ${group.id} ${group.name}. Due ${due}.${group.critical ? " Critical path." : ""}${late ? " Overdue." : ""}`;
   });
   const trackingLines = tracking.map((item) => `- ${item.action}${item.due ? `. Due ${item.due}.` : ""}${item.overdue ? " Overdue." : ""}`);
-  const nothing = !rows.length && !schedule.length && !tracking.length;
+  // A filtered view of a log that has rows is not an empty log: say what was asked for and how many rows the log holds.
+  const nothing = !rows.length && !schedule.length && !tracking.length && !(filtered && logged.length);
+  const noMatch = !rows.length && filtered && logged.length > 0;
+  const noMatchLine = `No submittals ${filterWords(input.filter)} on this job. ${logged.length} on the log, none ${filterWords(input.filter)}.`;
   const loggedBody = rows.length
     ? rows.map((row) => rowLine(row, input.today)).join("\n")
-    : nothing
-      ? "No submittals on this job yet. Set the log up: say log a submittal, or paste the log to import it."
-      : "No submittals logged yet.";
-  const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody].filter(Boolean).join("\n\n");
+    : noMatch
+      ? noMatchLine
+      : nothing
+        ? "No submittals on this job yet. Set the log up: say log a submittal, or paste the log to import it."
+        : "No submittals logged yet.";
+  const focusLines = focus ? pieceLines(focus.package_items) : [];
+  const focusBody = focus
+    ? `Package pieces for ${focus.number}\n${focusLines.length ? focusLines.join("\n") : "No pieces logged yet. Name the cuts, drawings and documents this submittal needs and who supplies each."}`
+    : "";
+  const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody, focusBody].filter(Boolean).join("\n\n");
   const note = input.note?.trim() ? `${input.note.trim()}\n\n` : "";
   const access = input.readOnly ? "\n\nRead only." : "";
   const text = `${note}${head}\n\n${body}${access}`;
@@ -310,10 +347,17 @@ export function presentSubmittalLog(input: {
     return {
       cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Yes" : "No", row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}` : "Send receipt not recorded"],
       flag: late ? "overdue" : null,
-      href: input.boardUrl ? withAnchor(input.boardUrl, detailAnchor("submittal", row.id)) : null,
+      // The row opens the submittal's own record page, signed with the same token as the log link.
+      href: submittalRecordUrl(input.boardUrl, row.number),
       refId: row.id,
     };
   });
+  const focusRows: CardRow[] = focus
+    ? (focus.package_items ?? []).map((item, n) => ({
+        cells: [pieceRef(n), `${labelOf(PACKAGE_KIND_LABEL, item.kind)} from ${item.source_party}`, labelOf(PACKAGE_STATUS_LABEL, item.status), item.file_ref?.trim() && RECEIVED.has(item.status) ? "Stored" : "No file yet", item.chase_name?.trim() || "No contact"],
+        refId: item.id ?? undefined,
+      }))
+    : [];
   const card: CardModel = {
     state: "result",
     title: "Submittal log",
@@ -360,14 +404,26 @@ export function presentSubmittalLog(input: {
         : {
             heading: "Log",
             kind: "list" as const,
-            rows: [{ cells: [nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
+            rows: [{ cells: [noMatch ? noMatchLine : nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
           },
+      ...(focus
+        ? [{
+            heading: `Package pieces for ${focus.number}`,
+            kind: focusRows.length ? ("table" as const) : ("list" as const),
+            ...(focusRows.length ? { columns: ["Piece", "What", "Status", "File", "Contact"] } : {}),
+            rows: focusRows.length ? focusRows : [{ cells: ["No pieces logged yet."] }],
+          }]
+        : []),
     ] as CardSection[],
     next_move: input.readOnly
       ? "Read only on this job."
-      : nothing
-        ? "Set the log up: say log a submittal, or paste the log to import it."
-        : "Log the next submittal when it is ready.",
+      : noMatch
+        ? "Ask for the full log to see every row."
+        : nothing
+          ? "Set the log up: say log a submittal, or paste the log to import it."
+          : focus
+            ? "Attach a received file to a piece by its short name, or log the next submittal."
+            : "Log the next submittal when it is ready.",
   };
   return { text, card, rows };
 }

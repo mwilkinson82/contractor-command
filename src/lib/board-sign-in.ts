@@ -33,13 +33,21 @@ export function boardSignInReturn(value: unknown): string | undefined {
   }
   if (url.origin !== PARSE_ORIGIN) return undefined;
   const parts = url.pathname.split("/").filter(Boolean);
-  if (parts.length !== 4 || parts[0] !== "r" || parts[1] !== "job") return undefined;
+  if (parts[0] !== "r" || parts[1] !== "job") return undefined;
   const jobId = parts[2];
-  const page = hostedPageName(parts[3]);
-  if (!isUuid(jobId) || !(JOB_PAGES as readonly string[]).includes(page)) return undefined;
+  if (!isUuid(jobId)) return undefined;
   dropBoardNoise(url.searchParams);
   const search = url.searchParams.toString();
   const hash = url.hash && url.hash !== "#" ? url.hash : "";
+  // A submittal record: /r/job/<id>/submittal/<number>. The number stays percent-encoded as the browser sent it.
+  if (parts.length === 5 && parts[3] === "submittal") {
+    const number = parts[4].split(/[?#]/)[0];
+    if (!number || number.length > 120) return undefined;
+    return `/r/job/${jobId}/submittal/${number}${search ? `?${search}` : ""}${hash}`;
+  }
+  if (parts.length !== 4) return undefined;
+  const page = hostedPageName(parts[3]);
+  if (!(JOB_PAGES as readonly string[]).includes(page)) return undefined;
   return `/r/job/${jobId}/${page}${search ? `?${search}` : ""}${hash}`;
 }
 
