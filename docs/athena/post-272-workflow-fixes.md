@@ -19,6 +19,6 @@ Read-only Lovable Cloud checks on 2026-10-24 found no Pat Kim entry in job 2701'
 
 ## Verification
 
-Local verification: 2,432 tests across 233 files, including 17 locked behaviors, pass; production build and changed-file lint pass. Record exact CI and live checks in release evidence. The repository has 32 pre-existing TypeScript diagnostics; do not claim a clean global typecheck. The six Hub AI entry points remain unchanged and are checked by the Athena-only inference boundary suite.
+Local verification: 2,432 tests across 233 files, including 17 locked behaviors, pass; production build and changed-file lint pass. Record exact CI and live checks in release evidence. The legacy role suite returns the same 57 failing test names as its earlier baseline (113 pass); no new failures. A private 390px preview confirms the scale question precedes the drawing and sends the exact true-size confirmation fields. The repository has 32 pre-existing TypeScript diagnostics; do not claim a clean global typecheck. The six Hub AI entry points remain unchanged and are checked by the Athena-only inference boundary suite.
 
 Private host tests must distinguish a working image/proposal loop from takeoff accuracy. CCW-003 footing quantity versus Darian's 345 LF is an unresolved benchmark until measured and compared. Grok Bot's full retest is external to the browser verification here.

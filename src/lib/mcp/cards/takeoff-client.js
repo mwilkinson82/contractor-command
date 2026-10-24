@@ -1187,7 +1187,7 @@
           );
         }),
       );
-      right.prepend(scaleChoice);
+      main.insertBefore(scaleChoice, layout);
     }
     var selected = node("div");
     function showSelected() {
@@ -1537,6 +1537,10 @@
     }
     showReadStatus();
     async function runRead(smaller) {
+      if (sc.scale_lock && !sc.scale_lock.locked)
+        return notice(
+          "Choose one of the two scale options first. No read or measurement has started.",
+        );
       var line = Number(lineSelect.value),
         calibration = cal.value || undefined;
       var selected = sc.engine.lines.find(function (l) {
@@ -1589,6 +1593,10 @@
     );
     // A sheet read: every open line on each tile, one observation set back per tile.
     async function runSheetRead() {
+      if (sc.scale_lock && !sc.scale_lock.locked)
+        return notice(
+          "Choose one of the two scale options first. No read or measurement has started.",
+        );
       var calibration = cal.value || undefined;
       if (!host.message)
         return notice(
