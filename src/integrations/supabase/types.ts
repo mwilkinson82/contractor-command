@@ -995,6 +995,91 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_board_link_opens: {
+        Row: {
+          id: string
+          job_id: string
+          link_id: string
+          opened_at: string
+          page: string
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          link_id: string
+          opened_at?: string
+          page: string
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          link_id?: string
+          opened_at?: string
+          page?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_board_link_opens_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_board_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_board_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          job_id: string
+          last_viewed_at: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scope: string
+          token_hash: string
+          view_count: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string
+          expires_at: string
+          id?: string
+          job_id: string
+          last_viewed_at?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope: string
+          token_hash: string
+          view_count?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          last_viewed_at?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope?: string
+          token_hash?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_board_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_call_log: {
         Row: {
           called_at: string
@@ -1157,6 +1242,99 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_circle_provisioning: {
+        Row: {
+          company_id: string
+          created_at: string
+          display_name: string
+          override_by: string | null
+          override_reason: string | null
+          override_until: string | null
+          owner_user_id: string | null
+          payment_claimed_at: string | null
+          payment_email: string
+          payment_user_id: string | null
+          source_subscription_id: string
+          state: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          display_name: string
+          override_by?: string | null
+          override_reason?: string | null
+          override_until?: string | null
+          owner_user_id?: string | null
+          payment_claimed_at?: string | null
+          payment_email: string
+          payment_user_id?: string | null
+          source_subscription_id: string
+          state: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          display_name?: string
+          override_by?: string | null
+          override_reason?: string | null
+          override_until?: string | null
+          owner_user_id?: string | null
+          payment_claimed_at?: string | null
+          payment_email?: string
+          payment_user_id?: string | null
+          source_subscription_id?: string
+          state?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_circle_provisioning_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_circle_provisioning_source_subscription_id_fkey"
+            columns: ["source_subscription_id"]
+            isOneToOne: true
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_circle_provisioning_audit: {
+        Row: {
+          current: Json
+          id: number
+          previous: Json | null
+          recorded_at: string
+          source_subscription_id: string
+        }
+        Insert: {
+          current: Json
+          id?: never
+          previous?: Json | null
+          recorded_at?: string
+          source_subscription_id: string
+        }
+        Update: {
+          current?: Json
+          id?: never
+          previous?: Json | null
+          recorded_at?: string
+          source_subscription_id?: string
+        }
+        Relationships: []
+      }
       mcp_companies: {
         Row: {
           agent_name: string
@@ -1164,7 +1342,7 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
-          created_by: string
+          created_by: string | null
           decision_rights: Json
           default_flags: Json
           id: string
@@ -1184,7 +1362,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           decision_rights?: Json
           default_flags?: Json
           id?: string
@@ -1204,7 +1382,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           decision_rights?: Json
           default_flags?: Json
           id?: string
@@ -1419,6 +1597,207 @@ export type Database = {
           },
         ]
       }
+      mcp_daily_reminder_shows: {
+        Row: {
+          company_id: string
+          job_id: string
+          shown_at: string
+          shown_on: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          job_id: string
+          shown_at?: string
+          shown_on: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          job_id?: string
+          shown_at?: string
+          shown_on?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_daily_reminder_shows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_daily_reminders: {
+        Row: {
+          company_id: string
+          enabled: boolean
+          job_id: string
+          last_sent_on: string | null
+          send_local: string
+          time_zone: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          enabled?: boolean
+          job_id: string
+          last_sent_on?: string | null
+          send_local?: string
+          time_zone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          enabled?: boolean
+          job_id?: string
+          last_sent_on?: string | null
+          send_local?: string
+          time_zone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_daily_reminders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_daily_reports: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          delays: string
+          deliveries: string
+          id: string
+          issues: string
+          job_id: string
+          manpower: string
+          report_date: string
+          safety: string
+          status: string
+          subs_on_site: string
+          transcript: string | null
+          updated_at: string
+          weather: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          delays: string
+          deliveries: string
+          id?: string
+          issues: string
+          job_id: string
+          manpower: string
+          report_date: string
+          safety: string
+          status?: string
+          subs_on_site: string
+          transcript?: string | null
+          updated_at?: string
+          weather: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          delays?: string
+          deliveries?: string
+          id?: string
+          issues?: string
+          job_id?: string
+          manpower?: string
+          report_date?: string
+          safety?: string
+          status?: string
+          subs_on_site?: string
+          transcript?: string | null
+          updated_at?: string
+          weather?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_daily_reports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_daily_work_lines: {
+        Row: {
+          activity_id: string
+          company_id: string
+          crew: number
+          daily_id: string
+          hours: number
+          id: string
+          job_id: string
+          line_no: number
+          pct_complete: number | null
+          qty: number
+          sov_item: string
+          unit: string
+          work: string
+        }
+        Insert: {
+          activity_id: string
+          company_id: string
+          crew: number
+          daily_id: string
+          hours: number
+          id?: string
+          job_id: string
+          line_no: number
+          pct_complete?: number | null
+          qty: number
+          sov_item: string
+          unit: string
+          work: string
+        }
+        Update: {
+          activity_id?: string
+          company_id?: string
+          crew?: number
+          daily_id?: string
+          hours?: number
+          id?: string
+          job_id?: string
+          line_no?: number
+          pct_complete?: number | null
+          qty?: number
+          sov_item?: string
+          unit?: string
+          work?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_daily_work_lines_daily_id_fkey"
+            columns: ["daily_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_daily_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_daily_work_lines_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_delay_events: {
         Row: {
           activity: string | null
@@ -1468,6 +1847,732 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "mcp_delay_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_drawing_versions: {
+        Row: {
+          annotations: Json
+          company_id: string
+          content_hash: string
+          created_at: string
+          created_by: string
+          filename: string
+          id: string
+          job_id: string
+          kind: string
+          page: number | null
+          parent_id: string | null
+          path: string
+          sheet: string | null
+          sheets: Json
+          source_key: string
+          source_url: string | null
+          storage_bucket: string
+          version: number
+        }
+        Insert: {
+          annotations?: Json
+          company_id: string
+          content_hash: string
+          created_at?: string
+          created_by: string
+          filename: string
+          id?: string
+          job_id: string
+          kind: string
+          page?: number | null
+          parent_id?: string | null
+          path: string
+          sheet?: string | null
+          sheets?: Json
+          source_key: string
+          source_url?: string | null
+          storage_bucket?: string
+          version: number
+        }
+        Update: {
+          annotations?: Json
+          company_id?: string
+          content_hash?: string
+          created_at?: string
+          created_by?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          kind?: string
+          page?: number | null
+          parent_id?: string | null
+          path?: string
+          sheet?: string | null
+          sheets?: Json
+          source_key?: string
+          source_url?: string | null
+          storage_bucket?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_drawing_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_drawing_versions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_drawing_versions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_drawing_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_bids: {
+        Row: {
+          company_id: string
+          job_id: string
+          overhead_pct: number | null
+          profit_pct: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          job_id: string
+          overhead_pct?: number | null
+          profit_pct?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          job_id?: string
+          overhead_pct?: number | null
+          profit_pct?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_bids_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_gap_items: {
+        Row: {
+          active: boolean
+          category: string
+          company_id: string
+          created_at: string
+          detail: string | null
+          element: string | null
+          holds_bid: boolean
+          id: string
+          job_id: string
+          kind: string
+          line_no: number | null
+          qty: number | null
+          reasoning: string
+          ref: string
+          severity: string
+          sheet: string
+          spec_section: string
+          title: string
+          unit: string | null
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          company_id: string
+          created_at?: string
+          detail?: string | null
+          element?: string | null
+          holds_bid?: boolean
+          id?: string
+          job_id: string
+          kind: string
+          line_no?: number | null
+          qty?: number | null
+          reasoning: string
+          ref: string
+          severity: string
+          sheet: string
+          spec_section: string
+          title: string
+          unit?: string | null
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          company_id?: string
+          created_at?: string
+          detail?: string | null
+          element?: string | null
+          holds_bid?: boolean
+          id?: string
+          job_id?: string
+          kind?: string
+          line_no?: number | null
+          qty?: number | null
+          reasoning?: string
+          ref?: string
+          severity?: string
+          sheet?: string
+          spec_section?: string
+          title?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_gap_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_general_conditions: {
+        Row: {
+          company_id: string
+          duration_days: number | null
+          finish_date: string | null
+          job_id: string
+          lines: Json
+          start_date: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          duration_days?: number | null
+          finish_date?: string | null
+          job_id: string
+          lines?: Json
+          start_date?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          duration_days?: number | null
+          finish_date?: string | null
+          job_id?: string
+          lines?: Json
+          start_date?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_general_conditions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_pricing: {
+        Row: {
+          company_id: string
+          job_id: string
+          labor: Json
+          material: Json
+          quotes: Json
+          rate_sources: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          job_id: string
+          labor?: Json
+          material?: Json
+          quotes?: Json
+          rate_sources?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          job_id?: string
+          labor?: Json
+          material?: Json
+          quotes?: Json
+          rate_sources?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_pricing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_profiles: {
+        Row: {
+          company_id: string
+          forms_faces: number
+          job_id: string
+          profile: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          forms_faces?: number
+          job_id: string
+          profile: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          forms_faces?: number
+          job_id?: string
+          profile?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_profiles_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_requirements: {
+        Row: {
+          active: boolean
+          amount: number | null
+          citation: string
+          company_id: string
+          confirmed: boolean
+          created_at: string
+          description: string | null
+          excluded: boolean
+          id: string
+          job_id: string
+          kind: string
+          label: string
+          placement: string
+          ref: string
+          source_ref: string
+          source_type: string
+        }
+        Insert: {
+          active?: boolean
+          amount?: number | null
+          citation: string
+          company_id: string
+          confirmed?: boolean
+          created_at?: string
+          description?: string | null
+          excluded?: boolean
+          id?: string
+          job_id: string
+          kind: string
+          label: string
+          placement?: string
+          ref: string
+          source_ref: string
+          source_type: string
+        }
+        Update: {
+          active?: boolean
+          amount?: number | null
+          citation?: string
+          company_id?: string
+          confirmed?: boolean
+          created_at?: string
+          description?: string | null
+          excluded?: boolean
+          id?: string
+          job_id?: string
+          kind?: string
+          label?: string
+          placement?: string
+          ref?: string
+          source_ref?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_requirements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_setup: {
+        Row: {
+          assumptions: Json
+          bid_due: string | null
+          company_id: string
+          delivery_method: string | null
+          doc_review: Json | null
+          documents: Json
+          in_scope: Json
+          job_id: string
+          out_scope: Json
+          role: string | null
+          sub_bids: Json
+          summary: Json | null
+          summary_version: number | null
+          trades: Json
+          updated_at: string
+          updated_by: string | null
+          workbook_note: string | null
+        }
+        Insert: {
+          assumptions?: Json
+          bid_due?: string | null
+          company_id: string
+          delivery_method?: string | null
+          doc_review?: Json | null
+          documents?: Json
+          in_scope?: Json
+          job_id: string
+          out_scope?: Json
+          role?: string | null
+          sub_bids?: Json
+          summary?: Json | null
+          summary_version?: number | null
+          trades?: Json
+          updated_at?: string
+          updated_by?: string | null
+          workbook_note?: string | null
+        }
+        Update: {
+          assumptions?: Json
+          bid_due?: string | null
+          company_id?: string
+          delivery_method?: string | null
+          doc_review?: Json | null
+          documents?: Json
+          in_scope?: Json
+          job_id?: string
+          out_scope?: Json
+          role?: string | null
+          sub_bids?: Json
+          summary?: Json | null
+          summary_version?: number | null
+          trades?: Json
+          updated_at?: string
+          updated_by?: string | null
+          workbook_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_setup_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_takeoff_lines: {
+        Row: {
+          basis: string
+          checklist_key: string | null
+          confidence: string
+          detail: string | null
+          element: string | null
+          exclusion: string | null
+          id: string
+          inputs: Json
+          item: string
+          job_id: string
+          line_no: number
+          location_text: string | null
+          markup_ref: string | null
+          material: string | null
+          math: string
+          measure_type: string | null
+          missing_input: string | null
+          note: string | null
+          qty: number | null
+          range_text: string | null
+          sheet: string
+          spec_section: string | null
+          takeoff_id: string
+          trade: string | null
+          unit: string | null
+        }
+        Insert: {
+          basis: string
+          checklist_key?: string | null
+          confidence: string
+          detail?: string | null
+          element?: string | null
+          exclusion?: string | null
+          id?: string
+          inputs?: Json
+          item: string
+          job_id: string
+          line_no: number
+          location_text?: string | null
+          markup_ref?: string | null
+          material?: string | null
+          math: string
+          measure_type?: string | null
+          missing_input?: string | null
+          note?: string | null
+          qty?: number | null
+          range_text?: string | null
+          sheet: string
+          spec_section?: string | null
+          takeoff_id: string
+          trade?: string | null
+          unit?: string | null
+        }
+        Update: {
+          basis?: string
+          checklist_key?: string | null
+          confidence?: string
+          detail?: string | null
+          element?: string | null
+          exclusion?: string | null
+          id?: string
+          inputs?: Json
+          item?: string
+          job_id?: string
+          line_no?: number
+          location_text?: string | null
+          markup_ref?: string | null
+          material?: string | null
+          math?: string
+          measure_type?: string | null
+          missing_input?: string | null
+          note?: string | null
+          qty?: number | null
+          range_text?: string | null
+          sheet?: string
+          spec_section?: string | null
+          takeoff_id?: string
+          trade?: string | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_takeoff_lines_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_estimate_takeoff_lines_takeoff_id_fkey"
+            columns: ["takeoff_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_estimate_takeoffs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_takeoffs: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string
+          revision: string | null
+          scales: Json
+          version: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id: string
+          revision?: string | null
+          scales?: Json
+          version: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string
+          revision?: string | null
+          scales?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_takeoffs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_estimate_verdicts: {
+        Row: {
+          company_id: string
+          corrected_qty: number | null
+          created_at: string
+          gap_ref: string | null
+          id: string
+          item_kind: string
+          item_text: string
+          job_id: string
+          line_no: number | null
+          mark: string
+          marked_by: string
+          note: string | null
+          owner: string | null
+        }
+        Insert: {
+          company_id: string
+          corrected_qty?: number | null
+          created_at?: string
+          gap_ref?: string | null
+          id?: string
+          item_kind: string
+          item_text: string
+          job_id: string
+          line_no?: number | null
+          mark: string
+          marked_by?: string
+          note?: string | null
+          owner?: string | null
+        }
+        Update: {
+          company_id?: string
+          corrected_qty?: number | null
+          created_at?: string
+          gap_ref?: string | null
+          id?: string
+          item_kind?: string
+          item_text?: string
+          job_id?: string
+          line_no?: number | null
+          mark?: string
+          marked_by?: string
+          note?: string | null
+          owner?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_verdicts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_field_activities: {
+        Row: {
+          activity_id: string
+          company_id: string
+          crew_size: number | null
+          job_id: string
+          self_perform: boolean
+          sub_name: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          activity_id: string
+          company_id: string
+          crew_size?: number | null
+          job_id: string
+          self_perform: boolean
+          sub_name?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          activity_id?: string
+          company_id?: string
+          crew_size?: number | null
+          job_id?: string
+          self_perform?: boolean
+          sub_name?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_field_activities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_field_schedule_feed: {
+        Row: {
+          activity_id: string
+          company_id: string
+          daily_id: string
+          job_id: string
+          pct_complete: number
+          report_date: string
+          updated_at: string
+        }
+        Insert: {
+          activity_id: string
+          company_id: string
+          daily_id: string
+          job_id: string
+          pct_complete: number
+          report_date: string
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string
+          company_id?: string
+          daily_id?: string
+          job_id?: string
+          pct_complete?: number
+          report_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_field_schedule_feed_daily_id_fkey"
+            columns: ["daily_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_daily_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_field_schedule_feed_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
@@ -1563,6 +2668,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_getting_started: {
+        Row: {
+          seen_at: string
+          user_id: string
+        }
+        Insert: {
+          seen_at?: string
+          user_id: string
+        }
+        Update: {
+          seen_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_guided_sessions: {
+        Row: {
+          created_at: string
+          flow: string
+          id: string
+          job_id: string
+          snapshot: Json
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          flow: string
+          id?: string
+          job_id: string
+          snapshot?: Json
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          flow?: string
+          id?: string
+          job_id?: string
+          snapshot?: Json
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_guided_sessions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_item_events: {
         Row: {
@@ -1928,6 +3083,9 @@ export type Database = {
           restricted: boolean
           sov_basis: string | null
           sov_fee_pct: number | null
+          submittal_kickoff_at: string | null
+          submittal_posture: string | null
+          submittal_review_days: number
           time_zone: string | null
           updated_at: string
           user_id: string
@@ -1946,6 +3104,9 @@ export type Database = {
           restricted?: boolean
           sov_basis?: string | null
           sov_fee_pct?: number | null
+          submittal_kickoff_at?: string | null
+          submittal_posture?: string | null
+          submittal_review_days?: number
           time_zone?: string | null
           updated_at?: string
           user_id?: string
@@ -1964,6 +3125,9 @@ export type Database = {
           restricted?: boolean
           sov_basis?: string | null
           sov_fee_pct?: number | null
+          submittal_kickoff_at?: string | null
+          submittal_posture?: string | null
+          submittal_review_days?: number
           time_zone?: string | null
           updated_at?: string
           user_id?: string
@@ -2153,6 +3317,69 @@ export type Database = {
           },
         ]
       }
+      mcp_morning_brief_sends: {
+        Row: {
+          body: string
+          created_at: string
+          sent_on: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          sent_on: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          sent_on?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_morning_brief_settings: {
+        Row: {
+          enabled: boolean
+          send_local: string
+          time_zone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          send_local?: string
+          time_zone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          enabled?: boolean
+          send_local?: string
+          time_zone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_morning_brief_shows: {
+        Row: {
+          shown_at: string
+          shown_on: string
+          user_id: string
+        }
+        Insert: {
+          shown_at?: string
+          shown_on: string
+          user_id: string
+        }
+        Update: {
+          shown_at?: string
+          shown_on?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mcp_open_items: {
         Row: {
           accountable: string | null
@@ -2340,6 +3567,72 @@ export type Database = {
           },
         ]
       }
+      mcp_production_rates: {
+        Row: {
+          activity_id: string
+          company_id: string
+          created_at: string
+          crew: number
+          daily_id: string
+          hours: number
+          id: string
+          job_id: string
+          man_hours: number
+          qty: number
+          qty_per_man_hour: number
+          sov_item: string
+          unit: string
+          work: string
+        }
+        Insert: {
+          activity_id: string
+          company_id: string
+          created_at?: string
+          crew: number
+          daily_id: string
+          hours: number
+          id?: string
+          job_id: string
+          man_hours: number
+          qty: number
+          qty_per_man_hour: number
+          sov_item: string
+          unit: string
+          work: string
+        }
+        Update: {
+          activity_id?: string
+          company_id?: string
+          created_at?: string
+          crew?: number
+          daily_id?: string
+          hours?: number
+          id?: string
+          job_id?: string
+          man_hours?: number
+          qty?: number
+          qty_per_man_hour?: number
+          sov_item?: string
+          unit?: string
+          work?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_production_rates_daily_id_fkey"
+            columns: ["daily_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_daily_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_production_rates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_profiles: {
         Row: {
           company_name: string
@@ -2369,6 +3662,232 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_progress_photos: {
+        Row: {
+          activity_id: string | null
+          area: string
+          client_safe: boolean
+          company_id: string
+          created_at: string
+          created_by: string | null
+          daily_id: string | null
+          id: string
+          job_id: string
+          mime_type: string
+          size_bytes: number
+          sov_item: string | null
+          storage_path: string
+          taken_on: string
+          work: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          area: string
+          client_safe?: boolean
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          daily_id?: string | null
+          id: string
+          job_id: string
+          mime_type: string
+          size_bytes: number
+          sov_item?: string | null
+          storage_path: string
+          taken_on: string
+          work?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          area?: string
+          client_safe?: boolean
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          daily_id?: string | null
+          id?: string
+          job_id?: string
+          mime_type?: string
+          size_bytes?: number
+          sov_item?: string | null
+          storage_path?: string
+          taken_on?: string
+          work?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_progress_photos_daily_id_fkey"
+            columns: ["daily_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_daily_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_progress_photos_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_project_record_events: {
+        Row: {
+          actor: string
+          actor_id: string | null
+          company_id: string
+          counterparty_email: string | null
+          counterparty_name: string | null
+          id: string
+          job_id: string
+          kind: string
+          occurred_at: string
+          payload: Json
+          ref_id: string | null
+          ref_table: string | null
+          summary: string
+          title: string
+        }
+        Insert: {
+          actor: string
+          actor_id?: string | null
+          company_id: string
+          counterparty_email?: string | null
+          counterparty_name?: string | null
+          id?: string
+          job_id: string
+          kind: string
+          occurred_at?: string
+          payload?: Json
+          ref_id?: string | null
+          ref_table?: string | null
+          summary: string
+          title: string
+        }
+        Update: {
+          actor?: string
+          actor_id?: string | null
+          company_id?: string
+          counterparty_email?: string | null
+          counterparty_name?: string | null
+          id?: string
+          job_id?: string
+          kind?: string
+          occurred_at?: string
+          payload?: Json
+          ref_id?: string | null
+          ref_table?: string | null
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_project_record_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_push_send_log: {
+        Row: {
+          created_at: string
+          error_text: string | null
+          http_code: number | null
+          id: string
+          job_id: string | null
+          payload_kind: string
+          status: string
+          subscription_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_text?: string | null
+          http_code?: number | null
+          id?: string
+          job_id?: string | null
+          payload_kind: string
+          status: string
+          subscription_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_text?: string | null
+          http_code?: number | null
+          id?: string
+          job_id?: string | null
+          payload_kind?: string
+          status?: string
+          subscription_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_push_send_log_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_push_send_log_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_push_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_push_subscriptions: {
+        Row: {
+          auth_secret: string
+          company_id: string
+          created_at: string
+          dead_at: string | null
+          endpoint: string
+          id: string
+          job_id: string
+          last_sent_on: string | null
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth_secret: string
+          company_id: string
+          created_at?: string
+          dead_at?: string | null
+          endpoint: string
+          id?: string
+          job_id: string
+          last_sent_on?: string | null
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth_secret?: string
+          company_id?: string
+          created_at?: string
+          dead_at?: string | null
+          endpoint?: string
+          id?: string
+          job_id?: string
+          last_sent_on?: string | null
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_push_subscriptions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_reenable_prompts: {
         Row: {
@@ -2520,6 +4039,390 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_submittal_mail: {
+        Row: {
+          approved_at: string | null
+          company_id: string
+          context_key: string
+          created_at: string
+          draft: Json
+          draft_key: string
+          id: string
+          job_id: string
+          kind: string
+          message_id: string | null
+          package_id: string | null
+          package_item_id: string | null
+          provider: string | null
+          sent_at: string | null
+          submittal_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          company_id: string
+          context_key: string
+          created_at?: string
+          draft: Json
+          draft_key: string
+          id?: string
+          job_id: string
+          kind: string
+          message_id?: string | null
+          package_id?: string | null
+          package_item_id?: string | null
+          provider?: string | null
+          sent_at?: string | null
+          submittal_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          company_id?: string
+          context_key?: string
+          created_at?: string
+          draft?: Json
+          draft_key?: string
+          id?: string
+          job_id?: string
+          kind?: string
+          message_id?: string | null
+          package_id?: string | null
+          package_item_id?: string | null
+          provider?: string | null
+          sent_at?: string | null
+          submittal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_submittal_mail_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_mail_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittal_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_mail_package_item_id_fkey"
+            columns: ["package_item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittal_package_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_mail_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_submittal_package_items: {
+        Row: {
+          chase_count: number
+          chase_email: string | null
+          chase_name: string | null
+          chase_role: string | null
+          company_id: string
+          created_at: string
+          file_ref: string | null
+          id: string
+          job_id: string
+          kind: string
+          last_chased_at: string | null
+          next_chase_at: string | null
+          received_at: string | null
+          requested_at: string | null
+          required: boolean
+          source_party: string
+          status: string
+          submittal_id: string
+          updated_at: string
+        }
+        Insert: {
+          chase_count?: number
+          chase_email?: string | null
+          chase_name?: string | null
+          chase_role?: string | null
+          company_id: string
+          created_at?: string
+          file_ref?: string | null
+          id?: string
+          job_id: string
+          kind: string
+          last_chased_at?: string | null
+          next_chase_at?: string | null
+          received_at?: string | null
+          requested_at?: string | null
+          required?: boolean
+          source_party: string
+          status: string
+          submittal_id: string
+          updated_at?: string
+        }
+        Update: {
+          chase_count?: number
+          chase_email?: string | null
+          chase_name?: string | null
+          chase_role?: string | null
+          company_id?: string
+          created_at?: string
+          file_ref?: string | null
+          id?: string
+          job_id?: string
+          kind?: string
+          last_chased_at?: string | null
+          next_chase_at?: string | null
+          received_at?: string | null
+          requested_at?: string | null
+          required?: boolean
+          source_party?: string
+          status?: string
+          submittal_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_submittal_package_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_package_items_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_submittal_packages: {
+        Row: {
+          approved_at: string | null
+          company_id: string
+          cover_date: string
+          created_at: string
+          download_url: string
+          expires_at: string
+          filename: string
+          fingerprint: string
+          id: string
+          job_id: string
+          manifest: Json
+          page_count: number
+          path: string
+          preview_expires_at: string | null
+          preview_hash: string | null
+          preview_signed_url: string | null
+          revoked_at: string | null
+          sent_at: string | null
+          sha256: string
+          signed_url: string
+          size_bytes: number
+          submittal_id: string
+          token_hash: string
+        }
+        Insert: {
+          approved_at?: string | null
+          company_id: string
+          cover_date: string
+          created_at?: string
+          download_url: string
+          expires_at: string
+          filename: string
+          fingerprint: string
+          id: string
+          job_id: string
+          manifest: Json
+          page_count: number
+          path: string
+          preview_expires_at?: string | null
+          preview_hash?: string | null
+          preview_signed_url?: string | null
+          revoked_at?: string | null
+          sent_at?: string | null
+          sha256: string
+          signed_url: string
+          size_bytes: number
+          submittal_id: string
+          token_hash: string
+        }
+        Update: {
+          approved_at?: string | null
+          company_id?: string
+          cover_date?: string
+          created_at?: string
+          download_url?: string
+          expires_at?: string
+          filename?: string
+          fingerprint?: string
+          id?: string
+          job_id?: string
+          manifest?: Json
+          page_count?: number
+          path?: string
+          preview_expires_at?: string | null
+          preview_hash?: string | null
+          preview_signed_url?: string | null
+          revoked_at?: string | null
+          sent_at?: string | null
+          sha256?: string
+          signed_url?: string
+          size_bytes?: number
+          submittal_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_submittal_packages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_packages_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_submittals: {
+        Row: {
+          ball_in_court: string
+          ball_in_court_name: string | null
+          chase_count: number
+          chase_email: string | null
+          chase_name: string | null
+          chase_role: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          due_back: string | null
+          id: string
+          job_id: string
+          last_chased_at: string | null
+          next_chase_at: string | null
+          not_required_reason: string | null
+          notes: string | null
+          number: string
+          previous_id: string | null
+          required: boolean
+          required_by: string | null
+          returned_on: string | null
+          review_days: number
+          revision: number
+          source: string
+          spec_excerpt: string | null
+          spec_section: string
+          status: string
+          submittal_type: string
+          submitted_on: string | null
+          title: string
+          transmittal_id: string
+          updated_at: string
+        }
+        Insert: {
+          ball_in_court: string
+          ball_in_court_name?: string | null
+          chase_count?: number
+          chase_email?: string | null
+          chase_name?: string | null
+          chase_role?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          due_back?: string | null
+          id?: string
+          job_id: string
+          last_chased_at?: string | null
+          next_chase_at?: string | null
+          not_required_reason?: string | null
+          notes?: string | null
+          number: string
+          previous_id?: string | null
+          required?: boolean
+          required_by?: string | null
+          returned_on?: string | null
+          review_days?: number
+          revision?: number
+          source?: string
+          spec_excerpt?: string | null
+          spec_section: string
+          status: string
+          submittal_type: string
+          submitted_on?: string | null
+          title: string
+          transmittal_id: string
+          updated_at?: string
+        }
+        Update: {
+          ball_in_court?: string
+          ball_in_court_name?: string | null
+          chase_count?: number
+          chase_email?: string | null
+          chase_name?: string | null
+          chase_role?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          due_back?: string | null
+          id?: string
+          job_id?: string
+          last_chased_at?: string | null
+          next_chase_at?: string | null
+          not_required_reason?: string | null
+          notes?: string | null
+          number?: string
+          previous_id?: string | null
+          required?: boolean
+          required_by?: string | null
+          returned_on?: string | null
+          review_days?: number
+          revision?: number
+          source?: string
+          spec_excerpt?: string | null
+          spec_section?: string
+          status?: string
+          submittal_type?: string
+          submitted_on?: string | null
+          title?: string
+          transmittal_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_submittals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittals_previous_id_fkey"
+            columns: ["previous_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittals_transmittal_id_fkey"
+            columns: ["transmittal_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_transmittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_surfaced: {
         Row: {
           first_surfaced_at: string
@@ -2552,6 +4455,236 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_takeoff_calibrations: {
+        Row: {
+          bounds: Json
+          company_id: string
+          confidence: string
+          confirmed: boolean
+          created_at: string
+          created_by: string
+          feet_per_point: number
+          height: number
+          id: string
+          job_id: string
+          method: string
+          page: number
+          reference: Json
+          region: string
+          source_id: string
+          version: number
+          width: number
+        }
+        Insert: {
+          bounds: Json
+          company_id: string
+          confidence: string
+          confirmed: boolean
+          created_at?: string
+          created_by?: string
+          feet_per_point: number
+          height: number
+          id?: string
+          job_id: string
+          method: string
+          page: number
+          reference: Json
+          region: string
+          source_id: string
+          version: number
+          width: number
+        }
+        Update: {
+          bounds?: Json
+          company_id?: string
+          confidence?: string
+          confirmed?: boolean
+          created_at?: string
+          created_by?: string
+          feet_per_point?: number
+          height?: number
+          id?: string
+          job_id?: string
+          method?: string
+          page?: number
+          reference?: Json
+          region?: string
+          source_id?: string
+          version?: number
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_takeoff_calibrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_takeoff_calibrations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_takeoff_geometry: {
+        Row: {
+          calibration_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          evidence: Json
+          geometry_id: string
+          id: string
+          job_id: string
+          line_id: string
+          measured: number | null
+          page: number | null
+          reason: string | null
+          shape: Json
+          source: string
+          source_id: string | null
+          status: string
+          unit: string | null
+          version: number
+        }
+        Insert: {
+          calibration_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string
+          evidence?: Json
+          geometry_id: string
+          id?: string
+          job_id: string
+          line_id: string
+          measured?: number | null
+          page?: number | null
+          reason?: string | null
+          shape: Json
+          source: string
+          source_id?: string | null
+          status: string
+          unit?: string | null
+          version: number
+        }
+        Update: {
+          calibration_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          evidence?: Json
+          geometry_id?: string
+          id?: string
+          job_id?: string
+          line_id?: string
+          measured?: number | null
+          page?: number | null
+          reason?: string | null
+          shape?: Json
+          source?: string
+          source_id?: string | null
+          status?: string
+          unit?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_takeoff_geometry_calibration_id_fkey"
+            columns: ["calibration_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_takeoff_calibrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_takeoff_geometry_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_takeoff_geometry_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_takeoff_geometry_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_estimate_takeoff_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_takeoff_markups: {
+        Row: {
+          company_id: string
+          content_hash: string | null
+          created_at: string
+          created_by: string
+          geometry_revs: Json
+          id: string
+          job_id: string
+          kind: string
+          page: number
+          pass_summary: Json
+          rendered_pdf: string | null
+          rendered_png: string | null
+          source_id: string
+        }
+        Insert: {
+          company_id: string
+          content_hash?: string | null
+          created_at?: string
+          created_by?: string
+          geometry_revs?: Json
+          id?: string
+          job_id: string
+          kind: string
+          page: number
+          pass_summary?: Json
+          rendered_pdf?: string | null
+          rendered_png?: string | null
+          source_id: string
+        }
+        Update: {
+          company_id?: string
+          content_hash?: string | null
+          created_at?: string
+          created_by?: string
+          geometry_revs?: Json
+          id?: string
+          job_id?: string
+          kind?: string
+          page?: number
+          pass_summary?: Json
+          rendered_pdf?: string | null
+          rendered_png?: string | null
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_takeoff_markups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_takeoff_markups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_team_audit: {
         Row: {
@@ -2696,6 +4829,56 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_transmittals: {
+        Row: {
+          company_id: string
+          cover_note: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          job_id: string
+          number: number
+          sent_on: string | null
+          subject: string | null
+          to_email: string | null
+          to_name: string | null
+        }
+        Insert: {
+          company_id: string
+          cover_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id: string
+          number: number
+          sent_on?: string | null
+          subject?: string | null
+          to_email?: string | null
+          to_name?: string | null
+        }
+        Update: {
+          company_id?: string
+          cover_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id?: string
+          number?: number
+          sent_on?: string | null
+          subject?: string | null
+          to_email?: string | null
+          to_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_transmittals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_usage: {
         Row: {
           period: string
@@ -2716,6 +4899,36 @@ export type Database = {
           updated_at?: string
           usage_limit?: number
           used?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mcp_user_push_subscriptions: {
+        Row: {
+          auth_secret: string
+          created_at: string
+          dead_at: string | null
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth_secret: string
+          created_at?: string
+          dead_at?: string | null
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth_secret?: string
+          created_at?: string
+          dead_at?: string | null
+          endpoint?: string
+          id?: string
+          p256dh?: string
           user_id?: string
         }
         Relationships: []
@@ -3950,6 +6163,9 @@ export type Database = {
           restricted: boolean
           sov_basis: string | null
           sov_fee_pct: number | null
+          submittal_kickoff_at: string | null
+          submittal_posture: string | null
+          submittal_review_days: number
           time_zone: string | null
           updated_at: string
           user_id: string
@@ -3976,6 +6192,15 @@ export type Database = {
         Args: { _action: string; _job: string; _object: string; _tool: string }
         Returns: undefined
       }
+      mcp_board_link_create: {
+        Args: { _expires_at: string; _job: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_board_link_open: {
+        Args: { _job: string; _page: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_board_link_revoke: { Args: { _token_hash: string }; Returns: Json }
       mcp_caller_is_no_access_role: { Args: never; Returns: boolean }
       mcp_can_access_contract: { Args: { _job: string }; Returns: boolean }
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
@@ -3998,6 +6223,39 @@ export type Database = {
       }
       mcp_company_tier: { Args: { _company: string }; Returns: string }
       mcp_contract_check_key: { Args: { _key: string }; Returns: boolean }
+      mcp_daily_reminder_mark_shown: {
+        Args: { _day: string; _job: string }
+        Returns: Json
+      }
+      mcp_daily_reminder_save: {
+        Args: { _enabled: boolean; _job: string; _send: string; _tz: string }
+        Returns: Json
+      }
+      mcp_daily_reminder_status: {
+        Args: { _job_number: string }
+        Returns: Json
+      }
+      mcp_daily_report_get: {
+        Args: { _date: string; _job: string }
+        Returns: Json
+      }
+      mcp_daily_report_save: {
+        Args: {
+          _confirmed: boolean
+          _date: string
+          _delays: string
+          _deliveries: string
+          _issues: string
+          _job: string
+          _lines: Json
+          _manpower: string
+          _safety: string
+          _subs: string
+          _transcript: string
+          _weather: string
+        }
+        Returns: Json
+      }
       mcp_deadline_add: {
         Args: { _d: Json; _due: string; _job: string }
         Returns: Json
@@ -4010,8 +6268,99 @@ export type Database = {
         Args: { _claim: Json; _d: Json; _job: string; _notice: Json }
         Returns: Json
       }
+      mcp_drawing_markup_save: {
+        Args: { _job: string; _record: Json; _source: string }
+        Returns: Json
+      }
+      mcp_drawing_path_allowed: { Args: { _path: string }; Returns: boolean }
+      mcp_drawing_records: { Args: { _job: string }; Returns: Json }
+      mcp_drawing_source_save: {
+        Args: { _job: string; _record: Json }
+        Returns: Json
+      }
+      mcp_estimate_bid_get: { Args: { _job: string }; Returns: Json }
+      mcp_estimate_bid_save: {
+        Args: { _job: string; _overhead: number; _profit: number }
+        Returns: Json
+      }
+      mcp_estimate_gaps_save: {
+        Args: { _items: Json; _job: string }
+        Returns: Json
+      }
+      mcp_estimate_gc_save: {
+        Args: {
+          _days: number
+          _finish: string
+          _job: string
+          _lines: Json
+          _start: string
+        }
+        Returns: Json
+      }
+      mcp_estimate_get: { Args: { _job: string }; Returns: Json }
+      mcp_estimate_guard: { Args: { _job: string }; Returns: string }
+      mcp_estimate_pricing_save: {
+        Args: {
+          _job: string
+          _labor: Json
+          _material: Json
+          _quotes: Json
+          _sources: Json
+        }
+        Returns: Json
+      }
+      mcp_estimate_profile_get: { Args: { _job: string }; Returns: Json }
+      mcp_estimate_profile_save: {
+        Args: { _faces: number; _job: string; _profile: string }
+        Returns: Json
+      }
+      mcp_estimate_requirements_save: {
+        Args: { _items: Json; _job: string }
+        Returns: Json
+      }
+      mcp_estimate_setup_save: {
+        Args: { _job: string; _patch: Json }
+        Returns: Json
+      }
+      mcp_estimate_takeoff_save: {
+        Args: { _job: string; _lines: Json; _revision: string; _scales: Json }
+        Returns: Json
+      }
+      mcp_estimate_verdict_save: {
+        Args: {
+          _gap: string
+          _item: string
+          _job: string
+          _kind: string
+          _line_no: number
+          _mark: string
+          _note: string
+          _owner: string
+          _qty: number
+        }
+        Returns: Json
+      }
       mcp_eval_cond: { Args: { _c: Json; _flags: Json }; Returns: boolean }
       mcp_extra_seats: { Args: { _company: string }; Returns: number }
+      mcp_field_activity_save: {
+        Args: {
+          _activity: string
+          _crew: number
+          _job: string
+          _self: boolean
+          _sub: string
+        }
+        Returns: Json
+      }
+      mcp_field_board: { Args: { _job: string }; Returns: Json }
+      mcp_field_daily_page: { Args: { _job: string }; Returns: Json }
+      mcp_field_guard: { Args: { _job: string }; Returns: string }
+      mcp_field_photo_page: { Args: { _job: string }; Returns: Json }
+      mcp_field_reminder_mark: {
+        Args: { _day: string; _job: string }
+        Returns: Json
+      }
+      mcp_field_reminder_preview: { Args: { _job: string }; Returns: Json }
       mcp_file_path_scope: { Args: { _name: string }; Returns: string }
       mcp_file_share_create: {
         Args: {
@@ -4034,6 +6383,10 @@ export type Database = {
         Args: { _count?: boolean; _token_hash: string }
         Returns: Json
       }
+      mcp_file_share_open_before_packages: {
+        Args: { _count?: boolean; _token_hash: string }
+        Returns: Json
+      }
       mcp_file_share_revoke: {
         Args: { _job: string; _token_hash: string }
         Returns: Json
@@ -4043,6 +6396,15 @@ export type Database = {
         Returns: Json
       }
       mcp_gate: { Args: never; Returns: boolean }
+      mcp_getting_started_claim: { Args: never; Returns: Json }
+      mcp_guided_latest: {
+        Args: { _flow: string; _job: string }
+        Returns: Json
+      }
+      mcp_guided_save: {
+        Args: { _flow: string; _job: string; _snapshot: Json; _stage: string }
+        Returns: Json
+      }
       mcp_has_right: {
         Args: { _company: string; _right: string }
         Returns: boolean
@@ -4141,6 +6503,10 @@ export type Database = {
         Args: { _job: string; _reason: string; _scope: string; _target: string }
         Returns: Json
       }
+      mcp_meeting_item_save: {
+        Args: { _action: string; _close: boolean; _job: string; _key: string }
+        Returns: Json
+      }
       mcp_member_add: {
         Args: {
           _company: string
@@ -4151,11 +6517,105 @@ export type Database = {
         Returns: string
       }
       mcp_member_role: { Args: { _company: string }; Returns: string }
+      mcp_morning_brief_candidates: { Args: never; Returns: Json }
+      mcp_morning_brief_card_status: { Args: never; Returns: Json }
+      mcp_morning_brief_feed: { Args: never; Returns: Json }
+      mcp_morning_brief_feed_for: { Args: { _user: string }; Returns: Json }
+      mcp_morning_brief_mark_sent: {
+        Args: { _body: string; _day: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_mark_shown:
+        | { Args: never; Returns: Json }
+        | { Args: { _day: string }; Returns: Json }
+      mcp_morning_brief_settings_get: { Args: never; Returns: Json }
+      mcp_morning_brief_settings_save: {
+        Args: { _enabled: boolean; _send: string; _tz: string }
+        Returns: Json
+      }
+      mcp_morning_brief_shows: { Args: never; Returns: Json }
       mcp_next_check: { Args: { _job: string }; Returns: Json }
       mcp_normalize_role: { Args: { _role: string }; Returns: string }
       mcp_open_item_create: { Args: { _f: Json; _job: string }; Returns: Json }
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
+      mcp_progress_photo_create: {
+        Args: {
+          _activity: string
+          _area: string
+          _client_safe: boolean
+          _id: string
+          _job: string
+          _mime: string
+          _path: string
+          _size: number
+          _sov: string
+          _taken: string
+          _work: string
+        }
+        Returns: Json
+      }
+      mcp_progress_photos_list: {
+        Args: {
+          _area: string
+          _client_safe: boolean
+          _from: string
+          _item: string
+          _job: string
+          _to: string
+        }
+        Returns: Json
+      }
+      mcp_project_record_add: {
+        Args: {
+          _actor: string
+          _counterparty_email: string
+          _counterparty_name: string
+          _job: string
+          _kind: string
+          _payload: Json
+          _ref_id: string
+          _ref_table: string
+          _summary: string
+          _title: string
+        }
+        Returns: string
+      }
+      mcp_project_record_search: {
+        Args: {
+          _from: string
+          _job: string
+          _kind: string
+          _q: string
+          _to: string
+        }
+        Returns: Json
+      }
+      mcp_push_due: { Args: never; Returns: Json }
+      mcp_push_log_send: {
+        Args: {
+          _error: string
+          _http: number
+          _job: string
+          _kind: string
+          _status: string
+          _subscription: string
+          _user: string
+        }
+        Returns: Json
+      }
+      mcp_push_mark_dead: { Args: { _id: string }; Returns: Json }
+      mcp_push_mark_sent: { Args: { _day: string; _id: string }; Returns: Json }
+      mcp_push_subscription_save: {
+        Args: {
+          _auth: string
+          _endpoint: string
+          _job: string
+          _p256dh: string
+        }
+        Returns: Json
+      }
+      mcp_push_test_targets: { Args: { _job: string }; Returns: Json }
       mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
       mcp_reenable: {
         Args: { _job: string; _scope: string; _target: string }
@@ -4249,6 +6709,153 @@ export type Database = {
         Args: { _flags: Json; _job: string; _source: string }
         Returns: Json
       }
+      mcp_submittal_chase_due: { Args: never; Returns: Json }
+      mcp_submittal_chase_mark: {
+        Args: {
+          _email: string
+          _job: string
+          _name: string
+          _subject: string
+          _submittal: string
+        }
+        Returns: Json
+      }
+      mcp_submittal_chase_rows: { Args: { _job: string }; Returns: Json }
+      mcp_submittal_delivery: {
+        Args: { _action: string; _job: string; _p: Json; _submittal: string }
+        Returns: Json
+      }
+      mcp_submittal_items_write: {
+        Args: {
+          _company: string
+          _items: Json
+          _job: string
+          _submittal: string
+        }
+        Returns: undefined
+      }
+      mcp_submittal_log: {
+        Args: { _action: string; _job: string; _payload: Json }
+        Returns: Json
+      }
+      mcp_submittal_package_context: {
+        Args: { _job: string; _submittal: string }
+        Returns: Json
+      }
+      mcp_submittal_package_write: {
+        Args: { _action: string; _job: string; _p: Json; _submittal: string }
+        Returns: Json
+      }
+      mcp_submittal_page: { Args: { _job: string }; Returns: Json }
+      mcp_submittal_path_scope: { Args: { _name: string }; Returns: string }
+      mcp_submittal_preview: {
+        Args: {
+          _job: string
+          _package: string
+          _signed_url: string
+          _token_hash: string
+        }
+        Returns: undefined
+      }
+      mcp_submittal_preview_open: {
+        Args: { _count?: boolean; _token_hash: string }
+        Returns: Json
+      }
+      mcp_submittal_record: {
+        Args: { _id: string; _issued: boolean; _job: string; _kind: string }
+        Returns: undefined
+      }
+      mcp_submittal_rows: { Args: { _job: string }; Returns: Json }
+      mcp_submittal_rows_before_packages: {
+        Args: { _job: string }
+        Returns: Json
+      }
+      mcp_takeoff_accept_batch: {
+        Args: { _decisions: Json; _job: string; _page: number; _source: string }
+        Returns: Json
+      }
+      mcp_takeoff_calibrate: {
+        Args: {
+          _expected: number
+          _job: string
+          _page: number
+          _record: Json
+          _source: string
+        }
+        Returns: Json
+      }
+      mcp_takeoff_canonical_points: {
+        Args: { _points: Json; _ring?: boolean }
+        Returns: Json
+      }
+      mcp_takeoff_cross: {
+        Args: { a: Json; b: Json; c: Json }
+        Returns: number
+      }
+      mcp_takeoff_exports: {
+        Args: { _id?: string; _job: string; _page?: number; _source?: string }
+        Returns: Json
+      }
+      mcp_takeoff_geometry_save: {
+        Args: {
+          _expected: number
+          _job: string
+          _operation: string
+          _record: Json
+        }
+        Returns: Json
+      }
+      mcp_takeoff_get: { Args: { _job: string }; Returns: Json }
+      mcp_takeoff_history: {
+        Args: { _geometry?: string; _job: string; _line?: number }
+        Returns: Json
+      }
+      mcp_takeoff_inside: { Args: { p: Json; r: Json }; Returns: boolean }
+      mcp_takeoff_intersects: {
+        Args: { a: Json; b: Json; c: Json; d: Json }
+        Returns: boolean
+      }
+      mcp_takeoff_line_map: {
+        Args: { _current: string; _previous: string }
+        Returns: {
+          new_id: string
+          new_line_no: number
+          old_id: string
+          old_line_no: number
+        }[]
+      }
+      mcp_takeoff_markup_save: {
+        Args: { _job: string; _record: Json }
+        Returns: Json
+      }
+      mcp_takeoff_measure: {
+        Args: { _height: number; _scale: number; _shape: Json; _width: number }
+        Returns: Json
+      }
+      mcp_takeoff_on: { Args: { a: Json; b: Json; p: Json }; Returns: boolean }
+      mcp_takeoff_pass_save: {
+        Args: { _job: string; _record: Json }
+        Returns: Json
+      }
+      mcp_takeoff_points: {
+        Args: { _minimum: number; _points: Json }
+        Returns: undefined
+      }
+      mcp_takeoff_ring_area: { Args: { _points: Json }; Returns: number }
+      mcp_takeoff_signature: { Args: { _shape: Json }; Returns: Json }
+      mcp_takeoff_validate_area: { Args: { s: Json }; Returns: undefined }
+      mcp_takeoff_validate_ring: { Args: { r: Json }; Returns: undefined }
+      mcp_takeoff_write: {
+        Args: {
+          _expected: number
+          _geometries: Json
+          _job: string
+          _lines: Json
+          _revision: string
+          _scales: Json
+        }
+        Returns: Json
+      }
       mcp_team_accept_invites: { Args: never; Returns: number }
       mcp_team_assert_owner: { Args: { _company: string }; Returns: undefined }
       mcp_team_check_role: {
@@ -4299,6 +6906,12 @@ export type Database = {
         Returns: Json
       }
       mcp_usage_hit: { Args: { _limit: number }; Returns: Json }
+      mcp_user_push_mark_dead: { Args: { _id: string }; Returns: Json }
+      mcp_user_push_subscribed: { Args: never; Returns: boolean }
+      mcp_user_push_subscription_save: {
+        Args: { _auth: string; _endpoint: string; _p256dh: string }
+        Returns: Json
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
