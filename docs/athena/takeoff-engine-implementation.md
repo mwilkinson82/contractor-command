@@ -136,6 +136,14 @@ gateway. No edits to the live 2701/CCW estimates, no email, public share, new
 connector, auth/Hub changes, or original-file changes. Posting a user update
 email is outside this release and needs its own exact content approval.
 
+# Same-sheet scope context and reader feedback
+
+Live #249 correctly refused two more invalid reader replies at the same saved checkpoint. The error now reports a small fixed category (such as an unrecognized cell label or wrong measurement kind), without exposing the model's content, raw validator paths or original drawing text. A rejection never advances tile coverage or saves that tile's geometry.
+
+Each read now includes a bounded overview rendered from the exact same immutable stored page, plus the target tile's normalized page bounds and any named calibration region. The overview is reference-only: it helps distinguish multiple plan views and understand a run crossing a tile edge. All proposed locations still refer to the first gridded detailed tile and pass the same raster, geometry, confidence and scale checks. Geometry audit records cite the same-sheet reference. No benchmark quantities or expected locations are supplied to the reader.
+
+A real PDFium pipeline test checks the overview/frame, saves an ink-verified pin from geometry rather than the line's historical typed quantity, rejects blank-paper geometry, and confirms a reader failure writes no checkpoint. Source bytes remain identical.
+
 # Printed-grid coordinate contract after live #248
 
 The gateway now reads real tiles and saves resumable checkpoints. On the private live QA pass, two successive responses for the same next tile returned row numbers outside the allowed 0–10 grid; validation rejected both without saving their findings. Four tiles were checkpointed, all candidates so far rejected for ink evidence; this is not an accuracy pass.
