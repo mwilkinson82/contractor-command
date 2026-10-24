@@ -73,7 +73,11 @@ try {
       Math.abs(data.referenceLength - 100) > 0.000001 ||
       data.tile.rawBytes > 4194304 ||
       data.planReference.width > 1600 ||
-      data.planReference.height > 1600
+      data.planReference.height > 1600 ||
+      data.hostHandoff !== true ||
+      data.backendInference !== false ||
+      data.hostFindings !== 0 ||
+      data.splitParts !== 4
     )
       throw Error("Worker measurement or bitmap bound failed");
   }

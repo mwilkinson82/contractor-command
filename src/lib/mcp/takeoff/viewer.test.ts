@@ -122,7 +122,7 @@ describe("measurement resource and viewer safety", () => {
       "Reject geometry",
       "Non-drawable reason",
       "source_id",
-      "Pause Athena read",
+      "Ask your AI to read selected line",
       "160 pixel crop",
     ])
       expect(html).toContain(text);

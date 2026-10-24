@@ -1,4 +1,5 @@
-import { sheetCalibrate,takeoffGeometry } from "./tools/takeoff-tools";
+import { jobsList, drawingSetsList } from "./tools/discovery-tools";
+import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
@@ -40,6 +41,8 @@ async function liveTools(): Promise<Tool[]> {
     version: "t",
     instructions: "i",
     tools: [
+      jobsList,
+      drawingSetsList,
       W.onboarding,
       W.intake,
       W.nextQuestion,
@@ -69,7 +72,8 @@ async function liveTools(): Promise<Tool[]> {
       Est.estimateIntake,
       Est.drawingSetImport,
       Est.drawingMarkup,
-      sheetCalibrate,takeoffGeometry,
+      sheetCalibrate,
+      takeoffGeometry,
       Est.estimateDocReview,
       Est.estimateTakeoffSave,
       Est.estimateTakeoffGet,

@@ -8,6 +8,7 @@ import { proposeTakeoffBatch, proposeTakeoffStep, saveCountArea, partitionShape 
 import type { StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import type { VisionAnswer, VisionRead } from "./vision";
+import { HostDrawingReadRequired, hostDrawingReader } from "./vision";
 import { markTargetTile } from "./scope";
 import { verifyVisionAnswer } from "./vision";
 import { calibrate, measure } from "./geometry";
@@ -97,7 +98,12 @@ async function fixture(size = 144) {
       },
     ],
   };
-  const rpc = vi.fn(async () => ({ data: { ok: true }, error: null }));
+  const rpc = vi.fn(
+    async (_name: string, _args: { _job: string; _record: { proposals: unknown[] } }) => ({
+      data: { ok: true },
+      error: null,
+    }),
+  );
   const sb = { rpc } as unknown as Sb;
   const job = {
     job_id: "qa-job",
@@ -109,6 +115,37 @@ async function fixture(size = 144) {
 }
 
 describe("actual PDF tile to resumable proposal pipeline", () => {
+  it("prepares the target without advancing, then verifies host observations and advances exactly once", async () => {
+    const f = await fixture();
+    const pending = await proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }).catch(
+      (e) => e,
+    );
+    expect(pending).toBeInstanceOf(HostDrawingReadRequired);
+    expect(pending.checkpoint.next_cursor).toBe(0);
+    expect(pending.checkpoint.complete).toBe(false);
+    expect(f.rpc).toHaveBeenCalledTimes(1);
+    expect(f.rpc.mock.calls[0][1]._record.proposals).toEqual([]);
+    f.state.passes.unshift({
+      id: "prepared",
+      source_id: f.page.source.id,
+      page: 1,
+      created_at: "2026-10-24",
+      geometry_revs: [],
+      pass_summary: pending.checkpoint,
+    });
+    const result = await proposeTakeoffStep(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      { line_no: 1, pass_id: pending.checkpoint.pass_id, cursor: 0 },
+      hostDrawingReader({ findings: [], uncertainties: ["Target inspected; no matching fixture"] }),
+    );
+    expect(result.next_cursor).toBe(1);
+    expect(result.complete).toBe(true);
+    expect(f.rpc.mock.calls.at(-1)![1]._record.proposals).toEqual([]);
+  });
+
   it("measures a real PDF run across exact tile edges once without shifting the supplied endpoints", async () => {
     const doc = await PDFDocument.create();
     doc.addPage([720, 144]).drawLine({

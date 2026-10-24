@@ -1,3 +1,5 @@
+import { currentDroppedLines } from "./history";
+import { hostWorkflowSection, measurementEvidence } from "./host-workflow";
 import { ToolError, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "../guard";
 import { type Job, named } from "../jobs";
@@ -167,6 +169,8 @@ export async function viewEngine(
   extra: Record<string, unknown> = {},
 ) {
   const summary = measurementStatus(state);
+  const evidenceReview = measurementEvidence(state);
+  const droppedLines = currentDroppedLines(state.dropped_lines ?? []);
   const drawingScopeReview = page
     ? {
         source_id: page.source.id,
@@ -205,6 +209,7 @@ export async function viewEngine(
         : []),
     ],
     sections: [
+      hostWorkflowSection(),
       {
         heading: "Measured takeoff",
         kind: "table",
@@ -222,12 +227,12 @@ export async function viewEngine(
           ],
         })),
       },
-      ...(state.dropped_lines?.length
+      ...(droppedLines.length
         ? [
             {
-              heading: `Dropped since takeoff v${state.dropped_lines[0].version}`,
+              heading: `Dropped since takeoff v${droppedLines[0].version}`,
               kind: "list" as const,
-              rows: state.dropped_lines.map((d) => ({
+              rows: droppedLines.map((d) => ({
                 cells: [
                   `L${d.line_no} · ${d.item}`,
                   d.had_geometry
@@ -242,9 +247,25 @@ export async function viewEngine(
       ...(drawingScopeReview ? [drawingReferenceSection(drawingScopeReview)] : []),
     ],
     next_move: summary.settled
-      ? "Review the measured takeoff and contractor rates before building the bid."
+      ? "Current lines are settled. Reconcile their coverage with the drawings, specifications and contract, and resolve cited questions before building the bid."
       : "Locate missing work, confirm its scale and review proposals. A quantity is confirmed only from accepted geometry or a recorded non-drawable basis.",
   };
+  const locatedReview = evidenceReview.filter((line) => line.references.length);
+  if (locatedReview.length)
+    card.sections?.push({
+      heading: "Measurement confidence and verification",
+      kind: "list",
+      rows: locatedReview.map((line) => ({
+        cells: [
+          `L${line.line_no} · ${line.item} · ${line.status} · ${line.measurement_classification}`,
+          `Scale: ${line.scale_status}`,
+          line.reported_confidence_range
+            ? `AI-reported confidence ${Math.round(line.reported_confidence_range.low * 100)}–${Math.round(line.reported_confidence_range.high * 100)}%. This is not an accuracy probability.`
+            : "No AI confidence recorded.",
+          line.verification_needed,
+        ],
+      })),
+    });
   if (typeof extra.report_title === "string") card.title = extra.report_title;
   if (Array.isArray(extra.report_rows))
     card.sections?.push({
@@ -407,6 +428,7 @@ export async function viewEngine(
     available_sources: availableSources,
     card,
     engine: { ...state, summary },
+    measurement_review: evidenceReview,
     context: {
       job_id: job.job_id,
       job_number: job.job_number,

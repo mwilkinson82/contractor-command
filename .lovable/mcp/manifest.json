@@ -18,6 +18,62 @@
     },
     "tools": [
       {
+        "name": "jobs_list",
+        "title": "List my jobs",
+        "description": "Lists every job the member can access across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "drawing_sets_list",
+        "title": "List stored drawing sets",
+        "description": "Lists a job's stored drawing sets with source IDs, revisions and sheet names without importing, indexing, downloading or changing a drawing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "onboarding",
         "title": "Company profile and members",
         "description": "Reads or saves the company profile and its members.",
@@ -2793,7 +2849,7 @@
       {
         "name": "takeoff_geometry",
         "title": "Measure and review a drawing takeoff",
-        "description": "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose runs Athena's own bounded, resumable drawing read; it never accepts its own output. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+        "description": "At the start of estimating, ask the member to select their strongest available image-reading model and deeper reasoning; Athena cannot switch it. Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies the locations, computes quantities and advances the checkpoint. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3106,6 +3162,268 @@
               "minimum": 0,
               "maximum": 9007199254740991
             },
+            "observations": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "findings": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "pins",
+                              "polyline",
+                              "polygon",
+                              "rect"
+                            ]
+                          },
+                          "points": {
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1000,
+                                  "description": "Horizontal position on the final TARGET TILE image, normalized 0-1000"
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1000,
+                                  "description": "Vertical position on the final TARGET TILE image, normalized 0-1000"
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "holes": {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "minItems": 3,
+                              "maxItems": 100,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "x": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1000,
+                                    "description": "Horizontal position on the final TARGET TILE image, normalized 0-1000"
+                                  },
+                                  "y": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1000,
+                                    "description": "Vertical position on the final TARGET TILE image, normalized 0-1000"
+                                  }
+                                },
+                                "required": [
+                                  "x",
+                                  "y"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "evidence": {
+                            "type": "string",
+                            "maxLength": 800
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "points",
+                          "confidence",
+                          "evidence"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "uncertainties": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "reported_model": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    }
+                  },
+                  "required": [
+                    "findings",
+                    "uncertainties"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "reported_model": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "parts": {
+                      "minItems": 4,
+                      "maxItems": 4,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "findings": {
+                            "maxItems": 25,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pins",
+                                    "polyline",
+                                    "polygon",
+                                    "rect"
+                                  ]
+                                },
+                                "points": {
+                                  "minItems": 1,
+                                  "maxItems": 100,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1000,
+                                        "description": "Horizontal position on the final TARGET TILE image, normalized 0-1000"
+                                      },
+                                      "y": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1000,
+                                        "description": "Vertical position on the final TARGET TILE image, normalized 0-1000"
+                                      }
+                                    },
+                                    "required": [
+                                      "x",
+                                      "y"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "holes": {
+                                  "maxItems": 20,
+                                  "type": "array",
+                                  "items": {
+                                    "minItems": 3,
+                                    "maxItems": 100,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "x": {
+                                          "type": "number",
+                                          "minimum": 0,
+                                          "maximum": 1000,
+                                          "description": "Horizontal position on the final TARGET TILE image, normalized 0-1000"
+                                        },
+                                        "y": {
+                                          "type": "number",
+                                          "minimum": 0,
+                                          "maximum": 1000,
+                                          "description": "Vertical position on the final TARGET TILE image, normalized 0-1000"
+                                        }
+                                      },
+                                      "required": [
+                                        "x",
+                                        "y"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "confidence": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "evidence": {
+                                  "type": "string",
+                                  "maxLength": 800
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "points",
+                                "confidence",
+                                "evidence"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "uncertainties": {
+                            "maxItems": 5,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 500
+                            }
+                          },
+                          "reported_model": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "part": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3
+                          }
+                        },
+                        "required": [
+                          "findings",
+                          "uncertainties",
+                          "part"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "parts"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "split_region": {
+              "type": "boolean"
+            },
             "pass_id": {
               "type": "string",
               "format": "uuid",
@@ -3167,7 +3485,7 @@
       {
         "name": "estimate_intake",
         "title": "Estimating intake",
-        "description": "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
+        "description": "Starts estimating by asking the member to select their strongest image-reading model with deeper reasoning, confirms role and scope, warns before reusing a saved takeoff, stores supplied drawings and prepares a cited drawing/specification/contract review through estimate_doc_review and estimate_gap_analysis.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4256,7 +4574,7 @@
       {
         "name": "estimate_gap_analysis",
         "title": "Estimate gap analysis",
-        "description": "Saves sheet-cited gaps after reading the estimator's basis notes and scope callouts, and must not back-solve a quantity to the estimator's number when the drawings do not define it.",
+        "description": "Reconciles the host AI's takeoff with drawings, notes, specifications, contract and agreed scope, saving cited findings and estimator questions that distinguish supported quantities from uncertain readings, missing requirements, conflicts and unavailable context without back-solving quantities or treating confidence as measured accuracy.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,

@@ -1383,30 +1383,19 @@
           "p",
           "L" +
             line +
-            " · Athena read: " +
+            " · Drawing read: " +
             p.tiles_read +
             " / " +
             p.tiles_total +
             " tiles" +
-            (p.complete ? " · coverage complete" : " · incomplete"),
+            (p.complete ? " · regions reviewed; check unresolved findings" : " · incomplete"),
           "note",
         ),
       );
       (p.uncertainties || []).slice(-8).forEach(function (u) {
         readPanel.append(node("p", u, "note small"));
       });
-      if (!p.complete)
-        readPanel.append(
-          button("Continue Athena read", function () {
-            act("takeoff_geometry", {
-              operation: "propose",
-              line_no: p.line_no,
-              calibration_id: p.calibration_id || undefined,
-              pass_id: p.pass_id,
-              cursor: p.next_cursor,
-            });
-          }),
-        );
+      if (!p.complete) readPanel.append(button("Continue with your AI", runRead));
       try {
         var fresh = freshReadArguments(sc, line, calibration);
         readPanel.append(
@@ -1448,53 +1437,57 @@
       size();
     }
     showReadStatus();
-    async function runRead() {
-      if (reading) {
-        reading = false;
-        notice("Pausing after the current tile.");
-        return;
-      }
-      reading = true;
+    async function runRead(smaller) {
       var line = Number(lineSelect.value),
         calibration = cal.value || undefined;
-      var currentLine = sc.engine.lines.find(function (l) {
+      var selected = sc.engine.lines.find(function (l) {
         return l.line_no === line;
       });
-      var countLine = currentLine && /^(ea|each)$/i.test(currentLine.unit || "");
-      if (countLine && !readPasses(sc, line, calibration).length) {
-        reading = false;
-        notice(
-          "Confirm the complete plan or room count area before reading this line. Counts need no scale.",
+      if (!selected) return notice("Choose a takeoff line first.");
+      if (/^(ea|each)$/i.test(selected.unit || "") && !readPasses(sc, line, calibration).length)
+        return notice(
+          "Confirm the complete plan or room count area before asking your AI to read this line.",
         );
-        return;
-      }
+      if (!host.message)
+        return notice(
+          "Ask your AI in chat to read L" +
+            line +
+            " on " +
+            sc.source.sheet +
+            ". Athena supplies the stored drawing regions.",
+        );
       try {
-        for (var iteration = 0; iteration < 2000 && reading; iteration++) {
-          // Prefer the current completed read too; do not fall back to an older
-          // unfinished checkpoint after finishing or changing calibrations.
-          var previous = readPasses(sc, line, calibration)[0];
-          var p = previous && previous.pass_summary;
-          var ok = await act("takeoff_geometry", {
-            operation: "propose",
-            line_no: line,
-            calibration_id: calibration,
-            pass_id: p && p.pass_id,
-            cursor: p && p.next_cursor,
-          });
-          if (!ok || sc.pass_paused) {
-            if (sc.pass_pause_reason) notice(sc.pass_pause_reason);
-            break;
-          }
-          var next = readPasses(sc, line, calibration)[0];
-          if (next && next.pass_summary.complete) break;
-        }
-      } finally {
-        reading = false;
-        draw();
-        size();
+        await rpc("ui/message", {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                "Use Athena to inspect the stored drawing regions for " +
+                JSON.stringify(
+                  Object.assign(context(), {
+                    line_no: line,
+                    calibration_id: calibration,
+                    split_region: smaller === true,
+                  }),
+                ) +
+                ". Remind me to select my strongest available image-reading model with deeper reasoning if I have not already. Prepare the next target with takeoff_geometry propose, inspect its returned images, and submit the visible tile-relative observations to that same checkpoint. Reconcile the takeoff with the saved drawings, notes, specifications and contract; record cited gaps and specific verification questions with estimate_gap_analysis. Identify unavailable or unread documents. Keep quantities as proposals for my review; do not accept them.",
+            },
+          ],
+        });
+        notice("Sent to your connected AI. Athena verifies and measures the returned locations.");
+      } catch (_) {
+        notice(
+          "Continue in chat: ask your AI to read the selected line using Athena's stored drawing regions.",
+        );
       }
     }
-    right.append(button(reading ? "Pause Athena read" : "Athena: read selected line", runRead));
+    right.append(button("Ask your AI to read selected line", runRead));
+    right.append(
+      button("Ask your AI to read smaller regions", function () {
+        runRead(true);
+      }),
+    );
     var proposals = rows().filter(function (g) {
       return (
         g.status === "proposed" &&

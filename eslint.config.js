@@ -36,5 +36,24 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    files: ["src/lib/mcp/**/*.{ts,tsx,js}"],
+    ignores: ["**/*.test.ts", "**/*.spec.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [{ name: "server-only", message: "Use TanStack server boundaries." }],
+          patterns: [
+            {
+              group: ["**/ai-gateway", "**/ai-gateway.*", "ai", "@ai-sdk/*"],
+              message:
+                "Athena uses the member's connected AI. Backend inference belongs only to the separate Hub features.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintPluginPrettier,
 );

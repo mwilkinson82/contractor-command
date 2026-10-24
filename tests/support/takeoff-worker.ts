@@ -1,6 +1,12 @@
 import { inspectSheet, renderTile, renderPlanReference } from "../../src/lib/mcp/takeoff/pdf";
 import { measure, calibrate } from "../../src/lib/mcp/takeoff/geometry";
 import { bytesToBase64 } from "../../src/lib/mcp/estimating-sheet";
+import {
+  HostDrawingReadRequired,
+  hostDrawingReader,
+  readVisionTile,
+  splitHostTile,
+} from "../../src/lib/mcp/takeoff/vision";
 export default {
   async fetch(request: Request) {
     try {
@@ -34,7 +40,24 @@ export default {
         confidence: "high",
         confirmed: true,
       });
+      const read = {
+        item: "Private runtime check only",
+        measure_type: "count",
+        png: tile.png,
+        hints: [],
+      };
+      const handoff = await readVisionTile(read).catch((error) => error);
+      if (!(handoff instanceof HostDrawingReadRequired))
+        throw new Error("Expected a member-model handoff");
+      const observations = await hostDrawingReader({
+        findings: [],
+        uncertainties: ["Runtime check; no takeoff reading attempted"],
+      })(read);
       return Response.json({
+        hostHandoff: true,
+        backendInference: false,
+        hostFindings: observations.findings.length,
+        splitParts: splitHostTile(tile.png).length,
         width: inspection.width,
         height: inspection.height,
         tiles: inspection.tiles.length,
