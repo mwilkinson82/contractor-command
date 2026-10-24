@@ -176,9 +176,25 @@ export async function saveCountArea(
   area: { name: string; bounds: Bounds },
   confirmed: boolean,
 ) {
+  const summary = countAreaSummary(page, state, lineNo, area, confirmed);
+  await engineRpc(sb, "mcp_takeoff_pass_save", {
+    _job: job.job_id,
+    _record: { source_id: page.source.id, page: page.page, pass_summary: summary, proposals: [] },
+  });
+  return summary;
+}
+function countAreaSummary(
+  page: StoredPage,
+  state: EngineSnapshot,
+  lineNo: number,
+  area: { name: string; bounds: Bounds },
+  confirmed: boolean,
+) {
   const line = state.lines.find((l) => l.line_no === lineNo);
   if (!line || !/^(ea|each)$/i.test(line.unit ?? ""))
     throw new ToolError("Choose a count line for this plan or room area.");
+  if (line.sheet?.trim() && line.sheet.trim().toLowerCase() !== page.sheet.trim().toLowerCase())
+    throw new ToolError(`L${lineNo} belongs to a different sheet; its count area was not changed.`);
   if (!confirmed || !area.name.trim() || area.name.trim().length > 100)
     throw new ToolError(
       "Name and confirm the count area before Athena reads it. No scale or quantity is needed.",
@@ -217,11 +233,27 @@ export async function saveCountArea(
       `Count area confirmed: ${area.name.trim()}. No quantity is established until the drawing is read and its geometry accepted.`,
     ],
   };
-  await engineRpc(sb, "mcp_takeoff_pass_save", {
-    _job: job.job_id,
-    _record: { source_id: page.source.id, page: page.page, pass_summary: summary, proposals: [] },
-  });
   return summary;
+}
+/** One host approval covers a named count region and its displayed line list. Validate every line before writing. */
+export async function saveCountAreas(
+  sb: Sb,
+  job: Job,
+  page: StoredPage,
+  state: EngineSnapshot,
+  lineNos: number[],
+  area: { name: string; bounds: Bounds },
+  confirmed: boolean,
+) {
+  const summaries = [...new Set(lineNos)].map((n) =>
+    countAreaSummary(page, state, n, area, confirmed),
+  );
+  for (const summary of summaries)
+    await engineRpc(sb, "mcp_takeoff_pass_save", {
+      _job: job.job_id,
+      _record: { source_id: page.source.id, page: page.page, pass_summary: summary, proposals: [] },
+    });
+  return summaries;
 }
 /** One checkpoint per tool request. Preparation and a difficult vision read
  * share this bound; the card resumes from the returned checkpoint. */

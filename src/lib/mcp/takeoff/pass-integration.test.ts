@@ -4,7 +4,13 @@ import type { Sb } from "../guard";
 import { sha256Hex } from "../file-share";
 import { renderPlanReference, renderTile } from "./pdf";
 import { inspectSheet, sheetSpace } from "./pdf";
-import { proposeTakeoffBatch, proposeTakeoffStep, saveCountArea, partitionShape } from "./pass";
+import {
+  proposeTakeoffBatch,
+  proposeTakeoffStep,
+  saveCountArea,
+  saveCountAreas,
+  partitionShape,
+} from "./pass";
 import type { StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import type { VisionAnswer, VisionRead } from "./vision";
@@ -453,6 +459,30 @@ describe("actual PDF tile to resumable proposal pipeline", () => {
       { _record: { proposals: [] } },
     ]);
     expect(f.state.lines[0].qty).toBe(999);
+  });
+  it("confirms several displayed count lines in one call and validates the entire list before writing", async () => {
+    const f = await fixture();
+    f.state.passes = [];
+    f.state.lines.push({ ...f.state.lines[0], id: "line-2", line_no: 2, item: "Fictional F-2" });
+    const area = { name: "Confirmed foundation plan", bounds: { x: 0, y: 0, width: 1, height: 1 } };
+    await expect(
+      saveCountAreas(f.sb, f.job, f.page, f.state, [1, 999], area, true),
+    ).rejects.toThrow("count line");
+    expect(f.rpc).not.toHaveBeenCalled();
+    await expect(saveCountAreas(f.sb, f.job, f.page, f.state, [1, 2], area, false)).rejects.toThrow(
+      "confirm",
+    );
+    expect(f.rpc).not.toHaveBeenCalled();
+    const passes = await saveCountAreas(f.sb, f.job, f.page, f.state, [1, 2], area, true);
+    expect(passes.map((p) => p.line_no)).toEqual([1, 2]);
+    expect(f.rpc).toHaveBeenCalledTimes(2);
+    for (const call of f.rpc.mock.calls) expect(call[1]._record.proposals).toEqual([]);
+    f.rpc.mockClear();
+    f.state.lines[1].sheet = "OTHER";
+    await expect(saveCountAreas(f.sb, f.job, f.page, f.state, [1, 2], area, true)).rejects.toThrow(
+      "different sheet",
+    );
+    expect(f.rpc).not.toHaveBeenCalled();
   });
   it("sends same-sheet context and saves only source-verified geometry, not a typed quantity", async () => {
     const f = await fixture(),

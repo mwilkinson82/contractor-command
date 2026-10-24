@@ -13,7 +13,7 @@ import {
 import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
 import { cachedSource } from "./cache";
-import { automaticCalibration } from "./calibration";
+import { automaticCalibration, scaleLock } from "./calibration";
 import { drawingReferences, drawingReferenceSection } from "./drawing-references";
 import { highlightedPreview } from "./render";
 import { renderMarkdown } from "../cards/markdown";
@@ -194,6 +194,52 @@ export async function viewEngine(
   };
   const unlocatedOnSheets = summary.lines.filter((l) => l.status === "unlocated" && !noSheet(l));
   const noStoredSheet = summary.lines.filter((l) => l.status === "unlocated" && noSheet(l));
+  const lockedCalibration = page
+    ? state.calibrations
+        .filter((c) => c.source_id === page.source.id && c.page === page.page && c.confirmed)
+        .sort((a, b) => b.version - a.version)[0]
+    : null;
+  const lock = page ? scaleLock(page.inspection.text, !!lockedCalibration) : null;
+  const guided = page
+    ? {
+        stage: !lockedCalibration
+          ? "lock_scale"
+          : summary.proposed
+            ? "review_proposals"
+            : "confirm_region_and_read",
+        next_tool_call: {
+          name: lockedCalibration ? "takeoff_geometry" : "sheet_calibrate",
+          arguments: {
+            job_number: job.job_number,
+            company_id: job.company_id,
+            source_id: page.source.id,
+            sheet: page.sheet,
+            operation: lockedCalibration ? "propose" : "read",
+            ...(lockedCalibration ? { calibration_id: lockedCalibration.id } : {}),
+          },
+        },
+        accepted_lines: summary.located,
+        proposed_lines: summary.proposed,
+        count_area_candidates: state.lines
+          .filter(
+            (l) =>
+              /^(ea|each)$/i.test(l.unit ?? "") &&
+              l.sheet?.trim().toLowerCase() === page.sheet.trim().toLowerCase() &&
+              !state.passes.some(
+                (p) =>
+                  p.source_id === page.source.id &&
+                  p.page === page.page &&
+                  p.pass_summary.line_no === l.line_no &&
+                  (p.pass_summary.count_area as { confirmed?: boolean } | undefined)?.confirmed ===
+                    true,
+              ) &&
+              summary.lines.some((r) => r.line_no === l.line_no && r.status === "unlocated"),
+          )
+          .map((l) => ({ line_no: l.line_no, item: l.item })),
+        workflow:
+          "Confirm the plan region, then read all ready lines on each tile together. Scope accepts line_nos for several count lines sharing that complete region in one call. Review wall runs and footing counts against the sheet; accept only the displayed revisions you approve. Athena saves accepted quantities from geometry. Unready lines remain visible with their reason.",
+      }
+    : null;
   const card: CardModel = {
     state: summary.settled ? "result" : "progress",
     show_state: false,
@@ -209,6 +255,42 @@ export async function viewEngine(
         : []),
     ],
     sections: [
+      ...(lock
+        ? [
+            {
+              heading: lockedCalibration ? "Scale locked for this sheet" : "Lock the scale first",
+              kind: "list" as const,
+              rows: [
+                {
+                  cells: [
+                    lockedCalibration
+                      ? `${lockedCalibration.region} · saved calibration v${lockedCalibration.version} · ${lockedCalibration.method === "dimension_string" ? "Dimension checked" : "Member confirmed; independent dimension check still needed"}`
+                      : lock.printed_scales.length
+                        ? `Printed scale: ${lock.printed_scales.join("; ")}${lock.as_noted ? " · As Noted" : ""}`
+                        : "Printed scale is unclear or As Noted.",
+                  ],
+                },
+                ...lock.choices.map((choice) => ({ cells: [choice] })),
+              ],
+            },
+          ]
+        : []),
+      ...(guided && lockedCalibration
+        ? [
+            {
+              heading: "Guided measuring",
+              kind: "list" as const,
+              rows: [
+                { cells: [guided.workflow] },
+                {
+                  cells: [
+                    `Proposed lines: ${summary.proposed} · Accepted lines: ${summary.located}`,
+                  ],
+                },
+              ],
+            },
+          ]
+        : []),
       hostWorkflowSection(),
       {
         heading: "Measured takeoff",
@@ -250,6 +332,20 @@ export async function viewEngine(
       ? "Current lines are settled. Reconcile their coverage with the drawings, specifications and contract, and resolve cited questions before building the bid."
       : "Locate missing work, confirm its scale and review proposals. A quantity is confirmed only from accepted geometry or a recorded non-drawable basis.",
   };
+  if (lock && !lock.locked) {
+    card.ask = { prompt: lock.question! };
+    card.next_move = "Choose one of the two scale options. No measurement has started.";
+  } else if (guided && lockedCalibration && !summary.settled) {
+    card.next_move = summary.proposed
+      ? "Review the highlighted proposed quantities and accept the exact revisions you agree with. Unread regions and open scope stay visible."
+      : `Scale locked for ${lockedCalibration.region}. Confirm the count region for the listed footing lines together, then ask your AI to continue the sheet read. Athena returns each next region and saves proposals for your review.`;
+    if (guided.count_area_candidates.length)
+      card.sections?.splice(1, 0, {
+        heading: "Count lines awaiting one area confirmation",
+        kind: "list",
+        rows: guided.count_area_candidates.map((l) => ({ cells: [`L${l.line_no} · ${l.item}`] })),
+      });
+  }
   const locatedReview = evidenceReview.filter((line) => line.references.length);
   if (locatedReview.length)
     card.sections?.push({
@@ -424,6 +520,8 @@ export async function viewEngine(
     source_key: s.source_key,
   }));
   const structuredContent = {
+    scale_lock: lock,
+    guided_measurement: guided,
     snapshot_at: new Date().toISOString(),
     available_sources: availableSources,
     card,
@@ -508,7 +606,8 @@ export async function saveCalibration(
   expected: number,
 ) {
   const checked = calibrate(page.space, { ...input, version: expected + 1 });
-  await verifyLocatedShape(page, { kind: "pins", points: input.reference.points });
+  if (input.method !== "title_block")
+    await verifyLocatedShape(page, { kind: "pins", points: input.reference.points });
   return engineRpc<Calibration>(sb, "mcp_takeoff_calibrate", {
     _job: job.job_id,
     _source: page.source.id,

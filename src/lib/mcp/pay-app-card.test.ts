@@ -39,6 +39,9 @@ describe("pay application cards", () => {
     const shown = presentPayApp(model);
     const out = attachAthenaCard("field_pay_app", shown);
     expect(app.retainage).toBe(70_000);
+    expect(shown.structuredContent.html).toContain("Reported vs verified");
+    expect(shown.structuredContent.html).toContain("arithmetic tie checks only");
+    expect(shown.structuredContent.html).toContain("not been independently verified");
     expect(out.structuredContent.card).toEqual(model);
     expect(out._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
     expect(out.structuredContent.html).toContain("G703 continuation");

@@ -173,7 +173,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
     for (const f of files) {
       const s = src(`./tools/${f}`);
       for (const m of s.matchAll(
-        /name: "([a-z_]+)",[\s\S]*?handler: \(args, ctx\) =>\s*\n?\s*run\("([a-z_]+)", ctx/g,
+        /name: "([a-z_]+)",[\s\S]*?handler: \(args, ctx\) =>\s*\n?\s*run\(\s*"([a-z_]+)",\s*ctx/g,
       )) {
         expect(m[2], f).toBe(m[1]);
         seen++;

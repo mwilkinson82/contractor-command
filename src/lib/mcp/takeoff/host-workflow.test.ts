@@ -8,6 +8,7 @@ import {
 } from "./host-workflow";
 import type { EngineSnapshot } from "./state";
 import type { Sb } from "../guard";
+import { readFileSync } from "node:fs";
 
 function client(data: unknown, contract: unknown[] = [], failed = false) {
   const eq = vi.fn().mockReturnValue({
@@ -22,6 +23,12 @@ function client(data: unknown, contract: unknown[] = [], failed = false) {
   return { sb: sb as unknown as Sb, eq, rpc: sb.rpc };
 }
 describe("member-model estimating workflow", () => {
+  it("keeps the model recommendation visible and out of every advertised tool description", () => {
+    const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8"));
+    const text = JSON.stringify(manifest);
+    expect(text).not.toMatch(/strongest (?:available |image-reading )?model/i);
+    expect(hostWorkflowSection().rows[0].cells).toContain(TAKEOFF_MODEL_NOTICE);
+  });
   const job = { job_id: "job-private", job_number: "QA", company_id: "company-private" };
   const target = {
     pass_id: "pass-1",

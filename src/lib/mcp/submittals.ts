@@ -285,7 +285,7 @@ function ballLabel(row: SubmittalRecord): string {
 
 function rowLine(row: SubmittalRecord, today: string): string {
   const overdue = submittalOverdue(row, today);
-  return `- ${row.number}. ${row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${labelOf(STATUS_LABEL, row.status)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. ${row.submission_sent_at ? `Package sent ${row.submission_sent_at.slice(0,10)}.` : "Package send receipt not recorded."}`;
+  return `- ${row.number}. ${row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${labelOf(STATUS_LABEL, row.status)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)} ${row.submission_sent_at ? `Package sent ${row.submission_sent_at.slice(0,10)}.` : "Package send receipt not recorded."}`;
 }
 
 /** Plain-text fallback. Header counts are the deduped rows, and the card uses that same list. */
@@ -345,7 +345,7 @@ export function presentSubmittalLog(input: {
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
-      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Yes" : "No", row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}` : "Send receipt not recorded"],
+      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Yes" : "No", row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}` : "Send receipt not recorded", sourceLine(row)],
       flag: late ? "overdue" : null,
       // The row opens the submittal's own record page, signed with the same token as the log link.
       href: submittalRecordUrl(input.boardUrl, row.number),
@@ -398,7 +398,7 @@ export function presentSubmittalLog(input: {
         ? {
             heading: "Log",
             kind: "table" as const,
-            columns: ["Number", "Title", "Spec section", "Transmittal", "Revision", "Status", "Ball in court", "Due", "Overdue", "Package delivery"],
+            columns: ["Number", "Title", "Spec section", "Transmittal", "Revision", "Status", "Ball in court", "Due", "Overdue", "Package delivery", "Source"],
             rows: tableRows,
           }
         : {

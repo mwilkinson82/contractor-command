@@ -4,7 +4,8 @@
  *  member's connected email account sends it. Athena never sends mail from the card. */
 import { BLUE, GRAY, NAVY, WHITE } from "./palette";
 
-export const EMAIL_CARD_URI = "ui://athena/email-card.html";
+export const EMAIL_CARD_URI = "ui://athena/email-card-v2.html";
+export const EMAIL_CARD_URIS = new Set([EMAIL_CARD_URI, "ui://athena/email-card.html"]);
 export const EMAIL_CARD_MIME = "text/html;profile=mcp-app";
 /** Tools whose result opens on the email card. The chase keeps the native card: it lists several submittals. */
 export const EMAIL_CARD_TOOLS = new Set(["email_draft", "submittal_delivery"]);
@@ -28,7 +29,7 @@ function list(s){return text(s).split(",").map(function(x){return x.trim()}).fil
 function same(a,b){return a.to===b.to&&a.cc.join(",")===b.cc.join(",")&&a.subject===b.subject&&a.body===b.body}
 function norm(d){d=d||{};return{to:text(d.to).trim(),cc:Array.isArray(d.cc)?d.cc.map(text):[],subject:text(d.subject),body:text(d.body),link:d.link?text(d.link):null,attachment:d.attachment?text(d.attachment):null}}
 function fields(){return{to:el.to.value.trim(),cc:list(el.cc.value),subject:el.subject.value.trim(),body:el.body.value,link:S.original.link,attachment:S.original.attachment}}
-function pill(){var p=el.pill;p.className="pill";if(S.sent){p.textContent="Sent";p.className+=" done"}else if(S.approved&&!edited()){p.textContent="Approved";p.className+=" done"}else if(!S.allowed){p.textContent="Sending is off"}else{p.textContent="Not sent"}}
+function pill(){var p=el.pill;p.className="pill";if(S.sent){p.textContent="Sent";p.className+=" done"}else if(S.approved&&!edited()){p.textContent="Approved";p.className+=" done"}else if(!S.allowed){p.textContent="Sending is off"}else{p.textContent="Draft, not sent"}}
 function edited(){return S.original&&!same(fields(),S.original)}
 function refresh(){pill();var can=S.allowed&&!S.sent&&!S.busy&&!!host.serverTools&&(!S.approved||edited());el.send.disabled=!can;el.reset.hidden=!edited()||S.busy;el.send.textContent=S.approved&&!edited()?"Approved":"Approve and send";
  el.note.textContent=S.note||(!S.allowed?"Sending is turned off. Copy this into your email app.":!host.serverTools?"This host can't approve from the card. Answer yes in the chat instead.":S.approved?"Approved with Athena. Your connected email account sends it.":"Approving records the exact text with Athena. Your connected email account sends it.");size()}

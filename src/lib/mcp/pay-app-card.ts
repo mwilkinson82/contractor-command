@@ -21,15 +21,16 @@ export function fieldPayAppCardModel(
     title: `G702 · Pay app through ${period}`,
     job,
     kpis: [
-      { label: "Contract sum", value: money(app.contract_sum) },
-      { label: "Completed and stored", value: money(app.completed_and_stored) },
+      { label: "Contract sum · Reported", value: money(app.contract_sum) },
+      { label: "Completed and stored · Reported", value: money(app.completed_and_stored) },
       { label: "Retainage", value: amount(app.retainage) },
       { label: "Earned less retainage", value: money(app.earned_less_retainage) },
       { label: "Previous certificates", value: money(app.previous_certificates) },
-      { label: "Current payment due", value: money(app.current_payment_due) },
+      { label: "Current payment due · Calculated", value: money(app.current_payment_due) },
       { label: "Balance to finish", value: money(app.balance_to_finish) },
     ],
     sections: [
+      { heading: "Reported vs verified", kind: "list", rows: [{ cells: ["Amounts: reported from saved job records. Verified: arithmetic tie checks only. Work in place, invoices and payment certification have not been independently verified."] }] },
       ...(pageUrl
         ? [
             {
@@ -116,6 +117,7 @@ export function billingForecastCardModel(
       { label: "Left to bill", value: model.left === null ? "Needed" : money(model.left) },
     ],
     sections: [
+      { heading: "Reported vs verified", kind: "list", rows: [{ cells: ["Billed amounts and contract: reported. Forecast: calculated from the saved schedule. Verified: arithmetic tie checks only; receipts and future billings are not independently verified."] }] },
       ...(draft
         ? [
             {

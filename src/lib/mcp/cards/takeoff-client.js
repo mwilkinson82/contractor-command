@@ -1132,6 +1132,63 @@
         "note small",
       ),
     );
+    if (sc.scale_lock && !sc.scale_lock.locked) {
+      var scaleChoice = node("section", null, "panel");
+      scaleChoice.append(node("h2", sc.scale_lock.question));
+      scaleChoice.append(
+        button("1 · Use a known dimension", function () {
+          mode = "calibrate";
+          draft = [];
+          holes = [];
+          overlay();
+          notice(
+            "Select the two ends of a known dimension, enter its length and confirm the reference below the sheet.",
+          );
+          edit.scrollIntoView({ block: "nearest" });
+        }),
+      );
+      var stated = node("input");
+      stated.ariaLabel = "Scale stated for this plan region";
+      stated.placeholder = 'For example: 3/16" = 1\'-0"';
+      if (sc.scale_lock.printed_scales.length === 1 && !sc.scale_lock.as_noted)
+        stated.value = sc.scale_lock.printed_scales[0];
+      scaleChoice.append(
+        stated,
+        button("2 · Use stated scale (true-size PDF)", function () {
+          if (!stated.value.trim() || !region.value.trim())
+            return notice("Name the plan region and its printed scale first.");
+          var existing = sc.engine.calibrations.find(function (c) {
+            return (
+              c.source_id === sc.source.id && c.page === sc.source.page && c.region === region.value
+            );
+          });
+          confirmBox(
+            "Confirm this PDF is true size and " +
+              stated.value +
+              " applies to " +
+              region.value +
+              ". A separate dimension check is still needed before this is called Measured.",
+            function () {
+              act("sheet_calibrate", {
+                operation: "save",
+                region: region.value,
+                bounds: {
+                  x: Number(boundsInputs.x.value),
+                  y: Number(boundsInputs.y.value),
+                  width: Number(boundsInputs.width.value),
+                  height: Number(boundsInputs.height.value),
+                },
+                stated_scale: stated.value.trim(),
+                confirm_true_size: true,
+                confirm_reference: true,
+                expected_version: existing ? existing.version : 0,
+              });
+            },
+          );
+        }),
+      );
+      right.prepend(scaleChoice);
+    }
     var selected = node("div");
     function showSelected() {
       selected.replaceChildren();
@@ -1513,7 +1570,7 @@
                     split_region: smaller === true,
                   }),
                 ) +
-                ". Remind me to select my strongest available image-reading model with deeper reasoning if I have not already. Prepare the next target with takeoff_geometry propose, inspect its returned images, and submit the visible tile-relative observations to that same checkpoint. Reconcile the takeoff with the saved drawings, notes, specifications and contract; record cited gaps and specific verification questions with estimate_gap_analysis. Identify unavailable or unread documents. Keep quantities as proposals for my review; do not accept them.",
+                ". Prepare the next target with takeoff_geometry propose, inspect its returned images, and submit the visible tile-relative observations to that same checkpoint. Reconcile the takeoff with the saved drawings, notes, specifications and contract; record cited gaps and specific verification questions with estimate_gap_analysis. Identify unavailable or unread documents. Keep quantities as proposals for my review; do not accept them.",
             },
           ],
         });
@@ -1548,7 +1605,7 @@
               text:
                 "Use Athena to read every open takeoff line on this sheet, one tile at a time, for " +
                 JSON.stringify(Object.assign(context(), { calibration_id: calibration })) +
-                ". Remind me to select my strongest available image-reading model with deeper reasoning if I have not already. Call takeoff_geometry propose with no line_no (and this calibration_id) to prepare the next tile; it lists every line to look for on that tile. Inspect the target image once for all of them and submit sheet_observations with that cursor and one entry per listed line, with empty findings where nothing is visible. Repeat until the read is complete. Reconcile with the saved drawings, notes, specifications and contract; record cited gaps and questions with estimate_gap_analysis. Keep quantities as proposals for my review; do not accept them.",
+                ". Call takeoff_geometry propose with no line_no (and this calibration_id) to prepare the next tile; it lists every line to look for on that tile. Inspect the target image once for all of them and submit sheet_observations with that cursor and one entry per listed line, with empty findings where nothing is visible. Repeat until the read is complete. Reconcile with the saved drawings, notes, specifications and contract; record cited gaps and questions with estimate_gap_analysis. Keep quantities as proposals for my review; do not accept them.",
             },
           ],
         });
