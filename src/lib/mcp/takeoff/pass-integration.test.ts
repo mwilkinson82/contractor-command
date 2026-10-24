@@ -120,6 +120,19 @@ async function fixture(size = 144, inkX = 32) {
   return { bytes, hash, page, state, rpc, sb, job };
 }
 
+describe("single-line sheet binding", () => {
+  it("refuses a line assigned to another sheet before rendering, reading or checkpointing", async () => {
+    const f = await fixture();
+    f.state.lines[0].sheet = "S-102";
+    const read = vi.fn();
+    await expect(
+      proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }, read),
+    ).rejects.toThrow("assigned to S-102");
+    expect(f.rpc).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+  });
+});
+
 describe("actual PDF tile to resumable proposal pipeline", () => {
   it("counts an identical split-boundary pin only once without merging nearby distinct locations", async () => {
     const f = await fixture(144, 68);

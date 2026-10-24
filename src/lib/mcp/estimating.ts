@@ -250,7 +250,7 @@ export type StoredLine = {
 
 export type Doc = {
   name: string;
-  kind: "base" | "addendum" | "sheet" | "spec";
+  kind: "base" | "addendum" | "sheet" | "spec" | "contract";
   revision?: string | null;
   date?: string | null;
   sheets?: string[];
@@ -297,10 +297,25 @@ export type SpecDrawing = {
   drawing_shows?: string | null;
 };
 export type DocReview = {
+  scope_requirements?: DocumentScopeRequirement[];
   sheets: SheetNote[];
   specs: SpecSection[];
   pairs: SpecDrawing[];
   context?: string | null;
+};
+export type DocumentScopeRequirement = {
+  source_id?: string;
+  source_hash?: string;
+  id: string;
+  title: string;
+  kind: "quantity" | "watch";
+  source_type: "sheet" | "spec" | "contract";
+  source_ref: string;
+  citation: string;
+  excerpt: string;
+  line_nos: number[];
+  confidence: "high" | "medium" | "low";
+  evidence_basis: "seen" | "measured" | "assumed";
 };
 
 export type BidLine = {
@@ -313,6 +328,8 @@ export type BidLine = {
 export type SubBid = { sub: string; trade: string; total: number | null; lines: BidLine[] };
 
 export type GapIn = {
+  confidence?: Confidence | null;
+  evidence_basis?: "seen" | "measured" | "assumed" | null;
   ref?: string;
   kind: "seen" | "verify";
   category:
@@ -334,6 +351,8 @@ export type GapIn = {
   line_no?: number | null;
 };
 export type StoredGap = {
+  confidence?: Confidence | null;
+  evidence_basis?: "seen" | "measured" | "assumed" | null;
   ref: string;
   kind: "seen" | "verify";
   category: GapIn["category"];
@@ -1218,6 +1237,8 @@ export function prepareGap(raw: GapIn, ref: string): StoredGap {
       : raw.holds_bid === true || severity === "hard";
   return {
     ref,
+    confidence: raw.confidence ?? null,
+    evidence_basis: raw.evidence_basis ?? null,
     kind: raw.kind,
     category: raw.category,
     severity,
@@ -1884,12 +1905,14 @@ export function renderIntake(
     lines.push("", "Sub bids named");
     for (const b of s.sub_bids) lines.push(`- ${b.sub} · ${b.trade} · ${b.lines.length} lines`);
   }
+  lines.push("", "Next steps", "Lock the scale for each plan/detail before measuring lengths, areas or volumes. Counts need a confirmed region.", "Review the drawing notes, specifications and contract for cited scope and missing information.");
   lines.push("", `Workbook: ${s.workbook_note ?? "none stated"}.`);
   return {
     text: frame("Takeoff", lines),
     structured: {
       report: "Takeoff",
       layout: estimateLayout(),
+      estimate_view_kind: "intake", job, setup: s, questions, forms_faces: forms ?? null,
       role: s.role,
       profile: profile ?? null,
       complete: questions.length === 0,
@@ -1939,6 +1962,7 @@ export function renderDocReview(
   return {
     text: frame("Estimate Analysis", lines),
     structured: {
+      estimate_view_kind: "documents", job, document_review: review,
       report: "Estimate Analysis",
       layout: estimateLayout(),
       sheets: review.sheets,
@@ -2104,7 +2128,7 @@ export function renderGaps(
     const item = state.items.find((i) => i.ref === g.ref);
     const flag = g.holds_bid ? " Holds the bid." : "";
     const call = item?.mark ? ` Estimator call: ${markWord(item.mark)}.` : "";
-    return `- ${g.ref}. ${g.title}. ${SEVERITY_LABEL[g.severity]}. ${CATEGORY_LABEL[g.category]}. Sheet ${cite(g.sheet, g.detail)}. Spec ${g.spec_section}. ${g.reasoning}${flag}${call}`;
+    return `- ${g.ref}. ${g.title}. ${SEVERITY_LABEL[g.severity]}. ${CATEGORY_LABEL[g.category]}. Sheet ${cite(g.sheet, g.detail)}. Spec ${g.spec_section}. ${g.reasoning} Reported confidence: ${g.confidence ?? "low (not rated)"}. Basis: ${g.evidence_basis ?? "assumed (not recorded)"}.${flag}${call}`;
   };
   const punch = gaps.filter((g) => g.holds_bid);
   const text = frame("Estimate Analysis", [
@@ -2132,6 +2156,7 @@ export function renderGaps(
   return {
     text,
     structured: {
+      estimate_view_kind: "gaps", job,
       report: "Estimate Analysis",
       layout: estimateLayout(),
       gaps,
@@ -2735,6 +2760,8 @@ export function parseState(raw: unknown): {
   }));
   const gaps: StoredGap[] = ((o.gaps as Record<string, unknown>[]) ?? []).map((g) => ({
     ref: String(g.ref),
+    confidence: g.confidence === "high" || g.confidence === "medium" || g.confidence === "low" ? g.confidence : null,
+    evidence_basis: g.evidence_basis === "seen" || g.evidence_basis === "measured" || g.evidence_basis === "assumed" ? g.evidence_basis : null,
     kind: g.kind === "seen" ? "seen" : "verify",
     category: (g.category as StoredGap["category"]) ?? "conflict",
     severity: g.severity === "hard" || g.severity === "cannot_know" ? g.severity : "soft",

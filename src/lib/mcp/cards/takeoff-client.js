@@ -804,6 +804,11 @@
       o.value = l.line_no;
       lineSelect.append(o);
     });
+    var currentSheetLines = sc.engine.lines.filter(function (line) {
+      return (!line.sheet || line.sheet.trim().toLowerCase() === sc.source.sheet.trim().toLowerCase()) && /^(ea|each|lf|ft|sf|cy)$/i.test(line.unit || "");
+    });
+    if (!currentSheetLines.some(function (line) { return String(line.line_no) === selectedLine; }))
+      selectedLine = currentSheetLines.length ? String(currentSheetLines[0].line_no) : null;
     if (selectedLine) lineSelect.value = selectedLine;
     lineSelect.addEventListener("change", function () {
       reading = false;
@@ -1611,9 +1616,9 @@
             {
               type: "text",
               text:
-                "Use Athena to read every open takeoff line on this sheet, one tile at a time, for " +
+                "Read the stored drawing for each open takeoff line using Athena's batched sheet images for " +
                 JSON.stringify(Object.assign(context(), { calibration_id: calibration })) +
-                ". Call takeoff_geometry propose with no line_no (and this calibration_id) to prepare the next tile; it lists every line to look for on that tile. Inspect the target image once for all of them and submit sheet_observations with that cursor and one entry per listed line, with empty findings where nothing is visible. Repeat until the read is complete. Reconcile with the saved drawings, notes, specifications and contract; record cited gaps and questions with estimate_gap_analysis. Keep quantities as proposals for my review; do not accept them.",
+                ". Prepare takeoff_geometry propose with no line_no, this calibration_id and batch_size 3. Inspect each returned target for every listed line; submit sheet_batch_observations using its batch_submit reference. A submission returns the next batch; no separate list or prepare is needed between batches. Empty findings mean the image was inspected and none were visible. Keep each cursor and pass_id unchanged. Reconcile with the saved drawings, notes, specifications and contract; record cited gaps and questions with estimate_gap_analysis. Keep quantities as proposals for my review; do not accept them.",
             },
           ],
         });

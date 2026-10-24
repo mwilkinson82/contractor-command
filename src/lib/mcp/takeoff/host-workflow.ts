@@ -3,6 +3,7 @@ import { parseState } from "../estimating";
 import type { Sb } from "../guard";
 import type { Job } from "../jobs";
 import { measurementStatus, type EngineSnapshot } from "./state";
+import { dimensionChecked } from "./calibration";
 
 export const TAKEOFF_MODEL_NOTICE =
   "Before we start, switch to the strongest model available in your AI app that can read images and reason through drawings. Enable its deeper reasoning option if available. Athena cannot change that switch for you.";
@@ -58,7 +59,7 @@ export function measurementEvidence(state: EngineSnapshot) {
             c.source_id === g.source_id &&
             c.page === g.page &&
             c.confirmed &&
-            c.method === "dimension_string",
+            dimensionChecked(c),
         ),
       );
     return {

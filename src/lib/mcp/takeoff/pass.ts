@@ -302,6 +302,10 @@ export async function proposeTakeoffBatch(
 ) {
   const line = state.lines.find((l) => l.line_no === input.line_no);
   if (!line) throw new ToolError("Choose a line from the current saved takeoff first.");
+  if (line.sheet?.trim() && line.sheet.trim().toLowerCase() !== page.sheet.trim().toLowerCase())
+    throw new ToolError(
+      `L${line.line_no} is assigned to ${line.sheet}, not ${page.sheet}. Open its stored sheet before reading; no checkpoint or quantity was saved.`,
+    );
   const kind = /^(ea|each)$/i.test(line.unit ?? "")
     ? "count"
     : /^(lf|ft)$/i.test(line.unit ?? "")

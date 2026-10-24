@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "@lovable.dev/mcp-js";
-const fixture = vi.hoisted(() => ({ plan: "athena_pm", calls: [] as string[] }));
+const fixture = vi.hoisted(() => ({
+  plan: "athena_pm",
+  calls: [] as string[],
+  entitled: true,
+  cap: true,
+}));
 vi.mock("./supabase", () => ({
   supabaseForUser: () => ({
     rpc: async (name: string) => {
@@ -9,7 +14,7 @@ vi.mock("./supabase", () => ({
         error: null,
         data:
           name === "mcp_abuse_cap_check"
-            ? { ok: true }
+            ? { ok: fixture.cap, limit: "daily" }
             : name === "mcp_company_tier"
               ? fixture.plan
               : false,
@@ -17,7 +22,9 @@ vi.mock("./supabase", () => ({
     },
   }),
 }));
-vi.mock("./entitlement", () => ({ checkAthenaEntitlement: async () => ({ allowed: true }) }));
+vi.mock("./entitlement", () => ({
+  checkAthenaEntitlement: async () => ({ allowed: fixture.entitled }),
+}));
 vi.mock("./security", () => ({
   getCallSignals: () => null,
   securityTouch: async () => ({}),
@@ -37,9 +44,11 @@ vi.mock("./getting-started", () => ({
 vi.mock("./morning-brief-card", () => ({
   attachMorningCard: async (_sb: unknown, r: unknown) => r,
 }));
-import { run } from "./guard";
+import { guard, run } from "./guard";
 const ctx = { isAuthenticated: () => true } as ToolContext;
 beforeEach(() => {
+  fixture.entitled = true;
+  fixture.cap = true;
   fixture.plan = "athena_pm";
   fixture.calls = [];
 });
@@ -65,5 +74,33 @@ describe("estimating plan enforced before tool data access", () => {
     await run("morning_brief", ctx, { jobNumber: "QA" }, handler);
     expect(handler).toHaveBeenCalledOnce();
     expect(fixture.calls).not.toContain("mcp_company_tier");
+  });
+});
+
+describe("takeoff business-quota exemption preserves access controls", () => {
+  it("allows estimating at the daily quota without consuming or checking that allowance", async () => {
+    fixture.cap = false;
+    await expect(guard(ctx, "takeoff_geometry")).resolves.toBeDefined();
+    expect(fixture.calls).not.toContain("mcp_abuse_cap_check");
+    await expect(guard(ctx, "morning_brief")).rejects.toThrow("daily limit");
+  });
+  it("still refuses an inactive member and an unauthenticated caller", async () => {
+    fixture.entitled = false;
+    await expect(guard(ctx, "takeoff_geometry")).rejects.toThrow("membership isn't active");
+    await expect(
+      guard({ isAuthenticated: () => false } as ToolContext, "takeoff_geometry"),
+    ).rejects.toThrow("Not authenticated");
+  });
+  it("keeps the Office plan gate even for the verified platform owner", async () => {
+    fixture.cap = false;
+    const handler = vi.fn();
+    await run(
+      "takeoff_geometry",
+      { ...ctx, getUserId: () => "68ef4232-acf4-423b-a31e-6dde1d4f9639" } as ToolContext,
+      { jobNumber: "QA" },
+      handler,
+    );
+    expect(handler).not.toHaveBeenCalled();
+    expect(fixture.calls).toContain("mcp_company_tier");
   });
 });

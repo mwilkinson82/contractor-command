@@ -1,3 +1,6 @@
+import { estimatingContextCard } from "../cards/estimating-context";
+import { bindScopeSources, documentScopeSchema } from "../takeoff/document-scope";
+import { loadDocumentInventory, inventoryDocuments, inventoryText } from "../estimate-document-inventory";
 import { EXAMPLE_LINE_RE } from "../takeoff/history";
 import { TAKEOFF_MODEL_NOTICE, TAKEOFF_REVIEW_WORKFLOW } from "../takeoff/host-workflow";
 import { drawingCardResultMeta } from "../cards/drawing-card";
@@ -270,7 +273,7 @@ const takeoffLines = z
   });
 const doc = z.object({
   name: z.string().trim().min(1).max(200),
-  kind: z.enum(["base", "addendum", "sheet", "spec"]),
+  kind: z.enum(["base", "addendum", "sheet", "spec", "contract"]),
   revision: z.string().trim().max(40).optional(),
   date: date.optional(),
   sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
@@ -305,6 +308,8 @@ const subBid = z.object({
   lines: z.array(bidLine).max(80).optional(),
 });
 const gapIn = z.object({
+  confidence: z.enum(["high", "medium", "low"]).optional(),
+  evidence_basis: z.enum(["seen", "measured", "assumed"]).optional(),
   ref: z.string().trim().max(12).optional(),
   kind: z.enum(["seen", "verify"]),
   category: z.enum([
@@ -494,6 +499,8 @@ function emptyTakeoff(label: string) {
   );
 }
 function reply(view: { text: string; structured: Record<string, unknown>; guidance: string[] }) {
+  const card = estimatingContextCard(view.structured);
+  if (card) return { ...text(renderMarkdown(card)), structuredContent: { ...view.structured, card, html: renderHtml(card) } as unknown as JsonValueInput };
   return guide(
     { ...text(view.text), structuredContent: view.structured as unknown as JsonValueInput },
     ...view.guidance,
@@ -587,6 +594,7 @@ export const estimateIntake = defineTool({
     run("estimate_intake", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
+      const inventory = await loadDocumentInventory(sb, job, prior.setup);
       const profileOnFile = await savedProfileRecord(sb, job.job_id);
       const sameName = await sameNameTakeoffs(sb, job);
       const warning = reuseWarning({
@@ -605,13 +613,16 @@ export const estimateIntake = defineTool({
           forms_faces: args.forms_faces ?? profileOnFile?.forms_faces ?? null,
         });
         return reply({
-          text: [TAKEOFF_MODEL_NOTICE, warning, ...pending.map((q) => `- ${q}`)].join("\n"),
+          text: [TAKEOFF_MODEL_NOTICE, warning, inventoryText(inventory), ...pending.map((q) => `- ${q}`)].join("\n"),
           structured: {
+            estimate_view_kind: "intake", job: named(job), setup: prior.setup, questions: pending, reuse_warning: warning,
             complete: false,
             reused: false,
             saved: false,
             model_selection: TAKEOFF_MODEL_NOTICE,
             review_workflow: TAKEOFF_REVIEW_WORKFLOW,
+            document_inventory: inventory,
+            next_steps: [inventory.scale_next_step],
           },
           guidance: [
             "Ask reuse or fresh before using the takeoff on file. Do not assume self-performer.",
@@ -667,7 +678,12 @@ export const estimateIntake = defineTool({
           throw e;
         });
       await audit(sb, job, "estimate_intake", "save_estimate_intake", null);
-      const view = renderIntake(`${named(job)}`, setup, profile, forms);
+      const currentInventory = drawing ? await loadDocumentInventory(sb, job, setup) : {
+        ...inventory, documents: setup.documents,
+        specifications: setup.documents.filter(d => d.kind === "spec"),
+        contracts: setup.documents.filter(d => d.kind === "contract"),
+      };
+      const view = renderIntake(`${named(job)}`, { ...setup, documents: inventoryDocuments(setup, currentInventory) }, profile, forms);
       const fresh =
         args.reuse === "fresh"
           ? prior.lines.length
@@ -679,15 +695,18 @@ export const estimateIntake = defineTool({
               : "Reuse confirmed. Nothing was copied onto this job. The other takeoff stays where it is."
             : "";
       const drawingLine = drawingName ? `Drawing set stored: ${drawingName}.` : "";
-      const lead = [TAKEOFF_MODEL_NOTICE, fresh, drawingLine].filter(Boolean).join("\n");
+      const lead = [TAKEOFF_MODEL_NOTICE, fresh, drawingLine, inventoryText(currentInventory)].filter(Boolean).join("\n");
       return reply({
         ...view,
         text: lead ? `${lead}\n${view.text}` : view.text,
         structured: {
           ...view.structured,
+          drawing_receipt: drawingLine || null,
           reuse: args.reuse ?? null,
           model_selection: TAKEOFF_MODEL_NOTICE,
           review_workflow: TAKEOFF_REVIEW_WORKFLOW,
+          document_inventory: currentInventory,
+          next_steps: [currentInventory.scale_next_step],
         },
       });
     }),
@@ -696,7 +715,7 @@ export const estimateIntake = defineTool({
 export const estimateDocReview = defineTool({
   name: "estimate_doc_review",
   title: "Estimating document review",
-  description: "Saves the sheet index, revisions and spec-versus-drawing list for a job.",
+  description: "Saves the drawing/specification review and document-derived scope with cited paragraphs, excerpts, confidence and mapped takeoff lines, retaining unmapped requirements as Not found and document instructions as Watch items.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -735,6 +754,7 @@ export const estimateDocReview = defineTool({
         }),
       )
       .max(200),
+    scope_requirements: documentScopeSchema.optional(),
     context: z.string().trim().max(1000).optional(),
   },
   annotations: SAVE,
@@ -746,8 +766,22 @@ export const estimateDocReview = defineTool({
         sheets: args.sheets.map((s) => ({ ...s, schedules: normalizeSchedules(s.schedules) })),
         specs: args.specs,
         pairs: args.pairs,
+        scope_requirements: args.scope_requirements ?? prior.setup.doc_review?.scope_requirements ?? [],
         context: args.context ?? null,
       };
+      if (args.scope_requirements) {
+        const contract = await sb.from("mcp_contract_clauses").select("section").eq("job_id", job.job_id);
+        if (contract.error) throw new ToolError("Contract references could not be checked. Nothing was saved.");
+        for (const r of args.scope_requirements) {
+          const known = r.source_type === "sheet" ? review.sheets.some(s => s.sheet === r.source_ref) :
+            r.source_type === "spec" ? review.specs.some(s => s.section === r.source_ref) :
+            (contract.data ?? []).some(c => c.section === r.source_ref);
+          if (!known) throw new ToolError(`Scope ${r.id} cites an unavailable ${r.source_type} reference ${r.source_ref}. Nothing was saved.`);
+          if (r.line_nos.some(n => !prior.lines.some(l => l.line_no === n)))
+            throw new ToolError(`Scope ${r.id} names a line that is not on the current takeoff. Nothing was saved.`);
+        }
+        review.scope_requirements = bindScopeSources(args.scope_requirements, await drawingRecords(sb, job));
+      }
       await rpc(sb, "mcp_estimate_setup_save", {
         _job: job.job_id,
         _patch: { doc_review: review },

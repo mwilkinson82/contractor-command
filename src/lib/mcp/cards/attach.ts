@@ -23,6 +23,7 @@ type Res = {
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
 export const CARD_FIRST_TOOLS = new Set([
+  "estimate_intake", "estimate_doc_review", "estimate_gap_analysis",
   "jobs_list",
   "drawing_sets_list",
   "sheet_calibrate",
@@ -60,6 +61,7 @@ export const CARD_FIRST_TOOLS = new Set([
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
+  "estimate_intake", "estimate_doc_review", "estimate_gap_analysis",
   "jobs_list",
   "drawing_sets_list",
   "next_question",

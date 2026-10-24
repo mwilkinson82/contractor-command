@@ -22,7 +22,13 @@ import {
 import { proposeTakeoffStep, saveCountAreas } from "../takeoff/pass";
 import { assertReadComplete } from "../takeoff/scope";
 import { reviseGeometry } from "../takeoff/revision";
-import { automaticCalibration, statedScaleCalibration } from "../takeoff/calibration";
+import {
+  automaticCalibration,
+  calibrationExpectedVersion,
+  checkCalibrationDimensions,
+  statedScaleCalibration,
+} from "../takeoff/calibration";
+import { calibrate } from "../takeoff/geometry";
 import { readPointCrop } from "../takeoff/verify";
 import { bytesToBase64 } from "../estimating-sheet";
 import { hostContextForTile, hostReviewContext } from "../takeoff/host-workflow";
@@ -30,6 +36,10 @@ import {
   HostSheetReadRequired,
   proposeSheetStep,
   sheetObservationsSchema,
+  sheetReadGroups,
+  sheetBatchSchema,
+  prepareSheetTargets,
+  submitSheetBatch,
 } from "../takeoff/sheet-pass";
 import { downloadMeasuredExport, exportMeasuredSheet } from "../takeoff/export";
 
@@ -90,6 +100,18 @@ export const sheetCalibrate = defineTool({
     confirm_reference: z.boolean().optional(),
     stated_scale: z.string().trim().min(1).max(120).optional(),
     confirm_true_size: z.boolean().optional(),
+    dimension_checks: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1).max(120),
+          points: z.tuple([point, point]),
+          distance: z.number().finite().positive(),
+          unit: z.enum(["ft", "in", "m", "mm"]),
+        }),
+      )
+      .min(1)
+      .max(4)
+      .optional(),
     expected_version: z.number().int().min(0).optional(),
   },
   annotations: write,
@@ -113,20 +135,40 @@ export const sheetCalibrate = defineTool({
           )
             saved = await saveCalibration(sb, job, page, automatic.calibration, 0);
           if (args.operation === "save") {
+            const existing = state.calibrations.find(
+              (c) =>
+                c.source_id === page.source.id &&
+                c.page === page.page &&
+                c.region.trim().toLowerCase() === args.region?.trim().toLowerCase(),
+            );
+            const verificationOnly =
+              !!args.dimension_checks &&
+              !!existing?.confirmed &&
+              !args.reference &&
+              !args.stated_scale;
             if (
-              (!args.reference && !args.stated_scale) ||
+              (!args.reference && !args.stated_scale && !verificationOnly) ||
               !args.region ||
-              args.expected_version == null ||
-              args.confirm_reference !== true
+              args.confirm_reference === false ||
+              !(
+                verificationOnly ||
+                args.confirm_reference === true ||
+                (args.stated_scale && args.confirm_true_size === true)
+              )
             )
               throw new ToolError(
-                "Choose two reference points, their known distance and plan/detail region, then confirm the reference before saving.",
+                "Choose and confirm the scale reference and plan/detail region before saving; dimension checks can verify an existing confirmed scale without changing it.",
               );
-            saved = await saveCalibration(
-              sb,
-              job,
-              page,
-              args.stated_scale
+            const expected = calibrationExpectedVersion(
+              state.calibrations,
+              page.source.id,
+              page.page,
+              args.region,
+              args.expected_version,
+            );
+            let candidate = verificationOnly
+              ? existing!
+              : args.stated_scale
                 ? statedScaleCalibration(
                     page.space,
                     args.stated_scale,
@@ -134,16 +176,18 @@ export const sheetCalibrate = defineTool({
                     args.bounds ?? { x: 0, y: 0, width: 1, height: 1 },
                     args.confirm_true_size === true,
                   )
-                : {
+                : calibrate(page.space, {
                     region: args.region,
                     bounds: args.bounds ?? { x: 0, y: 0, width: 1, height: 1 },
                     reference: args.reference!,
                     method: "estimator",
                     confidence: "high",
                     confirmed: true,
-                  },
-              args.expected_version,
-            );
+                    version: expected + 1,
+                  });
+            if (args.dimension_checks)
+              candidate = checkCalibrationDimensions(page.space, candidate, args.dimension_checks);
+            saved = await saveCalibration(sb, job, page, candidate, expected);
             await audit(sb, job, "sheet_calibrate", "save_sheet_calibration", args.region);
           }
           return viewEngine(sb, job, saved ? await requiredSnapshot(sb, job) : state, page, {
@@ -164,8 +208,7 @@ export const takeoffGeometry = defineTool({
   name: "takeoff_geometry",
   title: "Measure and review a drawing takeoff",
   description:
-    "Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. " +
-    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Scope with line_nos confirms the same complete named area for several count lines in one call; it never accepts quantities. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. Propose with no line_no (or with line_nos) is a sheet read: the one target tile is returned with every open line that may appear on it, and the connected AI returns sheet_observations with that cursor and one entry per listed line, empty findings where nothing is visible; each line keeps its own pass and checkpoint, and lines not ready are listed with the reason. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+    "Measures and reviews stored drawings using confirmed regional scales and host-supplied geometry, with up to three consecutive images for all ready line_nos per batch, resumable source-bound cursors, sheet_batch_observations submissions that return the next images, factual project context, per-proposal confidence, explicit estimator acceptance, immutable history and dated PDF exports; Athena validates locations and calculates quantities without a server-side model call.",
   inputSchema: {
     ...scope,
     operation: z
@@ -224,6 +267,8 @@ export const takeoffGeometry = defineTool({
     observations: hostObservationsSchema.optional(),
     line_nos: z.array(z.number().int().min(1).max(9999)).min(1).max(200).optional(),
     sheet_observations: sheetObservationsSchema.optional(),
+    sheet_batch_observations: sheetBatchSchema.optional(),
+    batch_size: z.number().int().min(1).max(3).optional(),
     split_region: z.boolean().optional(),
     reload_context: z.boolean().optional(),
     pass_id: z.string().uuid().optional(),
@@ -238,8 +283,8 @@ export const takeoffGeometry = defineTool({
       { jobNumber: args.job_number, companyId: args.company_id },
       async (sb) => {
         try {
-          const job = await resolveJob(sb, args.job_number, args.company_id, "write"),
-            state = await requiredSnapshot(sb, job);
+          const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+          let state = await requiredSnapshot(sb, job);
           const operation = args.operation ?? "list";
           const extra: Record<string, unknown> = {
             include_rejected: args.include_rejected === true,
@@ -383,36 +428,99 @@ export const takeoffGeometry = defineTool({
               edge: 160,
             };
           } else if (operation === "propose") {
-            const locked = state.calibrations.some(
-              (c) =>
-                c.source_id === page!.source.id &&
-                c.page === page!.page &&
-                c.confirmed &&
-                (!args.calibration_id || c.id === args.calibration_id),
+            const calibrations = state.calibrations.filter(
+              (c) => c.source_id === page!.source.id && c.page === page!.page && c.confirmed,
             );
-            if (!locked) return viewEngine(sb, job, state, page, { scale_required: true });
-            if (args.reload_context && (args.observations || args.sheet_observations))
+            const calibrationId =
+              args.calibration_id ?? (calibrations.length === 1 ? calibrations[0].id : undefined);
+            const selectedLines = state.lines.filter((l) =>
+              args.line_nos?.length
+                ? args.line_nos.includes(l.line_no)
+                : args.line_no
+                  ? l.line_no === args.line_no
+                  : l.sheet?.trim().toLowerCase() === page!.sheet.trim().toLowerCase(),
+            );
+            const countsOnly =
+              selectedLines.length > 0 &&
+              selectedLines.every((l) => /^(ea|each)$/i.test(l.unit ?? ""));
+            if (!countsOnly && !calibrations.some((c) => c.id === calibrationId))
+              return viewEngine(sb, job, state, page, {
+                scale_required: true,
+                calibration_question:
+                  calibrations.length > 1
+                    ? "Choose the saved calibration for this plan/detail; different scales cannot be combined."
+                    : "Lock this plan/detail's scale before measuring lengths or areas.",
+              });
+            if (
+              args.reload_context &&
+              (args.observations || args.sheet_observations || args.sheet_batch_observations)
+            )
               throw new ToolError(
                 "Reload the project context in a prepare call before submitting observations.",
               );
-            if (!args.line_no || args.line_nos?.length || args.sheet_observations) {
+            if (
+              !args.line_no ||
+              args.line_nos?.length ||
+              args.sheet_observations ||
+              args.sheet_batch_observations
+            ) {
+              const groups = sheetReadGroups(page!, state, {
+                line_nos: args.line_nos,
+                calibration_id: calibrationId,
+              });
+              const submitted = args.sheet_batch_observations?.[0] ?? args.sheet_observations;
+              const readLineNos =
+                args.line_nos ??
+                (submitted
+                  ? submitted.lines.map((l) => l.line_no)
+                  : groups.length > 1
+                    ? groups[0].line_nos
+                    : undefined);
+              extra.queued_sheet_groups = groups;
               // A sheet read: every open line on one tile, one observation set back.
               if (args.observations)
                 throw new ToolError(
                   "A sheet read takes sheet_observations with one entry per line, not single-line observations.",
                 );
               try {
+                if (args.sheet_batch_observations && args.sheet_observations)
+                  throw new ToolError("Use one observation format per request.");
+                if (args.sheet_batch_observations) {
+                  const batch = await submitSheetBatch(
+                    sb,
+                    job,
+                    page!,
+                    state,
+                    { line_nos: readLineNos, calibration_id: calibrationId },
+                    args.sheet_batch_observations,
+                    () => requiredSnapshot(sb, job),
+                  );
+                  state = batch.state;
+                  extra.saved_batch = batch.results;
+                  if (batch.complete) return viewEngine(sb, job, state, page, extra);
+                }
                 extra.sheet_read = await proposeSheetStep(
                   sb,
                   job,
                   page!,
                   state,
-                  { line_nos: args.line_nos, calibration_id: args.calibration_id },
+                  { line_nos: readLineNos, calibration_id: calibrationId },
                   args.sheet_observations,
                 );
+                if (
+                  args.sheet_observations &&
+                  !(extra.sheet_read as { complete: boolean }).complete
+                ) {
+                  state = await requiredSnapshot(sb, job);
+                  await proposeSheetStep(sb, job, page!, state, {
+                    line_nos: readLineNos,
+                    calibration_id: calibrationId,
+                  });
+                }
               } catch (error) {
                 if (!(error instanceof HostSheetReadRequired)) throw error;
                 const read = error.read;
+                const targets = await prepareSheetTargets(page!, read, args.batch_size);
                 const included = read.cursor === 0 || args.reload_context === true;
                 const reload = {
                   operation: "propose",
@@ -425,6 +533,7 @@ export const takeoffGeometry = defineTool({
                   reload_context: true,
                 };
                 const view = await viewEngine(sb, job, await requiredSnapshot(sb, job), page, {
+                  ...extra,
                   sheet_read: {
                     cursor: read.cursor,
                     tiles_total: read.order.length,
@@ -452,7 +561,33 @@ export const takeoffGeometry = defineTool({
                     cursor: read.cursor,
                     tiles_total: read.order.length,
                     coordinate_system: "target-tile-image-0-1000",
+                    measurement_contract: {
+                      linear:
+                        "Visible local centerline spans are valid observations, including spans ending at a target boundary; Athena clips overlapping tiles so each span is measured once. The entire footing run need not fit in one tile.",
+                      area: "A polygon or rectangle needs its whole closed boundary visible. An incomplete contour remains unresolved; empty findings are not a zero-area quantity. A complete outline assembled from the stored sheet can instead be recorded as a page-space geometry proposal with operation save, after reviewing its missing edges.",
+                      count:
+                        "Pins identify visible instances inside the confirmed region; tile overlap ownership prevents counting the same location twice.",
+                    },
                     target_tile: read.tile,
+                    targets: targets.map((t) => ({ cursor: t.cursor, tile: t.tile })),
+                    batch_submit: {
+                      operation: "propose",
+                      job_number: job.job_number,
+                      company_id: job.company_id,
+                      source_id: page!.source.id,
+                      sheet: page!.sheet,
+                      calibration_id: read.calibration_id ?? undefined,
+                      line_nos: read.lines.map((l) => l.line_no),
+                      sheet_batch_observations: targets.map((t) => ({
+                        cursor: t.cursor,
+                        lines: read.lines.map((l) => ({
+                          line_no: l.line_no,
+                          pass_id: l.pass_id,
+                          findings: [],
+                          uncertainties: [],
+                        })),
+                      })),
+                    },
                     frame: {
                       sheet: page!.sheet,
                       tile_bounds: read.tile.bounds,
@@ -513,15 +648,17 @@ export const takeoffGeometry = defineTool({
                       mimeType: "image/png",
                       data: bytesToBase64(read.overview),
                     },
-                    {
-                      type: "text" as const,
-                      text: `TARGET TILE ${read.cursor + 1} of ${read.order.length}. Inspect it once for every line listed under lines. Return sheet_observations with cursor ${read.cursor} and one entry per line (same pass_id), findings as x/y 0–1000 on this image, confidence and visible evidence; empty findings means inspected and none visible. Outside-scope pixels are masked white. Each line's own region still bounds what Athena keeps. Quantities remain proposals until estimator acceptance.`,
-                    },
-                    {
-                      type: "image" as const,
-                      mimeType: "image/png",
-                      data: bytesToBase64(read.png),
-                    },
+                    ...targets.flatMap((target) => [
+                      {
+                        type: "text" as const,
+                        text: `Target image · cursor ${target.cursor} · tile ${target.tile.index} · coordinates 0–1000 on this image. Confirmed region only; quantities remain proposals.`,
+                      },
+                      {
+                        type: "image" as const,
+                        mimeType: "image/png",
+                        data: bytesToBase64(target.png),
+                      },
+                    ]),
                   ],
                 };
               }
@@ -538,7 +675,7 @@ export const takeoffGeometry = defineTool({
                   state,
                   {
                     line_no: args.line_no,
-                    calibration_id: args.calibration_id,
+                    calibration_id: calibrationId,
                     pass_id: args.pass_id,
                     cursor: args.cursor,
                     depth: args.depth,
@@ -562,7 +699,7 @@ export const takeoffGeometry = defineTool({
                     source_id: page!.source.id,
                     source_hash: page!.source.content_hash,
                     takeoff_version: state.takeoff_version,
-                    calibration_id: args.calibration_id,
+                    calibration_id: calibrationId,
                   },
                   args.reload_context === true,
                 );
@@ -584,7 +721,7 @@ export const takeoffGeometry = defineTool({
                     frame: request.frame,
                     source_id: page!.source.id,
                     source_hash: page!.source.content_hash,
-                    calibration_id: args.calibration_id ?? null,
+                    calibration_id: calibrationId ?? null,
                     takeoff_version: state.takeoff_version,
                     vector_text: request.hints
                       .filter((h) => h.kind === "text" && h.text)

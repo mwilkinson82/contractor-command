@@ -1392,3 +1392,19 @@ describe("fresh migration ordering", () => {
     }
   });
 });
+
+describe("document scope and gap evidence migration", () => {
+  it("round-trips confidence, basis and paragraph-cited scope without changing job access", async () => {
+    await db.exec(readFileSync("supabase/migrations/20261024184920_athena_gap_evidence.sql", "utf8"));
+    const gap = { ref: "G-990", kind: "verify", category: "scope_seam", severity: "soft", title: "Fictional termite treatment", reasoning: "S-100 note 13 requires treatment; verify coverage.", sheet: "S-100", spec_section: "not supplied", confidence: "medium", evidence_basis: "seen" };
+    await rpc("mcp_estimate_gaps_save", [job, JSON.stringify([gap])]);
+    const saved = await rpc("mcp_estimate_get", [job]);
+    expect(saved.gaps.find((g: any) => g.ref === "G-990")).toMatchObject({ confidence: "medium", evidence_basis: "seen" });
+    const scope = [{ id: "S100-N13", title: "Termite treatment", kind: "quantity", source_type: "sheet", source_ref: "S-100", citation: "General note 13", excerpt: "Fictional treatment instruction", line_nos: [], confidence: "high", evidence_basis: "seen" }];
+    await rpc("mcp_estimate_setup_save", [job, JSON.stringify({ doc_review: { sheets: [], specs: [], pairs: [], scope_requirements: scope } })]);
+    const snapshot = await rpc("mcp_takeoff_get", [job]);
+    expect(snapshot.document_scope).toEqual(scope);
+    await expect(rpc("mcp_takeoff_get", [job], outsider)).rejects.toThrow();
+    await expect(rpc("mcp_estimate_gaps_save", [job, JSON.stringify([{ ...gap, confidence: "certain" }])])).rejects.toThrow();
+  });
+});
