@@ -92,6 +92,23 @@ export function boundMeetingResult(result: Record<string, unknown>): Record<stri
   return out;
 }
 
+/** The full-page preview is for the app, not a base64 text document for the model.
+ * Keep the actual image content blocks and all factual measurement/checkpoint data. */
+export function boundTakeoffResult(result: Record<string, unknown>): Record<string, unknown> {
+  const original = result.structuredContent as Record<string, unknown> | undefined;
+  if (!original?.engine || typeof original.preview !== "string") return result;
+  const structuredContent = { ...original };
+  delete structuredContent.preview;
+  return {
+    ...result,
+    structuredContent,
+    _meta: {
+      ...(result._meta as Record<string, unknown> | undefined),
+      "athena/takeoffView": { preview: original.preview },
+    },
+  };
+}
+
 const proto = McpServer.prototype as unknown as {
   [patched]?: boolean;
   registerTool: RegisterTool;
@@ -263,15 +280,17 @@ if (!proto[patched]) {
       if (
         TAKEOFF_CARD_TOOLS.has(name) &&
         (result.structuredContent as Record<string, unknown> | undefined)?.engine
-      )
+      ) {
+        const bounded = boundTakeoffResult(result);
         return {
-          ...result,
+          ...bounded,
           _meta: {
-            ...(result._meta ?? {}),
+            ...(bounded._meta ?? {}),
             ...takeoffCardMeta,
             "openai/outputTemplate": TAKEOFF_CARD_URI,
           },
         };
+      }
       if (!CARD_WIDGET_TOOLS.has(name)) return result;
       if (
         name === "living_report_get" &&

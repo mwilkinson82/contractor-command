@@ -101,16 +101,26 @@
         .slice(0, 2000) || "The operation was not confirmed. Reload before retrying."
     );
   }
+  function takeoffData(result) {
+    var data = result && result.structuredContent;
+    if (!data || !data.engine) return null;
+    var view = result._meta && result._meta["athena/takeoffView"];
+    return Object.assign(
+      {},
+      data,
+      view && typeof view.preview === "string" ? { preview: view.preview } : {},
+    );
+  }
   async function act(name, extra) {
     if (busy) return;
     busy = true;
     notice("Working…");
     try {
       var r = await call(name, args(extra));
-      if (!r || r.isError || !r.structuredContent || !r.structuredContent.engine)
-        throw Error(failureText(r));
+      var data = takeoffData(r);
+      if (!r || r.isError || !data) throw Error(failureText(r));
       localResult = true;
-      sc = r.structuredContent;
+      sc = data;
       if (sc.saved_calibration && sc.saved_calibration.id)
         selectedCalibration = sc.saved_calibration.id;
       draft = [];
@@ -1705,7 +1715,8 @@
       hostContext = Object.assign({}, hostContext, m.params || {});
       draw();
     } else if (m.method === "ui/notifications/tool-result") {
-      var incoming = m.params && m.params.structuredContent;
+      var incoming = takeoffData(m.params);
+      if (!incoming) return;
       var newer =
         incoming &&
         incoming.snapshot_at &&
