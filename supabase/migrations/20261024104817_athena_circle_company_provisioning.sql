@@ -61,7 +61,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public,pg_catalog AS $$
       AND s.stripe_subscription_id=p.stripe_subscription_id
       AND s.stripe_customer_id=p.stripe_customer_id
       AND (s.user_id=p.owner_user_id OR s.user_id IS NULL)
-      AND u.email_confirmed_at IS NOT NULL
+      AND (u.email_confirmed_at IS NOT NULL OR s.user_id=p.owner_user_id)
       AND s.tier IN ('circle','hardcore')
       AND (membership_private.subscription_state(s,now())='eligible'
         OR (p.override_until>now() AND s.status='active' AND EXISTS (
@@ -108,7 +108,10 @@ BEGIN
       OR (uid IS NULL AND em<>billing AND em<>lower(s.email)) THEN RETURN p.company_id; END IF;
     uid := _claim_user;
   END IF;
-  IF uid IS NOT NULL AND NOT EXISTS(SELECT 1 FROM auth.users WHERE id=uid AND email_confirmed_at IS NOT NULL)
+  -- A backend-bound subscription UUID can be provisioned before its next login;
+  -- this never confirms its email or authenticates it. Unclaimed-email claims still require verification above.
+  IF uid IS NOT NULL AND NOT EXISTS(SELECT 1 FROM auth.users WHERE id=uid
+    AND (email_confirmed_at IS NOT NULL OR id=s.user_id))
     THEN uid := NULL; END IF;
   cid := p.company_id;
   IF cid IS NULL THEN

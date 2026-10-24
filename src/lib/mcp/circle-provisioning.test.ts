@@ -284,6 +284,20 @@ describe("Circle companies from real guarded SQL", () => {
     );
     expect(await ensure(second)).toBe(cid);
   });
+  it("provisions an already backend-bound account without changing its confirmation or Hub sign-in", async () => {
+    const s = await source("boundunverified", unverified, "unverified@example.com");
+    const cid = await ensure(s);
+    expect(
+      await value(
+        "select owner_user_id as v from mcp_circle_provisioning where source_subscription_id=$1",
+        [s],
+      ),
+    ).toBe(unverified);
+    expect(
+      await value("select email_confirmed_at as v from auth.users where id=$1", [unverified]),
+    ).toBeNull();
+    expect(await value("select mcp_company_plan_live($1) as v", [cid])).toBe(true);
+  });
   it("enforces the sixth-person cap without sending invitations or emails", async () => {
     const owner = "00000000-0000-4000-8000-000000000110";
     await query("insert into auth.users values($1,'cap@example.com',now())", [owner]);
