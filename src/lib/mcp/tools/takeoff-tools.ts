@@ -359,7 +359,9 @@ export const takeoffGeometry = defineTool({
                 deadline,
               });
               extra.pass = progress;
-              if (progress.complete || Date.now() > deadline - 4000) break;
+              // Reserve time for a full next vision call rather than starting
+              // another tile near the deadline and interrupting an otherwise healthy read.
+              if (progress.complete || Date.now() > deadline - 9000) break;
               passId = String(progress.pass_id);
               cursor = Number(progress.next_cursor);
               current = await requiredSnapshot(sb, job);

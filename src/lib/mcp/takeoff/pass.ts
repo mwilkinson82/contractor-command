@@ -2,11 +2,11 @@ import { ToolError } from "@lovable.dev/mcp-js";
 import type { Sb } from "../guard";
 import type { Job } from "../jobs";
 import { distance, measure, type Bounds, type Point, type Shape } from "./geometry";
-import { renderTile, type Tile } from "./pdf";
+import { renderTile, renderPlanReference, type Tile } from "./pdf";
 import { engineRpc, loadStoredPage, type StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import { readVisionTile, verifyVisionAnswer, type VisionRead } from "./vision";
-import { markTargetTile, assertScopeBounds, scopedTarget } from "./scope";
+import { markTargetTile, assertScopeBounds, scopedTarget, referenceFootprint } from "./scope";
 
 /** Partition overlaps at their midpoints. Linear fragments are measured once,
  * even when both adjoining tiles identify the same run. */
@@ -315,12 +315,11 @@ export async function proposeTakeoffBatch(
     tile = page.inspection.tiles[order[cursor]];
   if (!tile) throw new ToolError("The pass has no next tile. Reload the sheet.");
   const raster = await renderTile(page.bytes, page.page - 1, tile);
-  const { renderPdfiumPage } = await import("../pdf-renderer");
-  const overview = await renderPdfiumPage(page.bytes, page.page - 1);
-  if (!overview)
-    throw new ToolError(
-      "The stored sheet's reference view could not be rendered. No drawing read was saved.",
-    );
+  const reference = await renderPlanReference(
+    page.bytes,
+    page.page - 1,
+    countArea?.bounds ?? cal!.bounds,
+  );
   const hints = page.inspection.objects.filter(
     (o) =>
       o.bounds.x < tile.bounds.x + tile.bounds.width &&
@@ -341,10 +340,11 @@ export async function proposeTakeoffBatch(
     item: line.item,
     measure_type: kind,
     png: scopedTarget(raster.rgba, tile, countArea?.bounds ?? cal!.bounds),
-    overview: markTargetTile(overview, tile.bounds),
+    overview: markTargetTile(reference.png, referenceFootprint(tile.bounds, reference.bounds)),
     frame: {
       sheet: page.sheet,
       tile_bounds: tile.bounds,
+      reference_bounds: reference.bounds,
       ...(countArea
         ? { region: { name: countArea.name, bounds: countArea.bounds } }
         : cal
@@ -456,7 +456,7 @@ export async function proposeTakeoffBatch(
       measurement: measure(page.space, shape, cal),
       crop_refs: shape.points.map((point) => ({ tile_index: tile.index, point, edge: 160 })),
       verification: "raster-ink-and-topology",
-      model: process.env.ATHENA_TAKEOFF_MODEL || "google/gemini-3-flash-preview",
+      model: answer.reader_model ?? process.env.ATHENA_TAKEOFF_MODEL ?? "google/gemini-3.8-flash",
       dpi: 200,
       locator_schema: "athena-image-1000-v1",
       source_hash: page.source.content_hash,
@@ -465,7 +465,8 @@ export async function proposeTakeoffBatch(
         sheet: page.sheet,
         page: page.page,
         tile_bounds: tile.bounds,
-        kind: "stored-sheet-overview",
+        reference_bounds: reference.bounds,
+        kind: "confirmed-plan-overview",
       },
     },
   }));

@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { jsPDF } from "jspdf";
 import { PDFDocument, degrees } from "pdf-lib";
-import { inspectSheet, renderTile, tileGrid, tilePoint, hasInk, scaleProposals } from "./pdf";
+import {
+  inspectSheet,
+  renderTile,
+  renderPlanReference,
+  tileGrid,
+  tilePoint,
+  hasInk,
+  scaleProposals,
+} from "./pdf";
+import { decode } from "fast-png";
 const fixture = () => {
   const doc = new jsPDF({ unit: "pt", format: [2592, 1728], orientation: "landscape" });
   doc.setFontSize(10);
@@ -13,6 +22,37 @@ const fixture = () => {
   return new Uint8Array(doc.output("arraybuffer"));
 };
 describe("takeoff PDF inspection and clipped native rendering", () => {
+  it("renders a legible bounded plan reference directly from the immutable PDF, excluding other views", async () => {
+    const bytes = fixture(),
+      original = bytes.slice();
+    const reference = await renderPlanReference(bytes, 0, {
+      x: 0.24,
+      y: 0.36,
+      width: 0.04,
+      height: 0.06,
+    });
+    const image = decode(reference.png);
+    expect(image.width).toBeLessThanOrEqual(1600);
+    expect(image.height).toBeLessThanOrEqual(1600);
+    expect(image.width).toBeGreaterThan(250);
+    const i = (Math.floor(image.height / 2) * image.width + Math.floor(image.width / 2)) * 4;
+    [30, 95, 237, 255].forEach((channel, index) =>
+      expect(Math.abs(image.data[i + index] - channel)).toBeLessThanOrEqual(2),
+    );
+    expect(bytes).toEqual(original);
+    expect(reference.bounds.x).toBeCloseTo(0.24, 3);
+    expect(reference.bounds.x).toBeLessThanOrEqual(0.24);
+    expect(reference.bounds.x + reference.bounds.width).toBeGreaterThanOrEqual(
+      0.28 - Number.EPSILON,
+    );
+    expect(reference.bounds.y).toBeLessThanOrEqual(0.36);
+    expect(reference.bounds.y + reference.bounds.height).toBeGreaterThanOrEqual(
+      0.42 - Number.EPSILON,
+    );
+    await expect(
+      renderPlanReference(bytes, 0, { x: 0.9, y: 0, width: 0.2, height: 1 }),
+    ).rejects.toThrow(/bounds/);
+  });
   it("covers a 36×24 page at 200dpi in bounded overlapping tiles", () => {
     const tiles = tileGrid(2592, 1728);
     expect(tiles).toHaveLength(48);

@@ -82,3 +82,18 @@ export function markTargetTile(png: Uint8Array, bounds: Bounds): Uint8Array {
         data.set([30, 95, 237, 255], (y * image.width + x) * 4);
   return encode({ width: image.width, height: image.height, data, channels: 4, depth: 8 });
 }
+
+export function referenceFootprint(target: Bounds, reference: Bounds): Bounds {
+  const left = Math.max(target.x, reference.x),
+    top = Math.max(target.y, reference.y);
+  const right = Math.min(target.x + target.width, reference.x + reference.width),
+    bottom = Math.min(target.y + target.height, reference.y + reference.height);
+  if (right <= left || bottom <= top)
+    throw new Error("The target tile does not overlap its confirmed plan reference.");
+  return {
+    x: (left - reference.x) / reference.width,
+    y: (top - reference.y) / reference.height,
+    width: (right - left) / reference.width,
+    height: (bottom - top) / reference.height,
+  };
+}
