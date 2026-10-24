@@ -127,7 +127,7 @@ export async function hostReviewContext(sb: Sb, jobId: string) {
   } catch {
     missing.push("Contract clause text could not be loaded.");
   }
-  if (!setup?.doc_review?.specs.length)
+  if (!setup?.doc_review?.specs?.length)
     missing.push("No saved specification review. Obtain and read the relevant specifications.");
   if (!clauses.length) missing.push("No saved contract clause text. Obtain and read the contract.");
   // Limit repetitive per-region context without presenting truncated source text as complete.

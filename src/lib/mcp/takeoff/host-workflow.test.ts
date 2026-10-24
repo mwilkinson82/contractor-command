@@ -92,6 +92,11 @@ describe("member-model estimating workflow", () => {
     expect(result.unresolved_context.join(" ")).toMatch(/specification/);
     expect(result.unresolved_context.join(" ")).toMatch(/contract/);
     expect(result.scope_complete).toBe(false);
+    const partial = await hostReviewContext(
+      client({ setup: { doc_review: { sheets: [] } } }).sb,
+      "job-private",
+    );
+    expect(partial.unresolved_context.join(" ")).toMatch(/No saved specification review/);
   });
   it("labels truncated clause text instead of passing it off as a complete clause", async () => {
     const { sb } = client({}, [{ section: "9", verbatim_text: "A".repeat(2500) }]);
