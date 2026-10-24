@@ -1085,6 +1085,9 @@ describe("fresh migration ordering", () => {
         ),
       );
       await fresh.exec(
+        readFileSync("supabase/migrations/20261024060229_athena_takeoff_atomic_pass.sql", "utf8"),
+      );
+      await fresh.exec(
         "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;",
       );
       await fresh.exec(
