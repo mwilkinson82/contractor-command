@@ -8,6 +8,7 @@ import "./widget-bridge";
 import { nativeCardResponse, nativeCardVisit } from "./native-card-transport";
 import {
   LEGACY_NATIVE_CARD_URI,
+  PREVIOUS_NATIVE_CARD_URI,
   NATIVE_CARD_MIME,
   NATIVE_CARD_URI,
   nativeCardHtml,
@@ -131,15 +132,13 @@ describe("first native card resource read", () => {
   it("keeps cached old conversations readable while advertising a new resource identity", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     expect(NATIVE_CARD_URI).not.toBe(LEGACY_NATIVE_CARD_URI);
-    const req = request(LEGACY_NATIVE_CARD_URI);
-    const res = await nativeCardResponse(
-      Response.json(missing, { status: 404 }),
-      await nativeCardVisit(req),
-    );
-    expect((await res.json()).result.contents[0]).toMatchObject({
-      uri: LEGACY_NATIVE_CARD_URI,
-      text: nativeCardHtml(),
-    });
+    for (const uri of [LEGACY_NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI]) {
+      const res = await nativeCardResponse(
+        Response.json(missing, { status: 404 }),
+        await nativeCardVisit(request(uri)),
+      );
+      expect((await res.json()).result.contents[0]).toMatchObject({ uri, text: nativeCardHtml() });
+    }
     const server = new McpServer({ name: "local-card-test", version: "test" });
     server.registerTool("contract_terms", { description: "Fictional read" }, async () => ({
       content: [],
@@ -147,7 +146,7 @@ describe("first native card resource read", () => {
     const resources = (server as unknown as { _registeredResources: Record<string, unknown> })
       ._registeredResources;
     expect(Object.keys(resources)).toEqual(
-      expect.arrayContaining([NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI, CARD_WIDGET_URI]),
+      expect.arrayContaining([NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI, CARD_WIDGET_URI]),
     );
   });
 
