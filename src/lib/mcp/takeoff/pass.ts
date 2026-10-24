@@ -215,6 +215,12 @@ export async function proposeTakeoffBatch(
     tile = page.inspection.tiles[order[cursor]];
   if (!tile) throw new ToolError("The pass has no next tile. Reload the sheet.");
   const raster = await renderTile(page.bytes, page.page - 1, tile);
+  const { renderPdfiumPage } = await import("../pdf-renderer");
+  const overview = await renderPdfiumPage(page.bytes, page.page - 1);
+  if (!overview)
+    throw new ToolError(
+      "The stored sheet's reference view could not be rendered. No drawing read was saved.",
+    );
   const hints = page.inspection.objects.filter(
     (o) =>
       o.bounds.x < tile.bounds.x + tile.bounds.width &&
@@ -236,6 +242,12 @@ export async function proposeTakeoffBatch(
     measure_type: kind,
     png: gridPng(raster.rgba, tile),
     original: raster.png,
+    overview,
+    frame: {
+      sheet: page.sheet,
+      tile_bounds: tile.bounds,
+      ...(cal ? { region: { name: cal.region, bounds: cal.bounds } } : {}),
+    },
     hints,
     legend,
     signal: input.deadline
@@ -329,6 +341,12 @@ export async function proposeTakeoffBatch(
       dpi: 200,
       grid_schema: "athena-grid-v1",
       source_hash: page.source.content_hash,
+      scope_reference: {
+        sheet: page.sheet,
+        page: page.page,
+        tile_bounds: tile.bounds,
+        kind: "stored-sheet-overview",
+      },
     },
   }));
   await engineRpc(sb, "mcp_takeoff_pass_save", {
