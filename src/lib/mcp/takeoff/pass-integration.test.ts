@@ -4,7 +4,7 @@ import type { Sb } from "../guard";
 import { sha256Hex } from "../file-share";
 import { renderPdfiumPage } from "../pdf-renderer";
 import { inspectSheet, sheetSpace } from "./pdf";
-import { proposeTakeoffBatch } from "./pass";
+import { proposeTakeoffBatch, saveCountArea } from "./pass";
 import type { StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import type { VisionAnswer, VisionRead } from "./vision";
@@ -69,7 +69,31 @@ async function fixture() {
     ],
     geometry: [],
     calibrations: [],
-    passes: [],
+    passes: [
+      {
+        id: "scope-checkpoint",
+        source_id: source.id,
+        page: 1,
+        created_at: "2026-10-24T00:00:00Z",
+        geometry_revs: [],
+        pass_summary: {
+          pass_id: "11111111-1111-4111-8111-111111111111",
+          line_no: 1,
+          takeoff_version: 1,
+          source_hash: hash,
+          calibration_id: null,
+          count_area: {
+            name: "Fictional plan",
+            bounds: { x: 0, y: 0, width: 1, height: 1 },
+            confirmed: true,
+          },
+          order: [0],
+          cursor: 0,
+          next_cursor: 0,
+          complete: false,
+        },
+      },
+    ],
   };
   const rpc = vi.fn(async () => ({ data: { ok: true }, error: null }));
   const sb = { rpc } as unknown as Sb;
@@ -83,6 +107,32 @@ async function fixture() {
 }
 
 describe("actual PDF tile to resumable proposal pipeline", () => {
+  it("requires a confirmed count area before any provider call and saves scope without quantity", async () => {
+    const f = await fixture();
+    f.state.passes = [];
+    const read = vi.fn();
+    await expect(
+      proposeTakeoffBatch(f.sb, f.job, f.page, f.state, { line_no: 1 }, read),
+    ).rejects.toThrow(/count area/);
+    expect(read).not.toHaveBeenCalled();
+    expect(f.rpc).not.toHaveBeenCalled();
+    const area = { name: "Fictional plan", bounds: { x: 0, y: 0, width: 0.5, height: 1 } };
+    await expect(saveCountArea(f.sb, f.job, f.page, f.state, 1, area, false)).rejects.toThrow(
+      /confirm/,
+    );
+    const summary = await saveCountArea(f.sb, f.job, f.page, f.state, 1, area, true);
+    expect(summary).toMatchObject({
+      cursor: 0,
+      next_cursor: 0,
+      complete: false,
+      count_area: { ...area, confirmed: true },
+    });
+    expect(f.rpc.mock.calls[0]).toMatchObject([
+      "mcp_takeoff_pass_save",
+      { _record: { proposals: [] } },
+    ]);
+    expect(f.state.lines[0].qty).toBe(999);
+  });
   it("sends same-sheet context and saves only source-verified geometry, not a typed quantity", async () => {
     const f = await fixture(),
       overview = await renderPdfiumPage(f.bytes, 0);
@@ -90,6 +140,7 @@ describe("actual PDF tile to resumable proposal pipeline", () => {
       expect(request.frame).toEqual({
         sheet: "E-100",
         tile_bounds: { x: 0, y: 0, width: 1, height: 1 },
+        region: { name: "Fictional plan", bounds: { x: 0, y: 0, width: 1, height: 1 } },
       });
       expect(request.overview).toEqual(
         markTargetTile(overview!, f.page.inspection.tiles[0].bounds),
@@ -109,6 +160,7 @@ describe("actual PDF tile to resumable proposal pipeline", () => {
     };
     const pass = await proposeTakeoffBatch(f.sb, f.job, f.page, f.state, { line_no: 1 }, read);
     expect(pass.complete).toBe(true);
+    expect(pass.pass_id).toBe(f.state.passes[0].pass_summary.pass_id);
     const [name, args] = f.rpc.mock.calls[0] as unknown as [
       string,
       {

@@ -914,8 +914,65 @@
       bounds.append(label);
     });
     edit.append(
-      node("h2", "Confirm scale reference"),
+      node("h2", "Plan or room area"),
       region,
+      node(
+        "p",
+        "Counts need a confirmed area, not a scale. Choose Rectangle and mark the two opposite corners, or enter page bounds below. Calibration uses the same bounds with a separate distance reference.",
+        "note small",
+      ),
+      button("Choose count area", function () {
+        mode = "rect";
+        draft = [];
+        holes = [];
+        selectedGeometry = null;
+        overlay();
+        showPreview();
+        notice(
+          "Mark two opposite corners around the entire plan or room to count, then confirm the count area.",
+        );
+      }),
+      button("Confirm count area", function () {
+        var areaBounds =
+          mode === "rect" && draft.length === 2
+            ? {
+                x: Math.min(draft[0].x, draft[1].x),
+                y: Math.min(draft[0].y, draft[1].y),
+                width: Math.abs(draft[1].x - draft[0].x),
+                height: Math.abs(draft[1].y - draft[0].y),
+              }
+            : {
+                x: Number(boundsInputs.x.value),
+                y: Number(boundsInputs.y.value),
+                width: Number(boundsInputs.width.value),
+                height: Number(boundsInputs.height.value),
+              };
+        var area = { name: region.value.trim(), bounds: areaBounds };
+        if (!area.name || !(areaBounds.width > 0) || !(areaBounds.height > 0))
+          return notice("Name the plan or room and choose its complete area.");
+        var whole =
+          areaBounds.x === 0 &&
+          areaBounds.y === 0 &&
+          areaBounds.width === 1 &&
+          areaBounds.height === 1;
+        confirmBox(
+          "Confirm count area: " +
+            area.name +
+            (whole
+              ? ". This is the WHOLE SHEET, including every plan and detail."
+              : ". Only this boundary will be read; everything outside is excluded.") +
+            " No quantity or scale is saved by this confirmation.",
+          function () {
+            act("takeoff_geometry", {
+              operation: "scope",
+              line_no: Number(lineSelect.value),
+              count_area: area,
+              confirm: true,
+            });
+          },
+        );
+      }),
+      node("h2", "Confirm scale reference"),
       distance,
       referenceUnit,
       bounds,
@@ -1231,10 +1288,17 @@
     right.append(node("h2", "Measurement review"), filter, list);
     showList();
     var passes = sc.engine.passes.filter(function (p) {
-      return p.source_id === sc.source.id && p.page === sc.source.page;
+      return (
+        p.source_id === sc.source.id &&
+        p.page === sc.source.page &&
+        (p.pass_summary.calibration_id ||
+          (p.pass_summary.count_area && p.pass_summary.count_area.confirmed))
+      );
     });
     if (passes.length) {
       var p = passes[0].pass_summary;
+      if (p.count_area)
+        right.append(node("p", "Confirmed count area: " + p.count_area.name, "note"));
       right.append(
         node(
           "p",
@@ -1273,6 +1337,26 @@
         reading = true;
         var line = Number(lineSelect.value),
           calibration = cal.value || undefined;
+        var currentLine = sc.engine.lines.find(function (l) {
+          return l.line_no === line;
+        });
+        var countLine = currentLine && /^(ea|each)$/i.test(currentLine.unit || "");
+        if (
+          countLine &&
+          !passes.some(function (p) {
+            return (
+              p.pass_summary.line_no === line &&
+              p.pass_summary.count_area &&
+              p.pass_summary.count_area.confirmed
+            );
+          })
+        ) {
+          reading = false;
+          notice(
+            "Confirm the complete plan or room count area before reading this line. Counts need no scale.",
+          );
+          return;
+        }
         try {
           for (var iteration = 0; iteration < 2000 && reading; iteration++) {
             var previous = sc.engine.passes.find(function (p) {
@@ -1280,6 +1364,8 @@
                 p.source_id === sc.source.id &&
                 p.page === sc.source.page &&
                 p.pass_summary.line_no === line &&
+                (!countLine ||
+                  (p.pass_summary.count_area && p.pass_summary.count_area.confirmed)) &&
                 !p.pass_summary.complete
               );
             });
@@ -1318,7 +1404,12 @@
         Number(g.evidence.confidence) >= 0.8 &&
         (!g.evidence.pass_id ||
           sc.engine.passes.some(function (p) {
-            return p.pass_summary.pass_id === g.evidence.pass_id && p.pass_summary.complete;
+            return (
+              p.pass_summary.pass_id === g.evidence.pass_id &&
+              p.pass_summary.complete &&
+              (g.shape.kind !== "pins" ||
+                (p.pass_summary.count_area && p.pass_summary.count_area.confirmed))
+            );
           }))
       );
     });

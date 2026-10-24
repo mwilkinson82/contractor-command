@@ -383,6 +383,34 @@ describe("takeoff actual database functions", () => {
     expect(reopened.status).toBe("rejected");
     expect(reopened.shape.kind).toBe("not_drawable");
   });
+  it("persists a zero-progress confirmed count scope without creating geometry or quantity", async () => {
+    const pid = crypto.randomUUID(),
+      before = await rpc("mcp_takeoff_get", [job]);
+    const summary = {
+      pass_id: pid,
+      line_no: 1,
+      takeoff_version: 1,
+      order: [0, 1],
+      cursor: 0,
+      next_cursor: 0,
+      complete: false,
+      count_area: {
+        name: "Fictional plan",
+        bounds: { x: 0, y: 0, width: 0.5, height: 1 },
+        confirmed: true,
+      },
+    };
+    await rpc("mcp_takeoff_pass_save", [
+      job,
+      JSON.stringify({ source_id: source, page: 1, pass_summary: summary, proposals: [] }),
+    ]);
+    const after = await rpc("mcp_takeoff_get", [job]);
+    expect(after.geometry).toEqual(before.geometry);
+    expect(after.lines).toEqual(before.lines);
+    expect(
+      after.passes.find((p: any) => p.pass_summary.pass_id === pid).pass_summary,
+    ).toMatchObject(summary);
+  });
   it("commits tile geometry with its checkpoint, blocks partial acceptance and makes retries idempotent", async () => {
     const pid = crypto.randomUUID();
     const summary = {

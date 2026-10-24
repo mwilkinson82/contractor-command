@@ -13,7 +13,8 @@ import {
   saveGeometry,
   viewEngine,
 } from "../takeoff/service";
-import { proposeTakeoffBatch } from "../takeoff/pass";
+import { proposeTakeoffBatch, saveCountArea } from "../takeoff/pass";
+import { assertReadComplete } from "../takeoff/scope";
 import { reviseGeometry } from "../takeoff/revision";
 import { automaticCalibration } from "../takeoff/calibration";
 import { readPointCrop } from "../takeoff/verify";
@@ -136,7 +137,7 @@ export const takeoffGeometry = defineTool({
   name: "takeoff_geometry",
   title: "Measure and review a drawing takeoff",
   description:
-    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Propose runs Athena's own bounded, resumable drawing read; it never accepts its own output. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose runs Athena's own bounded, resumable drawing read; it never accepts its own output. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
   inputSchema: {
     ...scope,
     operation: z
@@ -145,6 +146,7 @@ export const takeoffGeometry = defineTool({
         "history",
         "download",
         "save",
+        "scope",
         "propose",
         "accept",
         "accept_all",
@@ -159,6 +161,17 @@ export const takeoffGeometry = defineTool({
     include_rejected: z.boolean().optional(),
     line_no: z.number().int().min(1).max(9999).optional(),
     shape: takeoffShape.optional(),
+    count_area: z
+      .object({
+        name: z.string().trim().min(1).max(100),
+        bounds: z.object({
+          x: z.number().min(0).max(1),
+          y: z.number().min(0).max(1),
+          width: z.number().positive().max(1),
+          height: z.number().positive().max(1),
+        }),
+      })
+      .optional(),
     calibration_id: z.string().uuid().optional(),
     geometry_id: z.string().uuid().optional(),
     expected_version: z.number().int().min(0).optional(),
@@ -234,7 +247,7 @@ export const takeoffGeometry = defineTool({
         }
         const page = sheet ? await loadStoredPage(sb, job, sheet, source) : undefined;
         if (
-          ["save", "propose", "tile", "crop", "revise", "export", "accept_all"].includes(
+          ["scope", "save", "propose", "tile", "crop", "revise", "export", "accept_all"].includes(
             operation,
           ) &&
           !page
@@ -252,11 +265,37 @@ export const takeoffGeometry = defineTool({
             _geometry: args.geometry_id ?? null,
             _line: args.line_no ?? null,
           });
+        } else if (operation === "scope") {
+          if (!args.line_no || !args.count_area)
+            throw new ToolError(
+              "Choose the count line and name its plan or room area. Counts need no scale.",
+            );
+          extra.pass = await saveCountArea(
+            sb,
+            job,
+            page!,
+            state,
+            args.line_no,
+            args.count_area,
+            args.confirm === true,
+          );
         } else if (operation === "accept_all") {
           if (args.confirm !== true || !args.decisions)
             throw new ToolError(
               "Confirm the exact displayed list of verified proposals before accepting the sheet.",
             );
+          for (const decision of args.decisions) {
+            const row = state.geometry.find(
+              (g) =>
+                g.geometry_id === decision.geometry_id &&
+                g.version === decision.expected_version &&
+                g.source_id === page!.source.id &&
+                g.page === page!.page,
+            );
+            if (!row)
+              throw new ToolError("The geometry changed. Reload the proposals before accepting.");
+            assertReadComplete(state, row);
+          }
           extra.accepted = await engineRpc(sb, "mcp_takeoff_accept_batch", {
             _job: job.job_id,
             _source: page!.source.id,

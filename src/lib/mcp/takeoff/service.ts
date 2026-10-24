@@ -417,6 +417,10 @@ export async function decideGeometry(
     (g) => g.geometry_id === input.geometry_id && g.version === input.expected_version,
   );
   if (!row) throw new ToolError("The geometry changed. Reload the proposal before deciding.");
+  if (operation === "accept") {
+    const { assertReadComplete } = await import("./scope");
+    assertReadComplete(state, row);
+  }
   if (operation === "reject" && !input.reason?.trim())
     throw new ToolError("Record why this geometry is being rejected.");
   const line = state.lines.find((l) => l.id === row.line_id)!;
