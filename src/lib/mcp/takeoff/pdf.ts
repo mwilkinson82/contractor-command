@@ -1,4 +1,5 @@
 import { encode } from "fast-png";
+import { assertScopeBounds } from "./scope";
 
 import type { Bounds, Point, SheetSpace } from "./geometry";
 
@@ -236,41 +237,83 @@ export async function renderTile(
     const expected = tileGrid(originalWidth, originalHeight)[tile.index];
     if (!expected || JSON.stringify(expected) !== JSON.stringify(tile))
       throw new Error("The requested tile does not belong to this stored page.");
-    const { module: m, pageIdx } = page as unknown as NativePage;
-    const bitmap = m._FPDFBitmap_CreateEx(tile.width, tile.height, 4, 0, 0);
-    if (!bitmap) throw new Error("The drawing tile could not be allocated.");
-    try {
-      m._FPDFBitmap_FillRect(bitmap, 0, 0, tile.width, tile.height, 0xffffffff);
-      m._FPDF_RenderPageBitmap(
-        bitmap,
-        pageIdx,
-        -tile.x,
-        -tile.y,
-        tile.pageWidth,
-        tile.pageHeight,
-        0,
-        1,
-      );
-      const ptr = m._FPDFBitmap_GetBuffer(bitmap),
-        stride = m._FPDFBitmap_GetStride(bitmap);
-      const rgba = new Uint8Array(tile.width * tile.height * 4);
-      for (let y = 0; y < tile.height; y++)
-        for (let x = 0; x < tile.width; x++) {
-          const src = ptr + y * stride + x * 4,
-            dst = (y * tile.width + x) * 4;
-          rgba[dst] = m.HEAPU8[src + 2];
-          rgba[dst + 1] = m.HEAPU8[src + 1];
-          rgba[dst + 2] = m.HEAPU8[src];
-          rgba[dst + 3] = 255;
-        }
-      return {
-        tile,
-        rgba,
-        png: encode({ width: tile.width, height: tile.height, data: rgba, channels: 4, depth: 8 }),
-      };
-    } finally {
-      m._FPDFBitmap_Destroy(bitmap);
-    }
+    return { tile, ...rasterFrame(page as unknown as NativePage, tile) };
+  });
+}
+
+function rasterFrame(
+  page: NativePage,
+  tile: Pick<Tile, "x" | "y" | "width" | "height" | "pageWidth" | "pageHeight">,
+) {
+  const { module: m, pageIdx } = page;
+  const bitmap = m._FPDFBitmap_CreateEx(tile.width, tile.height, 4, 0, 0);
+  if (!bitmap) throw new Error("The drawing tile could not be allocated.");
+  try {
+    m._FPDFBitmap_FillRect(bitmap, 0, 0, tile.width, tile.height, 0xffffffff);
+    m._FPDF_RenderPageBitmap(
+      bitmap,
+      pageIdx,
+      -tile.x,
+      -tile.y,
+      tile.pageWidth,
+      tile.pageHeight,
+      0,
+      1,
+    );
+    const ptr = m._FPDFBitmap_GetBuffer(bitmap),
+      stride = m._FPDFBitmap_GetStride(bitmap);
+    const rgba = new Uint8Array(tile.width * tile.height * 4);
+    for (let y = 0; y < tile.height; y++)
+      for (let x = 0; x < tile.width; x++) {
+        const src = ptr + y * stride + x * 4,
+          dst = (y * tile.width + x) * 4;
+        rgba[dst] = m.HEAPU8[src + 2];
+        rgba[dst + 1] = m.HEAPU8[src + 1];
+        rgba[dst + 2] = m.HEAPU8[src];
+        rgba[dst + 3] = 255;
+      }
+    return {
+      rgba,
+      png: encode({ width: tile.width, height: tile.height, data: rgba, channels: 4, depth: 8 }),
+    };
+  } finally {
+    m._FPDFBitmap_Destroy(bitmap);
+  }
+}
+
+/** A legible reference of the confirmed plan, never the locator's coordinate image. */
+export async function renderPlanReference(bytes: Uint8Array, pageIndex: number, bounds: Bounds) {
+  assertScopeBounds(bounds);
+  const { withPdfiumPage } = await import("../pdf-renderer");
+  return withPdfiumPage(bytes, pageIndex, (page) => {
+    const { originalWidth, originalHeight } = page.getOriginalSize();
+    const scale = Math.min(
+      TAKEOFF_DPI / 72,
+      1598 / Math.max(originalWidth * bounds.width, originalHeight * bounds.height),
+    );
+    const pageWidth = Math.ceil(originalWidth * scale),
+      pageHeight = Math.ceil(originalHeight * scale);
+    // Round outward so a subpixel boundary cannot drop a coverage tile.
+    const x = Math.min(pageWidth - 1, Math.floor(bounds.x * pageWidth)),
+      y = Math.min(pageHeight - 1, Math.floor(bounds.y * pageHeight));
+    const width = Math.max(
+      1,
+      Math.min(1600, pageWidth - x, Math.ceil((bounds.x + bounds.width) * pageWidth) - x),
+    );
+    const height = Math.max(
+      1,
+      Math.min(1600, pageHeight - y, Math.ceil((bounds.y + bounds.height) * pageHeight) - y),
+    );
+    const frame = { x, y, width, height, pageWidth, pageHeight };
+    return {
+      png: rasterFrame(page as unknown as NativePage, frame).png,
+      bounds: {
+        x: x / pageWidth,
+        y: y / pageHeight,
+        width: width / pageWidth,
+        height: height / pageHeight,
+      },
+    };
   });
 }
 

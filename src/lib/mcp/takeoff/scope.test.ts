@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decode, encode } from "fast-png";
-import { markTargetTile, scopedTarget, assertReadComplete } from "./scope";
+import { markTargetTile, scopedTarget, assertReadComplete, referenceFootprint } from "./scope";
 import { tileGrid } from "./pdf";
 import type { EngineSnapshot, GeometryRevision } from "./state";
 const png = encode({
@@ -11,6 +11,20 @@ const png = encode({
   depth: 8,
 });
 describe("same-sheet tile footprint", () => {
+  it("maps a partly overlapping tile onto a cropped plan reference without moving drawing geometry", () => {
+    expect(
+      referenceFootprint(
+        { x: 0.1, y: 0.1, width: 0.3, height: 0.3 },
+        { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
+      ),
+    ).toEqual({ x: 0, y: 0, width: 0.5, height: 0.5 });
+    expect(() =>
+      referenceFootprint(
+        { x: 0, y: 0, width: 0.1, height: 0.1 },
+        { x: 0.5, y: 0.5, width: 0.2, height: 0.2 },
+      ),
+    ).toThrow(/overlap/);
+  });
   it("masks excluded areas on a separate target copy, preserving source pixels", () => {
     const tile = tileGrid(36, 36)[0],
       rgba = new Uint8Array(tile.width * tile.height * 4).fill(0);

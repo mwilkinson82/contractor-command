@@ -69,7 +69,12 @@ try {
     delete data.png;
     data.page = page + 1;
     proof.push(data);
-    if (Math.abs(data.referenceLength - 100) > 0.000001 || data.tile.rawBytes > 4194304)
+    if (
+      Math.abs(data.referenceLength - 100) > 0.000001 ||
+      data.tile.rawBytes > 4194304 ||
+      data.planReference.width > 1600 ||
+      data.planReference.height > 1600
+    )
       throw Error("Worker measurement or bitmap bound failed");
   }
   const result = {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { PDFDocument, rgb } from "pdf-lib";
 import type { Sb } from "../guard";
 import { sha256Hex } from "../file-share";
-import { renderPdfiumPage } from "../pdf-renderer";
+import { renderPlanReference } from "./pdf";
 import { inspectSheet, sheetSpace } from "./pdf";
 import { proposeTakeoffBatch, saveCountArea } from "./pass";
 import type { StoredPage } from "./service";
@@ -135,15 +135,16 @@ describe("actual PDF tile to resumable proposal pipeline", () => {
   });
   it("sends same-sheet context and saves only source-verified geometry, not a typed quantity", async () => {
     const f = await fixture(),
-      overview = await renderPdfiumPage(f.bytes, 0);
+      overview = await renderPlanReference(f.bytes, 0, { x: 0, y: 0, width: 1, height: 1 });
     const read: VisionRead = async (request) => {
       expect(request.frame).toEqual({
         sheet: "E-100",
         tile_bounds: { x: 0, y: 0, width: 1, height: 1 },
+        reference_bounds: { x: 0, y: 0, width: 1, height: 1 },
         region: { name: "Fictional plan", bounds: { x: 0, y: 0, width: 1, height: 1 } },
       });
       expect(request.overview).toEqual(
-        markTargetTile(overview!, f.page.inspection.tiles[0].bounds),
+        markTargetTile(overview.png, f.page.inspection.tiles[0].bounds),
       );
       expect(request.png).not.toEqual(request.overview);
       return {
@@ -180,7 +181,7 @@ describe("actual PDF tile to resumable proposal pipeline", () => {
     });
     expect(args._record.proposals[0].evidence.measurement).toMatchObject({ value: 1 });
     expect(args._record.proposals[0].evidence.scope_reference).toMatchObject({
-      kind: "stored-sheet-overview",
+      kind: "confirmed-plan-overview",
       sheet: "E-100",
       page: 1,
     });

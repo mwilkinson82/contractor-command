@@ -1,4 +1,4 @@
-import { inspectSheet, renderTile } from "../../src/lib/mcp/takeoff/pdf";
+import { inspectSheet, renderTile, renderPlanReference } from "../../src/lib/mcp/takeoff/pdf";
 import { measure, calibrate } from "../../src/lib/mcp/takeoff/geometry";
 import { bytesToBase64 } from "../../src/lib/mcp/estimating-sheet";
 export default {
@@ -8,7 +8,9 @@ export default {
         page = Number(new URL(request.url).searchParams.get("page") ?? 0),
         start = Date.now(),
         inspection = await inspectSheet(bytes, page),
-        tile = await renderTile(bytes, page, inspection.tiles[0]);
+        tile = await renderTile(bytes, page, inspection.tiles[0]),
+        plan = await renderPlanReference(bytes, page, { x: 0.2, y: 0.2, width: 0.4, height: 0.4 });
+      const header = new DataView(plan.png.buffer, plan.png.byteOffset, plan.png.byteLength);
       const space = {
         source_id: "fixture",
         source_hash: "a".repeat(64),
@@ -40,6 +42,11 @@ export default {
         objects: inspection.objects.length,
         truncated: inspection.truncated,
         tile: { width: tile.tile.width, height: tile.tile.height, rawBytes: tile.rgba.length },
+        planReference: {
+          width: header.getUint32(16),
+          height: header.getUint32(20),
+          bounds: plan.bounds,
+        },
         referenceLength: measure(
           space,
           {
