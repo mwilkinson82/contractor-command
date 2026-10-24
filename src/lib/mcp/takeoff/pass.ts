@@ -6,7 +6,7 @@ import { renderTile, type Tile } from "./pdf";
 import { engineRpc, loadStoredPage, type StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import { readVisionTile, verifyVisionAnswer, type VisionRead } from "./vision";
-import { markTargetTile } from "./scope";
+import { markTargetTile, assertScopeBounds, scopedTarget } from "./scope";
 
 /** Partition overlaps at their midpoints. Linear fragments are measured once,
  * even when both adjoining tiles identify the same run. */
@@ -147,6 +147,77 @@ export function candidateOrder(page: StoredPage, item: string, region?: Bounds):
     .sort((a, b) => score(b) - score(a) || a.index - b.index)
     .map((t) => t.index);
 }
+export type CountArea = { name: string; bounds: Bounds; confirmed: true };
+export function confirmedCountArea(summary?: Record<string, unknown>): CountArea | undefined {
+  const area = summary?.count_area as CountArea | undefined;
+  if (
+    !area ||
+    area.confirmed !== true ||
+    typeof area.name !== "string" ||
+    !area.name.trim() ||
+    area.name.length > 100 ||
+    !area.bounds
+  )
+    return undefined;
+  assertScopeBounds(area.bounds);
+  return area;
+}
+export async function saveCountArea(
+  sb: Sb,
+  job: Job,
+  page: StoredPage,
+  state: EngineSnapshot,
+  lineNo: number,
+  area: { name: string; bounds: Bounds },
+  confirmed: boolean,
+) {
+  const line = state.lines.find((l) => l.line_no === lineNo);
+  if (!line || !/^(ea|each)$/i.test(line.unit ?? ""))
+    throw new ToolError("Choose a count line for this plan or room area.");
+  if (!confirmed || !area.name.trim() || area.name.trim().length > 100)
+    throw new ToolError(
+      "Name and confirm the count area before Athena reads it. No scale or quantity is needed.",
+    );
+  assertScopeBounds(area.bounds);
+  if (
+    state.geometry.some(
+      (g) =>
+        g.line_id === line.id &&
+        g.source_id === page.source.id &&
+        g.page === page.page &&
+        g.status !== "rejected",
+    )
+  )
+    throw new ToolError(
+      "Review or reject this line's existing geometry before starting a new count area.",
+    );
+  const order = candidateOrder(page, line.item, area.bounds);
+  if (!order.length) throw new ToolError("Choose a count area on the stored sheet.");
+  const summary = {
+    pass_id: crypto.randomUUID(),
+    line_no: lineNo,
+    takeoff_version: state.takeoff_version,
+    calibration_id: null,
+    source_hash: page.source.content_hash,
+    count_area: { name: area.name.trim(), bounds: area.bounds, confirmed: true },
+    coverage_scope: { kind: "count-area", name: area.name.trim(), bounds: area.bounds },
+    order,
+    cursor: 0,
+    next_cursor: 0,
+    complete: false,
+    tiles_read: 0,
+    tiles_total: order.length,
+    verification_rejections: 0,
+    uncertainties: [
+      `Count area confirmed: ${area.name.trim()}. No quantity is established until the drawing is read and its geometry accepted.`,
+    ],
+  };
+  await engineRpc(sb, "mcp_takeoff_pass_save", {
+    _job: job.job_id,
+    _record: { source_id: page.source.id, page: page.page, pass_summary: summary, proposals: [] },
+  });
+  return summary;
+}
 export async function proposeTakeoffBatch(
   sb: Sb,
   job: Job,
@@ -178,9 +249,13 @@ export async function proposeTakeoffBatch(
     throw new ToolError(
       "Automatic location supports EA, LF, SF and CY lines. Record other work with an explicit non-drawable basis.",
     );
-  const cal = state.calibrations.find(
-    (c) => c.id === input.calibration_id && c.source_id === page.source.id && c.page === page.page,
-  );
+  const cal =
+    kind === "count"
+      ? undefined
+      : state.calibrations.find(
+          (c) =>
+            c.id === input.calibration_id && c.source_id === page.source.id && c.page === page.page,
+        );
   if (kind !== "count" && !cal?.confirmed)
     throw new ToolError("Confirm this plan or detail calibration before Athena measures it.");
   if (kind === "volume" && !input.depth && !input.pass_id)
@@ -189,10 +264,24 @@ export async function proposeTakeoffBatch(
     );
   const prior = input.pass_id
     ? state.passes.find((p) => p.pass_summary.pass_id === input.pass_id)
-    : undefined;
+    : kind === "count"
+      ? state.passes.find(
+          (p) =>
+            p.source_id === page.source.id &&
+            p.page === page.page &&
+            p.pass_summary.line_no === line.line_no &&
+            p.pass_summary.takeoff_version === state.takeoff_version &&
+            confirmedCountArea(p.pass_summary),
+        )
+      : undefined;
   if (input.pass_id && !prior)
     throw new ToolError("The pass checkpoint is no longer in this view. Reload before continuing.");
   const summary = prior?.pass_summary;
+  const countArea = kind === "count" ? confirmedCountArea(summary) : undefined;
+  if (kind === "count" && !countArea)
+    throw new ToolError(
+      "Confirm the plan or room count area in the drawing workspace before Athena reads this line. Counts need no scale; an area confirmation saves no quantity.",
+    );
   if (
     prior &&
     (prior.source_id !== page.source.id ||
@@ -219,10 +308,10 @@ export async function proposeTakeoffBatch(
   const cursor = Number(summary?.next_cursor ?? 0);
   if (input.cursor != null && input.cursor !== cursor)
     throw new ToolError("Reload the current pass checkpoint before continuing.");
-  const passId = input.pass_id ?? crypto.randomUUID(),
+  const passId = input.pass_id ?? (summary?.pass_id as string | undefined) ?? crypto.randomUUID(),
     order =
       (summary?.order as number[] | undefined) ??
-      candidateOrder(page, line.item, kind === "count" ? undefined : cal?.bounds),
+      candidateOrder(page, line.item, countArea?.bounds ?? cal?.bounds),
     tile = page.inspection.tiles[order[cursor]];
   if (!tile) throw new ToolError("The pass has no next tile. Reload the sheet.");
   const raster = await renderTile(page.bytes, page.page - 1, tile);
@@ -251,12 +340,16 @@ export async function proposeTakeoffBatch(
   const answer = await read({
     item: line.item,
     measure_type: kind,
-    png: raster.png,
+    png: scopedTarget(raster.rgba, tile, countArea?.bounds ?? cal!.bounds),
     overview: markTargetTile(overview, tile.bounds),
     frame: {
       sheet: page.sheet,
       tile_bounds: tile.bounds,
-      ...(cal ? { region: { name: cal.region, bounds: cal.bounds } } : {}),
+      ...(countArea
+        ? { region: { name: countArea.name, bounds: countArea.bounds } }
+        : cal
+          ? { region: { name: cal.region, bounds: cal.bounds } }
+          : {}),
     },
     hints,
     legend,
@@ -271,6 +364,7 @@ export async function proposeTakeoffBatch(
     space: page.space,
     calibration: cal,
     measure_type: kind,
+    count_area: countArea?.bounds,
     depth: input.depth ?? (summary?.depth as Shape["depth"]),
   });
   const proposals = checked.accepted
@@ -306,18 +400,24 @@ export async function proposeTakeoffBatch(
   const unique = proposals.filter(
     (p, i, all) => all.findIndex((q) => JSON.stringify(q.shape) === JSON.stringify(p.shape)) === i,
   );
-  const scopeNotice =
-    kind !== "count" && cal
-      ? `Measurement scope: only the confirmed ${cal.region} region is measured; other sheet areas are excluded.`
-      : undefined;
+  const regionName = countArea?.name ?? cal?.region;
+  const regionBounds = countArea?.bounds ?? cal?.bounds;
+  const scopeNotice = regionName
+    ? `Measurement scope: only the confirmed ${regionName} region is measured; other sheet areas are excluded.`
+    : undefined;
   const next = {
     pass_id: passId,
     line_no: line.line_no,
     takeoff_version: state.takeoff_version,
     calibration_id: cal?.id ?? null,
+    ...(countArea ? { count_area: countArea } : {}),
     coverage_scope:
-      kind !== "count" && cal
-        ? { kind: "calibrated-region", name: cal.region, bounds: cal.bounds }
+      regionName && regionBounds
+        ? {
+            kind: countArea ? "count-area" : "calibrated-region",
+            name: regionName,
+            bounds: regionBounds,
+          }
         : { kind: "sheet" },
     source_hash: page.source.content_hash,
     legend: legendRef ?? null,
@@ -360,6 +460,7 @@ export async function proposeTakeoffBatch(
       dpi: 200,
       locator_schema: "athena-image-1000-v1",
       source_hash: page.source.content_hash,
+      ...(countArea ? { count_area: countArea } : {}),
       scope_reference: {
         sheet: page.sheet,
         page: page.page,

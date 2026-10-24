@@ -49,6 +49,22 @@ const answer = (
 const check = (a: VisionAnswer, rgba: Uint8Array, kind = "count") =>
   verifyVisionAnswer({ answer: a, rgba, tile, space, calibration: cal, measure_type: kind });
 describe("independent proposal checks", () => {
+  it("retains a valid pin and rejects an ink-backed pin outside the confirmed room in the same finding", () => {
+    const rgba = image();
+    ink(rgba, 200, 200);
+    ink(rgba, 800, 200);
+    const result = verifyVisionAnswer({
+      answer: answer("pins", [p(200, 200), p(800, 200)]),
+      rgba,
+      tile,
+      space,
+      measure_type: "count",
+      count_area: { x: 0, y: 0, width: 0.5, height: 1 },
+    });
+    expect(result.accepted).toHaveLength(1);
+    expect(result.accepted[0].shape.points).toEqual([{ x: 0.2, y: 0.2 }]);
+    expect(result.rejected).toEqual(["Candidate is outside the confirmed count area."]);
+  });
   it("rejects a confident hallucination on a blank sheet", () => {
     expect(check(answer("pins", [p(200, 200)]), image()).accepted).toHaveLength(0);
   });
@@ -63,7 +79,7 @@ describe("independent proposal checks", () => {
     ink(rgba, 200, 200);
     ink(rgba, 400, 200);
     const r = check(answer("pins", [p(200, 200), p(400, 200)]), rgba);
-    expect(r.accepted[0].shape.points).toEqual([
+    expect(r.accepted.flatMap((f) => f.shape.points)).toEqual([
       { x: 0.2, y: 0.2 },
       { x: 0.4, y: 0.2 },
     ]);
