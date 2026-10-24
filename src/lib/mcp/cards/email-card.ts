@@ -2,7 +2,19 @@
  *  Send records the approval with Athena (email_draft → email_confirm_send, or submittal_delivery
  *  draft → approve) through the host's tools/call bridge, then posts the approved text to the chat so the
  *  member's connected email account sends it. Athena never sends mail from the card. */
-import { BLUE, GRAY, NAVY, WHITE } from "./palette";
+import { WHITE } from "./palette";
+
+/** The email card's own scheme: warm paper, charcoal ink, one teal accent. Every other card keeps the
+ *  navy/blue palette; this is the one deliberate exception, so a draft reads as a letter, not a dashboard tile. */
+export const EMAIL_CARD_PALETTE = Object.freeze({
+  paper: "#FAFAF7",
+  ink: "#1C1917",
+  stone: "#78716C",
+  line: "#E7E5E4",
+  teal: "#0F766E",
+  muted: "#A8A29E",
+  white: WHITE,
+});
 
 export const EMAIL_CARD_URI = "ui://athena/email-card.html";
 export const EMAIL_CARD_MIME = "text/html;profile=mcp-app";
@@ -81,27 +93,27 @@ send({id:1,method:"ui/initialize",params:{protocolVersion:"2026-01-26",appInfo:{
 })();`;
 
 export function emailCardHtml(): string {
+  const { paper, ink, stone, line, teal, muted, white } = EMAIL_CARD_PALETTE;
   const css = [
-    `body{margin:0;background:${WHITE};color:${NAVY};font:15px/1.45 system-ui,sans-serif}`,
-    `#app{min-width:0}#app>p{margin:12px;padding:12px;border-left:4px solid ${BLUE};color:${GRAY}}`,
-    `.card{border-top:4px solid ${BLUE}}`,
-    `header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:${NAVY};color:${WHITE};padding:14px 18px}`,
-    `.mark{margin:0;width:100%;font-size:12px;letter-spacing:.08em;text-transform:uppercase}`,
-    `h1{margin:0;font-size:20px;flex:1}`,
-    `.pill{padding:3px 10px;border-radius:999px;border:1px solid ${WHITE};font-size:12px;font-weight:700}`,
-    `.pill.done{background:${BLUE};border-color:${BLUE}}`,
-    `.body{padding:14px 18px}`,
+    `body{margin:0;background:${paper};color:${ink};font:15px/1.45 system-ui,sans-serif}`,
+    `#app{min-width:0}#app>p{margin:12px;padding:12px;border-left:4px solid ${teal};color:${stone}}`,
+    `header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:${paper};color:${ink};padding:18px 22px 10px}`,
+    `.mark{margin:0;width:100%;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${stone}}`,
+    `h1{margin:0;font-size:22px;flex:1}`,
+    `.pill{padding:3px 10px;border-radius:999px;border:1px solid ${muted};color:${stone};font-size:12px;font-weight:700}`,
+    `.pill.done{background:${teal};border-color:${teal};color:${white}}`,
+    `.body{padding:12px 22px 20px}`,
     `.row{display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:start;margin:0 0 10px}`,
-    `label{padding-top:8px;color:${GRAY};font-size:13px}`,
-    `input,textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid ${GRAY};border-radius:8px;font:inherit;color:${NAVY};background:${WHITE}}`,
-    `input:focus,textarea:focus{outline:2px solid ${BLUE};outline-offset:0;border-color:${BLUE}}`,
+    `label{padding-top:8px;color:${stone};font-size:13px}`,
+    `input,textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid ${line};border-radius:10px;font:inherit;color:${ink};background:${white}}`,
+    `input:focus,textarea:focus{outline:2px solid ${teal};outline-offset:0;border-color:${teal}}`,
     `textarea{min-height:160px;resize:vertical;line-height:1.5}`,
-    `.extra{margin:0 0 12px 80px}.chip{display:inline-block;padding:4px 10px;border:1px solid ${GRAY};border-radius:999px;font-size:13px}.link{margin:6px 0 0;font-size:13px;color:${GRAY};overflow-wrap:anywhere}a{color:${BLUE}}`,
+    `.extra{margin:0 0 12px 80px}.chip{display:inline-block;padding:4px 10px;border:1px solid ${line};border-radius:999px;font-size:13px}.link{margin:6px 0 0;font-size:13px;color:${stone};overflow-wrap:anywhere}a{color:${teal}}`,
     `.actions{display:flex;gap:10px;align-items:center;margin:0 0 0 80px}`,
     `button{font:inherit;border-radius:8px;padding:9px 16px;cursor:pointer}`,
-    `.primary{background:${BLUE};color:${WHITE};border:1px solid ${BLUE};font-weight:700}.primary:disabled{background:${GRAY};border-color:${GRAY};cursor:default}`,
-    `.quiet{background:${WHITE};color:${NAVY};border:1px solid ${GRAY}}[hidden]{display:none}`,
-    `.note{margin:10px 0 0 80px;color:${GRAY};font-size:13px}`,
+    `.primary{background:${teal};color:${white};border:1px solid ${teal};font-weight:700}.primary:disabled{background:${muted};border-color:${muted};cursor:default}`,
+    `.quiet{background:${white};color:${ink};border:1px solid ${line}}[hidden]{display:none}`,
+    `.note{margin:10px 0 0 80px;color:${stone};font-size:13px}`,
     `@media (max-width:520px){.row{grid-template-columns:1fr}label{padding-top:0}.extra,.actions,.note{margin-left:0}}`,
   ].join("");
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><main id="app" aria-live="polite"><p>Athena · Loading your email…</p></main><script>${SCRIPT}</script></body></html>`;
