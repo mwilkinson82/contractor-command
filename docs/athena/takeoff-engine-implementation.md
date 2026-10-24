@@ -136,6 +136,16 @@ gateway. No edits to the live 2701/CCW estimates, no email, public share, new
 connector, auth/Hub changes, or original-file changes. Posting a user update
 email is outside this release and needs its own exact content approval.
 
+# Image-coordinate reader after live #250
+
+The next live reply was refused for its vertical coordinate field. The reader now uses numeric x/y locations normalized to 0–1000 on the clean target tile, avoiding the grid-cell offset arithmetic that repeatedly failed. This follows the image-coordinate scale described in Google's image-understanding documentation (https://ai.google.dev/gemini-api/docs/image-understanding#object-detection); point extraction remains Athena's application contract, not a claim of native provider-enforced schema.
+
+The server reads the target PNG dimensions, converts locations exactly into its unchanged internal verification coordinates, and runs the same ink, confidence, calibration, path and geometry checks. Malformed, oversized, mixed-format and out-of-range values are refused, never clamped or snapped. Edge coordinates beyond the actual bitmap remain rejected. Old saved geometry and checkpoints keep the same page-coordinate meaning.
+
+The detailed target is sent clean, without the grid obscuring its features or a duplicate target image. A blue footprint marks that target on the reference-only whole-sheet copy, giving spatial context without asking the model to calculate where the crop belongs. Neither the original PDF nor clean target pixels are modified. The historical grid helper remains available for inspection; it is no longer the automatic provider wire format.
+
+Tests cover non-square image conversion and polygon openings, actual ink verification after decoding, rejection of a boundary point without clamping, input-size guards, exact reference footprint and unchanged source pixels. Linear/area reads now scan the tiles intersecting their explicitly confirmed calibration region; a visible scope note and saved scope bounds identify that limit. Counts keep full-sheet coverage. Overlap ownership and boundary coverage are tested so this does not drop or double-measure any part of the confirmed region. No expected benchmark quantities or positions are sent to the provider.
+
 # Same-sheet scope context and reader feedback
 
 Live #249 correctly refused two more invalid reader replies at the same saved checkpoint. The error now reports a small fixed category (such as an unrecognized cell label or wrong measurement kind), without exposing the model's content, raw validator paths or original drawing text. A rejection never advances tile coverage or saves that tile's geometry.

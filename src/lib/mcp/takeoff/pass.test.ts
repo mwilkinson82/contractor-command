@@ -66,4 +66,41 @@ describe("complete bounded sheet coverage", () => {
     };
     expect(tiles.flatMap((t) => partitionShape(polygon, t, tiles))).toHaveLength(1);
   });
+  it("reads every tile covering a confirmed plan region, preserving overlap ownership", () => {
+    const page = { inspection: { tiles, objects: [] } } as unknown as StoredPage;
+    const region = { x: 0.05, y: 0.73, width: 0.36, height: 0.25 };
+    const selected = candidateOrder(page, "Fictional wall", region);
+    expect(selected.length).toBeLessThan(tiles.length);
+    for (const x of [region.x, region.x + region.width / 2, region.x + region.width])
+      for (const y of [region.y, region.y + region.height / 2, region.y + region.height]) {
+        const owners = tiles.filter(
+          (t) => partitionShape({ kind: "pins", points: [{ x, y }] }, t, tiles).length,
+        );
+        expect(owners).toHaveLength(1);
+        expect(selected).toContain(owners[0].index);
+      }
+    const run = {
+      kind: "polyline" as const,
+      points: [
+        { x: region.x, y: 0.8 },
+        { x: region.x + region.width, y: 0.8 },
+      ],
+    };
+    const length = tiles
+      .filter((t) => selected.includes(t.index))
+      .flatMap((t) => partitionShape(run, t, tiles))
+      .reduce(
+        (sum, shape) =>
+          sum +
+          Math.hypot(shape.points[1].x - shape.points[0].x, shape.points[1].y - shape.points[0].y),
+        0,
+      );
+    expect(length).toBeCloseTo(region.width, 10);
+  });
+  it("keeps full-sheet coverage when the confirmed region is the whole page", () => {
+    const page = { inspection: { tiles, objects: [] } } as unknown as StoredPage;
+    expect(
+      candidateOrder(page, "Fictional wall", { x: 0, y: 0, width: 1, height: 1 }),
+    ).toHaveLength(tiles.length);
+  });
 });

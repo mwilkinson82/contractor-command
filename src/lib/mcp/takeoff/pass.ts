@@ -5,7 +5,8 @@ import { distance, measure, type Bounds, type Point, type Shape } from "./geomet
 import { renderTile, type Tile } from "./pdf";
 import { engineRpc, loadStoredPage, type StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
-import { gridPng, readVisionTile, verifyVisionAnswer, type VisionRead } from "./vision";
+import { readVisionTile, verifyVisionAnswer, type VisionRead } from "./vision";
+import { markTargetTile } from "./scope";
 
 /** Partition overlaps at their midpoints. Linear fragments are measured once,
  * even when both adjoining tiles identify the same run. */
@@ -93,7 +94,7 @@ export function partitionShape(shape: Shape, tile: Tile, tiles: Tile[]): Shape[]
   };
   return within(center, core) ? [shape] : [];
 }
-export function candidateOrder(page: StoredPage, item: string): number[] {
+export function candidateOrder(page: StoredPage, item: string, region?: Bounds): number[] {
   const words = item.toLowerCase().match(/[a-z0-9-]{3,}/g) ?? [];
   const matching = page.inspection.objects.filter(
     (o) => o.text && words.some((w) => o.text!.toLowerCase().includes(w)),
@@ -135,6 +136,14 @@ export function candidateOrder(page: StoredPage, item: string): number[] {
     ).length;
   // Vector evidence prioritizes; it never omits regions from the raster pass.
   return [...page.inspection.tiles]
+    .filter(
+      (t) =>
+        !region ||
+        (t.bounds.x <= region.x + region.width &&
+          t.bounds.x + t.bounds.width >= region.x &&
+          t.bounds.y <= region.y + region.height &&
+          t.bounds.y + t.bounds.height >= region.y),
+    )
     .sort((a, b) => score(b) - score(a) || a.index - b.index)
     .map((t) => t.index);
 }
@@ -211,7 +220,9 @@ export async function proposeTakeoffBatch(
   if (input.cursor != null && input.cursor !== cursor)
     throw new ToolError("Reload the current pass checkpoint before continuing.");
   const passId = input.pass_id ?? crypto.randomUUID(),
-    order = (summary?.order as number[] | undefined) ?? candidateOrder(page, line.item),
+    order =
+      (summary?.order as number[] | undefined) ??
+      candidateOrder(page, line.item, kind === "count" ? undefined : cal?.bounds),
     tile = page.inspection.tiles[order[cursor]];
   if (!tile) throw new ToolError("The pass has no next tile. Reload the sheet.");
   const raster = await renderTile(page.bytes, page.page - 1, tile);
@@ -240,9 +251,8 @@ export async function proposeTakeoffBatch(
   const answer = await read({
     item: line.item,
     measure_type: kind,
-    png: gridPng(raster.rgba, tile),
-    original: raster.png,
-    overview,
+    png: raster.png,
+    overview: markTargetTile(overview, tile.bounds),
     frame: {
       sheet: page.sheet,
       tile_bounds: tile.bounds,
@@ -296,11 +306,19 @@ export async function proposeTakeoffBatch(
   const unique = proposals.filter(
     (p, i, all) => all.findIndex((q) => JSON.stringify(q.shape) === JSON.stringify(p.shape)) === i,
   );
+  const scopeNotice =
+    kind !== "count" && cal
+      ? `Measurement scope: only the confirmed ${cal.region} region is measured; other sheet areas are excluded.`
+      : undefined;
   const next = {
     pass_id: passId,
     line_no: line.line_no,
     takeoff_version: state.takeoff_version,
     calibration_id: cal?.id ?? null,
+    coverage_scope:
+      kind !== "count" && cal
+        ? { kind: "calibrated-region", name: cal.region, bounds: cal.bounds }
+        : { kind: "sheet" },
     source_hash: page.source.content_hash,
     legend: legendRef ?? null,
     depth: input.depth ?? summary?.depth ?? null,
@@ -313,9 +331,10 @@ export async function proposeTakeoffBatch(
     verification_rejections:
       Number(summary?.verification_rejections ?? 0) + checked.rejected.length,
     uncertainties: [
-      ...((summary?.uncertainties as string[]) ?? []),
+      ...((summary?.uncertainties as string[]) ?? []).filter((u) => u !== scopeNotice),
       ...checked.rejected,
       ...checked.uncertainties,
+      ...(scopeNotice ? [scopeNotice] : []),
     ].slice(-100),
     vector_candidates: page.inspection.objects.length,
     vector_truncated: page.inspection.truncated,
@@ -339,7 +358,7 @@ export async function proposeTakeoffBatch(
       verification: "raster-ink-and-topology",
       model: process.env.ATHENA_TAKEOFF_MODEL || "google/gemini-3-flash-preview",
       dpi: 200,
-      grid_schema: "athena-grid-v1",
+      locator_schema: "athena-image-1000-v1",
       source_hash: page.source.content_hash,
       scope_reference: {
         sheet: page.sheet,
