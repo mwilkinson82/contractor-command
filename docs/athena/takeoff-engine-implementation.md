@@ -136,6 +136,16 @@ gateway. No edits to the live 2701/CCW estimates, no email, public share, new
 connector, auth/Hub changes, or original-file changes. Posting a user update
 email is outside this release and needs its own exact content approval.
 
+# Gateway compatibility after live #247
+
+The published native `json_schema` configuration was rejected by the existing gateway with `Request contains an invalid argument`; no AI checkpoint or geometry was saved. This establishes a request-format incompatibility, not a measurement pass or a specific unsupported schema keyword.
+
+The reader now uses the gateway's previously working `json_object` mode through `Output.json()`. It supplies the complete JSON schema explicitly in the server-owned system prompt, then parses the result with the unchanged bounded Zod validator before raster verification or persistence. Thus the original missing-schema problem is fixed without asking the gateway to compile a native decoding grammar it rejected. The provider factory returns to its original signature; other gateway callers keep their previous behavior. There is no automatic retry or fallback to an invented empty read.
+
+The actual SDK request test reproduces a gateway rejecting `json_schema` and verifies both supported JSON mode and the complete prompt schema. Additional cases reject wrong root fields, non-array findings, out-of-range grid coordinates, invalid confidence and a provider HTTP rejection. The prompt also identifies the printed symbol stroke as the pin location; blank centers of hollow symbols must not be used as ink evidence or silently snapped elsewhere. All existing geometry, source, scale, confidence and estimator-approval checks remain.
+
+This follow-up needs an approved publication before the private live inference tests can resume. Local request-contract tests are not proof of drawing accuracy. The #247 viewer and publication work remains intact.
+
 # Live verification follow-up
 
 The first published engine opened its stored-source viewer in ChatGPT and in a fresh normal Claude chat. A pre-refresh Claude conversation returned facts without a viewer; a fresh conversation rendered the registered resource. This does not establish measurement accuracy.
