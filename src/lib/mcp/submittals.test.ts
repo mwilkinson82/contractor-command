@@ -80,6 +80,40 @@ describe("submittal dates, overdue, and package", () => {
     expect(card.sections?.find((section) => section.heading === "Log")?.rows).toHaveLength(2);
     expect(currentSubmittals(rows).map((item) => item.id)).toEqual(["b", "c"]);
   });
+
+  it("keeps a three-row job log distinct from an empty overdue view", () => {
+    const rows = [
+      row({ id: "old", number: "001", revision: 0 }),
+      row({ id: "a", number: "001", revision: 1, due_back: "2026-11-03", required_by: "2026-11-03", submitted_on: "2026-10-20" }),
+      row({ id: "b", number: "002", revision: 0, due_back: "2026-10-29", required_by: "2026-11-05", submitted_on: "2026-10-15" }),
+      row({ id: "c", number: "003", revision: 0, status: "approved", due_back: "2026-10-20", returned_on: "2026-10-19" }),
+    ];
+    const input = { jobNumber: "2701", jobName: "Fictional Harbor", rows, today: "2026-10-24", boardUrl: null };
+    const full = presentSubmittalLog(input);
+    const late = presentSubmittalLog({ ...input, filter: { overdue: true } });
+    expect(full.rows).toHaveLength(3);
+    expect(late.rows).toEqual([]);
+    expect(late.text).toContain("No overdue submittals match this view. The full log contains 3 current submittals.");
+    expect(renderHtml(late.card)).toContain("The full log contains 3 current submittals.");
+    expect(late.card.next_move).not.toMatch(/Set the log up/);
+    expect(late.text).not.toContain("No submittals on this job yet");
+    expect(presentSubmittalLog(input)).toEqual(full);
+  });
+
+  it("filters from the same current rows, without hiding or inventing overdue items", () => {
+    const rows = [
+      row({ id: "a", number: "001", revision: 0, submitted_on: null, due_back: null, required_by: "2026-10-20" }),
+      row({ id: "b", number: "002", revision: 0, due_back: "2026-11-03" }),
+      row({ id: "c", number: "003", revision: 0, status: "approved", returned_on: "2026-10-19" }),
+    ];
+    const input = { jobNumber: "2701", jobName: "Fictional Harbor", rows, today: "2026-10-24", boardUrl: null };
+    const full = presentSubmittalLog(input), late = presentSubmittalLog({ ...input, filter: { overdue: true } });
+    expect(late.rows.map((r) => r.id)).toEqual(["a"]);
+    expect(late.rows).toEqual(full.rows.filter((r) => submittalOverdue(r, input.today)));
+    expect(late.card.kpis?.find((k) => k.label === "Overdue")?.value).toBe("1");
+    const status = presentSubmittalLog({ ...input, filter: { status: "rejected" } });
+    expect(status.text).toContain("No submittals match these filters. The full log contains 3 current submittals.");
+  });
 });
 
 describe("posture and routing", () => {
