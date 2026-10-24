@@ -129,7 +129,8 @@ describe("submittal job resolution is the same for every caller", () => {
     expect(new Set(reads.map((f) => f.val))).toEqual(new Set([JOB]));
     expect(state.rpcs).not.toContain("mcp_submittal_log");
     expect(state.rpcs).not.toContain("mcp_submittal_rows");
-    expect(state.writes).toEqual([]);
+    // A read mints only the 24-hour board token that signs each row's record link.
+    expect(state.writes.filter((w) => w !== "rpc mcp_board_link_create")).toEqual([]);
   });
 
   it("returns a styled empty card from both tools and writes nothing", async () => {
@@ -147,7 +148,7 @@ describe("submittal job resolution is the same for every caller", () => {
       expect(text).toContain("log a submittal");
       expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
     }
-    expect(state.writes).toEqual([]);
+    expect(state.writes.filter((w) => w !== "rpc mcp_board_link_create")).toEqual([]);
     expect(state.rpcs).not.toContain("mcp_submittal_log");
   });
 });

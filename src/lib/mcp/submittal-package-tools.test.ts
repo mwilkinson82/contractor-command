@@ -14,6 +14,8 @@ vi.mock("./guard", () => ({
   isMissingFunction: () => false,
 }));
 vi.mock("./tools/submittal-tools", () => ({
+  boardFor: async () =>
+    `https://app.meetathena.io/r/job/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/submittals?t=${"x".repeat(43)}`,
   resolveSubmittalJob: async () => ({
     job_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     company_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -162,6 +164,56 @@ afterAll(async () => {
   await db?.close();
 });
 describe("real package handlers with local DB and immutable storage", () => {
+  it("attaches a named piece from an approved host using the edge-safe download mode and refuses redirects", async () => {
+    const sid = await create("INTEGRATION-NAMED-ATTACHMENT");
+    const original = await PDFDocument.create();
+    original.addPage();
+    const bytes = await original.save();
+    const url = "https://oaisdmntprbrazilsouth.blob.core.windows.net/fictional/source.pdf";
+    const fetchFile = vi.fn(async (_url: unknown, options?: RequestInit) => {
+      expect(options?.redirect).toBe("manual");
+      return new Response(bytes as BodyInit);
+    });
+    vi.stubGlobal("fetch", fetchFile);
+    try {
+      await call(submittalPackage, {
+        action: "upload_piece",
+        job_number: "2701",
+        submittal_id: sid,
+        package_item: "P1",
+        filename: "cut.pdf",
+        file: { download_url: url },
+      });
+      expect(fetchFile).toHaveBeenCalledTimes(1);
+      const c = await saved(sid);
+      expect(c.items[0].status).toBe("received");
+      const path = c.items[0].file_ref.replace("athena-submittals/", "");
+      expect(await sha256Hex(blobs.get(path)!)).toBe(await sha256Hex(bytes));
+      const before = blobs.size;
+      fetchFile.mockImplementation(
+        async () =>
+          new Response(null, {
+            status: 302,
+            headers: { location: "https://untrusted.example/source.pdf" },
+          }),
+      );
+      await expect(
+        call(submittalPackage, {
+          action: "upload_piece",
+          job_number: "2701",
+          submittal_id: sid,
+          package_item: "P2",
+          filename: "shop.pdf",
+          file: { download_url: url },
+        }),
+      ).rejects.toThrow(/could not be read/);
+      expect(fetchFile).toHaveBeenCalledTimes(2);
+      expect(blobs.size).toBe(before);
+      expect((await saved(sid)).items[1].status).toBe("needed");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("preserves the exact saved draft through ChatGPT, Claude and text-only rendering without sending", async () => {
     const sid = await create("INTEGRATION-EXACT-DRAFT"),
       ctx = await saved(sid);
@@ -268,7 +320,11 @@ describe("real package handlers with local DB and immutable storage", () => {
       confirmed: true,
     });
     await assertRendering(approved);
-    expect(approved.structuredContent).toMatchObject({ send_confirmed: true, already_approved: false, sent: false });
+    expect(approved.structuredContent).toMatchObject({
+      send_confirmed: true,
+      already_approved: false,
+      sent: false,
+    });
     const repeated = await call(submittalDelivery, {
       action: "approve",
       job_number: "2701",
@@ -277,7 +333,11 @@ describe("real package handlers with local DB and immutable storage", () => {
       draft_key: output.structuredContent.draft_key,
       confirmed: true,
     });
-    expect(repeated.structuredContent).toMatchObject({ send_confirmed: false, already_approved: true, sent: false });
+    expect(repeated.structuredContent).toMatchObject({
+      send_confirmed: false,
+      already_approved: true,
+      sent: false,
+    });
     const afterApproval = (
       await query("SELECT draft, approved_at, sent_at FROM mcp_submittal_mail WHERE id=$1", [
         output.structuredContent.delivery_id,
@@ -362,8 +422,10 @@ describe("real package handlers with local DB and immutable storage", () => {
     ).toBe(true);
     await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
     expect(blobs.size).toBe(originalCount + 3);
-    for (const [path, data] of blobs)
-      if (path.includes("/pieces/")) expect(await sha256Hex(data)).toBe(hash);
+    for (const item of received.items) {
+      const path = item.file_ref.replace("athena-submittals/", "");
+      expect(await sha256Hex(blobs.get(path)!)).toBe(hash);
+    }
     const draft = await call(submittalDelivery, {
       action: "draft",
       job_number: "2701",

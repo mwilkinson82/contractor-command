@@ -52,6 +52,57 @@ export function storedPiece(
     throw new Error("Use a file stored on this job; external links must be imported first.");
   return { bucket: match[1], path: match[2], name: match[2].split("/").at(-1)! };
 }
+/** Short name a member uses for a piece in chat: P1, P2… in the order the pieces were logged. */
+export const pieceRef = (index: number) => `P${index + 1}`;
+
+/**
+ * The piece a member or host named. Accepts the piece id, its short name (P2), "kind from party",
+ * the kind alone or the source party alone when exactly one piece matches. Null when nothing matches;
+ * throws when the words fit more than one piece, naming them so the next call can pick.
+ */
+export function findPackagePiece(
+  items: PackageItem[],
+  ref: string | null | undefined,
+): PackageItem | null {
+  const raw = (ref ?? "").trim();
+  if (!raw) return null;
+  const byId = items.find((item) => item.id && item.id.toLowerCase() === raw.toLowerCase());
+  if (byId) return byId;
+  const short = /^p[\s-]?(\d{1,3})$/i.exec(raw);
+  if (short) return items[Number(short[1]) - 1] ?? null;
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[_\-/]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const words = norm(raw);
+  const kindWords = (kind: string) => norm(kind);
+  const whole = items.filter(
+    (item) =>
+      `${kindWords(item.kind)} from ${norm(item.source_party)}` === words ||
+      `${norm(item.source_party)} ${kindWords(item.kind)}` === words,
+  );
+  const pick = (list: PackageItem[]) => {
+    if (list.length === 1) return list[0];
+    if (list.length > 1)
+      throw new Error(
+        `"${raw}" fits ${list.length} pieces: ${list.map((item) => `${pieceRef(items.indexOf(item))} ${item.kind.replace(/_/g, " ")} from ${item.source_party}`).join("; ")}. Name one by its short name.`,
+      );
+    return null;
+  };
+  return (
+    pick(whole) ??
+    pick(items.filter((item) => kindWords(item.kind) === words)) ??
+    pick(items.filter((item) => norm(item.source_party) === words)) ??
+    pick(
+      items.filter(
+        (item) => words.includes(kindWords(item.kind)) && words.includes(norm(item.source_party)),
+      ),
+    )
+  );
+}
+
 export function packageGaps(ctx: PackageContext): string[] {
   const gaps: string[] = [];
   if (!ctx.brand?.name?.trim()) gaps.push("Company letterhead name");
@@ -63,12 +114,15 @@ export function packageGaps(ctx: PackageContext): string[] {
   if (!(ctx.transmittal_number > 0)) gaps.push("Transmittal number");
   if (!ctx.items.some((item) => item.required !== false))
     gaps.push("Package checklist: identify the required cuts, drawings and documents");
-  for (const item of ctx.items)
+  ctx.items.forEach((item, n) => {
     if (
       item.required !== false &&
       (!["received", "approved"].includes(item.status) || !item.file_ref?.trim())
     )
-      gaps.push(`${item.kind.replace(/_/g, " ")} from ${item.source_party}: stored file needed`);
+      gaps.push(
+        `${pieceRef(n)} ${item.kind.replace(/_/g, " ")} from ${item.source_party}: stored file needed${item.id ? ` (piece id ${item.id})` : ""}`,
+      );
+  });
   return gaps;
 }
 const ascii = (s: string) =>
@@ -133,9 +187,13 @@ export async function buildSubmittalPdf(
     }
   }
   if (logo) {
-    const image = logo[0] === 137 ? await doc.embedPng(logo) : await doc.embedJpg(logo);
-    const fit = image.scaleToFit(145, 45);
-    page.drawImage(image, { x: 420, y: 735, width: fit.width, height: fit.height });
+    try {
+      const image = logo[0] === 137 ? await doc.embedPng(logo) : await doc.embedJpg(logo);
+      const fit = image.scaleToFit(145, 45);
+      page.drawImage(image, { x: 420, y: 735, width: fit.width, height: fit.height });
+    } catch {
+      // Company text remains on the cover when a configured image is unreadable.
+    }
   }
   line(ctx.brand.name, 20, true);
   line(

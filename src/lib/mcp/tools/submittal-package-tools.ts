@@ -1,12 +1,14 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
-import { resolveSubmittalJob } from "./submittal-tools";
+import { boardFor, resolveSubmittalJob } from "./submittal-tools";
 import { guide } from "../visible";
 import type { CardModel, CardRow } from "../cards/model";
 import {
   buildSubmittalPdf,
+  findPackagePiece,
   packageGaps,
+  pieceRef,
   storedPiece,
   SUBMITTAL_BUCKET,
   PACKAGE_MAX_BYTES,
@@ -15,6 +17,18 @@ import {
 } from "../submittal-package";
 import { newToken, tokenHash, sha256Hex, allowedDownloadUrl } from "../file-share";
 import { outboundEmailDisabled } from "../email-safety";
+import { submittalRecordUrl } from "../board-url";
+import { callHost } from "../call-host";
+import { allowedDrawingDownloadUrl } from "../drawing-set";
+
+/** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
+function pieceLine(item: PackageContext["items"][number], n: number): string {
+  const stored = !!item.file_ref?.trim() && ["received", "approved"].includes(item.status);
+  return `${pieceRef(n)} · ${item.kind.replace(/_/g, " ")} · ${item.source_party} · ${item.status}${stored ? " · file stored" : " · no file yet"}${item.id ? ` · piece id ${item.id}` : ""}`;
+}
+
+const COVER_RULE =
+  "Built packages contain the server-generated company cover and transmittal before the included documents.";
 const ids = {
   job_number: z.string().trim().min(1).max(40),
   company_id: z.string().uuid().optional(),
@@ -143,11 +157,12 @@ export const submittalPackage = defineTool({
   name: "submittal_package",
   title: "Collect and build a submittal package",
   description:
-    "Stores received submittal pieces without overwriting originals and builds a versioned package with a company cover, transmittal number and private download preview.",
+    "Stores received submittal pieces without overwriting originals, naming each piece by its short name (P1, P2), its piece id, or its kind and source as the submittal card shows them, and builds a versioned package whose first pages are the company cover and transmittal, with a private download preview.",
   inputSchema: {
     ...ids,
     action: z.enum(["get", "upload_piece", "build", "renew_link", "revoke"]),
     package_item_id: z.string().uuid().optional(),
+    package_item: z.string().trim().min(1).max(200).optional(),
     package_id: z.string().uuid().optional(),
     filename: z.string().trim().min(1).max(120).optional(),
     content_base64: z
@@ -176,10 +191,22 @@ export const submittalPackage = defineTool({
       if (data.is_current === false && !["get", "revoke"].includes(args.action))
         throw new ToolError("Use the latest revision from the living log.");
       if (args.action === "upload_piece") {
-        if (!args.package_item_id || !args.filename)
-          throw new ToolError("Name the package piece and its filename.");
-        if (!data.items.some((i) => i.id === args.package_item_id))
-          throw new ToolError("That piece is not on this submittal.");
+        const named = args.package_item ?? args.package_item_id;
+        if (!named || !args.filename)
+          throw new ToolError(
+            `Name the package piece and its filename. Pieces on this submittal: ${data.items.length ? data.items.map(pieceLine).join("; ") : "none logged yet; add them with submittal_log package_items first"}.`,
+          );
+        let piece: PackageContext["items"][number] | null;
+        try {
+          piece = findPackagePiece(data.items, named);
+        } catch (e) {
+          throw new ToolError(e instanceof Error ? e.message : "Name one piece.");
+        }
+        if (!piece?.id)
+          throw new ToolError(
+            `That piece is not on this submittal. Pieces: ${data.items.length ? data.items.map(pieceLine).join("; ") : "none logged yet; add them with submittal_log package_items first"}.`,
+          );
+        const pieceId = piece.id;
         const mime = fileType(args.filename);
         let bytes: Uint8Array;
         if (args.content_base64) {
@@ -190,10 +217,14 @@ export const submittalPackage = defineTool({
           } catch {
             throw new ToolError("The file bytes are invalid.");
           }
-        } else if (args.file?.download_url && allowedDownloadUrl(args.file.download_url))
+        } else if (
+          args.file?.download_url &&
+          (allowedDownloadUrl(args.file.download_url) ||
+            allowedDrawingDownloadUrl(args.file.download_url))
+        )
           bytes = await bounded(
             await fetch(args.file.download_url, {
-              redirect: "error",
+              redirect: "manual",
               signal: AbortSignal.timeout(30000),
             }),
           );
@@ -212,7 +243,7 @@ export const submittalPackage = defineTool({
           _job: job.job_id,
           _submittal: sid,
           _action: "attach",
-          _p: { item_id: args.package_item_id, path },
+          _p: { item_id: pieceId, path },
         });
       }
       if (args.action === "revoke") {
@@ -227,11 +258,16 @@ export const submittalPackage = defineTool({
           "The link is off. Original files and saved packages are preserved.",
         ]);
       }
+      const recordUrl = submittalRecordUrl(await boardFor(sb, job), data.submittal.number);
+      const recordRow: CardRow[] = recordUrl
+        ? [{ cells: [`Record page: ${recordUrl}`], href: recordUrl }]
+        : [];
       const gaps = packageGaps(data);
       if (gaps.length)
-        return packageCard("Collect the missing pieces", data, gaps, {
+        return packageCard("Collect the missing pieces", data, [...gaps, ...recordRow], {
           ready: false,
-          items: data.items,
+          items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
+          record_url: recordUrl,
         });
       if (args.action === "build" && !data.package) {
         const files: PackageFile[] = [];
@@ -252,23 +288,28 @@ export const submittalPackage = defineTool({
         }
         let logo: Uint8Array | undefined;
         // Only read a configured logo in this backend's own Storage; no arbitrary URL fetch.
+        // A logo that cannot be read is left off the cover; it never stops the package.
         if (data.brand.logo_url) {
-          const backend = (sb as unknown as { supabaseUrl: string }).supabaseUrl;
-          const url = new URL(data.brand.logo_url);
-          if (
-            backend &&
-            url.origin === new URL(backend).origin &&
-            url.pathname.startsWith("/storage/v1/object/public/") &&
-            /\.(png|jpe?g)$/i.test(url.pathname)
-          ) {
-            const response = await fetch(url, {
-              redirect: "error",
-              signal: AbortSignal.timeout(10000),
-            });
-            if (Number(response.headers.get("content-length")) > 1024 * 1024)
-              throw new ToolError("The company logo is too large.");
-            logo = await bounded(response);
-            if (logo.length > 1024 * 1024) throw new ToolError("The company logo is too large.");
+          try {
+            const backend = (sb as unknown as { supabaseUrl: string }).supabaseUrl;
+            const url = new URL(data.brand.logo_url);
+            if (
+              backend &&
+              url.origin === new URL(backend).origin &&
+              url.pathname.startsWith("/storage/v1/object/public/") &&
+              /\.(png|jpe?g)$/i.test(url.pathname)
+            ) {
+              const response = await fetch(url, {
+                redirect: "manual",
+                signal: AbortSignal.timeout(10000),
+              });
+              if (Number(response.headers.get("content-length")) <= 1024 * 1024) {
+                const bytes = await bounded(response);
+                if (bytes.length <= 1024 * 1024) logo = bytes;
+              }
+            }
+          } catch {
+            logo = undefined;
           }
         }
         const built = await buildSubmittalPdf(data, files, logo);
@@ -326,9 +367,7 @@ export const submittalPackage = defineTool({
         });
       }
       const artifact = data.package;
-      const lines = [
-        ...data.items.map((i) => `${i.kind.replace(/_/g, " ")} · ${i.source_party} · ${i.status}`),
-      ];
+      const lines: (string | CardRow)[] = [...data.items.map(pieceLine), ...recordRow];
       if (artifact) {
         const privatePreview = await sb.storage
           .from(SUBMITTAL_BUCKET)
@@ -351,23 +390,29 @@ export const submittalPackage = defineTool({
             : "Not sent. Review the exact recipient, email and package before approving delivery.",
         );
       } else lines.unshift("Every required file is collected. Build the package next.");
-      return packageCard("Submittal package", data, lines, {
-        package: artifact
-          ? {
-              id: artifact.id,
-              filename: artifact.filename,
-              download_url: artifact.download_url,
-              expires_at: artifact.expires_at,
-              sent_at: artifact.sent_at ?? null,
-              page_count: artifact.page_count,
-              approved: !!artifact.approved_at,
-              revoked: !!artifact.revoked_at,
-            }
-          : null,
-        items: data.items,
-        ready: !!artifact,
-        sent: !!artifact?.sent_at,
-      });
+      return guide(
+        packageCard("Submittal package", data, lines, {
+          record_url: recordUrl,
+          package: artifact
+            ? {
+                id: artifact.id,
+                filename: artifact.filename,
+                download_url: artifact.download_url,
+                expires_at: artifact.expires_at,
+                sent_at: artifact.sent_at ?? null,
+                page_count: artifact.page_count,
+                approved: !!artifact.approved_at,
+                revoked: !!artifact.revoked_at,
+              }
+            : null,
+          items: data.items.map((item, n) => ({ ref: pieceRef(n), ...item })),
+          ready: !!artifact,
+          sent: !!artifact?.sent_at,
+        }),
+        artifact
+          ? `${COVER_RULE} Give the member the private preview link and the record page link as they are.`
+          : `${COVER_RULE} Call submittal_package build when the member asks for the package.`,
+      );
     }),
 });
 export const submittalDelivery = defineTool({
@@ -427,7 +472,8 @@ export const submittalDelivery = defineTool({
         _job: job.job_id,
         _submittal: sid,
         _action: args.action,
-        _p: args,
+        // The host that approved or recorded this send goes on the project-record event; no host sends a conversation id yet.
+        _p: { ...args, host: callHost(ctx), thread_ref: null },
       });
       const lines = [
         saved.sent_at
@@ -455,7 +501,11 @@ export const submittalDelivery = defineTool({
           approved: !!saved.approved_at,
           sent: !!saved.sent_at,
           send_allowed: !outboundEmailDisabled(),
-          send_confirmed: args.action === "approve" && !!saved.approved_at && !saved.sent_at && saved.already_approved !== true,
+          send_confirmed:
+            args.action === "approve" &&
+            !!saved.approved_at &&
+            !saved.sent_at &&
+            saved.already_approved !== true,
           already_approved: saved.already_approved === true,
           // The email card re-drafts and approves with these ids; nothing here is new to the caller.
           kind: args.kind ?? "package",

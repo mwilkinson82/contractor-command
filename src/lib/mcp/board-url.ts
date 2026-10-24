@@ -64,7 +64,10 @@ export async function signedJobPages(
   return mintJobBoardLinks(rpc, jobId, scope as BoardScope);
 }
 
-const JOB_LINK = /https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/[a-z]+(?:\?[^)\s"'<>]*)?(?:#[^)\s"'<>]*)?/gi;
+export { submittalRecordUrl } from "./submittal-record-url";
+
+// A record address (/submittal/<number>) is one more path segment after the page name.
+const JOB_LINK = /https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/[a-z]+(?:\/[^)\s"'<>?#]+)?(?:\?[^)\s"'<>]*)?(?:#[^)\s"'<>]*)?/gi;
 
 /** /r/job links whose query has no signed token. utm params do not count as a token. */
 export function jobLinksMissingToken(value: unknown): string[] {
