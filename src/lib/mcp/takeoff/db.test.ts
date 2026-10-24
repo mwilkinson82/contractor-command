@@ -190,6 +190,84 @@ afterAll(async () => {
   await db?.close();
 });
 describe("takeoff actual database functions", () => {
+  it("refreshes expired membership cache in all takeoff read RPCs without changing guards, permissions or job data", async () => {
+    const names = ["mcp_takeoff_get", "mcp_takeoff_history", "mcp_takeoff_exports"];
+    const metadata = async () =>
+      (
+        await db.query<any>(
+          "SELECT proname,provolatile,proacl::text,prosecdef,proconfig,md5(prosrc) AS body FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname=ANY($1) ORDER BY proname",
+          [names],
+        )
+      ).rows;
+    const before = await metadata(),
+      initial = await rpc("mcp_takeoff_get", [job]);
+    // PostgREST chooses transaction mode from the called RPC's volatility,
+    // including for POST. Exercise its exact behavior with real PostgreSQL.
+    const restRpc = async (name: string, args: unknown[], who = owner) => {
+      const m = (await metadata()).find((r) => r.proname === name)!;
+      return db.transaction(async (tx) => {
+        await tx.exec(
+          m.provolatile === "v" ? "SET TRANSACTION READ WRITE" : "SET TRANSACTION READ ONLY",
+        );
+        await tx.query("SELECT set_config('request.jwt.claims',$1,true)", [
+          JSON.stringify({
+            sub: who,
+            email: `qa-${who.slice(-2)}@example.com`,
+            role: "authenticated",
+          }),
+        ]);
+        await tx.exec("SET LOCAL ROLE authenticated");
+        return (
+          await tx.query(
+            `SELECT public.${name}(${args.map((_, i) => `$${i + 1}`).join(",")}) AS data`,
+            args,
+          )
+        ).rows[0];
+      });
+    };
+    const cases: [string, unknown[]][] = [
+      [names[0], [job]],
+      [names[1], [job, null, 1]],
+      [names[2], [job, null, null, null]],
+    ];
+    for (const [name, args] of cases) {
+      await db.query(
+        "UPDATE public.mcp_gate_cache SET checked_at=now()-interval '6 minutes' WHERE user_id=$1",
+        [owner],
+      );
+      await expect(restRpc(name, args)).rejects.toMatchObject({ code: "25006" });
+    }
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261024052236_athena_takeoff_read_cache_compatibility.sql",
+        "utf8",
+      ),
+    );
+    const after = await metadata();
+    expect(after.map((r) => r.provolatile)).toEqual(["v", "v", "v"]);
+    expect(after.map(({ provolatile: _, ...r }) => r)).toEqual(
+      before.map(({ provolatile: _, ...r }) => r),
+    );
+    for (const [name, args] of cases) {
+      await db.query(
+        "UPDATE public.mcp_gate_cache SET checked_at=now()-interval '6 minutes' WHERE user_id=$1",
+        [owner],
+      );
+      await expect(restRpc(name, args)).resolves.toHaveProperty("data");
+      expect(
+        (
+          await db.query<{ fresh: boolean }>(
+            "SELECT checked_at>now()-interval '1 minute' AS fresh FROM public.mcp_gate_cache WHERE user_id=$1",
+            [owner],
+          )
+        ).rows[0].fresh,
+      ).toBe(true);
+      await expect(restRpc(name, args, outsider)).rejects.toThrow();
+    }
+    const final = await rpc("mcp_takeoff_get", [job]);
+    for (const field of ["lines", "geometry", "calibrations", "passes", "exports"])
+      expect(final[field]).toEqual(initial[field]);
+  });
   it("keeps legacy lines readable with no invented geometry", async () => {
     const state = await rpc("mcp_takeoff_get", [job]);
     expect(state.available).toBe(true);
@@ -999,6 +1077,12 @@ describe("fresh migration ordering", () => {
       );
       await fresh.exec(
         readFileSync("supabase/migrations/20261024005713_athena_takeoff_engine.sql", "utf8"),
+      );
+      await fresh.exec(
+        readFileSync(
+          "supabase/migrations/20261024052236_athena_takeoff_read_cache_compatibility.sql",
+          "utf8",
+        ),
       );
       await fresh.exec(
         "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;",

@@ -4,15 +4,15 @@ import type { Sb } from "../guard";
 import { sha256Hex } from "../file-share";
 import { renderPlanReference } from "./pdf";
 import { inspectSheet, sheetSpace } from "./pdf";
-import { proposeTakeoffBatch, saveCountArea } from "./pass";
+import { proposeTakeoffBatch, proposeTakeoffStep, saveCountArea } from "./pass";
 import type { StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import type { VisionAnswer, VisionRead } from "./vision";
 import { markTargetTile } from "./scope";
 
-async function fixture() {
+async function fixture(size = 144) {
   const doc = await PDFDocument.create();
-  const pdfPage = doc.addPage([144, 144]);
+  const pdfPage = doc.addPage([size, size]);
   pdfPage.drawRectangle({ x: 32, y: 68, width: 8, height: 8, color: rgb(0, 0, 0) });
   const bytes = await doc.save(),
     hash = await sha256Hex(bytes);
@@ -87,7 +87,7 @@ async function fixture() {
             bounds: { x: 0, y: 0, width: 1, height: 1 },
             confirmed: true,
           },
-          order: [0],
+          order: inspection.tiles.map((t) => t.index),
           cursor: 0,
           next_cursor: 0,
           complete: false,
@@ -107,6 +107,19 @@ async function fixture() {
 }
 
 describe("actual PDF tile to resumable proposal pipeline", () => {
+  it("saves exactly one checkpoint per request and leaves the rest for resumable card calls", async () => {
+    const f = await fixture(720),
+      read = vi.fn(async () => ({ findings: [], uncertainties: [] }));
+    const result = await proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }, read);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(f.rpc).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ next_cursor: 1, tiles_read: 1, complete: false });
+    expect(result.tiles_total).toBeGreaterThan(1);
+    expect(f.rpc.mock.calls[0]).toMatchObject([
+      "mcp_takeoff_pass_save",
+      { _record: { proposals: [] } },
+    ]);
+  });
   it("requires a confirmed count area before any provider call and saves scope without quantity", async () => {
     const f = await fixture();
     f.state.passes = [];

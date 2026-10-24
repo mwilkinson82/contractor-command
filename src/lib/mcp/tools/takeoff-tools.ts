@@ -13,7 +13,7 @@ import {
   saveGeometry,
   viewEngine,
 } from "../takeoff/service";
-import { proposeTakeoffBatch, saveCountArea } from "../takeoff/pass";
+import { proposeTakeoffStep, saveCountArea } from "../takeoff/pass";
 import { assertReadComplete } from "../takeoff/scope";
 import { reviseGeometry } from "../takeoff/revision";
 import { automaticCalibration } from "../takeoff/calibration";
@@ -343,38 +343,14 @@ export const takeoffGeometry = defineTool({
         } else if (operation === "propose") {
           if (!args.line_no)
             throw new ToolError("Choose the takeoff line Athena should locate on this sheet.");
-          const deadline = Date.now() + 18000;
-          let current = state,
-            passId = args.pass_id,
-            cursor = args.cursor;
-          for (let batch = 0; batch < 12; batch++) {
-            try {
-              const progress = await proposeTakeoffBatch(sb, job, page!, current, {
-                line_no: args.line_no,
-                calibration_id: args.calibration_id,
-                pass_id: passId,
-                cursor,
-                depth: args.depth,
-                legend: args.legend,
-                deadline,
-              });
-              extra.pass = progress;
-              // Reserve time for a full next vision call rather than starting
-              // another tile near the deadline and interrupting an otherwise healthy read.
-              if (progress.complete || Date.now() > deadline - 9000) break;
-              passId = String(progress.pass_id);
-              cursor = Number(progress.next_cursor);
-              current = await requiredSnapshot(sb, job);
-            } catch (error) {
-              if (!extra.pass) throw error;
-              extra.pass_paused = true;
-              extra.pass_pause_reason = errorMessage(
-                error,
-                "The next tile was not completed. Resume from the saved checkpoint.",
-              );
-              break;
-            }
-          }
+          extra.pass = await proposeTakeoffStep(sb, job, page!, state, {
+            line_no: args.line_no,
+            calibration_id: args.calibration_id,
+            pass_id: args.pass_id,
+            cursor: args.cursor,
+            depth: args.depth,
+            legend: args.legend,
+          });
         } else if (operation === "export")
           extra.export = await exportMeasuredSheet(sb, job, page!, state);
         if (operation !== "list" && operation !== "crop")
