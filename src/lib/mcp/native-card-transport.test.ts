@@ -1,3 +1,4 @@
+import { TAKEOFF_CARD_URI } from "./cards/takeoff-card";
 import { describe, expect, it } from "vitest";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
@@ -238,7 +239,7 @@ describe("native card presentation after the SDK", () => {
     expect(html).toContain("ui/notifications/initialized");
     expect(html).not.toContain("protocolVersion!==");
     const list = await transform("resources/list", {}, missing);
-    expect(list.value).toMatchObject(result({ resources: [{ uri: NATIVE_CARD_URI }, { uri: EMAIL_CARD_URI }, { uri: DRAWING_CARD_URI }] }));
+    expect(list.value).toMatchObject(result({ resources: [{ uri: NATIVE_CARD_URI }, { uri: EMAIL_CARD_URI }, { uri: DRAWING_CARD_URI }, {uri:TAKEOFF_CARD_URI}] }));
     expect(
       await nativeCardVisit(makeRequest("resources/read", { uri: CARD_WIDGET_URI })),
     ).toBeNull();

@@ -1,3 +1,5 @@
+import { engineSnapshot, verifiedLines, measurementStatus } from "../takeoff/state";
+import { viewEngine } from "../takeoff/service";
 // Bid walkthrough tools. Same gate as the other estimating tools.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -167,7 +169,8 @@ const laborIn = z.object({
 export const estimatePricing = defineTool({
   name: "estimate_pricing",
   title: "Pricing walkthrough",
-  description: "Prices a job from the contractor's labor and material rates, and asks for those rates when none are saved.",
+  description:
+    "Prices a job from the contractor's labor and material rates, and asks for those rates when none are saved.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -202,6 +205,13 @@ export const estimatePricing = defineTool({
     run("estimate_pricing", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
+      const measurement = await engineSnapshot(sb, job.job_id);
+      if (measurement) {
+        loaded.lines = verifiedLines(loaded.lines, measurement);
+        loaded.verdicts = loaded.verdicts.map((v) =>
+          v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+        );
+      }
       const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
       const asked = (args.labor?.length ?? 0) + (args.material?.length ?? 0) > 0;
       const onFile = prior.labor.length + prior.material.length > 0;
@@ -215,7 +225,14 @@ export const estimatePricing = defineTool({
             "Material: a unit price for each line.",
             "Nothing was priced.",
           ],
-          { priced: false, card: { state: "ask", title: "Rates", ask: { prompt: "What are the labor and material rates?" } } },
+          {
+            priced: false,
+            card: {
+              state: "ask",
+              title: "Rates",
+              ask: { prompt: "What are the labor and material rates?" },
+            },
+          },
           ["Ask for labor and material rates before pricing. Do not invent a rate."],
         );
       }
@@ -262,7 +279,9 @@ export const estimatePricing = defineTool({
         loaded.setup.role === "gc"
           ? "General contractor: labor plus material is the basis for checking a sub quote."
           : "Self-performer: labor is man-hours or man-days from your production, times your rate.",
-        !asked && onFile ? "Using the labor and material rates saved on this job." : "Using the rates in this call.",
+        !asked && onFile
+          ? "Using the labor and material rates saved on this job."
+          : "Using the rates in this call.",
       ];
       let placeholder = false;
       let direct = 0;
@@ -499,6 +518,13 @@ export const estimateRequirements = defineTool({
     run("estimate_requirements", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
+      const measurement = await engineSnapshot(sb, job.job_id);
+      if (measurement) {
+        loaded.lines = verifiedLines(loaded.lines, measurement);
+        loaded.verdicts = loaded.verdicts.map((v) =>
+          v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+        );
+      }
       const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
       let clauses: { section: string; verbatim_text: string }[] = [];
       const cq = await sb
@@ -591,6 +617,15 @@ export const estimateBidSummary = defineTool({
     run("estimate_bid_summary", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
+      const measurement = await engineSnapshot(sb, job.job_id);
+      if (measurement) {
+        loaded.lines = verifiedLines(loaded.lines, measurement);
+        loaded.verdicts = loaded.verdicts.map((v) =>
+          v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+        );
+      }
+      if (measurement && !measurementStatus(measurement).settled)
+        return viewEngine(sb, job, measurement);
       const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
       const overhead = args.overhead_pct ?? prior.overhead;
       const profit = args.profit_pct ?? prior.profit;
@@ -652,6 +687,12 @@ export const estimateBidSummary = defineTool({
         ...view.lines,
         nextMove("bid"),
       ];
+      if (measurement)
+        return viewEngine(sb, job, measurement, undefined, {
+          report_title: "Bid summary",
+          bid_summary: { ready: view.ready, total: view.total, direct },
+          report_rows: body,
+        });
       return present("Bid summary", body, { ready: view.ready, total: view.total, direct }, [
         "Show direct cost, general conditions, special requirements, overhead and profit, and the total. Red only on a row that holds the bid.",
       ]);

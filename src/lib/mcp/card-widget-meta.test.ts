@@ -1,3 +1,4 @@
+import { TAKEOFF_CARD_TOOLS, TAKEOFF_CARD_URI } from "./cards/takeoff-card";
 import { describe, expect, it } from "vitest";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
@@ -95,7 +96,7 @@ describe("native card resource", () => {
     const listed = await rpc("tools/list", 10);
     for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {
       // The email card takes precedence for a tool in both sets (submittal_delivery).
-      expect(tool._meta?.ui, tool.name).toEqual(DRAWING_CARD_TOOLS.has(tool.name) ? { resourceUri: DRAWING_CARD_URI } : EMAIL_CARD_TOOLS.has(tool.name) ? { resourceUri: EMAIL_CARD_URI } : NATIVE_CARD_TOOLS.has(tool.name) ? { resourceUri: NATIVE_CARD_URI } : undefined);
+      expect(tool._meta?.ui, tool.name).toEqual(TAKEOFF_CARD_TOOLS.has(tool.name) ? {resourceUri:TAKEOFF_CARD_URI} : DRAWING_CARD_TOOLS.has(tool.name) ? { resourceUri: DRAWING_CARD_URI } : EMAIL_CARD_TOOLS.has(tool.name) ? { resourceUri: EMAIL_CARD_URI } : NATIVE_CARD_TOOLS.has(tool.name) ? { resourceUri: NATIVE_CARD_URI } : undefined);
       if (CARD_NAMES.has(tool.name)) expect(tool._meta?.["openai/outputTemplate"]).toBeUndefined();
     }
     const resource = await rpc("resources/read", 11, { uri: NATIVE_CARD_URI });

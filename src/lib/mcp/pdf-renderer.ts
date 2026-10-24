@@ -3,6 +3,7 @@
 import { PDFiumLibrary } from "@hyzyla/pdfium";
 import wasm from "@hyzyla/pdfium/pdfium.wasm?module";
 import { encode } from "fast-png";
+import type { PDFiumPage } from "@hyzyla/pdfium";
 
 const MAX_EDGE = 1600;
 let library: Promise<PDFiumLibrary> | undefined;
@@ -58,6 +59,38 @@ export function renderPdfiumPage(bytes: Uint8Array, pageIndex: number): Promise<
   if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) return Promise.resolve(null);
   const result = queue.then(() => render(bytes, pageIndex));
   // A malformed drawing must not poison subsequent requests or retain its bytes.
+  queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+/** Shared native heap/queue for inspection and clipped takeoff tiles. The pinned
+ * PDFium wrapper is not thread-safe; all operations use this same queue. */
+export function withPdfiumPage<T>(
+  bytes: Uint8Array,
+  pageIndex: number,
+  visit: (page: PDFiumPage) => T | Promise<T>,
+): Promise<T> {
+  const result = queue.then(async () => {
+    if (!Number.isSafeInteger(pageIndex) || pageIndex < 0)
+      throw new Error("Invalid stored PDF page.");
+    const engine = await getLibrary();
+    const document = await engine.loadDocument(bytes);
+    try {
+      if (pageIndex >= document.getPageCount())
+        throw new Error("The stored sheet is outside this PDF.");
+      const page = document.getPage(pageIndex);
+      try {
+        return await visit(page);
+      } finally {
+        page.close();
+      }
+    } finally {
+      document.destroy();
+    }
+  });
   queue = result.then(
     () => undefined,
     () => undefined,

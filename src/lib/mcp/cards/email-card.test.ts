@@ -1,3 +1,4 @@
+import { TAKEOFF_CARD_URI, TAKEOFF_CARD_MIME } from "./takeoff-card";
 import { describe, expect, it } from "vitest";
 import { runInNewContext } from "node:vm";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
@@ -422,6 +423,7 @@ describe("email card on the wire", () => {
       [NATIVE_CARD_URI, NATIVE_CARD_MIME],
       [EMAIL_CARD_URI, EMAIL_CARD_MIME],
       [DRAWING_CARD_URI, DRAWING_CARD_MIME],
+      [TAKEOFF_CARD_URI, TAKEOFF_CARD_MIME],
     ]);
     const read = await nativeCardVisit(request("resources/read", { uri: EMAIL_CARD_URI }));
     const res = await nativeCardResponse(

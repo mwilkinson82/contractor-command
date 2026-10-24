@@ -3,7 +3,13 @@ import { htmlBlock, renderMarkdown } from "./markdown";
 import { renderHtml } from "./html";
 import { inferCard } from "./infer";
 import { cardWidgetMeta } from "./widget";
-import { CARD_SHOWN, CARD_SHOWN_PICK, applyCardClosing, cardClosing, stripSpokenPreview } from "./silence";
+import {
+  CARD_SHOWN,
+  CARD_SHOWN_PICK,
+  applyCardClosing,
+  cardClosing,
+  stripSpokenPreview,
+} from "./silence";
 import { INBOX_HOST_LINE } from "../morning-brief";
 import { isWhichJobText } from "../which-job";
 import type { CardModel } from "./model";
@@ -16,7 +22,39 @@ type Res = {
 };
 
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
-export const CARD_FIRST_TOOLS = new Set(["contract_terms", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "report_page_link", "list_open_items", "lookahead_get", "submittal_log", "submittals_list", "submittals_import", "project_record_search", "submittal_chase", "submittal_package", "submittal_delivery", "field_pay_app", "living_report_get", "drawing_set_import", "drawing_markup"]);
+export const CARD_FIRST_TOOLS = new Set([
+  "sheet_calibrate",
+  "takeoff_geometry",
+  "estimate_takeoff_get",
+  "estimate_takeoff_save",
+  "estimate_status",
+  "estimate_item_mark",
+  "estimate_build",
+  "estimate_takeoff_export",
+  "estimate_bid_summary",
+  "contract_terms",
+  "pm_meeting",
+  "pm_morning",
+  "pm_evening",
+  "athena_morning_hitlist",
+  "athena_hello",
+  "morning_brief",
+  "morning_brief_settings",
+  "report_page_link",
+  "list_open_items",
+  "lookahead_get",
+  "submittal_log",
+  "submittals_list",
+  "submittals_import",
+  "project_record_search",
+  "submittal_chase",
+  "submittal_package",
+  "submittal_delivery",
+  "field_pay_app",
+  "living_report_get",
+  "drawing_set_import",
+  "drawing_markup",
+]);
 
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
@@ -54,13 +92,19 @@ export const CARD_TOOLS = new Set([
   "submittals_list",
   "submittals_import",
   "project_record_search",
-  "submittal_chase", "submittal_package", "submittal_delivery",
+  "submittal_chase",
+  "submittal_package",
+  "submittal_delivery",
 ]);
 
 /** Other living report types retain their existing Gantt/IOR presentation. */
 export function isCardFirstTool(tool: string, result: unknown): boolean {
   const sc = (result as Res)?.structuredContent;
-  return (tool === "resolve_item" && sc?.card !== undefined) || (CARD_FIRST_TOOLS.has(tool) && (tool !== "living_report_get" || sc?.report_type === "billing_forecast"));
+  return (
+    (tool === "resolve_item" && sc?.card !== undefined) ||
+    (CARD_FIRST_TOOLS.has(tool) &&
+      (tool !== "living_report_get" || sc?.report_type === "billing_forecast"))
+  );
 }
 
 function isCard(value: unknown): value is CardModel {
@@ -74,7 +118,20 @@ function stripChrome(text: string): string {
 }
 
 function whichJob(tool: string, text: string): boolean {
-  const meeting = tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase" || tool === "daily_report_draft" || tool === "daily_report_save" || tool === "daily_report_get";
+  const meeting =
+    tool === "list_open_items" ||
+    tool === "pm_meeting" ||
+    tool === "pm_morning" ||
+    tool === "pm_evening" ||
+    tool === "athena_morning_hitlist" ||
+    tool === "submittal_log" ||
+    tool === "submittals_list" ||
+    tool === "submittals_import" ||
+    tool === "project_record_search" ||
+    tool === "submittal_chase" ||
+    tool === "daily_report_draft" ||
+    tool === "daily_report_save" ||
+    tool === "daily_report_get";
   return meeting && isWhichJobText(text);
 }
 
@@ -85,7 +142,11 @@ function whichJob(tool: string, text: string): boolean {
  */
 export function attachAthenaCard<R>(tool: string, result: R): R {
   if (!CARD_TOOLS.has(tool)) return result;
-  if (tool === "living_report_get" && (result as Res)?.structuredContent?.report_type !== "billing_forecast") return result;
+  if (
+    tool === "living_report_get" &&
+    (result as Res)?.structuredContent?.report_type !== "billing_forecast"
+  )
+    return result;
   try {
     const res = result as unknown as Res;
     const first = res?.content?.find((c) => c.type === "text" && typeof c.text === "string");
@@ -94,7 +155,10 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const source = stripSpokenPreview(stripChrome(first.text));
     const askJob = whichJob(tool, source);
     const card = isCard(sc.card) ? sc.card : inferCard(tool, source, sc);
-    const html = typeof sc.html === "string" && !askJob && tool !== "contract_terms" ? sc.html : renderHtml(card);
+    const html =
+      typeof sc.html === "string" && !askJob && tool !== "contract_terms"
+        ? sc.html
+        : renderHtml(card);
     const markdown = renderMarkdown(card);
     const cardText = `${markdown}\n\n${htmlBlock(html)}`;
     const keepBody = !isCardFirstTool(tool, result) && !askJob;
@@ -103,7 +167,9 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
     const hasPlain = hasHtml && source.includes(card.title);
     // Card-first tools replace the body with the card. A pinned REQUIRED line would be dropped,
     // and the host skips the same line when it lives only in the tool description.
-    const inboxLine = source.split("\n").some((line) => line.trim() === INBOX_HOST_LINE) ? `${INBOX_HOST_LINE}\n\n` : "";
+    const inboxLine = source.split("\n").some((line) => line.trim() === INBOX_HOST_LINE)
+      ? `${INBOX_HOST_LINE}\n\n`
+      : "";
     const rowReply = TEXT_CARD_TOOLS.has(tool);
     const text = rowReply
       ? `${inboxLine}${markdown}\n\n${html}`
@@ -116,14 +182,27 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
           : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
     const closed = rowReply ? text.trim() : applyCardClosing(text, askJob);
     const closing = cardClosing(askJob);
-    const priorGuidance = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
-    const content = res.content!.map((c) => (c === first ? { ...c, text: closed, _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta } } : c));
+    const priorGuidance = Array.isArray(sc.assistant_guidance)
+      ? (sc.assistant_guidance as unknown[])
+      : [];
+    const content = res.content!.map((c) =>
+      c === first
+        ? {
+            ...c,
+            text: closed,
+            _meta: { ...(c as { _meta?: Record<string, unknown> })._meta, ...cardWidgetMeta },
+          }
+        : c,
+    );
     const structuredContent = {
       ...sc,
       card,
       html,
       ...(askJob ? { which_job: true } : {}),
-      assistant_guidance: [...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK), closing],
+      assistant_guidance: [
+        ...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK),
+        closing,
+      ],
     };
     const meta = { ...(res._meta ?? {}), ...cardWidgetMeta };
     const out: Record<string, unknown> = { structuredContent, _meta: meta };

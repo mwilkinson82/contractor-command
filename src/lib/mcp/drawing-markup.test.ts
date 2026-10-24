@@ -83,6 +83,7 @@ function fakeSb() {
             .reverse(),
           error: null,
         };
+      if (name === "mcp_takeoff_get") return {data:null,error:null};
       if (state.failRecord) return { data: null, error: { message: "test write failure" } };
       const input = args._record as Record<string, unknown>;
       if (name === "mcp_drawing_source_save") {

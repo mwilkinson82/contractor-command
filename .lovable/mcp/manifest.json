@@ -2632,6 +2632,493 @@
         "outputSchema": null
       },
       {
+        "name": "sheet_calibrate",
+        "title": "Calibrate a stored drawing",
+        "description": "Reads the stored sheet's scale evidence or saves a calibration for a named plan/detail from two points and a known distance. Requires explicit confirmation of that reference. Different detail scales have separate regions. Recalibration keeps history and makes affected measurements proposals for review.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "operation": {
+              "type": "string",
+              "enum": [
+                "read",
+                "save"
+              ]
+            },
+            "region": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "bounds": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ]
+            },
+            "reference": {
+              "type": "object",
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    }
+                  ]
+                },
+                "distance": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "unit": {
+                  "type": "string",
+                  "enum": [
+                    "ft",
+                    "in",
+                    "m",
+                    "mm"
+                  ]
+                }
+              },
+              "required": [
+                "points",
+                "distance",
+                "unit"
+              ]
+            },
+            "confirm_reference": {
+              "type": "boolean"
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "takeoff_geometry",
+        "title": "Measure and review a drawing takeoff",
+        "description": "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Propose runs Athena's own bounded, resumable drawing read; it never accepts its own output. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "sheet": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "operation": {
+              "type": "string",
+              "enum": [
+                "list",
+                "history",
+                "download",
+                "save",
+                "propose",
+                "accept",
+                "accept_all",
+                "reject",
+                "tile",
+                "crop",
+                "revise",
+                "export"
+              ]
+            },
+            "markup_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "include_rejected": {
+              "type": "boolean"
+            },
+            "line_no": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9999
+            },
+            "shape": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "pins",
+                    "polyline",
+                    "polygon",
+                    "rect"
+                  ]
+                },
+                "points": {
+                  "minItems": 1,
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ]
+                  }
+                },
+                "holes": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "minItems": 3,
+                    "maxItems": 1000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "y": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ]
+                    }
+                  }
+                },
+                "depth": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "ft",
+                        "in",
+                        "m",
+                        "mm"
+                      ]
+                    },
+                    "source_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "sheet": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "detail": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "unit",
+                    "source_id",
+                    "sheet",
+                    "detail"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "points"
+              ]
+            },
+            "calibration_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "geometry_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "legend": {
+              "type": "object",
+              "properties": {
+                "source_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "sheet": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "tile_index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "source_id",
+                "sheet",
+                "tile_index"
+              ]
+            },
+            "decisions": {
+              "minItems": 1,
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "geometry_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "expected_version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "geometry_id",
+                  "expected_version"
+                ]
+              }
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 2000
+            },
+            "confirm": {
+              "type": "boolean"
+            },
+            "crop_point": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ]
+            },
+            "tile_index": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "pass_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "cursor": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "depth": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "unit": {
+                  "type": "string",
+                  "enum": [
+                    "ft",
+                    "in",
+                    "m",
+                    "mm"
+                  ]
+                },
+                "source_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "sheet": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "detail": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "value",
+                "unit",
+                "source_id",
+                "sheet",
+                "detail"
+              ]
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "estimate_intake",
         "title": "Estimating intake",
         "description": "Asks scope, role and profile, warns before reusing a takeoff already on the job, and stores a drawing PDF when one is sent.",
@@ -3178,6 +3665,135 @@
               "items": {
                 "type": "object",
                 "properties": {
+                  "geometry": {
+                    "type": "object",
+                    "properties": {
+                      "source_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "shape": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "pins",
+                              "polyline",
+                              "polygon",
+                              "rect"
+                            ]
+                          },
+                          "points": {
+                            "minItems": 1,
+                            "maxItems": 1000,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "x": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "y": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "required": [
+                                "x",
+                                "y"
+                              ]
+                            }
+                          },
+                          "holes": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "minItems": 3,
+                              "maxItems": 1000,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "x": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  },
+                                  "y": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  }
+                                },
+                                "required": [
+                                  "x",
+                                  "y"
+                                ]
+                              }
+                            }
+                          },
+                          "depth": {
+                            "type": "object",
+                            "properties": {
+                              "value": {
+                                "type": "number",
+                                "exclusiveMinimum": 0
+                              },
+                              "unit": {
+                                "type": "string",
+                                "enum": [
+                                  "ft",
+                                  "in",
+                                  "m",
+                                  "mm"
+                                ]
+                              },
+                              "source_id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "sheet": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              },
+                              "detail": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 300
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "unit",
+                              "source_id",
+                              "sheet",
+                              "detail"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "points"
+                        ]
+                      },
+                      "calibration_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "source_id",
+                      "shape"
+                    ]
+                  },
                   "line_no": {
                     "type": "integer",
                     "minimum": 1,
@@ -3538,6 +4154,11 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 80
+            },
+            "source_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
@@ -3552,8 +4173,9 @@
         "title": "Export a takeoff",
         "description": "Exports the saved takeoff as CSV or a workbook layout.",
         "annotations": {
-          "readOnlyHint": true,
-          "idempotentHint": true,
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
           "openWorldHint": false
         },
         "inputSchema": {
@@ -3983,7 +4605,17 @@
               "enum": [
                 "relevant",
                 "not_relevant",
-                "good_catch"
+                "good_catch",
+                "not_drawable"
+              ]
+            },
+            "exception_kind": {
+              "type": "string",
+              "enum": [
+                "schedule_quantity",
+                "spec_only",
+                "allowance",
+                "by_others"
               ]
             },
             "note": {

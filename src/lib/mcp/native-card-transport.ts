@@ -1,3 +1,11 @@
+import {
+  TAKEOFF_CARD_URI,
+  TAKEOFF_CARD_MIME,
+  TAKEOFF_CARD_TOOLS,
+  takeoffCardHtml,
+  takeoffCardMeta,
+  takeoffResourceMeta,
+} from "./cards/takeoff-card";
 /** Card discovery/resource presentation after the SDK. Does not authorize requests.
  *  tools/call text for lookahead_get and list_open_items drops the inline HTML document
  *  when the host did not advertise a card. structuredContent, widget template, and resource URI stay.
@@ -17,11 +25,26 @@ import {
 import { isMcpPost } from "./server-info-branding";
 import { phoneHostText } from "./phone-reply";
 import { timingFields, type CardTiming } from "./card-timing";
-import { EMAIL_CARD_MIME, EMAIL_CARD_TOOLS, EMAIL_CARD_URI, emailCardHtml, emailCardMeta, emailCardResourceMeta } from "./cards/email-card";
+import {
+  EMAIL_CARD_MIME,
+  EMAIL_CARD_TOOLS,
+  EMAIL_CARD_URI,
+  emailCardHtml,
+  emailCardMeta,
+  emailCardResourceMeta,
+} from "./cards/email-card";
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 import { drawingFileMeta } from "./drawing-file-input";
-import { DRAWING_CARD_MIME, DRAWING_CARD_TOOLS, DRAWING_CARD_URI, DRAWING_CARD_URIS, drawingCardHtml, drawingCardMeta, drawingResourceMeta } from "./cards/drawing-card";
+import {
+  DRAWING_CARD_MIME,
+  DRAWING_CARD_TOOLS,
+  DRAWING_CARD_URI,
+  DRAWING_CARD_URIS,
+  drawingCardHtml,
+  drawingCardMeta,
+  drawingResourceMeta,
+} from "./cards/drawing-card";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -42,14 +65,69 @@ type Visit = { calls: Call[]; acceptsJson?: boolean };
 type Host = { name: string; capabilities: unknown };
 
 /** Every card view: the native card (current and legacy URI) and the editable email card. */
-const CARD_VIEWS: Record<string, { name: string; title: string; mimeType: string; html: () => string; meta: Record<string, unknown> }> = Object.fromEntries([
-  ...[...NATIVE_CARD_URIS].map((uri) => [uri, { name: uri === NATIVE_CARD_URI ? "athena-native-card" : "athena-native-card-legacy", title: "Athena native card", mimeType: NATIVE_CARD_MIME, html: nativeCardHtml, meta: nativeResourceMeta }]),
-  [EMAIL_CARD_URI, { name: "athena-email-card", title: "Athena email card", mimeType: EMAIL_CARD_MIME, html: emailCardHtml, meta: emailCardResourceMeta }],
-  ...[...DRAWING_CARD_URIS].map((uri) => [uri, { name: uri === DRAWING_CARD_URI ? "athena-drawing-card" : "athena-drawing-card-legacy", title: "Athena drawing card", mimeType: DRAWING_CARD_MIME, html: drawingCardHtml, meta: drawingResourceMeta }]),
+const CARD_VIEWS: Record<
+  string,
+  {
+    name: string;
+    title: string;
+    mimeType: string;
+    html: () => string;
+    meta: Record<string, unknown>;
+  }
+> = Object.fromEntries([
+  [
+    TAKEOFF_CARD_URI,
+    {
+      name: "athena-takeoff",
+      title: "Athena drawing takeoff",
+      mimeType: TAKEOFF_CARD_MIME,
+      html: takeoffCardHtml,
+      meta: takeoffResourceMeta,
+    },
+  ],
+  ...[...NATIVE_CARD_URIS].map((uri) => [
+    uri,
+    {
+      name: uri === NATIVE_CARD_URI ? "athena-native-card" : "athena-native-card-legacy",
+      title: "Athena native card",
+      mimeType: NATIVE_CARD_MIME,
+      html: nativeCardHtml,
+      meta: nativeResourceMeta,
+    },
+  ]),
+  [
+    EMAIL_CARD_URI,
+    {
+      name: "athena-email-card",
+      title: "Athena email card",
+      mimeType: EMAIL_CARD_MIME,
+      html: emailCardHtml,
+      meta: emailCardResourceMeta,
+    },
+  ],
+  ...[...DRAWING_CARD_URIS].map((uri) => [
+    uri,
+    {
+      name: uri === DRAWING_CARD_URI ? "athena-drawing-card" : "athena-drawing-card-legacy",
+      title: "Athena drawing card",
+      mimeType: DRAWING_CARD_MIME,
+      html: drawingCardHtml,
+      meta: drawingResourceMeta,
+    },
+  ]),
 ]);
 const isCardUri = (uri: unknown): uri is string => typeof uri === "string" && uri in CARD_VIEWS;
 /** Tools that open on a card view, with the `_meta.ui` each advertises. */
-const cardMetaFor = (name: string) => (DRAWING_CARD_TOOLS.has(name) ? drawingCardMeta.ui : EMAIL_CARD_TOOLS.has(name) ? emailCardMeta.ui : NATIVE_CARD_TOOLS.has(name) ? nativeCardMeta.ui : null);
+const cardMetaFor = (name: string) =>
+  TAKEOFF_CARD_TOOLS.has(name)
+    ? takeoffCardMeta.ui
+    : DRAWING_CARD_TOOLS.has(name)
+      ? drawingCardMeta.ui
+      : EMAIL_CARD_TOOLS.has(name)
+        ? emailCardMeta.ui
+        : NATIVE_CARD_TOOLS.has(name)
+          ? nativeCardMeta.ui
+          : null;
 
 /** Session id from initialize → whether that client can show a card, and whether it is Claude or Grok. Same isolate only. */
 const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean; grok: boolean }>();
@@ -180,7 +258,12 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
       params = obj(call?.params) ?? {};
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
-    if (method === "tools/call" && !cardMetaFor(String(params.name ?? "")) && !GROK_PLAIN_TOOLS.has(String(params.name ?? ""))) continue;
+    if (
+      method === "tools/call" &&
+      !cardMetaFor(String(params.name ?? "")) &&
+      !GROK_PLAIN_TOOLS.has(String(params.name ?? ""))
+    )
+      continue;
     if (
       ![
         "initialize",
@@ -234,7 +317,7 @@ function acceptsJson(accept: string | null): boolean {
 }
 
 /** Listed views: the current native card and the email card (the legacy URI stays readable, not listed). */
-const LISTED_VIEWS = [NATIVE_CARD_URI, EMAIL_CARD_URI, DRAWING_CARD_URI];
+const LISTED_VIEWS = [NATIVE_CARD_URI, EMAIL_CARD_URI, DRAWING_CARD_URI, TAKEOFF_CARD_URI];
 const resourceEntry = (uri: string) => {
   const view = CARD_VIEWS[uri];
   return { uri, name: view.name, title: view.title, mimeType: view.mimeType, _meta: view.meta };
@@ -283,13 +366,18 @@ export function nativeCardPayload(
         const meta = obj(tool._meta) ?? {},
           ui = obj(meta.ui) ?? {};
         const fileMeta = drawingFileMeta(name);
-        const repairFile = Object.keys(fileMeta).length > 0 &&
-          JSON.stringify(meta["openai/fileParams"]) !== JSON.stringify(fileMeta["openai/fileParams"]);
+        const repairFile =
+          Object.keys(fileMeta).length > 0 &&
+          JSON.stringify(meta["openai/fileParams"]) !==
+            JSON.stringify(fileMeta["openai/fileParams"]);
         const repairUi = !!cardUi && typeof ui.resourceUri !== "string";
         if (!repairFile && !repairUi) return value;
         repaired = true;
         // Do not introduce, remove or alter openai/outputTemplate.
-        return { ...tool, _meta: { ...meta, ...fileMeta, ...(repairUi ? { ui: { ...ui, ...cardUi } } : {}) } };
+        return {
+          ...tool,
+          _meta: { ...meta, ...fileMeta, ...(repairUi ? { ui: { ...ui, ...cardUi } } : {}) },
+        };
       });
       if (repaired) next = { ...result, tools };
     } else if (
@@ -298,7 +386,8 @@ export function nativeCardPayload(
     ) {
       const resources = Array.isArray(result?.resources) ? result.resources : [];
       const missing = LISTED_VIEWS.filter((uri) => !resources.some((r) => obj(r)?.uri === uri));
-      if (missing.length) next = { ...(result ?? {}), resources: [...resources, ...missing.map(resourceEntry)] };
+      if (missing.length)
+        next = { ...(result ?? {}), resources: [...resources, ...missing.map(resourceEntry)] };
     } else if (call.method === "resources/templates/list" && missingMethod) {
       next = { resourceTemplates: [] };
     } else if (
@@ -344,11 +433,7 @@ export function nativeCardPayload(
       // Grok only. ChatGPT stays the original object. Claude keeps claudeCardReply above.
       const relocated = relocateGrokInstructions(result);
       if (relocated) next = relocated;
-    } else if (
-      call.method === "resources/read" &&
-      isCardUri(call.params.uri) &&
-      missingMethod
-    ) {
+    } else if (call.method === "resources/read" && isCardUri(call.params.uri) && missingMethod) {
       // Some deployed SDK builds omit resource handlers. Only this static, non-personal shell is repaired,
       // after the SDK returns a method-not-found reply. Auth failures and other resource URIs are untouched.
       next = resourceContents(String(call.params.uri));
