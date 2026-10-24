@@ -21,6 +21,11 @@ export const Route = createFileRoute("/r/job/$jobId/submittal/$number")({
 
 function SubmittalRecordRoute() {
   const { jobId, number } = Route.useParams();
-  const token = readBoardToken(Route.useSearch());
-  return <SubmittalRecordView jobId={jobId} number={number.trim()} token={token} />;
+  const search = Route.useSearch();
+  const token = readBoardToken(search);
+  const packageId =
+    search.open === "package" && isUuid(search.package_id ?? "") ? search.package_id : undefined;
+  return (
+    <SubmittalRecordView jobId={jobId} number={number.trim()} token={token} packageId={packageId} />
+  );
 }

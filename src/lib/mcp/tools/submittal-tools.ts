@@ -150,11 +150,24 @@ export async function readSubmittalRows(sb: Sb, jobId: string): Promise<Submitta
     all("mcp_submittal_packages", "id,submittal_id,sent_at", "sent_at"),
   ]);
   const numbers = new Map((transmittals as { id: string; number: number }[]).map((t) => [t.id, t.number]));
+  const currentPackages = new Map<string, SubmittalRecord["built_package"]>();
+  const packagedIds = [...new Set(packages.map(p => String(p.submittal_id)))];
+  for (let offset = 0; offset < packagedIds.length; offset += 8) {
+    await Promise.all(packagedIds.slice(offset, offset + 8).map(async id => {
+      // SELECT-only RPC applies the same current-fingerprint rule as build/get; stale packages never look ready.
+      const result = await sb.rpc("mcp_submittal_package_context", { _job: jobId, _submittal: id });
+      if (result.error) throw new Error("The current submittal packages could not be read. Try again.");
+      const artifact = (result.data as unknown as { package?: { id: string; filename: string; page_count: number; cover_date?: string; revoked_at?: string | null } } | null)?.package;
+      currentPackages.set(id, artifact && !artifact.revoked_at ? { id: artifact.id, filename: artifact.filename, page_count: artifact.page_count, cover_date: artifact.cover_date } : null);
+    }));
+  }
   return (rows as (Partial<SubmittalRecord> & { transmittal_id?: string })[]).map((row) => ({
     id: String(row.id ?? ""),
     number: String(row.number ?? ""),
     revision: Number(row.revision ?? 0),
     submission_sent_at: (packages as { submittal_id: string; sent_at: string | null }[]).find((p) => p.submittal_id === row.id && p.sent_at)?.sent_at ?? null,
+    has_package: packages.some(p => p.submittal_id === row.id),
+    built_package: currentPackages.get(String(row.id)) ?? null,
     transmittal_number: numbers.get(row.transmittal_id ?? "") ?? 0,
     spec_section: String(row.spec_section ?? ""),
     title: String(row.title ?? ""),

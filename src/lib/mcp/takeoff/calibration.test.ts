@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { automaticCalibration } from "./calibration";
+import { automaticCalibration, scaleLock, statedScaleCalibration } from "./calibration";
 import { tileGrid, type SheetInspection, type VectorObject } from "./pdf";
 const space = {
   source_id: "source",
@@ -39,6 +39,35 @@ function dimension(i: SheetInspection, x: number, y: number, label: string, leng
   );
 }
 describe("independent scale confirmation", () => {
+  it("offers one question with two choices, and never asks again after a saved lock", () => {
+    const unresolved = scaleLock('SCALE As Noted. Detail 3/16" = 1\'-0"', false);
+    expect(unresolved.as_noted).toBe(true);
+    expect(unresolved.question).toBe("How would you like to lock the scale for this plan region?");
+    expect(unresolved.choices).toHaveLength(2);
+    expect(unresolved.choices[0]).toContain("known dimension");
+    expect(unresolved.choices[1]).toContain("true size");
+    expect(scaleLock("As Noted", true)).toMatchObject({
+      locked: true,
+      question: null,
+      choices: [],
+    });
+  });
+  it("locks 3/16 at true size without falsely claiming a dimension check", () => {
+    const cal = statedScaleCalibration(
+      space,
+      '3/16" = 1\'-0"',
+      "Main plan",
+      { x: 0, y: 0, width: 1, height: 1 },
+      true,
+    );
+    expect(cal.feet_per_point).toBeCloseTo(1 / 13.5);
+    expect(cal).toMatchObject({ confirmed: true, method: "title_block", confidence: "medium" });
+    expect(() =>
+      statedScaleCalibration(space, '3/16" = 1\'-0"', "Plan", cal.bounds, false),
+    ).toThrow("true size");
+    for (const text of ["As Noted", "NTS", '1/4" = 1\'-0" and 1/2" = 1\'-0"'])
+      expect(() => statedScaleCalibration(space, text, "Plan", cal.bounds, true)).toThrow();
+  });
   it("will not confirm a title alone, one dimension, NTS or mixed scales", () => {
     const i = inspection();
     expect(automaticCalibration(space, i)).toBeNull();

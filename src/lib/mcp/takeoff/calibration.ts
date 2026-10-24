@@ -6,6 +6,65 @@ function dimensionFeet(text: string): number | null {
   if (match) return Number(match[1]) + Number(match[2] || 0) / 12;
   return null;
 }
+
+/** A printed-scale lock is permitted only after the member confirms the PDF is true size.
+ * It remains distinct from an independent dimension check in the measurement review. */
+export function statedScaleCalibration(
+  space: SheetSpace,
+  label: string,
+  region: string,
+  bounds: Calibration["bounds"],
+  trueSize: boolean,
+): Calibration {
+  const scales = scaleProposals(label);
+  if (!trueSize || scales.length !== 1 || /as\s+noted|not\s+to\s+scale|\bNTS\b/i.test(label))
+    throw new Error(
+      "Confirm a single stated scale and that this PDF is true size, or use a known dimension.",
+    );
+  const a = { x: bounds.x, y: bounds.y };
+  const b = { x: bounds.x + bounds.width, y: bounds.y };
+  if (!(
+    bounds.width > 0 &&
+    bounds.height > 0 &&
+    bounds.x >= 0 &&
+    bounds.y >= 0 &&
+    b.x <= 1 &&
+    bounds.y + bounds.height <= 1
+  ))
+    throw new Error("Choose the plan/detail bounds on this sheet.");
+  return calibrate(space, {
+    region,
+    bounds,
+    reference: {
+      points: [a, b],
+      distance: bounds.width * space.width * scales[0].feet_per_point,
+      unit: "ft",
+    },
+    version: 1,
+    method: "title_block",
+    confidence: "medium",
+    confirmed: true,
+  });
+}
+
+export function scaleLock(text: string, locked: boolean) {
+  const scales = scaleProposals(text);
+  const asNoted = /as\s+noted/i.test(text);
+  return {
+    locked,
+    printed_scales: scales.map((s) => s.label),
+    as_noted: asNoted,
+    question: locked ? null : "How would you like to lock the scale for this plan region?",
+    choices: locked
+      ? []
+      : [
+          "Calibrate from a known dimension on this sheet (select its two endpoints and confirm its length).",
+          scales.length === 1 && !asNoted
+            ? `Use the stated scale ${scales[0].label}, after confirming the PDF is true size.`
+            : "Use the scale stated for this plan region, after identifying it and confirming the PDF is true size.",
+        ],
+  };
+}
 const center = (o: VectorObject): Point => ({
   x: o.bounds.x + o.bounds.width / 2,
   y: o.bounds.y + o.bounds.height / 2,
@@ -18,7 +77,8 @@ export function automaticCalibration(
   inspection: SheetInspection,
 ): { calibration: Calibration; checks: { text: string; length: number; error: number }[] } | null {
   const scales = scaleProposals(inspection.text);
-  if (inspection.truncated || scales.length !== 1) return null;
+  if (inspection.truncated || scales.length !== 1 || /as\s+noted/i.test(inspection.text))
+    return null;
   const scale = scales[0],
     checks: { text: string; length: number; error: number; points: [Point, Point] }[] = [];
   const paths = inspection.objects.filter((o) => o.kind === "path" && o.points?.length === 2);

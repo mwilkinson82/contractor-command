@@ -4,11 +4,13 @@ import {
   renderSubmittalRecordBody,
   submittalRecordPath,
   submittalRecordFile,
+  submittalPackageTarget,
   type SubmittalRecordPayload,
 } from "./submittal-record-page";
 import { renderReportBody } from "./report-pages";
 import { boardReturnForVisit, boardSignInReturn } from "./board-sign-in";
 import { jobLinksMissingToken, submittalRecordUrl } from "./mcp/board-url";
+import { submittalPackageUrl } from "./mcp/submittal-record-url";
 import { findPackagePiece } from "./mcp/submittal-package";
 import { hostFromClientName, hostLabel } from "./mcp/call-host";
 import { headerMatchesRows, presentSubmittalLog, type SubmittalRecord } from "./mcp/submittals";
@@ -79,6 +81,27 @@ const items = [
 ];
 
 describe("record page", () => {
+  it("opens the exact package from a signed row, retaining the job and board key", () => {
+    const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const url = new URL(submittalPackageUrl(BOARD, "26 24 16-001", id)!);
+    expect(url.pathname).toBe(`/r/job/${JOB}/submittal/26%2024%2016-001`);
+    expect(url.searchParams.get("t")).toBe(TOKEN);
+    expect(url.searchParams.get("open")).toBe("package");
+    expect(url.searchParams.get("package_id")).toBe(id);
+    expect(submittalPackageUrl(BOARD, "S1", "")).toBeNull();
+    expect(submittalPackageUrl("https://app.meetathena.io/r/job/%20/submittals", "S1", id)).toBeNull();
+  });
+  it("redirects only to the exact non-revoked, signed package in an authorized job record", () => {
+    const pkg = { id: "p1", submittal_id: "s1", revision: 0, filename: "Package.pdf", created_at: TODAY,
+      path: `company/${JOB}/packages/p1/Package.pdf`, url: `https://fixture.supabase.co/storage/v1/object/sign/athena-submittals/company/${JOB}/packages/p1/Package.pdf?token=fixture` };
+    const record = { page: "submittal", company_id: "company", job_id: JOB, number: "S1", current: row({ id: "s1", number: "S1", revision: 0 }), packages: [pkg] } as SubmittalRecordPayload;
+    expect(submittalPackageTarget(record, "p1")).toBe(pkg.url);
+    expect(submittalPackageTarget(record, "other-package")).toBeNull();
+    expect(submittalPackageTarget({ ...record, packages: [{ ...pkg, revoked_at: TODAY }] }, "p1")).toBeNull();
+    expect(submittalPackageTarget({ ...record, job_id: "another-job" }, "p1")).toBeNull();
+    expect(submittalPackageTarget({ ...record, packages: [{ ...pkg, url: "https://files.example/wrong.pdf?token=x" }] }, "p1")).toBeNull();
+    expect(submittalPackageTarget({ ...record, packages: [{ ...pkg, url: null }] }, "p1")).toBeNull();
+  });
   it("signs stored references only inside the authorized company's job across supported buckets", () => {
     const scope = { company_id: "company", job_id: "job" };
     for (const bucket of ["athena-submittals", "athena-files", "athena-drawings"])

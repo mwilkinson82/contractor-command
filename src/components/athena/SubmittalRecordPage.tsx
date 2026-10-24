@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   renderSubmittalRecordBody,
   submittalRecordPath,
   submittalRecordFile,
+  submittalPackageTarget,
   type SubmittalRecordPayload,
 } from "@/lib/submittal-record-page";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,10 +53,12 @@ export function SubmittalRecordView({
   jobId,
   number,
   token,
+  packageId,
 }: {
   jobId: string;
   number: string;
   token?: string;
+  packageId?: string;
 }) {
   const openLink = useServerFn(openSubmittalRecord);
   const { session, loading: authLoading } = useAuth();
@@ -103,11 +106,21 @@ export function SubmittalRecordView({
       (_match, path: string) => `href="${path}?${tokenQuery}"`,
     );
   }, [payload, token]);
+  const packageTarget = payload ? submittalPackageTarget(payload, packageId) : null;
+  useEffect(() => {
+    if (packageTarget) window.location.replace(packageTarget);
+  }, [packageTarget]);
   if (authLoading || (!payload && ((session && q.isLoading) || (token && linked.isLoading))))
     return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   if (payload) {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
+        {packageId && !packageTarget ? (
+          <p role="status" style={{ padding: "16px 24px", color: "#6B7280" }}>
+            That package could not be opened. The submittal record and its available files are
+            below.
+          </p>
+        ) : null}
         <div dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     );

@@ -155,7 +155,7 @@ describe("email card view", () => {
     expect(v.el((e) => e.id === "cc").value).toBe("pm@example.com");
     expect(v.el((e) => e.id === "subject").value).toBe(draft.subject);
     expect(v.el((e) => e.id === "body").value).toBe(draft.body);
-    expect(v.el((e) => e.className === "pill").textContent).toBe("Not sent");
+    expect(v.el((e) => e.className === "pill").textContent).toBe("Draft, not sent");
     expect(v.el((e) => e.className === "primary").disabled).toBe(false);
   });
 
@@ -232,7 +232,7 @@ describe("email card view", () => {
     });
     await v.flush();
     expect(v.requests().some((request) => request.method === "ui/message")).toBe(false);
-    expect(v.el((e) => e.className === "pill").textContent).toBe("Not sent");
+    expect(v.el((e) => e.className === "pill").textContent).toBe("Draft, not sent");
   });
 
   it("does not reuse an old draft key when re-drafting is refused", async () => {
@@ -294,7 +294,7 @@ describe("email card view", () => {
     expect(v.el((e) => e.className === "note").textContent).toContain(
       "This draft changed after it was reviewed",
     );
-    expect(v.el((e) => e.className === "pill").textContent).toBe("Not sent");
+    expect(v.el((e) => e.className === "pill").textContent).toBe("Draft, not sent");
   });
 
   it("drafts and approves a submittal delivery with its ids", async () => {
@@ -405,7 +405,7 @@ describe("email card on the wire", () => {
       result: { tools: { name: string; _meta?: Obj }[] };
     };
     const by = Object.fromEntries(out.result.tools.map((t) => [t.name, t._meta]));
-    expect(by.email_draft).toEqual(emailCardMeta);
+    expect(by.email_draft).toEqual({ ...emailCardMeta, "openai/outputTemplate": EMAIL_CARD_URI });
     expect(by.submittal_delivery).toEqual({
       "openai/outputTemplate": "ui://athena/card.html",
       ...emailCardMeta,
@@ -473,7 +473,7 @@ describe("email card on the wire", () => {
       if (method === "tools/list") {
         const tool = json.result.tools.find((t: { name: string }) => t.name === "email_draft");
         expect(tool._meta.ui.resourceUri).toBe(EMAIL_CARD_URI);
-        expect(tool._meta["openai/outputTemplate"]).toBeUndefined();
+        expect(tool._meta["openai/outputTemplate"]).toBe(EMAIL_CARD_URI);
       } else expect(json.result.contents[0].mimeType).toBe(EMAIL_CARD_MIME);
     }
   });

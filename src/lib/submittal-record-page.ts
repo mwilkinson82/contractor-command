@@ -141,6 +141,30 @@ export function submittalRecordPath(jobId: string, number: string): string {
   return `/r/job/${jobId}/submittal/${encodeURIComponent(number.trim())}`;
 }
 
+/** Only the exact, non-revoked package in the already-authorized record may open automatically. */
+export function submittalPackageTarget(
+  payload: SubmittalRecordPayload,
+  packageId?: string,
+): string | null {
+  if (!packageId) return null;
+  const pkg = payload.packages?.find((p) => p.id === packageId && !p.revoked_at);
+  if (!pkg?.url || !submittalRecordFile(payload, `athena-submittals/${pkg.path}`)) return null;
+  try {
+    const url = new URL(pkg.url);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      !url.pathname.endsWith(`/storage/v1/object/sign/athena-submittals/${pkg.path}`) ||
+      !url.searchParams.get("token")
+    )
+      return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 const NAVY = "#1E3A5F",
   BLUE = "#2563EB",
   G1 = "#6B7280",

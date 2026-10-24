@@ -21,11 +21,12 @@ import {
   nativeCardMeta,
   nativeResourceMeta,
 } from "./cards/native";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta } from "./cards/widget";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta, cardWidgetResourceMeta } from "./cards/widget";
 import {
   EMAIL_CARD_MIME,
   EMAIL_CARD_TOOLS,
   EMAIL_CARD_URI,
+  EMAIL_CARD_URIS,
   emailCardHtml,
   emailCardMeta,
   emailCardResourceMeta,
@@ -149,10 +150,10 @@ if (!proto[patched]) {
         this.registerResource(
           "athena-card",
           CARD_WIDGET_URI,
-          { title: "Athena card", mimeType: CARD_WIDGET_MIME },
+          { title: "Athena card", mimeType: CARD_WIDGET_MIME, _meta: cardWidgetResourceMeta },
           async () => ({
             contents: [
-              { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml() },
+              { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml(), _meta: cardWidgetResourceMeta },
             ],
           }),
         );
@@ -190,22 +191,22 @@ if (!proto[patched]) {
       typeof this.registerResource === "function" &&
       !(this as { _athenaEmailCard?: boolean })._athenaEmailCard
     ) {
-      // The editable email card: its own resource, same MCP Apps profile as the native card.
-      this.registerResource(
-        "athena-email-card",
-        EMAIL_CARD_URI,
-        { title: "Athena email card", mimeType: EMAIL_CARD_MIME, _meta: emailCardResourceMeta },
-        async () => ({
-          contents: [
-            {
-              uri: EMAIL_CARD_URI,
-              mimeType: EMAIL_CARD_MIME,
-              text: emailCardHtml(),
-              _meta: emailCardResourceMeta,
-            },
-          ],
-        }),
-      );
+      for (const uri of EMAIL_CARD_URIS)
+        this.registerResource(
+          uri === EMAIL_CARD_URI ? "athena-email-card" : "athena-email-card-legacy",
+          uri,
+          { title: "Athena email card", mimeType: EMAIL_CARD_MIME, _meta: emailCardResourceMeta },
+          async () => ({
+            contents: [
+              {
+                uri,
+                mimeType: EMAIL_CARD_MIME,
+                text: emailCardHtml(),
+                _meta: emailCardResourceMeta,
+              },
+            ],
+          }),
+        );
       (this as { _athenaEmailCard?: boolean })._athenaEmailCard = true;
     }
     if (
@@ -291,6 +292,15 @@ if (!proto[patched]) {
           },
         };
       }
+      if (name === "email_draft")
+        return {
+          ...result,
+          _meta: {
+            ...(result._meta ?? {}),
+            ...emailCardMeta,
+            "openai/outputTemplate": EMAIL_CARD_URI,
+          },
+        };
       if (!CARD_WIDGET_TOOLS.has(name)) return result;
       if (
         name === "living_report_get" &&

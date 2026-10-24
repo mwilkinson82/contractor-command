@@ -1,7 +1,7 @@
 // Living submittal log. Dates follow deadlines.ts: calendar days, job time zone, never rolled later.
 // Package assembly and delivery use these same revision and item records.
 import { addDays } from "./deadlines";
-import { submittalRecordUrl } from "./submittal-record-url";
+import { submittalRecordUrl, submittalPackageUrl } from "./submittal-record-url";
 import type { CardModel, CardRow, CardSection } from "./cards/model";
 import { scheduleGroupOverdue, type ScheduleActivity, type TrackingItem } from "./schedule-submittals";
 
@@ -103,6 +103,8 @@ export type SubmittalRecord = {
   previous_id?: string | null;
   transmittal_number: number;
   submission_sent_at?: string | null;
+  has_package?: boolean;
+  built_package?: { id: string; filename: string; page_count: number; cover_date?: string | null } | null;
   spec_section: string;
   title: string;
   submittal_type: string;
@@ -285,7 +287,16 @@ function ballLabel(row: SubmittalRecord): string {
 
 function rowLine(row: SubmittalRecord, today: string): string {
   const overdue = submittalOverdue(row, today);
-  return `- ${row.number}. ${row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${labelOf(STATUS_LABEL, row.status)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. ${row.submission_sent_at ? `Package sent ${row.submission_sent_at.slice(0,10)}.` : "Package send receipt not recorded."}`;
+  return `- ${row.number}. ${row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${submittalDisplayStatus(row)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)}${row.built_package ? ` Package: ${row.built_package.filename}.` : ""}${packageDelivery(row) ? ` ${packageDelivery(row)}.` : ""}`;
+}
+
+export function submittalDisplayStatus(row: SubmittalRecord): string {
+  return row.built_package && !row.submission_sent_at && ["not_started", "in_prep"].includes(row.status)
+    ? "Package built · Draft, not sent" : labelOf(STATUS_LABEL, row.status);
+}
+export function packageDelivery(row: SubmittalRecord): string {
+  return row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}`
+    : row.has_package || row.built_package ? "Send receipt not recorded" : "";
 }
 
 /** Plain-text fallback. Header counts are the deduped rows, and the card uses that same list. */
@@ -345,16 +356,16 @@ export function presentSubmittalLog(input: {
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
-      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), labelOf(STATUS_LABEL, row.status), ballLabel(row), dueLabel(row), late ? "Yes" : "No", row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}` : "Send receipt not recorded"],
+      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), submittalDisplayStatus(row), ballLabel(row), dueLabel(row), late ? "Yes" : "No", packageDelivery(row), sourceLine(row), row.built_package?.filename ?? (row.has_package ? "Rebuild needed" : "")],
       flag: late ? "overdue" : null,
-      // The row opens the submittal's own record page, signed with the same token as the log link.
-      href: submittalRecordUrl(input.boardUrl, row.number),
+      // Built rows open their exact package through the authorized record route; other rows open the record.
+      href: (row.built_package ? submittalPackageUrl(input.boardUrl, row.number, row.built_package.id) : null) ?? submittalRecordUrl(input.boardUrl, row.number),
       refId: row.id,
     };
   });
   const focusRows: CardRow[] = focus
     ? (focus.package_items ?? []).map((item, n) => ({
-        cells: [pieceRef(n), `${labelOf(PACKAGE_KIND_LABEL, item.kind)} from ${item.source_party}`, labelOf(PACKAGE_STATUS_LABEL, item.status), item.file_ref?.trim() && RECEIVED.has(item.status) ? "Stored" : "No file yet", item.chase_name?.trim() || "No contact"],
+        cells: [pieceRef(n), labelOf(PACKAGE_KIND_LABEL, item.kind), item.source_party, labelOf(PACKAGE_STATUS_LABEL, item.status), item.file_ref?.trim() && RECEIVED.has(item.status) ? "Stored" : "No file yet", item.chase_name?.trim() || "No contact"],
         refId: item.id ?? undefined,
       }))
     : [];
@@ -398,7 +409,7 @@ export function presentSubmittalLog(input: {
         ? {
             heading: "Log",
             kind: "table" as const,
-            columns: ["Number", "Title", "Spec section", "Transmittal", "Revision", "Status", "Ball in court", "Due", "Overdue", "Package delivery"],
+            columns: ["Number", "Title", "Spec section", "Transmittal", "Revision", "Status", "Ball in court", "Due", "Overdue", "Package delivery", "Source", "Package PDF"],
             rows: tableRows,
           }
         : {
@@ -406,11 +417,13 @@ export function presentSubmittalLog(input: {
             kind: "list" as const,
             rows: [{ cells: [noMatch ? noMatchLine : nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
           },
+      ...(rows.some(row => row.built_package) ? [{ heading: "Submittal records", kind: "list" as const,
+        rows: rows.filter(row => row.built_package).map(row => ({ cells: [`Open record · ${row.number}`], href: submittalRecordUrl(input.boardUrl, row.number) })) }] : []),
       ...(focus
         ? [{
             heading: `Package pieces for ${focus.number}`,
             kind: focusRows.length ? ("table" as const) : ("list" as const),
-            ...(focusRows.length ? { columns: ["Piece", "What", "Status", "File", "Contact"] } : {}),
+            ...(focusRows.length ? { columns: ["Piece", "Item", "Source", "Status", "File", "Contact"] } : {}),
             rows: focusRows.length ? focusRows : [{ cells: ["No pieces logged yet."] }],
           }]
         : []),

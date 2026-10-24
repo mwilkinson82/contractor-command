@@ -30,6 +30,7 @@ import {
   EMAIL_CARD_MIME,
   EMAIL_CARD_TOOLS,
   EMAIL_CARD_URI,
+  EMAIL_CARD_URIS,
   emailCardHtml,
   emailCardMeta,
   emailCardResourceMeta,
@@ -96,16 +97,16 @@ const CARD_VIEWS: Record<
       meta: nativeResourceMeta,
     },
   ]),
-  [
-    EMAIL_CARD_URI,
+  ...[...EMAIL_CARD_URIS].map((uri) => [
+    uri,
     {
-      name: "athena-email-card",
+      name: uri === EMAIL_CARD_URI ? "athena-email-card" : "athena-email-card-legacy",
       title: "Athena email card",
       mimeType: EMAIL_CARD_MIME,
       html: emailCardHtml,
       meta: emailCardResourceMeta,
     },
-  ],
+  ]),
   ...[...DRAWING_CARD_URIS].map((uri) => [
     uri,
     {
@@ -372,12 +373,19 @@ export function nativeCardPayload(
           JSON.stringify(meta["openai/fileParams"]) !==
             JSON.stringify(fileMeta["openai/fileParams"]);
         const repairUi = !!cardUi && typeof ui.resourceUri !== "string";
-        if (!repairFile && !repairUi) return value;
+        const emailTemplate =
+          name === "email_draft" && typeof meta["openai/outputTemplate"] !== "string";
+        if (!repairFile && !repairUi && !emailTemplate) return value;
         repaired = true;
         // Do not introduce, remove or alter openai/outputTemplate.
         return {
           ...tool,
-          _meta: { ...meta, ...fileMeta, ...(repairUi ? { ui: { ...ui, ...cardUi } } : {}) },
+          _meta: {
+            ...meta,
+            ...fileMeta,
+            ...(repairUi ? { ui: { ...ui, ...cardUi } } : {}),
+            ...(emailTemplate ? { "openai/outputTemplate": EMAIL_CARD_URI } : {}),
+          },
         };
       });
       if (repaired) next = { ...result, tools };

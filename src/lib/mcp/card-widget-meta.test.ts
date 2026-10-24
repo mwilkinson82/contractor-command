@@ -6,7 +6,7 @@ import { EMAIL_CARD_TOOLS, EMAIL_CARD_URI } from "./cards/email-card";
 import { DRAWING_CARD_TOOLS, DRAWING_CARD_URI } from "./cards/drawing-card";
 import { NATIVE_CARD_URI, NATIVE_CARD_MIME, NATIVE_CARD_TOOLS } from "./cards/native";
 import { CARD_TOOLS } from "./cards/attach";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI } from "./cards/widget";
+import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetResourceMeta } from "./cards/widget";
 import { ATHENA_TOOLS } from "./index";
 import { readFileSync } from "node:fs";
 
@@ -73,12 +73,18 @@ describe("ChatGPT card widget stays off tools/list", () => {
     }
     const resources = await rpc("resources/list", 3);
     const cards = (resources.resources as { uri: string; mimeType?: string }[]).filter((resource) => resource.uri === CARD_WIDGET_URI);
-    expect(cards).toEqual([{ uri: CARD_WIDGET_URI, name: "athena-card", title: "Athena card", mimeType: CARD_WIDGET_MIME }]);
+    expect(cards).toEqual([{ uri: CARD_WIDGET_URI, name: "athena-card", title: "Athena card", mimeType: CARD_WIDGET_MIME, _meta: cardWidgetResourceMeta }]);
     const instructions = readFileSync("src/lib/mcp/index.ts", "utf8");
     expect(instructions).toContain("How many / list lookaheads → lookahead_list.");
     expect(instructions).not.toContain("leave that section out");
     expect(instructions).not.toContain("leave the section out");
     expect(instructions).not.toContain("Never render an empty heading");
+  });
+  it("returns an explicit restrictive CSP on the actual ChatGPT resource", async () => {
+    const result = await rpc("resources/read", 47, { uri: CARD_WIDGET_URI });
+    expect(result.contents[0]._meta).toEqual(cardWidgetResourceMeta);
+    expect(result.contents[0]._meta.ui.csp).toEqual({ connectDomains: [], resourceDomains: [] });
+    expect(result.contents[0]._meta["openai/widgetCSP"]).toEqual({ connect_domains: [], resource_domains: [] });
   });
 });
 

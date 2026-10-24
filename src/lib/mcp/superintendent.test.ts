@@ -316,7 +316,7 @@ describe("feeds", () => {
     state.tables.mcp_daily_reports = [{ id: "d1", report_date: "2026-10-21" }];
     state.tables.mcp_daily_work_lines = [{ daily_id: "d1", sov_item: "03.01", activity_id: "A1000", qty: 40, unit: "cy", pct_complete: 30 }];
     const full = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
-    expect(full.content[0].text).toContain("| Contract sum | $1,666.67 |");
+    expect(full.content[0].text).toContain("| Contract sum · Reported | $1,666.67 |");
     expect(full.content[0].text).toContain("G702 tie checks");
     expect(full.structuredContent.card).toBeDefined();
     expect(full.structuredContent.html).toContain("G703 continuation");

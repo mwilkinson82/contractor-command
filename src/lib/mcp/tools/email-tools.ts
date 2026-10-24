@@ -9,6 +9,8 @@ import { resolveJob, type Job } from "../jobs";
 import { recordEvent } from "../project-record";
 import { whoForJob } from "../people";
 import { draftIdentity } from "../drafts";
+import { jobContacts } from "../contacts";
+import { delayDraft } from "../delay-draft";
 import { guide } from "../visible";
 import { fileLinkLive } from "./file-tools";
 import {
@@ -81,6 +83,7 @@ export const emailDraft = defineTool({
     job_number: z.string().trim().max(40).optional(),
     company_id: z.string().trim().max(200).optional(),
     sign_as: z.string().trim().max(200).optional(),
+    recipient_name: z.string().trim().min(1).max(200).optional(),
   },
   annotations: {
     readOnlyHint: true,
@@ -90,10 +93,18 @@ export const emailDraft = defineTool({
   },
   handler: (args, ctx) =>
     run("email_draft", ctx, {}, async (sb) => {
-      const d = toDraft(args);
+      const job = args.job_number ? await resolveJob(sb as Sb, args.job_number, args.company_id) : null;
+      let d = toDraft(args);
+      let recipient = null;
+      if (job && /\bdelay\b/i.test(d.subject + " " + d.body)) {
+        const co = await sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle();
+        const filled = delayDraft(d, await jobContacts(sb, job.job_id, co.data?.name), args.recipient_name);
+        d = filled.draft;
+        recipient = filled.contact;
+      }
       await checkDeliverable(d, sb as Sb);
       // 0.8.17: signed as the job's PM by default (not the person chatting), from the member's current company.
-      const sig = args.job_number ? await pmSignature(sb as Sb, await resolveJob(sb as Sb, args.job_number, args.company_id)) : null;
+      const sig = job ? await pmSignature(sb as Sb, job) : null;
       const sp = signatureProblem(d.body, sig, args.sign_as ?? null);
       if (sp) throw new ToolError(`Fix the draft first. Nothing was sent.\n- ${sp}`);
       const key = draftKey(d);
@@ -103,6 +114,8 @@ export const emailDraft = defineTool({
           ...text([EMAIL_DRAFT_ARTIFACT_LINE, "", draftCardText(d), "", ...EMAIL_DRAFT_VIEW_SPEC, ...(off ? [] : ["", `Confirm question: ${confirmQuestion(d)}`])].join("\n")),
           structuredContent: {
             draft: d,
+            email_contact: recipient,
+            draft_status: "Draft, not sent",
             signature: args.sign_as ?? sig?.signature ?? null,
             draft_key: key,
             sent: false,

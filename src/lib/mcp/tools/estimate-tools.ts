@@ -562,7 +562,7 @@ export const estimateIntake = defineTool({
   name: "estimate_intake",
   title: "Estimating intake",
   description:
-    "Starts estimating by asking the member to select their strongest image-reading model with deeper reasoning, confirms role and scope, warns before reusing a saved takeoff, stores supplied drawings and prepares a cited drawing/specification/contract review through estimate_doc_review and estimate_gap_analysis.",
+    "Starts estimating, confirms role and scope, warns before reusing a saved takeoff, stores supplied drawings and prepares a cited drawing/specification/contract review through estimate_doc_review and estimate_gap_analysis.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -584,7 +584,7 @@ export const estimateIntake = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_intake", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_intake", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
       const profileOnFile = await savedProfileRecord(sb, job.job_id);
@@ -739,7 +739,7 @@ export const estimateDocReview = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_doc_review", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_doc_review", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = await load(sb, job.job_id);
       const review: DocReview = {
@@ -788,7 +788,7 @@ export const estimateTakeoffSave = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_takeoff_save", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_takeoff_save", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       let committed = false;
       try {
         let job;
@@ -1049,7 +1049,7 @@ export const estimateTakeoffGet = defineTool({
   },
   annotations: READ,
   handler: (args, ctx) =>
-    run("estimate_takeoff_get", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_takeoff_get", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const loaded = await load(sb, job.job_id);
@@ -1107,7 +1107,7 @@ export const estimateTakeoffExport = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_takeoff_export", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_takeoff_export", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const loaded = await load(sb, job.job_id);
@@ -1229,7 +1229,7 @@ export const estimateGapAnalysis = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_gap_analysis", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_gap_analysis", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const prior = await load(sb, job.job_id);
@@ -1324,7 +1324,7 @@ export const estimateBidCheck = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_bid_check", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_bid_check", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = await load(sb, job.job_id);
       const label = `${named(job)}`;
@@ -1369,7 +1369,7 @@ export const estimateItemMark = defineTool({
   },
   annotations: MARK,
   handler: (args, ctx) =>
-    run("estimate_item_mark", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_item_mark", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const label = `${named(job)}`;
@@ -1464,7 +1464,7 @@ export const estimateBuild = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_build", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_build", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const loaded = await load(sb, job.job_id);
@@ -1526,7 +1526,7 @@ export const estimateStatus = defineTool({
   inputSchema: { job_number: jobNumber, company_id: companyId },
   annotations: READ,
   handler: (args, ctx) =>
-    run("estimate_status", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_status", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       let job;
       try {
         job = await resolveJob(sb, args.job_number, args.company_id, "write");
@@ -1688,7 +1688,7 @@ export const drawingSetImport = defineTool({
   },
   annotations: { ...SAVE, openWorldHint: true },
   handler: (args, ctx) =>
-    run("drawing_set_import", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("drawing_set_import", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       let uploadContext: { job_number: string; company_id: string } | undefined;
       let imported: Awaited<ReturnType<typeof storeDrawingSet>> | undefined;
       let selectedStored:
@@ -1851,7 +1851,7 @@ export const drawingMarkup = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("drawing_markup", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("drawing_markup", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const prior = await load(sb, job.job_id);

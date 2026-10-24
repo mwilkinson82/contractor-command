@@ -4,6 +4,8 @@ import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import type { CardModel } from "./cards/model";
 import { sealCardReply } from "./cards/silence";
 import { displayFactsResult } from "./cards/display-result";
+import { TAKEOFF_CARD_URI } from "./cards/takeoff-card";
+import { estimatingTool, estimatingUpgrade } from "./estimating-plan";
 import { WhichCompanyAsk } from "./jobs";
 import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
@@ -87,7 +89,7 @@ export async function logWorkflow(
 const NEVER_SWEEP = new Set(["jobs_list", "drawing_sets_list", "report", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "list_open_items", "lookahead_get"]);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
-export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; client?: boolean; ownerSov?: boolean; sweep?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
+export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; companyId?: string; client?: boolean; ownerSov?: boolean; sweep?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {
   const o = typeof opts === "object" ? opts : { lookaheadId: opts };
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
@@ -106,7 +108,8 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     sweep = null; // the sweep never blocks the tool itself
   }
   try {
-    const r = await fn(sb);
+    const upgrade = estimatingTool(tool) && o.jobNumber ? await estimatingUpgrade(sb, o.jobNumber, o.companyId) : null;
+    const r = upgrade ? { content: [{ type: "text", text: renderMarkdown(upgrade) }], structuredContent: { card: upgrade, html: renderHtml(upgrade), upgrade_required: true, plan: "athena_office" }, _meta: { "openai/outputTemplate": TAKEOFF_CARD_URI, ui: { resourceUri: TAKEOFF_CARD_URI } } } as R : await fn(sb);
     // The host-display block rides on every result (assistant_guidance only; members never see it).
     // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.
     let swept = sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r;

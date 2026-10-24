@@ -202,7 +202,7 @@ export const estimatePricing = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_pricing", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_pricing", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
@@ -382,7 +382,7 @@ export const estimateRateSources = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_rate_sources", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_rate_sources", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
       const sources = args.sources ? (args.sources as RateChoice[]) : prior.sources;
@@ -432,7 +432,7 @@ export const estimateGeneralConditions = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_general_conditions", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_general_conditions", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
       const duration =
@@ -515,7 +515,7 @@ export const estimateRequirements = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_requirements", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_requirements", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
@@ -614,7 +614,7 @@ export const estimateBidSummary = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_bid_summary", ctx, { jobNumber: args.job_number }, async (sb) => {
+    run("estimate_bid_summary", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
