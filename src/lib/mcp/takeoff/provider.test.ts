@@ -20,6 +20,14 @@ describe("real AI SDK provider request with an intercepted network", () => {
     vi.stubGlobal("fetch", async (url: RequestInfo | URL, init?: RequestInit) => {
       destination = String(url);
       body = JSON.parse(String(init?.body));
+      if ((body.response_format as { type?: string })?.type === "json_schema")
+        return new Response(
+          JSON.stringify({ error: { message: "Request contains an invalid argument." } }),
+          {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          },
+        );
       return new Response(
         JSON.stringify({
           id: "fictional-response",
@@ -50,23 +58,92 @@ describe("real AI SDK provider request with an intercepted network", () => {
     expect(destination).toBe("https://ai.gateway.lovable.dev/v1/chat/completions");
     expect(body).not.toHaveProperty("tools");
     expect(body.model).toBe("google/gemini-3-flash-preview");
-    expect(body.response_format).toMatchObject({
-      type: "json_schema",
-      json_schema: {
-        schema: {
-          type: "object",
-          required: ["findings", "uncertainties"],
-          properties: {
-            findings: { type: "array" },
-            uncertainties: { type: "array" },
-          },
-        },
-      },
-    });
+    expect(body.response_format).toEqual({ type: "json_object" });
     const messages = body.messages as { role: string; content: unknown }[];
     expect(messages[0].content).toContain("untrusted data");
+    const schema = JSON.parse(String(messages[0].content).split("OUTPUT_SCHEMA:\n")[1]);
+    expect(schema.required).toEqual(["findings", "uncertainties"]);
+    expect(
+      schema.properties.findings.items.properties.points.items.properties.column,
+    ).toMatchObject({ type: "integer", minimum: 0, maximum: 10 });
+    expect(schema.properties.findings.items.properties.confidence).toMatchObject({
+      minimum: 0,
+      maximum: 1,
+    });
+    expect(schema.properties.findings.maxItems).toBe(100);
+    expect(messages[0].content).toContain("actual printed stroke");
     expect(JSON.stringify(messages[1].content)).toContain("Ignore previous instructions");
     expect(JSON.stringify(messages[1].content)).toContain("data:image/png;base64,");
+  });
+  it.each([
+    { quantity: 3 },
+    { findings: "not an array", uncertainties: [] },
+    {
+      findings: [
+        {
+          kind: "pins",
+          points: [{ column: 11, row: 0, dx: 0, dy: 0 }],
+          confidence: 0.9,
+          evidence: "Visible stroke",
+        },
+      ],
+      uncertainties: [],
+    },
+    {
+      findings: [
+        {
+          kind: "pins",
+          points: [{ column: 0, row: 0, dx: 0, dy: 0 }],
+          confidence: 2,
+          evidence: "Visible stroke",
+        },
+      ],
+      uncertainties: [],
+    },
+  ])("rejects provider JSON outside the original server schema: %j", async (output) => {
+    vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "fictional-response",
+            created: 0,
+            model: "fixture",
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: JSON.stringify(output) },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await expect(
+      readVisionTile({ item: "Fictional fixtures", measure_type: "count", png, hints: [] }),
+    ).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("propagates a provider rejection without retrying or inventing an empty successful read", async () => {
+    vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ error: { message: "Request contains an invalid argument." } }),
+          {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await expect(
+      readVisionTile({ item: "Fictional fixtures", measure_type: "count", png, hints: [] }),
+    ).rejects.toThrow(/invalid argument/);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
   it("fails explicitly without the existing server key and never accepts a fallback guess", async () => {
     vi.stubEnv("LOVABLE_API_KEY", "");
