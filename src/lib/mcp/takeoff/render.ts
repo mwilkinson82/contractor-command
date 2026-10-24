@@ -213,6 +213,13 @@ export async function measuredPdf(
         `${calibration.region}: reference ${calibration.reference.distance} ${calibration.reference.unit}; ${calibration.feet_per_point} feet per PDF point; calibration v${calibration.version}.`,
         8,
       );
+    if (row.shape.kind !== "not_drawable" && row.shape.depth) {
+      const depth = row.shape.depth;
+      write(
+        `Depth ${depth.value} ${depth.unit}; source ${depth.source_id}; sheet ${depth.sheet}; detail/note: ${depth.detail}.`,
+        8,
+      );
+    }
     y -= 5;
   }
   if (!rows.length)
