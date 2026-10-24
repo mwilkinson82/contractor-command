@@ -73,7 +73,10 @@ const kindsByMeasure = {
   area: ["polygon", "rect"],
   volume: ["polygon", "rect"],
 } as const;
-export type VisionAnswer = z.infer<typeof answer> & { reader_model?: string };
+export type VisionAnswer = z.infer<typeof answer> & {
+  reader_model?: string;
+  reader_effort?: "low";
+};
 function readerOutputFailure(error: unknown, finishReason?: string): never {
   if (NoObjectGeneratedError.isInstance(error) || NoOutputGeneratedError.isInstance(error))
     throw new Error(
@@ -189,9 +192,15 @@ export const readVisionTile: VisionRead = async (request) => {
   if (!width || !height || width > 1024 || height > 1024)
     throw new Error("The drawing reader needs a bounded target tile.");
   const model = process.env.ATHENA_TAKEOFF_MODEL || "google/gemini-3.8-flash";
+  // Each request locates visible features on one bounded tile; Athena performs
+  // the geometry/math checks separately. Avoid spending the request deadline on
+  // the model's default thinking level. Other configured readers keep their own
+  // supported options. https://ai.google.dev/gemini-api/docs/openai#thinking
+  const effort = /^google\/gemini-3\./.test(model) ? ("low" as const) : undefined;
   const result = await generateText({
     model: gateway(model),
     output: Output.json(),
+    ...(effort ? { providerOptions: { openaiCompatible: { reasoningEffort: effort } } } : {}),
     // Reasoning also consumes the provider's output budget. Leave room for the
     // actual structured locations; the existing 35-second request cap remains.
     maxOutputTokens: 8000,
@@ -293,6 +302,7 @@ export const readVisionTile: VisionRead = async (request) => {
       })),
     }),
     reader_model: (result.response.modelId || model).slice(0, 120),
+    ...(effort ? { reader_effort: effort } : {}),
   };
 };
 export function verifyVisionAnswer(input: {

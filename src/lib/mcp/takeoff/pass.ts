@@ -496,6 +496,7 @@ export async function proposeTakeoffBatch(
       crop_refs: shape.points.map((point) => ({ tile_index: tile.index, point, edge: 160 })),
       verification: "raster-ink-and-topology",
       model: answer.reader_model ?? process.env.ATHENA_TAKEOFF_MODEL ?? "google/gemini-3.8-flash",
+      reader_effort: answer.reader_effort ?? null,
       dpi: 200,
       locator_schema: "athena-image-1000-v1",
       source_hash: page.source.content_hash,

@@ -152,6 +152,8 @@ describe("real AI SDK provider request with an intercepted network", () => {
     expect(destination).toBe("https://ai.gateway.lovable.dev/v1/chat/completions");
     expect(body).not.toHaveProperty("tools");
     expect(body.model).toBe("google/gemini-3.8-flash");
+    expect(body.reasoning_effort).toBe("low");
+    expect(result.reader_effort).toBe("low");
     expect(body.response_format).toEqual({ type: "json_object" });
     const messages = body.messages as { role: string; content: unknown }[];
     expect(messages[0].content).toContain("untrusted data");
@@ -453,6 +455,42 @@ describe("real AI SDK provider request with an intercepted network", () => {
       readVisionTile({ item: "Fictional fixtures", measure_type: "count", png: image, hints: [] }),
     ).rejects.toThrow(/tile/);
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it("leaves other configured readers' reasoning options untouched", async () => {
+    vi.stubEnv("LOVABLE_API_KEY", "fictional-provider-key");
+    vi.stubEnv("ATHENA_TAKEOFF_MODEL", "custom/reader");
+    let body: Record<string, unknown> = {};
+    vi.stubGlobal("fetch", async (_url: RequestInfo | URL, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({
+          id: "fixture",
+          created: 0,
+          model: "custom/reader",
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: JSON.stringify({ findings: [], uncertainties: [] }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    });
+    const result = await readVisionTile({
+      item: "Fictional fixtures",
+      measure_type: "count",
+      png,
+      hints: [],
+    });
+    expect(body.model).toBe("custom/reader");
+    expect(body).not.toHaveProperty("reasoning_effort");
+    expect(result).not.toHaveProperty("reader_effort");
   });
   it("fails explicitly without the existing server key and never accepts a fallback guess", async () => {
     vi.stubEnv("LOVABLE_API_KEY", "");
