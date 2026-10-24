@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   hostReviewContext,
+  hostContextForTile,
   hostWorkflowSection,
   measurementEvidence,
   TAKEOFF_MODEL_NOTICE,
@@ -21,6 +22,62 @@ function client(data: unknown, contract: unknown[] = [], failed = false) {
   return { sb: sb as unknown as Sb, eq, rpc: sb.rpc };
 }
 describe("member-model estimating workflow", () => {
+  const job = { job_id: "job-private", job_number: "QA", company_id: "company-private" };
+  const target = {
+    pass_id: "pass-1",
+    cursor: 0,
+    line_no: 1,
+    sheet: "S-100",
+    source_id: "source-1",
+    source_hash: "a".repeat(64),
+    takeoff_version: 3,
+    calibration_id: "cal1",
+  };
+  it("sends the source packet once across 20 regions and uses a compact bound reference thereafter", async () => {
+    const { sb, rpc, eq } = client(
+      { setup: { doc_review: { specs: [{ section: "033000", title: "Concrete" }] } } },
+      [{ section: "9", verbatim_text: "UNIQUE PROJECT CLAUSE" }],
+    );
+    const replies = [];
+    for (let cursor = 0; cursor < 20; cursor++)
+      replies.push(await hostContextForTile(sb, job, { ...target, cursor }));
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(eq).toHaveBeenCalledTimes(1);
+    expect(replies.filter((r) => r.project_context)).toHaveLength(1);
+    expect(JSON.stringify(replies).split("UNIQUE PROJECT CLAUSE")).toHaveLength(2);
+    expect(replies[19].project_context_reference).toMatchObject({
+      pass_id: "pass-1",
+      source_id: "source-1",
+      source_hash: target.source_hash,
+      takeoff_version: 3,
+      context_included: false,
+      reload: {
+        operation: "propose",
+        pass_id: "pass-1",
+        source_id: "source-1",
+        sheet: "S-100",
+        line_no: 1,
+        calibration_id: "cal1",
+        job_number: "QA",
+        company_id: "company-private",
+        cursor: 19,
+        reload_context: true,
+      },
+    });
+  });
+  it("can reload current context at a resumed cursor without pretending the chat still has its initial packet", async () => {
+    const { sb, rpc } = client({});
+    const resumed = { ...target, cursor: 12 };
+    const reference = await hostContextForTile(sb, job, resumed);
+    expect(reference.project_context).toBeUndefined();
+    expect(rpc).not.toHaveBeenCalled();
+    const reloaded = await hostContextForTile(sb, job, resumed, true);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(reloaded.project_context_reference.context_included).toBe(true);
+    expect(reloaded.project_context_reference.reload.cursor).toBe(12);
+    expect(reloaded.project_context?.scope_complete).toBe(false);
+    expect(resumed.cursor).toBe(12);
+  });
   it("keeps accepted dimensional geometry in Verify until its own source/page calibration is dimension-checked", () => {
     const state = {
       available: true,

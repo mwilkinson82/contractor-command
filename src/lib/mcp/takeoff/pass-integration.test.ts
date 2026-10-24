@@ -13,10 +13,10 @@ import { markTargetTile } from "./scope";
 import { verifyVisionAnswer } from "./vision";
 import { calibrate, measure } from "./geometry";
 
-async function fixture(size = 144) {
+async function fixture(size = 144, inkX = 32) {
   const doc = await PDFDocument.create();
   const pdfPage = doc.addPage([size, size]);
-  pdfPage.drawRectangle({ x: 32, y: 68, width: 8, height: 8, color: rgb(0, 0, 0) });
+  pdfPage.drawRectangle({ x: inkX, y: 68, width: 8, height: 8, color: rgb(0, 0, 0) });
   const bytes = await doc.save(),
     hash = await sha256Hex(bytes);
   const source = {
@@ -115,6 +115,85 @@ async function fixture(size = 144) {
 }
 
 describe("actual PDF tile to resumable proposal pipeline", () => {
+  it("counts an identical split-boundary pin only once without merging nearby distinct locations", async () => {
+    const f = await fixture(144, 68);
+    const read = (otherX: number) =>
+      hostDrawingReader({
+        parts: [
+          {
+            part: 0,
+            findings: [
+              {
+                kind: "pins",
+                points: [{ x: 1000, y: 975 }],
+                confidence: 0.6,
+                evidence: "Pin at shared part edge",
+              },
+            ],
+            uncertainties: [],
+          },
+          {
+            part: 1,
+            findings: [
+              {
+                kind: "pins",
+                points: [{ x: otherX, y: 975 }],
+                confidence: 0.6,
+                evidence: "Pin from adjacent part",
+              },
+            ],
+            uncertainties: [],
+          },
+          { part: 2, findings: [], uncertainties: [] },
+          { part: 3, findings: [], uncertainties: [] },
+        ],
+      });
+    await proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }, read(0));
+    expect(f.rpc.mock.calls.at(-1)![1]._record.proposals).toHaveLength(1);
+    await proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }, read(25));
+    expect(f.rpc.mock.calls.at(-1)![1]._record.proposals).toHaveLength(2);
+  });
+  it("stores an ink-backed 0.6-confidence finding as a proposal with its original confidence and computed quantity", async () => {
+    const f = await fixture();
+    const pending = await proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }).catch(
+      (e) => e,
+    );
+    f.state.passes.unshift({
+      id: "prepared",
+      source_id: f.page.source.id,
+      page: 1,
+      created_at: "2026-10-24",
+      geometry_revs: [],
+      pass_summary: pending.checkpoint,
+    });
+    const result = await proposeTakeoffStep(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      { line_no: 1, pass_id: pending.checkpoint.pass_id, cursor: 0 },
+      hostDrawingReader({
+        findings: [
+          {
+            kind: "pins",
+            points: [{ x: 250, y: 500 }],
+            confidence: 0.6,
+            evidence: "Visible square; interpretation needs estimator review",
+          },
+        ],
+        uncertainties: ["Confirm this symbol's identity"],
+      }),
+    );
+    expect(result.verification_rejections).toBe(0);
+    const record = f.rpc.mock.calls.at(-1)![1]._record.proposals[0] as {
+      evidence: { confidence: number; measurement: { value: number }; verification: string };
+    };
+    expect(record.evidence.confidence).toBe(0.6);
+    expect(record.evidence.measurement.value).toBe(1);
+    expect(record.evidence.verification).toBe("raster-ink-and-topology");
+    expect(record).not.toHaveProperty("status", "accepted");
+    expect(f.rpc.mock.calls.every(([name]) => name === "mcp_takeoff_pass_save")).toBe(true);
+  });
   it("prepares the target without advancing, then verifies host observations and advances exactly once", async () => {
     const f = await fixture();
     const pending = await proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1 }).catch(

@@ -188,6 +188,22 @@
       calibration_id: calibration,
     };
   }
+  function reviewableProposal(data, geometry) {
+    return (
+      geometry.status === "proposed" &&
+      geometry.evidence &&
+      geometry.evidence.verification === "raster-ink-and-topology" &&
+      (!geometry.evidence.pass_id ||
+        data.engine.passes.some(function (p) {
+          return (
+            p.pass_summary.pass_id === geometry.evidence.pass_id &&
+            p.pass_summary.complete &&
+            (geometry.shape.kind !== "pins" ||
+              (p.pass_summary.count_area && p.pass_summary.count_area.confirmed))
+          );
+        }))
+    );
+  }
   function confirmBox(text, fn) {
     var old = root.querySelector(".confirmation");
     if (old) old.remove();
@@ -1331,6 +1347,17 @@
                 );
                 return;
               }
+              if (g.evidence && typeof g.evidence.confidence === "number")
+                r.append(
+                  node(
+                    "p",
+                    "Reported AI confidence: " +
+                      Math.round(g.evidence.confidence * 100) +
+                      "% · interpretation, not accuracy." +
+                      (g.status === "proposed" ? " Verify item identity before accepting." : ""),
+                    "note small",
+                  ),
+                );
               r.append(
                 button(
                   "Review " +
@@ -1494,20 +1521,7 @@
       }),
     );
     var proposals = rows().filter(function (g) {
-      return (
-        g.status === "proposed" &&
-        g.evidence &&
-        Number(g.evidence.confidence) >= 0.8 &&
-        (!g.evidence.pass_id ||
-          sc.engine.passes.some(function (p) {
-            return (
-              p.pass_summary.pass_id === g.evidence.pass_id &&
-              p.pass_summary.complete &&
-              (g.shape.kind !== "pins" ||
-                (p.pass_summary.count_area && p.pass_summary.count_area.confirmed))
-            );
-          }))
-      );
+      return reviewableProposal(sc, g);
     });
     if (proposals.length)
       right.append(
@@ -1518,7 +1532,7 @@
           confirmBox(
             "Accept these " +
               frozen.length +
-              " displayed proposals? Their locations passed ink and geometry checks. Confirm the correct items and full scope after reviewing the uncertainties. This accepts the listed revisions only.",
+              " displayed proposals? Their locations passed ink and geometry checks. Reported confidence may be low; review it with item identity, scope and uncertainties. This accepts the listed revisions only.",
             async function () {
               await act("takeoff_geometry", {
                 operation: "accept_all",

@@ -9,6 +9,33 @@ import {
 import { paletteViolations } from "../cards/palette";
 import { nativeCardVisit, nativeCardPayload } from "../native-card-transport";
 describe("measurement resource and viewer safety", () => {
+  it("offers physically checked low-confidence proposals for explicit review while keeping pass/scope safeguards", () => {
+    const script = takeoffCardHtml().match(/<script>([\s\S]*?)<\/script>/)![1];
+    const fn = script.match(/function reviewableProposal\(data, geometry\) \{[\s\S]*?\n {2}\}/)![0];
+    const eligible = new Script(`(${fn})`).runInNewContext();
+    const data = {
+      engine: {
+        passes: [
+          { pass_summary: { pass_id: "p1", complete: true, count_area: { confirmed: true } } },
+        ],
+      },
+    };
+    const g = {
+      status: "proposed",
+      shape: { kind: "pins" },
+      evidence: { confidence: 0.6, verification: "raster-ink-and-topology", pass_id: "p1" },
+    };
+    expect(eligible(data, g)).toBe(true);
+    expect(g.status).toBe("proposed");
+    data.engine.passes[0].pass_summary.complete = false;
+    expect(eligible(data, g)).toBe(false);
+    data.engine.passes[0].pass_summary.complete = true;
+    data.engine.passes[0].pass_summary.count_area.confirmed = false;
+    expect(eligible(data, g)).toBe(false);
+    data.engine.passes[0].pass_summary.count_area.confirmed = true;
+    g.evidence.verification = "not-checked";
+    expect(eligible(data, g)).toBe(false);
+  });
   function readControls() {
     const script = takeoffCardHtml().match(/<script>([\s\S]*?)<\/script>/)![1];
     const select = script.match(

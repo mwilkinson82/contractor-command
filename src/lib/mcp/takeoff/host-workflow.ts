@@ -1,6 +1,7 @@
 import type { CardModel } from "../cards/model";
 import { parseState } from "../estimating";
 import type { Sb } from "../guard";
+import type { Job } from "../jobs";
 import { measurementStatus, type EngineSnapshot } from "./state";
 
 export const TAKEOFF_MODEL_NOTICE =
@@ -144,5 +145,49 @@ export async function hostReviewContext(sb: Sb, jobId: string) {
     contract_clauses: bounded,
     unresolved_context: missing,
     scope_complete: false,
+  };
+}
+
+/** Supply the large project packet on the first region, then only a source-bound reference.
+ * A resumed chat or changed document set can explicitly reload it without moving the cursor. */
+export async function hostContextForTile(
+  sb: Sb,
+  job: Pick<Job, "job_id" | "job_number" | "company_id">,
+  target: {
+    pass_id: string;
+    cursor: number;
+    line_no: number;
+    sheet: string;
+    source_id: string;
+    source_hash: string;
+    takeoff_version: number | null;
+    calibration_id?: string;
+  },
+  reload = false,
+) {
+  const included = target.cursor === 0 || reload;
+  return {
+    project_context_reference: {
+      job_id: job.job_id,
+      pass_id: target.pass_id,
+      source_id: target.source_id,
+      source_hash: target.source_hash,
+      takeoff_version: target.takeoff_version,
+      initial_cursor: 0,
+      context_included: included,
+      reload: {
+        operation: "propose",
+        job_number: job.job_number,
+        company_id: job.company_id,
+        source_id: target.source_id,
+        sheet: target.sheet,
+        line_no: target.line_no,
+        calibration_id: target.calibration_id,
+        pass_id: target.pass_id,
+        cursor: target.cursor,
+        reload_context: true,
+      },
+    },
+    ...(included ? { project_context: await hostReviewContext(sb, job.job_id) } : {}),
   };
 }

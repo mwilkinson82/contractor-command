@@ -310,8 +310,6 @@ export function verifyVisionAnswer(input: {
     try {
       if (!(kinds[input.measure_type] ?? []).includes(finding.kind))
         throw new Error("Geometry does not match the requested measure type.");
-      if (finding.confidence < 0.8)
-        throw new Error("The candidate is not clear enough; estimator placement is needed.");
       const convert = (p: z.infer<typeof gridPoint>): Point => {
         const x = p.column * 100 + p.dx,
           y = p.row * 100 + p.dy;

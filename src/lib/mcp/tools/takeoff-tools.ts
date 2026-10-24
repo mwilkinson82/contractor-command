@@ -25,7 +25,7 @@ import { reviseGeometry } from "../takeoff/revision";
 import { automaticCalibration } from "../takeoff/calibration";
 import { readPointCrop } from "../takeoff/verify";
 import { bytesToBase64 } from "../estimating-sheet";
-import { hostReviewContext } from "../takeoff/host-workflow";
+import { hostContextForTile } from "../takeoff/host-workflow";
 import { downloadMeasuredExport, exportMeasuredSheet } from "../takeoff/export";
 
 const point = z.object({
@@ -145,7 +145,7 @@ export const takeoffGeometry = defineTool({
   title: "Measure and review a drawing takeoff",
   description:
     "At the start of estimating, ask the member to select their strongest available image-reading model and deeper reasoning; Athena cannot switch it. Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. " +
-    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies the locations, computes quantities and advances the checkpoint. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+    "Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
   inputSchema: {
     ...scope,
     operation: z
@@ -203,6 +203,7 @@ export const takeoffGeometry = defineTool({
     tile_index: z.number().int().min(0).optional(),
     observations: hostObservationsSchema.optional(),
     split_region: z.boolean().optional(),
+    reload_context: z.boolean().optional(),
     pass_id: z.string().uuid().optional(),
     cursor: z.number().int().min(0).optional(),
     depth: depth.optional(),
@@ -351,6 +352,10 @@ export const takeoffGeometry = defineTool({
             edge: 160,
           };
         } else if (operation === "propose") {
+          if (args.reload_context && args.observations)
+            throw new ToolError(
+              "Reload the project context in a prepare call before submitting observations.",
+            );
           if (!args.line_no)
             throw new ToolError("Choose the takeoff line Athena should locate on this sheet.");
           if (args.observations && (!args.pass_id || args.cursor == null))
@@ -378,14 +383,28 @@ export const takeoffGeometry = defineTool({
               throw error;
             const request = error.request;
             const parts = args.split_region ? splitHostTile(request.png) : null;
-            const projectContext = await hostReviewContext(sb, job.job_id);
+            const projectContext = await hostContextForTile(
+              sb,
+              job,
+              {
+                pass_id: String(error.checkpoint.pass_id),
+                cursor: Number(error.checkpoint.next_cursor),
+                line_no: args.line_no,
+                sheet: page!.sheet,
+                source_id: page!.source.id,
+                source_hash: page!.source.content_hash,
+                takeoff_version: state.takeoff_version,
+                calibration_id: args.calibration_id,
+              },
+              args.reload_context === true,
+            );
             const view = await viewEngine(sb, job, await requiredSnapshot(sb, job), page, {
               pass: error.checkpoint,
               pass_paused: true,
               pass_pause_reason:
                 "The target region is ready for your connected AI. No proposal or quantity has been saved from it.",
               read_request: {
-                project_context: projectContext,
+                ...projectContext,
                 pass_id: error.checkpoint.pass_id,
                 cursor: error.checkpoint.next_cursor,
                 line_no: args.line_no,

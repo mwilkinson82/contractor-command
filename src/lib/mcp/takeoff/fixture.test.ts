@@ -109,7 +109,7 @@ describe("private viewer fixture", () => {
         source: "athena",
         created_at: "2026-10-23T00:00:00Z",
         created_by: "fictional",
-        evidence: { confidence: 0.95, verification: "raster-ink-and-topology" },
+        evidence: { confidence: 0.6, verification: "raster-ink-and-topology" },
       },
       {
         id: "00000000-0000-4000-8000-000000000012",
