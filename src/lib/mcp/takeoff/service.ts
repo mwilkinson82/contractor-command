@@ -18,7 +18,7 @@ import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
 import { calibrate, measure, type Calibration, type Shape } from "./geometry";
 import { inspectSheet, renderTile, scaleProposals, sheetSpace, type SheetInspection } from "./pdf";
-import { foundationGapPrompts, parseState, settle } from "../estimating";
+import { foundationGapPrompts, parseState, settle, takeoffLineFor } from "../estimating";
 import {
   engineSnapshot,
   measurementStatus,
@@ -130,14 +130,33 @@ export async function loadStoredPage(
     space: sheetSpace(source, index + 1, inspection),
   };
 }
-/** A review row is red only for a recorded risk: a conflict or a hard gap that holds the bid. */
-export function reviewFlag(i: {
-  holdsBid: boolean;
-  category?: string | null;
-  severity?: string | null;
-}): "risk" | null {
-  if (!i.holdsBid) return null;
-  return i.category === "conflict" || i.severity === "hard" ? "risk" : null;
+/** A review row is red only for a recorded risk: a conflict between the documents that holds the bid.
+ *  A missing or unmeasured quantity is work to do, not a risk, however hard the gap. */
+export function reviewFlag(i: { holdsBid: boolean; category?: string | null }): "risk" | null {
+  return i.holdsBid && i.category === "conflict" ? "risk" : null;
+}
+/** settle() keeps no category on its items, so the flag reads it from the gap the row came from. */
+export function reviewRows(
+  items: {
+    kind: "line" | "gap";
+    ref: string;
+    title: string;
+    status: string;
+    holdsBid: boolean;
+    followUp: string | null;
+    math: string | null;
+  }[],
+  gaps: { ref: string; category?: string | null }[],
+) {
+  return items
+    .filter((i) => i.kind === "gap")
+    .map((i) => ({
+      cells: [`${i.ref} · ${i.title}`, i.status, i.followUp ?? i.math ?? ""],
+      flag: reviewFlag({
+        holdsBid: i.holdsBid,
+        category: gaps.find((g) => g.ref === i.ref)?.category,
+      }),
+    }));
 }
 export async function viewEngine(
   sb: Sb,
@@ -154,7 +173,10 @@ export async function viewEngine(
   // A line whose sheet is not in any stored set is not a drawing line the engine can locate: it is
   // shown as such instead of padding the unlocated count (general conditions, allowances, typos).
   const noSheet = (l: { line_no: number }) => {
-    const sheet = state.lines.find((row) => row.line_no === l.line_no)?.sheet?.trim().toLowerCase();
+    const sheet = state.lines
+      .find((row) => row.line_no === l.line_no)
+      ?.sheet?.trim()
+      .toLowerCase();
     return !sheet || !storedSheets.has(sheet);
   };
   const unlocatedOnSheets = summary.lines.filter((l) => l.status === "unlocated" && !noSheet(l));
@@ -169,7 +191,9 @@ export async function viewEngine(
       { label: "Proposals to review", value: String(summary.proposed) },
       { label: "Unlocated", value: String(unlocatedOnSheets.length) },
       { label: "Not drawable", value: String(summary.not_drawable) },
-      ...(noStoredSheet.length ? [{ label: "No stored sheet", value: String(noStoredSheet.length) }] : []),
+      ...(noStoredSheet.length
+        ? [{ label: "No stored sheet", value: String(noStoredSheet.length) }]
+        : []),
     ],
     sections: [
       {
@@ -257,17 +281,28 @@ export async function viewEngine(
     review.verdicts.map((v) => (v.item_kind === "line" ? { ...v, corrected_qty: null } : v)),
     { role: review.setup.role, trades: review.setup.trades },
   );
-  // Scope the takeoff never included is a coverage gap, not an unlocated line: the checklist says what
-  // a foundation takeoff must quantify or mark N/A, so a missing item is named here, not silently absent.
-  const uncovered = foundationGapPrompts(review.lines);
+  // Scope the takeoff never included is a coverage gap, not an unlocated line. The fixed foundation
+  // checklist names what every foundation takeoff must quantify or mark N/A; it is not a reading of the
+  // drawings, so scope beyond it (piers, bollards, pole foundations) still has to come from the sheets.
+  const uncovered = foundationGapPrompts(review.lines).filter(
+    (g) => !takeoffLineFor(review.lines, g.title),
+  );
   if (uncovered.length)
     card.sections?.push({
-      heading: "Checklist items not on the takeoff",
+      heading: "Foundation checklist items with no takeoff line",
       kind: "list",
-      rows: uncovered.map((g) => ({
-        cells: [g.title, "Add a takeoff line and locate it, or mark it N/A with a reason."],
-        tone: "unknown" as const,
-      })),
+      rows: [
+        ...uncovered.map((g) => ({
+          cells: [g.title, "Add a takeoff line and locate it, or mark it N/A with a reason."],
+          tone: "unknown" as const,
+        })),
+        {
+          cells: [
+            "This checklist is fixed. Scope the drawings show beyond it is not checked here.",
+          ],
+          tone: "unknown" as const,
+        },
+      ],
     });
   card.sections?.push({
     heading: "Estimate review",
@@ -278,13 +313,8 @@ export async function viewEngine(
           `Open ${settled.counts.open} · Settled ${settled.counts.settled} · Dropped ${settled.counts.dropped}`,
         ],
       },
-      ...settled.items
-        .filter((i) => i.kind === "gap")
-        .map((i) => ({
-          cells: [`${i.ref} · ${i.title}`, i.status, i.followUp ?? i.math ?? ""],
-          // Red is for a risk, never for an open quantity that is only waiting to be measured.
-          flag: reviewFlag(i),
-        })),
+      // Red is for a recorded conflict, never for an open quantity that is only waiting to be measured.
+      ...reviewRows(settled.items, review.gaps),
     ],
   });
   if (

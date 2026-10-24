@@ -270,7 +270,10 @@ describe("takeoff actual database functions", () => {
   });
   it("applies the carry-by-identity migration after the compatibility one and keeps reads VOLATILE", async () => {
     await db.exec(
-      readFileSync("supabase/migrations/20261024160000_athena_takeoff_carry_by_identity.sql", "utf8"),
+      readFileSync(
+        "supabase/migrations/20261024160000_athena_takeoff_carry_by_identity.sql",
+        "utf8",
+      ),
     );
     const rows = (
       await db.query<any>(
@@ -1089,8 +1092,9 @@ describe("takeoff actual database functions", () => {
       item: l.item,
       qty: l.qty ?? null,
       missing_input: l.qty == null ? (l.missing_input ?? "drawing location and measurement") : null,
-      unit: l.unit ?? "EA",
-      measure_type: l.measure_type ?? "count",
+      // Identity fields pass through exactly as stored; a null stays null.
+      ...(l.unit == null ? {} : { unit: l.unit }),
+      ...(l.measure_type == null ? {} : { measure_type: l.measure_type }),
       basis: l.basis ?? "measured",
       math: l.math ?? "carried",
       confidence: l.confidence ?? "low",
@@ -1132,16 +1136,77 @@ describe("takeoff actual database functions", () => {
       const target = measuredLine(before);
       const count = heads(before, target.item).length;
       await saveLines(
-        before.lines.map((l: any) => (l.id === target.id ? asInput(l, { line_no: 77 }) : asInput(l))),
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { line_no: 77 }) : asInput(l),
+        ),
       );
       const after = await rpc("mcp_takeoff_get", [job]);
       expect(heads(after, target.item)).toHaveLength(count);
       expect(after.lines.find((l: any) => l.item === target.item).line_no).toBe(77);
       expect(after.dropped_lines).toEqual([]);
     });
-    it("never moves geometry onto a different item, and names the lines a save left out", async () => {
+    it("carries the reader checkpoint with a renumbered line and rewrites its line number", async () => {
       const before = await rpc("mcp_takeoff_get", [job]);
       const target = measuredLine(before);
+      const passId = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+      await db.query(
+        "INSERT INTO public.mcp_takeoff_markups(job_id,company_id,source_id,page,kind,geometry_revs,pass_summary,created_by) VALUES($1,$2,$3,1,'pass','[]',$4,$5)",
+        [
+          job,
+          company,
+          source,
+          JSON.stringify({
+            pass_id: passId,
+            line_no: target.line_no,
+            takeoff_version: before.takeoff_version,
+            complete: true,
+          }),
+          owner,
+        ],
+      );
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { line_no: 88 }) : asInput(l),
+        ),
+      );
+      const after = await rpc("mcp_takeoff_get", [job]);
+      const carried = (after.passes as any[]).find((p) => p.pass_summary.pass_id === passId);
+      expect(carried.pass_summary).toMatchObject({
+        line_no: 88,
+        carried_from_line_no: target.line_no,
+        takeoff_version: after.takeoff_version,
+        carried_from_takeoff_version: before.takeoff_version,
+        complete: true,
+      });
+      expect(heads(after, target.item).length).toBeGreaterThan(0);
+    });
+    it("treats a changed unit or measure type as a different line: nothing carries, the old line is reported dropped", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before);
+      await saveLines(
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { unit: "SF", measure_type: "area" }) : asInput(l),
+        ),
+      );
+      const changed = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(changed, target.item)).toEqual([]);
+      expect(changed.dropped_lines).toEqual([
+        {
+          line_no: target.line_no,
+          item: target.item,
+          version: before.takeoff_version,
+          had_geometry: true,
+        },
+      ]);
+      // Put the line back as it was for the next test; its geometry stays historical (two versions back).
+      await saveLines(before.lines.map((l: any) => asInput(l)));
+      const back = await rpc("mcp_takeoff_get", [job]);
+      expect(heads(back, target.item)).toEqual([]);
+    });
+    it("never moves geometry onto a different item, and names the lines a save left out", async () => {
+      const before = await rpc("mcp_takeoff_get", [job]);
+      const target = measuredLine(before) ?? before.lines[0];
+      const hadGeometry = heads(before, target.item).length > 0;
       await saveLines(
         before.lines
           .filter((l: any) => l.id !== target.id)
@@ -1151,11 +1216,18 @@ describe("takeoff actual database functions", () => {
       const after = await rpc("mcp_takeoff_get", [job]);
       expect(heads(after, `${target.item} sleeves`)).toEqual([]);
       expect(after.dropped_lines).toEqual([
-        { line_no: target.line_no, item: target.item, version: before.takeoff_version, had_geometry: true },
+        {
+          line_no: target.line_no,
+          item: target.item,
+          version: before.takeoff_version,
+          had_geometry: hadGeometry,
+        },
       ]);
       // A line whose sheet is corrected keeps nothing from a different sheet: identity is item and sheet.
       await saveLines(
-        before.lines.map((l: any) => (l.id === target.id ? asInput(l, { sheet: "Z-999" }) : asInput(l))),
+        before.lines.map((l: any) =>
+          l.id === target.id ? asInput(l, { sheet: "Z-999" }) : asInput(l),
+        ),
       );
       const moved = await rpc("mcp_takeoff_get", [job]);
       expect(heads(moved, target.item)).toEqual([]);
@@ -1197,5 +1269,4 @@ describe("fresh migration ordering", () => {
       await fresh.close();
     }
   });
-
 });
