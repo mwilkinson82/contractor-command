@@ -107,6 +107,123 @@ async function fixture(size = 144) {
 }
 
 describe("actual PDF tile to resumable proposal pipeline", () => {
+  it("reuses a completed equivalent read when an old card requests an unfinished pass", async () => {
+    const f = await fixture();
+    const old = f.state.passes[0];
+    const completed = {
+      ...old,
+      id: "completed-checkpoint",
+      pass_summary: {
+        ...old.pass_summary,
+        pass_id: "completed-pass",
+        complete: true,
+        next_cursor: 1,
+      },
+    };
+    f.state.passes.unshift(completed);
+    f.state.geometry.push({
+      id: "revision",
+      geometry_id: "geometry",
+      version: 1,
+      line_id: "line-1",
+      source_id: f.page.source.id,
+      page: 1,
+      calibration_id: null,
+      shape: { kind: "pins", points: [{ x: 0.25, y: 0.5 }] },
+      measured: 1,
+      unit: "EA",
+      status: "accepted",
+      source: "athena",
+      reason: null,
+      created_by: "qa",
+      created_at: "2026-10-24T00:00:00Z",
+      evidence: { pass_id: "completed-pass" },
+    });
+    const read = vi.fn();
+    const result = await proposeTakeoffStep(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      {
+        line_no: 1,
+        pass_id: String(old.pass_summary.pass_id),
+        cursor: 0,
+      },
+      read,
+    );
+    expect(result).toMatchObject({
+      pass_id: "completed-pass",
+      complete: true,
+      reused_complete_read: true,
+    });
+    expect(read).not.toHaveBeenCalled();
+    expect(f.rpc).not.toHaveBeenCalled();
+    expect(f.state.geometry).toHaveLength(1);
+
+    // A new plan boundary must never silently inherit the old read or add to it.
+    old.pass_summary.count_area = {
+      name: "Other plan",
+      bounds: { x: 0, y: 0, width: 0.5, height: 1 },
+      confirmed: true,
+    };
+    await expect(
+      proposeTakeoffStep(
+        f.sb,
+        f.job,
+        f.page,
+        f.state,
+        {
+          line_no: 1,
+          pass_id: String(old.pass_summary.pass_id),
+          cursor: 0,
+        },
+        read,
+      ),
+    ).rejects.toThrow(/already has geometry/);
+    expect(read).not.toHaveBeenCalled();
+    expect(f.rpc).not.toHaveBeenCalled();
+  });
+  it("blocks foreign geometry on an explicit checkpoint but preserves its own partial read", async () => {
+    const f = await fixture(720);
+    f.state.geometry.push({
+      id: "revision",
+      geometry_id: "geometry",
+      version: 1,
+      line_id: "line-1",
+      source_id: f.page.source.id,
+      page: 1,
+      calibration_id: null,
+      shape: { kind: "pins", points: [{ x: 0.25, y: 0.5 }] },
+      measured: 1,
+      unit: "EA",
+      status: "proposed",
+      source: "athena",
+      reason: null,
+      created_by: "qa",
+      created_at: "2026-10-24T00:00:00Z",
+      evidence: { pass_id: "another-pass" },
+    });
+    const read = vi.fn(async () => ({ findings: [], uncertainties: [] }));
+    const pass_id = String(f.state.passes[0].pass_summary.pass_id);
+    await expect(
+      proposeTakeoffStep(f.sb, f.job, f.page, f.state, { line_no: 1, pass_id }, read),
+    ).rejects.toThrow(/already has geometry/);
+    expect(read).not.toHaveBeenCalled();
+    expect(f.rpc).not.toHaveBeenCalled();
+    f.state.geometry[0].evidence.pass_id = pass_id;
+    const result = await proposeTakeoffStep(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      { line_no: 1, pass_id },
+      read,
+    );
+    expect(result).toMatchObject({ complete: false, next_cursor: 1 });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(f.rpc).toHaveBeenCalledTimes(1);
+  });
   it("saves exactly one checkpoint per request and leaves the rest for resumable card calls", async () => {
     const f = await fixture(720),
       read = vi.fn(async () => ({ findings: [], uncertainties: [] }));

@@ -310,16 +310,36 @@ export async function proposeTakeoffBatch(
       summary.calibration_id !== (cal?.id ?? null))
   )
     throw new ToolError("The drawing, line or calibration changed. Start a new reviewed pass.");
-  if (
-    !prior &&
-    state.geometry.some(
-      (g) =>
-        g.line_id === line.id &&
-        g.source_id === page.source.id &&
-        g.page === page.page &&
-        g.status !== "rejected",
-    )
-  )
+  const activeGeometry = state.geometry.filter(
+    (g) =>
+      g.line_id === line.id &&
+      g.source_id === page.source.id &&
+      g.page === page.page &&
+      g.status !== "rejected",
+  );
+  // Old card sessions can request an older unfinished checkpoint after a later
+  // read completed. Reuse the completed equivalent read without inference or
+  // writes; never combine two passes for the same measured line.
+  const completed = state.passes.find((p) => {
+    const s = p.pass_summary;
+    return (
+      p.source_id === page.source.id &&
+      p.page === page.page &&
+      s.line_no === line.line_no &&
+      s.takeoff_version === state.takeoff_version &&
+      s.source_hash === page.source.content_hash &&
+      s.complete === true &&
+      s.calibration_id === (cal?.id ?? null) &&
+      (kind !== "count" ||
+        JSON.stringify(confirmedCountArea(s)?.bounds) === JSON.stringify(countArea?.bounds)) &&
+      (!input.legend || JSON.stringify(input.legend) === JSON.stringify(s.legend)) &&
+      (!input.depth || JSON.stringify(input.depth) === JSON.stringify(s.depth)) &&
+      activeGeometry.length > 0 &&
+      activeGeometry.every((g) => g.evidence.pass_id === s.pass_id)
+    );
+  });
+  if (completed) return { ...completed.pass_summary, reused_complete_read: true };
+  if (activeGeometry.some((g) => !prior || g.evidence.pass_id !== summary?.pass_id))
     throw new ToolError(
       "This line already has geometry on this sheet. Review or reject it before starting another full pass, so it cannot be counted twice.",
     );

@@ -207,3 +207,34 @@ Each read request now performs one atomic tile/checkpoint with a 35-second prepa
 
 Validation: 2,286 tests/216 files including 17 locked behaviors, build and changed-file lint pass. Same 32 baseline TypeScript diagnostics, none in this change. Fresh migration ordering, expired-cache reads, preserved permissions, and one-step resumability are tested. Live completion of the remaining count coverage and the roof/linear checks is pending publication of this correction. No sign-in, membership decision, Hub, email, connector, card-template, or original-drawing change.
 
+# Repeated reads and ordinal span selection
+
+An old card can request an earlier unfinished checkpoint even after a later pass
+completed the same line. The server now reuses the completed equivalent read
+when all active geometry belongs to it, with no model call or write. Equivalence
+requires the same source hash, page, takeoff version, calibration and count-area
+bounds. A different scope or foreign active geometry is refused even when the
+caller supplies an explicit pass ID. A partial pass can still resume its own
+geometry. This does not accept proposals or alter a saved measurement.
+
+The model schema previously called its coordinates the FIRST image while the
+actual coordinate image is the final detailed target tile. Both schema axes now
+agree with the actual message order. The reader also resolves ordinal endpoints
+across the entire confirmed plan, counts physical features once, excludes
+perpendicular returns on a named horizontal run, and never substitutes an
+adjacent span when the requested endpoints fall outside the tile.
+
+Verification: 2,288 tests across 216 files and all 17 locked behaviors pass.
+Changed-file ESLint passes. TypeScript retains the same 32 baseline diagnostics,
+with none in the changed takeoff files. The real-PDF tests prove completed-read
+reuse makes zero provider calls and zero writes, rejects a different count area
+and foreign-pass geometry, and preserves same-pass resume. No migration, auth,
+Hub, email, access, card resource or existing widget changes.
+
+Live status before this correction: one private count case completed all 18
+tiles, independently matched all 15 instances without extras or duplicates,
+was accepted through Claude's card, and produced its dated measured PDF with
+the original unchanged. A second count is still being checked. The ordinal wall
+case selected the neighboring span and was rejected; its new reader wording
+must be verified live after release. Automated checks are not that live pass.
+
