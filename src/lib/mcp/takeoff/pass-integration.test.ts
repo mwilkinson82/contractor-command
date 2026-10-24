@@ -8,6 +8,7 @@ import { proposeTakeoffBatch } from "./pass";
 import type { StoredPage } from "./service";
 import type { EngineSnapshot } from "./state";
 import type { VisionAnswer, VisionRead } from "./vision";
+import { markTargetTile } from "./scope";
 
 async function fixture() {
   const doc = await PDFDocument.create();
@@ -90,8 +91,10 @@ describe("actual PDF tile to resumable proposal pipeline", () => {
         sheet: "E-100",
         tile_bounds: { x: 0, y: 0, width: 1, height: 1 },
       });
-      expect(request.overview).toEqual(overview);
-      expect(request.original).not.toEqual(request.png);
+      expect(request.overview).toEqual(
+        markTargetTile(overview!, f.page.inspection.tiles[0].bounds),
+      );
+      expect(request.png).not.toEqual(request.overview);
       return {
         findings: [
           {
