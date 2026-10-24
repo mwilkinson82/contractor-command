@@ -83,7 +83,7 @@ export const emailDraft = defineTool({
     job_number: z.string().trim().max(40).optional(),
     company_id: z.string().trim().max(200).optional(),
     sign_as: z.string().trim().max(200).optional(),
-    recipient_name: z.string().trim().min(1).max(200).optional().describe("The recipient's actual name supplied by the member, when not yet in the job contacts. An unknown email remains blank."),
+    recipient_name: z.string().trim().min(1).max(200).optional(),
   },
   annotations: {
     readOnlyHint: true,

@@ -9,7 +9,7 @@
 5. Before any estimating handler, the existing mcp_company_tier decision is checked on the resolved job company. Office, Circle and Hardcore proceed; PM receives the Office upgrade card with existing PM tools available. A failed plan check never guesses access.
 6. Pay-app cards distinguish reported inputs, calculated outputs and arithmetic verification; arithmetic agreement never independently verifies work in place or payment.
 7. Submittal log card and factual fallback show each existing record's source.
-8. Email drafts advertise an email-specific ChatGPT output template, preserve other templates, and display Draft, not sent. Generic delay greetings can be filled only from a unique saved recipient matching the explicit address or the job's unique external PM. Named greetings and other addressees are preserved. Missing/ambiguous contacts stay visible questions. No send approval or send implementation changes.
+8. Email drafts advertise an email-specific ChatGPT output template, preserve other templates, and display Draft, not sent. Generic delay greetings can be filled only from a unique saved recipient matching the explicit address or the job's unique external PM. A member-supplied actual recipient name can fill a generic greeting when no matching contact exists; its unknown address remains blank. Named greetings and other addressees are preserved. Missing/ambiguous contacts stay visible questions. No send approval or send implementation changes.
 
 The takeoff and email resource URIs are versioned; older resource URIs continue to resolve. No migration, auth, Hub, connector, billing mutation or user email.
 
@@ -19,6 +19,6 @@ Read-only Lovable Cloud checks on 2026-10-24 found no Pat Kim entry in job 2701'
 
 ## Verification
 
-Record exact final suite, build, lint, locked-behavior and CI results in release evidence. The repository has 32 pre-existing TypeScript diagnostics; do not claim a clean global typecheck. The six Hub AI entry points remain unchanged and are checked by the Athena-only inference boundary suite.
+Local verification: 2,432 tests across 233 files, including 17 locked behaviors, pass; production build and changed-file lint pass. Record exact CI and live checks in release evidence. The repository has 32 pre-existing TypeScript diagnostics; do not claim a clean global typecheck. The six Hub AI entry points remain unchanged and are checked by the Athena-only inference boundary suite.
 
 Private host tests must distinguish a working image/proposal loop from takeoff accuracy. CCW-003 footing quantity versus Darian's 345 LF is an unresolved benchmark until measured and compared. Grok Bot's full retest is external to the browser verification here.

@@ -7060,7 +7060,6 @@
               "maxLength": 200
             },
             "recipient_name": {
-              "description": "The recipient's actual name supplied by the member, when not yet in the job contacts. An unknown email remains blank.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
