@@ -197,3 +197,13 @@ The default takeoff-only model moves to `google/gemini-3.8-flash` through the ex
 
 Checks: 2,284 tests across 216 files, including 17 locked behaviors; build and changed-file lint pass, with the same 32 baseline TypeScript diagnostics. Real Workers checks render the three private source sheets and bounded plan references while preserving the original hash. The real plan-reference images were inspected privately. This is not yet a live model accuracy pass; repeat the independent three-sheet test after publication. No migration, auth, Hub, email, access or card-resource change.
 
+# Read reliability after live #253
+
+The live reader placed all 15 fixture pins inside the independent source envelopes, with no extras or duplicates, before coverage reached 13/18. That is not a completed/accepted count. The next overlap tile exceeded the old 18-second request budget. A roof call also reported PostgreSQL `25006` after saving its fourth checkpoint; fresh state confirmed that progress was preserved.
+
+The three new takeoff read RPCs were marked `STABLE`. PostgREST runs STABLE RPCs in read-only transactions even for POST (https://docs.postgrest.org/en/stable/references/transactions.html#access-mode-on-functions). Their existing membership guard can refresh the five-minute entitlement cache, which writes a row. A real local PostgreSQL test now expires that cache and reproduces `25006` for get, history and exports under the PostgREST transaction classification. The small migration changes only those three entrypoints to `VOLATILE`; it leaves function bodies, guards, ACLs, RLS, and all job/drawing records unchanged. The same test verifies successful cache refresh afterward, unchanged job state, and continued rejection of an unrelated member. Apply this migration only through Lovable Cloud and record it normally.
+
+Each read request now performs one atomic tile/checkpoint with a 35-second preparation/inference budget, instead of starting multiple calls within 18 seconds. The existing card resumes from that checkpoint and already allows 90 seconds per bridge request. No retry skips coverage or accepts a partial quantity. Existing correct source/model/scope checkpoints can continue; no restart or loss of the 15 proposals is required.
+
+Validation: 2,286 tests/216 files including 17 locked behaviors, build and changed-file lint pass. Same 32 baseline TypeScript diagnostics, none in this change. Fresh migration ordering, expired-cache reads, preserved permissions, and one-step resumability are tested. Live completion of the remaining count coverage and the roof/linear checks is pending publication of this correction. No sign-in, membership decision, Hub, email, connector, card-template, or original-drawing change.
+

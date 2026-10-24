@@ -218,6 +218,25 @@ export async function saveCountArea(
   });
   return summary;
 }
+/** One checkpoint per tool request. Preparation and a difficult vision read
+ * share this bound; the card resumes from the returned checkpoint. */
+export function proposeTakeoffStep(
+  sb: Sb,
+  job: Job,
+  page: StoredPage,
+  state: EngineSnapshot,
+  input: Omit<Parameters<typeof proposeTakeoffBatch>[4], "deadline">,
+  read: VisionRead = readVisionTile,
+) {
+  return proposeTakeoffBatch(
+    sb,
+    job,
+    page,
+    state,
+    { ...input, deadline: Date.now() + 35000 },
+    read,
+  );
+}
 export async function proposeTakeoffBatch(
   sb: Sb,
   job: Job,
