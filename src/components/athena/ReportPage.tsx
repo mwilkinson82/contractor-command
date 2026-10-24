@@ -43,6 +43,12 @@ export function itemsFromField(payload: PagePayload): PagePayload {
   return items;
 }
 
+/** Sibling board pages (../items) and submittal records (submittal/<number>) keep the live token when the host adds utm params. */
+export function signSiblingLinks(body: string, token: string): string {
+  const tokenQuery = `t=${encodeURIComponent(token)}`;
+  return body.replace(/href="(\.\.\/[a-z]+|submittal\/[^"?#]+)(?:\?[^"#]*)?"/g, (_match, path: string) => `href="${path}?${tokenQuery}"`);
+}
+
 export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPage; jobId?: string; companyId?: string; token?: string }) {
   const openLink = useServerFn(openBoardPage);
   const { session, loading: authLoading } = useAuth();
@@ -98,9 +104,7 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
     const body = payload ? renderReportBody(payload) : "";
-    if (!token || !body) return body;
-    const tokenQuery = `t=${encodeURIComponent(token)}`;
-    return body.replace(/href="(\.\.\/[a-z]+)(?:\?[^"#]*)?"/g, (_match, path: string) => `href="${path}?${tokenQuery}"`);
+    return token && body ? signSiblingLinks(body, token) : body;
   }, [payload, token]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (

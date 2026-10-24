@@ -14,6 +14,7 @@ vi.mock("./guard", () => ({
   isMissingFunction: () => false,
 }));
 vi.mock("./tools/submittal-tools", () => ({
+  boardFor: async () => `https://app.meetathena.io/r/job/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/submittals?t=${"x".repeat(43)}`,
   resolveSubmittalJob: async () => ({
     job_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     company_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",

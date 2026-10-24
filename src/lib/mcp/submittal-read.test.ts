@@ -106,11 +106,11 @@ describe("submittal log read", () => {
     state.rows = DEMO_3101;
     const result = await call({ job_number: "3101", company_id: "other-company" });
     const text = result.content[0].text ?? "";
-    expect(state.writes).toEqual([]);
+    // The only write a read makes is the 24-hour board token that signs each row's record link, as report_page_link does.
+    expect(state.writes).toEqual(["rpc mcp_board_link_create"]);
     expect(state.rpcs).not.toContain("mcp_living_report_get");
     expect(state.rpcs).not.toContain("mcp_submittal_rows");
     expect(state.rpcs).not.toContain("mcp_add_item");
-    expect(state.rpcs).not.toContain("mcp_board_link_create");
     expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "job_id", val: JOB_3101 });
     expect(state.filters.some((f) => f.col === "company_id")).toBe(false);
     expect(result.structuredContent.job_id).toBe(JOB_3101);
@@ -131,7 +131,7 @@ describe("submittal log read", () => {
     const result = await call({ job_number: "2701", company_id: "other-company" });
     const text = result.content[0].text ?? "";
     expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "job_id", val: JOB_2701 });
-    expect(state.writes).toEqual([]);
+    expect(state.writes.filter((w) => w !== "rpc mcp_board_link_create")).toEqual([]);
     expect(text).toContain("No submittals on this job yet.");
     expect(text).toContain("log a submittal");
     expect(text).toContain("<!doctype html");
