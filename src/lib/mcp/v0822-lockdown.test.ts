@@ -182,7 +182,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
     expect(seen).toBe(77);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
-      /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
+      /export async function run[\s\S]*?const sb = await guard\(ctx, tool\);/,
     );
     expect(src("./guard.ts")).toMatch(/checkAthenaEntitlement\(sb\)/);
   });

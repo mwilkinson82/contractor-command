@@ -1,5 +1,11 @@
 import { dbError, isMissingFunction, type Sb } from "../guard";
-import type { StoredLine, StoredGap, StoredVerdict, Setup } from "../estimating";
+import type {
+  StoredLine,
+  StoredGap,
+  StoredVerdict,
+  Setup,
+  DocumentScopeRequirement,
+} from "../estimating";
 import type { Calibration, Shape } from "./geometry";
 
 export type EngineLine = StoredLine & { id: string; takeoff_id: string };
@@ -39,6 +45,7 @@ export type Pass = {
   geometry_revs: string[];
 };
 export type EngineSnapshot = {
+  document_scope?: DocumentScopeRequirement[];
   available: true;
   exports?: {
     id: string;

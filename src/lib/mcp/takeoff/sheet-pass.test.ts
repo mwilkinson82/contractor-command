@@ -13,6 +13,10 @@ import {
   proposeSheetStep,
   sheetLines,
   sheetOrder,
+  sheetReadGroups,
+  prepareSheetTargets,
+  submitSheetBatch,
+  sheetBatchSchema,
 } from "./sheet-pass";
 
 const COUNT_PASS = "11111111-1111-4111-8111-111111111111";
@@ -605,5 +609,120 @@ describe("sheet read", () => {
     await expect(
       proposeSheetStep(f.sb, f.job, f.page, f.state, { line_nos: [3, 4] }),
     ).rejects.toThrow(/No line on E-100 is ready.*L3.*L4/);
+  });
+});
+
+describe("preserved sheet read groups", () => {
+  it("keeps different saved count and dimensional orders resumable as separate calls", async () => {
+    const f = await fixture(720);
+    await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+    }).catch((e) => e);
+    const count = f.state.passes.find((p) => p.pass_summary.line_no === 1)!;
+    const run = f.state.passes.find((p) => p.pass_summary.line_no === 2)!;
+    count.pass_summary.order = [0];
+    count.pass_summary.next_cursor = 0;
+    run.pass_summary.next_cursor = 1;
+    const original = JSON.stringify(f.state.passes);
+    const groups = sheetReadGroups(f.page, f.state, { calibration_id: f.calibration_id });
+    expect(groups).toHaveLength(2);
+    expect(groups[0].line_nos).toEqual([2]);
+    expect(groups[1].line_nos).toEqual([1]);
+    expect(JSON.stringify(f.state.passes)).toBe(original);
+    const prepared = await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+      line_nos: groups[0].line_nos,
+    }).catch((e) => e);
+    expect(prepared).toBeInstanceOf(HostSheetReadRequired);
+    expect((prepared as HostSheetReadRequired).read.cursor).toBe(1);
+  });
+});
+
+describe("bounded sheet batches", () => {
+  it("returns three consecutive images without writing future checkpoints", async () => {
+    const f = await fixture(720);
+    const pending = await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+      calibration_id: f.calibration_id,
+    }).catch((e) => e);
+    const read = (pending as HostSheetReadRequired).read;
+    f.rpc.mockClear();
+    const targets = await prepareSheetTargets(f.page, read, 3);
+    expect(targets.map((t) => t.cursor)).toEqual([0, 1, 2]);
+    expect(targets.every((t) => t.png[0] === 137)).toBe(true);
+    expect(f.rpc).not.toHaveBeenCalled();
+    const waiting = await prepareSheetTargets(
+      f.page,
+      { ...read, waiting: [{ ...read.lines[0], next_cursor: 1 }] },
+      3,
+    );
+    expect(waiting).toHaveLength(1);
+  });
+  it("records three tiles for every line in one host submission without accepting quantities", async () => {
+    const f = await fixture(720);
+    const read = (
+      (await proposeSheetStep(f.sb, f.job, f.page, f.state, {
+        calibration_id: f.calibration_id,
+      }).catch((e) => e)) as HostSheetReadRequired
+    ).read;
+    f.rpc.mockImplementation(async (_name, args) => {
+      const summary = args._record.pass_summary;
+      const prior = f.state.passes.find((p) => p.pass_summary.pass_id === summary.pass_id)!;
+      prior.pass_summary = summary;
+      return { data: { ok: true }, error: null };
+    });
+    f.rpc.mockClear();
+    const input = [0, 1, 2].map((cursor) => ({
+      cursor,
+      lines: read.lines.map((l) => ({
+        line_no: l.line_no,
+        pass_id: l.pass_id!,
+        findings:
+          cursor === 0 && l.line_no === 1
+            ? [
+                {
+                  kind: "pins" as const,
+                  points: [{ x: (100 / 1024) * 1000, y: 500 }],
+                  confidence: 0.6,
+                  evidence: "Visible fixture square on the first target image",
+                },
+              ]
+            : [],
+        uncertainties: [],
+      })),
+    }));
+    const result = await submitSheetBatch(
+      f.sb,
+      f.job,
+      f.page,
+      f.state,
+      { calibration_id: f.calibration_id },
+      input,
+      async () => f.state,
+    );
+    expect(result.results.map((r) => r.next_cursor)).toEqual([1, 2, 3]);
+    expect(f.state.geometry).toEqual([]);
+    expect(f.rpc).toHaveBeenCalledTimes(6);
+    expect(f.rpc.mock.calls.flatMap((call) => call[1]._record.proposals)).toHaveLength(1);
+    expect(f.state.passes.every((p) => p.pass_summary.next_cursor === 3)).toBe(true);
+    await expect(
+      submitSheetBatch(
+        f.sb,
+        f.job,
+        f.page,
+        f.state,
+        { calibration_id: f.calibration_id },
+        input,
+        async () => f.state,
+      ),
+    ).rejects.toThrow("0 earlier tile(s) saved");
+  });
+  it("refuses skipped, duplicate and oversized batches before any save", () => {
+    const row = (cursor: number) => ({
+      cursor,
+      lines: [{ line_no: 1, pass_id: COUNT_PASS, findings: [], uncertainties: [] }],
+    });
+    expect(sheetBatchSchema.safeParse([row(0), row(2)]).success).toBe(false);
+    expect(sheetBatchSchema.safeParse([row(0), row(0)]).success).toBe(false);
+    expect(sheetBatchSchema.safeParse([row(0), row(1), row(2), row(3)]).success).toBe(false);
   });
 });

@@ -1,10 +1,104 @@
-import { calibrate, distance, type Calibration, type Point, type SheetSpace } from "./geometry";
+import {
+  calibrate,
+  distance,
+  feet,
+  inRegion,
+  type Calibration,
+  type Point,
+  type SheetSpace,
+} from "./geometry";
 import { scaleProposals, type SheetInspection, type VectorObject } from "./pdf";
+/** A first calibration has no revision to look up. Replacements still require
+ * the exact version so an old host response cannot overwrite a newer lock. */
+export function calibrationExpectedVersion(
+  rows: { source_id: string; page: number; region: string; version: number }[],
+  source: string,
+  page: number,
+  region: string,
+  expected?: number,
+): number {
+  if (expected != null) return expected;
+  if (
+    rows.some(
+      (c) =>
+        c.source_id === source &&
+        c.page === page &&
+        c.region.trim().toLowerCase() === region.trim().toLowerCase(),
+    )
+  )
+    throw new Error(
+      "This region already has a calibration. Read its current version before replacing it.",
+    );
+  return 0;
+}
 function dimensionFeet(text: string): number | null {
-  const s = text.trim(),
+  const s = text.trim().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-"),
     match = /^(\d+)\s*['′](?:\s*-?\s*(\d+(?:\.\d+)?)\s*["″]?)?$/.exec(s);
   if (match) return Number(match[1]) + Number(match[2] || 0) / 12;
   return null;
+}
+
+export function dimensionChecked(calibration: Calibration): boolean {
+  return (
+    calibration.method === "dimension_string" ||
+    (calibration.reference?.dimension_checks_verified === true &&
+      (calibration.reference?.dimension_checks?.length ?? 0) >= 1)
+  );
+}
+
+/** The host reads printed labels; Athena checks their numeric interpretation,
+ * scale agreement and separate in-region locations. Raster checks run before save.
+ * This is not server-side OCR or a claim of model interpretation accuracy. */
+export function checkCalibrationDimensions(
+  space: SheetSpace,
+  calibration: Calibration,
+  checks: NonNullable<Calibration["reference"]["dimension_checks"]>,
+): Calibration {
+  if (checks.length < 1 || checks.length > 4)
+    throw new Error("Check one to four independent printed dimensions in this plan region.");
+  if (
+    calibration.method === "estimator" &&
+    !checks.some(
+      (check) =>
+        !check.points.every((p) =>
+          calibration.reference.points.some((q) => distance(p, q, space) < 2),
+        ),
+    )
+  )
+    throw new Error(
+      "The calibration reference cannot verify itself; check a separate printed dimension.",
+    );
+  for (const [index, check] of checks.entries()) {
+    const printed = dimensionFeet(check.label);
+    const known = feet(check.distance, check.unit);
+    if (printed == null || Math.abs(printed - known) > 0.0001)
+      throw new Error(
+        "Each dimension label must state the same feet/inches value as its supplied distance.",
+      );
+    if (!check.points.every((p) => inRegion(p, calibration.bounds)))
+      throw new Error("Dimension check endpoints must be inside this calibrated plan region.");
+    const physical = distance(check.points[0], check.points[1], space);
+    if (physical < 1 || Math.abs(physical * calibration.feet_per_point - known) / known > 0.01)
+      throw new Error(
+        "The drawing dimension disagrees with the saved scale by more than 1%; review its endpoints, label and plan region.",
+      );
+    if (
+      checks
+        .slice(0, index)
+        .some((other) =>
+          check.points.every((p) => other.points.some((q) => distance(p, q, space) < 2)),
+        )
+    )
+      throw new Error("Use separate dimension strings, not the same endpoints twice.");
+  }
+  return {
+    ...calibration,
+    reference: {
+      ...calibration.reference,
+      dimension_checks: checks,
+      dimension_checks_verified: true,
+    },
+  };
 }
 
 /** A printed-scale lock is permitted only after the member confirms the PDF is true size.

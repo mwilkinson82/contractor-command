@@ -15,7 +15,18 @@ export type Calibration = {
   region: string;
   bounds: Bounds;
   version: number;
-  reference: { points: [Point, Point]; distance: number; unit: DistanceUnit };
+  reference: {
+    points: [Point, Point];
+    distance: number;
+    unit: DistanceUnit;
+    dimension_checks?: {
+      label: string;
+      points: [Point, Point];
+      distance: number;
+      unit: DistanceUnit;
+    }[];
+    dimension_checks_verified?: boolean;
+  };
   feet_per_point: number;
   method: "estimator" | "dimension_string" | "title_block";
   confidence: "high" | "medium" | "low";

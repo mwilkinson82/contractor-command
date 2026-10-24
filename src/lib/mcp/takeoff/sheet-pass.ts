@@ -41,6 +41,14 @@ export const sheetObservationsSchema = z
     "Return each line once.",
   );
 export type SheetObservations = z.infer<typeof sheetObservationsSchema>;
+export const sheetBatchSchema = z
+  .array(sheetObservationsSchema)
+  .min(1)
+  .max(3)
+  .refine(
+    (rows) => rows.every((row, i) => i === 0 || row.cursor === rows[i - 1].cursor + 1),
+    "Batch observations must follow consecutive tile cursors without duplicates or skips.",
+  );
 
 type Kind = "count" | "linear" | "area" | "volume";
 export function measureKind(unit: string | null | undefined): Kind | null {
@@ -65,6 +73,53 @@ export type SheetLine = {
   depth: Shape["depth"] | null;
 };
 export type SheetSkip = { line_no: number; item: string; reason: string };
+/** Separate saved tile orders stay separate. Fresh lines join only an order
+ * covering their whole region; no completed checkpoint is restarted. */
+export function sheetReadGroups(
+  page: StoredPage,
+  state: EngineSnapshot,
+  input: { line_nos?: number[]; calibration_id?: string },
+) {
+  const picked = sheetLines(page, state, input);
+  const groups = new Map<string, { line_nos: number[]; order: number[]; next_cursor: number }>();
+  const fresh: SheetLine[] = [];
+  for (const line of picked.lines) {
+    const prior = state.passes.find((p) => p.pass_summary.pass_id === line.pass_id);
+    const order = prior?.pass_summary.order as number[] | undefined;
+    if (!order) {
+      fresh.push(line);
+      continue;
+    }
+    const key = JSON.stringify(order),
+      group = groups.get(key) ?? { line_nos: [], order, next_cursor: line.next_cursor };
+    group.line_nos.push(line.line_no);
+    group.next_cursor = Math.min(group.next_cursor, line.next_cursor);
+    groups.set(key, group);
+  }
+  for (const line of fresh) {
+    const needed = candidateOrder(page, line.item, line.scope.bounds);
+    const compatible = [...groups.values()].find((g) =>
+      needed.every((index) => g.order.includes(index)),
+    );
+    if (compatible) {
+      compatible.line_nos.push(line.line_no);
+      compatible.next_cursor = 0;
+    } else {
+      const order = sheetOrder(page, [line]),
+        key = JSON.stringify(order);
+      const group = groups.get(key) ?? { line_nos: [], order, next_cursor: 0 };
+      group.line_nos.push(line.line_no);
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.next_cursor / b.order.length - a.next_cursor / a.order.length)
+    .map((g) => ({
+      line_nos: g.line_nos,
+      next_cursor: g.next_cursor,
+      tiles_total: g.order.length,
+    }));
+}
 
 export class HostSheetReadRequired extends Error {
   constructor(
@@ -87,6 +142,62 @@ export class HostSheetReadRequired extends Error {
       "This sheet region is ready for the connected AI to inspect for every open line. No quantity has been established.",
     );
   }
+}
+
+/** Future images are read-only previews, not completed checkpoints. A batch
+ * stops before any waiting line joins, so its line/pass bindings stay exact. */
+export async function prepareSheetTargets(
+  page: StoredPage,
+  read: HostSheetReadRequired["read"],
+  size = 3,
+) {
+  const stop = Math.min(
+    read.order.length,
+    read.cursor + Math.max(1, Math.min(3, size)),
+    ...read.waiting.map((l) => l.next_cursor),
+  );
+  const targets: { cursor: number; tile: Tile; png: Uint8Array }[] = [
+    { cursor: read.cursor, tile: read.tile, png: read.png },
+  ];
+  for (let cursor = read.cursor + 1; cursor < stop; cursor++) {
+    const tile = page.inspection.tiles[read.order[cursor]];
+    if (!tile)
+      throw new ToolError("The saved sheet order names a missing tile. Reload before reading.");
+    const raster = await renderTile(page.bytes, page.page - 1, tile);
+    targets.push({ cursor, tile, png: scopedTarget(raster.rgba, tile, read.scope) });
+  }
+  return targets;
+}
+
+/** Checkpoint each inspected tile in order. A failed later tile preserves the
+ * earlier checkpoints and reports that partial save; it never invents coverage. */
+export async function submitSheetBatch(
+  sb: Sb,
+  job: Job,
+  page: StoredPage,
+  initial: EngineSnapshot,
+  input: { line_nos?: number[]; calibration_id?: string },
+  observations: SheetObservations[],
+  reload: () => Promise<EngineSnapshot>,
+) {
+  const batch = sheetBatchSchema.parse(observations);
+  const results: Awaited<ReturnType<typeof proposeSheetStep>>[] = [];
+  let state = initial;
+  for (const observed of batch) {
+    try {
+      results.push(await proposeSheetStep(sb, job, page, state, input, observed));
+      state = await reload();
+    } catch (error) {
+      throw new ToolError(
+        `Batch stopped at cursor ${observed.cursor}; ${results.length} earlier tile(s) saved. Read current checkpoints before resuming. ${error instanceof Error ? error.message : "The tile could not be saved."}`,
+      );
+    }
+  }
+  return {
+    state,
+    results,
+    complete: results.every((r) => r.complete) || results.at(-1)?.complete === true,
+  };
 }
 
 function union(bounds: Bounds[]): Bounds {

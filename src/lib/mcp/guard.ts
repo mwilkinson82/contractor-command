@@ -12,7 +12,7 @@ import { attachGettingStarted } from "./getting-started";
 import { attachMorningCard } from "./morning-brief-card";
 import { HOST_DISPLAY_BLOCK, finalizeVisible, guide, splitGuidance, withStyleLine } from "./visible";
 import { REMINDERS_VIEW_SPEC } from "./views";
-import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, type CapResult } from "./limits";
+import { DB_UNAVAILABLE, MCP_DAILY_CAP, MCP_HOURLY_CAP, capMessage, countsTowardAccountCap, type CapResult } from "./limits";
 import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
 import { supabaseForUser } from "./supabase";
 import { runSweep, type SweepScope } from "./sweep";
@@ -27,23 +27,25 @@ export const INACTIVE_MESSAGE = "Your membership isn't active, so Athena is paus
 export type Sb = ReturnType<typeof supabaseForUser>;
 
 // Per-account call cap: mcp_abuse_cap_check with the caps from ./limits. The member sees which limit and when it resets.
-export async function guard(ctx: ToolContext): Promise<Sb> {
+export async function guard(ctx: ToolContext, tool = ""): Promise<Sb> {
   if (!ctx.isAuthenticated()) throw new ToolError("Not authenticated.");
   const sb = supabaseForUser(ctx);
-  const { data, error } = await sb.rpc("mcp_abuse_cap_check", { _hourly: MCP_HOURLY_CAP, _daily: MCP_DAILY_CAP });
-  let cap: CapResult;
-  if (error && isMissingFunction(error)) {
-    // Migration 0017 not applied yet: fall back to the older cap (true = allowed) so the connector keeps working.
-    const old = await sb.rpc("mcp_abuse_cap_hit");
-    if (old.error) throw new ToolError(DB_UNAVAILABLE);
-    cap = old.data === true ? { ok: true } : { ok: false, limit: "hourly" };
-  } else {
-    if (error) throw new ToolError(DB_UNAVAILABLE);
-    cap = (data ?? { ok: false }) as CapResult;
-  }
-  if (!cap.ok) {
-    await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: cap.limit === "daily" ? "cap_hit_daily" : "cap_hit_hourly" });
-    throw new ToolError(capMessage(cap));
+  if (countsTowardAccountCap(tool, ctx.getUserId?.())) {
+    const { data, error } = await sb.rpc("mcp_abuse_cap_check", { _hourly: MCP_HOURLY_CAP, _daily: MCP_DAILY_CAP });
+    let cap: CapResult;
+    if (error && isMissingFunction(error)) {
+      // Migration 0017 not applied yet: fall back to the older cap (true = allowed) so the connector keeps working.
+      const old = await sb.rpc("mcp_abuse_cap_hit");
+      if (old.error) throw new ToolError(DB_UNAVAILABLE);
+      cap = old.data === true ? { ok: true } : { ok: false, limit: "hourly" };
+    } else {
+      if (error) throw new ToolError(DB_UNAVAILABLE);
+      cap = (data ?? { ok: false }) as CapResult;
+    }
+    if (!cap.ok) {
+      await logWorkflow(sb, { event_type: "failure", tool: "guard", error_code: cap.limit === "daily" ? "cap_hit_daily" : "cap_hit_hourly" });
+      throw new ToolError(capMessage(cap));
+    }
   }
   // Membership entitlement, before any job read or write. Cached ~5 minutes in the database.
   const ent = await checkAthenaEntitlement(sb);
@@ -93,10 +95,10 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   const o = typeof opts === "object" ? opts : { lookaheadId: opts };
   const lookaheadId = o.lookaheadId;
   const sweepScope: SweepScope = { jobNumber: o.jobNumber, client: o.client };
-  const sb = await guard(ctx);
+  const sb = await guard(ctx, tool);
   // 0.8.22: success-call log, heavy-tool cap, security flags, optional soft lock and the company canary.
   const sig = getCallSignals(ctx as unknown as object);
-  const touch = await securityTouch(sb as never, tool, o.jobNumber ?? sig?.jobNumber ?? null, sig?.signals ?? []);
+  const touch = await securityTouch(sb as never, tool, o.jobNumber ?? sig?.jobNumber ?? null, sig?.signals ?? [], undefined, ctx.getUserId?.());
   enforceTouch(touch);
   let sweep: Awaited<ReturnType<typeof runSweep>> = null;
   let freshSession = false;

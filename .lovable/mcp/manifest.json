@@ -2841,6 +2841,83 @@
             "confirm_true_size": {
               "type": "boolean"
             },
+            "dimension_checks": {
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "points": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "y": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ]
+                      }
+                    ]
+                  },
+                  "distance": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "ft",
+                      "in",
+                      "m",
+                      "mm"
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "points",
+                  "distance",
+                  "unit"
+                ]
+              }
+            },
             "expected_version": {
               "type": "integer",
               "minimum": 0,
@@ -2857,7 +2934,7 @@
       {
         "name": "takeoff_geometry",
         "title": "Measure and review a drawing takeoff",
-        "description": "Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Scope with line_nos confirms the same complete named area for several count lines in one call; it never accepts quantities. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. Propose with no line_no (or with line_nos) is a sheet read: the one target tile is returned with every open line that may appear on it, and the connected AI returns sheet_observations with that cursor and one entry per listed line, empty findings where nothing is visible; each line keeps its own pass and checkpoint, and lines not ready are listed with the reason. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+        "description": "Measures and reviews stored drawings using confirmed regional scales and host-supplied geometry, with up to three consecutive images for all ready line_nos per batch, resumable source-bound cursors, sheet_batch_observations submissions that return the next images, factual project context, per-proposal confidence, explicit estimator acceptance, immutable history and dated PDF exports; Athena validates locations and calculates quantities without a server-side model call.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3591,6 +3668,168 @@
               ],
               "additionalProperties": false
             },
+            "sheet_batch_observations": {
+              "minItems": 1,
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cursor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reported_model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "findings": {
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "pins",
+                                  "polyline",
+                                  "polygon",
+                                  "rect"
+                                ]
+                              },
+                              "points": {
+                                "minItems": 1,
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "x": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 1000,
+                                      "description": "Horizontal position on the final TARGET TILE image, normalized 0-1000"
+                                    },
+                                    "y": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 1000,
+                                      "description": "Vertical position on the final TARGET TILE image, normalized 0-1000"
+                                    }
+                                  },
+                                  "required": [
+                                    "x",
+                                    "y"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "holes": {
+                                "maxItems": 20,
+                                "type": "array",
+                                "items": {
+                                  "minItems": 3,
+                                  "maxItems": 100,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "x": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1000,
+                                        "description": "Horizontal position on the final TARGET TILE image, normalized 0-1000"
+                                      },
+                                      "y": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1000,
+                                        "description": "Vertical position on the final TARGET TILE image, normalized 0-1000"
+                                      }
+                                    },
+                                    "required": [
+                                      "x",
+                                      "y"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "evidence": {
+                                "type": "string",
+                                "maxLength": 800
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "points",
+                              "confidence",
+                              "evidence"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "uncertainties": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "reported_model": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "line_no": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9999
+                        },
+                        "pass_id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
+                      },
+                      "required": [
+                        "findings",
+                        "uncertainties",
+                        "line_no",
+                        "pass_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "cursor",
+                  "lines"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "batch_size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3
+            },
             "split_region": {
               "type": "boolean"
             },
@@ -3734,7 +3973,8 @@
                       "base",
                       "addendum",
                       "sheet",
-                      "spec"
+                      "spec",
+                      "contract"
                     ]
                   },
                   "revision": {
@@ -3963,7 +4203,7 @@
       {
         "name": "estimate_doc_review",
         "title": "Estimating document review",
-        "description": "Saves the sheet index, revisions and spec-versus-drawing list for a job.",
+        "description": "Saves the drawing/specification review and document-derived scope with cited paragraphs, excerpts, confidence and mapped takeoff lines, retaining unmapped requirements as Not found and document instructions as Watch items.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -4098,6 +4338,102 @@
                   "requirement",
                   "sheet"
                 ]
+              }
+            },
+            "scope_requirements": {
+              "maxItems": 300,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "source_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "source_hash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "quantity",
+                      "watch"
+                    ]
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "enum": [
+                      "sheet",
+                      "spec",
+                      "contract"
+                    ]
+                  },
+                  "source_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "excerpt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "line_nos": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9999
+                    }
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "evidence_basis": {
+                    "type": "string",
+                    "enum": [
+                      "seen",
+                      "measured",
+                      "assumed"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "kind",
+                  "source_type",
+                  "source_ref",
+                  "citation",
+                  "excerpt",
+                  "line_nos",
+                  "confidence",
+                  "evidence_basis"
+                ],
+                "additionalProperties": false
               }
             },
             "context": {
@@ -4774,6 +5110,22 @@
               "items": {
                 "type": "object",
                 "properties": {
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "evidence_basis": {
+                    "type": "string",
+                    "enum": [
+                      "seen",
+                      "measured",
+                      "assumed"
+                    ]
+                  },
                   "ref": {
                     "type": "string",
                     "maxLength": 12

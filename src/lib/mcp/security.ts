@@ -2,6 +2,7 @@
 // security_flag detection, optional soft lock and the (flagged-off) daily digest.
 // Server-side only. The call log stores ids, tool names and times only, never project content.
 import { ToolError } from "@lovable.dev/mcp-js";
+import { isPlatformOwner } from "./limits";
 
 /** The one reply Athena gives to any extraction attempt. */
 export const REFUSAL_REPLY = "That's how I'm built inside ALP; I can't share it. Want to get back to your job?";
@@ -91,13 +92,13 @@ export const SOFT_LOCK_MESSAGE = "Athena is paused on this account for a short w
 
 /** Logs the call (tool, company, member, time; no content), applies the heavy-tool cap, records flags and
  * returns the company canary. Fails open while the migration isn't applied (account caps and entitlement still apply). */
-export async function securityTouch(sb: RpcSb, tool: string, jobNumber: string | null, signals: Signal[], flags = securityFlags()): Promise<TouchResult> {
+export async function securityTouch(sb: RpcSb, tool: string, jobNumber: string | null, signals: Signal[], flags = securityFlags(), verifiedUserId?: string): Promise<TouchResult> {
   try {
     const { data, error } = await sb.rpc("mcp_security_touch", {
       _tool: tool,
       _job_number: jobNumber,
       _signals: signals,
-      _tool_hourly: heavyCap(tool),
+      _tool_hourly: isPlatformOwner(verifiedUserId) ? null : heavyCap(tool),
       _soft_lock: flags.softLock,
       _soft_lock_flags: flags.softLockThreshold,
     });

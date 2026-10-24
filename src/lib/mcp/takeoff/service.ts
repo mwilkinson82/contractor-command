@@ -1,4 +1,6 @@
+import { sheetReadGroups } from "./sheet-pass";
 import { currentDroppedLines } from "./history";
+import { reconcileDocumentScope } from "./document-scope";
 import { hostWorkflowSection, measurementEvidence } from "./host-workflow";
 import { ToolError, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "../guard";
@@ -13,7 +15,7 @@ import {
 import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
 import { cachedSource } from "./cache";
-import { automaticCalibration, scaleLock } from "./calibration";
+import { automaticCalibration, dimensionChecked, scaleLock } from "./calibration";
 import { drawingReferences, drawingReferenceSection } from "./drawing-references";
 import { highlightedPreview } from "./render";
 import { renderMarkdown } from "../cards/markdown";
@@ -149,12 +151,22 @@ export function reviewRows(
     followUp: string | null;
     math: string | null;
   }[],
-  gaps: { ref: string; category?: string | null }[],
+  gaps: {
+    ref: string;
+    category?: string | null;
+    confidence?: string | null;
+    evidence_basis?: string | null;
+  }[],
 ) {
   return items
     .filter((i) => i.kind === "gap")
     .map((i) => ({
-      cells: [`${i.ref} · ${i.title}`, i.status, i.followUp ?? i.math ?? ""],
+      cells: [
+        `${i.ref} · ${i.title}`,
+        i.status,
+        i.followUp ?? i.math ?? "",
+        `Reported confidence: ${gaps.find((g) => g.ref === i.ref)?.confidence ?? "low (not rated)"} · Basis: ${gaps.find((g) => g.ref === i.ref)?.evidence_basis ?? "assumed (not recorded)"}`,
+      ],
       flag: reviewFlag({
         holdsBid: i.holdsBid,
         category: gaps.find((g) => g.ref === i.ref)?.category,
@@ -200,13 +212,18 @@ export async function viewEngine(
         .sort((a, b) => b.version - a.version)[0]
     : null;
   const lock = page ? scaleLock(page.inspection.text, !!lockedCalibration) : null;
+  const readyGroups = page
+    ? sheetReadGroups(page, state, { calibration_id: lockedCalibration?.id })
+    : [];
   const guided = page
     ? {
         stage: !lockedCalibration
           ? "lock_scale"
-          : summary.proposed
-            ? "review_proposals"
-            : "confirm_region_and_read",
+          : readyGroups.length
+            ? "continue_read"
+            : summary.proposed
+              ? "review_proposals"
+              : "confirm_region_and_read",
         next_tool_call: {
           name: lockedCalibration ? "takeoff_geometry" : "sheet_calibrate",
           arguments: {
@@ -215,7 +232,12 @@ export async function viewEngine(
             source_id: page.source.id,
             sheet: page.sheet,
             operation: lockedCalibration ? "propose" : "read",
-            ...(lockedCalibration ? { calibration_id: lockedCalibration.id } : {}),
+            ...(lockedCalibration
+              ? {
+                  calibration_id: lockedCalibration.id,
+                  ...(readyGroups[0] ? { line_nos: readyGroups[0].line_nos } : {}),
+                }
+              : {}),
           },
         },
         accepted_lines: summary.located,
@@ -264,7 +286,7 @@ export async function viewEngine(
                 {
                   cells: [
                     lockedCalibration
-                      ? `${lockedCalibration.region} · saved calibration v${lockedCalibration.version} · ${lockedCalibration.method === "dimension_string" ? "Dimension checked" : "Member confirmed; independent dimension check still needed"}`
+                      ? `${lockedCalibration.region} · saved calibration v${lockedCalibration.version} · ${dimensionChecked(lockedCalibration) ? "Dimension checked" : "Member confirmed; independent dimension check still needed"}`
                       : lock.printed_scales.length
                         ? `Printed scale: ${lock.printed_scales.join("; ")}${lock.as_noted ? " · As Noted" : ""}`
                         : "Printed scale is unclear or As Noted.",
@@ -336,9 +358,11 @@ export async function viewEngine(
     card.ask = { prompt: lock.question! };
     card.next_move = "Choose one of the two scale options. No measurement has started.";
   } else if (guided && lockedCalibration && !summary.settled) {
-    card.next_move = summary.proposed
-      ? "Review the highlighted proposed quantities and accept the exact revisions you agree with. Unread regions and open scope stay visible."
-      : `Scale locked for ${lockedCalibration.region}. Confirm the count region for the listed footing lines together, then ask your AI to continue the sheet read. Athena returns each next region and saves proposals for your review.`;
+    card.next_move = readyGroups.length
+      ? "Continue the unread region groups from their saved checkpoints. Proposals remain for review; a completed group is not a completed project takeoff."
+      : summary.proposed
+        ? "Review the highlighted proposed quantities and accept the exact revisions you agree with. Unread regions and open scope stay visible."
+        : `Scale locked for ${lockedCalibration.region}. Confirm the count region for the listed footing lines together, then ask your AI to continue the sheet read. Athena returns each next region and saves proposals for your review.`;
     if (guided.count_area_candidates.length)
       card.sections?.splice(1, 0, {
         heading: "Count lines awaiting one area confirmation",
@@ -362,6 +386,56 @@ export async function viewEngine(
         ],
       })),
     });
+  if (lockedCalibration?.reference.dimension_checks?.length)
+    card.sections?.push({
+      heading: "Scale dimension checks",
+      kind: "list",
+      rows: [
+        ...lockedCalibration.reference.dimension_checks.map((check) => ({
+          cells: [
+            check.label,
+            `${check.distance} ${check.unit} · ${page?.sheet} · source ${lockedCalibration.source_id}`,
+          ],
+        })),
+        {
+          cells: [
+            "Dimension labels were supplied with the calibration. Athena checked their numeric values, scale agreement and endpoint ink on this stored sheet; item/text identification remains subject to estimator review.",
+          ],
+        },
+      ],
+    });
+  if (readyGroups.length > 1)
+    card.sections?.push({
+      heading: "Remaining sheet read groups",
+      kind: "list",
+      rows: readyGroups.map((g) => ({
+        cells: [
+          `Lines ${g.line_nos.join(", ")}`,
+          `${g.next_cursor} of ${g.tiles_total} regions inspected`,
+          "Saved region orders are preserved; each group continues from its own checkpoint.",
+        ],
+      })),
+    });
+  const scopeReconciliation = reconcileDocumentScope(state);
+  card.sections?.push({
+    heading: "Document-based scope reconciliation",
+    kind: "list",
+    rows: scopeReconciliation.length
+      ? scopeReconciliation.map((r) => ({
+          cells: [
+            `${r.id} · ${r.title} · ${r.classification}`,
+            `${r.source_type} ${r.source_ref} · ${r.citation} · ${r.source_status} · “${r.excerpt}”`,
+            `Reported confidence: ${r.confidence} · Basis: ${r.evidence_basis}. ${r.reason}`,
+          ],
+        }))
+      : [
+          {
+            cells: [
+              "No job-document scope list has been saved yet. Drawing notes, specification paragraphs and contract requirements still need review; the fixed checklist does not establish full coverage.",
+            ],
+          },
+        ],
+  });
   if (typeof extra.report_title === "string") card.title = extra.report_title;
   if (Array.isArray(extra.report_rows))
     card.sections?.push({
@@ -522,11 +596,13 @@ export async function viewEngine(
   const structuredContent = {
     scale_lock: lock,
     guided_measurement: guided,
+    ready_sheet_groups: readyGroups,
     snapshot_at: new Date().toISOString(),
     available_sources: availableSources,
     card,
     engine: { ...state, summary },
     measurement_review: evidenceReview,
+    document_scope_reconciliation: scopeReconciliation,
     context: {
       job_id: job.job_id,
       job_number: job.job_number,
@@ -606,7 +682,10 @@ export async function saveCalibration(
   expected: number,
 ) {
   const checked = calibrate(page.space, { ...input, version: expected + 1 });
-  if (input.method !== "title_block")
+  if (input.reference.dimension_checks_verified && input.reference.dimension_checks) {
+    for (const check of input.reference.dimension_checks)
+      await verifyLocatedShape(page, { kind: "pins", points: check.points });
+  } else if (input.method !== "title_block")
     await verifyLocatedShape(page, { kind: "pins", points: input.reference.points });
   return engineRpc<Calibration>(sb, "mcp_takeoff_calibrate", {
     _job: job.job_id,
@@ -634,6 +713,11 @@ export async function saveGeometry(
 ) {
   if (!state.lines.some((l) => l.line_no === input.line_no))
     throw new ToolError("Read the current takeoff line before locating it.");
+  const line = state.lines.find((l) => l.line_no === input.line_no)!;
+  if (line.sheet?.trim() && line.sheet.trim().toLowerCase() !== page.sheet.trim().toLowerCase())
+    throw new ToolError(
+      `L${line.line_no} is assigned to ${line.sheet}, not ${page.sheet}. No geometry was saved.`,
+    );
   const calibration = state.calibrations.find(
     (c) => c.id === input.calibration_id && c.source_id === page.source.id && c.page === page.page,
   );
