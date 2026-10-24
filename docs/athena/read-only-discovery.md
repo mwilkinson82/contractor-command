@@ -35,3 +35,12 @@ expiry, palette, actual SDK tools/list annotations/native resource metadata,
 and the existing whole-tool guard inventory and locked behaviors. Live host
 acceptance waits for an approved publication and tool refresh. Verify all rows
 on each host, including jobs under a company other than the saved current one.
+
+After #263 publication, both hosts returned all 20 jobs and the nine CCW-003
+drawing records. ChatGPT rendered both cards. Claude initially returned full
+facts without a native card; after the tool refresh, a full page reload and new
+chat displayed its 20-job native card. The shared label formatter separately
+hid source IDs in the text fallback. The source-reference follow-up prints only
+that explicitly requested row verbatim in the existing card/text renderers;
+other internal IDs retain their current treatment. No handshake, resource or
+global formatter changes are needed for that follow-up.

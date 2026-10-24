@@ -12,6 +12,7 @@ import {
   drawingSetsList,
 } from "./tools/discovery-tools";
 import { paletteViolations } from "./cards/palette";
+import { claudeCardReply } from "./cards/claude-reply";
 
 const owner = "00000000-0000-4000-8000-000000000601";
 const outsider = "00000000-0000-4000-8000-000000000602";
@@ -164,6 +165,15 @@ describe("stored drawing discovery", () => {
       /source_url|storage_bucket|content_hash|drawing-fixture/,
     );
     expect(r.structuredContent.html).toContain("S-100");
+    // Claude may receive only content text. Its real presentation pass must
+    // retain the same usable source reference as the structured response.
+    const reply = claudeCardReply(r, "drawing_sets_list") ?? r;
+    expect(reply.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: expect.stringContaining(sourceId) }),
+      ]),
+    );
+    expect(r.structuredContent.html).toContain(`Source ID · ${sourceId}</li>`);
   });
   it("does not substitute another company when an explicit filter lacks that job", async () => {
     await expect(readDrawingSets(sb(), "CCW-003", "Fictional AOP")).rejects.toThrow(
