@@ -1,5 +1,6 @@
 import {
   TAKEOFF_CARD_URI,
+  TAKEOFF_CARD_URIS,
   TAKEOFF_CARD_MIME,
   TAKEOFF_CARD_TOOLS,
   takeoffCardHtml,
@@ -218,25 +219,26 @@ if (!proto[patched]) {
       typeof this.registerResource === "function" &&
       !(this as { _athenaTakeoffCard?: boolean })._athenaTakeoffCard
     ) {
-      this.registerResource(
-        "athena-takeoff",
-        TAKEOFF_CARD_URI,
-        {
-          title: "Athena drawing takeoff",
-          mimeType: TAKEOFF_CARD_MIME,
-          _meta: takeoffResourceMeta,
-        },
-        async () => ({
-          contents: [
-            {
-              uri: TAKEOFF_CARD_URI,
-              mimeType: TAKEOFF_CARD_MIME,
-              text: takeoffCardHtml(),
-              _meta: takeoffResourceMeta,
-            },
-          ],
-        }),
-      );
+      for (const uri of TAKEOFF_CARD_URIS)
+        this.registerResource(
+          uri === TAKEOFF_CARD_URI ? "athena-takeoff" : "athena-takeoff-legacy",
+          uri,
+          {
+            title: "Athena drawing takeoff",
+            mimeType: TAKEOFF_CARD_MIME,
+            _meta: takeoffResourceMeta,
+          },
+          async () => ({
+            contents: [
+              {
+                uri,
+                mimeType: TAKEOFF_CARD_MIME,
+                text: takeoffCardHtml(),
+                _meta: takeoffResourceMeta,
+              },
+            ],
+          }),
+        );
       (this as { _athenaTakeoffCard?: boolean })._athenaTakeoffCard = true;
     }
     // openai/outputTemplate on tools/list makes ChatGPT

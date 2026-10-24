@@ -5,6 +5,7 @@
     ready = false,
     origin = null,
     host = {},
+    hostContext = {},
     seq = 10,
     pending = new Map(),
     sc = null,
@@ -54,20 +55,23 @@
     status.textContent = text;
     size();
   }
-  function call(name, args) {
-    if (!host.serverTools)
-      return Promise.reject(
-        Error("This host has not enabled measurement controls. Use the same operations in chat."),
-      );
+  function rpc(method, params, timeout) {
     return new Promise(function (resolve, reject) {
       var id = ++seq,
         timer = setTimeout(function () {
           pending.delete(id);
           reject(Error("No saved result was confirmed. Reload before retrying."));
-        }, 90000);
+        }, timeout || 90000);
       pending.set(id, { resolve: resolve, reject: reject, timer: timer });
-      send({ id: id, method: "tools/call", params: { name: name, arguments: args } });
+      send({ id: id, method: method, params: params });
     });
+  }
+  function call(name, args) {
+    if (!host.serverTools)
+      return Promise.reject(
+        Error("This host has not enabled measurement controls. Use the same operations in chat."),
+      );
+    return rpc("tools/call", { name: name, arguments: args });
   }
   function context() {
     return {
@@ -80,6 +84,22 @@
   function args(extra) {
     return Object.assign(context(), extra);
   }
+  function failureText(result) {
+    return (
+      ((result && result.content) || [])
+        .filter(function (c) {
+          return c.type === "text" && typeof c.text === "string";
+        })
+        .map(function (c) {
+          // Legacy error cards include an HTML fallback after their factual text.
+          // A status label must never print that document's source to the member.
+          return c.text.split(/<!doctype html/i)[0].trim();
+        })
+        .filter(Boolean)
+        .join("\n")
+        .slice(0, 2000) || "The operation was not confirmed. Reload before retrying."
+    );
+  }
   async function act(name, extra) {
     if (busy) return;
     busy = true;
@@ -87,16 +107,7 @@
     try {
       var r = await call(name, args(extra));
       if (!r || r.isError || !r.structuredContent || !r.structuredContent.engine)
-        throw Error(
-          ((r && r.content) || [])
-            .filter(function (c) {
-              return c.type === "text";
-            })
-            .map(function (c) {
-              return c.text;
-            })
-            .join(" ") || "The operation was not confirmed. Reload before retrying.",
-        );
+        throw Error(failureText(r));
       localResult = true;
       sc = r.structuredContent;
       draft = [];
@@ -243,6 +254,24 @@
     var head = node("header");
     head.append(node("p", "ATHENA", "brand"), node("h1", sc.card.title), node("p", sc.card.job));
     root.append(head);
+    if ((hostContext.availableDisplayModes || []).includes("fullscreen"))
+      head.append(
+        button(
+          hostContext.displayMode === "fullscreen" ? "Back to chat" : "Expand drawing workspace",
+          async function () {
+            var requested = hostContext.displayMode === "fullscreen" ? "inline" : "fullscreen";
+            if (!(hostContext.availableDisplayModes || []).includes(requested)) return;
+            try {
+              var result = await rpc("ui/request-display-mode", { mode: requested }, 15000);
+              hostContext.displayMode = result.mode;
+              draw();
+              notice(result.mode === requested ? "" : "The host kept the current display size.");
+            } catch (_) {
+              notice("The host could not expand this workspace. Your saved takeoff is unchanged.");
+            }
+          },
+        ),
+      );
     var main = node("main");
     root.append(main);
     var kpis = node("div", null, "kpis");
@@ -1456,6 +1485,7 @@
         return;
       origin = e.origin;
       host = m.result.hostCapabilities || {};
+      hostContext = m.result.hostContext || {};
       ready = true;
       send({ method: "ui/notifications/initialized", params: {} });
       size();
@@ -1470,7 +1500,10 @@
       else t.resolve(m.result);
       return;
     }
-    if (m.method === "ui/notifications/tool-result") {
+    if (m.method === "ui/notifications/host-context-changed") {
+      hostContext = Object.assign({}, hostContext, m.params || {});
+      draw();
+    } else if (m.method === "ui/notifications/tool-result") {
       var incoming = m.params && m.params.structuredContent;
       var newer =
         incoming &&
@@ -1518,7 +1551,7 @@
     params: {
       protocolVersion: "2026-01-26",
       appInfo: { name: "Athena takeoff", version: "1.0.0" },
-      appCapabilities: { availableDisplayModes: ["inline"] },
+      appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
     },
   });
 })();

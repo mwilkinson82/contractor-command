@@ -1,5 +1,6 @@
 import {
   TAKEOFF_CARD_URI,
+  TAKEOFF_CARD_URIS,
   TAKEOFF_CARD_MIME,
   TAKEOFF_CARD_TOOLS,
   takeoffCardHtml,
@@ -75,16 +76,16 @@ const CARD_VIEWS: Record<
     meta: Record<string, unknown>;
   }
 > = Object.fromEntries([
-  [
-    TAKEOFF_CARD_URI,
+  ...[...TAKEOFF_CARD_URIS].map((uri) => [
+    uri,
     {
-      name: "athena-takeoff",
+      name: uri === TAKEOFF_CARD_URI ? "athena-takeoff" : "athena-takeoff-legacy",
       title: "Athena drawing takeoff",
       mimeType: TAKEOFF_CARD_MIME,
       html: takeoffCardHtml,
       meta: takeoffResourceMeta,
     },
-  ],
+  ]),
   ...[...NATIVE_CARD_URIS].map((uri) => [
     uri,
     {

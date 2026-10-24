@@ -135,3 +135,13 @@ that job. At most 144 vision tile calls through Athena's existing Lovable/Gemini
 gateway. No edits to the live 2701/CCW estimates, no email, public share, new
 connector, auth/Hub changes, or original-file changes. Posting a user update
 email is outside this release and needs its own exact content approval.
+
+# Live verification follow-up
+
+The first published engine opened its stored-source viewer in ChatGPT and in a fresh normal Claude chat. A pre-refresh Claude conversation returned facts without a viewer; a fresh conversation rendered the registered resource. This does not establish measurement accuracy.
+
+Two bounded live proposal requests saved no geometry: the first timed out and the second returned `No object generated: response did not match schema`. An actual AI SDK request interception then reproduced a configuration defect: the compatible provider defaults to `supportsStructuredOutputs: false`, so it sent `response_format: {type: "json_object"}` and silently omitted the geometry schema. The takeoff reader now explicitly enables structured output. The regression checks the outgoing JSON schema, including the required findings and uncertainties fields. Existing gateway callers retain their default configuration; invalid or uncertain results still fail closed.
+
+The viewer now strips the legacy HTML error fallback from its status label. It also offers the standard host-approved fullscreen request when available: a narrow desktop chat otherwise hides the drawing controls under the phone/review breakpoint. Phone editing remains disabled below 768 px. The host's actual response mode is respected. Resource v2 makes the revised client discoverable without relying on hosts to discard cached v1 HTML; v1 remains readable for existing conversations.
+
+Private browser verification exercised 700 px review mode, expansion to a 1100 px drawing workspace, a failed operation containing an HTML fallback, and 390 px phone review. These are local host-bridge tests, not live inference or live fullscreen acceptance. The three-sheet live accuracy, review and export checks must resume after an approved release of this follow-up. No measured quantity has been accepted on the strength of the failed live reads.

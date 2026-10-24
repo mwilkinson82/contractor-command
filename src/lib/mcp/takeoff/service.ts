@@ -14,6 +14,7 @@ import { cachedSource } from "./cache";
 import { automaticCalibration } from "./calibration";
 import { highlightedPreview } from "./render";
 import { renderMarkdown } from "../cards/markdown";
+import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
 import { calibrate, measure, type Calibration, type Shape } from "./geometry";
 import { inspectSheet, renderTile, scaleProposals, sheetSpace, type SheetInspection } from "./pdf";
@@ -330,8 +331,8 @@ export async function viewEngine(
     ],
     structuredContent: structuredContent as unknown as JsonValueInput,
     _meta: {
-      "openai/outputTemplate": "ui://athena/takeoff-v1.html",
-      ui: { resourceUri: "ui://athena/takeoff-v1.html" },
+      "openai/outputTemplate": TAKEOFF_CARD_URI,
+      ui: { resourceUri: TAKEOFF_CARD_URI },
     },
   };
 }

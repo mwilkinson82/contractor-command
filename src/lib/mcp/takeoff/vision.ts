@@ -95,7 +95,9 @@ export const readVisionTile: VisionRead = async (request) => {
     throw new Error(
       "Athena's automatic drawing read is unavailable. You can still locate and measure this sheet in the viewer.",
     );
-  const gateway = createLovableAiGatewayProvider(key);
+  // The compatible provider otherwise silently drops Output.object's schema and
+  // sends only json_object; valid JSON can then have no usable geometry fields.
+  const gateway = createLovableAiGatewayProvider(key, { supportsStructuredOutputs: true });
   const result = await generateText({
     model: gateway(process.env.ATHENA_TAKEOFF_MODEL || "google/gemini-3-flash-preview"),
     output: Output.object({ schema: answer }),
