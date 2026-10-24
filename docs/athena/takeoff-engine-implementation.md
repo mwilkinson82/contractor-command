@@ -268,3 +268,27 @@ confirmation, the source/scope restart payload, preserved calibration after
 results, and the 390-pixel layout. Fixture results are not real-sheet accuracy.
 The private live wall accuracy case must still be rerun after publication.
 
+# Atomic protection between drawing reads
+
+Two inference requests can start from the same snapshot before either has saved
+geometry. The existing per-job lock serialized their writes, but each pass only
+checked its own checkpoint, allowing both to add nearby instances. A local
+PostgreSQL regression reproduces that double count with two stale payloads.
+
+The reviewed migration `20261024060229_athena_takeoff_atomic_pass.sql` adds one
+check inside that existing lock, immediately before proposal writes: refuse
+active geometry from another pass or a manual placement on the same current
+line, source and page. Same-pass progress and retries remain valid. Latest
+rejected heads allow a reviewed fresh pass; immutable history stays intact.
+Empty scope confirmations still establish no quantity. This changes no tables,
+rows, access decisions, function identity, ACL, volatility or security settings.
+Production application must use Lovable Cloud and record the exact migration.
+
+Verification: 2,296 tests/217 files, all 17 locked behaviors, build and changed
+ESLint pass; same 32 baseline TypeScript diagnostics. The actual PostgreSQL RPC
+test reproduces the pre-fix duplicate, rolls back its local repro, proves the
+second write leaves geometry/checkpoints/lines unchanged, resumes and completes
+the original pass, allows a fresh pass after rejection, blocks a manual-placement
+race, denies an outsider, and verifies unchanged function metadata and source
+hash. Fresh migration ordering also passes. No new vision calls or host UI changes.
+
