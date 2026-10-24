@@ -7,19 +7,69 @@ import { openItemsCard } from "./open-feed";
 
 function view() {
   const sent: { data: Record<string, unknown>; origin: string }[] = [];
-  const app = { textContent: "Loading", replaceChildren() {} };
+  const clicks = new Map<string, (event: unknown) => void>();
+  const app = { textContent: "Loading", replaceChildren() {}, contains: (node: { inside?: boolean }) => node.inside !== false,
+    addEventListener: (name: string, cb: (event: unknown) => void) => clicks.set(name, cb),
+    removeEventListener: (name: string) => clicks.delete(name) };
+  const notice = { textContent: "" };
   const parent = { postMessage(data: Record<string, unknown>, origin: string) { sent.push({ data, origin }); } };
   let receive: (event: unknown) => void = () => {};
   let removed = false;
   const window = { parent, addEventListener(_type: string, cb: typeof receive) { receive = cb; }, removeEventListener() { removed = true; } };
-  const document = { getElementById() { return app; }, body: { getBoundingClientRect: () => ({ width: 640, height: 500 }) } };
+  const document = { getElementById(id: string) { return id === "link-notice" ? notice : app; }, body: { getBoundingClientRect: () => ({ width: 640, height: 500 }) } };
   const script = nativeCardHtml().match(/<script>([\s\S]*?)<\/script>/)![1];
-  runInNewContext(script, { window, document });
+  runInNewContext(script, { window, document, URL });
   const message = (data: unknown, source: unknown = parent, origin = "https://host.example.com") => receive({ data, source, origin });
-  return { sent, app, message, removed: () => removed };
+  const click = (href: string, inside = true) => {
+    let prevented = false;
+    const anchor = { inside, getAttribute: () => href };
+    clicks.get("click")?.({ target: { closest: () => anchor }, preventDefault() { prevented = true; } });
+    return prevented;
+  };
+  return { sent, app, notice, message, click, removed: () => removed };
 }
 
 describe("native card view lifecycle", () => {
+  it("opens exact signed package and record links through the initialized host instead of a sandbox popup", () => {
+    const v = view();
+    const href = "https://app.meetathena.io/r/job/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/submittal/QA?" +
+      "t=fictional-key&open=package&package_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    v.click(href);
+    expect(v.sent).toHaveLength(1); // No navigation request before the parent handshake.
+    v.message({ jsonrpc: "2.0", id: 1, result: {} });
+    expect(v.click(href)).toBe(true);
+    expect(v.sent.at(-1)).toMatchObject({ origin: "https://host.example.com", data: { id: 2, method: "ui/open-link", params: { url: href } } });
+    const record = href.split("&open=")[0];
+    v.click(record);
+    expect(v.sent.at(-1)?.data).toMatchObject({ id: 3, method: "ui/open-link", params: { url: record } });
+    v.message({ jsonrpc: "2.0", id: 11, method: "ui/resource-teardown" });
+    const count = v.sent.length;
+    v.click(record);
+    expect(v.sent).toHaveLength(count);
+  });
+  it("does not open off-origin, executable, malformed or out-of-card links", () => {
+    const v = view();
+    v.message({ jsonrpc: "2.0", id: 1, result: {} });
+    const count = v.sent.length;
+    for (const href of ["javascript:alert(1)", "https://app.meetathena.io.evil.example/r/job/x", "https://evil.example/r/job/x", "https://user@app.meetathena.io/r/job/x", "https://app.meetathena.io/login", "not a URL"])
+      expect(v.click(href)).toBe(true);
+    expect(v.click("https://app.meetathena.io/r/job/x", false)).toBe(false);
+    expect(v.sent).toHaveLength(count);
+  });
+  it("shows a host denial without replacing the card or trusting other origins", () => {
+    const v = view();
+    v.message({ jsonrpc: "2.0", id: 1, result: {} });
+    v.click("https://app.meetathena.io/r/job/x");
+    v.message({ jsonrpc: "2.0", id: 2, result: { isError: true } }, undefined, "https://evil.example");
+    expect(v.notice.textContent).toBe("");
+    v.message({ jsonrpc: "2.0", id: 2, result: { isError: true } });
+    expect(v.notice.textContent).toContain("host could not open");
+    expect(v.app.textContent).toBe("Loading");
+    v.click("https://app.meetathena.io/r/job/x");
+    expect(v.notice.textContent).toBe("");
+    v.message({ jsonrpc: "2.0", id: 3, error: { code: -32000 } });
+    expect(v.notice.textContent).toContain("host could not open");
+  });
   it("negotiates the published Apps protocol and accepts results only from its initialized parent", () => {
     const v = view();
     expect(v.sent[0].data).toMatchObject({ id: 1, method: "ui/initialize", params: { protocolVersion: "2026-01-26", appCapabilities: { availableDisplayModes: ["inline"] } } });
