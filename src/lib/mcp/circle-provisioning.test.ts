@@ -79,6 +79,12 @@ beforeAll(async () => {
   );
   await db.exec(readFileSync("supabase/migrations/20261021190000_athena_team_invites.sql", "utf8"));
   await db.exec(readFileSync(migration, "utf8"));
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/20261024110422_athena_circle_verified_payment_claim.sql",
+      "utf8",
+    ),
+  );
 }, 30000);
 afterAll(async () => {
   await db?.close();
@@ -297,6 +303,79 @@ describe("Circle companies from real guarded SQL", () => {
       await value("select email_confirmed_at as v from auth.users where id=$1", [unverified]),
     ).toBeNull();
     expect(await value("select mcp_company_plan_live($1) as v", [cid])).toBe(true);
+  });
+  it("links a verified payment-email login to the existing company and preserves its account UUID later", async () => {
+    const owner = "00000000-0000-4000-8000-000000000201",
+      payer = "00000000-0000-4000-8000-000000000202";
+    await query(
+      "insert into auth.users values($1,'legacy-login@example.com',now()),($2,'payment-login@example.com',now())",
+      [owner, payer],
+    );
+    const s = await source("claimable", owner, "legacy-login@example.com", false);
+    await query(
+      "update subscriptions set metadata=jsonb_build_object('stripe_customer_email','payment-login@example.com') where id=$1",
+      [s],
+    );
+    await query(
+      "insert into circle_subscription_evidence values('sub_claimable',now(),now()+interval '1 month',null)",
+    );
+    const cid = await ensure(s),
+      before = await value("select count(*)::int as v from mcp_companies");
+    expect(await userValue(payer, "select mcp_gate() as v")).toBe(true);
+    expect(
+      await value(
+        "select payment_user_id as v from mcp_circle_provisioning where source_subscription_id=$1",
+        [s],
+      ),
+    ).toBe(payer);
+    expect(
+      await value(
+        "select owner_user_id as v from mcp_circle_provisioning where source_subscription_id=$1",
+        [s],
+      ),
+    ).toBe(owner);
+    expect(await value("select count(*)::int as v from mcp_companies")).toBe(before);
+    expect(await value("select mcp_seat_usage($1) as v", [cid])).toMatchObject({
+      members: 2,
+      limit: 6,
+    });
+    await query("update auth.users set email='later-login@example.com' where id=$1", [payer]);
+    expect(await userValue(payer, "select mcp_gate() as v")).toBe(true);
+    expect(
+      await value("select current_company as v from mcp_user_settings where user_id=$1", [payer]),
+    ).toBe(cid);
+    const recycled = "00000000-0000-4000-8000-000000000203";
+    await query("insert into auth.users values($1,'payment-login@example.com',now())", [recycled]);
+    expect(await userValue(recycled, "select mcp_gate() as v")).toBe(false);
+    expect(
+      await value("select count(*)::int as v from mcp_company_members where company_id=$1", [cid]),
+    ).toBe(2);
+  });
+  it("does not let an unverified or unpaid billing email claim another account's company", async () => {
+    const owner = "00000000-0000-4000-8000-000000000204",
+      payer = "00000000-0000-4000-8000-000000000205";
+    await query(
+      "insert into auth.users values($1,'held-owner@example.com',now()),($2,'held-payment@example.com',null)",
+      [owner, payer],
+    );
+    const s = await source("heldclaim", owner, "held-owner@example.com", false);
+    await query(
+      "update subscriptions set metadata=jsonb_build_object('stripe_customer_email','held-payment@example.com') where id=$1",
+      [s],
+    );
+    const cid = await ensure(s, null, true);
+    expect(await userValue(payer, "select mcp_gate() as v")).toBe(false);
+    await query("update auth.users set email_confirmed_at=now() where id=$1", [payer]);
+    expect(await userValue(payer, "select mcp_gate() as v")).toBe(false);
+    expect(
+      await value(
+        "select payment_user_id as v from mcp_circle_provisioning where source_subscription_id=$1",
+        [s],
+      ),
+    ).toBeNull();
+    expect(
+      await value("select count(*)::int as v from mcp_company_members where company_id=$1", [cid]),
+    ).toBe(1);
   });
   it("enforces the sixth-person cap without sending invitations or emails", async () => {
     const owner = "00000000-0000-4000-8000-000000000110";

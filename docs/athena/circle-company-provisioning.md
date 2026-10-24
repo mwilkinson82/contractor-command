@@ -43,3 +43,16 @@ email changes, refusal of other/unverified identities, source-binding changes,
 payment holds, bounded overrides, expiry for invited seats, retained standalone
 plans/extra seats, private ACLs and append-only audit access. No real identities,
 live billing mutations or mail delivery are used in tests.
+
+## Verified payment-email sign-in
+
+Some members already have a backend-linked account at a different login address.
+A first Athena request from the actual verified Stripe payment email can attach
+that account to the same company as an owner, without replacing the original
+linked account or creating another company. The payment-login UUID and claim
+timestamp are recorded in the private binding/audit. Later email changes on that
+same account retain the link. A second unrelated account that later obtains the
+old address cannot take an already claimed slot. Neither a typed payment email,
+an unverified address, a name match, nor an unpaid/review-held source can claim
+ownership. The claim changes only Athena membership/settings and its audit;
+Hub identity, auth confirmation and payment evidence remain untouched.
