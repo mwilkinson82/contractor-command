@@ -12,6 +12,7 @@ import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
 import { cachedSource } from "./cache";
 import { automaticCalibration } from "./calibration";
+import { drawingReferences, drawingReferenceSection } from "./drawing-references";
 import { highlightedPreview } from "./render";
 import { renderMarkdown } from "../cards/markdown";
 import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
@@ -166,6 +167,14 @@ export async function viewEngine(
   extra: Record<string, unknown> = {},
 ) {
   const summary = measurementStatus(state);
+  const drawingScopeReview = page
+    ? {
+        source_id: page.source.id,
+        source_hash: page.source.content_hash,
+        page: page.page,
+        ...drawingReferences(page.inspection, page.sheet, state.lines),
+      }
+    : null;
   const allSources = await drawingRecords(sb, job);
   const storedSheets = new Set(
     allSources.flatMap((s) => s.sheets.map((name) => name.trim().toLowerCase())),
@@ -230,6 +239,7 @@ export async function viewEngine(
             },
           ]
         : []),
+      ...(drawingScopeReview ? [drawingReferenceSection(drawingScopeReview)] : []),
     ],
     next_move: summary.settled
       ? "Review the measured takeoff and contractor rates before building the bid."
@@ -417,6 +427,7 @@ export async function viewEngine(
           space: page.space,
           tiles: page.inspection.tiles,
           scale_proposals: scaleProposals(page.inspection.text),
+          drawing_scope_review: drawingScopeReview,
           automatic_calibration: automaticCalibration(page.space, page.inspection),
           preview: preview ? `data:image/png;base64,${bytesToBase64(preview)}` : null,
         }
