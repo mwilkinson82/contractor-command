@@ -36,3 +36,15 @@ export function submittalPackageUrl(
   url.searchParams.set("package_id", packageId);
   return url.toString();
 }
+
+/** The existing authorized live log, including its board key. Never invent an address. */
+export function submittalLogUrl(board: string | null | undefined): string | null {
+  if (!board) return null;
+  try {
+    const url = new URL(board);
+    if (url.origin !== "https://app.meetathena.io" || url.username || url.password ||
+        !/^\/r\/job\/[0-9a-f-]{36}\/submittals$/i.test(url.pathname)) return null;
+    url.hash = "";
+    return url.toString();
+  } catch { return null; }
+}

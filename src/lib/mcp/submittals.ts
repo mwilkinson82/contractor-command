@@ -1,7 +1,7 @@
 // Living submittal log. Dates follow deadlines.ts: calendar days, job time zone, never rolled later.
 // Package assembly and delivery use these same revision and item records.
 import { addDays } from "./deadlines";
-import { submittalRecordUrl, submittalPackageUrl } from "./submittal-record-url";
+import { submittalRecordUrl, submittalPackageUrl, submittalLogUrl } from "./submittal-record-url";
 import type { CardModel, CardRow, CardSection } from "./cards/model";
 import { scheduleGroupOverdue, type ScheduleActivity, type TrackingItem } from "./schedule-submittals";
 
@@ -104,7 +104,7 @@ export type SubmittalRecord = {
   transmittal_number: number;
   submission_sent_at?: string | null;
   has_package?: boolean;
-  built_package?: { id: string; filename: string; page_count: number; cover_date?: string | null } | null;
+  built_package?: { id: string; filename: string; page_count: number; cover_date?: string | null; sent_at?: string | null } | null;
   spec_section: string;
   title: string;
   submittal_type: string;
@@ -291,8 +291,8 @@ function rowLine(row: SubmittalRecord, today: string): string {
 }
 
 export function submittalDisplayStatus(row: SubmittalRecord): string {
-  return row.built_package && !row.submission_sent_at && ["not_started", "in_prep"].includes(row.status)
-    ? "Package built · Draft, not sent" : labelOf(STATUS_LABEL, row.status);
+  return row.built_package && !row.built_package.sent_at && !row.submission_sent_at
+    ? "Ready for internal review · Draft, not sent" : labelOf(STATUS_LABEL, row.status);
 }
 export function packageDelivery(row: SubmittalRecord): string {
   return row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}`
@@ -352,7 +352,8 @@ export function presentSubmittalLog(input: {
   const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody, focusBody].filter(Boolean).join("\n\n");
   const note = input.note?.trim() ? `${input.note.trim()}\n\n` : "";
   const access = input.readOnly ? "\n\nRead only." : "";
-  const text = `${note}${head}\n\n${body}${access}`;
+  const logUrl = submittalLogUrl(input.boardUrl);
+  const text = `${note}${head}\n\n${body}${access}${logUrl ? `\n\n[Open live submittal log](${logUrl})` : ""}`;
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
@@ -379,6 +380,7 @@ export function presentSubmittalLog(input: {
       { label: "Overdue", value: String(overdue), flag: overdue ? "overdue" : null },
     ],
     sections: [
+      ...(logUrl ? [{ heading: "Live log", kind: "list" as const, rows: [{ cells: ["Open live submittal log"], href: logUrl }] }] : []),
       ...(input.posture
         ? [{ heading: "Posture", kind: "chips" as const, rows: [{ cells: [input.posture], tone: "known" as const }] }]
         : []),

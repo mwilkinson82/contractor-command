@@ -62,7 +62,7 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
           send_confirmed?: boolean;
           already_approved?: boolean;
           send_allowed?: boolean;
-          package?: { id: string; download_url: string; page_count: number; approved: boolean };
+          package?: { id: string; download_url: string; page_count: number; approved: boolean; filename: string };
           card: CardModel & { sections: { rows: CardRow[] }[] };
           delivery_id?: string;
           draft_key?: string | null;
@@ -102,6 +102,7 @@ async function create(number: string) {
 }
 beforeAll(async () => {
   db = await makeDb();
+  await db.exec(readFileSync("supabase/migrations/20261023070000_athena_board_links.sql", "utf8"));
   const sql = readFileSync("supabase/migrations/20261023220000_athena_submittal_log.sql", "utf8");
   await db.exec(sql.slice(0, sql.indexOf("CREATE OR REPLACE FUNCTION public.mcp_board_link_open")));
   await db.exec(
@@ -114,6 +115,8 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/migrations/20261028120000_athena_submittal_packages.sql", "utf8"),
   );
+  await db.exec(readFileSync("supabase/migrations/20261029120000_athena_submittal_record_page.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261030120000_athena_package_build_identity.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -169,6 +172,113 @@ afterAll(async () => {
   await db?.close();
 });
 describe("real package handlers with local DB and immutable storage", () => {
+  it("uploads an unlogged piece to an empty package and builds from the named sources", async () => {
+    const added = (await query("SELECT mcp_submittal_log($1,$2,$3::jsonb) data", [job, "add", JSON.stringify({
+      number: "INTEGRATION-NEW-PIECES", spec_section: "26 24 16", title: "Fictional unlogged pieces",
+      submittal_type: "product_data", status: "in_prep", ball_in_court: "gc", package_items: [],
+    })]))[0].data;
+    const sid = added.saved_id as string;
+    expect((await saved(sid)).items).toEqual([]);
+    const original = await PDFDocument.create();
+    original.addPage();
+    const bytes = await original.save();
+    const base64 = Buffer.from(bytes).toString("base64");
+    for (const filename of ["shop-drawing.pdf", "supporting-calcs.pdf"]) {
+      const uploaded = await call(submittalPackage, {
+        action: "upload_piece", job_number: "2701", submittal_id: sid, filename,
+        // Two deliberately distinct pieces may come from the same source and kind.
+        new_piece: { kind: "other", source_party: "Fictional Supplier", required: true },
+        content_base64: base64,
+      });
+      expect(uploaded.structuredContent.sent).toBeFalsy();
+      expect(JSON.stringify(uploaded.structuredContent.card)).toContain(filename);
+    }
+    const ctx = await saved(sid);
+    expect(ctx.items).toHaveLength(2);
+    expect(new Set(ctx.items.map((p: { id: string }) => p.id)).size).toBe(2);
+    expect(ctx.items.every((p: { status: string }) => p.status === "received")).toBe(true);
+    const built = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    expect(built.structuredContent.ready).toBe(true);
+    expect(built.structuredContent.package!.page_count).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(built.structuredContent.card)).toContain("Draft, not sent");
+    expect(JSON.stringify(built.structuredContent.card)).toContain("Fictional Supplier");
+    if (process.env.ATHENA_RENDER_PROOF_DIR) {
+      mkdirSync(process.env.ATHENA_RENDER_PROOF_DIR, { recursive: true });
+      writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/new-piece-card.html`, renderHtml(built.structuredContent.card));
+    }
+    for (const item of ctx.items) {
+      const path = item.file_ref.replace("athena-submittals/", "");
+      expect(await sha256Hex(blobs.get(path)!)).toBe(await sha256Hex(bytes));
+    }
+    expect((await query("SELECT count(*)::int n FROM mcp_submittal_mail WHERE submittal_id=$1", [sid]))[0].n).toBe(0);
+  });
+  it("adds a received piece without replacing any existing log piece", async () => {
+    const sid = await create("INTEGRATION-APPEND-PIECE"), before = await saved(sid);
+    await call(submittalPackage, {
+      action: "upload_piece", job_number: "2701", submittal_id: sid,
+      new_piece: { kind: "calc", source_party: "Fictional Engineer", required: true },
+      filename: "calculations.pdf", content_base64: Buffer.from("fictional fixture").toString("base64"),
+    });
+    const after = await saved(sid);
+    expect(after.items).toHaveLength(3);
+    for (const item of before.items) expect(after.items.find((p: { id: string }) => p.id === item.id)).toEqual(item);
+    expect(after.items.find((p: { kind: string }) => p.kind === "calc")).toMatchObject({ status: "received", source_party: "Fictional Engineer" });
+    const count = blobs.size;
+    await expect(call(submittalPackage, {
+      action: "upload_piece", job_number: "2701", submittal_id: sid, package_item: "P1",
+      new_piece: { kind: "calc", source_party: "Fictional Engineer" }, filename: "no.pdf", content_base64: "YQ==",
+    })).rejects.toThrow("not both");
+    expect(blobs.size).toBe(count);
+  });
+  it("rolls back a new piece when storage or its metadata is invalid", async () => {
+    const sid = await create("INTEGRATION-ATOMIC-NEW-PIECE"), before = await saved(sid);
+    const id = crypto.randomUUID(), path = `${company}/${job}/pieces/${crypto.randomUUID()}/missing.pdf`;
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'attach',$3::jsonb)", [job, sid, JSON.stringify({
+      item_id: id, path, new_piece: { kind: "calc", source_party: "Fictional Engineer" },
+    })])).rejects.toThrow("stored on this job");
+    expect((await saved(sid)).items).toEqual(before.items);
+    await query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-submittals',$1)", [path]);
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'attach',$3::jsonb)", [job, sid, JSON.stringify({
+      item_id: id, path, new_piece: { kind: "calc", source_party: "", required: true },
+    })])).rejects.toThrow("new piece needs");
+    expect((await saved(sid)).items).toEqual(before.items);
+  });
+  it("uses the host attachment filename for a new piece and refuses ambiguous file sources", async () => {
+    const sid = await create("INTEGRATION-HOST-NEW-PIECE");
+    const pdf = await PDFDocument.create(); pdf.addPage(); const bytes = await pdf.save();
+    const hostFile = { download_url: "https://files.oaiusercontent.com/fictional/calcs.pdf", file_id: "fictional-upload", file_name: "supplier-calcs.pdf", mime_type: "application/pdf" };
+    const fetchFile = vi.fn(async () => new Response(bytes as BodyInit));
+    vi.stubGlobal("fetch", fetchFile);
+    try {
+      const args = { action: "upload_piece", job_number: "2701", submittal_id: sid,
+        new_piece: { kind: "calc", source_party: "Fictional Engineer", required: true }, file: hostFile };
+      await call(submittalPackage, args);
+      const c = await saved(sid);
+      expect(c.items).toHaveLength(3);
+      const piece = c.items.find((p: { kind: string }) => p.kind === "calc");
+      expect(piece.file_ref).toMatch(/\/supplier-calcs\.pdf$/);
+      expect(fetchFile).toHaveBeenCalledTimes(1);
+      const count = blobs.size;
+      await expect(call(submittalPackage, { ...args, content_base64: "YQ==" })).rejects.toThrow("one received file");
+      expect(blobs.size).toBe(count);
+      expect((await saved(sid)).items).toHaveLength(3);
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it("requires full job access before adding an unlogged piece", async () => {
+    const sid = await create("INTEGRATION-NEW-PIECE-ACCESS"), before = await saved(sid);
+    const path = `${company}/${job}/pieces/${crypto.randomUUID()}/source.pdf`;
+    await query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-submittals',$1)", [path]);
+    for (const [id, role] of [["00000000-0000-4000-8000-000000000070", null], ["00000000-0000-4000-8000-000000000071", "estimating"]] as const) {
+      await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [id, `fictional-${id.slice(-2)}@example.com`]);
+      await db.query("INSERT INTO test_active_members VALUES ($1)", [id]);
+      if (role) await db.query("INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES ($1,$2,$3,'Fictional Estimator')", [company, id, role]);
+      await expect(asUser(db, { ...claims, sub: id }, async (tx) => tx.query(
+        "SELECT mcp_submittal_package_write($1,$2,'attach',$3::jsonb)", [job, sid, JSON.stringify({ item_id: crypto.randomUUID(), path,
+          new_piece: { kind: "calc", source_party: "Fictional Engineer", required: true } })],
+      ))).rejects.toThrow(/Full job access/);
+    }
+    expect((await saved(sid)).items).toEqual(before.items);
+  });
   it("attaches a named piece from an approved host using the edge-safe download mode and refuses redirects", async () => {
     const sid = await create("INTEGRATION-NAMED-ATTACHMENT");
     const original = await PDFDocument.create();
@@ -383,7 +493,7 @@ describe("real package handlers with local DB and immutable storage", () => {
       Number(before) + 1,
     );
   });
-  it("collects files, builds once, retains original hashes and records delivery only after the receipt", async () => {
+  it("collects files, retrieves without rebuilding, retains originals and records delivery only after the receipt", async () => {
     const sid = await create("INTEGRATION-001"),
       ctx = await saved(sid);
     const source = await PDFDocument.create();
@@ -447,7 +557,8 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(builtRow.status).toBe("in_prep"); // Building does not claim submission.
     const log = presentSubmittalLog({ jobNumber: "2701", jobName: "Fictional", rows: [builtRow], today: "2026-10-24", boardUrl: `https://app.meetathena.io/r/job/${job}/submittals?t=${"x".repeat(43)}` });
     const logRow = log.card.sections?.find(s => s.heading === "Log")?.rows[0];
-    expect(logRow?.cells[5]).toBe("Package built · Draft, not sent");
+    expect(logRow?.cells[5]).toBe("Ready for internal review · Draft, not sent");
+    expect(log.card.sections?.find(s => s.heading === "Live log")?.rows[0].href).toBe(`https://app.meetathena.io/r/job/${job}/submittals?t=${"x".repeat(43)}`);
     expect(new URL(logRow!.href!).searchParams.get("package_id")).toBe(a.id);
     expect(new URL(logRow!.href!).searchParams.get("open")).toBe("package");
     expect(new URL(logRow!.href!).pathname).toBe(`/r/job/${job}/submittal/INTEGRATION-001`);
@@ -459,7 +570,8 @@ describe("real package handlers with local DB and immutable storage", () => {
         r.href?.includes("/r/submittal-preview/"),
       ),
     ).toBe(true);
-    await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const again = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
+    expect(again.structuredContent.package?.id).toBe(a.id);
     expect(blobs.size).toBe(originalCount + 3);
     for (const item of received.items) {
       const path = item.file_ref.replace("athena-submittals/", "");
@@ -506,6 +618,113 @@ describe("real package handlers with local DB and immutable storage", () => {
     });
     expect(after.structuredContent.sent).toBe(true);
     expect((await saved(sid)).submittal.status).toBe("submitted");
+  });
+  async function ready(number: string) {
+    const sid = await create(number), ctx = await saved(sid);
+    const source = await PDFDocument.create(); source.addPage();
+    const bytes = await source.save();
+    for (const item of ctx.items) await call(submittalPackage, {
+      action: "upload_piece", job_number: "2701", submittal_id: sid,
+      package_item_id: item.id, filename: `${item.kind}.pdf`, content_base64: Buffer.from(bytes).toString("base64"),
+    });
+    return sid;
+  }
+  it("rebuilds three immutable PDFs with distinct transmittals, one current copy and two superseded copies", async () => {
+    const sid = await ready("REBUILD-001"), versions = [], hashes = [];
+    const sourcePaths = (await saved(sid)).items.map((p: { file_ref: string }) => p.file_ref.replace("athena-submittals/", ""));
+    const sourceHashes = await Promise.all(sourcePaths.map((path: string) => sha256Hex(blobs.get(path)!)));
+    for (let i = 0; i < 3; i++) {
+      const result = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+      versions.push((await saved(sid)).package);
+      hashes.push(await sha256Hex(blobs.get(versions.at(-1).path)!));
+      expect(result.structuredContent.sent).toBe(false);
+    }
+    expect(new Set(versions.map(p => p.id)).size).toBe(3);
+    expect(new Set(versions.map(p => p.filename)).size).toBe(3);
+    expect(new Set(versions.map(p => p.transmittal_id)).size).toBe(3);
+    expect(await Promise.all(versions.map(p => sha256Hex(blobs.get(p.path)!)))).toEqual(hashes);
+    expect(await Promise.all(sourcePaths.map((path: string) => sha256Hex(blobs.get(path)!)))).toEqual(sourceHashes);
+    const payload = (await query("SELECT mcp_submittal_record_get($1,$2) data", [job, "REBUILD-001"]))[0].data;
+    expect(payload.packages.filter((p: { is_current: boolean }) => p.is_current)).toHaveLength(1);
+    expect(payload.packages.find((p: { is_current: boolean }) => p.is_current).id).toBe(versions[2].id);
+    expect(payload.packages.filter((p: { is_current: boolean }) => !p.is_current)).toHaveLength(2);
+    expect(new Set(payload.packages.map((p: { transmittal_number: number }) => p.transmittal_number)).size).toBe(3);
+    expect(payload.transmittals).toHaveLength(3);
+    const page = (await query("SELECT mcp_submittal_page($1) data",[job]))[0].data;
+    const pageRow = page.submittals.find((r: { id: string }) => r.id === sid);
+    expect(pageRow.built_package.id).toBe(versions[2].id);
+    expect(pageRow.has_package).toBe(true);
+    expect(pageRow.submission_sent_at).toBeNull();
+    const { renderReportBody } = await import("../report-pages");
+    const pageHtml = renderReportBody(page);
+    expect(pageHtml).toContain(`open=package&amp;package_id=${versions[2].id}`);
+    expect(pageHtml).toContain("Ready for internal review");
+    expect((await saved(sid)).submittal.status).toBe("in_prep");
+    await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
+    expect(await Promise.all(versions.map(p => sha256Hex(blobs.get(p.path)!)))).toEqual(hashes);
+    const rows = await readSubmittalRows(state.sb as Sb, job);
+    expect(rows.find(r => r.id === sid)?.built_package?.id).toBe(versions[2].id);
+    if (process.env.ATHENA_RENDER_PROOF_DIR) {
+      mkdirSync(process.env.ATHENA_RENDER_PROOF_DIR, { recursive: true });
+      const { renderSubmittalRecordBody } = await import("../submittal-record-page");
+      writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/rebuild-history.html`, renderSubmittalRecordBody(payload));
+      for (const [i,p] of versions.entries()) writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/rebuild-${i+1}.pdf`,blobs.get(p.path)!);
+    }
+  });
+  it("reserves concurrent numbers without changing the current PDF, and rolls back a bad save", async () => {
+    const sid = await ready("REBUILD-002");
+    await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const original = await saved(sid);
+    const reserve = async () => (await query("SELECT mcp_submittal_package_reserve($1,$2,$3) data", [job,sid,original.fingerprint]))[0].data;
+    const [a,b] = await Promise.all([reserve(),reserve()]);
+    expect(a.transmittal_number).not.toBe(b.transmittal_number);
+    expect((await saved(sid)).package.id).toBe(original.package.id);
+    expect((await saved(sid)).submittal.transmittal_id).toBe(original.submittal.transmittal_id);
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'save',$3::jsonb)", [job,sid,JSON.stringify({fingerprint:original.fingerprint,transmittal_id:a.build_transmittal_id,filename:'wrong.pdf'})])).rejects.toThrow("filename must match");
+    expect((await saved(sid)).package.id).toBe(original.package.id);
+    expect((await saved(sid)).submittal.transmittal_id).toBe(original.submittal.transmittal_id);
+    await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'save',$3::jsonb)", [job,sid,JSON.stringify({fingerprint:original.fingerprint,transmittal_id:b.build_transmittal_id})])).rejects.toThrow("changed while building");
+  });
+  it("does not carry an old send receipt onto a rebuilt draft or allow delivery of its superseded copy", async () => {
+    const sid = await ready("REBUILD-003");
+    const first = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const a = first.structuredContent.package!;
+    const draft = await call(submittalDelivery, {action:"draft",job_number:"2701",submittal_id:sid,kind:"package",package_id:a.id,
+      draft:{to:"reviewer@example.com",cc:[],subject:"Fictional rebuild check",body:`Please review ${a.download_url}`,link:a.download_url}});
+    await call(submittalDelivery,{action:"approve",job_number:"2701",submittal_id:sid,delivery_id:draft.structuredContent.delivery_id,draft_key:draft.structuredContent.draft_key,confirmed:true});
+    await call(submittalDelivery,{action:"record_sent",job_number:"2701",submittal_id:sid,delivery_id:draft.structuredContent.delivery_id,draft_key:draft.structuredContent.draft_key,provider:"local-test-only",message_id:"synthetic-rebuild-receipt",sent_at:new Date().toISOString()});
+    const rebuilt = await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    expect(rebuilt.structuredContent.package!.id).not.toBe(a.id);
+    const row = (await readSubmittalRows(state.sb as Sb,job)).find(r=>r.id===sid)!;
+    expect(row.submission_sent_at).toBeNull();
+    const view = presentSubmittalLog({jobNumber:"2701",jobName:"Fictional",rows:[row],today:"2026-10-24",boardUrl:null});
+    expect(view.text).toContain("Ready for internal review · Draft, not sent");
+    expect(view.text).toContain("Send receipt not recorded");
+    await expect(call(submittalDelivery,{action:"draft",job_number:"2701",submittal_id:sid,kind:"package",package_id:a.id,
+      draft:{to:"reviewer@example.com",cc:[],subject:"Old copy",body:`Old ${a.download_url}`,link:a.download_url}})).rejects.toThrow("current package");
+  });
+  it("keeps the deployed first-build contract working during release and refuses legacy rebuilds", async () => {
+    const sid = await ready("REBUILD-LEGACY"), ctx = await saved(sid), id=crypto.randomUUID();
+    const filename=`Submittal-REBUILD-LEGACY-R0-T${ctx.transmittal_number}-${ctx.today}.pdf`;
+    const path=`${company}/${job}/packages/${id}/${filename}`;
+    await query("INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-submittals',$1)",[path]);
+    const p={id,path,filename,fingerprint:ctx.fingerprint,sha256:"a".repeat(64),size_bytes:100,page_count:3,cover_date:ctx.today,manifest:[],token_hash:await sha256Hex(new TextEncoder().encode(id)),download_url:`https://app.meetathena.io/r/submittal-file/${"b".repeat(43)}`,signed_url:`https://test.supabase.co/storage/v1/object/sign/athena-submittals/${path}?token=test`,expires_at:new Date(Date.now()+86400000).toISOString()};
+    await query("SELECT mcp_submittal_package_write($1,$2,'save',$3::jsonb)",[job,sid,JSON.stringify(p)]);
+    expect((await saved(sid)).package.transmittal_id).toBe(ctx.submittal.transmittal_id);
+    await expect(query("SELECT mcp_submittal_package_write($1,$2,'save',$3::jsonb)",[job,sid,JSON.stringify(p)])).rejects.toThrow("updated package builder");
+    expect((await saved(sid)).package.id).toBe(id);
+  });
+  it("refuses stale reservations and reserve attempts without full job access", async () => {
+    const sid = await ready("REBUILD-004"), ctx = await saved(sid);
+    await expect(query("SELECT mcp_submittal_package_reserve($1,$2,$3)",[job,sid,"stale"])).rejects.toThrow("changed");
+    const user="00000000-0000-4000-8000-000000000099";
+    await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'super@example.com')",[user]);
+    await db.query("INSERT INTO test_active_members VALUES ($1)",[user]);
+    await db.query("INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES ($1,$2,'super','Fictional Super')",[company,user]);
+    await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES ($1,$2,$3)",[job,user,owner]);
+    await expect(asUser(db,{sub:user,email:"super@example.com",role:"authenticated"},tx=>tx.query("SELECT mcp_submittal_package_reserve($1,$2,$3)",[job,sid,ctx.fingerprint]))).rejects.toThrow("Full job access");
+    expect((await saved(sid)).package).toBeNull();
   });
   it("rejects a corrupt PDF without saving a partial package", async () => {
     const sid = await create("INTEGRATION-002"),
