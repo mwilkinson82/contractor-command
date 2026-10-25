@@ -27,7 +27,7 @@ import { SovMismatch, buildSov, money, retainagePct } from "../sov";
 import { guide } from "../visible";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
-  activityLine, checkSave, costLoadTotal, countCheck, draftBillingFromSchedule, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
+  activityLine, checkSave, costLoadTotal, countCheck, draftBillingFromSchedule, earnedToDate, iorSectionsText, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, resolveDataDate, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
   CPM_GANTT_SPEC,
 } from "../living";
@@ -322,9 +322,10 @@ export const livingReportGet = defineTool({
         { heading: "Change log (latest 5)", kind: "list", rows: (log.length ? log : ["None yet."]).map((line) => ({ cells: [line] })) },
       );
       const presented = billingCard ? presentPayApp(billingCard) : null;
+      const iorBody = type === "ior" ? iorSectionsText(data as Record<string, unknown>) : [];
       return guide(
         {
-          ...(presented ?? text([ ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n"))),
+          ...(presented ?? text([ ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(iorBody.length ? ["", ...iorBody] : []), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n"))),
           structuredContent: { ...presented?.structuredContent, found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
         },
         `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
@@ -377,6 +378,11 @@ export const livingReportSave = defineTool({
         await audit(sb, job, "living_report_save", `living_${type}_refused`, null);
         throw new ToolError(`${prefix(job)}Not saved. ${LIVING_LABEL[type]} stays at v${prev.found ? prev.version : 0}.\n${chk.problems.map((p) => `- ${p}`).join("\n")}`);
       }
+      const dated = resolveDataDate(args.data_date);
+      if (!dated.ok) {
+        await audit(sb, job, "living_report_save", `living_${type}_refused`, null);
+        throw new ToolError(`${prefix(job)}${dated.error}`);
+      }
       // 0.8.17: a save note can't name a different date for a saved milestone (2701 v3 said Sep 30 / Jul 27; saved Sep 16 / Jul 13).
       const savedCompletion = args.replace_completion_date === true ? args.contract_completion_date ?? null : prev.contract_completion_date ?? args.contract_completion_date ?? null;
       const clash = noteDateConflicts(`${args.what_changed}\n${args.why ?? ""}`, savedCompletion, (acts ?? []) as never);
@@ -386,7 +392,7 @@ export const livingReportSave = defineTool({
       }
       const who = await whoAmI(sb, job, ctx.getUserId?.());
       const r = await rpc<{ id: string; version: number }>(sb, "mcp_living_report_save", {
-        _job: job.job_id, _type: type, _base_version: args.base_version, _data: next, _data_date: args.data_date ?? null,
+        _job: job.job_id, _type: type, _base_version: args.base_version, _data: next, _data_date: dated.dataDate,
         _activity_count: acts?.length ?? null, _contract_total: contract, _forecast_total: chk.forecast_total,
         _what: args.what_changed, _why: args.why ?? null, _who: who, _completion: args.contract_completion_date ?? null, _replace_completion: args.replace_completion_date === true,
       });

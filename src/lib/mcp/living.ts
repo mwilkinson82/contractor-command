@@ -3,7 +3,7 @@
 // draws them and never recomputes, rebuilds or guesses them.
 import { money } from "./sov";
 import { ALERT_COLOR } from "./alert-color";
-import { addCountedDays, addDays, federalHolidays } from "./deadlines";
+import { addCountedDays, addDays, federalHolidays, todayIn } from "./deadlines";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -541,3 +541,96 @@ export const LIVING_REQUIRED_TOP = [
 ].join("\n");
 
 export const LIVING_SAVE_ASK = "Save this as the new version?";
+
+/** Data dates are read in Manaus. A missing date is today there. A later date is refused. */
+export const DATA_DATE_ZONE = "America/Manaus";
+export const DATA_DATE_FUTURE_ERROR = "That data date is later than today. Nothing was saved.";
+
+export function resolveDataDate(
+  given: string | null | undefined,
+  now = new Date(),
+): { ok: true; dataDate: string } | { ok: false; error: string } {
+  const today = todayIn(DATA_DATE_ZONE, now);
+  const dataDate = (given ?? "").trim() || today;
+  if (dataDate > today) return { ok: false, error: DATA_DATE_FUTURE_ERROR };
+  return { ok: true, dataDate };
+}
+
+const IOR_HIDDEN = new Set(["audience", "source_cpm_version", "cpm_version", "allocation_status", "id"]);
+const IOR_SKIP = new Set(["activities", "tia", "billing"]);
+const IOR_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function iorLabel(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+function iorScalar(key: string, value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (/pct|percent|probability|margin/i.test(key) && Math.abs(value) <= 1) return `${Math.round(value * 1000) / 10}%`;
+    if (/amount|exposure|contract|profit|cost|revenue|fee|billed|paid|balance|value/i.test(key) && !/pct|percent/i.test(key)) return money(value);
+    return String(value);
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text || IOR_UUID.test(text)) return null;
+    return text;
+  }
+  return null;
+}
+
+function iorRecordLine(record: Record<string, unknown>): string {
+  const bits: string[] = [];
+  for (const [key, value] of Object.entries(record)) {
+    if (IOR_HIDDEN.has(key)) continue;
+    const shown = iorScalar(key, value);
+    if (shown) bits.push(`${iorLabel(key)}: ${shown}`);
+  }
+  return bits.join(" · ");
+}
+
+/** Readable IOR sections. Links, the version line, and the change log stay where the tool already prints them. */
+export function iorSectionsText(data: Record<string, unknown> | null | undefined): string[] {
+  if (!data) return [];
+  const lines: string[] = [];
+  const title = iorScalar("title", data.title);
+  if (title) lines.push(title);
+  const kpis = data.kpis;
+  if (kpis && typeof kpis === "object" && !Array.isArray(kpis)) {
+    const bits = Object.entries(kpis as Record<string, unknown>)
+      .filter(([key]) => !IOR_HIDDEN.has(key))
+      .map(([key, value]) => {
+        const shown = iorScalar(key, value);
+        return shown ? `${iorLabel(key)}: ${shown}` : "";
+      })
+      .filter(Boolean);
+    if (bits.length) lines.push("Job health", ...bits.map((bit) => `- ${bit}`));
+  }
+  for (const [key, value] of Object.entries(data)) {
+    if (key === "title" || key === "kpis" || IOR_HIDDEN.has(key) || IOR_SKIP.has(key)) continue;
+    if (Array.isArray(value)) {
+      const rows = value.filter((row) => row && typeof row === "object") as Record<string, unknown>[];
+      const scalars = value.filter((row): row is string | number => typeof row === "string" || typeof row === "number");
+      if (!rows.length && !scalars.length) continue;
+      lines.push(iorLabel(key));
+      for (const row of scalars) lines.push(`- ${row}`);
+      for (const row of rows) {
+        const line = iorRecordLine(row);
+        if (line) lines.push(`- ${line}`);
+      }
+      continue;
+    }
+    const shown = iorScalar(key, value);
+    if (shown) {
+      lines.push(`${iorLabel(key)}: ${shown}`);
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const line = iorRecordLine(value as Record<string, unknown>);
+      if (!line) continue;
+      lines.push(iorLabel(key), `- ${line}`);
+    }
+  }
+  return lines;
+}

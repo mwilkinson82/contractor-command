@@ -7,6 +7,30 @@ export const POSITION_ALIASES: Record<string, string> = { prime: "prime", gc: "p
 export function scopeAlias(map: Record<string, string>) {
   return (v: unknown) => (typeof v === "string" ? (map[norm(v)] ?? (v.trim() === "" || /^(unknown|default|defaults)$/i.test(v.trim()) ? undefined : v)) : v);
 }
+const UNSET_SOFTWARE = /^(unknown|not set|n\/a|na)$/i;
+const SOFTWARE_KEY = /project|software|schedul|^pm$/i;
+
+/** Project software already saved on the company profile. Blank and unknown do not count. */
+export function companyProjectSoftware(toolStack: unknown): string | null {
+  if (typeof toolStack === "string") {
+    const text = toolStack.trim();
+    return text && !UNSET_SOFTWARE.test(text) ? text.slice(0, 200) : null;
+  }
+  if (!toolStack || typeof toolStack !== "object" || Array.isArray(toolStack)) return null;
+  const stack = toolStack as Record<string, unknown>;
+  const keys = Object.keys(stack)
+    .filter((key) => SOFTWARE_KEY.test(key))
+    .sort((a, b) => Number(b === "project_software") - Number(a === "project_software") || a.localeCompare(b));
+  for (const key of keys) {
+    const value = stack[key];
+    if (typeof value !== "string") continue;
+    const text = value.trim();
+    if (!text || UNSET_SOFTWARE.test(text)) continue;
+    return text.slice(0, 200);
+  }
+  return null;
+}
+
 /** Scope defaults from the company profile. Only what the profile clearly says; never client type or pricing model. */
 export function companyScopeDefaults(co: { company_role?: string | null; work_types?: string[] | null; trades?: string[] | null } | null): { job_type?: string; sector?: "public" | "private_commercial" | "residential"; position?: "prime" | "sub" | "sub_sub" } {
   if (!co) return {};

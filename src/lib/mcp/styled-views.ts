@@ -36,6 +36,22 @@ export function activityLine(a: { id?: string | null; name?: string | null; desc
   if (!id || title.toUpperCase() === id.toUpperCase()) return title;
   return `${id} ${title}`;
 }
+
+/** Id with the name, so split activities stay distinct: "A1110a – Underground conduit…". */
+export function activityIdName(a: { id?: string | null; name?: string | null; description?: string | null }): string {
+  const id = String(a.id ?? "").trim();
+  const name = String(a.name ?? "").trim();
+  const description = String(a.description ?? "").trim();
+  const title =
+    name && name.toUpperCase() !== id.toUpperCase()
+      ? name
+      : description && description.toUpperCase() !== id.toUpperCase()
+        ? description
+        : "";
+  if (!id) return title;
+  if (!title || title.toUpperCase() === id.toUpperCase() || title.toUpperCase().startsWith(`${id.toUpperCase()} `)) return title || id;
+  return `${id} – ${title}`;
+}
 const num = (v: unknown): number | null =>
   v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

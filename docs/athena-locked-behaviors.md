@@ -41,3 +41,23 @@ There is no prefix and no `*.blob.core.windows.net` pattern. Azure storage accou
 - `http://` links to an otherwise exact host
 
 Fetch uses `redirect: "manual"` and refuses every 3xx. The 50 MB cap, PDF validation, hash dedupe, and immutable originals stay as they are. `drawing_markup` does not download an attachment. A rejected import returns before a markup is saved.
+
+## Lookahead lines keep the activity id
+
+Split activities that share a name (A1110a and A1110b, A1120a and A1120b) are printed with the id and the name, for example `A1110a – Underground conduit rough-in`. The phone lookahead text and the lookahead card activity cell both use that form. A name that is only the id stays the id.
+
+## A living-report data date cannot be after today
+
+`living_report_save` reads the data date in America/Manaus. When `data_date` is omitted, the save uses today there, as `YYYY-MM-DD`. A data date later than that today is refused before the change-note date check. The refusal is plain words and ends with `Nothing was saved.`
+
+## Company-profile project software answers setup
+
+`next_question` checks the company profile before it asks which project software the job uses. A saved profile value (the `project_software` tool-stack entry, or a scheduling, project, or pm entry) is recorded on the job and the question is not asked. An empty profile, an unknown value, or an unrelated tool such as accounting still asks the question.
+
+## A saved IOR includes its sections
+
+`living_report_get` for an IOR still prints the board links, the version line, and the change log. It also prints the saved IOR sections as readable text: the title, job health, and each section such as risk allocations and top three actions. Internal ids stay out of that text.
+
+## The company profile read says its heading once
+
+The onboarding read, titled `What I have so far`, prints that heading once in the text. The profile is printed once. The ChatGPT and Claude card HTML is the same card as before, including its state line. The duplicate bold heading and the second plain-text copy of the profile are not added under the card.
