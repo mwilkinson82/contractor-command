@@ -52,6 +52,11 @@ const cleanCodes = (c: unknown): string[] => (Array.isArray(c) ? c.filter((x): x
 const cleanSpec = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 const ITEM = /^(\d{2})\.(\d{2,3})$/;
+
+/** Item numbers the SOV report can build. Checked at intake so a saved SOV always renders. */
+export function sovItemProblems(items: string[]): string[] {
+  return items.filter((item) => !ITEM.test(item)).map((item) => `Line ${item}: item numbers use the 01.01 style (division, dot, line).`);
+}
 const cents = (n: number) => Math.round(n * 100);
 
 /** Member-facing refusal when an official SOV dollar would move without an approved change order. */

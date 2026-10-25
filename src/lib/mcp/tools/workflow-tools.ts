@@ -1,5 +1,5 @@
 import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, sovItemProblems, money, type SovBrand, type SovView } from "../sov";
 import { draftSovText, nextDraftFacts } from "../sov-draft";
 import { storedModule } from "../record-copy";
 import type { SovLineIn } from "../sov";
@@ -204,7 +204,10 @@ export const onboarding = defineTool({
 // ---------- intake ----------
 const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.enum(["self_perform", "subcontract"]) });
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
-const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional() });
+const SOV_LINE_NOTE = "SOV item number in 01.01 style: two-digit CSI division, dot, line (e.g. 03.01, 26.06). Other formats are refused.";
+const SOV_FEE_NOTE = "budget: contractor fee percent, 0 to under 100. Send it with the first SOV (0 when there is no separate fee); without it the SOV report and contract value can't be built.";
+const SOV_COPY_NOTE = "budget: which SOV copy sov_lines go to. \"official\" (default) is the contract SOV; once saved, its dollars change only by approved change order. \"draft\" saves a separate copy labeled \"Draft, not official\" for what-ifs, rebalances, expected change orders and a monthly forecast, and never touches the official SOV, contract value or pay apps. Use \"draft\" whenever the member asks for a draft, what-if or proposed SOV.";
+const sovLine = z.object({ line: z.string().trim().min(1).max(40).describe(SOV_LINE_NOTE), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
 import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
 export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
@@ -393,9 +396,9 @@ export const intake = defineTool({
     // Budget (F)
     budget_lines: z.array(budgetLine).max(300).optional(),
     sov_lines: z.array(sovLine).max(300).optional(),
-    fee_pct: z.number().optional(),
+    fee_pct: z.number().optional().describe(SOV_FEE_NOTE),
     sov_basis: z.string().trim().max(200).optional(),
-    sov_copy: z.enum(["official", "draft"]).optional(),
+    sov_copy: z.enum(["official", "draft"]).optional().describe(SOV_COPY_NOTE),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -739,6 +742,8 @@ export const intake = defineTool({
         if (savedOfficial.error) dbError(savedOfficial.error);
         const officialRows = (savedOfficial.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
         const officialByKey = new Map(officialRows.map((row) => [row.key, row.value ?? {}]));
+        const badItems = sovItemProblems((args.sov_lines ?? []).map((s) => s.line));
+        if (badItems.length) throw new ToolError(`${badItems.join("\n")}\nNothing was saved.`);
         if (args.sov_copy === "draft") {
           const savedDraft = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", storedModule("sov", "draft"));
           if (savedDraft.error) dbError(savedDraft.error);

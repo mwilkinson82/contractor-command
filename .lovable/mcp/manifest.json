@@ -1895,7 +1895,8 @@
                   "line": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 40
+                    "maxLength": 40,
+                    "description": "SOV item number in 01.01 style: two-digit CSI division, dot, line (e.g. 03.01, 26.06). Other formats are refused."
                   },
                   "description": {
                     "type": "string",
@@ -1923,7 +1924,8 @@
               }
             },
             "fee_pct": {
-              "type": "number"
+              "type": "number",
+              "description": "budget: contractor fee percent, 0 to under 100. Send it with the first SOV (0 when there is no separate fee); without it the SOV report and contract value can't be built."
             },
             "sov_basis": {
               "type": "string",
@@ -1934,7 +1936,8 @@
               "enum": [
                 "official",
                 "draft"
-              ]
+              ],
+              "description": "budget: which SOV copy sov_lines go to. \"official\" (default) is the contract SOV; once saved, its dollars change only by approved change order. \"draft\" saves a separate copy labeled \"Draft, not official\" for what-ifs, rebalances, expected change orders and a monthly forecast, and never touches the official SOV, contract value or pay apps. Use \"draft\" whenever the member asks for a draft, what-if or proposed SOV."
             },
             "action": {
               "type": "string",
