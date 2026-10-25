@@ -34,7 +34,7 @@ describe("lookahead activity ids", () => {
     expect(text).toContain("- A1120a – FA/LV underground pathways");
     expect(text).toContain("- A1120b – FA/LV underground pathways");
     const get = workflow.slice(workflow.indexOf("export const lookaheadGet"), workflow.indexOf("export const lookaheadList"));
-    expect(get).toContain("activityIdName(a)");
+    expect(get).toContain("scheduleWindowLabel(a)");
     expect(get).not.toContain("a.name || a.description || a.id");
   });
 });
