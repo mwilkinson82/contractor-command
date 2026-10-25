@@ -11,6 +11,7 @@ import {
   PACKAGE_KIND_LABEL,
   PACKAGE_STATUS_LABEL,
   STATUS_LABEL,
+  SUBMITTAL_DRAFT_LABEL,
   labelOf,
   packageLine,
   pieceRef,
@@ -119,7 +120,10 @@ export type SubmittalRecordPayload = {
   review_days?: number;
   today?: string;
   number: string;
-  current: SubmittalRecord & { package_items?: (PackageItem & { url?: string | null })[] | null };
+  current: SubmittalRecord & {
+    package_items?: (PackageItem & { url?: string | null })[] | null;
+    created_at?: string | null;
+  };
   revisions?: RecordRevision[];
   packages?: RecordPackage[];
   mail?: RecordMail[];
@@ -302,6 +306,90 @@ function revisionsHtml(revisions: RecordRevision[]): string {
   return card(h2("REVISIONS") + rows);
 }
 
+/** Labels submittalDisplayStatus returns once a package has actually been submitted. */
+const SUBMITTED_OR_LATER = new Set<string>([
+  STATUS_LABEL.submitted,
+  STATUS_LABEL.in_review,
+  STATUS_LABEL.approved,
+  STATUS_LABEL.approved_as_noted,
+  STATUS_LABEL.revise_and_resubmit,
+  STATUS_LABEL.rejected,
+  STATUS_LABEL.closed,
+]);
+
+function calendarDay(value: string | null | undefined): string {
+  const d = (value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "";
+}
+
+/** The same package submittalDisplayStatus treats as the current build, and only its send receipt. */
+function sendReceiptDay(
+  row: Pick<SubmittalRecord, "built_package" | "submission_sent_at" | "revision">,
+  packages: SubmittalRecordPayload["packages"],
+): string {
+  if (calendarDay(row.submission_sent_at)) return calendarDay(row.submission_sent_at);
+  const built =
+    row.built_package ??
+    packages?.find((p) => p.revision === row.revision && p.is_current !== false && !p.revoked_at) ??
+    null;
+  return calendarDay(built?.sent_at);
+}
+
+/**
+ * Submitted date on "What it is". A draft display status never shows one, even when submitted_on is filled in.
+ * The decision is submittalDisplayStatus plus the send receipt that function already consults.
+ */
+export function submittalSubmittedFact(
+  row: SubmittalRecord & { created_at?: string | null },
+  packages: SubmittalRecordPayload["packages"],
+): string {
+  const display = submittalDisplayStatus(row, packages);
+  const receipt = sendReceiptDay(row, packages);
+  const submitted = display !== SUBMITTAL_DRAFT_LABEL && SUBMITTED_OR_LATER.has(display);
+  if (receipt || submitted) {
+    const when = receipt || calendarDay(row.submitted_on);
+    return when ? ` · Submitted ${esc(when)}` : "";
+  }
+  const drafted = calendarDay(row.created_at);
+  return drafted ? ` · Not yet submitted · Drafted ${esc(drafted)}` : " · Not yet submitted";
+}
+
+function timelineText(e: RecordEventRow): string {
+  return `${e.title}\n${e.summary}`.replace(/\s+/g, " ").trim().toLowerCase().replace(/\.+$/g, "");
+}
+
+function timelineStatus(e: RecordEventRow): string {
+  const raw =
+    typeof e.payload?.status === "string" && e.payload.status.trim()
+      ? e.payload.status
+      : (e.summary.match(/(?:^|\. )([^.]+)\.?\s*$/)?.[1] ?? "");
+  return raw.replace(/_/g, " ").replace(/\s+/g, " ").trim().toLowerCase().replace(/\.+$/g, "");
+}
+
+/** Boilerplate status echo: "Submittal N revision R" plus "<title>. Spec <section>. in review." */
+function isGenericInReview(e: RecordEventRow): boolean {
+  const summary = e.summary.replace(/\s+/g, " ").trim();
+  const title = e.title.replace(/\s+/g, " ").trim();
+  const genericTitle = title === "" || /^Submittal\s+.+\srevision\s+\d+$/i.test(title);
+  if (!genericTitle) return false;
+  return /^in review\.?$/i.test(summary) || /^.+\. Spec .+\. in review\.$/i.test(summary);
+}
+
+/**
+ * Timeline for an approval submittal. Drops generic "in review." echoes and
+ * collapses consecutive entries that repeat the same status and text. Order of what remains is unchanged.
+ */
+export function submittalRecordTimeline(events: RecordEventRow[]): RecordEventRow[] {
+  const kept: RecordEventRow[] = [];
+  for (const event of events) {
+    if (isGenericInReview(event)) continue;
+    const prev = kept.at(-1);
+    if (prev && timelineStatus(prev) === timelineStatus(event) && timelineText(prev) === timelineText(event)) continue;
+    kept.push(event);
+  }
+  return kept;
+}
+
 /** Page body (no <html>). Used inside the signed-in page and the board-token page. */
 export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
   const today = day(p.today);
@@ -339,11 +427,16 @@ export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
       tile("Package", packageLine(items).replace(/;.*$/, "")),
     ]) +
     `</div>`;
+  const submittedFact = request
+    ? row.submitted_on
+      ? ` · Submitted ${esc(day(row.submitted_on))}`
+      : ""
+    : submittalSubmittedFact(row, p.packages);
   const what = card(
     h2("WHAT IT IS") +
-      `<div style="font-weight:700;color:${NAVY}">${esc(row.title)}</div><div style="font-size:12px;color:${G1};margin-top:4px">${row.spec_section ? `Spec ${esc(row.spec_section)} · ` : ""}${esc(sourceLine(row))} · ${esc(transmittalLabel(row.transmittal_number))}${row.submitted_on ? ` · Submitted ${esc(day(row.submitted_on))}` : ""}${row.due_back ? ` · Due back ${esc(day(row.due_back))}` : ""}${row.returned_on ? ` · Returned ${esc(day(row.returned_on))}` : ""}${row.submission_sent_at ? ` · Package sent ${esc(day(row.submission_sent_at))}` : " · Package send receipt not recorded"}</div>${row.notes?.trim() ? `<p style="margin:8px 0 0;font-size:13px;color:${NAVY}">${esc(row.notes.trim())}</p>` : ""}`,
+      `<div style="font-weight:700;color:${NAVY}">${esc(row.title)}</div><div style="font-size:12px;color:${G1};margin-top:4px">${row.spec_section ? `Spec ${esc(row.spec_section)} · ` : ""}${esc(sourceLine(row))} · ${esc(transmittalLabel(row.transmittal_number))}${submittedFact}${row.due_back ? ` · Due back ${esc(day(row.due_back))}` : ""}${row.returned_on ? ` · Returned ${esc(day(row.returned_on))}` : ""}${row.submission_sent_at ? ` · Package sent ${esc(day(row.submission_sent_at))}` : " · Package send receipt not recorded"}</div>${row.notes?.trim() ? `<p style="margin:8px 0 0;font-size:13px;color:${NAVY}">${esc(row.notes.trim())}</p>` : ""}`,
   );
-  const events = p.events ?? [];
+  const events = request ? (p.events ?? []) : submittalRecordTimeline(p.events ?? []);
   const timeline = card(
     h2("TIMELINE") +
       (events.length

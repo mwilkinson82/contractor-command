@@ -18,6 +18,23 @@ import {
 import { isTrustedHost } from "./lib/trusted-hosts";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
 import { supabaseForToken } from "./lib/mcp/supabase";
+import { athenaBuild, withAthenaBuildHeader } from "./lib/athena-build";
+
+function isMcpPath(pathname: string): boolean {
+  return pathname === "/mcp" || pathname.startsWith("/mcp/");
+}
+
+/** Commit the running build was made from, on every MCP response. */
+const mcpBuildStamp = createMiddleware().server(async ({ next, request }) => {
+  const result = await next();
+  if (!isMcpPath(new URL(request.url).pathname)) return result;
+  const commit = athenaBuild().commit;
+  if (result instanceof Response) return withAthenaBuildHeader(result, commit);
+  if (result && typeof result === "object" && "response" in result && result.response instanceof Response) {
+    return { ...result, response: withAthenaBuildHeader(result.response, commit) };
+  }
+  return result;
+});
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Bypass app middleware for /lovable/* — these routes (webhooks, cron,
@@ -205,6 +222,7 @@ const mcpNativeCardPresentation = createMiddleware().server(async ({ next, reque
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [
+    mcpBuildStamp,
     errorMiddleware,
     mcpRequestTiming,
     mcpEntitlementGate,
