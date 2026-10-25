@@ -1261,3 +1261,25 @@ describe("change-order shared package and deterministic execution",()=>{
     );
   });
 });
+
+describe("submittal delivery needs the saved row ids", () => {
+  for (const action of ["get", "approve", "record_sent"] as const) {
+    it(`refuses ${action} without delivery_id or draft_key before touching the database`, async () => {
+      const base = {
+        action,
+        job_number: "2701",
+        submittal_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        confirmed: true,
+        provider: "local-test-only",
+        message_id: "synthetic-missing-ids",
+        sent_at: new Date().toISOString(),
+      };
+      const message = "Pass the delivery_id and draft_key from the saved delivery card. Nothing was recorded.";
+      await expect(call(submittalDelivery, base)).rejects.toThrow(message);
+      await expect(
+        call(submittalDelivery, { ...base, delivery_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }),
+      ).rejects.toThrow(message);
+      await expect(call(submittalDelivery, { ...base, draft_key: "a".repeat(32) })).rejects.toThrow(message);
+    });
+  }
+});

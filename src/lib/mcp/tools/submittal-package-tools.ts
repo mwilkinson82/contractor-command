@@ -600,6 +600,9 @@ export const submittalDelivery = defineTool({
   },
   handler: (args, ctx) =>
     run("submittal_delivery", ctx, { jobNumber: args.job_number }, async (sb) => {
+      // get, approve and record_sent act on one saved row; without both ids the database can only refuse.
+      if (args.action !== "draft" && (!args.delivery_id || !args.draft_key))
+        throw new ToolError("Pass the delivery_id and draft_key from the saved delivery card. Nothing was recorded.");
       const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, "full");
       if (!job) throw new ToolError("Which job has this submittal?");
       if (args.action === "approve" && outboundEmailDisabled())
@@ -663,9 +666,9 @@ export const submittalDelivery = defineTool({
           ? "This send is already recorded. Show the card; do not send it again."
           : saved.approved_at
             ? args.action === "approve" && saved.already_approved !== true
-              ? "The member approved this exact draft; use structuredContent.draft.to, cc, subject and body unchanged with their connected email tool, never reconstruct them from card text. Send it once, then call submittal_delivery record_sent with the successful provider message id and sent time; a failure must never be recorded as sent."
-              : "This draft was already approved but has no send receipt. Check connected Sent mail before retrying: record an existing successful receipt, or send once only if the provider confirms it was not sent."
-            : "Show the full draft and wait for approval; never send automatically.",
+              ? "The member approved this exact draft; use structuredContent.draft.to, cc, subject and body unchanged with their connected email tool, never reconstruct them from card text. Send it once, then call submittal_delivery record_sent with this same structuredContent.delivery_id and draft_key plus the successful provider message id and sent time; a failure must never be recorded as sent. Never re-draft after approval."
+              : "This draft was already approved but has no send receipt. Check connected Sent mail before retrying: record an existing successful receipt with record_sent using this same structuredContent.delivery_id and draft_key, or send once only if the provider confirms it was not sent. Never re-draft after approval."
+            : "Show the full draft and wait for approval; never send automatically. Call get, approve and record_sent with this same structuredContent.delivery_id and draft_key.",
       );
     }),
 });
