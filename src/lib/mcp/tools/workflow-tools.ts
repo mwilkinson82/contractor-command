@@ -204,6 +204,7 @@ export const onboarding = defineTool({
 // ---------- intake ----------
 const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.enum(["self_perform", "subcontract"]) });
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
+const SOV_COPY_NOTE = "budget: which SOV copy sov_lines go to. \"official\" (default) is the contract SOV; once saved, its dollars change only by approved change order. \"draft\" saves a separate copy in Athena labeled \"Draft, not official\" for what-ifs, rebalances, expected change orders and a monthly forecast, and never touches the official SOV, contract value or pay apps. Whenever the member asks for a draft, what-if or proposed SOV, call intake with sov_copy \"draft\". Never build a draft yourself, and never say a draft was saved unless this tool returned \"Saved in Athena\".";
 const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
 import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
@@ -304,7 +305,7 @@ async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<It
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
-  description: "Records a job and its setup.",
+  description: "Records a job and its setup. Section budget saves the budget and SOV; a draft or what-if SOV is saved only with sov_copy \"draft\". Say saved only after this tool confirms it.",
   inputSchema: {
     section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]),
     job_number: jobNumber,
@@ -395,7 +396,7 @@ export const intake = defineTool({
     sov_lines: z.array(sovLine).max(300).optional(),
     fee_pct: z.number().optional(),
     sov_basis: z.string().trim().max(200).optional(),
-    sov_copy: z.enum(["official", "draft"]).optional(),
+    sov_copy: z.enum(["official", "draft"]).optional().describe(SOV_COPY_NOTE),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -771,7 +772,7 @@ export const intake = defineTool({
             website: company?.website ?? null,
           };
           const textBody = draftSovText(lines, terms?.sov_fee_pct == null ? null : Number(terms.sov_fee_pct), terms?.sov_basis ?? null, brand, { start: starts[0] ?? null, finish: finishes.at(-1) ?? null });
-          return text(`${prefix(job)}${textBody}`);
+          return text(`${prefix(job)}Saved in Athena (draft copy only; the official SOV did not change).\n${textBody}`);
         }
         const sov: Record<string, unknown> = {};
         for (const s of args.sov_lines ?? []) {
