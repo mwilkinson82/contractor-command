@@ -95,6 +95,14 @@ describe("SOV data ties out", () => {
   test("a fee of 100% or more is refused at intake", async () => {
     expect((await call("owner", "intake", { section: "budget", job_number: "S-2", fee_pct: 100 })).text).toMatch(/at least 0 and under 100/);
   });
+  test("a line edit that changes the contract total is refused and the saved SOV stays", async () => {
+    const before = await call("owner", "report", { job_number: "S-1", deliverable: "sov" });
+    const edit = await call("owner", "intake", { section: "budget", job_number: "S-1", sov_lines: [{ line: "26.01", description: "Electrical", billable_value: 950000 }] });
+    expect(edit.isError).toBe(true);
+    expect(edit.text).toContain("Contract value changes only by change order. Nothing was saved.");
+    const after = await call("owner", "report", { job_number: "S-1", deliverable: "sov" });
+    expect((after.structured!.sov as { summary: { contract_total: number } }).summary.contract_total).toBe((before.structured!.sov as { summary: { contract_total: number } }).summary.contract_total);
+  });
 });
 
 describe("role guardrails", () => {

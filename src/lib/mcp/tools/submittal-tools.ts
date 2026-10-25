@@ -131,11 +131,13 @@ function cardResult(_body: string, card: CardModel, extra: Record<string, unknow
 
 /** Saved submittal rows for one job. Select only: no lookahead, no board link, no living report. */
 export async function readSubmittalRows(sb: Sb, jobId: string): Promise<SubmittalRecord[]> {
-  async function all(table: string, columns: string, order: string) {
+  async function all(table: string, columns: string, order: string, purpose?: string) {
     const out: Record<string, unknown>[] = [];
     for (let offset = 0; offset < 50000; offset += 500) {
-      const query = sb.from(table).select(columns).eq("job_id", jobId).order(order, { ascending: true }).order("id", { ascending: true });
-      const result = await (offset ? query.range(offset, offset + 499) : query.limit(500));
+      let query = sb.from(table).select(columns).eq("job_id", jobId);
+      if (purpose) query = query.eq("package_purpose", purpose);
+      const ordered = query.order(order, { ascending: true }).order("id", { ascending: true });
+      const result = await (offset ? ordered.range(offset, offset + 499) : ordered.limit(500));
       if (result.error) throw new Error("The complete submittal log could not be read. Try again.");
       const rows = (result.data ?? []) as unknown as Record<string, unknown>[];
       out.push(...rows);
@@ -144,14 +146,17 @@ export async function readSubmittalRows(sb: Sb, jobId: string): Promise<Submitta
     throw new Error("This log is too large to return safely in one reply. Nothing was changed.");
   }
   const [rows, transmittals, pieces, packages] = await Promise.all([
-    all("mcp_submittals", "id,number,revision,transmittal_id,spec_section,title,submittal_type,status,ball_in_court,ball_in_court_name,source,required,required_by,submitted_on,due_back,returned_on,review_days", "number"),
+    all("mcp_submittals", "id,number,revision,transmittal_id,spec_section,title,submittal_type,status,ball_in_court,ball_in_court_name,source,required,required_by,submitted_on,due_back,returned_on,review_days", "number", "approval"),
     all("mcp_transmittals", "id,number", "number"),
     all("mcp_submittal_package_items", "*", "created_at"),
     all("mcp_submittal_packages", "id,submittal_id,sent_at", "sent_at"),
   ]);
+  const approvalIds = new Set(rows.map((row) => String(row.id)));
+  const approvalPieces = pieces.filter((piece) => approvalIds.has(String(piece.submittal_id)));
+  const approvalPackages = packages.filter((pkg) => approvalIds.has(String(pkg.submittal_id)));
   const numbers = new Map((transmittals as { id: string; number: number }[]).map((t) => [t.id, t.number]));
   const currentPackages = new Map<string, SubmittalRecord["built_package"]>();
-  const packagedIds = [...new Set(packages.map(p => String(p.submittal_id)))];
+  const packagedIds = [...new Set(approvalPackages.map(p => String(p.submittal_id)))];
   for (let offset = 0; offset < packagedIds.length; offset += 8) {
     await Promise.all(packagedIds.slice(offset, offset + 8).map(async id => {
       // SELECT-only RPC applies the same current-fingerprint rule as build/get; stale packages never look ready.
@@ -165,8 +170,8 @@ export async function readSubmittalRows(sb: Sb, jobId: string): Promise<Submitta
     id: String(row.id ?? ""),
     number: String(row.number ?? ""),
     revision: Number(row.revision ?? 0),
-    submission_sent_at: currentPackages.get(String(row.id)) ? currentPackages.get(String(row.id))!.sent_at ?? null : (packages as { submittal_id: string; sent_at: string | null }[]).find((p) => p.submittal_id === row.id && p.sent_at)?.sent_at ?? null,
-    has_package: packages.some(p => p.submittal_id === row.id),
+    submission_sent_at: currentPackages.get(String(row.id)) ? currentPackages.get(String(row.id))!.sent_at ?? null : (approvalPackages as { submittal_id: string; sent_at: string | null }[]).find((p) => p.submittal_id === row.id && p.sent_at)?.sent_at ?? null,
+    has_package: approvalPackages.some(p => p.submittal_id === row.id),
     built_package: currentPackages.get(String(row.id)) ?? null,
     transmittal_number: numbers.get(row.transmittal_id ?? "") ?? 0,
     spec_section: String(row.spec_section ?? ""),
@@ -182,7 +187,7 @@ export async function readSubmittalRows(sb: Sb, jobId: string): Promise<Submitta
     due_back: (row.due_back ?? "").slice(0, 10) || null,
     returned_on: row.returned_on ?? null,
     review_days: row.review_days ?? null,
-    package_items: (pieces as (NonNullable<SubmittalRecord["package_items"]>[number] & { submittal_id: string })[]).filter((p) => p.submittal_id === row.id),
+    package_items: (approvalPieces as (NonNullable<SubmittalRecord["package_items"]>[number] & { submittal_id: string })[]).filter((p) => p.submittal_id === row.id),
   }));
 }
 

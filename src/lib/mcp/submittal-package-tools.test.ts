@@ -137,6 +137,8 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261025140000_athena_request_package_records.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261025150000_athena_change_order_packages.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261025153000_athena_change_execution_tie.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261030130000_athena_submittal_log_approval_only.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261030140000_athena_sov_contract_total_guard.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(

@@ -90,6 +90,7 @@ function row(over: Record<string, unknown> = {}) {
     ball_in_court: "architect_engineer",
     ball_in_court_name: "Bayline",
     source: "user",
+    package_purpose: "approval",
     required: true,
     required_by: "2026-10-01",
     submitted_on: "2026-10-01",
@@ -150,5 +151,21 @@ describe("submittal job resolution is the same for every caller", () => {
     }
     expect(state.writes.filter((w) => w !== "rpc mcp_board_link_create")).toEqual([]);
     expect(state.rpcs).not.toContain("mcp_submittal_log");
+  });
+
+  it("does not list RFI, RFC, or change-order rows, and does not mark their packages", async () => {
+    state.rows = [
+      row(),
+      row({ id: "33333333-3333-4333-8333-333333333333", number: "RFI-001", title: "Fictional RFI", package_purpose: "rfi" }),
+      row({ id: "44444444-4444-4444-8444-444444444444", number: "RFC-001", title: "Fictional RFC", package_purpose: "rfc" }),
+      row({ id: "55555555-5555-4555-8555-555555555555", number: "PCO-001", title: "Fictional PCO", package_purpose: "change_order" }),
+    ];
+    const result = await list({ job_number: "2701" });
+    const text = result.content[0].text ?? "";
+    expect(text).toContain("Switchgear product data");
+    expect(text).not.toContain("Fictional RFI");
+    expect(text).not.toContain("Fictional RFC");
+    expect(text).not.toContain("Fictional PCO");
+    expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "package_purpose", val: "approval" });
   });
 });
