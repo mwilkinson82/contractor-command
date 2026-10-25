@@ -206,6 +206,18 @@ it("an off-site return is not attached to the sign-in link", async () => {
   expect(url.toString()).not.toContain("evil.example");
 });
 
+it("a submittal record return retains its existing key and upload target in the fallback email link", async () => {
+  m.listUsers.mockResolvedValue({ data: { users: [{ email: "pm@example.com" }] }, error: null });
+  req.url = "https://app.meetathena.io/r/job/11111111-1111-4111-8111-111111111111/submittal/05%2012%2000-001";
+  const back = "/r/job/11111111-1111-4111-8111-111111111111/submittal/05%2012%2000-001?t=fictional-key&upload=1#upload";
+  const promise = requestMemberMagicLink({
+    data: { email: "pm@example.com", return_to: back.replace("#upload", "&utm_source=chatgpt.com#upload") },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(new URL(m.send.mock.calls[0][0].confirmationUrl).searchParams.get("redirect")).toBe(back);
+});
+
 it("an Athena report return rides on the callback and stays off the account page", async () => {
   req.url = "https://app.meetathena.io/login?redirect=%2Fr%2Fjob%2F1";
   const back = "/r/job/11111111-1111-4111-8111-111111111111/field#activity-A2000";

@@ -39,6 +39,6 @@ export function duplicatePieceWarnings(items: { file_ref?: string | null }[]) {
     .map((entry) => ({
       code: "DUPLICATE_FILENAME" as const,
       ...entry,
-      message: `Duplicate filename: ${entry.filename} appears on ${entry.pieces.join(", ")}. Both copies are kept; check which belong in the package. Matching names do not confirm matching contents.`,
+      message: `Duplicate filename: ${entry.filename} appears on ${entry.pieces.join(", ")}. All ${entry.pieces.length} copies are kept; check which belong in the package. Matching names do not confirm matching contents.`,
     }));
 }

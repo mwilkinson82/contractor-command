@@ -183,7 +183,8 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     try {
       const path = oauthConsentReturn(data.continuation);
       if (data.continuation && !path) throw new Error("Invalid continuation");
-      // A job board return is limited to /r/job and drops the token and utm params.
+      // A job board return is limited to /r/job; submittal records retain their
+      // existing board token, while tracking parameters are always removed.
       // Other Athena pages (a file link, the account page) keep their own allowlist.
       const pageReturn = path
         ? undefined
