@@ -34,7 +34,7 @@ function section(s: CardSection): string[] {
         if (!(row.cells[i] ?? "").trim()) return i === 0 ? cell(view.label) : "";
         const part = rowPlain({ cells: [row.cells[i] ?? ""] });
         const text = part.label === "Item" && part.refId ? "" : cell(part.label);
-        return i === 0 ? (view.href ? `[${text || cell(view.label)}](${view.href})` : text || cell(view.label)) : text;
+        return i === (row.linkCell ?? 0) ? (view.href ? `[${text || cell(view.label)}](${view.href})` : text || cell(view.label)) : text;
       });
       if (isAlertLevel(row.flag)) cells[0] = `${MARK.alert} ${cells[0]}`.trim();
       lines.push(`| ${cells.join(" | ")} |`);
