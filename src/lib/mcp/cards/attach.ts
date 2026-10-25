@@ -12,7 +12,7 @@ import {
 } from "./silence";
 import { INBOX_HOST_LINE } from "../morning-brief";
 import { isWhichJobText } from "../which-job";
-import type { CardModel } from "./model";
+import { STATE_LABEL, type CardModel } from "./model";
 
 type Block = { type: string; text?: string };
 type Res = {
@@ -117,6 +117,33 @@ function isCard(value: unknown): value is CardModel {
   return !!value && typeof value === "object" && "state" in value && "title" in value;
 }
 
+function onboardingFacts(text: string): string[] {
+  const body = text.split("\n---\n")[0].split("\nDisplay: blue (#")[0];
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("REQUIRED") && !line.startsWith("Display:") && !line.startsWith("---") && !line.startsWith("```") && !line.startsWith("<"));
+}
+
+/** The read view says "What I have so far" once and prints the profile once. The HTML card is the caller's. */
+export function onboardingReadText(card: CardModel, firstText: string, html: string): string | null {
+  if (card.state !== "progress" || card.title !== STATE_LABEL.progress) return null;
+  const facts = onboardingFacts(firstText);
+  const textCard: CardModel = {
+    ...card,
+    show_state: false,
+    sections: [{
+      heading: card.sections?.[0]?.heading ?? "Company",
+      kind: "list",
+      rows: facts.map((line) => ({ cells: [line], tone: "known" as const })),
+    }],
+  };
+  const markdown = renderMarkdown(textCard);
+  const cut = firstText.lastIndexOf("\n---\n");
+  const footer = cut >= 0 ? firstText.slice(cut).trim() : "";
+  return `${markdown}${footer ? `\n\n${footer}` : ""}\n\n${htmlBlock(html)}`;
+}
+
 function stripChrome(text: string): string {
   const styleAt = text.lastIndexOf("\nDisplay: blue (");
   const cut = styleAt >= 0 ? text.slice(0, styleAt) : text;
@@ -165,6 +192,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
       typeof sc.html === "string" && !askJob && tool !== "contract_terms"
         ? sc.html
         : renderHtml(card);
+    const readText = tool === "onboarding" ? onboardingReadText(card, first.text, html) : null;
     const markdown = renderMarkdown(card);
     const cardText = `${markdown}\n\n${htmlBlock(html)}`;
     const keepBody = !isCardFirstTool(tool, result) && !askJob;
@@ -177,15 +205,17 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
       ? `${INBOX_HOST_LINE}\n\n`
       : "";
     const rowReply = TEXT_CARD_TOOLS.has(tool);
-    const text = rowReply
-      ? `${inboxLine}${markdown}\n\n${html}`
-      : !keepBody
-        ? `${inboxLine}${cardText}`
-        : hasMarkdown || hasPlain
-          ? hasHtml
-            ? first.text
-            : `${source}\n\n${htmlBlock(html)}`
-          : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
+    const text = readText
+      ? readText
+      : rowReply
+        ? `${inboxLine}${markdown}\n\n${html}`
+        : !keepBody
+          ? `${inboxLine}${cardText}`
+          : hasMarkdown || hasPlain
+            ? hasHtml
+              ? first.text
+              : `${source}\n\n${htmlBlock(html)}`
+            : `${markdown}\n\n${first.text}\n\n${htmlBlock(html)}`;
     const closed = rowReply ? text.trim() : applyCardClosing(text, askJob);
     const closing = cardClosing(askJob);
     const priorGuidance = Array.isArray(sc.assistant_guidance)

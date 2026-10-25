@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  activityIdName,
   activityLine,
   activityTitle,
   readDelay,
@@ -71,6 +72,9 @@ describe("activity names", () => {
     expect(activityTitle({ id: "D1060", name: "", description: "Switchgear delay" })).toBe("Switchgear delay");
     expect(activityLine({ id: "A1110", name: "Underground conduit rough-in" })).toBe("A1110 Underground conduit rough-in");
     expect(activityLine({ id: "A1040", name: "", description: "Pour footings" })).toBe("A1040 Pour footings");
+    expect(activityIdName({ id: "A1110a", name: "Underground conduit rough-in" })).toBe("A1110a – Underground conduit rough-in");
+    expect(activityIdName({ id: "A1110b", name: "Underground conduit rough-in" })).toBe("A1110b – Underground conduit rough-in");
+    expect(activityIdName({ id: "A1120a", name: "A1120a" })).toBe("A1120a");
   });
 });
 
