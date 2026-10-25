@@ -25,6 +25,7 @@ import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveJob, type Job } from "../jobs";
 import { SovMismatch, buildSov, money, retainagePct } from "../sov";
 import { guide } from "../visible";
+import { DRAFT_NOT_OFFICIAL, recordStanding } from "../record-copy";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
   activityLine, checkSave, costLoadTotal, countCheck, draftBillingFromSchedule, earnedToDate, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
@@ -229,7 +230,7 @@ export const cpmActivities = defineTool({
             activities: acts.map((a) => ({ ...a, owner_furnished: isOwnerFurnished(a), billable_value: showMoney ? (isOwnerFurnished(a) ? 0 : a.value) : null })),
           },
         },
-        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
+        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Saving that view or a what-if calls living_report_save with copy draft, labeled \"Draft, not official\", and does not replace the official CPM. The official CPM changes only through living_report_save with the matching base_version and no draft copy. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
         showMoney ? "" : "Super view: no dollars. Never show or estimate any $ value, billing or forecast.",
       );
     }),
@@ -295,7 +296,7 @@ export const livingReportGet = defineTool({
       if (!g.found) {
         return guide(
           { ...text(`${prefix(job)}No saved ${label} for this job yet. Build it once, then save it as version 1 after the PM approves.`), structuredContent: { found: false, report_type: type, version: 0 } },
-          `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
+          `Nothing saved: build the ${label} from Athena's data, mark it "${DRAFT_NOT_OFFICIAL}", and after the PM says yes call living_report_save with base_version 0.`,
         );
       }
       const data = job.scope === "full" ? g.data ?? {} : stripMoney(g.data ?? {});
@@ -327,7 +328,7 @@ export const livingReportGet = defineTool({
           ...(presented ?? text([ ...(linkCard ? [linkCard] : type === "dashboard" && job.scope === "full" ? [pageLine("portfolio dashboard", pageUrl("portfolio", job.company_id))] : []), LIVING_REQUIRED_TOP, `${named(job)} · ${label}`, stamp(g), ...(tie ? [`Tie: ${tie.line}`] : []), ...(type === "cpm" ? [...CPM_GANTT_SPEC, ...(readDelay(data as Record<string, unknown>) ? [readDelay(data as Record<string, unknown>)!.line] : []), ...ganttPins(readDelay(data as Record<string, unknown>))] : []), ...(type === "billing_forecast" && job.scope === "full" ? PAY_APP_VIEW_SPEC : []), ...(type === "ior" && job.scope === "full" ? IOR_VIEW_SPEC : []), ...(type === "dashboard" && job.scope === "full" ? PORTFOLIO_VIEW_SPEC : []), "", "Change log (latest 5):", ...(log.length ? log : ["- None yet."])].join("\n"))),
           structuredContent: { ...presented?.structuredContent, found: true, report_type: type, version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null, contract_completion_date: g.contract_completion_date ?? null, tie, data: data as never, change_log: g.change_log ?? [], no_financials: job.scope !== "full", board_links: boardLinks },
         },
-        `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`,
+        `Say "Picked up v${g.version}${g.updated_by_name ? `, last updated by ${g.updated_by_name}` : ""}." For a view-only ask, build a NEW private view or artifact from structuredContent.data in the same layout; never update or replace the saved shared master or an existing shared artifact. ${type === "cpm" ? `When the user saves that view or a what-if, confirm first, then call living_report_save with copy draft. Store it as "${DRAFT_NOT_OFFICIAL}" and leave the official CPM unchanged. The official CPM changes only after a yes to "${LIVING_SAVE_ASK}": call living_report_save with base_version ${g.version} and no draft copy.` : `Only when the user explicitly asks to update or save it, confirm first, then to save the update ask "${LIVING_SAVE_ASK}" and only after a yes call living_report_save with base_version ${g.version}.`}`,
         ...(pageFor(type, job.scope) ? [`After you show the ${label}, ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link for page items and for page ${pageFor(type, job.scope)}. Show each link as its own card. Never make a share link unless they ask.`] : []),
       );
     }),
@@ -353,6 +354,7 @@ export const livingReportSave = defineTool({
     details: z.record(z.string(), z.unknown()).optional(),
     contract_completion_date: date.optional(),
     replace_completion_date: z.boolean().optional(),
+    copy: z.enum(["official", "draft"]).optional(),
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -360,6 +362,25 @@ export const livingReportSave = defineTool({
       if (args.approved !== true) throw new ToolError("Ask the PM to approve this update first. Nothing was saved.");
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       const type = args.report_type as LivingReportType;
+      if (recordStanding(args.copy) === "draft") {
+        if (type !== "cpm") throw new ToolError("A draft copy is only for the CPM. Nothing was saved.");
+        if (!args.activities?.length) throw new ToolError("Send the full activity list to save the CPM. Nothing was saved.");
+        const draft: LivingData = { ...(args.details ?? {}), activities: args.activities as Activity[], ...(args.billing ? { billing: args.billing } : {}), ...(args.tia ? { tia: args.tia } : {}) };
+        const who = await whoAmI(sb, job, ctx.getUserId?.());
+        const saved = await rpc<{ id: string; version: number; reused?: boolean }>(sb, "mcp_cpm_draft_save", {
+          _job: job.job_id, _data: draft, _data_date: args.data_date ?? null, _what: args.what_changed, _who: who,
+        });
+        await audit(sb, job, "living_report_save", "save_living_cpm_draft", saved.id);
+        const official = await getReport(sb, job, "cpm");
+        const officialVersion = official.found ? official.version : 0;
+        return guide(
+          {
+            ...text([`${prefix(job)}${DRAFT_NOT_OFFICIAL}.`, `What changed: ${args.what_changed}`, `Official CPM stays at v${officialVersion}.`].join("\n")),
+            structuredContent: { saved: true, report_type: "cpm", copy: "draft", label: DRAFT_NOT_OFFICIAL, version: saved.version, official_version: officialVersion, reused: saved.reused === true },
+          },
+          `Show this schedule as "${DRAFT_NOT_OFFICIAL}". The official CPM was not changed.`,
+        );
+      }
       if (type === "cpm" && !args.activities?.length) throw new ToolError("Send the full activity list to save the CPM. Nothing was saved.");
       const prev = await getReport(sb, job, type);
       if ((prev.found ? prev.version! : 0) !== args.base_version)
@@ -396,7 +417,7 @@ export const livingReportSave = defineTool({
           ...text([`${prefix(job)}${LIVING_LABEL[type]} saved as v${r.version}.`, `What changed since v${args.base_version}: ${args.what_changed}`, ...(chk.count ? [`Count check: ${chk.count.line}`] : []), ...(chk.tie ? [`Tie: ${chk.tie.line}`] : [])].join("\n")),
           structuredContent: { saved: true, report_type: type, version: r.version, count_check: chk.count, tie: chk.tie },
         },
-        `Update the view's header to v${r.version} with the Last updated stamp and remove "Draft: not saved".`,
+        `Update the view's header to v${r.version} with the Last updated stamp and remove "${DRAFT_NOT_OFFICIAL}".`,
         ...(pageFor(type, job.scope) ? [`Then ask once: "${PERMANENT_LINK_ASK}" On a yes, call report_page_link for page items and for page ${pageFor(type, job.scope)}. Show each link as its own card.`] : []),
       );
     }),

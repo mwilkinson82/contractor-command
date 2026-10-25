@@ -1,4 +1,5 @@
 // 0.8.9: cost-loaded CPM activity handoff, tie-to-contract guard, owner-furnished exclusion and living reports.
+import { DRAFT_NOT_OFFICIAL } from "./record-copy";
 // Pure logic only (no database); the tools live in tools/living-tools.ts. Athena hands the saved values; the host
 // draws them and never recomputes, rebuilds or guesses them.
 import { money } from "./sov";
@@ -536,7 +537,7 @@ export const LIVING_VIEW_RULE =
   "REQUIRED: When the user only asks to see it (e.g. \"pull up the schedule\"), build a NEW private view or artifact from this data. Never update, overwrite or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm with them first.";
 export const LIVING_REQUIRED_TOP = [
   LIVING_VIEW_RULE,
-  "REQUIRED: This is the saved master copy. When the user asks to update it: change only what moved, keep the layout, show the version, Last updated and \"What changed since last version\" line, and mark it \"Draft: not saved\" until the PM approves.",
+  `REQUIRED: This is the saved master copy. When the user asks to update it: change only what moved, keep the layout, show the version, Last updated and "What changed since last version" line, and mark it "${DRAFT_NOT_OFFICIAL}" until the PM approves.`,
   "REQUIRED: Save a new version only after the PM says yes to this exact update. The forecast total must equal the contract to the cent and every activity must stay; Athena refuses the save otherwise.",
 ].join("\n");
 

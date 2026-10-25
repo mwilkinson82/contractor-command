@@ -2892,6 +2892,13 @@
             },
             "replace_completion_date": {
               "type": "boolean"
+            },
+            "copy": {
+              "type": "string",
+              "enum": [
+                "official",
+                "draft"
+              ]
             }
           },
           "required": [
