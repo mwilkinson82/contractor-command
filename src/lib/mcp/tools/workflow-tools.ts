@@ -1,4 +1,4 @@
-import { companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
+import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
 import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { draftSovText, nextDraftFacts } from "../sov-draft";
 import { storedModule } from "../record-copy";
@@ -19,7 +19,7 @@ import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
-import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
+import { activityIdName, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
@@ -1002,7 +1002,9 @@ export const nextQuestion = defineTool({
       let q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
       // The job number is on record (every job is keyed by it), so this check is answered for the member, visibly.
       let auto = "";
+      let jobNumberAuto = false;
       if (q?.key === "job_number_assigned") {
+        jobNumberAuto = true;
         await rpc(sb, "mcp_answer", { _job: job.job_id, _key: q.key, _answer: "yes", _detail: `Job number ${job.job_number} is on record.`, _owner: null, _needed_by: null });
         auto = `Answered for you: ${q.label ? `${q.label} ` : ""}"${q.prompt}" — yes (job number ${job.job_number} is on record). Say so if that's wrong and I'll change it.\n\n`;
         q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
@@ -1019,14 +1021,23 @@ export const nextQuestion = defineTool({
       }
       // Project software is a real setup step, asked second (right after the auto-answered job number check, before the gates),
       // so every host shows it. The answer is kept in scope facts (key project_software); no new column.
+      // The company profile is checked first. When it already names the software, this question is answered.
       const { data: sw } = await sb.from("mcp_job_facts").select("status").eq("job_id", job.job_id).eq("module", "scope").eq("key", PROJECT_SOFTWARE_KEY).maybeSingle();
       if (!sw) {
-        const after = (q ? q.total - q.index + 1 : 0) + wLeftFor(await warrantyFacts(sb, job));
-        await audit(sb, job, "next_question", "view_setup_question", PROJECT_SOFTWARE_KEY);
-        return guide({
-          ...text(`${P}${auto}Setup question ${PROJECT_SOFTWARE_POSITION} — ${after} more after this (Project software) [Job setup]\nQuestion ref: ${questionRef(PROJECT_SOFTWARE_KEY)}\n\n${JOB_SOFTWARE_ASK}\n\nAnswer with the tool's name in detail (Overwatch, Buildertrend, Procore, Primavera P6, another web tool, Excel or none), or response unknown.`),
-          structuredContent: { check_key: PROJECT_SOFTWARE_KEY, index: PROJECT_SOFTWARE_POSITION, total: after + PROJECT_SOFTWARE_POSITION, remaining_after: after, auto_answered: auto ? "job_number_assigned" : null },
-        }, JOB_SETUP_SOFTWARE_BLOCK);
+        const { data: profile } = await sb.from("mcp_companies").select("tool_stack").eq("id", job.company_id).maybeSingle();
+        const fromProfile = companyProjectSoftware(profile?.tool_stack);
+        if (fromProfile) {
+          await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: { [PROJECT_SOFTWARE_KEY]: fromProfile }, _source: "company_default" });
+          await audit(sb, job, "next_question", "project_software_from_profile", PROJECT_SOFTWARE_KEY);
+          auto += `Answered for you: project software is ${fromProfile}, from the company profile. Say so if that's wrong and I'll change it.\n\n`;
+        } else {
+          const after = (q ? q.total - q.index + 1 : 0) + wLeftFor(await warrantyFacts(sb, job));
+          await audit(sb, job, "next_question", "view_setup_question", PROJECT_SOFTWARE_KEY);
+          return guide({
+            ...text(`${P}${auto}Setup question ${PROJECT_SOFTWARE_POSITION} — ${after} more after this (Project software) [Job setup]\nQuestion ref: ${questionRef(PROJECT_SOFTWARE_KEY)}\n\n${JOB_SOFTWARE_ASK}\n\nAnswer with the tool's name in detail (Overwatch, Buildertrend, Procore, Primavera P6, another web tool, Excel or none), or response unknown.`),
+            structuredContent: { check_key: PROJECT_SOFTWARE_KEY, index: PROJECT_SOFTWARE_POSITION, total: after + PROJECT_SOFTWARE_POSITION, remaining_after: after, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
+          }, JOB_SETUP_SOFTWARE_BLOCK);
+        }
       }
       // Workmanship warranty and closeout expectations are asked up front: right after the gate questions, before the rest of the checklist.
       const wq = nextWarrantyQuestion(await warrantyFacts(sb, job));
@@ -1037,7 +1048,7 @@ export const nextQuestion = defineTool({
         await audit(sb, job, "next_question", "view_setup_question", key);
         return {
           ...text(`${P}${auto}Setup question — ${after === 0 ? "last one" : `${after} more after this`} (Warranty and closeout ${wq.index} of ${wq.total}: ${wq.label}) [Warranty / section warranty]\nQuestion ref: ${questionRef(key)}\n\n${wq.ask}\n\n${warrantyHow(wq.key)}\nCall answer with job_number and check_key.`),
-          structuredContent: { check_key: key, index: wq.index, total: wq.total, remaining_after: after, auto_answered: auto ? "job_number_assigned" : null },
+          structuredContent: { check_key: key, index: wq.index, total: wq.total, remaining_after: after, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
         };
       }
       await audit(sb, job, "next_question", "view_setup_question", q?.key ?? null);
@@ -1053,7 +1064,7 @@ export const nextQuestion = defineTool({
         ...text(
           `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
         ),
-        structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: auto ? "job_number_assigned" : null },
+        structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
       }, JOB_SETUP_SOFTWARE_BLOCK);
     }),
 });
@@ -1477,7 +1488,7 @@ export const lookaheadGet = defineTool({
         ...(d.dataDate ? [{ cells: [dataDateRule(d.dataDate, d.version)] }] : []),
         ...(win?.note ? [{ cells: [win.note] }] : []),
       ] }, { heading: "Schedule activities in this window", kind: "table", columns: ["Activity", "Start", "Finish"],
-        rows: activities.length ? activities.map((a) => ({ cells: [a.name || a.description || a.id, a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
+        rows: activities.length ? activities.map((a) => ({ cells: [activityIdName(a), a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
           : [{ cells: [d.acts.length ? "No saved activities overlap this window" : "No saved CPM activities yet", "", ""] }],
       }];
       // Match the existing report's job obligations, not just this lookahead's attached rows.

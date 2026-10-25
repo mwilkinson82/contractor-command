@@ -11,6 +11,13 @@ import {
   relocateGrokInstructionText,
 } from "./native-card-transport";
 import { sovRequiredTop } from "./visible";
+import { activityIdName } from "./styled-views";
+import { phoneLookaheadText } from "./phone-reply";
+import { DATA_DATE_FUTURE_ERROR, iorSectionsText, resolveDataDate } from "./living";
+import { companyProjectSoftware } from "./scope-defaults";
+import { attachAthenaCard } from "./cards/attach";
+import { inferCard } from "./cards/infer";
+import { renderHtml } from "./cards/html";
 
 const HTML =
   '<!doctype html><html><head><style>body{color:#1E5FED}</style></head><body><article class="card">Harbor Point</article></body></html>';
@@ -240,5 +247,77 @@ describe("locked behaviors", () => {
     expect(doc).toContain("oaisdmntpreastus3.blob.core.windows.net");
     expect(doc).toContain("evil-oaisdmntpre.blob.core.windows.net");
     expect(doc).toContain("oaisdmntpre.blob.core.windows.net.evil.com");
+  });
+
+  it("prints split lookahead activities with their ids", () => {
+    expect(activityIdName({ id: "A1110a", name: "Underground conduit rough-in" })).toBe(
+      "A1110a – Underground conduit rough-in",
+    );
+    const text = phoneLookaheadText({
+      as_of: "2026-10-21",
+      activities: [
+        { id: "A1110a", name: "Underground conduit rough-in", start: "2026-10-26", finish: "2026-10-30" },
+        { id: "A1110b", name: "Underground conduit rough-in", start: "2026-10-27", finish: "2026-10-31" },
+      ],
+      items: [],
+    });
+    expect(text).toContain("A1110a – Underground conduit rough-in");
+    expect(text).toContain("A1110b – Underground conduit rough-in");
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("A1110a – Underground conduit rough-in");
+  });
+
+  it("defaults a missing data date to today in Manaus and refuses a later one", () => {
+    const now = new Date("2026-10-25T03:30:00Z");
+    expect(resolveDataDate(undefined, now)).toEqual({ ok: true, dataDate: "2026-10-24" });
+    expect(resolveDataDate("2026-10-25", now).ok).toBe(false);
+    expect(DATA_DATE_FUTURE_ERROR.endsWith("Nothing was saved.")).toBe(true);
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("America/Manaus");
+    expect(doc).toContain("Nothing was saved.");
+  });
+
+  it("treats company-profile project software as the setup answer", () => {
+    expect(companyProjectSoftware({ project_software: "Procore" })).toBe("Procore");
+    expect(companyProjectSoftware({ accounting: "Foundation" })).toBeNull();
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("company profile");
+  });
+
+  it("prints saved IOR sections as readable text", () => {
+    const text = iorSectionsText({
+      risk_allocations: [{ description: "Switchgear delay holds the gear", amount: 10000 }],
+      top_three_actions: [{ action: "Price the ceiling conflict" }],
+    }).join("\n");
+    expect(text).toContain("Switchgear delay holds the gear");
+    expect(text).toContain("Price the ceiling conflict");
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("risk allocations");
+  });
+
+  it("prints the onboarding profile heading once and keeps the card HTML", () => {
+    const profile = [
+      "Company profile:",
+      "Company: Fictional Electric",
+      "Company time zone: America/Manaus",
+      "Agent name: Athena",
+      "Role: prime",
+      "Tool stack: project software: Procore",
+      "Decision rights: change orders: owner",
+      "Default applicability: none",
+      "Members: Sam (owner)",
+      "Athena v0.8.23",
+    ].join("\n");
+    const card = inferCard("onboarding", profile);
+    const out = attachAthenaCard("onboarding", { content: [{ type: "text", text: profile }] }) as {
+      content: { text: string }[];
+      structuredContent: { html: string };
+    };
+    expect(out.structuredContent.html).toBe(renderHtml(card));
+    const prose = out.content[0].text.split("<!doctype")[0];
+    expect(prose.match(/What I have so far/g)).toEqual(["What I have so far"]);
+    expect(prose.match(/Company: Fictional Electric/g)).toEqual(["Company: Fictional Electric"]);
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("What I have so far");
   });
 });
