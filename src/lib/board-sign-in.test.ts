@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { boardReturnForVisit, boardSignInReturn } from "./board-sign-in";
+import { boardReturnForVisit, boardSignInReturn, continueBoardSignIn } from "./board-sign-in";
+import { vi } from "vitest";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const board = `/r/job/${JOB}/items`;
 
 describe("job board sign-in return", () => {
+  it("reloads an identical record URL and rejects an unsafe Continue target", () => {
+    const next = `/r/job/${JOB}/submittal/05%2012%2000-001?t=key&upload=1#upload`;
+    const url = new URL(next, "https://app.meetathena.io");
+    const navigation = {
+      pathname: url.pathname,
+      search: url.search,
+      hash: url.hash,
+      assign: vi.fn(),
+      reload: vi.fn(),
+    };
+    continueBoardSignIn(next, navigation);
+    expect(navigation.reload).toHaveBeenCalledOnce();
+    expect(navigation.assign).not.toHaveBeenCalled();
+    continueBoardSignIn("https://evil.example", navigation);
+    expect(navigation.reload).toHaveBeenCalledOnce();
+    expect(navigation.assign).not.toHaveBeenCalled();
+  });
   it("keeps a stable board path, including its hash", () => {
     expect(boardSignInReturn(`${board}#item-8`)).toBe(`${board}#item-8`);
     expect(boardSignInReturn(`/r/job/${JOB}/field#activity-A2000`)).toBe(

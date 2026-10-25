@@ -398,3 +398,91 @@ describe("submittal record page readers", () => {
     ).toBe(1);
   });
 });
+
+describe("browser POST RPC transaction mode", () => {
+  it("allows the existing membership sync in record reads without changing function bodies, grants or package data", async () => {
+    const number = "QA-280-READ";
+    await rpc("mcp_submittal_log", [
+      job,
+      "add",
+      JSON.stringify({
+        number,
+        title: "Fictional browser access check",
+        spec_section: "26 24 16",
+        submittal_type: "product_data",
+        status: "in_prep",
+        ball_in_court: "gc",
+      }),
+    ]);
+    const names = ["mcp_submittal_record_get", "mcp_submittal_record_stamp"];
+    const metadata = () =>
+      db.query(
+        `SELECT proname,prosrc,proacl::text,prosecdef,proconfig FROM pg_proc WHERE oid IN ('public.mcp_submittal_record_get(uuid,text)'::regprocedure,'public.mcp_submittal_record_stamp(uuid,text)'::regprocedure) ORDER BY proname`,
+      );
+    const before = (await metadata()).rows;
+    const originalGate = (
+      await db.query<{ definition: string }>(
+        "SELECT pg_get_functiondef('public.mcp_gate()'::regprocedure) AS definition",
+      )
+    ).rows[0].definition;
+    const counts = () =>
+      db.query(
+        `SELECT (SELECT count(*)::int FROM mcp_submittal_packages) AS packages,(SELECT count(*)::int FROM mcp_submittal_package_items) AS pieces,(SELECT count(*)::int FROM mcp_submittal_mail) AS mail`,
+      );
+    const beforeCounts = (await counts()).rows;
+    // Production mcp_gate calls circle_sync_user, which SELECTs a provisioning
+    // row FOR UPDATE even for a previously provisioned member. Keep the same
+    // transaction requirement here, with fictional active-member rows only.
+    await db.exec(
+      `CREATE OR REPLACE FUNCTION public.mcp_gate() RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public AS $$ BEGIN PERFORM 1 FROM public.test_active_members WHERE user_id=auth.uid() FOR UPDATE; RETURN EXISTS(SELECT 1 FROM public.test_active_members WHERE user_id=auth.uid()); END $$;`,
+    );
+    const post = async (name: string, user = owner) => {
+      const mode = (
+        await db.query<{ volatility: string }>(
+          "SELECT provolatile::text AS volatility FROM pg_proc WHERE oid=to_regprocedure($1)",
+          [`public.${name}(uuid,text)`],
+        )
+      ).rows[0].volatility;
+      // PostgREST POST: VOLATILE => READ WRITE, STABLE/IMMUTABLE => READ ONLY.
+      return db.transaction(async (tx) => {
+        await tx.exec(`SET TRANSACTION ${mode === "v" ? "READ WRITE" : "READ ONLY"}`);
+        await tx.query("SELECT set_config('request.jwt.claims',$1,true)", [
+          JSON.stringify(claims(user)),
+        ]);
+        await tx.exec("SET LOCAL ROLE authenticated");
+        return (
+          await tx.query<{ data: unknown }>(`SELECT public.${name}($1,$2) AS data`, [job, number])
+        ).rows[0].data;
+      });
+    };
+    try {
+      for (const name of names) await expect(post(name)).rejects.toMatchObject({ code: "25006" });
+      await db.exec(
+        readFileSync(
+          "supabase/migrations/20261025042056_athena_submittal_member_read_transaction.sql",
+          "utf8",
+        ),
+      );
+      expect((await metadata()).rows).toEqual(before);
+      expect(await post(names[0])).toMatchObject({ read_only: false });
+      expect(await post(names[1])).toContain("|");
+      // The fixture's existing superintendent/estimator exclusions remain;
+      // changing transaction mode never creates a job grant or broadens scope.
+      await expect(post(names[0], superId)).rejects.toThrow(/MCP_NO_JOB|full access/);
+      await expect(post(names[0], estimator)).rejects.toThrow(/MCP_NO_JOB|full access|role/i);
+      await expect(post(names[0], "00000000-0000-4000-8000-000000000099")).rejects.toThrow(
+        "MCP_INACTIVE",
+      );
+      expect((await counts()).rows).toEqual(beforeCounts);
+      expect(
+        (
+          await db.query<{ allowed: boolean }>(
+            "SELECT has_function_privilege('anon','public.mcp_submittal_record_get(uuid,text)','execute') AS allowed",
+          )
+        ).rows[0].allowed,
+      ).toBe(false);
+    } finally {
+      await db.exec(originalGate);
+    }
+  });
+});
