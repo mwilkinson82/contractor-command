@@ -1164,6 +1164,129 @@ export type Database = {
           },
         ]
       }
+      mcp_change_history: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          job_id: string
+          record_version: number
+          snapshot: Json
+          submittal_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          job_id: string
+          record_version: number
+          snapshot: Json
+          submittal_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          job_id?: string
+          record_version?: number
+          snapshot?: Json
+          submittal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_change_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_change_history_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_change_operations: {
+        Row: {
+          actor_id: string
+          created_at: string
+          digest: string
+          job_id: string
+          request_id: string
+          submittal_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          digest: string
+          job_id: string
+          request_id: string
+          submittal_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          digest?: string
+          job_id?: string
+          request_id?: string
+          submittal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_change_operations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_change_operations_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_change_orders: {
+        Row: {
+          details: Json
+          job_id: string
+          submittal_id: string
+          updated_at: string
+        }
+        Insert: {
+          details: Json
+          job_id: string
+          submittal_id: string
+          updated_at?: string
+        }
+        Update: {
+          details?: Json
+          job_id?: string
+          submittal_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_change_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_change_orders_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_checklist_items: {
         Row: {
           active: boolean
@@ -6286,12 +6409,26 @@ export type Database = {
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
       mcp_can_view_job: { Args: { _job: string }; Returns: boolean }
       mcp_canary_for: { Args: { _company: string }; Returns: string }
+      mcp_change_log_open: {
+        Args: { _job: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_change_price: { Args: { _lines: Json }; Returns: Json }
+      mcp_change_record: {
+        Args: { _action: string; _job: string; _p: Json }
+        Returns: Json
+      }
+      mcp_change_rows: { Args: { _job: string }; Returns: Json }
       mcp_clause_norm: { Args: { _s: string }; Returns: string }
       mcp_clauses_save: {
         Args: { _clauses: Json; _doc: Json; _job: string }
         Returns: Json
       }
       mcp_clean_pm_name: { Args: { _s: string }; Returns: string }
+      mcp_commercial_package_read: {
+        Args: { _submittal: string }
+        Returns: boolean
+      }
       mcp_company_brand_save: {
         Args: { _company: string; _p: Json }
         Returns: undefined
