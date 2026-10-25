@@ -3,6 +3,8 @@
 import { addDays } from "./deadlines";
 import { isDelayNoticeTask } from "./delay-notice";
 import type { CardModel } from "./cards/model";
+import { mdLink } from "./plain-label";
+import { openItemsBoardUrl } from "./open-feed";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -21,6 +23,7 @@ type Row = {
   flag?: string | null;
   overdue?: boolean;
   due_in_7_days?: boolean;
+  href?: string | null;
 };
 
 const clean = (value: string) => value.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
@@ -69,7 +72,7 @@ function bullet(row: Row): string {
   const who = clean(row.owner ?? "") || "Needed";
   const due = monthDay(asDate(row.due));
   const detail = sentence ? ` ${sentence}.` : "";
-  return `- **${title}.**${detail} ${who}${due ? `, due ${due}` : ""}.`;
+  return `- **${row.href ? mdLink(`${title}.`, row.href) : `${title}.`}**${detail} ${who}${due ? `, due ${due}` : ""}.`;
 }
 
 function section(lines: string[], heading: string, rows: Row[]) {
@@ -191,6 +194,7 @@ export function phoneOpenItemsText(sc: Sc): string | null {
       owner: item.owner ?? fromCard?.cells?.[1],
       due: asDate(item.due) ?? asDate(fromCard?.cells?.[2]),
       flag: item.flag ?? fromCard?.flag ?? null,
+      href: item.href ?? fromCard?.href,
     };
   });
   const source = rows.length
@@ -200,6 +204,7 @@ export function phoneOpenItemsText(sc: Sc): string | null {
         owner: row.cells[1],
         due: asDate(row.cells[2]),
         flag: row.flag ?? null,
+        href: row.href,
       }));
   if (!source.length && !card) return null;
   const counts = sc.counts && typeof sc.counts === "object" ? (sc.counts as { open?: unknown; overdue?: unknown; due_in_7_days?: unknown }) : null;
@@ -237,7 +242,9 @@ export function phoneOpenItemsText(sc: Sc): string | null {
   const overdueCount = typeof counts?.overdue === "number" ? counts.overdue : kpiNumber(card, "Overdue") ?? overdue.length;
   const dueCount = due7Count ?? due7.length;
   const lines = ["## 🔵 Open items"];
+  const board = openItemsBoardUrl(sc.board_url) ?? openItemsBoardUrl(card?.sections?.find((section) => section.heading === "Live open items")?.rows[0]?.href);
   if (card?.job) lines.push(`**${clean(card.job)}**`);
+  if (board) lines.push(mdLink("Open live open items", board));
   const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue` : `${overdueCount} overdue`;
   lines.push(`**${openCount} open · ${overdueWords} · ${dueCount} due within 7 days**`);
   section(lines, "### 🔴 Overdue", overdue);

@@ -273,6 +273,20 @@ describe("record page", () => {
     // The page palette is the hosted-page one (navy, blue, gray); red appears only because the clock is overdue.
     expect(html).toContain(ALERT_HEX);
   });
+  it("shows unique build order on four original T-2 copies without rewriting their records", () => {
+    const copies = ["c35511ef", "d915efa3", "343da664", "dbf1dd79"].map((id, i) => ({
+      ...payload.packages![0], id, transmittal_number: 2, filename: "original-T2.pdf", is_current: false,
+      created_at: `2026-10-24T19:${String(11 + i).padStart(2, "0")}:33Z`,
+    }));
+    const before = JSON.stringify(copies);
+    const html = renderSubmittalRecordBody({ ...payload, packages: [...copies].reverse() });
+    for (let i = 1; i <= 4; i++) expect(html).toContain(`Build ${i} of 4`);
+    for (const copy of copies) expect(html).toContain(`Copy ${copy.id}`);
+    expect(html.match(/Transmittal T-2/g)).toHaveLength(4);
+    expect(html).toContain("original transmittal numbers and PDFs stay as issued");
+    expect(JSON.stringify(copies)).toBe(before);
+  });
+
   it("renders each build in the resolved job context, never a legacy default or the viewing device zone", () => {
     const record = { ...payload, time_zone: "America/New_York", time_zone_context: {job:null,company:"America/Chicago",member:"America/New_York"}, packages: [{...payload.packages![0],created_at:"2026-10-24T19:11:33+00:00"}] };
     const html = renderSubmittalRecordBody(record);
@@ -365,15 +379,15 @@ describe("package uploads from the card and living log", () => {
     const url = new URL(upload);
     expect(url.pathname).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001`);
     expect(url.searchParams.get("t")).toBe(TOKEN);
-    expect(url.searchParams.get("upload")).toBe("1");
+    expect(url.searchParams.get("upload")).toBe('"1"');
     expect(url.hash).toBe("#upload");
-    expect(boardSignInReturn(url.pathname+url.search+url.hash)).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001?t=${TOKEN}&upload=1#upload`);
+    expect(boardSignInReturn(url.pathname+url.search+url.hash)).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001?t=${TOKEN}&upload=%221%22#upload`);
     const rows = [row({id:"fictional",number:"05 12 00-001",revision:0})];
     const shown = presentSubmittalLog({jobNumber:"2701",jobName:"Fictional",rows,today:TODAY,boardUrl:BOARD});
     expect(shown.text).toContain(upload);
     expect(shown.card.sections?.find(s=>s.heading === "Upload package pieces")?.rows[0].href).toBe(upload);
     const html = signSiblingLinks(renderReportBody({page:"submittals",submittals:rows,today:TODAY}),TOKEN);
-    expect(html).toContain(`href="submittal/05%2012%2000-001?upload=1&amp;t=${TOKEN}"`);
+    expect(html).toContain(`href="submittal/05%2012%2000-001?upload=%221%22&amp;t=${TOKEN}"`);
   });
 });
 

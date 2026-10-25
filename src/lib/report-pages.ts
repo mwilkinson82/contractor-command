@@ -13,6 +13,7 @@ import { formatReportNumber, money } from "./report-format";
 import { dedupeOpenRows, itemName } from "./mcp/open-feed";
 import { BALL_LABEL, currentSubmittals, labelOf, packageLine, packageDelivery, submittalDisplayStatus, postureSentence, resolvePosture, sourceLine, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
 import { jobHeading } from "./mcp/job-label";
+import { SUBMITTAL_UPLOAD_QUERY } from "./mcp/submittal-record-url";
 
 function jobPageTitle(number?: string | null, name?: string | null): string {
   return jobHeading({ job_number: number ?? "", name: name ?? "" }, " ");
@@ -288,7 +289,7 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
     // Every row is a link to its record: submittal/<number> resolves beside this page at /r/job/<job>/submittal/<number>.
     const recordHref = `submittal/${encodeURIComponent(row.number.trim())}`;
     const href = recordHref;
-    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}"><a href="${esc(href)}" data-record="${esc(row.number)}" style="color:${color};text-decoration:none">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</a></div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(submittalDisplayStatus(row))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))} · Overdue: ${late ? "Yes" : "No"}${packageDelivery(row) ? ` · ${esc(packageDelivery(row))}` : ""}${row.built_package ? ` · ${esc(row.built_package.filename)} · <a href="${esc(recordHref)}?open=package&amp;package_id=${encodeURIComponent(row.built_package.id)}" style="color:${BLUE}">Open package PDF</a>` : ""} · <a href="${esc(recordHref)}?upload=1" style="color:${BLUE}">Upload a piece</a></div>`)}</section>`;
+    return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}"><a href="${esc(href)}" data-record="${esc(row.number)}" style="color:${color};text-decoration:none">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</a></div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(submittalDisplayStatus(row))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))} · Overdue: ${late ? "Yes" : "No"}${packageDelivery(row) ? ` · ${esc(packageDelivery(row))}` : ""}${row.built_package ? ` · ${esc(row.built_package.filename)} · <a href="${esc(recordHref)}?open=package&amp;package_id=${encodeURIComponent(row.built_package.id)}" style="color:${BLUE}">Open package PDF</a>` : ""} · <a href="${esc(recordHref)}?${SUBMITTAL_UPLOAD_QUERY}" style="color:${BLUE}">Upload a piece</a></div>`)}</section>`;
   }).join("");
 }
 

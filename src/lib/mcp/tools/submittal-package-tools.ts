@@ -1,3 +1,4 @@
+import { submittalHistoryOrder } from "../../submittal-history-order";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
@@ -65,6 +66,7 @@ export function packageCard(
   const sent = typeof extra.sent === "boolean" ? extra.sent : !!ctx.package?.sent_at;
   const warnings = duplicatePieceWarnings(ctx.items);
   const history = extra.history as { id: string; filename: string; transmittal_number: number | null; revision: number; current: boolean; revoked: boolean; created_at: string; built_at_display?: string; open_url: string | null }[] | undefined;
+  const buildOrder = submittalHistoryOrder(history ?? []);
   const card: CardModel = {
     state: "result",
     title,
@@ -137,7 +139,7 @@ export function packageCard(
       ...(history?.length ? [{ heading: "Package history", kind: "table" as const,
         columns: ["Package version", "Status"],
         rows: history.map((p) => ({
-          cells: [`${p.transmittal_number ? `T-${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${p.built_at_display ?? submittalBuildTime(p.created_at)} · Copy ${p.id.slice(0, 8)}`,
+          cells: [`${buildOrder.get(p.id)} · ${p.transmittal_number ? `T-${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${p.built_at_display ?? submittalBuildTime(p.created_at)} · Copy ${p.id.slice(0, 8)}`,
             p.revoked ? "Link turned off" : p.current ? "Current package" : "Superseded"],
           href: p.open_url,
         })) }] : []),

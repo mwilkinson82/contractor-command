@@ -26,7 +26,7 @@ import type { CardSection } from "../cards/model";
 import { contractTermsCard, sovCard } from "../cards/structured";
 import { signedJobPages } from "../board-url";
 import { whichJobAsk } from "../which-job";
-import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemsCard, openItemsHeader } from "../open-feed";
+import { dueOf, isDueIn7, isOverdue, itemName, openItemFeed, openItemRecordUrl, openItemsCard, openItemsHeader } from "../open-feed";
 import { completionDate, contractValueLine, iorContractValue, pickContractValue, setupContractValue, sovContractValue } from "../contract-value";
 import { formatBillingText } from "../../report-format";
 import { EMAIL_VIEW_SPEC, LOOKAHEAD_VIEW_SPEC, REMINDERS_VIEW_SPEC, highlightLine, lookaheadHighlight } from "../views";
@@ -1353,7 +1353,14 @@ export const listOpenItems = defineTool({
       if (error) throw new Error(error.message);
       const tz = await jobTimeZone(sb, job.job_id);
       await audit(sb, job, "list_open_items", "view_open_items", null);
-      if (!data?.length) return text(`${prefix(job)}${laHead}No open items.${laBlock}`);
+      const pages = await signedJobPages((fn, params) => sb.rpc(fn, params), job.job_id, job.scope);
+      const boardUrl = pages.items ?? null;
+      if (!data?.length) {
+        const counts = { open: 0, overdue: 0, due_in_7_days: 0 };
+        return { ...text(`${prefix(job)}${laHead}No open items.${laBlock}`), structuredContent: {
+          counts, items: [], board_url: boardUrl, card: openItemsCard(named(job), [], counts, todayIn(tz), boardUrl),
+        } };
+      }
       // 0.8.5: notice items take Method and Recipient from the contract clause and the saved job contacts when blank,
       // and the same event + notice type shows once. Display only: nothing is written or deleted, so this is idempotent.
       const { contacts, clauses: cls } = await noticeContext(sb, job);
@@ -1369,11 +1376,11 @@ export const listOpenItems = defineTool({
       const dupCount = [...deduped.duplicates.values()].reduce((n, d) => n + d.length, 0);
       const ec = emailContact(contactForRole(contacts, "Project Manager"));
       const dupNote = dupCount ? `\n${dupCount} duplicate notice item${dupCount === 1 ? "" : "s"} shown once (same event and notice type); nothing was deleted.` : "";
-      const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_ref: itemRef(i), item_type: itemType(i, nas) }));
+      const listed = rows.map((i) => ({ action: formatBillingText(itemName(i.action)), owner: i.accountable ?? i.owner ?? null, due: dueOf(i) || null, overdue: isOverdue(i, today), due_in_7_days: isDueIn7(i, today), item_id: i.id, item_ref: itemRef(i), item_type: itemType(i, nas), href: openItemRecordUrl(boardUrl, i.id) }));
       const counts = { open: listed.length, overdue: listed.filter((i) => i.overdue).length, due_in_7_days: listed.filter((i) => i.due_in_7_days).length };
       const header = openItemsHeader(counts);
-      const card = openItemsCard(`${named(job)}`, rows, counts, today);
-      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts, items: listed, card, email_contact: ec.structured } }, "The open count is the number of items in this list. Overdue is the number of those items marked overdue. Do not count a different set.", EMAIL_CONTACT_RULE);
+      const card = openItemsCard(`${named(job)}`, rows, counts, today, boardUrl);
+      return guide({ ...text(`${prefix(job)}${laHead}${header}\n${lines.join("\n")}${dupNote}\n\n${REMINDERS_VIEW_SPEC.join("\n")}\n\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}${laBlock}`), structuredContent: { counts, items: listed, card, board_url: boardUrl, email_contact: ec.structured } }, "The open count is the number of items in this list. Overdue is the number of those items marked overdue. Do not count a different set.", EMAIL_CONTACT_RULE);
     }),
 });
 

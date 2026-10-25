@@ -565,6 +565,7 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(packageCard.sections.find(s => s.heading === "Items included")?.columns).toContain("Source");
     expect(renderMarkdown(packageCard)).toContain("Example Manufacturer");
     expect(renderHtml(packageCard)).toContain("Draft, not sent");
+    expect(renderHtml(packageCard)).toContain("Build 1 of 1");
     mkdirSync("artifacts/submittal-polish", { recursive: true });
     writeFileSync("artifacts/submittal-polish/package-card.html", renderHtml(packageCard));
     writeFileSync("artifacts/submittal-polish/collect-card.html", renderHtml(before.structuredContent.card));
