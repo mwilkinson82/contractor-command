@@ -1,5 +1,5 @@
 import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, sovItemProblems, money, type SovBrand, type SovView } from "../sov";
 import { draftSovText, nextDraftFacts } from "../sov-draft";
 import { storedModule } from "../record-copy";
 import type { SovLineIn } from "../sov";
@@ -204,7 +204,10 @@ export const onboarding = defineTool({
 // ---------- intake ----------
 const workPackage = z.object({ name: z.string().trim().min(1).max(120), mode: z.enum(["self_perform", "subcontract"]) });
 const budgetLine = z.object({ cost_code: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), amount: z.number().optional() });
-const sovLine = z.object({ line: z.string().trim().min(1).max(40), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional() });
+const SOV_LINE_NOTE = "SOV item number in 01.01 style: two-digit CSI division, dot, line (e.g. 03.01, 26.06). Other formats are refused.";
+const SOV_FEE_NOTE = "budget: contractor fee percent, 0 to under 100. Send it with the first SOV (0 when there is no separate fee); without it the SOV report and contract value can't be built.";
+const SOV_COPY_NOTE = "budget: which SOV copy sov_lines go to. \"official\" (default) is the contract SOV; once saved, its dollars change only by approved change order. \"draft\" saves a separate copy in Athena labeled \"Draft, not official\" for what-ifs, rebalances, expected change orders and a monthly forecast, and never touches the official SOV, contract value or pay apps. Whenever the member asks for a draft, what-if or proposed SOV, call intake with sov_copy \"draft\". Never build a draft yourself, and never say a draft was saved unless this tool returned \"Saved in Athena\".";
+const sovLine = z.object({ line: z.string().trim().min(1).max(40).describe(SOV_LINE_NOTE), description: z.string().max(200).optional(), billable_value: z.number().optional(), cost_codes: z.array(z.string().max(40)).max(50).optional(), spec_section: z.string().trim().max(40).optional(), drawing_number: z.string().trim().max(40).optional() });
 const gap = z.object({ gap: z.string().trim().min(1).max(1000), owner: z.string().trim().min(1).max(120), needed_by: date.optional() });
 import { CLAUSE_ABSENT, CLAUSE_UNKNOWN, FLAG_CLAUSE, clauseFlag, effectiveFlag } from "../clauses";
 export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
@@ -304,7 +307,7 @@ async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<It
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
-  description: "Records a job and its setup.",
+  description: "Records a job and its setup. Section budget saves the budget and SOV; a draft or what-if SOV is saved only with sov_copy \"draft\". Say saved only after this tool confirms it.",
   inputSchema: {
     section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]),
     job_number: jobNumber,
@@ -393,9 +396,9 @@ export const intake = defineTool({
     // Budget (F)
     budget_lines: z.array(budgetLine).max(300).optional(),
     sov_lines: z.array(sovLine).max(300).optional(),
-    fee_pct: z.number().optional(),
+    fee_pct: z.number().optional().describe(SOV_FEE_NOTE),
     sov_basis: z.string().trim().max(200).optional(),
-    sov_copy: z.enum(["official", "draft"]).optional(),
+    sov_copy: z.enum(["official", "draft"]).optional().describe(SOV_COPY_NOTE),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -739,12 +742,14 @@ export const intake = defineTool({
         if (savedOfficial.error) dbError(savedOfficial.error);
         const officialRows = (savedOfficial.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
         const officialByKey = new Map(officialRows.map((row) => [row.key, row.value ?? {}]));
+        const badItems = sovItemProblems((args.sov_lines ?? []).map((s) => s.line));
+        if (badItems.length) throw new ToolError(`${badItems.join("\n")}\nNothing was saved.`);
         if (args.sov_copy === "draft") {
           const savedDraft = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", storedModule("sov", "draft"));
           if (savedDraft.error) dbError(savedDraft.error);
           const draftRows = (savedDraft.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
           const incoming: Record<string, unknown> = {};
-          for (const s of args.sov_lines ?? []) incoming[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}) };
+          for (const s of args.sov_lines ?? []) incoming[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}), ...(s.drawing_number ? { drawing_number: s.drawing_number } : {}) };
           const step = nextDraftFacts(officialRows, draftRows, Object.keys(incoming).length ? incoming : null);
           if (step.copy) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: storedModule("sov", "draft"), _facts: step.copy, _source: "member_answer" });
           if (step.edits) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: storedModule("sov", "draft"), _facts: step.edits, _source: "member_answer" });
@@ -771,7 +776,7 @@ export const intake = defineTool({
             website: company?.website ?? null,
           };
           const textBody = draftSovText(lines, terms?.sov_fee_pct == null ? null : Number(terms.sov_fee_pct), terms?.sov_basis ?? null, brand, { start: starts[0] ?? null, finish: finishes.at(-1) ?? null });
-          return text(`${prefix(job)}${textBody}`);
+          return text(`${prefix(job)}Saved in Athena (draft copy only; the official SOV did not change).\n${textBody}`);
         }
         const sov: Record<string, unknown> = {};
         for (const s of args.sov_lines ?? []) {
@@ -781,6 +786,7 @@ export const intake = defineTool({
             description: s.description !== undefined ? s.description : old.description ?? null,
             cost_codes: s.cost_codes ?? (Array.isArray(old.cost_codes) ? old.cost_codes : []),
             ...(s.spec_section ? { spec_section: s.spec_section } : {}),
+            ...(s.drawing_number ? { drawing_number: s.drawing_number } : {}),
             ...(s.billable_value !== undefined ? { billable_value: s.billable_value } : {}),
           };
         }
@@ -1781,11 +1787,17 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   const rows = (facts.data ?? []) as { module: string; key: string; value: unknown; status: string }[];
   const ec = emailContact(contactForRole((await noticeContext(sb, job)).contacts, "Project Manager"));
   const lines = rows.filter((f) => f.module === "sov").map((f) => {
-    const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null; cost_codes?: string[]; spec_section?: string | null };
-    return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null, cost_codes: v.cost_codes, spec_section: v.spec_section ?? null };
+    const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null; cost_codes?: string[]; spec_section?: string | null; drawing_number?: string | null };
+    return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null, cost_codes: v.cost_codes, spec_section: v.spec_section ?? null, drawing_number: v.drawing_number ?? null };
   });
   const ret = retainagePct(rows.find((f) => f.module === "contract" && f.key === "retainage" && f.status === "known")?.value);
   const fee = jr.data?.sov_fee_pct == null ? null : Number(jr.data.sov_fee_pct);
+  const cpm = await sb.rpc("mcp_living_report_get", { _job: job.job_id, _type: "cpm", _version: null });
+  const activitiesByLine: Record<string, string[]> = {};
+  for (const a of ((cpm.data as { data?: { activities?: { id?: string | null; name?: string | null; sov_line?: string | null }[] } } | null)?.data?.activities ?? [])) {
+    if (!a?.sov_line) continue;
+    (activitiesByLine[a.sov_line] ??= []).push([a.id, a.name].filter(Boolean).join(" "));
+  }
   let sov;
   try {
     sov = buildSov(lines, fee, ret);
@@ -1803,12 +1815,12 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   return guide(
     {
       // 0.8.4: the delivery step rides in the tool text and structuredContent, not only in guidance, so every host (Claude too) asks it.
-      ...text(`${sovRequiredTop(sovLineRows(sov), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2 or 3:\n${EMAIL_TO_LABEL_REQUIRED}\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}`),
+      ...text(`${sovRequiredTop(sovLineRows(sov, activitiesByLine), ec.structured.to_line)}\n${sovSummaryText(prefix(job), sov, brand, jr.data?.sov_basis ?? null, sovFooterMissing(c), audience, view)}${sovSpecsMissing(sov) ? `\n${SOV_SPECS_MISSING_NOTE}` : ""}\n\n${sovDeliveryAsk(audience)}\nFor option 2 or 3:\n${EMAIL_TO_LABEL_REQUIRED}\n${ec.text}\n${EMAIL_VIEW_SPEC.join("\n")}`),
       structuredContent: {
         sov: {
           audience,
           view,
-          line_items: sovLineRows(sov),
+          line_items: sovLineRows(sov, activitiesByLine),
           notes: sovNotes(brand, sovFooterMissing(c)),
           specs_note: sovSpecsMissing(sov) ? SOV_SPECS_MISSING_NOTE : null,
           header: { project: `${named(job)}`, prepared: today, contractor: c.name, basis: jr.data?.sov_basis ?? null, contract_sum: sov.summary.contract_total, contract_sum_display: money(sov.summary.contract_total) },
@@ -1820,7 +1832,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
         // Card drawn from the rows, every line (the inferred card stopped at eight text lines).
         card: sovCard({
           job: named(job),
-          rows: sovLineRows(sov),
+          rows: sovLineRows(sov, activitiesByLine),
           divisions: sov.summary.divisions.map((d) => ({ division: d.division, title: d.title, scheduled_value_display: money(d.scheduled_value), pct_of_contract: d.pct_of_contract })),
           fee: sov.summary.fee > 0 ? { display: money(sov.summary.fee), pct: sov.summary.fee_pct } : null,
           totalDisplay: money(sov.summary.contract_total),
@@ -1829,7 +1841,7 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
           view,
         }),
         // 0.8.7: the host draws this bar chart (scheduled value by line) in the fixed palette, every host.
-        chart: sovChart(sovLineRows(sov)),
+        chart: sovChart(sovLineRows(sov, activitiesByLine)),
         // 0.8.8: same three delivery options (project software, Excel/PDF email, shared link) for every audience.
         delivery: sovDeliveryStructured(audience),
         // 0.8.5: who the SOV email card goes to (option 2), so the host fills To and the greeting.

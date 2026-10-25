@@ -86,10 +86,16 @@ describe("SOV data ties out", () => {
   test("refuses instead of producing numbers that don't tie: missing fee, bad item numbers, missing values", async () => {
     await call("owner", "intake", { section: "budget", job_number: "S-2", sov_lines: [{ line: "01.01", description: "PM", billable_value: 1000 }] });
     expect((await call("owner", "report", { job_number: "S-2", deliverable: "sov" })).text).toMatch(/can't be built yet[\s\S]*fee percent isn't recorded/);
-    await call("owner", "intake", { section: "budget", job_number: "S-2", fee_pct: 10, sov_lines: [{ line: "Div 1 misc", description: "Misc" }] });
+    const bad = await call("owner", "intake", { section: "budget", job_number: "S-2", fee_pct: 10, sov_lines: [{ line: "Div 1 misc", description: "Misc" }] });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toMatch(/Line Div 1 misc: item numbers use the 01\.01 style[\s\S]*Nothing was saved\./);
+    const draftBad = await call("owner", "intake", { section: "budget", job_number: "S-2", sov_copy: "draft", sov_lines: [{ line: "1", billable_value: 50 }] });
+    expect(draftBad.isError).toBe(true);
+    expect(draftBad.text).toMatch(/Line 1: item numbers use the 01\.01 style/);
+    expect((await call("owner", "report", { job_number: "S-2", deliverable: "sov" })).text).toMatch(/fee percent isn't recorded/);
+    await call("owner", "intake", { section: "budget", job_number: "S-2", fee_pct: 10, sov_lines: [{ line: "01.02", description: "Misc" }] });
     const r = await call("owner", "report", { job_number: "S-2", deliverable: "sov" });
     expect(r.isError).toBe(true);
-    expect(r.text).toMatch(/01\.01 style/);
     expect(r.text).toMatch(/no scheduled value/);
   });
   test("a fee of 100% or more is refused at intake", async () => {

@@ -14,9 +14,9 @@ export const CSI_DIVISIONS: Record<string, string> = {
   "45": "Industry-Specific Manufacturing Equipment", "46": "Water and Wastewater Equipment", "48": "Electrical Power Generation",
 };
 
-export type SovLineIn = { executed_change_order?: string; fee_included?: boolean; item_no: string; description: string | null; scheduled_value: number | null; cost_codes?: string[]; spec_section?: string | null };
+export type SovLineIn = { executed_change_order?: string; fee_included?: boolean; item_no: string; description: string | null; scheduled_value: number | null; cost_codes?: string[]; spec_section?: string | null; drawing_number?: string | null };
 export type Billing = { d: number | null; e: number | null; f: number | null; g: number | null; pct_complete: number | null; h: number | null; i: number | null };
-export type SovLine = { item_no: string; description: string; scheduled_value: number; cost_codes: string[]; spec_section: string | null } & Billing;
+export type SovLine = { item_no: string; description: string; scheduled_value: number; cost_codes: string[]; spec_section: string | null; drawing_number: string | null } & Billing;
 export type SovDivision = { division: string; title: string; header: string; lines: SovLine[]; subtotal: number; pct_of_contract: number; share_bar_pct: number };
 export type Sov = {
   columns: typeof G703_COLUMNS;
@@ -52,6 +52,11 @@ const cleanCodes = (c: unknown): string[] => (Array.isArray(c) ? c.filter((x): x
 const cleanSpec = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 const ITEM = /^(\d{2})\.(\d{2,3})$/;
+
+/** Item numbers the SOV report can build. Checked at intake so a saved SOV always renders. */
+export function sovItemProblems(items: string[]): string[] {
+  return items.filter((item) => !ITEM.test(item)).map((item) => `Line ${item}: item numbers use the 01.01 style (division, dot, line).`);
+}
 const cents = (n: number) => Math.round(n * 100);
 
 /** Member-facing refusal when an official SOV dollar would move without an approved change order. */
@@ -183,7 +188,7 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
       division, title, header: `${division} Division ${division} — ${title}`,
       lines: ls.map((l) => {
         const b = billing[l.item_no] ?? {};
-        return { item_no: l.item_no, description: (l.description ?? "").trim() || `Item ${l.item_no}`, scheduled_value: l.scheduled_value!, cost_codes: cleanCodes(l.cost_codes), spec_section: cleanSpec(l.spec_section), ...lineBilling(l.scheduled_value!, b.d ?? null, b.e ?? null, retPct) };
+        return { item_no: l.item_no, description: (l.description ?? "").trim() || `Item ${l.item_no}`, scheduled_value: l.scheduled_value!, cost_codes: cleanCodes(l.cost_codes), spec_section: cleanSpec(l.spec_section), drawing_number: cleanSpec(l.drawing_number), ...lineBilling(l.scheduled_value!, b.d ?? null, b.e ?? null, retPct) };
       }),
       subtotal: dollars(dC), pct_of_contract: pct2(dC, totalC), share_bar_pct: pct2(dC, totalC),
     };
@@ -293,11 +298,18 @@ export function sovNotes(brand: SovBrand, missing: string[]) {
 
 export type SovView = "lines" | "divisions";
 
-/** One row per SOV line (the default view): line no., division, description, scheduled value, % of contract total. */
-export function sovLineRows(sov: Sov) {
+/** One row per SOV line (the default view): description, spec section, drawing number, G703 billing columns, retainage, and the CPM activities that cost-load the line. */
+export function sovLineRows(sov: Sov, activitiesByLine: Record<string, string[]> = {}) {
   const total = Math.round(sov.summary.contract_total * 100);
   return sov.divisions.flatMap((d) =>
-    d.lines.map((l) => ({ item_no: l.item_no, division: d.division, division_title: d.title, spec_section: l.spec_section, description: l.description, cost_code: l.cost_codes.join(", ") || null, cost_codes: l.cost_codes, scheduled_value: l.scheduled_value, scheduled_value_display: money(l.scheduled_value), pct_of_total: pct2(Math.round(l.scheduled_value * 100), total) })),
+    d.lines.map((l) => ({
+      item_no: l.item_no, division: d.division, division_title: d.title, spec_section: l.spec_section, drawing_number: l.drawing_number, description: l.description,
+      cost_code: l.cost_codes.join(", ") || null, cost_codes: l.cost_codes, scheduled_value: l.scheduled_value, scheduled_value_display: money(l.scheduled_value), pct_of_total: pct2(Math.round(l.scheduled_value * 100), total),
+      // G703 columns: D previous periods, E this period, F materials stored. Zero until a pay app is billed.
+      work_completed_previous: l.d ?? 0, work_completed_this_period: l.e ?? 0, work_completed_to_date: dollars(cents(l.d ?? 0) + cents(l.e ?? 0)),
+      materials_stored_to_date: l.f ?? 0, total_completed_and_stored: l.g ?? 0, pct_complete: l.pct_complete ?? 0, balance_to_finish: l.h ?? l.scheduled_value, retainage: l.i ?? 0,
+      cpm_activities: activitiesByLine[l.item_no] ?? [],
+    })),
   );
 }
 
