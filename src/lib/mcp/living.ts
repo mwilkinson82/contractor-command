@@ -590,6 +590,44 @@ function iorRecordLine(record: Record<string, unknown>): string {
   return bits.join(" · ");
 }
 
+function textOf(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Plain IOR reply for a host that prints tool text and does not draw the card. */
+export function iorPlainReply(sc: Record<string, unknown> | null | undefined): string {
+  const lines: string[] = [];
+  const links = Array.isArray(sc?.board_links) ? sc.board_links : [];
+  for (const link of links) {
+    if (!link || typeof link !== "object") continue;
+    const row = link as { label?: unknown; href?: unknown };
+    const label = textOf(row.label);
+    const href = textOf(row.href);
+    if (label && href) lines.push(`${label}: ${href}`);
+  }
+  const data = sc?.data && typeof sc.data === "object" && !Array.isArray(sc.data) ? (sc.data as Record<string, unknown>) : null;
+  const sections = iorSectionsText(data);
+  if (sections.length) lines.push("", ...sections);
+  if (typeof sc?.version === "number") {
+    const who = textOf(sc.updated_by);
+    const date = textOf(sc.data_date);
+    lines.push("", `Version v${sc.version}${date ? ` · Data date ${date}` : ""}${who ? ` · ${who}` : ""}`);
+  }
+  const log = Array.isArray(sc?.change_log) ? sc.change_log.slice(0, 5) : [];
+  lines.push("", "Change log (latest 5):");
+  if (!log.length) lines.push("- None yet.");
+  else {
+    for (const item of log) {
+      if (!item || typeof item !== "object") continue;
+      const entry = item as { version?: unknown; at?: unknown; who?: unknown; what?: unknown; why?: unknown };
+      const when = textOf(entry.at).slice(0, 10);
+      const why = textOf(entry.why);
+      lines.push(`- v${entry.version ?? ""} · ${when} · ${textOf(entry.who) || "member"} · ${textOf(entry.what)}${why ? ` (why: ${why})` : ""}`);
+    }
+  }
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** Readable IOR sections. Links, the version line, and the change log stay where the tool already prints them. */
 export function iorSectionsText(data: Record<string, unknown> | null | undefined): string[] {
   if (!data) return [];

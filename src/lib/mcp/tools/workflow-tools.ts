@@ -19,7 +19,7 @@ import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
-import { activityIdName, dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
+import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, scheduleWindowLabel, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
@@ -1488,7 +1488,7 @@ export const lookaheadGet = defineTool({
         ...(d.dataDate ? [{ cells: [dataDateRule(d.dataDate, d.version)] }] : []),
         ...(win?.note ? [{ cells: [win.note] }] : []),
       ] }, { heading: "Schedule activities in this window", kind: "table", columns: ["Activity", "Start", "Finish"],
-        rows: activities.length ? activities.map((a) => ({ cells: [activityIdName(a), a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
+        rows: activities.length ? activities.map((a) => ({ cells: [scheduleWindowLabel(a), a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
           : [{ cells: [d.acts.length ? "No saved activities overlap this window" : "No saved CPM activities yet", "", ""] }],
       }];
       // Match the existing report's job obligations, not just this lookahead's attached rows.

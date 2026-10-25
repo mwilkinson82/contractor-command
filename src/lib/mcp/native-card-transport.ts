@@ -25,6 +25,7 @@ import {
 } from "./cards/native";
 import { isMcpPost } from "./server-info-branding";
 import { phoneHostText } from "./phone-reply";
+import { iorPlainReply } from "./living";
 import { timingFields, type CardTiming } from "./card-timing";
 import {
   EMAIL_CARD_MIME,
@@ -261,12 +262,6 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
     if (!call || call.id == null || typeof call.method !== "string") continue;
     const method = call.method;
     if (
-      method === "tools/call" &&
-      !cardMetaFor(String(params.name ?? "")) &&
-      !GROK_PLAIN_TOOLS.has(String(params.name ?? ""))
-    )
-      continue;
-    if (
       ![
         "initialize",
         "server/discover",
@@ -283,6 +278,15 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
     const host = readHost(request, params, meta);
     const session = request.headers.get("mcp-session-id");
     const remembered = session ? cardSessions.get(session) : undefined;
+    const grok = remembered?.grok ?? isGrokHost(host);
+    const toolName = String(params.name ?? "");
+    if (
+      method === "tools/call" &&
+      !cardMetaFor(toolName) &&
+      !GROK_PLAIN_TOOLS.has(toolName) &&
+      !(grok && toolName === "living_report_get")
+    )
+      continue;
     calls.push({
       id: call.id,
       method,
@@ -399,6 +403,24 @@ export function nativeCardPayload(
         next = { ...(result ?? {}), resources: [...resources, ...missing.map(resourceEntry)] };
     } else if (call.method === "resources/templates/list" && missingMethod) {
       next = { resourceTemplates: [] };
+    } else if (
+      call.method === "tools/call" &&
+      result &&
+      result.isError !== true &&
+      call.grok &&
+      String(call.params.name ?? "") === "living_report_get" &&
+      obj(result.structuredContent)?.report_type === "ior" &&
+      Array.isArray(result.content)
+    ) {
+      const plain = iorPlainReply(obj(result.structuredContent) ?? {});
+      let wrote = false;
+      const content = result.content.map((block) => {
+        const row = obj(block);
+        if (!row || row.type !== "text" || typeof row.text !== "string" || wrote) return block;
+        wrote = true;
+        return { ...row, text: plain };
+      });
+      if (wrote) next = { ...result, content };
     } else if (
       call.method === "tools/call" &&
       result &&
