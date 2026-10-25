@@ -89,7 +89,7 @@ describe("submittal void", () => {
     expect(page).not.toContain(SUBMITTAL_DRAFT_LABEL);
     const source = readFileSync("src/lib/submittal-record-page.ts", "utf8");
     expect(source).toContain("submittalDisplayStatus(row, p.packages)");
-    expect(source).toContain('row.submitted_on ? ` · Submitted ${esc(day(row.submitted_on))}`');
+    expect(source).toContain("` · Submitted ${esc(when)}`");
   });
 
   it("marks the row void in the database and keeps who, when, and the reason", async () => {

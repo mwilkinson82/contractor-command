@@ -167,7 +167,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     };
   }
 
-  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase" || tool === "daily_report_draft" || tool === "daily_report_save" || tool === "daily_report_get") {
+  if (tool === "list_open_items" || tool === "pm_meeting" || tool === "pm_morning" || tool === "pm_evening" || tool === "athena_morning_hitlist" || tool === "submittal_log" || tool === "submittals_list" || tool === "submittals_import" || tool === "project_record_search" || tool === "submittal_chase" || tool === "submittal_void" || tool === "daily_report_draft" || tool === "daily_report_save" || tool === "daily_report_get") {
     const company = /No job named|Your companies/i.test(text);
     const bullets = linesOf(text).filter((l) => l.startsWith("- ") || l.startsWith("|"));
     if (company) {
