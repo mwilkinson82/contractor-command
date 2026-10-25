@@ -871,13 +871,16 @@ export const intake = defineTool({
         const v = args[k]?.trim();
         if (v) docs[k] = v;
       }
-      if (args.start_date && args.end_date && args.end_date < args.start_date) throw new ToolError("end_date is before start_date.");
+      // The window comes from the current official CPM data date when one is saved; host-sent dates are used only with no CPM.
+      const cpmWin = lookaheadWindow(null, await cpmDataDate(sb, job));
+      const startDate = cpmWin?.start ?? args.start_date, endDate = cpmWin?.end ?? args.end_date;
+      if (startDate && endDate && endDate < startDate) throw new ToolError("end_date is before start_date.");
       const provided: string[] = Object.keys(docs);
-      if (args.start_date && args.end_date) provided.push("lookahead_dates");
+      if (startDate && endDate) provided.push("lookahead_dates");
       const src = await lookaheadSourceFor(sb, job.job_id);
       // Same job and same window as a lookahead already on file: a new REVISION of that lookahead (same ref, history kept), never a duplicate.
-      if (args.start_date && args.end_date) {
-        const { data: same, error: se } = await sb.from("mcp_lookaheads").select("id, inputs, provided_inputs").eq("job_id", job.job_id).eq("start_date", args.start_date).eq("end_date", args.end_date).order("created_at", { ascending: true });
+      if (startDate && endDate) {
+        const { data: same, error: se } = await sb.from("mcp_lookaheads").select("id, inputs, provided_inputs").eq("job_id", job.job_id).eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: true });
         if (se) throw new Error(se.message);
         const hit = visibleLookaheads((same ?? []) as { id: string; inputs?: unknown; provided_inputs?: string[] | null }[])[0];
         if (hit) {
@@ -885,14 +888,14 @@ export const intake = defineTool({
           const effective: Record<string, unknown> = { ...((hit.inputs as Record<string, unknown> | null) ?? {}), ...docs };
           const effProvided = [...new Set([...(hit.provided_inputs ?? []), ...provided])];
           const effMissing = INPUT_KEYS.filter((k) => !effProvided.includes(k));
-          const rev = await addRevision(sb, hit.id, { ...src, start_date: args.start_date, end_date: args.end_date, inputs: docs, effective_inputs: effective, provided_inputs: effProvided, missing_inputs: effMissing });
-          if (rev === null) throw new ToolError(`A look-ahead for ${args.start_date} to ${args.end_date} already exists (${lookaheadRef(hit.id)}). Use that ref; revisions aren't available yet, so nothing new was created.`);
+          const rev = await addRevision(sb, hit.id, { ...src, start_date: startDate, end_date: endDate, inputs: docs, effective_inputs: effective, provided_inputs: effProvided, missing_inputs: effMissing });
+          if (rev === null) throw new ToolError(`A look-ahead for ${startDate} to ${endDate} already exists (${lookaheadRef(hit.id)}). Use that ref; revisions aren't available yet, so nothing new was created.`);
           const up = await sb.from("mcp_lookaheads").update({ inputs: effective, provided_inputs: effProvided, missing_inputs: effMissing }).eq("id", hit.id);
           if (up.error) throw new Error(up.error.message);
           await audit(sb, job, "intake", "lookahead_revise", hit.id);
           const ref = lookaheadRef(hit.id);
           return {
-            ...text(`${P}Look-ahead ${ref} revised: now Rev ${rev} (source: ${src.source === "schedule" ? `schedule, ${src.schedule_tool}` : "PM"}) for ${args.start_date} to ${args.end_date}. Same ref; earlier revisions are kept and shown in the report.\n\nSent in Rev ${rev}:\n${Object.keys(docs).map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${effMissing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${ref}\nTo add items to a question already answered, call answer with this lookahead ref and that question ref again. Next: next_question with lookahead ref ${ref}.`),
+            ...text(`${P}Look-ahead ${ref} revised: now Rev ${rev} (source: ${src.source === "schedule" ? `schedule, ${src.schedule_tool}` : "PM"}) for ${startDate} to ${endDate}. Same ref; earlier revisions are kept and shown in the report.\n\nSent in Rev ${rev}:\n${Object.keys(docs).map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${effMissing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${ref}\nTo add items to a question already answered, call answer with this lookahead ref and that question ref again. Next: next_question with lookahead ref ${ref}.`),
             structuredContent: { lookahead_id: hit.id, lookahead_ref: ref, rev, source: src.source, provided: effProvided, missing: effMissing, revised: true },
           };
         }
@@ -900,19 +903,19 @@ export const intake = defineTool({
       const missing = INPUT_KEYS.filter((k) => !provided.includes(k));
       const { data: la, error } = await sb
         .from("mcp_lookaheads")
-        .insert({ job_id: job.job_id, start_date: args.start_date ?? null, end_date: args.end_date ?? null, inputs: docs, provided_inputs: provided, missing_inputs: missing })
+        .insert({ job_id: job.job_id, start_date: startDate ?? null, end_date: endDate ?? null, inputs: docs, provided_inputs: provided, missing_inputs: missing })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
       await audit(sb, job, "intake", "lookahead_create", la.id);
-      await addRevision(sb, la.id, { ...src, start_date: args.start_date ?? null, end_date: args.end_date ?? null, inputs: docs, effective_inputs: docs, provided_inputs: provided, missing_inputs: missing });
+      await addRevision(sb, la.id, { ...src, start_date: startDate ?? null, end_date: endDate ?? null, inputs: docs, effective_inputs: docs, provided_inputs: provided, missing_inputs: missing });
       if (hasAnswer !== "yes") {
         // They have one (or are building it now): record the setup check as yes. Ignored where the check isn't installed.
         await sb.rpc("mcp_answer", { _job: job.job_id, _key: LOOKAHEAD_SETUP_KEY, _answer: "yes", _detail: args.lookahead_exists === "build" ? "Built with Athena from the schedule." : "Look-ahead in place.", _owner: null, _needed_by: null });
       }
       return {
         ...text(
-          `${P}Look-ahead created (${lookaheadRef(la.id)}) for ${args.start_date ?? "the next two weeks"}${args.end_date ? ` to ${args.end_date}` : ""}.\n\nProvided:\n${provided.map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${missing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${lookaheadRef(la.id)}\nNext: next_question with this job_number and lookahead ref ${lookaheadRef(la.id)}.`,
+          `${P}Look-ahead created (${lookaheadRef(la.id)}) for ${startDate ?? "the next two weeks"}${endDate ? ` to ${endDate}` : ""}.\n\nProvided:\n${provided.map((k) => `- ${INPUT_LABELS[k as InputKey]}`).join("\n") || "- none"}\n\nMissing (recorded as unknown):\n${missing.map((k) => `- ${INPUT_LABELS[k]}`).join("\n") || "- none"}\n\nLookahead ref: ${lookaheadRef(la.id)}\nNext: next_question with this job_number and lookahead ref ${lookaheadRef(la.id)}.`,
         ),
         structuredContent: { lookahead_id: la.id, lookahead_ref: lookaheadRef(la.id), provided, missing },
       };
@@ -1494,10 +1497,14 @@ export const lookaheadGet = defineTool({
       // Match the existing report's job obligations, not just this lookahead's attached rows.
       // A saved set may have four open future items while the job still has three overdue obligations.
       const jobOverdue = d.win ? lookaheadModel(d.win.start, d.win.end, d.acts, d.items, { today: d.today, dataDate: d.dataDate }).overdue.map((entry) => entry.item) : null;
-      const card = savedLookaheadCard(named(job), d.ref, items, d.today, context, jobOverdue);
+      const boardUrl = (await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope)).lookahead ?? null;
+      if (boardUrl) context[0].rows.push({ cells: [`Open live lookahead: ${boardUrl}`] });
+      const base = savedLookaheadCard(named(job), d.ref, items, d.today, context, jobOverdue);
+      // The table lists CPM activities; the saved-items KPIs count action items. Show both counts so they can't be confused.
+      const card = { ...base, kpis: [{ label: "Activities in window (CPM)", value: String(activities.length) }, ...(base.kpis ?? [])] };
       const html = renderHtml(card);
       return { ...text(`${renderMarkdown(card)}\n\n${html}`),
-        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, as_of: d.today, overdue_scope: jobOverdue ? "job" : "saved_items", overdue_items: jobOverdue ?? items.filter((item) => item.status === "open" && item.due && item.due < d.today), activities, items, card, html },
+        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, board_url: boardUrl, activity_count: activities.length, data_date: d.dataDate, cpm_version: d.version, as_of: d.today, overdue_scope: jobOverdue ? "job" : "saved_items", overdue_items: jobOverdue ?? items.filter((item) => item.status === "open" && item.due && item.due < d.today), activities, items, card, html },
         _meta: { ...cardWidgetMeta } };
     }),
 });

@@ -51,6 +51,7 @@ const sb = () => ({
     state.rpcs.push(fn);
     if (fn === "mcp_resolve_job") return { data: { job_id: state.job, company_id: "co", job_number: "2701", name: "Fictional Job", scope: "full" }, error: null };
     if (fn === "mcp_living_report_get") return { data: state.cpmDate ? { found: true, version: 3, data_date: state.cpmDate, data: { activities: state.activityCount === 1 ? [{ id: "A100", name: "Fictional rough-in", start: "2026-10-26", finish: "2026-11-02" }] : Array.from({ length: state.activityCount }, (_, i) => ({ id: `A${100 + i}`, name: `Fictional lookahead activity ${i + 1}`, start: "2026-10-26", finish: "2026-11-02" })) } } : { found: false }, error: null };
+    if (fn === "mcp_board_link_create") return { data: { id: "board-link-1" }, error: null };
     throw new Error(`Unexpected RPC ${fn}`);
   },
 });
@@ -61,7 +62,7 @@ vi.mock("./guard", () => ({
   isMissingFunction: () => false,
 }));
 import { lookaheadGet } from "./tools/workflow-tools";
-const call = (args: Record<string, unknown> = {}) => (lookaheadGet as unknown as { handler: (a: unknown, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: { lookahead_ref: string; items: SavedLookaheadItem[]; window: unknown; activities: unknown[]; revision: number; html: string; card: CardModel } }> }).handler({ job_number: "2701", ...args }, {});
+const call = (args: Record<string, unknown> = {}) => (lookaheadGet as unknown as { handler: (a: unknown, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: { lookahead_ref: string; board_url: string | null; activity_count: number; items: SavedLookaheadItem[]; window: unknown; activities: unknown[]; revision: number; html: string; card: CardModel } }> }).handler({ job_number: "2701", ...args }, {});
 beforeEach(() => { state.liveShape = false; state.cpmDate = "2026-10-19"; state.foreignLa = false; state.failItems = false; state.rows = 6; state.activityCount = 1; state.writes = []; state.queries = []; state.rpcs = []; });
 
 describe("normal lookahead read", () => {
@@ -159,7 +160,8 @@ describe("normal lookahead read", () => {
       expect(body).toContain("## 🔵 14-day lookahead");
       expect(body).toContain("**2701 – Fictional Job**");
       expect(body).toContain("Window: Oct 26 to Nov 6, Rev 2. Data date is Oct 19 (CPM v3).");
-      expect(body).toContain("**6 saved items · 4 open · 🔴 3 overdue on the job**");
+      expect(body).toContain("**6 CPM activities · 6 saved items · 4 open · 🔴 3 overdue on the job**");
+      expect(body).toMatch(/\[Open live lookahead\]\(https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/lookahead\?t=/);
       expect(body).toContain("due Oct 14");
       expect(body).toContain("due Oct 16");
       expect(body).toContain("due Oct 21");
@@ -198,6 +200,7 @@ describe("normal lookahead read", () => {
       const { structuredContent: sc, content } = await call();
       expect(sc.items).toHaveLength(6);
       expect(sc.card.kpis).toEqual([
+        { label: "Activities in window (CPM)", value: "1" },
         { label: "Saved items", value: "6" },
         { label: "Open saved items", value: "4" },
         { label: "Overdue on job", value: "3", flag: "overdue" },
@@ -242,7 +245,10 @@ describe("normal lookahead read", () => {
     expect(items.find((r) => r.refId === "item-0003")!.flag).toBe("delay");
     expect(items.find((r) => r.refId === "item-0005")!.flag).toBeNull();
     expect(state.writes).toEqual([]);
-    expect(state.rpcs).toEqual(["mcp_resolve_job", "mcp_living_report_get"]);
+    expect(state.rpcs).toEqual(["mcp_resolve_job", "mcp_living_report_get", "mcp_board_link_create"]);
+    expect(sc.board_url).toMatch(/^https:\/\/app\.meetathena\.io\/r\/job\/10000000-0000-4000-8000-000000000001\/lookahead\?t=/);
+    expect(sc.activity_count).toBe(1);
+    expect(sc.card.kpis).toContainEqual({ label: "Activities in window (CPM)", value: "1" });
     expect(lookaheadGet.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   });
   it("returns saved rows without a CPM, using the saved dates", async () => {

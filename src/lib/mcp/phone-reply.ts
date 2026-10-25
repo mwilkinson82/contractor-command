@@ -151,8 +151,12 @@ export function phoneLookaheadText(sc: Sc): string | null {
   const dateBit = dataDate ? `Data date is ${dataDate}${version == null ? "" : ` (CPM v${version})`}.` : "";
   const windowLine = [windowBits ? `${windowBits}.` : "", dateBit].filter(Boolean).join(" ");
   if (windowLine) lines.push(windowLine);
+  const boardUrl = typeof sc.board_url === "string" && sc.board_url.startsWith("https://") ? sc.board_url : null;
+  if (boardUrl) lines.push(`[Open live lookahead](${boardUrl})`);
   const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue on the job` : `${overdueCount} overdue on the job`;
-  lines.push(`**${savedCount} saved item${savedCount === 1 ? "" : "s"} · ${openCount} open · ${overdueWords}**`);
+  const actCount = kpiNumber(card, "Activities in window (CPM)");
+  const actWords = actCount == null ? "" : `${actCount} CPM activit${actCount === 1 ? "y" : "ies"} · `;
+  lines.push(`**${actWords}${savedCount} saved item${savedCount === 1 ? "" : "s"} · ${openCount} open · ${overdueWords}**`);
   section(lines, "### 🔴 Overdue", overdue);
   section(lines, "### Due within 7 days", due7);
   section(lines, "### Coming up", later);
