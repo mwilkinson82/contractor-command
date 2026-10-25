@@ -16,13 +16,31 @@ Where they are built:
 - `Card shown. Do not add text.` is `CARD_SHOWN` in `src/lib/mcp/cards/silence.ts`, appended by `applyCardClosing()`.
 - `REQUIRED: Any email card… To:` is `sovRequiredTop()` in `src/lib/mcp/visible.ts`.
 
-On a Grok Bot `tools/call` for the contract (`contract_terms`), the SOV (`report`), the morning brief (`morning_brief`), the morning meeting (`pm_morning`, and the same meeting card on `pm_meeting`, `pm_evening`, `athena_morning_hitlist`, `athena_hello`), and drawing markup (`drawing_markup`), those lines are removed from `content` text and appended to `structuredContent.assistant_guidance`. That field is the non-displayed channel the model can still read. The HTML document in the text is not edited. Fenced member text that quotes an order is left as written.
+On a Grok Bot `tools/call` for the contract (`contract_terms`), the SOV (`report`), the morning brief (`morning_brief`), the morning meeting (`pm_morning`, and the same meeting card on `pm_meeting`, `pm_evening`, `athena_morning_hitlist`, `athena_hello`), and drawing markup (`drawing_markup`), those lines are removed from `content` text and appended to `structuredContent.assistant_guidance`. That field is the non-displayed channel the model can still read. Fenced member text that quotes an order is left as written. The card document is removed from that text in the same response; see below.
 
 `NATIVE_CARD_TOOLS` is unchanged. Morning meeting and drawing markup are not added to it.
 
-## ChatGPT and Claude cards stay byte-identical
+## ChatGPT and Claude card rendering stays on the same fields
 
-ChatGPT does not show these lines to the member. Its `tools/call` result is not rewritten: the same object goes out, including the HTML card and the orders in the text. Claude's native-card reply is still the existing facts-only pass (`cards/claude-reply.ts`). `structuredContent.html` is not modified for either host.
+`structuredContent.html` is not modified for either host. `structuredContent.card` and `_meta["openai/outputTemplate"]` are not modified. The card resource bodies are not modified.
+
+Which response fields carry `<!doctype html>`:
+
+- `structuredContent.html` carries the card document whenever the tool stored one. That string is the same for Grok Bot, ChatGPT, and Claude.
+- The card resource (`resources/read` of `ui://athena/card.html` or `ui://athena/native-card-v3.html`) carries the viewer shell, a different document. ChatGPT's widget paints `structuredContent.card`. It does not read the tool text or `structuredContent.html`. Claude's native card reads `structuredContent.html`.
+- Tool `content` text parts do not carry an unfenced card document for Grok Bot, for any host that did not advertise a card, or for ChatGPT when `structuredContent.html` already has the document. Morning brief, pay app (`field_pay_app`), lookahead (`lookahead_get`), and a living-report billing card follow that rule. Fenced member text that quotes a document stays in the text part.
+- Claude's native-card tools (`cards/claude-reply.ts`) still return facts-only text. The document stays on `structuredContent.html`.
+- Claude's other tools keep the document in the text part. That text is the card: a living report is not a native-card tool, so Claude's `living_report_get` text still contains the document. ChatGPT's billing living report drops the text copy because `structuredContent.html` and the widget card remain. Grok Bot's `living_report_get` text does not contain the document. An IOR still uses the plain section reply for Grok Bot. `structuredContent.html` is not rewritten.
+
+ChatGPT's render orders are still removed only by the host-independent facts pass. This transport pass removes the duplicated document from ChatGPT text; it does not rewrite the card, the resource, or `structuredContent.html`.
+
+## Grok Bot's SOV text is one table and keeps options 2 and 3
+
+`report` writes the server SOV lines with `sovSummaryText` (`SCHEDULE OF VALUES`, one row per line, contract total included). `attachAthenaCard` then copies those same lines in front as the card's markdown table, because the original text does not already start with `## `. Grok Bot prints both.
+
+The delivery question (`Where do you want this SOV to live?` and options 1, 2 and 3, from `SOV_DELIVERY_ASK`) is also written into the text, then removed by the facts pass: those exact lines are inside `SOV_DELIVERY_BLOCK`, so they are treated as guidance. `For option 2 or 3:` is not one of those lines, so it stays and the option list is gone.
+
+On a Grok Bot `report` call, and on any other host that does not inline a card, the text keeps the server SOV lines once and puts `structuredContent.delivery.ask` back in front of `For option 2 or 3:`. `structuredContent.html`, `structuredContent.card`, and the contract total are not rewritten. ChatGPT and Claude are not rewritten by this pass.
 
 ## ChatGPT drawing attachment hosts are an exact list
 

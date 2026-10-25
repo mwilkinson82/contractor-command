@@ -80,7 +80,12 @@ describe("meeting confirmation persistence through the real tool handler", () =>
     expect(state.calls.some((c) => c.name === "mcp_add_item")).toBe(false);
     const request = new Request("https://app.meetathena.io/mcp", { method: "POST", headers: { "content-type": "application/json", "user-agent": host }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "pm_meeting", _meta: { "io.modelcontextprotocol/clientInfo": { name: host, version: "test" } } } }) });
     const original = Response.json({ jsonrpc: "2.0", id: 1, result: saved });
-    expect(await nativeCardResponse(original, await nativeCardVisit(request))).toBe(original);
+    const response = await nativeCardResponse(original, await nativeCardVisit(request));
+    const returned = (await response.json()).result as typeof saved;
+    expect(returned.structuredContent).toEqual(saved.structuredContent);
+    expect(returned.content[0].text).toContain("Meeting confirmation saved for this lookahead.");
+    if (host === "ChatGPT") expect(returned.content[0].text).not.toMatch(/<!doctype html|<html/i);
+    else expect(response).toBe(original);
     expect(crew(await call())).toBe("Subs, suppliers and crews: Confirmed");
     const morning = await call({ stage: "crews" }, pmMorningMeeting);
     expect(morning.structuredContent.card.kpis).toContainEqual({ label: "Locked in", value: "Yes" });

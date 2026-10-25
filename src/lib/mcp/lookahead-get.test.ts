@@ -89,10 +89,9 @@ describe("normal lookahead read", () => {
       const visit = await nativeCardVisit(request("tools/call", { name: "lookahead_get", arguments: { job_number: "2701" } }));
       const response = await nativeCardResponse(original, visit);
       const claude = host === "claude-ai";
-      // ChatGPT's reply stays byte-for-byte. Claude keeps every row; the card view draws the HTML.
-      if (!claude) expect(response).toBe(original);
+      // Both hosts keep every row. The card document stays on structuredContent.html, not in the text.
       const returned = (await response.json()).result as typeof fullReply;
-      if (!claude) expect(returned.content).toEqual(fullReply.content);
+      if (!claude) expect(returned.structuredContent).toEqual(fullReply.structuredContent);
       const { assistant_guidance: _g, ...facts } = fullReply.structuredContent as typeof fullReply.structuredContent & { assistant_guidance?: unknown };
       if (claude) expect(returned.structuredContent).toEqual(JSON.parse(JSON.stringify(facts)));
       else expect(returned.structuredContent).toEqual(fullReply.structuredContent);
@@ -110,13 +109,10 @@ describe("normal lookahead read", () => {
       expect(returned.structuredContent.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
       expect(returned.structuredContent.html).not.toContain("REQUIRED: the data date");
       expect(returned.structuredContent.html).toContain("#1E5FED");
-      if (claude) {
-        expect(body).not.toContain("<!doctype html");
-        expect(body).not.toMatch(/sees this result as an Athena card/);
-      } else {
-        expect(body).toContain("<!doctype html");
-        expect(body).toContain(returned.structuredContent.html);
-      }
+      expect(body).not.toContain("<!doctype html");
+      expect(body).not.toContain("<html");
+      expect(returned.structuredContent.html).toContain("<!doctype html");
+      if (claude) expect(body).not.toMatch(/sees this result as an Athena card/);
       expect(body).not.toContain("PRIVATE OTHER JOB");
       expect(state.writes).toEqual([]);
     } finally { vi.useRealTimers(); }

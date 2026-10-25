@@ -271,12 +271,17 @@ describe("native card presentation after the SDK", () => {
     expect(await nativeCardResponse(otherId, visit)).toBe(otherId);
   });
   it.each(["ChatGPT", "openai-mcp"])(
-    "keeps the complete result byte-for-byte when %s advertises Apps support",
+    "drops the text document for %s and keeps the card fields",
     async (name) => {
       const input = result(cardResult);
       const out = await transform("tools/call", { name: "list_open_items" }, input, meta(name));
-      expect(out.changed).toBe(false);
-      expect(out.value).toBe(input);
+      expect(out.changed).toBe(true);
+      const returned = (out.value as { result: typeof cardResult }).result;
+      expect(returned.content[0].text).toContain("| Full styled fallback |");
+      expect(returned.content[0].text).not.toContain("<!doctype");
+      expect(returned.content[1]).toEqual(cardResult.content[1]);
+      expect(returned.structuredContent).toBe(cardResult.structuredContent);
+      expect(returned._meta).toBe(cardResult._meta);
     },
   );
   it.each(["claude-ai", "Anthropic/ClaudeAI"])(
@@ -314,7 +319,10 @@ describe("native card presentation after the SDK", () => {
       expect(returned.content[0].text).toBe("## Athena\n- §6.2 Delay notice: 5 calendar days");
       expect(returned.structuredContent).toEqual({ html });
       const chatgpt = await transform("tools/call", { name }, input, meta("ChatGPT"));
-      expect(chatgpt.value).toBe(input);
+      const gpt = (chatgpt.value as typeof input).result as { content: { text: string }[]; structuredContent: { html: string } };
+      expect(gpt.content[0].text).toContain("§6.2 Delay notice: 5 calendar days");
+      expect(gpt.content[0].text).not.toContain("<!doctype");
+      expect(gpt.structuredContent.html).toBe(html);
     },
   );
   it.each(["claude-ai", "ChatGPT"])(
@@ -343,7 +351,6 @@ describe("native card presentation after the SDK", () => {
       expect(visit?.calls[0]?.inlineHtml).toBe(true);
       const response = await nativeCardResponse(original, visit);
       const claude = host === "claude-ai";
-      if (!claude) expect(response).toBe(original);
       const returned = (await response.json()).result;
       const body = returned.content.map((block: { text?: string }) => block.text ?? "").join("\n");
       for (let i = 1; i <= 17; i++) expect(body).toContain(`Job 2701 task ${i}`);
@@ -354,11 +361,9 @@ describe("native card presentation after the SDK", () => {
       });
       expect(returned._meta).toEqual(cardWidgetMeta);
       expect(returned.structuredContent.html).toContain("#1E5FED");
-      if (claude) expect(body).not.toContain("<!doctype html");
-      else {
-        expect(body).toContain(returned.structuredContent.html);
-        expect(body).toContain("<!doctype html");
-      }
+      expect(body).not.toContain("<!doctype html");
+      expect(body).not.toContain("<html");
+      expect(returned.structuredContent.html).toContain("<!doctype html");
       expect(body).not.toMatch(/REQUIRED VIEW|Card shown/);
     },
   );
@@ -468,9 +473,12 @@ describe("native card presentation after the SDK", () => {
     expect((plain.value as { result: { structuredContent: { html: string }; _meta: unknown } }).result.structuredContent.html).toContain("<!doctype html");
     expect((plain.value as { result: { _meta: { retained: boolean } } }).result._meta.retained).toBe(true);
     const noUi = { ...meta("ChatGPT"), "io.modelcontextprotocol/clientCapabilities": {} };
-    expect((await transform("tools/call", { name: "lookahead_get" }, input, noUi)).value).toBe(
-      input,
-    );
+    const named = await transform("tools/call", { name: "lookahead_get" }, input, noUi);
+    const namedText = (named.value as { result: { content: { text: string }[]; structuredContent: typeof cardResult.structuredContent; _meta: unknown } }).result;
+    expect(namedText.content[0].text).toContain("| Full styled fallback |");
+    expect(namedText.content[0].text).not.toContain("<!doctype");
+    expect(namedText.structuredContent).toBe(cardResult.structuredContent);
+    expect(namedText._meta).toBe(cardResult._meta);
     const error = result({ ...cardResult, isError: true });
     expect((await transform("tools/call", { name: "lookahead_get" }, error, meta())).value).toBe(
       error,
@@ -595,8 +603,13 @@ describe("Claude follow-up arguments in host-readable text", () => {
     expect(returned._meta).toEqual(fixture._meta);
     expect(returned.content[1]).toEqual(fixture.content[1]);
     const gpt = await transform("tools/call", { name: "list_open_items" }, input, meta("ChatGPT"));
-    expect(gpt.value).toBe(input);
-    expect(gpt.changed).toBe(false);
+    const gptResult = (gpt.value as { result: typeof fixture }).result;
+    expect(gptResult.content[0].text).toContain("Full styled fallback");
+    expect(gptResult.content[0].text).not.toContain("<!doctype");
+    expect(gptResult.content[0].text).not.toContain("Athena follow-up references");
+    expect(gptResult.structuredContent).toBe(fixture.structuredContent);
+    expect(gptResult._meta).toBe(fixture._meta);
+    expect(gptResult.content[1]).toEqual(fixture.content[1]);
   });
   it("makes the current review key readable to Claude while retaining the full review and card", async () => {
     const key = "a".repeat(64);
@@ -609,7 +622,10 @@ describe("Claude follow-up arguments in host-readable text", () => {
     expect(returned.structuredContent).toEqual(fixture.structuredContent);
     expect(returned.content[0].text).not.toMatch(/REQUIRED VIEW|Card shown|sees this result as/);
     const gpt = await transform("tools/call", { name: "resolve_item" }, input, meta("ChatGPT"));
-    expect(gpt.value).toBe(input);
+    const gptResult = (gpt.value as { result: typeof fixture }).result;
+    expect(gptResult.content[0].text).not.toContain("<!doctype");
+    expect(gptResult.content[0].text).not.toContain("confirmation_key");
+    expect(gptResult.structuredContent).toBe(fixture.structuredContent);
   });
   it("does not duplicate facts on a second presentation pass", async () => {
     const first = await transform("tools/call", { name: "list_open_items" }, result({ ...cardResult, structuredContent: { ...cardResult.structuredContent, items } }), meta("claude-ai"));
