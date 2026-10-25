@@ -3739,6 +3739,7 @@ export type Database = {
           company_id: string
           counterparty_email: string | null
           counterparty_name: string | null
+          host: string | null
           id: string
           job_id: string
           kind: string
@@ -3747,6 +3748,7 @@ export type Database = {
           ref_id: string | null
           ref_table: string | null
           summary: string
+          thread_ref: string | null
           title: string
         }
         Insert: {
@@ -3755,6 +3757,7 @@ export type Database = {
           company_id: string
           counterparty_email?: string | null
           counterparty_name?: string | null
+          host?: string | null
           id?: string
           job_id: string
           kind: string
@@ -3763,6 +3766,7 @@ export type Database = {
           ref_id?: string | null
           ref_table?: string | null
           summary: string
+          thread_ref?: string | null
           title: string
         }
         Update: {
@@ -3771,6 +3775,7 @@ export type Database = {
           company_id?: string
           counterparty_email?: string | null
           counterparty_name?: string | null
+          host?: string | null
           id?: string
           job_id?: string
           kind?: string
@@ -3779,6 +3784,7 @@ export type Database = {
           ref_id?: string | null
           ref_table?: string | null
           summary?: string
+          thread_ref?: string | null
           title?: string
         }
         Relationships: [
@@ -4228,6 +4234,7 @@ export type Database = {
           size_bytes: number
           submittal_id: string
           token_hash: string
+          transmittal_id: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -4253,6 +4260,7 @@ export type Database = {
           size_bytes: number
           submittal_id: string
           token_hash: string
+          transmittal_id?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -4278,6 +4286,7 @@ export type Database = {
           size_bytes?: number
           submittal_id?: string
           token_hash?: string
+          transmittal_id?: string | null
         }
         Relationships: [
           {
@@ -4292,6 +4301,13 @@ export type Database = {
             columns: ["submittal_id"]
             isOneToOne: false
             referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_packages_transmittal_id_fkey"
+            columns: ["transmittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_transmittals"
             referencedColumns: ["id"]
           },
         ]
@@ -4838,6 +4854,8 @@ export type Database = {
           id: string
           job_id: string
           number: number
+          package_fingerprint: string | null
+          package_submittal_id: string | null
           sent_on: string | null
           subject: string | null
           to_email: string | null
@@ -4851,6 +4869,8 @@ export type Database = {
           id?: string
           job_id: string
           number: number
+          package_fingerprint?: string | null
+          package_submittal_id?: string | null
           sent_on?: string | null
           subject?: string | null
           to_email?: string | null
@@ -4864,6 +4884,8 @@ export type Database = {
           id?: string
           job_id?: string
           number?: number
+          package_fingerprint?: string | null
+          package_submittal_id?: string | null
           sent_on?: string | null
           subject?: string | null
           to_email?: string | null
@@ -4875,6 +4897,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_transmittals_package_submittal_id_fkey"
+            columns: ["package_submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
             referencedColumns: ["id"]
           },
         ]
@@ -6566,21 +6595,39 @@ export type Database = {
         }
         Returns: Json
       }
-      mcp_project_record_add: {
-        Args: {
-          _actor: string
-          _counterparty_email: string
-          _counterparty_name: string
-          _job: string
-          _kind: string
-          _payload: Json
-          _ref_id: string
-          _ref_table: string
-          _summary: string
-          _title: string
-        }
-        Returns: string
-      }
+      mcp_project_record_add:
+        | {
+            Args: {
+              _actor: string
+              _counterparty_email: string
+              _counterparty_name: string
+              _job: string
+              _kind: string
+              _payload: Json
+              _ref_id: string
+              _ref_table: string
+              _summary: string
+              _title: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _actor: string
+              _counterparty_email: string
+              _counterparty_name: string
+              _host: string
+              _job: string
+              _kind: string
+              _payload: Json
+              _ref_id: string
+              _ref_table: string
+              _summary: string
+              _thread_ref: string
+              _title: string
+            }
+            Returns: string
+          }
       mcp_project_record_search: {
         Args: {
           _from: string
@@ -6742,6 +6789,10 @@ export type Database = {
         Args: { _job: string; _submittal: string }
         Returns: Json
       }
+      mcp_submittal_package_reserve: {
+        Args: { _fingerprint: string; _job: string; _submittal: string }
+        Returns: Json
+      }
       mcp_submittal_package_write: {
         Args: { _action: string; _job: string; _p: Json; _submittal: string }
         Returns: Json
@@ -6764,6 +6815,18 @@ export type Database = {
       mcp_submittal_record: {
         Args: { _id: string; _issued: boolean; _job: string; _kind: string }
         Returns: undefined
+      }
+      mcp_submittal_record_get: {
+        Args: { _job: string; _number: string }
+        Returns: Json
+      }
+      mcp_submittal_record_open: {
+        Args: { _job: string; _number: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_submittal_record_stamp: {
+        Args: { _job: string; _number: string }
+        Returns: string
       }
       mcp_submittal_rows: { Args: { _job: string }; Returns: Json }
       mcp_submittal_rows_before_packages: {
