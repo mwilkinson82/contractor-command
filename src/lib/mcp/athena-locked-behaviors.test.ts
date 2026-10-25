@@ -13,7 +13,11 @@ import {
 import { sovRequiredTop } from "./visible";
 import { activityIdName } from "./styled-views";
 import { phoneLookaheadText } from "./phone-reply";
-import { DATA_DATE_FUTURE_ERROR, iorSectionsText, resolveDataDate } from "./living";
+import { DATA_DATE_FUTURE_ERROR, iorPlainReply, iorSectionsText, resolveDataDate } from "./living";
+import { scheduleWindowLabel } from "./styled-views";
+import { renderHtml } from "./cards/html";
+import { renderMarkdown } from "./cards/markdown";
+import { nativeCardPayload, nativeCardVisit } from "./native-card-transport";
 import { companyProjectSoftware } from "./scope-defaults";
 import { attachAthenaCard } from "./cards/attach";
 import { inferCard } from "./cards/infer";
@@ -293,6 +297,97 @@ describe("locked behaviors", () => {
     expect(text).toContain("Price the ceiling conflict");
     const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
     expect(doc).toContain("risk allocations");
+  });
+
+  it("labels each lookahead window row with its activity id", () => {
+    const a = scheduleWindowLabel({
+      id: "A1110a",
+      name: "Underground conduit & grounding",
+      start: "2026-11-02",
+      finish: "2026-11-11",
+    });
+    const b = scheduleWindowLabel({
+      id: "A1110b",
+      name: "Underground conduit & grounding",
+      start: "2026-11-02",
+      finish: "2026-11-11",
+    });
+    expect(a).toBe("A1110a – Underground conduit & grounding, Nov 2 to Nov 11");
+    expect(b).toBe("A1110b – Underground conduit & grounding, Nov 2 to Nov 11");
+    expect(a).not.toBe(b);
+    const card = {
+      state: "result" as const,
+      title: "14-day lookahead",
+      show_state: false,
+      sections: [{
+        heading: "Schedule activities in this window",
+        kind: "table" as const,
+        columns: ["Activity", "Start", "Finish"],
+        rows: [
+          { cells: [a, "2026-11-02", "2026-11-11"] },
+          { cells: [b, "2026-11-02", "2026-11-11"] },
+        ],
+      }],
+    };
+    const html = renderHtml(card);
+    const markdown = renderMarkdown(card);
+    expect(html).toContain("A1110a – Underground conduit &amp; grounding, Nov 2 to Nov 11");
+    expect(html).toContain("A1110b – Underground conduit &amp; grounding, Nov 2 to Nov 11");
+    expect(markdown).toContain(a);
+    expect(markdown).toContain(b);
+    const phone = phoneLookaheadText({
+      as_of: "2026-11-01",
+      activities: [
+        { id: "A1110a", name: "Underground conduit & grounding", start: "2026-11-02", finish: "2026-11-11" },
+        { id: "A1110b", name: "Underground conduit & grounding", start: "2026-11-02", finish: "2026-11-11" },
+      ],
+      items: [],
+    });
+    expect(phone).toContain("### Schedule in this window");
+    expect(phone).toContain(`- ${a}`);
+    expect(phone).toContain(`- ${b}`);
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("Schedule activities in this window");
+    expect(doc).toContain("A1110a – Underground conduit & grounding, Nov 2 to Nov 11");
+  });
+
+  it("gives Grok Bot the IOR sections in plain text and leaves the card HTML", async () => {
+    const html = "<!doctype html><p>IOR card</p></html>";
+    const structuredContent = {
+      report_type: "ior",
+      html,
+      data: { risk_allocations: [{ description: "Switchgear delay holds the gear", amount: 10000 }] },
+      board_links: [{ label: "Open IOR", href: "https://app.meetathena.io/r/job/27010000-0000-4000-8000-000000000001/ior" }],
+      version: 4,
+      data_date: "2026-10-22",
+      change_log: [{ version: 4, at: "2026-10-22T12:00:00Z", who: "member", what: "updated risks" }],
+    };
+    const payload = {
+      jsonrpc: "2.0",
+      id: 1,
+      result: { content: [{ type: "text", text: "links only\n\nChange log (latest 5):" }], structuredContent },
+    };
+    const request = new Request("https://app.meetathena.io/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "Grok" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "living_report_get", arguments: { report_type: "ior" } } }),
+    });
+    const out = nativeCardPayload(payload, await nativeCardVisit(request));
+    const text = (out.value as { result: { content: { text: string }[]; structuredContent: { html: string } } }).result.content[0].text;
+    expect(text).toContain("Switchgear delay holds the gear");
+    expect(text).toContain("Open IOR:");
+    expect(text).toContain("Change log (latest 5):");
+    expect(text).toContain("updated risks");
+    expect((out.value as { result: { structuredContent: { html: string } } }).result.structuredContent.html).toBe(html);
+    expect(iorPlainReply(structuredContent)).toContain("Switchgear delay holds the gear");
+    const chatgpt = new Request("https://app.meetathena.io/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "ChatGPT" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "living_report_get" } }),
+    });
+    expect(await nativeCardVisit(chatgpt)).toBeNull();
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("Grok Bot's IOR reply includes the sections");
   });
 
   it("prints the onboarding profile heading once and keeps the card HTML", () => {

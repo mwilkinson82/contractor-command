@@ -58,6 +58,14 @@ Split activities that share a name (A1110a and A1110b, A1120a and A1120b) are pr
 
 `living_report_get` for an IOR still prints the board links, the version line, and the change log. It also prints the saved IOR sections as readable text: the title, job health, and each section such as risk allocations and top three actions. Internal ids stay out of that text.
 
+## Lookahead window rows keep the activity id
+
+The lookahead card section "Schedule activities in this window" and its text fallback "Schedule in this window" label each activity with its id, name, and dates, for example `A1110a – Underground conduit & grounding, Nov 2 to Nov 11`. Split pairs that share a name stay on separate rows. The row label is the only card change. Card styling is unchanged.
+
+## Grok Bot's IOR reply includes the sections
+
+ChatGPT and Claude keep the existing IOR card HTML and tool text. Grok Bot does not draw that card. Its `living_report_get` text for an IOR is the plain reply: board links, the IOR sections, the version line, and the change log. The section text is in that plain reply. `structuredContent.html` is not rewritten.
+
 ## The company profile read says its heading once
 
 The onboarding read, titled `What I have so far`, prints that heading once in the text. The profile is printed once. The ChatGPT and Claude card HTML is the same card as before, including its state line. The duplicate bold heading and the second plain-text copy of the profile are not added under the card.

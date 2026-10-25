@@ -1,6 +1,6 @@
 // Phone text for hosts that cannot show a card. Markdown lists only.
 // ChatGPT and Claude keep the HTML card; this is not used for them.
-import { activityIdName } from "./styled-views";
+import { scheduleWindowLabel } from "./styled-views";
 import { addDays } from "./deadlines";
 import { isDelayNoticeTask } from "./delay-notice";
 import type { CardModel } from "./cards/model";
@@ -166,12 +166,8 @@ export function phoneLookaheadText(sc: Sc): string | null {
   }[];
   const schedule = activities
     .map((activity) => {
-      const name = clean(activityIdName(activity));
-      if (!name) return "";
-      const from = monthDay(asDate(activity.start));
-      const to = monthDay(asDate(activity.finish));
-      const span = from && to ? `, ${from} to ${to}` : from ? `, ${from}` : "";
-      return `- ${name}${span}`;
+      const line = clean(scheduleWindowLabel(activity));
+      return line ? `- ${line}` : "";
     })
     .filter(Boolean);
   if (schedule.length) lines.push("", "### Schedule in this window", ...schedule);
