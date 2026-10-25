@@ -1350,6 +1350,7 @@ export type Database = {
           license_number: string | null
           logo_url: string | null
           name: string
+          time_zone: string | null
           tool_stack: Json
           trades: string[]
           updated_at: string
@@ -1370,6 +1371,7 @@ export type Database = {
           license_number?: string | null
           logo_url?: string | null
           name: string
+          time_zone?: string | null
           tool_stack?: Json
           trades?: string[]
           updated_at?: string
@@ -1390,6 +1392,7 @@ export type Database = {
           license_number?: string | null
           logo_url?: string | null
           name?: string
+          time_zone?: string | null
           tool_stack?: Json
           trades?: string[]
           updated_at?: string
