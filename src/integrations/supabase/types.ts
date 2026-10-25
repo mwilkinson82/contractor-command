@@ -3992,6 +3992,48 @@ export type Database = {
           },
         ]
       }
+      mcp_request_operations: {
+        Row: {
+          actor_id: string
+          created_at: string
+          digest: string
+          job_id: string
+          request_id: string
+          submittal_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          digest: string
+          job_id: string
+          request_id: string
+          submittal_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          digest?: string
+          job_id?: string
+          request_id?: string
+          submittal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_request_operations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_request_operations_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_security_flags: {
         Row: {
           company_id: string | null
@@ -4334,7 +4376,9 @@ export type Database = {
           not_required_reason: string | null
           notes: string | null
           number: string
+          package_purpose: string
           previous_id: string | null
+          request_details: Json | null
           required: boolean
           required_by: string | null
           returned_on: string | null
@@ -4368,7 +4412,9 @@ export type Database = {
           not_required_reason?: string | null
           notes?: string | null
           number: string
+          package_purpose?: string
           previous_id?: string | null
+          request_details?: Json | null
           required?: boolean
           required_by?: string | null
           returned_on?: string | null
@@ -4402,7 +4448,9 @@ export type Database = {
           not_required_reason?: string | null
           notes?: string | null
           number?: string
+          package_purpose?: string
           previous_id?: string | null
+          request_details?: Json | null
           required?: boolean
           required_by?: string | null
           returned_on?: string | null
@@ -6701,6 +6749,16 @@ export type Database = {
       }
       mcp_report_share_open: { Args: { _token_hash: string }; Returns: Json }
       mcp_report_share_revoke: { Args: { _token_hash: string }; Returns: Json }
+      mcp_request_log_open: {
+        Args: { _job: string; _kind: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_request_package_content: { Args: { _details: Json }; Returns: Json }
+      mcp_request_record: {
+        Args: { _action: string; _job: string; _kind: string; _p: Json }
+        Returns: Json
+      }
+      mcp_request_rows: { Args: { _job: string; _kind: string }; Returns: Json }
       mcp_resolve_item: {
         Args: {
           _approval: string
