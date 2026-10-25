@@ -145,7 +145,7 @@ describe("every card tool follows the no-trailing-prose contract", () => {
     const out = sealCardReply("estimate_status", {
       content: [{ type: "text", text: `No estimate on this job yet.\n${PREVIEW}` }],
       structuredContent: { card: { state: "progress", title: "No estimate on this job yet" } },
-    }) as {
+    }) as unknown as {
       content: { type: string; text?: string }[];
       structuredContent: { assistant_guidance: string[] };
     };
