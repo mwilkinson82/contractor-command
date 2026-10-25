@@ -63,8 +63,7 @@ describe("ChatGPT card widget stays off tools/list", () => {
     const defs = ATHENA_TOOLS.filter((tool) => CARD_NAMES.has(tool.name));
     expect(defs.length).toBeGreaterThan(10);
     for (const tool of defs) {
-      const meta = "_meta" in tool ? tool._meta as Record<string, unknown> | undefined : undefined;
-      expect(meta?.["openai/outputTemplate"], tool.name).toBeUndefined();
+      expect(tool._meta?.["openai/outputTemplate"], tool.name).toBeUndefined();
     }
     const listed = await rpc("tools/list", 2);
     for (const tool of listed.tools as { name: string; _meta?: Record<string, unknown> }[]) {

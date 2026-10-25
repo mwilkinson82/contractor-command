@@ -1646,7 +1646,7 @@ export const contractTerms = defineTool({
       });
       const showMoney = job.scope === "full";
       const completion = completionDate(jobR.data?.contract_completion_date ?? null, valueFacts);
-      const board = job.scope === "full" ? await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope) : {};
+      const board = job.scope === "full" || job.scope === "super" ? await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope) : {};
       const boardLinks = [
         board.items ? { label: "Open items", url: board.items } : null,
         board.ior ? { label: "Open IOR", url: board.ior } : null,
