@@ -131,19 +131,22 @@ describe("SOV line-item view (0.8.0)", () => {
     expect(txt).not.toContain("Scheduled value by division:");
     expect(txt).not.toContain("Contractor's fee");
   });
-  it("refuses a line edit that moves the $1,400,000 contract and allows a rebalance", () => {
-    const existing = J2701.map((line) => ({ key: line.item_no, value: { description: line.description, billable_value: line.scheduled_value } }));
-    const bump = sovTotalChangeRefusal(existing, 0, { "26.06": { description: "Branch circuit rough-in and devices", billable_value: 305000 } }, undefined);
-    expect(bump).toBe(SOV_TOTAL_REFUSAL);
-    const rebalance = sovTotalChangeRefusal(existing, 0, {
+  it("refuses any official dollar change, including a rebalance, and allows text", () => {
+    const existing = J2701.map((line) => ({ key: line.item_no, value: { description: line.description, billable_value: line.scheduled_value, cost_codes: ["26-100"] } }));
+    expect(sovTotalChangeRefusal(existing, 0, { "26.06": { description: "Branch circuit rough-in and devices", billable_value: 305000 } }, undefined)).toBe(SOV_TOTAL_REFUSAL);
+    expect(sovTotalChangeRefusal(existing, 0, {
       "26.06": { description: "Branch circuit rough-in and devices", billable_value: 305000 },
       "26.01": { description: "Mobilization, bonds and general conditions", billable_value: 20000 },
-    }, undefined);
-    expect(rebalance).toBeNull();
+    }, undefined)).toBe(SOV_TOTAL_REFUSAL);
     expect(sovTotalChangeRefusal([], null, { "26.06": { description: "Branch circuit rough-in and devices", billable_value: 255000 } }, 0)).toBeNull();
     expect(sovTotalChangeRefusal(existing, null, null, 0)).toBeNull();
     expect(sovTotalChangeRefusal(existing, 0, null, 10)).toBe(SOV_TOTAL_REFUSAL);
-    expect(sovTotalChangeRefusal(existing, 0, { "26.06": { description: "Renamed branch rough-in", billable_value: 255000 } }, undefined)).toBeNull();
+    expect(sovTotalChangeRefusal(existing, 0, { "26.06": { description: "Renamed branch rough-in", billable_value: 255000, cost_codes: ["26-200"] } }, undefined)).toBeNull();
+    const draft = sovSummaryText("", buildSov(J2701, 0, null), BRAND, "Exhibit B", [], "internal", "lines", "draft");
+    expect(draft.startsWith("Draft, not official")).toBe(true);
+    expect(draft).toContain("Draft scheduled total (not the contract value)");
+    expect(draft).not.toContain("Contract total:");
+    expect(draft).not.toContain("Contract sum");
   });
   it("division roll-up only when asked", () => {
     const txt = sovSummaryText("", sov, BRAND, "Exhibit B", [], "internal", "divisions");

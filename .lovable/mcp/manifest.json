@@ -1929,6 +1929,13 @@
               "type": "string",
               "maxLength": 200
             },
+            "sov_copy": {
+              "type": "string",
+              "enum": [
+                "official",
+                "draft"
+              ]
+            },
             "action": {
               "type": "string",
               "maxLength": 2000
