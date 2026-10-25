@@ -141,6 +141,41 @@ export const changeOrderRecord = defineTool({
       async (sb) => {
         const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, "full");
         if (!job) throw new ToolError("Name the job for this change order.");
+        if (args.action === "create") {
+          const gaps = [
+            !args.title?.trim() && "A title",
+            !args.condition?.trim() && "The actual condition",
+            !args.scope?.trim() && "The requested change",
+            !args.references?.length && "A drawing, specification, contract or condition reference",
+          ].filter((value): value is string => !!value);
+          if (gaps.length) {
+            const card: CardModel = {
+              state: "result",
+              show_state: false,
+              title: "Change order · information needed",
+              job: job.job_number,
+              sections: [
+                {
+                  heading: "Before saving the draft",
+                  kind: "list",
+                  rows: gaps.map((gap) => ({ cells: [gap] })),
+                },
+              ],
+              next_move: "Provide the missing information. No PCO or transmittal was created.",
+            };
+            return {
+              content: [{ type: "text" as const, text: renderMarkdown(card) }],
+              structuredContent: {
+                card,
+                html: renderHtml(card),
+                saved: false,
+                missing: gaps,
+                job_id: job.job_id,
+              },
+              _meta: cardWidgetMeta,
+            };
+          }
+        }
         const { job_number: jn, company_id: ci, action, ...fields } = args;
         void jn;
         void ci;

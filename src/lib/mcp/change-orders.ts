@@ -1,7 +1,7 @@
 import type { CardModel } from "./cards/model";
 import { requestLogUrl } from "./request-log";
 import { submittalRecordUrl } from "./submittal-record-url";
-import type { PackageReference } from "./package-purpose";
+import { requestReferenceText, type PackageReference } from "./package-purpose";
 export type ChangeCostLine = {
   category: "labor" | "material" | "equipment" | "subcontract" | "other" | "markup";
   description: string;
@@ -71,7 +71,7 @@ export function changeSections(details: ChangeDetails) {
       heading: "References",
       kind: "list" as const,
       rows: details.references.map((ref) => ({
-        cells: [ref.citation],
+        cells: [requestReferenceText(ref)],
         raw: true,
         tone: "literal" as const,
       })),
@@ -193,7 +193,7 @@ export function changeLogCard(
                 r.change_order_details.due_date
                   ? `${r.change_order_details.due_date} · member target`
                   : "Due date needed",
-                r.change_order_details.references.map((ref) => ref.citation).join("; "),
+                r.change_order_details.references.map(requestReferenceText).join("; "),
               ],
               href: r.record_url,
               flag: r.overdue ? ("overdue" as const) : null,

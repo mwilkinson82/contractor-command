@@ -62,6 +62,7 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
       ) => Promise<{
         content: { type: string; text?: string }[];
         structuredContent: {
+          saved?: boolean;
           saved_id?: string;
           record_version?: number;
           counts?: {total:number;shown:number;overdue:number};
@@ -999,6 +1000,9 @@ describe("RFI package uses the working submittal workflow end to end", () => {
 
 describe("change-order shared package and deterministic execution",()=>{
  it("prices, builds and submits once, separates approval from execution, and preserves prior billing",async()=>{
+   const beforeMissing=(await query("SELECT count(*)::int n FROM mcp_transmittals WHERE job_id=$1",[job]))[0].n;
+   const missing=await call(changeOrderRecord,{action:"create",job_number:"2701",request_id:crypto.randomUUID()});expect(missing.structuredContent.saved).toBe(false);
+   expect((await query("SELECT count(*)::int n FROM mcp_transmittals WHERE job_id=$1",[job]))[0].n).toBe(beforeMissing);
    const created=await call(changeOrderRecord,{action:"create",job_number:"2701",request_id:crypto.randomUUID(),title:"Fictional Bulletin #4 connection",condition:"A101 detail 4 revised",scope:"Provide revised connections",references:[{kind:"drawing",citation:"A101 detail 4"}],recipient_name:"Pat Example",recipient_email:"pat@example.com"});
    const sid=created.structuredContent.saved_id!;
    expect((await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid})).structuredContent.ready).toBe(false);
