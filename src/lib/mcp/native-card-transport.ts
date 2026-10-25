@@ -38,6 +38,7 @@ import {
 } from "./cards/email-card";
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
+import { CARD_WIDGET_URI } from "./cards/widget";
 import { drawingFileMeta } from "./drawing-file-input";
 import {
   DRAWING_CARD_MIME,
@@ -333,6 +334,26 @@ const resourceContents = (uri: string) => {
   return { contents: [{ uri, mimeType: view.mimeType, text: view.html(), _meta: view.meta }] };
 };
 
+/** Claude's email card speaks MCP Apps. The ChatGPT skybridge template on the same result does not,
+ *  so Claude marks the call Failed after the data is already saved. Point Claude at the email card. */
+function emailCardResultForClaude(result: Obj): Obj {
+  const meta = { ...(obj(result._meta) ?? {}) };
+  if (meta["openai/outputTemplate"] === CARD_WIDGET_URI) delete meta["openai/outputTemplate"];
+  meta.ui = { ...(obj(meta.ui) ?? {}), resourceUri: EMAIL_CARD_URI };
+  const content = Array.isArray(result.content)
+    ? result.content.map((block) => {
+        const row = obj(block);
+        const blockMeta = obj(row?._meta);
+        if (!row || !blockMeta || blockMeta["openai/outputTemplate"] !== CARD_WIDGET_URI) return block;
+        const restMeta = { ...blockMeta };
+        delete restMeta["openai/outputTemplate"];
+        const { _meta: _drop, ...rest } = row;
+        return Object.keys(restMeta).length ? { ...rest, _meta: restMeta } : rest;
+      })
+    : result.content;
+  return { ...result, content, _meta: meta };
+}
+
 export function nativeCardPayload(
   payload: unknown,
   visit: Visit | null,
@@ -428,7 +449,11 @@ export function nativeCardPayload(
       call.claude &&
       cardMetaFor(String(call.params.name ?? ""))
     ) {
-      next = claudeCardReply(result, String(call.params.name ?? ""));
+      const name = String(call.params.name ?? "");
+      const replied = claudeCardReply(result, name);
+      // The saved draft is already in the result. Claude still labels the call Failed when the
+      // result points at the ChatGPT skybridge card, which never completes ui/initialize.
+      next = EMAIL_CARD_TOOLS.has(name) ? emailCardResultForClaude(replied ?? result) : replied;
     } else if (
       call.method === "tools/call" &&
       result &&

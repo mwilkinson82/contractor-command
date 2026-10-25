@@ -61,6 +61,7 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
         c: unknown,
       ) => Promise<{
         content: { type: string; text?: string }[];
+        isError?: boolean;
         structuredContent: {
           saved?: boolean;
           saved_id?: string;
@@ -76,6 +77,7 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
           delivery_id?: string;
           draft_key?: string | null;
           draft?: { to: string; cc: string[]; subject: string; body: string; link?: string | null };
+          approved_at?: string | null;
           assistant_guidance?: string[];
           warning?: {
             flag: string;
@@ -1388,6 +1390,8 @@ describe("submittal delivery ids and sent-body warning", () => {
     });
     expect(got.structuredContent.delivery_id).toBe(savedDraft.delivery_id);
     expect(got.structuredContent.draft_key).toBe(savedDraft.draft_key);
+    expect(got.structuredContent.approved_at).toBeNull();
+    expect(got.isError).toBeUndefined();
     expect(shown(got)).toContain(`delivery_id: ${savedDraft.delivery_id}`);
     expect(shown(got)).toContain(`draft_key: ${savedDraft.draft_key}`);
     expect(shown(got)).toContain("unchanged");
@@ -1407,6 +1411,20 @@ describe("submittal delivery ids and sent-body warning", () => {
     expect(approvedText).toContain(`draft_key: ${savedDraft.draft_key}`);
     expect(approvedText).toContain("Reuse this exact pair unchanged");
     expect(approvedText).toContain("Never re-draft after approval.");
+    expect(approved.isError).toBeUndefined();
+    expect(typeof approved.structuredContent.approved_at).toBe("string");
+    expect(approvedText).toContain(`approved_at: ${approved.structuredContent.approved_at}`);
+    const reread = await call(submittalDelivery, {
+      action: "get",
+      job_number: "2701",
+      submittal_id: savedDraft.sid,
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+    });
+    expect(reread.structuredContent.approved_at).toBe(approved.structuredContent.approved_at);
+    expect(reread.isError).toBeUndefined();
+    expect(savedDraft.drafted.isError).toBeUndefined();
+    expect(savedDraft.drafted.structuredContent.approved_at).toBeNull();
 
     const faithful = await call(submittalDelivery, {
       action: "record_sent",
@@ -1422,6 +1440,11 @@ describe("submittal delivery ids and sent-body warning", () => {
     expect(faithful.structuredContent.sent).toBe(true);
     expect(faithful.structuredContent.warning).toBeUndefined();
     expect(shown(faithful)).not.toContain("WARNING:");
+    const { CallToolResultSchema } = await import("@modelcontextprotocol/sdk/types.js");
+    for (const sample of [savedDraft.drafted, got, approved]) {
+      expect(sample.isError).toBeUndefined();
+      expect(CallToolResultSchema.safeParse(sample).success).toBe(true);
+    }
   });
 
   it("records a send when the sent body differs or repeats the package link and only flags a warning", async () => {

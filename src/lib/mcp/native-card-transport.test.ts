@@ -476,6 +476,35 @@ describe("native card presentation after the SDK", () => {
       error,
     );
   });
+  it("points Claude at the email card for a saved submittal delivery and leaves the call successful", async () => {
+    const saved = result({
+      content: [
+        {
+          type: "text",
+          text: "delivery_id: 22222222-2222-4222-8222-222222222222\ndraft_key: abcdefabcdefabcdefabcdefabcdefab",
+          _meta: { "openai/outputTemplate": CARD_WIDGET_URI },
+        },
+      ],
+      structuredContent: {
+        delivery_id: "22222222-2222-4222-8222-222222222222",
+        draft_key: "abcdefabcdefabcdefabcdefabcdefab",
+        approved_at: "2026-10-25T18:00:00.000Z",
+        draft: { to: "reviewer@example.com", cc: [], subject: "Package", body: "Please review." },
+      },
+      _meta: { "openai/outputTemplate": CARD_WIDGET_URI },
+    });
+    const claude = await transform("tools/call", { name: "submittal_delivery" }, saved, meta("claude-ai"));
+    const claudeResult = (claude.value as { result: { isError?: boolean; _meta: { ui?: { resourceUri?: string }; "openai/outputTemplate"?: string }; content: { _meta?: { "openai/outputTemplate"?: string } }[]; structuredContent: { approved_at: string } } }).result;
+    expect(claudeResult.isError).toBeUndefined();
+    expect(claudeResult._meta["openai/outputTemplate"]).toBeUndefined();
+    expect(claudeResult._meta.ui?.resourceUri).toBe(EMAIL_CARD_URI);
+    expect(claudeResult.content[0]._meta).toBeUndefined();
+    expect(claudeResult.structuredContent.approved_at).toBe("2026-10-25T18:00:00.000Z");
+    const chatgpt = await transform("tools/call", { name: "submittal_delivery" }, saved, meta("ChatGPT"));
+    expect((chatgpt.value as { result: { _meta: { "openai/outputTemplate"?: string } } }).result._meta["openai/outputTemplate"]).toBe(
+      CARD_WIDGET_URI,
+    );
+  });
   it.each([401, 403, 429, 500])("leaves HTTP %i errors completely untouched", async (status) => {
     const res = new Response(JSON.stringify(missing), {
       status,

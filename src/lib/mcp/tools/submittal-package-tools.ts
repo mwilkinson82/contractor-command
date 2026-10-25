@@ -717,6 +717,7 @@ export const submittalDelivery = defineTool({
           cells: [
             `delivery_id: ${saved.id}`,
             `draft_key: ${saved.draft_key}`,
+            ...(saved.approved_at ? [`approved_at: ${saved.approved_at}`] : []),
             "Reuse this exact delivery_id and draft_key pair unchanged.",
           ],
           raw: true,
@@ -745,6 +746,7 @@ export const submittalDelivery = defineTool({
           draft_key: saved.draft_key,
           draft: saved.draft,
           approved: !!saved.approved_at,
+          approved_at: saved.approved_at,
           sent: !!saved.sent_at,
           send_allowed: !outboundEmailDisabled(),
           send_confirmed:
