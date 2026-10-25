@@ -15,6 +15,7 @@ import {
   packageLine,
   pieceRef,
   sourceLine,
+  submittalDisplayStatus,
   submittalOverdue,
   transmittalLabel,
   type PackageItem,
@@ -317,7 +318,7 @@ export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
     ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}`
     : labelOf(BALL_LABEL, row.ball_in_court);
   const due = row.due_back?.slice(0, 10) || row.required_by?.slice(0, 10) || (request ? "Due date needed" : "Needed");
-  const stateLabel=purpose === "change_order" && row.change_order_details ? (["draft","priced"].includes(row.change_order_details.state) && row.submission_sent_at ? "Submitted" : row.change_order_details.state === "draft" ? "Draft, not sent" : row.change_order_details.state) : request ? ({draft:"Draft, not sent",sent:"Sent",answered:"Answered",closed:"Closed"}[requestState(row)]) : labelOf(STATUS_LABEL,row.status);
+  const stateLabel=purpose === "change_order" && row.change_order_details ? (["draft","priced"].includes(row.change_order_details.state) && row.submission_sent_at ? "Submitted" : row.change_order_details.state === "draft" ? "Draft, not sent" : row.change_order_details.state) : request ? ({draft:"Draft, not sent",sent:"Sent",answered:"Answered",closed:"Closed"}[requestState(row)]) : submittalDisplayStatus(row, p.packages);
   const items = row.package_items ?? [];
   const title = `${esc(jobHeading({ job_number: p.job_number ?? "", name: p.job_name ?? "" }, " "))} · ${request ? "" : "Submittal "}${esc(row.number)}`;
   const logHref = p.job_id ? `/r/job/${p.job_id}/${purpose === "change_order" ? "cos" : request ? purpose+"s" : "submittals"}` : null;

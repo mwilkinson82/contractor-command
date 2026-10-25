@@ -294,9 +294,14 @@ function rowLine(row: SubmittalRecord, today: string, recordUrl: string | null =
   return `- ${row.number}. ${recordUrl ? `[${row.title}](${recordUrl})` : row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${submittalDisplayStatus(row)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)}${row.built_package ? ` Package: ${row.built_package.filename}.` : ""}${packageDelivery(row) ? ` ${packageDelivery(row)}.` : ""}`;
 }
 
-export function submittalDisplayStatus(row: SubmittalRecord): string {
-  return row.built_package && !row.built_package.sent_at && !row.submission_sent_at
-    ? "Ready for internal review · Draft, not sent" : labelOf(STATUS_LABEL, row.status);
+/** One status label for the log and the record page: a built, unsent package reads as a draft, never as submitted or in review. */
+export const SUBMITTAL_DRAFT_LABEL = "Ready for internal review · Draft, not sent";
+export function submittalDisplayStatus(
+  row: Pick<SubmittalRecord, "status" | "built_package" | "submission_sent_at" | "revision">,
+  packages?: { revision: number; is_current?: boolean; sent_at?: string | null; revoked_at?: string | null }[] | null,
+): string {
+  const built = row.built_package ?? packages?.find((p) => p.revision === row.revision && p.is_current !== false && !p.revoked_at) ?? null;
+  return built && !built.sent_at && !row.submission_sent_at ? SUBMITTAL_DRAFT_LABEL : labelOf(STATUS_LABEL, row.status);
 }
 export function packageDelivery(row: SubmittalRecord): string {
   return row.submission_sent_at ? `Sent ${row.submission_sent_at.slice(0, 10)}`
