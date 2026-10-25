@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { athenaBuild } from "../athena-build";
 
 const fixture = vi.hoisted(() => ({ rpc: vi.fn(), sdk: vi.fn() }));
 vi.mock("@tanstack/react-start", () => ({
@@ -43,7 +44,7 @@ async function run(
 }
 async function expectStamped(response: Response, original: Response) {
   expect(response.status).toBe(original.status);
-  expect(response.headers.get("x-athena-build")).toBe("unknown");
+  expect(response.headers.get("x-athena-build")).toBe(athenaBuild().commit);
   expect(response.headers.get("www-authenticate")).toBe(original.headers.get("www-authenticate"));
   expect(response.headers.get("content-type")).toBe(original.headers.get("content-type"));
   expect(await response.text()).toBe(await original.text());
@@ -150,7 +151,7 @@ describe("MCP card timing middleware", () => {
     const result = (await run(
       req("tools/call", { name: "contract_terms", arguments: { job_number: "2701" } }),
     )) as Response;
-    expect(result.headers.get("x-athena-build")).toBe("unknown");
+    expect(result.headers.get("x-athena-build")).toBe(athenaBuild().commit);
     expect(result.status).toBe(403);
     expect(await result.json()).toEqual({
       error: "forbidden",

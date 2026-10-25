@@ -8293,7 +8293,8 @@
                 "approved_as_noted",
                 "revise_and_resubmit",
                 "rejected",
-                "closed"
+                "closed",
+                "void"
               ]
             },
             "ball_in_court": {
@@ -8598,7 +8599,8 @@
                 "approved_as_noted",
                 "revise_and_resubmit",
                 "rejected",
-                "closed"
+                "closed",
+                "void"
               ]
             },
             "overdue": {
