@@ -1,3 +1,4 @@
+import {changeSections} from "../change-orders";
 import { submittalHistoryOrder } from "../../submittal-history-order";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -66,14 +67,14 @@ export function packageCard(
   extra: Record<string, unknown> = {},
 ) {
   const purpose = packagePurpose(ctx.submittal.package_purpose);
-  const request = purpose === "rfi" || purpose === "rfc";
+  const request = purpose !== "approval";
   const sent = typeof extra.sent === "boolean" ? extra.sent : !!ctx.package?.sent_at;
   const warnings = duplicatePieceWarnings(ctx.items);
   const history = extra.history as { id: string; filename: string; transmittal_number: number | null; revision: number; current: boolean; revoked: boolean; created_at: string; built_at_display?: string; open_url: string | null }[] | undefined;
   const buildOrder = submittalHistoryOrder(history ?? []);
   const card: CardModel = {
     state: "result",
-    title: request ? title.replace(/submittal/gi, purpose.toUpperCase()) : title,
+    title: request ? title.replace(/submittal/gi, purpose === "change_order" ? "Change order" : purpose.toUpperCase()) : title,
     show_state: false,
     job: `${ctx.job_number} – ${ctx.job_name}`,
     kpis: [
@@ -93,6 +94,7 @@ export function packageCard(
         ],
       },
       ...(request && ctx.submittal.request_details ? requestSections(ctx.submittal.request_details) : []),
+      ...(purpose === "change_order" && ctx.change_order_details ? changeSections(ctx.change_order_details) : []),
       {
         heading: "Cover sheet",
         kind: "list",

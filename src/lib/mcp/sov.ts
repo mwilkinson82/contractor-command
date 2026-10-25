@@ -13,7 +13,7 @@ export const CSI_DIVISIONS: Record<string, string> = {
   "45": "Industry-Specific Manufacturing Equipment", "46": "Water and Wastewater Equipment", "48": "Electrical Power Generation",
 };
 
-export type SovLineIn = { item_no: string; description: string | null; scheduled_value: number | null; cost_codes?: string[]; spec_section?: string | null };
+export type SovLineIn = { executed_change_order?: string; fee_included?: boolean; item_no: string; description: string | null; scheduled_value: number | null; cost_codes?: string[]; spec_section?: string | null };
 export type Billing = { d: number | null; e: number | null; f: number | null; g: number | null; pct_complete: number | null; h: number | null; i: number | null };
 export type SovLine = { item_no: string; description: string; scheduled_value: number; cost_codes: string[]; spec_section: string | null } & Billing;
 export type SovDivision = { division: string; title: string; header: string; lines: SovLine[]; subtotal: number; pct_of_contract: number; share_bar_pct: number };
@@ -81,7 +81,7 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
   for (const l of lines) {
     if (!ITEM.test(l.item_no)) problems.push(`Line ${l.item_no}: item numbers use the 01.01 style (division, dot, line).`);
     if (typeof l.scheduled_value !== "number" || !Number.isFinite(l.scheduled_value)) problems.push(`Line ${l.item_no}: no scheduled value.`);
-    else if (l.scheduled_value < 0) problems.push(`Line ${l.item_no}: scheduled value can't be negative.`);
+    else if (l.scheduled_value < 0 && !(l.executed_change_order && l.fee_included)) problems.push(`Line ${l.item_no}: scheduled value can't be negative.`);
     else if (Math.abs(cents(l.scheduled_value) - l.scheduled_value * 100) > 1e-6) problems.push(`Line ${l.item_no}: scheduled value has more than two decimals.`);
   }
   if (problems.length) throw new SovMismatch(problems.join("\n"));
@@ -92,8 +92,14 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
     (byDiv.get(div) ?? byDiv.set(div, []).get(div)!).push(l);
   }
   const subC = lines.reduce((s, l) => s + cents(l.scheduled_value!), 0);
-  const totalC = Math.round(subC / (1 - feePct! / 100));
-  const feeC = totalC - subC;
+  // Executed CO prices already include their own markup. Add them at face value,
+  // on separate lines, without repricing the base contract or its prior billing.
+  const changeC = lines.filter(l=>l.executed_change_order && l.fee_included).reduce((n,l)=>n+cents(l.scheduled_value!),0);
+  const baseC = subC-changeC;
+  const baseTotalC = Math.round(baseC / (1 - feePct! / 100));
+  const totalC = baseTotalC+changeC;
+  const feeC = baseTotalC-baseC;
+  if (totalC < 0) throw new SovMismatch("The executed credit exceeds the contract total.");
 
   const divisions: SovDivision[] = [...byDiv.entries()].map(([division, ls]) => {
     const dC = ls.reduce((s, l) => s + cents(l.scheduled_value!), 0);
@@ -118,8 +124,8 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
     (s === cents(d.subtotal) ? checks : fail).push(`Division ${d.division} lines ${dollars(s)} = subtotal ${d.subtotal}`);
   }
   (subC + feeC === totalC ? checks : fail).push(`Cost of work + GC + fee = contract total ${dollars(totalC)}`);
-  const impliedFee = totalC === 0 ? 0 : (feeC / totalC) * 100;
-  (Math.abs(impliedFee - feePct!) <= 0.005 || totalC === 0 ? checks : fail).push(`Fee ${impliedFee.toFixed(4)}% of contract total matches ${feePct}%`);
+  const impliedFee = totalC-changeC === 0 ? 0 : (feeC / (totalC-changeC)) * 100;
+  (Math.abs(impliedFee - feePct!) <= 0.005 || totalC-changeC === 0 ? checks : fail).push(`Fee ${impliedFee.toFixed(4)}% of contract total matches ${feePct}%`);
   for (const d of divisions)
     for (const l of d.lines) {
       if (l.g === null) continue;

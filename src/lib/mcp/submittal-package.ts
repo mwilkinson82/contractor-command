@@ -1,3 +1,4 @@
+import {changeSections} from "./change-orders";
 import { sha256Hex } from "./file-share";
 /** Server-built covers and immutable packages. Source bytes are never rewritten. */
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -21,6 +22,7 @@ export type PackageArtifact = {
   cover_date?: string;
 };
 export type PackageContext = {
+  change_order_details?: import("./change-orders").ChangeDetails | null;
   is_current?: boolean;
   submittal: SubmittalRecord & { company_id: string; job_id: string; transmittal_id?: string | null; package_purpose?: PackagePurpose; request_details?: RequestDetails | null };
   items: PackageItem[];
@@ -118,9 +120,12 @@ export function findPackagePiece(
 export function packageGaps(ctx: PackageContext): string[] {
   const gaps: string[] = [];
   const purpose = packagePurpose(ctx.submittal.package_purpose);
-  const request = purpose === "rfi" || purpose === "rfc";
+  const request = purpose !== "approval";
   if (!ctx.brand?.name?.trim()) gaps.push("Company letterhead name");
-  if (request) gaps.push(...requestContentGaps(ctx.submittal.request_details));
+  if (purpose === "change_order") {
+    if (!ctx.change_order_details?.condition?.trim() || !ctx.change_order_details?.scope?.trim() || !ctx.change_order_details?.references?.length) gaps.push("The change condition, requested scope and source references");
+    if (ctx.change_order_details?.total_cents == null) gaps.push("Sourced pricing for the change order");
+  } else if (request) gaps.push(...requestContentGaps(ctx.submittal.request_details));
   if (!request && (
     !ctx.submittal.spec_section?.trim() ||
     /^(needed|unknown|n\/?a|tbd)$/i.test(ctx.submittal.spec_section.trim())
@@ -152,7 +157,7 @@ export async function buildSubmittalPdf(
   logo?: Uint8Array,
 ) {
   const purpose = packagePurpose(ctx.submittal.package_purpose);
-  const request = purpose === "rfi" || purpose === "rfc";
+  const request = purpose !== "approval";
   const gaps = packageGaps(ctx);
   if (gaps.length) throw new Error(gaps.join("; "));
   if (
@@ -241,6 +246,14 @@ export async function buildSubmittalPdf(
       y -= 8;
       line(section.heading.toUpperCase(), 11, true);
       for (const value of section.lines) line(value);
+    }
+  }
+  if (purpose === "change_order" && ctx.change_order_details) {
+    const d=ctx.change_order_details;
+    line(`${ctx.submittal.number}${d.co_number ? ` / ${d.co_number}` : ""} | ${d.state}`,12,true);
+    for (const section of changeSections(d)) {
+      y-=8; line(section.heading.toUpperCase(),11,true);
+      for (const row of section.rows) line(row.cells.join(" | "));
     }
   }
   y -= 12;

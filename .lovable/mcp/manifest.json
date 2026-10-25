@@ -18,6 +18,355 @@
     },
     "tools": [
       {
+        "name": "change_order_log",
+        "title": "Change-order log and records",
+        "description": "Reads numbered potential and issued change orders, sourced pricing, decisions, execution and persistent package links. Separate from open items and RFIs.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "priced",
+                "submitted",
+                "approved",
+                "rejected",
+                "executed"
+              ]
+            },
+            "overdue": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "change_order_record",
+        "title": "Save a change-order package record",
+        "description": "Creates a numbered PCO, saves sourced pricing, records a confirmed owner decision or execution, and reopens an issued proposal as a new revision. Execution adds a separate fee-inclusive SOV line; it does not alter earlier billing or the CPM. Attachments, PDF builds and approved delivery use the shared submittal package tools.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "edit",
+                "price",
+                "approve",
+                "reject",
+                "execute",
+                "reopen"
+              ]
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "origin": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "contractor"
+              ]
+            },
+            "condition": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "scope": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12000
+            },
+            "spec_section": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "references": {
+              "minItems": 1,
+              "maxItems": 40,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "drawing",
+                      "spec",
+                      "contract",
+                      "condition"
+                    ]
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "source_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "revision": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "page": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "citation"
+                ]
+              }
+            },
+            "recipient_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recipient_email": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 320,
+                  "format": "email",
+                  "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "due_date": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "owner_number": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "schedule_days": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -3650,
+                  "maximum": 3650
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "labor",
+                      "material",
+                      "equipment",
+                      "subcontract",
+                      "other",
+                      "markup"
+                    ]
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "quantity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "unit_rate_cents": {
+                    "type": "integer",
+                    "minimum": -9000000000000,
+                    "maximum": 9000000000000
+                  },
+                  "rate_basis_points": {
+                    "type": "integer",
+                    "minimum": -10000,
+                    "maximum": 10000
+                  },
+                  "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "category",
+                  "description",
+                  "source"
+                ]
+              }
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "evidence": {
+              "type": "object",
+              "properties": {
+                "by": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 320
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "by",
+                "at",
+                "reference"
+              ]
+            },
+            "sov_division": {
+              "type": "string",
+              "pattern": "^\\d{2}$"
+            }
+          },
+          "required": [
+            "job_number",
+            "action",
+            "request_id"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "rfi_log",
         "title": "RFI log and request records",
         "description": "Reads the saved request-for-information log or one numbered RFI, with its question, references, status and persistent package links.",

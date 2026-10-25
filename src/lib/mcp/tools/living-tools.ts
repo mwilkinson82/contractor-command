@@ -79,8 +79,8 @@ export async function contractTotal(sb: Sb, job: Job): Promise<number | null> {
   ]);
   if (jr.error || facts.error) return null;
   const lines = ((facts.data ?? []) as { key: string; value: unknown }[]).map((f) => {
-    const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
-    return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+    const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null };
+    return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
   });
   const fee = jr.data?.sov_fee_pct == null ? null : Number(jr.data.sov_fee_pct);
   try {
@@ -106,8 +106,8 @@ async function latestPayAppBilled(sb: Sb, job: Job, retainageTerm: string | null
   const lines = facts
     .filter((f) => f.module === "sov" && ITEM_NO.test(f.key))
     .map((f) => {
-      const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
-      return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+      const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null };
+      return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
     });
   if (!lines.length) return null;
   const dateOf = new Map(((daysRes.data ?? []) as { id: string; report_date: string }[]).map((d) => [d.id, d.report_date]));

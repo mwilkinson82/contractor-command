@@ -1,3 +1,4 @@
+import { changeSections, changeMoney } from "./mcp/change-orders";
 // The submittal record page: /r/job/<job>/submittal/<number>. One address per submittal number; every log row opens it.
 // Pure logic: payload types and one HTML renderer shared by the signed-in page and the board-token page.
 // Navy, blue and gray; red only for an overdue clock. Member-facing text never names tools or vendors.
@@ -305,22 +306,24 @@ export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
   const today = day(p.today);
   const row = p.current;
   const purpose = packagePurpose(row.package_purpose);
-  const request = purpose === "rfi" || purpose === "rfc";
+  const request = purpose !== "approval";
   const requestBody = request && row.request_details ? requestContent(row.request_details).map(section =>
     card(h2(section.heading.toUpperCase()) + section.lines.map(value => `<p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(value)}</p>`).join(""))
   ).join("") + (row.request_details.answer ? card(h2("ANSWER · CAPTURED") + `<p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.request_details.answer.text)}</p><p>From ${esc(row.request_details.answer.received_from)} · Received ${esc(submittalBuildTime(row.request_details.answer.received_at,p.time_zone_context ?? {job:p.time_zone}))}</p>`) : "") : "";
+  const changeBody = purpose === "change_order" && row.change_order_details ? changeSections(row.change_order_details).map(section=>card(h2(section.heading.toUpperCase())+section.rows.map(r=>`<p style="overflow-wrap:anywhere">${r.cells.map(esc).join(" · ")}</p>`).join(""))).join("") : "";
+  const changeHistory = purpose === "change_order" && row.change_order_history?.length ? card(h2("CHANGE-ORDER HISTORY") + row.change_order_history.map(h=>`<p>Version ${h.record_version} · ${esc(h.action)} · ${esc(submittalBuildTime(h.created_at,p.time_zone_context ?? {job:p.time_zone}))} · ${h.snapshot.total_cents == null ? "Not priced" : esc(changeMoney(h.snapshot.total_cents))}</p>`).join("")) : "";
   const late = today ? submittalOverdue(row, today) : false;
   const who = row.ball_in_court_name?.trim()
     ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}`
     : labelOf(BALL_LABEL, row.ball_in_court);
   const due = row.due_back?.slice(0, 10) || row.required_by?.slice(0, 10) || (request ? "Due date needed" : "Needed");
-  const stateLabel=request ? ({draft:"Draft, not sent",sent:"Sent",answered:"Answered",closed:"Closed"}[requestState(row)]) : labelOf(STATUS_LABEL,row.status);
+  const stateLabel=purpose === "change_order" && row.change_order_details ? (["draft","priced"].includes(row.change_order_details.state) && row.submission_sent_at ? "Submitted" : row.change_order_details.state === "draft" ? "Draft, not sent" : row.change_order_details.state) : request ? ({draft:"Draft, not sent",sent:"Sent",answered:"Answered",closed:"Closed"}[requestState(row)]) : labelOf(STATUS_LABEL,row.status);
   const items = row.package_items ?? [];
   const title = `${esc(jobHeading({ job_number: p.job_number ?? "", name: p.job_name ?? "" }, " "))} · ${request ? "" : "Submittal "}${esc(row.number)}`;
-  const logHref = p.job_id ? `/r/job/${p.job_id}/${request ? purpose+"s" : "submittals"}` : null;
+  const logHref = p.job_id ? `/r/job/${p.job_id}/${purpose === "change_order" ? "cos" : request ? purpose+"s" : "submittals"}` : null;
   const head =
     `<div data-submittal-record="${esc(row.number)}" data-revision="${esc(String(row.revision))}" data-overdue="${late ? 1 : 0}">` +
-    `<p style="margin:0 0 12px;font-size:13px;color:${G1}">${logHref ? `<a href="${esc(logHref)}" style="color:${BLUE};text-decoration:none">${request ? purpose.toUpperCase() : "Submittal"} log</a> · ` : ""}${link("#upload", "Upload a package piece")} · ${late ? `<strong style="color:${RED}">Overdue</strong> · ` : ""}${esc(stateLabel)} · Ball in court: ${esc(who)}${p.read_only ? " · Read only" : ""}</p>` +
+    `<p style="margin:0 0 12px;font-size:13px;color:${G1}">${logHref ? `<a href="${esc(logHref)}" style="color:${BLUE};text-decoration:none">${purpose === "change_order" ? "Change-order" : request ? purpose.toUpperCase() : "Submittal"} log</a> · ` : ""}${link("#upload", "Upload a package piece")} · ${late ? `<strong style="color:${RED}">Overdue</strong> · ` : ""}${esc(stateLabel)} · Ball in court: ${esc(who)}${p.read_only ? " · Read only" : ""}</p>` +
     tiles([
       tile("Revision", String(row.revision)),
       tile(
@@ -347,5 +350,5 @@ export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
         : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`),
   );
   const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes · Athena powered by ALP</p>`;
-  return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 8px;font-size:22px;color:${NAVY}">${title}</h1>${head}${what}${requestBody}${piecesHtml(items, p.read_only === true)}${filesHtml(p.packages ?? [], p.transmittals ?? [], p.time_zone_context ?? { job: p.time_zone })}${mailHtml(p.mail ?? [])}${revisionsHtml(p.revisions ?? [])}${timeline}${foot}</div>`;
+  return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 8px;font-size:22px;color:${NAVY}">${title}</h1>${head}${what}${requestBody}${changeBody}${changeHistory}${piecesHtml(items, p.read_only === true)}${filesHtml(p.packages ?? [], p.transmittals ?? [], p.time_zone_context ?? { job: p.time_zone })}${mailHtml(p.mail ?? [])}${revisionsHtml(p.revisions ?? [])}${timeline}${foot}</div>`;
 }

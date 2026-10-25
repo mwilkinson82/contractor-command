@@ -481,7 +481,7 @@ export function buildFieldPayApp(
     if (typeof line.scheduled_value !== "number") continue;
     const prevDollars = prev?.pct == null ? 0 : round2((line.scheduled_value * prev.pct) / 100);
     let nowDollars = now?.pct == null ? prevDollars : round2((line.scheduled_value * now.pct) / 100);
-    if (nowDollars + 0.001 < prevDollars) {
+    if (line.scheduled_value >= 0 ? nowDollars + 0.001 < prevDollars : nowDollars - 0.001 > prevDollars) {
       notes.set(line.item_no, `Percent on the daily is below what was already billed. The pay app keeps ${money(prevDollars)}.`);
       nowDollars = prevDollars;
     }
@@ -499,12 +499,19 @@ export function buildFieldPayApp(
   let workG = 0;
   let workC = 0;
   let prevWork = 0;
+  let baseWorkC = 0, baseWorkG = 0, basePrevWork = 0;
   for (const div of sov.divisions) {
     for (const line of div.lines) {
       workC += cents(line.scheduled_value);
       const b = lineBilling(line.scheduled_value, billing[line.item_no]?.d ?? null, billing[line.item_no]?.e ?? null, retPct);
       if (b.g != null) workG += cents(b.g);
       if (b.d != null) prevWork += cents(b.d);
+      const original = lines.find(input=>input.item_no===line.item_no);
+      if (!(original?.executed_change_order && original.fee_included)) {
+        baseWorkC += cents(line.scheduled_value);
+        if (b.g != null) baseWorkG += cents(b.g);
+        if (b.d != null) basePrevWork += cents(b.d);
+      }
       rows.push({
         item_no: line.item_no,
         description: line.description,
@@ -527,8 +534,8 @@ export function buildFieldPayApp(
   const contract = cents(sov.summary.contract_total);
   const feeC = cents(sov.summary.fee);
   if (workC + feeC !== contract) problems.push("The schedule of values does not tie to the contract sum.");
-  const feeG = workC === 0 ? 0 : Math.round((feeC * workG) / workC);
-  const feePrev = workC === 0 ? 0 : Math.round((feeC * prevWork) / workC);
+  const feeG = baseWorkC === 0 ? 0 : Math.round((feeC * baseWorkG) / baseWorkC);
+  const feePrev = baseWorkC === 0 ? 0 : Math.round((feeC * basePrevWork) / baseWorkC);
   const completed = workG + feeG;
   const balance = contract - completed;
   const retNote = retPct == null ? "Retainage percent isn't recorded, so retainage is not applied." : null;

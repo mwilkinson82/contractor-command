@@ -1636,8 +1636,8 @@ export const contractTerms = defineTool({
       const termLine = (c: (typeof clauses)[number]) => `- ${c.key.replace(/_/g, " ")}: ${c.value ?? "UNKNOWN"}${c.value ? ` (${c.source === "document" ? LEGACY_SUMMARY_TAG : c.source})` : ""}`;
       const valueFacts = (valueR.data ?? []) as { module: string; key: string; value: unknown; status?: string }[];
       const sovLines = valueFacts.filter((f) => f.module === "sov").map((f) => {
-        const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
-        return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+        const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null };
+        return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
       });
       const picked = pickContractValue({
         setup: setupContractValue(valueFacts),
@@ -1704,8 +1704,8 @@ async function sovResult(sb: Sb, job: Job, audience: "internal" | "client", view
   const rows = (facts.data ?? []) as { module: string; key: string; value: unknown; status: string }[];
   const ec = emailContact(contactForRole((await noticeContext(sb, job)).contacts, "Project Manager"));
   const lines = rows.filter((f) => f.module === "sov").map((f) => {
-    const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null; cost_codes?: string[]; spec_section?: string | null };
-    return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null, cost_codes: v.cost_codes, spec_section: v.spec_section ?? null };
+    const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null; cost_codes?: string[]; spec_section?: string | null };
+    return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null, cost_codes: v.cost_codes, spec_section: v.spec_section ?? null };
   });
   const ret = retainagePct(rows.find((f) => f.module === "contract" && f.key === "retainage" && f.status === "known")?.value);
   const fee = jr.data?.sov_fee_pct == null ? null : Number(jr.data.sov_fee_pct);

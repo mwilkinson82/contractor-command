@@ -27,6 +27,9 @@ vi.mock("./tools/submittal-tools", async (importOriginal) => ({
 }));
 import { submittalPackage, submittalDelivery } from "./tools/submittal-package-tools";
 import { rfiRecord, rfiLog } from "./tools/request-tools";
+import {changeOrderRecord,changeOrderLog} from "./tools/change-order-tools";
+import {buildSov} from "./sov";
+import {setupContractValue} from "./contract-value";
 import { sha256Hex } from "./file-share";
 import { submittalChase } from "./tools/submittal-chase-tool";
 import { runInNewContext } from "node:vm";
@@ -131,6 +134,7 @@ beforeAll(async () => {
   // Explicit local stand-in for the existing plan service; production uses its real function.
   await db.exec("CREATE FUNCTION public.mcp_company_tier(_company uuid) RETURNS text LANGUAGE sql AS $$ SELECT 'circle'::text $$;");
   await db.exec(readFileSync("supabase/migrations/20261025140000_athena_request_package_records.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261025150000_athena_change_order_packages.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -991,4 +995,52 @@ describe("RFI package uses the working submittal workflow end to end", () => {
     expect(await sha256Hex(blobs.get(sourcePath)!)).toBe(originalHash);
     expect(blobs.has(snapshot.package.path)).toBe(true);
   });
+});
+
+describe("change-order shared package and deterministic execution",()=>{
+ it("prices, builds and submits once, separates approval from execution, and preserves prior billing",async()=>{
+   const created=await call(changeOrderRecord,{action:"create",job_number:"2701",request_id:crypto.randomUUID(),title:"Fictional Bulletin #4 connection",condition:"A101 detail 4 revised",scope:"Provide revised connections",references:[{kind:"drawing",citation:"A101 detail 4"}],recipient_name:"Pat Example",recipient_email:"pat@example.com"});
+   const sid=created.structuredContent.saved_id!;
+   expect((await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid})).structuredContent.ready).toBe(false);
+   await call(changeOrderRecord,{action:"price",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:1,lines:[{category:"material",description:"Plates",quantity:2,unit_rate_cents:5000,source:"Fictional quote #12"}]});
+   const built=await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});const artifact=built.structuredContent.package!;
+   expect(artifact.page_count).toBeGreaterThan(0);expect((await saved(sid)).change_order_details.total_cents).toBe(10000);
+   const recordNumber=(await saved(sid)).submittal.number;
+   const ownerRecord=(await query("SELECT mcp_submittal_record_get($1,$2) data",[job,recordNumber]))[0].data;
+   expect(ownerRecord.current.change_order_details.total_cents).toBe(10000);
+   expect(ownerRecord.current.change_order_history.map((h:{action:string})=>h.action)).toEqual(["price","create"]);
+   const superId="00000000-0000-4000-8000-000000000088";
+   await db.query("INSERT INTO auth.users(id,email) VALUES($1,'super88@example.com')",[superId]);await db.query("INSERT INTO test_active_members VALUES($1)",[superId]);
+   await db.query("INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'super','Fictional Super')",[company,superId]);await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES($1,$2,$3)",[job,superId,owner]);
+   const asSuper=(sql:string,params:unknown[]=[])=>asUser<{rows:Record<string,unknown>[]}>(db,{sub:superId,email:"super88@example.com",role:"authenticated"},tx=>tx.query(sql,params));
+   expect((await asSuper("SELECT * FROM mcp_change_orders WHERE submittal_id=$1",[sid])).rows).toHaveLength(0);
+   expect((await asSuper("SELECT * FROM mcp_change_history WHERE submittal_id=$1",[sid])).rows).toHaveLength(0);
+   expect((await asSuper("SELECT * FROM mcp_submittal_packages WHERE id=$1",[artifact.id])).rows).toHaveLength(0);
+   await expect(asSuper("SELECT mcp_submittal_record_get($1,$2)",[job,(await saved(sid)).submittal.number])).rejects.toThrow();
+   await expect(asSuper("SELECT mcp_submittal_package_context($1,$2)",[job,sid])).rejects.toThrow("full job access");
+   const packagePath=(await query("SELECT path FROM mcp_submittal_packages WHERE id=$1",[artifact.id]))[0].path;
+   expect((await asSuper("SELECT mcp_submittal_path_scope($1) sc",[packagePath])).rows[0].sc).toBeNull();
+
+   const draft=await call(submittalDelivery,{action:"draft",job_number:"2701",submittal_id:sid,kind:"package",package_id:artifact.id,draft:{to:"pat@example.com",cc:[],subject:"Fictional PCO",body:`Review ${artifact.download_url}`,link:artifact.download_url}});
+   const common={job_number:"2701",submittal_id:sid,delivery_id:draft.structuredContent.delivery_id,draft_key:draft.structuredContent.draft_key};
+   await call(submittalDelivery,{...common,action:"approve",confirmed:true});await call(submittalDelivery,{...common,action:"record_sent",provider:"local-test-only",message_id:crypto.randomUUID(),sent_at:new Date().toISOString()});
+   const evidence={by:"Fictional Owner",at:new Date().toISOString(),reference:"Fictional signed change #1"};
+   await query("UPDATE mcp_jobs SET sov_fee_pct=10 WHERE id=$1",[job]);
+   await db.query("INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','05.01',$2::jsonb,'known','member_answer',$3),($1,'contract','contract_value','1000','known','member_answer',$3)",[job,JSON.stringify({description:"Original steel",billable_value:900}),owner]);
+   await call(changeOrderRecord,{action:"approve",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:2,confirmed:true,evidence});
+   expect((await query("SELECT * FROM mcp_job_facts WHERE job_id=$1 AND module='sov'",[job])).length).toBe(1);
+   const execution={action:"execute",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:3,confirmed:true,evidence,sov_division:"05"};
+   await call(changeOrderRecord,execution);await call(changeOrderRecord,execution);
+   const facts=await query("SELECT module,key,value,status FROM mcp_job_facts WHERE job_id=$1",[job]);
+   const lines=facts.filter((f:{module:string})=>f.module==="sov").map((f:{key:string;value:{billable_value:number;description:string;executed_change_order?:string;fee_included?:boolean}})=>({item_no:f.key,description:f.value.description,scheduled_value:f.value.billable_value,executed_change_order:f.value.executed_change_order,fee_included:f.value.fee_included}));
+   const sov=buildSov(lines,10,10,{"05.01":{d:450,e:0}});expect(sov.summary.contract_total).toBe(1100);expect(sov.summary.fee).toBe(100);expect(sov.divisions.flatMap(d=>d.lines).find(l=>l.item_no==="05.01")!.d).toBe(450);expect(lines).toHaveLength(2);
+   expect(setupContractValue(facts)).toBe(1100);
+   await call(changeOrderLog,{job_number:"2701"});expect((await saved(sid)).change_order_details.state).toBe("executed");
+   await expect(call(changeOrderRecord,{...execution,request_id:crypto.randomUUID(),expected_version:4})).rejects.toThrow("Execution requires");
+   const historical=(await query("SELECT path FROM mcp_submittal_packages WHERE id=$1",[artifact.id]))[0];
+   expect(blobs.has(historical.path)).toBe(true);
+   const issued=await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+   expect(issued.structuredContent.package!.id).not.toBe(artifact.id);
+   expect(JSON.stringify(issued.structuredContent.card)).toContain("CO-001");
+ });
 });

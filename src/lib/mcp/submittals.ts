@@ -97,6 +97,8 @@ export type SubmittalSource = "spec_derived" | "user" | "imported";
 export type SubmittalPosture = "strict" | "advisory";
 
 export type SubmittalRecord = {
+  change_order_history?: {record_version:number;action:string;created_at:string;snapshot:import("./change-orders").ChangeDetails}[];
+  change_order_details?: import("./change-orders").ChangeDetails | null;
   package_purpose?: import("./package-purpose").PackagePurpose;
   request_details?: import("./package-purpose").RequestDetails | null;
   id: string;

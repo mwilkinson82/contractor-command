@@ -138,8 +138,8 @@ async function loadSov(sb: Sb, jobId: string): Promise<{ lines: SovLineIn[]; fee
   if (jr.error || facts.error) throw new Error(jr.error?.message || facts.error?.message);
   const rows = (facts.data ?? []) as { key: string; value: unknown; module: string }[];
   const lines = rows.filter((f) => f.module === "sov").map((f) => {
-    const v = (f.value ?? {}) as { description?: string | null; billable_value?: number | null };
-    return { item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
+    const v = (f.value ?? {}) as { executed_change_order?: string; fee_included?: boolean; description?: string | null; billable_value?: number | null };
+    return { executed_change_order: v.executed_change_order, fee_included: v.fee_included, item_no: f.key, description: v.description ?? null, scheduled_value: typeof v.billable_value === "number" ? v.billable_value : null };
   });
   const feeRaw = (jr.data as { sov_fee_pct?: number | null } | null)?.sov_fee_pct;
   const fee = feeRaw == null ? null : Number(feeRaw);

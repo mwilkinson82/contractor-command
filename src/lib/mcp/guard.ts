@@ -87,7 +87,7 @@ export async function logWorkflow(
  * (list_open_items date_sweep: true). It no longer rides on every list_open_items call.
  * report never carries it, so it is never prepended to an SOV or any other deliverable. */
 const NEVER_SWEEP = new Set(["jobs_list", "drawing_sets_list", "report", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "list_open_items", "lookahead_get"]);
-for (const tool of ["rfi_log", "rfi_record", "rfc_log", "rfc_record"]) NEVER_SWEEP.add(tool);
+for (const tool of ["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record"]) NEVER_SWEEP.add(tool);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
 export async function run<R>(tool: string, ctx: ToolContext, opts: string | undefined | { lookaheadId?: string; jobNumber?: string; companyId?: string; client?: boolean; ownerSov?: boolean; sweep?: boolean }, fn: (sb: Sb) => Promise<R>): Promise<R> {

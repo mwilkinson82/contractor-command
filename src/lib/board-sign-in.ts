@@ -39,7 +39,7 @@ export function boardSignInReturn(value: unknown): string | undefined {
   const jobId = parts[2];
   if (!isUuid(jobId)) return undefined;
   const isRecord = parts.length === 5 && parts[3] === "submittal";
-  const isRequestLog = parts.length === 4 && (parts[3] === "rfis" || parts[3] === "rfcs");
+  const isRequestLog = parts.length === 4 && (parts[3] === "rfis" || parts[3] === "rfcs" || parts[3] === "cos");
   dropBoardNoise(url.searchParams, isRecord || isRequestLog);
   const search = url.searchParams.toString();
   const hash = url.hash && url.hash !== "#" ? url.hash : "";
