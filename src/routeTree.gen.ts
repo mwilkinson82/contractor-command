@@ -101,6 +101,8 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as RJobJobIdPageRouteImport } from './routes/r.job.$jobId.$page'
+import { Route as RJobJobIdRfcsRouteImport } from './routes/r.job.$jobId.rfcs'
+import { Route as RJobJobIdRfisRouteImport } from './routes/r.job.$jobId.rfis'
 import { Route as RJobJobIdSubmittalNumberRouteImport } from './routes/r.job.$jobId.submittal.$number'
 
 const IndexRoute = IndexRouteImport.update({
@@ -575,6 +577,16 @@ const RJobJobIdPageRoute = RJobJobIdPageRouteImport.update({
   path: '/r/job/$jobId/$page',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RJobJobIdRfcsRoute = RJobJobIdRfcsRouteImport.update({
+  id: '/r/job/$jobId/rfcs',
+  path: '/r/job/$jobId/rfcs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RJobJobIdRfisRoute = RJobJobIdRfisRouteImport.update({
+  id: '/r/job/$jobId/rfis',
+  path: '/r/job/$jobId/rfis',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RJobJobIdSubmittalNumberRoute =
   RJobJobIdSubmittalNumberRouteImport.update({
     id: '/r/job/$jobId/submittal/$number',
@@ -675,6 +687,8 @@ export interface FileRoutesByFullPath {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/r/job/$jobId/$page': typeof RJobJobIdPageRoute
+  '/r/job/$jobId/rfcs': typeof RJobJobIdRfcsRoute
+  '/r/job/$jobId/rfis': typeof RJobJobIdRfisRoute
   '/r/job/$jobId/submittal/$number': typeof RJobJobIdSubmittalNumberRoute
 }
 export interface FileRoutesByTo {
@@ -770,6 +784,8 @@ export interface FileRoutesByTo {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/r/job/$jobId/$page': typeof RJobJobIdPageRoute
+  '/r/job/$jobId/rfcs': typeof RJobJobIdRfcsRoute
+  '/r/job/$jobId/rfis': typeof RJobJobIdRfisRoute
   '/r/job/$jobId/submittal/$number': typeof RJobJobIdSubmittalNumberRoute
 }
 export interface FileRoutesById {
@@ -866,6 +882,8 @@ export interface FileRoutesById {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/r/job/$jobId/$page': typeof RJobJobIdPageRoute
+  '/r/job/$jobId/rfcs': typeof RJobJobIdRfcsRoute
+  '/r/job/$jobId/rfis': typeof RJobJobIdRfisRoute
   '/r/job/$jobId/submittal/$number': typeof RJobJobIdSubmittalNumberRoute
 }
 export interface FileRouteTypes {
@@ -963,6 +981,8 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/r/job/$jobId/$page'
+    | '/r/job/$jobId/rfcs'
+    | '/r/job/$jobId/rfis'
     | '/r/job/$jobId/submittal/$number'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1058,6 +1078,8 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/r/job/$jobId/$page'
+    | '/r/job/$jobId/rfcs'
+    | '/r/job/$jobId/rfis'
     | '/r/job/$jobId/submittal/$number'
   id:
     | '__root__'
@@ -1153,6 +1175,8 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/r/job/$jobId/$page'
+    | '/r/job/$jobId/rfcs'
+    | '/r/job/$jobId/rfis'
     | '/r/job/$jobId/submittal/$number'
   fileRoutesById: FileRoutesById
 }
@@ -1244,6 +1268,8 @@ export interface RootRouteChildren {
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
   LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
   RJobJobIdPageRoute: typeof RJobJobIdPageRoute
+  RJobJobIdRfcsRoute: typeof RJobJobIdRfcsRoute
+  RJobJobIdRfisRoute: typeof RJobJobIdRfisRoute
   RJobJobIdSubmittalNumberRoute: typeof RJobJobIdSubmittalNumberRoute
 }
 
@@ -1893,6 +1919,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RJobJobIdPageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/job/$jobId/rfcs': {
+      id: '/r/job/$jobId/rfcs'
+      path: '/r/job/$jobId/rfcs'
+      fullPath: '/r/job/$jobId/rfcs'
+      preLoaderRoute: typeof RJobJobIdRfcsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/job/$jobId/rfis': {
+      id: '/r/job/$jobId/rfis'
+      path: '/r/job/$jobId/rfis'
+      fullPath: '/r/job/$jobId/rfis'
+      preLoaderRoute: typeof RJobJobIdRfisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/job/$jobId/submittal/$number': {
       id: '/r/job/$jobId/submittal/$number'
       path: '/r/job/$jobId/submittal/$number'
@@ -2024,6 +2064,8 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
   LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
   RJobJobIdPageRoute: RJobJobIdPageRoute,
+  RJobJobIdRfcsRoute: RJobJobIdRfcsRoute,
+  RJobJobIdRfisRoute: RJobJobIdRfisRoute,
   RJobJobIdSubmittalNumberRoute: RJobJobIdSubmittalNumberRoute,
 }
 export const routeTree = rootRouteImport

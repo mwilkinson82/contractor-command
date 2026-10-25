@@ -28,6 +28,8 @@ import { submittalLogUrl, submittalPackageUrl, submittalUploadUrl } from "../sub
 import { duplicatePieceWarnings, newSubmittalPiece, submittalPieceMime } from "../../submittal-piece-input";
 import type { SubmittalRecordPayload } from "../../submittal-record-page";
 import { submittalBuildTime } from "../../submittal-build-time";
+import { requestSections } from "../request-log";
+import { packagePurpose } from "../package-purpose";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -63,13 +65,15 @@ export function packageCard(
   lines: (string | CardRow)[],
   extra: Record<string, unknown> = {},
 ) {
+  const purpose = packagePurpose(ctx.submittal.package_purpose);
+  const request = purpose === "rfi" || purpose === "rfc";
   const sent = typeof extra.sent === "boolean" ? extra.sent : !!ctx.package?.sent_at;
   const warnings = duplicatePieceWarnings(ctx.items);
   const history = extra.history as { id: string; filename: string; transmittal_number: number | null; revision: number; current: boolean; revoked: boolean; created_at: string; built_at_display?: string; open_url: string | null }[] | undefined;
   const buildOrder = submittalHistoryOrder(history ?? []);
   const card: CardModel = {
     state: "result",
-    title,
+    title: request ? title.replace(/submittal/gi, purpose.toUpperCase()) : title,
     show_state: false,
     job: `${ctx.job_number} – ${ctx.job_name}`,
     kpis: [
@@ -84,10 +88,11 @@ export function packageCard(
         heading: ctx.submittal.title,
         kind: "list",
         rows: [
-          { cells: [`Submittal ${ctx.submittal.number} · Spec ${ctx.submittal.spec_section}`] },
+          { cells: [`${request ? ctx.submittal.number : `Submittal ${ctx.submittal.number}`}${ctx.submittal.spec_section ? ` · Spec ${ctx.submittal.spec_section}` : ""}`] },
           ...lines.map((l) => (typeof l !== "string" ? l : { cells: [l] })),
         ],
       },
+      ...(request && ctx.submittal.request_details ? requestSections(ctx.submittal.request_details) : []),
       {
         heading: "Cover sheet",
         kind: "list",
@@ -96,7 +101,7 @@ export function packageCard(
           { cells: [ctx.brand.name] },
           { cells: [`Job ${ctx.job_number} · ${ctx.job_name}`] },
           { cells: [`${ctx.submittal.number} · ${ctx.submittal.title}`] },
-          { cells: [`Spec section ${ctx.submittal.spec_section}`] },
+          ...(ctx.submittal.spec_section ? [{ cells: [`Spec section ${ctx.submittal.spec_section}`] }] : []),
           { cells: [`Date ${ctx.package?.cover_date ?? ctx.today}`] },
         ],
       },

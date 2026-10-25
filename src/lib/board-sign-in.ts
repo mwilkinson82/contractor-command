@@ -39,7 +39,8 @@ export function boardSignInReturn(value: unknown): string | undefined {
   const jobId = parts[2];
   if (!isUuid(jobId)) return undefined;
   const isRecord = parts.length === 5 && parts[3] === "submittal";
-  dropBoardNoise(url.searchParams, isRecord);
+  const isRequestLog = parts.length === 4 && (parts[3] === "rfis" || parts[3] === "rfcs");
+  dropBoardNoise(url.searchParams, isRecord || isRequestLog);
   const search = url.searchParams.toString();
   const hash = url.hash && url.hash !== "#" ? url.hash : "";
   // A submittal record: /r/job/<id>/submittal/<number>. The number stays percent-encoded as the browser sent it.
@@ -50,7 +51,7 @@ export function boardSignInReturn(value: unknown): string | undefined {
   }
   if (parts.length !== 4) return undefined;
   const page = hostedPageName(parts[3]);
-  if (!(JOB_PAGES as readonly string[]).includes(page)) return undefined;
+  if (!(JOB_PAGES as readonly string[]).includes(page) && !isRequestLog) return undefined;
   return `/r/job/${jobId}/${page}${search ? `?${search}` : ""}${hash}`;
 }
 

@@ -2,6 +2,7 @@ import { sha256Hex } from "./file-share";
 /** Server-built covers and immutable packages. Source bytes are never rewritten. */
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { PackageItem, SubmittalRecord } from "./submittals";
+import { PACKAGE_PURPOSE_LABEL, packagePurpose, requestContent, requestContentGaps, type PackagePurpose, type RequestDetails } from "./package-purpose";
 export const SUBMITTAL_BUCKET = "athena-submittals";
 export const PACKAGE_MAX_BYTES = 50 * 1024 * 1024;
 export type PackageArtifact = {
@@ -21,7 +22,7 @@ export type PackageArtifact = {
 };
 export type PackageContext = {
   is_current?: boolean;
-  submittal: SubmittalRecord & { company_id: string; job_id: string; transmittal_id?: string | null };
+  submittal: SubmittalRecord & { company_id: string; job_id: string; transmittal_id?: string | null; package_purpose?: PackagePurpose; request_details?: RequestDetails | null };
   items: PackageItem[];
   brand: {
     name: string;
@@ -116,14 +117,17 @@ export function findPackagePiece(
 
 export function packageGaps(ctx: PackageContext): string[] {
   const gaps: string[] = [];
+  const purpose = packagePurpose(ctx.submittal.package_purpose);
+  const request = purpose === "rfi" || purpose === "rfc";
   if (!ctx.brand?.name?.trim()) gaps.push("Company letterhead name");
-  if (
+  if (request) gaps.push(...requestContentGaps(ctx.submittal.request_details));
+  if (!request && (
     !ctx.submittal.spec_section?.trim() ||
     /^(needed|unknown|n\/?a|tbd)$/i.test(ctx.submittal.spec_section.trim())
-  )
+  ))
     gaps.push("Required spec section");
   if (!(ctx.transmittal_number > 0)) gaps.push("Transmittal number");
-  if (!ctx.items.some((item) => item.required !== false))
+  if (!request && !ctx.items.some((item) => item.required !== false))
     gaps.push("Package checklist: identify the required cuts, drawings and documents");
   ctx.items.forEach((item, n) => {
     if (
@@ -141,16 +145,18 @@ const ascii = (s: string) =>
     .replace(/[–—]/g, "-")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/[^\x20-\x7e\n]/g, "?");
+    .replace(/[^\x20-\x7e\n§¶]/g, "?");
 export async function buildSubmittalPdf(
   ctx: PackageContext,
   files: PackageFile[],
   logo?: Uint8Array,
 ) {
+  const purpose = packagePurpose(ctx.submittal.package_purpose);
+  const request = purpose === "rfi" || purpose === "rfc";
   const gaps = packageGaps(ctx);
   if (gaps.length) throw new Error(gaps.join("; "));
   if (
-    !files.length ||
+    (!request && !files.length) ||
     files.length > 40 ||
     files.reduce((n, f) => n + f.bytes.length, 0) > PACKAGE_MAX_BYTES
   )
@@ -222,14 +228,24 @@ export async function buildSubmittalPdf(
   y -= 10;
   page.drawRectangle({ x: 48, y, width: 516, height: 3, color: blue });
   y -= 30;
-  line("SUBMITTAL TRANSMITTAL", 17, true);
+  line(purpose === "approval" ? "SUBMITTAL TRANSMITTAL" : PACKAGE_PURPOSE_LABEL[purpose].toUpperCase(), 17, true);
   line(`T-${ctx.transmittal_number} | ${ctx.today}`, 12, true, blue);
   line(`Job ${ctx.job_number} - ${ctx.job_name}`);
   line(`Submittal ${ctx.submittal.number} | Revision ${ctx.submittal.revision}`);
   line(ctx.submittal.title, 13, true);
-  line(`Required by spec section ${ctx.submittal.spec_section}`);
+  if (ctx.submittal.spec_section?.trim()) line(`Required by spec section ${ctx.submittal.spec_section}`);
+  if (request && ctx.submittal.request_details) {
+    const details = ctx.submittal.request_details;
+    if (details.recipient_name || details.recipient_role) line(`To: ${[details.recipient_name, details.recipient_role?.replace(/_/g, " ")].filter(Boolean).join(" | ")}`);
+    for (const section of requestContent(details)) {
+      y -= 8;
+      line(section.heading.toUpperCase(), 11, true);
+      for (const value of section.lines) line(value);
+    }
+  }
   y -= 12;
   line("ITEMS INCLUDED", 12, true);
+  if (request) line("This request and the supporting documents listed below.", 10, false, gray);
   const manifest: {
     item_id: string | undefined;
     name: string;

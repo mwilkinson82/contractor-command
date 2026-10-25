@@ -26,6 +26,7 @@ vi.mock("./tools/submittal-tools", async (importOriginal) => ({
   }),
 }));
 import { submittalPackage, submittalDelivery } from "./tools/submittal-package-tools";
+import { rfiRecord, rfiLog } from "./tools/request-tools";
 import { sha256Hex } from "./file-share";
 import { submittalChase } from "./tools/submittal-chase-tool";
 import { runInNewContext } from "node:vm";
@@ -58,6 +59,9 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
       ) => Promise<{
         content: { type: string; text?: string }[];
         structuredContent: {
+          saved_id?: string;
+          record_version?: number;
+          counts?: {total:number;shown:number;overdue:number};
           ready?: boolean;
           sent?: boolean;
           send_confirmed?: boolean;
@@ -124,6 +128,9 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261023200000_athena_morning_brief.sql", "utf8"));
   await db.exec(readFileSync("drizzle/migrations/0025_athena_submittal_member_read_transaction.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261025111504_athena_submittal_display_time_zone.sql", "utf8"));
+  // Explicit local stand-in for the existing plan service; production uses its real function.
+  await db.exec("CREATE FUNCTION public.mcp_company_tier(_company uuid) RETURNS text LANGUAGE sql AS $$ SELECT 'circle'::text $$;");
+  await db.exec(readFileSync("supabase/migrations/20261025140000_athena_request_package_records.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -934,5 +941,54 @@ describe("real package handlers with local DB and immutable storage", () => {
     ).rejects.toThrow("valid PDF");
     expect(blobs.size).toBe(count);
     expect((await saved(sid)).package).toBeNull();
+  });
+});
+
+
+describe("RFI package uses the working submittal workflow end to end", () => {
+  it("creates, builds, attaches a marked-up drawing, records delivery, captures an answer and reopens with originals intact", async () => {
+    const created = await call(rfiRecord, {
+      action: "create", job_number: "2701", request_id: crypto.randomUUID(),
+      title: "Connection RFI #12", condition: "A101 detail 4 conflicts with the specification.",
+      question: "Which connection applies? Bulletin #4 is referenced.",
+      references: [{kind:"drawing",citation:"A101 detail 4, grid B/3"}],
+      recipient_name: "Pat Example", recipient_role: "construction_manager", recipient_email: "pat@example.com",
+    });
+    const sid = created.structuredContent.saved_id!;
+    expect(created.structuredContent.record_version).toBe(1);
+    const questionOnly = await call(submittalPackage, {action:"build",job_number:"2701",submittal_id:sid});
+    expect(questionOnly.structuredContent.package!.page_count).toBeGreaterThanOrEqual(1);
+    const original = await PDFDocument.create(); original.addPage(); const bytes = await original.save();
+    const originalHash = await sha256Hex(bytes);
+    await call(submittalPackage, {action:"upload_piece",job_number:"2701",submittal_id:sid,
+      new_piece:{kind:"shop_drawing",source_party:"Pat Example · RFI #12"},filename:"A101-markup.pdf",content_base64:Buffer.from(bytes).toString("base64")});
+    const built = await call(submittalPackage,{action:"build",job_number:"2701",submittal_id:sid});
+    const artifact = built.structuredContent.package!;
+    expect(artifact.page_count).toBeGreaterThan(questionOnly.structuredContent.package!.page_count);
+    const snapshot = await saved(sid);
+    const sourcePath = snapshot.items[0].file_ref.replace("athena-submittals/","");
+    expect(await sha256Hex(blobs.get(sourcePath)!)).toBe(originalHash);
+    const transmittals = (await query("SELECT count(*)::int n FROM mcp_transmittals WHERE job_id=$1",[job]))[0].n;
+    await call(rfiLog,{job_number:"2701"});
+    const read = await call(submittalPackage,{action:"get",job_number:"2701",submittal_id:sid});
+    expect(read.structuredContent.package!.id).toBe(artifact.id);
+    expect((await query("SELECT count(*)::int n FROM mcp_transmittals WHERE job_id=$1",[job]))[0].n).toBe(transmittals);
+    const draft = await call(submittalDelivery,{action:"draft",job_number:"2701",submittal_id:sid,kind:"package",package_id:artifact.id,
+      draft:{to:"pat@example.com",cc:[],subject:"Job 2701 · RFI clarification #12",body:`Please review the request and marked-up drawing. ${artifact.download_url}`,link:artifact.download_url}});
+    const common={job_number:"2701",submittal_id:sid,delivery_id:draft.structuredContent.delivery_id,draft_key:draft.structuredContent.draft_key};
+    await call(submittalDelivery,{...common,action:"approve",confirmed:true});
+    await call(submittalDelivery,{...common,action:"record_sent",provider:"local-test-only",message_id:crypto.randomUUID(),sent_at:new Date().toISOString()});
+    const sentRow = (await query("SELECT mcp_request_rows($1,'rfi') data",[job]))[0].data.records.find((r:{id:string})=>r.id===sid);
+    expect(sentRow.state).toBe("sent"); expect(sentRow.due_back).toBeNull();
+    const answer={text:"Use the connection in detail 4. RFI #12 answered; verify before closing.",received_from:"Pat Example",received_at:new Date().toISOString(),references:[]};
+    await call(rfiRecord,{action:"answer",job_number:"2701",submittal_id:sid,request_id:crypto.randomUUID(),expected_version:1,answer});
+    expect((await saved(sid)).package.id).toBe(artifact.id);
+    await expect(call(rfiRecord,{action:"close",job_number:"2701",submittal_id:sid,request_id:crypto.randomUUID(),expected_version:2})).rejects.toThrow("explicitly confirm");
+    await call(rfiRecord,{action:"close",job_number:"2701",submittal_id:sid,request_id:crypto.randomUUID(),expected_version:2,confirmed:true});
+    const reopened=await call(rfiRecord,{action:"reopen",job_number:"2701",submittal_id:sid,request_id:crypto.randomUUID(),expected_version:3,confirmed:true});
+    expect(reopened.structuredContent.saved_id).not.toBe(sid);
+    expect((await saved(reopened.structuredContent.saved_id!)).submittal.revision).toBe(1);
+    expect(await sha256Hex(blobs.get(sourcePath)!)).toBe(originalHash);
+    expect(blobs.has(snapshot.package.path)).toBe(true);
   });
 });

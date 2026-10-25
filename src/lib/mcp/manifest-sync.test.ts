@@ -19,6 +19,7 @@ import * as Brief from "./tools/morning-brief-tools";
 import * as Sub from "./tools/submittal-tools";
 import * as Chase from "./tools/submittal-chase-tool";
 import * as Package from "./tools/submittal-package-tools";
+import { rfiLog, rfiRecord, rfcLog, rfcRecord } from "./tools/request-tools";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -117,6 +118,7 @@ async function liveTools(): Promise<Tool[]> {
       Chase.submittalChase,
       Package.submittalPackage,
       Package.submittalDelivery,
+      rfiLog, rfiRecord, rfcLog, rfcRecord,
       Start.gettingStarted,
     ],
     metrics: false,
