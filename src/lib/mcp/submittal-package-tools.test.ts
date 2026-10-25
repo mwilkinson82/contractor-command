@@ -78,7 +78,7 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
   ).handler(args, {});
 const saved = async (sid: string) =>
   (await query("SELECT mcp_submittal_package_context($1,$2) data", [job, sid]))[0].data;
-async function create(number: string) {
+async function create(number: string, sourceParty = "Example Manufacturer") {
   return (
     await query("SELECT mcp_submittal_log($1,$2,$3::jsonb) data", [
       job,
@@ -93,7 +93,7 @@ async function create(number: string) {
         package_items: [
           {
             kind: "product_cut",
-            source_party: "Example Manufacturer",
+            source_party: sourceParty,
             required: true,
             chase_name: "Fictional Supplier",
             chase_email: "supplier@example.com",
@@ -179,6 +179,22 @@ afterAll(async () => {
   await db?.close();
 });
 describe("real package handlers with local DB and immutable storage", () => {
+  it("preserves a saved piece source with numbered construction references across host displays", async () => {
+    const source = "TEST upload #282, delete later; RFI #12 / CO #3 / Bulletin #4";
+    const sid = await create("INTEGRATION-HASH-REFERENCES", source);
+    const output = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
+    const card = output.structuredContent.card;
+    const node = { dataset: {}, innerHTML: "" };
+    runInNewContext(cardWidgetHtml().match(/<script>([\s\S]*?)<\/script>/)![1], {
+      window: { openai: { toolOutput: { card } } }, document: { getElementById: () => node },
+    });
+    for (const rendered of [renderHtml(card), renderMarkdown(card), node.innerHTML]) {
+      expect(rendered).toContain(source);
+    }
+    const ctx = await saved(sid);
+    expect(ctx.items.find((item: { kind: string }) => item.kind === "product_cut").source_party).toBe(source);
+    expect(output.structuredContent.package).toBeUndefined();
+  });
   it("uploads an unlogged piece to an empty package and builds from the named sources", async () => {
     const added = (await query("SELECT mcp_submittal_log($1,$2,$3::jsonb) data", [job, "add", JSON.stringify({
       number: "INTEGRATION-NEW-PIECES", spec_section: "26 24 16", title: "Fictional unlogged pieces",

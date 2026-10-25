@@ -20,8 +20,8 @@ if(!app||app.dataset.subscribed==="1")return;
 app.dataset.subscribed="1";
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
 function isAlert(level){return level==="risk"||level==="delay"||level==="overdue"}
-function raw(c){return /^(#[0-9A-Fa-f]{3,8}|#\\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
-function clean(c){return String(c==null?"":c).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig," ").replace(/#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\\b/g," ").replace(/#\\d{1,4}\\b/g," ").replace(/\\s+/g," ").replace(/^[,·\\s-]+|[,·\\s-]+$/g,"").trim()}
+function raw(c){return /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
+function clean(c){return String(c==null?"":c).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig," ").replace(/\\s+/g," ").replace(/^[,·\\s-]+|[,·\\s-]+$/g,"").trim()}
 function view(r){
   var cells=r.cells||[];
   var words=cells.filter(function(c){return c&&!raw(c)}).map(clean).filter(Boolean);

@@ -15,10 +15,9 @@ describe("plain names and detail links", () => {
   const job = "11111111-1111-4111-8111-111111111111";
   const href = `https://app.meetathena.io/r/job/${job}/items#item-8`;
 
-  it("drops raw codes from the label and keeps the title", () => {
-    expect(plainLabel(before).label).toBe("Overdue Oct 14");
-    expect(plainLabel(before).label).not.toContain("#A4634D");
-    expect(plainLabel(before).label).not.toContain("#8");
+  it("keeps hash references in the label rather than guessing they are internal codes", () => {
+    expect(plainLabel(before).label).toBe(before);
+    expect(plainLabel(before).refId).toBeNull();
   });
 
   it("links the item in the widget html and the markdown fallback", () => {
@@ -32,10 +31,10 @@ describe("plain names and detail links", () => {
     expect(html).toContain(`<a href="${href}">`);
     expect(html).toContain("Inspection");
     expect(html).toContain("City of Harbor");
-    expect(html).not.toContain("#A4634D");
+    expect(html).toContain(before);
     expect(html).toContain('data-id="8"');
-    expect(md).toContain(`[Inspection · City of Harbor · Overdue Oct 14](${href})`);
-    expect(md).not.toContain("#A4634D");
+    expect(md).toContain(`[Inspection · City of Harbor · Overdue Oct 14, #8, #A4634D](${href})`);
+    expect(md).toContain(before);
     expect(cardWidgetHtml()).toContain("<a href=");
   });
 });

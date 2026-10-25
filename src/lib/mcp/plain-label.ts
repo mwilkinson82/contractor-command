@@ -1,11 +1,9 @@
 // Visible labels are the activity name, the item title, and the owner.
-// Raw ids, uuids, and hex refs stay in data attributes or small secondary text.
+// Internal row refs stay in data attributes or small secondary text; member #references are content.
 import type { CardRow } from "./cards/model";
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-const HEX_REF = /#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b/g;
-const HASH_NUM = /#\d{1,4}\b/g;
-const RAW_CELL = /^(?:#[0-9A-Fa-f]{3,8}|#\d{1,4}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const RAW_CELL = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export function detailAnchor(kind: "activity" | "item" | "daily" | "photo" | "line" | "risk" | "submittal", id: string): string {
   const safe = id.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
@@ -33,28 +31,26 @@ export function withAnchor(url: string | null | undefined, anchor: string): stri
 
 /** Markdown link when the href is a hosted board page. The label is the words, not the id. */
 export function mdLink(label: string, href: string | null | undefined): string {
-  const text = label.replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim() || "Item";
+  const text = label.replace(/[[\]]/g, "").replace(/\s+/g, " ").trim() || "Item";
   const safe = safeBoardHref(href);
   return safe ? `[${text}](${safe})` : text;
 }
 
 export type Plain = { label: string; href: string | null; refId: string | null };
 
-/** One cell or line: drop uuid, hex, and #n tokens from the words a person reads. */
+/** Member #references are content. Only opaque UUIDs are suppressed; row refs use metadata. */
 export function plainLabel(text: string): Plain {
   const link = text.match(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/);
   let body = text.replace(/\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/g, (_, href: string) => (link ? "" : href));
   if (link) body = `${link[1]} ${body}`;
   const uuid = body.match(UUID)?.[0] ?? null;
-  const hex = body.match(HEX_REF)?.[0] ?? null;
-  const hashNum = body.match(HASH_NUM)?.[0] ?? null;
   if (RAW_CELL.test(body.trim())) body = "";
-  body = body.replace(UUID, " ").replace(HEX_REF, " ").replace(HASH_NUM, " ");
+  body = body.replace(UUID, " ");
   body = body.replace(/\s+/g, " ").replace(/[,\s]*·[,\s]*·/g, " · ").replace(/^[,·\s-]+|[,·\s-]+$/g, "").trim();
   return {
     label: body || "Item",
     href: link?.[2] ?? null,
-    refId: uuid ?? hex ?? hashNum,
+    refId: uuid,
   };
 }
 
