@@ -1317,7 +1317,7 @@
       {
         "name": "intake",
         "title": "Job setup intake",
-        "description": "Records a job and its setup, including a draft or what-if SOV when sov_copy is \"draft\".",
+        "description": "Records a job and its setup, and for a draft, what-if or proposed SOV call it with sov_copy \"draft\" (never build one yourself) and say saved only after it returns \"Saved in Athena\".",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1934,8 +1934,7 @@
               "enum": [
                 "official",
                 "draft"
-              ],
-              "description": "budget: which SOV copy sov_lines go to. \"official\" (default) is the contract SOV; once saved, its dollars change only by approved change order. \"draft\" saves a separate copy in Athena labeled \"Draft, not official\" for what-ifs, rebalances, expected change orders and a monthly forecast, and never touches the official SOV, contract value or pay apps. Whenever the member asks for a draft, what-if or proposed SOV, call intake with sov_copy \"draft\". Never build a draft yourself, and never say a draft was saved unless this tool returned \"Saved in Athena\"."
+              ]
             },
             "action": {
               "type": "string",
