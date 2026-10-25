@@ -8750,6 +8750,55 @@
         "outputSchema": null
       },
       {
+        "name": "submittal_void",
+        "title": "Void a submittal",
+        "description": "Marks a submittal Void after a separate yes, keeps the row, and records who, when, and the reason.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "confirm_key": {
+              "type": "string",
+              "maxLength": 20
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "submittal_package",
         "title": "Collect and build a submittal package",
         "description": "Collects immutable files using piece IDs, P-numbers or new_piece kind/source_party metadata; get reads the current package and full history without building, build creates missing content or reuses the current package, and rebuild_from_package_id targets an explicit replacement safely across repeated calls.",

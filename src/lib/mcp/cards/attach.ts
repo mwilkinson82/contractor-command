@@ -53,6 +53,7 @@ export const CARD_FIRST_TOOLS = new Set([
   "submittal_chase",
   "submittal_package",
   "submittal_delivery",
+  "submittal_void",
   "field_pay_app",
   "living_report_get",
   "drawing_set_import",
@@ -101,6 +102,7 @@ export const CARD_TOOLS = new Set([
   "submittal_chase",
   "submittal_package",
   "submittal_delivery",
+  "submittal_void",
 ]);
 
 /** Other living report types retain their existing Gantt/IOR presentation. */
@@ -162,6 +164,7 @@ function whichJob(tool: string, text: string): boolean {
     tool === "submittals_import" ||
     tool === "project_record_search" ||
     tool === "submittal_chase" ||
+    tool === "submittal_void" ||
     tool === "daily_report_draft" ||
     tool === "daily_report_save" ||
     tool === "daily_report_get";

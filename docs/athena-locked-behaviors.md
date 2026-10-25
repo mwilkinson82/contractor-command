@@ -69,3 +69,7 @@ ChatGPT and Claude keep the existing IOR card HTML and tool text. Grok Bot does 
 ## The company profile read says its heading once
 
 The onboarding read, titled `What I have so far`, prints that heading once in the text. The profile is printed once. The ChatGPT and Claude card HTML is the same card as before, including its state line. The duplicate bold heading and the second plain-text copy of the profile are not added under the card.
+
+## A submittal void keeps the row
+
+`submittal_void` is the void action for ChatGPT, Claude, and Grok Bot. Any status can be marked Void. The row is not deleted. Nothing is written until the member says yes and the call passes `confirmed` true with the matching `confirm_key`. The project record keeps who (`auth.uid`), when (the event time), and the reason. The open log drops the row. History, the log text, and the record-page status (through `submittalDisplayStatus`, not a page-template edit) say Void. An unsent package still reads as a draft for every other status.

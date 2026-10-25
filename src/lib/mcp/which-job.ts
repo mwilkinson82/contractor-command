@@ -11,6 +11,7 @@ export const WHICH_JOB_ASK = {
   submittals_import: "Which job should I import this submittal log onto?",
   project_record_search: "Which job's project record?",
   submittal_chase: "Which job's submittal chase?",
+  submittal_void: "Which job's submittal should I void?",
   daily_report_draft: "Which job's daily report?",
   daily_report_save: "Which job's daily report?",
   daily_report_get: "Which job's daily report?",

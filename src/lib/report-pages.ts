@@ -276,11 +276,17 @@ function itemsPageHtml(p: ItemsPagePayload): string {
 
 function submittalsPageHtml(p: SubmittalsPagePayload): string {
   const today = (p.today ?? "").slice(0, 10);
-  const rows = currentSubmittals(p.submittals ?? []);
+  const current = currentSubmittals(p.submittals ?? []);
+  const rows = current.filter((row) => row.status !== "void");
+  const history = current.filter((row) => row.status === "void");
   const overdue = rows.filter((row) => submittalOverdue(row, today)).length;
   const posture = postureSentence(resolvePosture(p.posture_set ?? p.posture, p.public_job));
   const head = `<div data-count="${rows.length}" data-overdue="${overdue}">${tiles([tile("Submittals", String(rows.length)), tile("Overdue", String(overdue), overdue > 0), tile("Review days", String(p.review_days ?? 14))])}<p style="margin:0 0 16px;font-size:13px;color:${G1}">${esc(posture)}${p.read_only ? " Read only." : ""}</p></div>`;
-  if (!rows.length) return head + card(`<p style="margin:0;color:${G1}">No submittals on this job yet.</p>`);
+  const historyHtml = history.length
+    ? card(`<h2 style="margin:0 0 12px;font-size:13px;letter-spacing:.06em;color:${NAVY}">HISTORY</h2>` + history.map((row) => `<div data-submittal-history="1">Spec ${esc(row.spec_section)} · ${esc(submittalDisplayStatus(row))} · ${esc(row.number)} ${esc(row.title)}</div>`).join(""))
+    : "";
+  if (!rows.length && !history.length) return head + card(`<p style="margin:0;color:${G1}">No submittals on this job yet.</p>`);
+  if (!rows.length) return head + historyHtml;
   return head + rows.map((row) => {
     const late = submittalOverdue(row, today);
     const who = row.ball_in_court_name?.trim() ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}` : labelOf(BALL_LABEL, row.ball_in_court);
@@ -290,7 +296,7 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
     const recordHref = `submittal/${encodeURIComponent(row.number.trim())}`;
     const href = recordHref;
     return `<section id="submittal-${esc(row.id)}" data-submittal-row="1" data-id="${esc(row.id)}" style="${border}">${card(`<div style="font-weight:700;color:${color}"><a href="${esc(href)}" data-record="${esc(row.number)}" style="color:${color};text-decoration:none">${late ? "Overdue · " : ""}${esc(row.number)} revision ${esc(row.revision)}, ${esc(row.title)}</a></div><div style="font-size:12px;color:${G1};margin-top:4px">Spec ${esc(row.spec_section)} · ${esc(submittalDisplayStatus(row))} · ${esc(sourceLine(row))} · ${esc(who)} · ${esc(transmittalLabel(row.transmittal_number))} · Due back ${esc(row.due_back?.slice(0, 10) || "Needed")} · ${esc(packageLine(row.package_items))} · Overdue: ${late ? "Yes" : "No"}${packageDelivery(row) ? ` · ${esc(packageDelivery(row))}` : ""}${row.built_package ? ` · ${esc(row.built_package.filename)} · <a href="${esc(recordHref)}?open=package&amp;package_id=${encodeURIComponent(row.built_package.id)}" style="color:${BLUE}">Open package PDF</a>` : ""} · <a href="${esc(recordHref)}?${SUBMITTAL_UPLOAD_QUERY}" style="color:${BLUE}">Upload a piece</a></div>`)}</section>`;
-  }).join("");
+  }).join("") + historyHtml;
 }
 
 export function renderReportBody(p: PagePayload): string {

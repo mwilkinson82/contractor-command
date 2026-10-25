@@ -415,4 +415,18 @@ describe("locked behaviors", () => {
     const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
     expect(doc).toContain("What I have so far");
   });
+
+  it("voids a submittal only after yes and keeps the row", () => {
+    const tool = readFileSync(new URL("./tools/submittal-void-tool.ts", import.meta.url), "utf8");
+    const rule = readFileSync(new URL("./submittal-void.ts", import.meta.url), "utf8");
+    expect(tool).toContain('name: "submittal_void"');
+    expect(tool).toContain("voidDecision");
+    expect(rule).toContain("ask.confirmed !== true");
+    expect(tool).not.toContain("DELETE FROM");
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("A submittal void keeps the row");
+    expect(doc).toContain("submittal_void");
+    const page = readFileSync(new URL("../submittal-record-page.ts", import.meta.url), "utf8");
+    expect(page).toContain("submittalDisplayStatus(row, p.packages)");
+  });
 });
