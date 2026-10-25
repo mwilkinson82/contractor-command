@@ -12,7 +12,10 @@ import {
  *  when the host did not advertise a card. structuredContent, widget template, and resource URI stay.
  *  Grok Bot prints tool text to the member. Render orders on the contract, SOV, morning brief,
  *  morning meeting and drawing markup move from that text into structuredContent.assistant_guidance.
- *  ChatGPT and Claude results are not rewritten by that pass, so their cards stay byte-identical. */
+ *  An unfenced `<!doctype html>…</html>` document is then removed from text parts for Grok Bot,
+ *  for any host that does not inline a card, and for ChatGPT when structuredContent.html already
+ *  holds that document. Claude's native-card pass is unchanged. Claude's other tools keep the
+ *  document in text, because that text is the card. structuredContent.html is not rewritten. */
 import {
   NATIVE_CARD_MIME,
   NATIVE_CARD_TOOLS,
@@ -36,6 +39,7 @@ import {
   emailCardMeta,
   emailCardResourceMeta,
 } from "./cards/email-card";
+import { CARD_TOOLS } from "./cards/attach";
 import { outsideFencedBlocks } from "./cards/verbatim";
 import { claudeCardReply } from "./cards/claude-reply";
 import { drawingFileMeta } from "./drawing-file-input";
@@ -177,7 +181,7 @@ export function isGrokHost(host: Host | null): boolean {
   return !!host && /grok/i.test(host.name);
 }
 
-/** Pull render orders out of the text Grok shows. The HTML document in that text is not edited. */
+/** Pull render orders out of the text Grok shows. The HTML document is removed by a later pass. */
 export function relocateGrokInstructionText(text: string): { text: string; moved: string[] } {
   const moved: string[] = [];
   const next = outsideFencedBlocks(text, (part) =>
@@ -243,6 +247,38 @@ export function stripInlineCardHtml(text: string): string {
   ).trim();
 }
 
+const CARD_DOCUMENT = /<!doctype\s+html\b|<html\b/i;
+
+/** Remove an unfenced HTML document from tool text. Fenced member text stays. Orders stay. */
+export function stripCardDocument(text: string): string {
+  let removed = false;
+  const next = outsideFencedBlocks(text, (part) => {
+    const stripped = part
+      .replace(/<!doctype\s+html\b[\s\S]*?<\/html\s*>/gi, "")
+      .replace(/<!doctype\s+html\b[\s\S]*$/gi, "")
+      .replace(/<html\b[\s\S]*?<\/html\s*>/gi, "")
+      .replace(/\n{3,}/g, "\n\n");
+    if (stripped !== part) removed = true;
+    return stripped;
+  });
+  return removed ? next.trim() : text;
+}
+
+function dropTextCardDocuments(result: Obj): Obj | null {
+  if (!Array.isArray(result.content)) return null;
+  let changed = false;
+  const content = result.content.map((block) => {
+    const row = obj(block);
+    if (!row || row.type !== "text" || typeof row.text !== "string" || !CARD_DOCUMENT.test(row.text))
+      return block;
+    const text = stripCardDocument(row.text);
+    if (text === row.text) return block;
+    changed = true;
+    return { ...row, text };
+  });
+  return changed ? { ...result, content } : null;
+}
+
 export async function nativeCardVisit(request: Request): Promise<Visit | null> {
   if (!isMcpPost(request)) return null;
   // Drawing uploads and unrelated large calls never enter this presentation pass.
@@ -280,11 +316,14 @@ export async function nativeCardVisit(request: Request): Promise<Visit | null> {
     const remembered = session ? cardSessions.get(session) : undefined;
     const grok = remembered?.grok ?? isGrokHost(host);
     const toolName = String(params.name ?? "");
+    // Styled-card tools only, and only once the host is known. A non-card call such as
+    // cpm_activities stays out of this pass, as does an anonymous living-report read.
+    const identified = !!host || !!remembered;
     if (
       method === "tools/call" &&
       !cardMetaFor(toolName) &&
       !GROK_PLAIN_TOOLS.has(toolName) &&
-      !(grok && toolName === "living_report_get")
+      !(CARD_TOOLS.has(toolName) && identified)
     )
       continue;
     calls.push({
@@ -461,13 +500,27 @@ export function nativeCardPayload(
       GROK_PLAIN_TOOLS.has(String(call.params.name ?? "")) &&
       Array.isArray(result.content)
     ) {
-      // Grok only. ChatGPT stays the original object. Claude keeps claudeCardReply above.
+      // Grok only. Claude keeps claudeCardReply above. The document strip below is separate.
       const relocated = relocateGrokInstructions(result);
       if (relocated) next = relocated;
     } else if (call.method === "resources/read" && isCardUri(call.params.uri) && missingMethod) {
       // Some deployed SDK builds omit resource handlers. Only this static, non-personal shell is repaired,
       // after the SDK returns a method-not-found reply. Auth failures and other resource URIs are untouched.
       next = resourceContents(String(call.params.uri));
+    }
+    if (call.method === "tools/call" && result && result.isError !== true) {
+      const base = next ?? result;
+      const sc = obj(base.structuredContent);
+      const htmlCopy = typeof sc?.html === "string" && CARD_DOCUMENT.test(sc.html);
+      // Claude's non-native tools render the card from the text document. Leave that text.
+      // ChatGPT's widget paints structuredContent.card and does not read this text, so a
+      // document already stored on structuredContent.html is dropped. Grok and every other
+      // text host print the text, so the document never stays there.
+      const keepTextDocument = call.claude || (call.inlineHtml && !call.grok && !htmlCopy);
+      if (!keepTextDocument) {
+        const stripped = dropTextCardDocuments(base);
+        if (stripped) next = stripped;
+      }
     }
     if (!next) return value;
     // The SDK's modern codec normally stamps these fields. Synthetic resource replies

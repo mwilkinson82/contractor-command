@@ -17,15 +17,18 @@ import { DATA_DATE_FUTURE_ERROR, iorPlainReply, iorSectionsText, resolveDataDate
 import { scheduleWindowLabel } from "./styled-views";
 import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
-import { nativeCardPayload, nativeCardVisit } from "./native-card-transport";
 import { companyProjectSoftware } from "./scope-defaults";
 import { attachAthenaCard } from "./cards/attach";
 import { inferCard } from "./cards/infer";
-import { renderHtml } from "./cards/html";
+import { displayFactsResult } from "./cards/display-result";
+import { presentBrief } from "./morning-brief";
+import { presentPayApp } from "./pay-app-card";
+import type { CardModel } from "./cards/model";
 
 const HTML =
   '<!doctype html><html><head><style>body{color:#1E5FED}</style></head><body><article class="card">Harbor Point</article></body></html>';
 const LEAK = /REQUIRED VIEW|Card shown\. Do not add text|REQUIRED: Any email card/;
+const DOCUMENT = /<!doctype html|<html/i;
 
 function stampedCard(html: string): string {
   return htmlBlock(html).replace(/^(REQUIRED VIEW:.*)$/m, "$1 (spec V6QPP3)");
@@ -89,12 +92,6 @@ function textOf(result: { content?: { text?: string }[] }): string {
   return (result.content ?? []).map((block) => block.text ?? "").join("\n");
 }
 
-function htmlSlice(text: string): string {
-  const start = text.indexOf("<!doctype html");
-  const end = text.indexOf("</html>");
-  return start < 0 || end < 0 ? "" : text.slice(start, end + "</html>".length);
-}
-
 const TOOLS = [
   ["contract_terms", "2701 – §6.2 Delay notice: 5 calendar days", false],
   ["report", "2701 – Schedule of values", true],
@@ -125,7 +122,7 @@ describe("locked behaviors", () => {
   });
 
   it.each(TOOLS)(
-    "Grok Bot %s text hides render orders and keeps the card HTML",
+    "Grok Bot %s text hides render orders and the card document",
     async (tool, lead, sov) => {
       const result = reply(lead, sov);
       const { out } = await present("Grok Bot", tool, result);
@@ -134,7 +131,7 @@ describe("locked behaviors", () => {
       const text = textOf(returned);
       expect(text).not.toMatch(LEAK);
       expect(text).toContain(lead);
-      expect(htmlSlice(text)).toBe(HTML);
+      expect(text).not.toMatch(DOCUMENT);
       expect(returned.structuredContent.html).toBe(HTML);
       expect(returned._meta).toBe(result._meta);
       expect(returned.structuredContent.assistant_guidance[0]).toBe("Keep the delivery question.");
@@ -156,18 +153,21 @@ describe("locked behaviors", () => {
   );
 
   it.each(TOOLS)(
-    "ChatGPT %s stays the original result, card HTML included",
+    "ChatGPT %s drops the text document and keeps the card fields",
     async (tool, lead, sov) => {
       const result = reply(lead, sov);
-      const { payload, out } = await present("ChatGPT", tool, result);
-      expect(out.changed).toBe(false);
-      expect(out.value).toBe(payload);
-      const text = textOf(result);
+      const { out } = await present("ChatGPT", tool, result);
+      expect(out.changed).toBe(true);
+      const returned = (out.value as { result: Reply }).result;
+      const text = textOf(returned);
+      expect(text).toContain(lead);
       expect(text).toContain("REQUIRED VIEW: render this HTML card as-is.");
       expect(text).toContain("(spec V6QPP3)");
       expect(text).toContain("Card shown. Do not add text.");
-      expect(htmlSlice(text)).toBe(HTML);
-      expect(result.structuredContent.html).toBe(HTML);
+      expect(text).not.toMatch(DOCUMENT);
+      expect(returned.structuredContent.html).toBe(HTML);
+      expect(returned.structuredContent.assistant_guidance).toBe(result.structuredContent.assistant_guidance);
+      expect(returned._meta).toBe(result._meta);
       if (sov)
         expect(text).toContain(
           'REQUIRED: Any email card for this SOV shows the literal label "To:"',
@@ -215,8 +215,10 @@ describe("locked behaviors", () => {
     );
     const result = reply("S-100 footing callout", true);
     const { out } = await present("test-host", "drawing_markup", result, "sess-grok-plain");
-    expect(textOf((out.value as { result: Reply }).result)).not.toMatch(LEAK);
-    expect(htmlSlice(textOf((out.value as { result: Reply }).result))).toBe(HTML);
+    const returned = (out.value as { result: Reply }).result;
+    expect(textOf(returned)).not.toMatch(LEAK);
+    expect(textOf(returned)).not.toMatch(DOCUMENT);
+    expect(returned.structuredContent.html).toBe(HTML);
   });
 
   it("accepts only the observed ChatGPT drawing storage accounts", () => {
@@ -351,6 +353,71 @@ describe("locked behaviors", () => {
     expect(doc).toContain("A1110a – Underground conduit & grounding, Nov 2 to Nov 11");
   });
 
+  it("keeps a fenced HTML quote and drops the unfenced card document", async () => {
+    const quoted = verbatimBlock("<!doctype html><html><body>Literal email example</body></html>");
+    const result = reply(`Draft\n\n${quoted}`);
+    for (const host of ["Grok Bot", "ChatGPT"]) {
+      const { out } = await present(host, "morning_brief", result);
+      const text = textOf((out.value as { result: Reply }).result);
+      expect(text).toContain("<!doctype html><html><body>Literal email example</body></html>");
+      expect(text).not.toContain("Harbor Point");
+      expect((out.value as { result: Reply }).result.structuredContent.html).toBe(HTML);
+    }
+  });
+
+  it("styled card text has no HTML document for morning brief, pay app, lookahead, and living report", async () => {
+    const card = (title: string): CardModel => ({
+      state: "result",
+      show_state: false,
+      title,
+      job: "2701 – Harbor Point",
+      sections: [{ heading: "Schedule", kind: "list", rows: [{ cells: ["A1110a – Underground conduit"] }] }],
+      next_move: "Clear the overdue item first.",
+    });
+    const brief = displayFactsResult(presentBrief(card("Morning brief")));
+    const pay = displayFactsResult(presentPayApp(card("G702 · Pay app through 2026-10-21")));
+    const lookahead = displayFactsResult(
+      attachAthenaCard("lookahead_get", {
+        content: [{ type: "text", text: "Saved lookahead\nA1110a – Underground conduit" }],
+        structuredContent: { card: card("14-day lookahead"), items: [] },
+      }),
+    );
+    const billing = presentPayApp(card("Pay App & Billing Forecast"));
+    const living = displayFactsResult({
+      ...billing,
+      structuredContent: { ...billing.structuredContent, report_type: "billing_forecast", found: true },
+    });
+    const cases = [
+      ["morning_brief", brief],
+      ["field_pay_app", pay],
+      ["lookahead_get", lookahead],
+      ["living_report_get", living],
+    ] as const;
+    for (const [tool, wired] of cases) {
+      for (const host of ["Grok Bot", "ChatGPT", "claude-ai"] as const) {
+        const { out } = await present(host, tool, wired as unknown as Reply);
+        const returned = (out.value as { result: Reply }).result;
+        const text = textOf(returned);
+        expect(returned.structuredContent.html).toMatch(/<!doctype html/i);
+        expect(returned.structuredContent.html).toBe(wired.structuredContent.html);
+        expect(returned._meta).toEqual(wired._meta);
+        // Claude renders a living report from the text document. It is not a native-card tool.
+        if (host === "claude-ai" && tool === "living_report_get") {
+          expect(text).toMatch(DOCUMENT);
+          continue;
+        }
+        for (const block of returned.content) {
+          if (block.type === "text") expect(block.text).not.toMatch(DOCUMENT);
+        }
+        expect(text).toContain("2701");
+      }
+    }
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("Tool `content` text parts do not carry");
+    expect(doc).toContain("structuredContent.html");
+    expect(doc).toContain("living_report_get");
+  });
+
   it("gives Grok Bot the IOR sections in plain text and leaves the card HTML", async () => {
     const html = "<!doctype html><p>IOR card</p></html>";
     const structuredContent = {
@@ -385,7 +452,11 @@ describe("locked behaviors", () => {
       headers: { "content-type": "application/json", "user-agent": "ChatGPT" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "living_report_get" } }),
     });
-    expect(await nativeCardVisit(chatgpt)).toBeNull();
+    const chatgptVisit = await nativeCardVisit(chatgpt);
+    expect(chatgptVisit).not.toBeNull();
+    const chatgptOut = nativeCardPayload(payload, chatgptVisit);
+    expect(chatgptOut.changed).toBe(false);
+    expect(chatgptOut.value).toBe(payload);
     const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
     expect(doc).toContain("Grok Bot's IOR reply includes the sections");
   });
