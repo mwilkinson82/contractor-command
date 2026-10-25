@@ -304,7 +304,7 @@ async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<It
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
-  description: "Records a job and its setup, and for a draft, what-if or proposed SOV call it with sov_copy \"draft\" (never build one yourself) and say saved only after it returns \"Saved in Athena\".",
+  description: "Records a job and its setup, and for a draft, what-if or proposed SOV call this intake tool with the argument sov_copy set to \"draft\" (sov_copy is an intake argument, not a separate tool; never build one yourself) and say saved only after it returns \"Saved in Athena\".",
   inputSchema: {
     section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]),
     job_number: jobNumber,
