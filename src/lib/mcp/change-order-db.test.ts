@@ -142,6 +142,7 @@ beforeAll(async () => {
   };
   await load("20261025140000_athena_request_package_records");
   await load("20261025150000_athena_change_order_packages");
+  await load("20261025153000_athena_change_execution_tie");
 });
 afterAll(async () => {
   await db?.close();

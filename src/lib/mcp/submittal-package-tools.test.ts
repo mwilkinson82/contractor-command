@@ -136,6 +136,7 @@ beforeAll(async () => {
   await db.exec("CREATE FUNCTION public.mcp_company_tier(_company uuid) RETURNS text LANGUAGE sql AS $$ SELECT 'circle'::text $$;");
   await db.exec(readFileSync("supabase/migrations/20261025140000_athena_request_package_records.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261025150000_athena_change_order_packages.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261025153000_athena_change_execution_tie.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -984,7 +985,7 @@ describe("RFI package uses the working submittal workflow end to end", () => {
     await call(submittalDelivery,{...common,action:"approve",confirmed:true});
     await call(submittalDelivery,{...common,action:"record_sent",provider:"local-test-only",message_id:crypto.randomUUID(),sent_at:new Date().toISOString()});
     const sentRow = (await query("SELECT mcp_request_rows($1,'rfi') data",[job]))[0].data.records.find((r:{id:string})=>r.id===sid);
-    expect(sentRow.state).toBe("sent"); expect(sentRow.due_back).toBeNull();
+    expect(sentRow.state).toBe("sent"); expect(sentRow.due_back).toBeNull(); expect(sentRow.ball_in_court_name).toBe("Pat Example");
     const answer={text:"Use the connection in detail 4. RFI #12 answered; verify before closing.",received_from:"Pat Example",received_at:new Date().toISOString(),references:[]};
     await call(rfiRecord,{action:"answer",job_number:"2701",submittal_id:sid,request_id:crypto.randomUUID(),expected_version:1,answer});
     expect((await saved(sid)).package.id).toBe(artifact.id);
@@ -1034,6 +1035,14 @@ describe("change-order shared package and deterministic execution",()=>{
    await call(changeOrderRecord,{action:"approve",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:2,confirmed:true,evidence});
    expect((await query("SELECT * FROM mcp_job_facts WHERE job_id=$1 AND module='sov'",[job])).length).toBe(1);
    const execution={action:"execute",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:3,confirmed:true,evidence,sov_division:"05"};
+   await db.query("UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='05.01'",[job,JSON.stringify({description:"Base steel",billable_value:null})]);
+   await expect(call(changeOrderRecord,execution)).rejects.toThrow("Complete and verify every base SOV");
+   await db.query("UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='05.01'",[job,JSON.stringify({description:"Base steel",billable_value:"Needed"})]);
+   await expect(call(changeOrderRecord,execution)).rejects.toThrow("Complete and verify every base SOV");
+   await db.query("UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='05.01'",[job,JSON.stringify({description:"Base steel",billable_value:950})]);
+   await expect(call(changeOrderRecord,execution)).rejects.toThrow("does not tie");
+   expect((await saved(sid)).change_order_details.state).toBe("approved");
+   await db.query("UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='05.01'",[job,JSON.stringify({description:"Base steel",billable_value:900})]);
    await call(changeOrderRecord,execution);await call(changeOrderRecord,execution);
    const facts=await query("SELECT module,key,value,status FROM mcp_job_facts WHERE job_id=$1",[job]);
    const lines=facts.filter((f:{module:string})=>f.module==="sov").map((f:{key:string;value:{billable_value:number;description:string;executed_change_order?:string;fee_included?:boolean}})=>({item_no:f.key,description:f.value.description,scheduled_value:f.value.billable_value,executed_change_order:f.value.executed_change_order,fee_included:f.value.fee_included}));

@@ -117,7 +117,6 @@ export function requestLogCard(
                 row.request_details.references.map((r) => r.citation).join("; "),
               ],
               href: row.record_url,
-              refId: row.id,
               flag: row.overdue ? ("overdue" as const) : null,
             }))
           : [
