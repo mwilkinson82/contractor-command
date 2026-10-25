@@ -113,6 +113,10 @@
               "type": "string",
               "maxLength": 60
             },
+            "time_zone": {
+              "type": "string",
+              "maxLength": 80
+            },
             "company_role": {
               "type": "string",
               "maxLength": 2000

@@ -6,6 +6,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 import { tokenHash } from "./file-share";
+import { submittalBuildTime } from "../submittal-build-time";
 
 const owner = "00000000-0000-4000-8000-000000000020",
   teammate = "00000000-0000-4000-8000-000000000021",
@@ -484,5 +485,46 @@ describe("browser POST RPC transaction mode", () => {
     } finally {
       await db.exec(originalGate);
     }
+  });
+});
+
+describe("submittal history time zone context", () => {
+  beforeAll(async () => {
+    await db.exec(readFileSync("supabase/migrations/20261023200000_athena_morning_brief.sql", "utf8"));
+    const security = async () => (await db.query("SELECT proname,provolatile,prosecdef,proconfig,proacl::text FROM pg_proc WHERE oid IN ('public.mcp_company_save(uuid,jsonb)'::regprocedure,'public.mcp_submittal_record_get(uuid,text)'::regprocedure,'public.mcp_submittal_record_stamp(uuid,text)'::regprocedure) ORDER BY proname")).rows;
+    const before = await security();
+    await db.exec(readFileSync("supabase/migrations/20261025111504_athena_submittal_display_time_zone.sql", "utf8"));
+    expect(await security()).toEqual(before);
+  });
+  it("reads job, company, then member zones and invalidates the stamp without altering package instants", async () => {
+    const number = "TZ-HISTORY";
+    await rpc("mcp_submittal_log", [job,"add",JSON.stringify({number,title:"Fictional history zone",spec_section:"26 24 16",submittal_type:"product_data",status:"in_prep",ball_in_court:"gc"})]);
+    const packageSnapshot = async () => (await db.query("SELECT id,created_at,filename,path FROM mcp_submittal_packages ORDER BY id")).rows;
+    const before = await packageSnapshot();
+    await db.query("UPDATE mcp_jobs SET time_zone='America/Chicago' WHERE id=$1",[job]);
+    await q("INSERT INTO mcp_morning_brief_settings(user_id,time_zone) VALUES ($1,'America/New_York')",[owner]);
+    let page = await record(number);
+    expect(page.time_zone_context).toEqual({job:"America/Chicago",company:null,member:"America/New_York"});
+    const stamp = await rpc("mcp_submittal_record_stamp",[job,number]);
+    await rpc("mcp_company_save",[company,JSON.stringify({time_zone:"America/Los_Angeles"})]);
+    expect(await rpc("mcp_submittal_record_stamp",[job,number])).not.toBe(stamp);
+    await db.query("UPDATE mcp_jobs SET time_zone=NULL WHERE id=$1",[job]);
+    page = await record(number);
+    expect(submittalBuildTime("2026-10-24T19:11:33Z",page.time_zone_context)).toContain("12:11 PM PDT (America/Los_Angeles)");
+    await rpc("mcp_company_save",[company,JSON.stringify({time_zone:null})]);
+    page = await record(number);
+    expect(submittalBuildTime("2026-12-01T02:11:33Z",page.time_zone_context)).toContain("9:11 PM EST (America/New_York)");
+    const memberStamp = await rpc("mcp_submittal_record_stamp",[job,number]);
+    await q("UPDATE mcp_morning_brief_settings SET time_zone='Asia/Kolkata' WHERE user_id=$1",[owner]);
+    expect(await rpc("mcp_submittal_record_stamp",[job,number])).not.toBe(memberStamp);
+    expect(await packageSnapshot()).toEqual(before);
+    expect((await record(number)).read_only).toBe(false);
+  });
+  it("preserves Owner-only profile changes and denied record access, and validates company zones", async () => {
+    await expect(rpc("mcp_company_save",[company,JSON.stringify({time_zone:"America/Denver"})],teammate)).rejects.toThrow("Only a company Owner");
+    await expect(rpc("mcp_company_save",[company,JSON.stringify({time_zone:"Bad/Zone"})])).rejects.toThrow("valid IANA");
+    await expect(record("TZ-HISTORY",estimator)).rejects.toThrow(/MCP_NO_JOB|full access/);
+    const meta = await db.query<{proname:string;provolatile:string;anon:boolean}>("SELECT proname,provolatile,has_function_privilege('anon',oid,'execute') AS anon FROM pg_proc WHERE oid IN ('public.mcp_submittal_record_get(uuid,text)'::regprocedure,'public.mcp_submittal_record_stamp(uuid,text)'::regprocedure)");
+    expect(meta.rows.every(r=>r.provolatile==='v' && r.anon===false)).toBe(true);
   });
 });

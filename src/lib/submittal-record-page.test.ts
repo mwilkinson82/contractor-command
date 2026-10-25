@@ -273,6 +273,13 @@ describe("record page", () => {
     // The page palette is the hosted-page one (navy, blue, gray); red appears only because the clock is overdue.
     expect(html).toContain(ALERT_HEX);
   });
+  it("renders each build in the resolved job context, never a legacy default or the viewing device zone", () => {
+    const record = { ...payload, time_zone: "America/New_York", time_zone_context: {job:null,company:"America/Chicago",member:"America/New_York"}, packages: [{...payload.packages![0],created_at:"2026-10-24T19:11:33+00:00"}] };
+    const html = renderSubmittalRecordBody(record);
+    expect(html).toContain("2:11 PM CDT (America/Chicago)");
+    expect(html).not.toContain("Manaus");
+    expect(record.packages[0].created_at).toBe("2026-10-24T19:11:33+00:00");
+  });
 
   it("labels only the bound current PDF and shows each rebuild's own transmittal", () => {
     const base = payload.packages![0];

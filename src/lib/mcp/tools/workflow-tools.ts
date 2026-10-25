@@ -116,6 +116,7 @@ export const onboarding = defineTool({
     name: z.string().trim().max(200).optional(),
     your_name: z.string().trim().max(120).optional(),
     agent_name: z.string().trim().max(60).optional(),
+    time_zone: z.string().trim().max(80).optional(),
     company_role: short("Company role, e.g. mechanical prime / specialty sub."),
     work_types: z.array(z.enum(["commercial", "public", "residential"])).max(3).optional(),
     trades: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
@@ -148,7 +149,7 @@ export const onboarding = defineTool({
           _company: cid ?? null,
           _p: {
             name: args.name, display_name: args.your_name, agent_name: args.agent_name, company_role: args.company_role,
-            work_types: args.work_types, trades: args.trades, tool_stack: args.tool_stack, decision_rights: args.decision_rights, default_flags: args.default_flags,
+            work_types: args.work_types, trades: args.trades, tool_stack: args.tool_stack, decision_rights: args.decision_rights, default_flags: args.default_flags, time_zone: args.time_zone,
           },
         });
       } else if (args.action === "save_brand") {
@@ -166,7 +167,7 @@ export const onboarding = defineTool({
         await audit(sb, null, "onboarding", "company_view", cid, cid);
       }
       const [{ data: c, error }, { data: members }] = await Promise.all([
-        sb.from("mcp_companies").select("name, agent_name, company_role, work_types, trades, tool_stack, decision_rights, default_flags, logo_url, license_number, contact_name, contact_phone, website").eq("id", cid!).maybeSingle(),
+        sb.from("mcp_companies").select("name, agent_name, company_role, work_types, trades, tool_stack, decision_rights, default_flags, logo_url, license_number, contact_name, contact_phone, website, time_zone").eq("id", cid!).maybeSingle(),
         sb.from("mcp_company_members").select("display_name, role").eq("company_id", cid!),
       ]);
       if (error) throw new Error(error.message);
@@ -177,6 +178,7 @@ export const onboarding = defineTool({
           [
             args.action === "read" ? "Company profile:" : "Saved.",
             `Company: ${c.name}`,
+            `Company time zone: ${c.time_zone || "not set; saved member zone is the fallback"}`,
             `Agent name: ${c.agent_name}`,
             `Role: ${c.company_role ?? "unknown"} | Work types: ${(c.work_types ?? []).join(", ") || "unknown"} | Trades: ${(c.trades ?? []).join(", ") || "unknown"}`,
             `Tool stack: ${Object.entries((c.tool_stack ?? {}) as Record<string, string>).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("; ") || "unknown"}`,
