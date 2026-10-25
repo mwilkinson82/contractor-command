@@ -304,7 +304,7 @@ async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<It
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
-  description: "Records a job and its setup.",
+  description: "Records a job and its setup, and for a draft, what-if or proposed SOV call it with sov_copy \"draft\" (never build one yourself) and say saved only after it returns \"Saved in Athena\".",
   inputSchema: {
     section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]),
     job_number: jobNumber,
@@ -771,7 +771,7 @@ export const intake = defineTool({
             website: company?.website ?? null,
           };
           const textBody = draftSovText(lines, terms?.sov_fee_pct == null ? null : Number(terms.sov_fee_pct), terms?.sov_basis ?? null, brand, { start: starts[0] ?? null, finish: finishes.at(-1) ?? null });
-          return text(`${prefix(job)}${textBody}`);
+          return text(`${prefix(job)}Saved in Athena (draft copy only; the official SOV did not change).\n${textBody}`);
         }
         const sov: Record<string, unknown> = {};
         for (const s of args.sov_lines ?? []) {
