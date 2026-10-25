@@ -509,6 +509,7 @@ export const submittalPackage = defineTool({
         const previewUrl = submittalPackageUrl(logUrl, data.submittal.number, artifact.id);
         lines.unshift(
           `Package ready: ${artifact.filename} · ${artifact.page_count} pages.`,
+          `Email delivery link: ${artifact.download_url}`,
           {
             cells: [
               "Open package PDF · cover sheet and transmittal first",
@@ -519,6 +520,8 @@ export const submittalPackage = defineTool({
             ? `Package sent ${artifact.sent_at.slice(0, 10)}; provider receipt recorded.`
             : "Draft, not sent. Review the exact recipient, email and package before approving delivery.",
         );
+        if (args.action === "renew_link")
+          lines.unshift("Renewing this link turns off the package link already sent.");
       } else lines.unshift("Every required file is collected. Build the package next.");
       if (buildResult === "reused") lines.unshift("The current package is already built. No additional package was committed.");
       const history = await readHistory();
@@ -552,7 +555,7 @@ export const submittalPackage = defineTool({
           history,
         }),
         artifact
-          ? `${COVER_RULE} Give the member the private preview link and the record page link as they are.`
+          ? `${COVER_RULE} The email delivery link is ${artifact.download_url}. The record page link is for the member only.`
           : `${COVER_RULE} No package has been built for the current collected files.`,
       );
     }),

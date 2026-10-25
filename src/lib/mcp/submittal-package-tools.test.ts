@@ -139,6 +139,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261025153000_athena_change_execution_tie.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030130000_athena_submittal_log_approval_only.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030140000_athena_sov_contract_total_guard.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261030160000_athena_submittal_package_delivery_link.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -1058,4 +1059,205 @@ describe("change-order shared package and deterministic execution",()=>{
    expect(issued.structuredContent.package!.id).not.toBe(artifact.id);
    expect(JSON.stringify(issued.structuredContent.card)).toContain("CO-001");
  });
+  it("substitutes the record-page link, keeps the file link in text, and still refuses the wrong package", async () => {
+    const source = await PDFDocument.create();
+    source.addPage();
+    const bytes = Buffer.from(await source.save()).toString("base64");
+    async function ready(number: string) {
+      const sid = await create(number);
+      const ctx = await saved(sid);
+      for (const item of ctx.items) {
+        await call(submittalPackage, {
+          action: "upload_piece",
+          job_number: "2701",
+          submittal_id: sid,
+          package_item_id: item.id,
+          filename: `${item.kind}.pdf`,
+          content_base64: bytes,
+        });
+      }
+      const built = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+      const artifact = built.structuredContent.package!;
+      const record = built.structuredContent.card.sections
+        .flatMap((section) => section.rows)
+        .find((row) => row.href?.includes(`package_id=${artifact.id}`))?.href;
+      if (!record) throw new Error("record page link missing");
+      return { sid, artifact, record, built };
+    }
+    const deliver = async (sid: string, action: string, payload: unknown) =>
+      (await query("SELECT mcp_submittal_delivery($1,$2,$3,$4::jsonb) AS data", [job, sid, action, JSON.stringify(payload)]))[0].data as {
+        id: string;
+        draft_key: string;
+        draft: { link: string; body: string; to: string };
+        approved_at: string | null;
+      };
+    const draftOf = (link: string | null, body: string) => ({
+      to: "reviewer@example.com",
+      cc: [] as string[],
+      subject: "Fictional package",
+      body,
+      link,
+    });
+    const first = await ready("LINK-001");
+    const textOnly = first.built.content.map((part) => part.text ?? "").join("\n");
+    expect(textOnly).toContain(first.artifact.download_url);
+    expect(textOnly).toContain("Email delivery link:");
+    expect(textOnly).toContain(first.record);
+    const guidance = (first.built.structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [];
+    expect(guidance.join("\n")).toContain(
+      `The email delivery link is ${first.artifact.download_url}. The record page link is for the member only.`,
+    );
+    const html = renderHtml(first.built.structuredContent.card);
+    const widget = { dataset: {}, innerHTML: "" };
+    runInNewContext(cardWidgetHtml().match(/<script>([\s\S]*?)<\/script>/)![1], {
+      window: { openai: { toolOutput: { card: first.built.structuredContent.card } } },
+      document: { getElementById: () => widget },
+    });
+    for (const rendered of [html, widget.innerHTML]) {
+      expect(rendered).toContain("Open package PDF");
+      expect(rendered).toContain(`package_id=${first.artifact.id}`);
+      expect(rendered).toContain("Draft, not sent");
+    }
+    const before = (
+      await query("SELECT token_hash, approved_at, revoked_at, download_url FROM mcp_submittal_packages WHERE id=$1", [first.artifact.id])
+    )[0];
+    const savedDraft = await deliver(first.sid, "draft", {
+      kind: "package",
+      package_id: first.artifact.id,
+      draft: draftOf(first.record, `Please review the package at ${first.record}`),
+    });
+    expect(savedDraft.draft.link).toBe(first.artifact.download_url);
+    expect(savedDraft.draft.body).toContain(first.artifact.download_url);
+    expect(savedDraft.draft.body).not.toContain(first.record);
+    expect(savedDraft.approved_at).toBeNull();
+    const after = (
+      await query("SELECT token_hash, approved_at, revoked_at, download_url FROM mcp_submittal_packages WHERE id=$1", [first.artifact.id])
+    )[0];
+    expect(after).toEqual(before);
+    const approved = await deliver(first.sid, "approve", {
+      delivery_id: savedDraft.id,
+      draft_key: savedDraft.draft_key,
+      confirmed: true,
+    });
+    expect(approved.approved_at).toBeTruthy();
+    expect(approved.draft.link).toBe(first.artifact.download_url);
+
+    const missingBody = await ready("LINK-002");
+    const appended = await deliver(missingBody.sid, "draft", {
+      kind: "package",
+      package_id: missingBody.artifact.id,
+      draft: draftOf(missingBody.artifact.download_url, "Please review the attached package."),
+    });
+    expect(appended.draft.link).toBe(missingBody.artifact.download_url);
+    expect(appended.draft.body.endsWith(missingBody.artifact.download_url)).toBe(true);
+
+    const wrapped = await ready("LINK-003");
+    const markdown = await deliver(wrapped.sid, "draft", {
+      kind: "package",
+      package_id: wrapped.artifact.id,
+      draft: draftOf(
+        `[Package](${wrapped.artifact.download_url}).`,
+        `The file is [Package](${wrapped.artifact.download_url}).`,
+      ),
+    });
+    expect(markdown.draft.link).toBe(wrapped.artifact.download_url);
+    expect(markdown.draft.body).toContain(wrapped.artifact.download_url);
+    await deliver(wrapped.sid, "approve", {
+      delivery_id: markdown.id,
+      draft_key: markdown.draft_key,
+      confirmed: true,
+    });
+
+    const other = await ready("LINK-004");
+    const stranger = await ready("LINK-005");
+    await expect(
+      deliver(other.sid, "draft", {
+        kind: "package",
+        package_id: other.artifact.id,
+        draft: draftOf(stranger.artifact.download_url, `Wrong file ${stranger.artifact.download_url}`),
+      }),
+    ).rejects.toThrow(`Use this package link exactly: ${other.artifact.download_url}`);
+    await expect(
+      deliver(other.sid, "draft", {
+        kind: "package",
+        package_id: other.artifact.id,
+        draft: draftOf(stranger.record, `Wrong record ${stranger.record}`),
+      }),
+    ).rejects.toThrow(`Use this package link exactly: ${other.artifact.download_url}`);
+
+    const expired = await ready("LINK-006");
+    await db.query("UPDATE mcp_submittal_packages SET expires_at=now()-interval '1 minute' WHERE id=$1", [expired.artifact.id]);
+    await expect(
+      deliver(expired.sid, "draft", {
+        kind: "package",
+        package_id: expired.artifact.id,
+        draft: draftOf(expired.artifact.download_url, expired.artifact.download_url),
+      }),
+    ).rejects.toThrow("Build a current package first");
+    const revoked = await ready("LINK-007");
+    await call(submittalPackage, { action: "revoke", job_number: "2701", submittal_id: revoked.sid, package_id: revoked.artifact.id });
+    await expect(
+      deliver(revoked.sid, "draft", {
+        kind: "package",
+        package_id: revoked.artifact.id,
+        draft: draftOf(revoked.artifact.download_url, revoked.artifact.download_url),
+      }),
+    ).rejects.toThrow("Build a current package first");
+
+    const renewed = await ready("LINK-008");
+    const nextUrl = `https://app.meetathena.io/r/submittal-file/${"c".repeat(43)}`;
+    await db.query("UPDATE mcp_submittal_packages SET download_url=$2, token_hash=$3 WHERE id=$1", [
+      renewed.artifact.id,
+      nextUrl,
+      "c".repeat(64),
+    ]);
+    await expect(
+      deliver(renewed.sid, "draft", {
+        kind: "package",
+        package_id: renewed.artifact.id,
+        draft: draftOf(renewed.artifact.download_url, renewed.artifact.download_url),
+      }),
+    ).rejects.toThrow(`Use this package link exactly: ${nextUrl}`);
+
+    const foreignJob = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await db.query(
+      "INSERT INTO mcp_jobs(id,user_id,name,job_number,company_id,time_zone) VALUES ($1,$2,'Other fictional job','2702',$3,'UTC')",
+      [foreignJob, owner, company],
+    );
+    const foreignSid = (
+      await query("SELECT mcp_submittal_log($1,'add',$2::jsonb) AS data", [
+        foreignJob,
+        JSON.stringify({
+          number: "FOREIGN-001",
+          spec_section: "26 24 16",
+          title: "Fictional other job",
+          submittal_type: "product_data",
+          status: "in_prep",
+          ball_in_court: "gc",
+        }),
+      ])
+    )[0].data.saved_id as string;
+    const held = await ready("LINK-009");
+    await db.query("UPDATE mcp_submittal_packages SET job_id=$2, submittal_id=$3 WHERE id=$1", [
+      held.artifact.id,
+      foreignJob,
+      foreignSid,
+    ]);
+    await expect(
+      deliver(held.sid, "draft", {
+        kind: "package",
+        package_id: held.artifact.id,
+        draft: draftOf(held.artifact.download_url, held.artifact.download_url),
+      }),
+    ).rejects.toThrow("Build a current package first");
+
+    const renewedCard = await call(submittalPackage, {
+      action: "renew_link",
+      job_number: "2701",
+      submittal_id: missingBody.sid,
+    });
+    expect(renewedCard.content.map((part) => part.text ?? "").join("\n")).toContain(
+      "Renewing this link turns off the package link already sent.",
+    );
+  });
 });
