@@ -22,6 +22,7 @@ import { jobHeading } from "./mcp/job-label";
 import { kindLabel } from "./mcp/project-record";
 import { storedPiece } from "./mcp/submittal-package";
 import { esc } from "./report-pages";
+import { submittalBuildTime } from "./submittal-build-time";
 
 export type RecordPackage = {
   id: string;
@@ -246,7 +247,7 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[])
         p.download_url && p.expires_at
           ? ` · Recipient link works until ${esc(day(p.expires_at))}`
           : "";
-      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(p.created_at)} · Copy ${esc(p.id.slice(0, 8))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
+      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(submittalBuildTime(p.created_at))} · Copy ${esc(p.id.slice(0, 8))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
     })
     .join("");
   return card(

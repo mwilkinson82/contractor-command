@@ -683,6 +683,7 @@ describe("real package handlers with local DB and immutable storage", () => {
       expect(reply.structuredContent.history).toHaveLength(i + 1);
       expect(reply.structuredContent.warnings?.[0]).toMatchObject({ code: "DUPLICATE_FILENAME", pieces: ["P3", "P4"] });
       expect(JSON.stringify(reply.structuredContent.card)).toContain("Duplicate filename: Repeated.pdf");
+      expect(JSON.stringify(reply.structuredContent.card)).toContain("Both copies are kept");
     }
     const got = await call(submittalPackage, { action: "get", job_number: "2701", submittal_id: sid });
     expect(got.structuredContent.history?.map((p) => p.id)).toEqual([...ids].reverse());
@@ -691,6 +692,8 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(history.rows).toHaveLength(4);
     expect(history.rows.filter((r) => r.cells.at(-1) === "Superseded")).toHaveLength(3);
     expect(history.rows.every((r) => r.href?.includes("open=package&package_id="))).toBe(true);
+    expect(history.rows.every((r) => r.cells[0].includes("Manaus (UTC-4)"))).toBe(true);
+    expect(history.rows.every((r) => !/Built \d{4}-\d{2}-\d{2}T/.test(r.cells[0]))).toBe(true);
     if (process.env.ATHENA_RENDER_PROOF_DIR) {
       mkdirSync(process.env.ATHENA_RENDER_PROOF_DIR, { recursive: true });
       writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/package-history-card.html`, renderHtml(got.structuredContent.card));
