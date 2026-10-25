@@ -35,7 +35,7 @@ const state = vi.hoisted(() => ({
   buckets: [] as string[],
   signed: [] as string[],
   patches: [] as unknown[],
-  pdf: new Uint8Array() as Uint8Array,
+  pdf: new Uint8Array(),
 }));
 
 vi.mock("./guard", () => ({
