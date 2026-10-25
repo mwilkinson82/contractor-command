@@ -264,6 +264,44 @@ export function stripCardDocument(text: string): string {
   return removed ? next.trim() : text;
 }
 
+const SOV_SERVER_LINE = /^[^\n]*SCHEDULE OF VALUES/m;
+
+/**
+ * Text hosts print the tool text. `report` already contains the server SOV lines, and
+ * attachAthenaCard copies the same lines again as a leading markdown table.
+ * The delivery question is removed earlier because those lines also sit inside the
+ * guidance block, which leaves "For option 2 or 3:" with the option list gone.
+ * Put the server lines back once, and put the saved delivery question in front of that line.
+ */
+export function textHostSovText(text: string, ask?: string | null): string {
+  let next = text;
+  const at = next.search(SOV_SERVER_LINE);
+  if (at > 0) {
+    const head = next.slice(0, at);
+    if (head.includes("## ") && /Schedule of values/.test(head)) next = next.slice(at).trim();
+  }
+  const question = ask?.trim();
+  const lead = question?.split("\n")[0];
+  if (question && lead && next.includes("For option 2 or 3:") && !next.includes(lead)) {
+    next = next.replace("For option 2 or 3:", `${question}\n\nFor option 2 or 3:`);
+  }
+  return next;
+}
+
+function repairTextHostSov(result: Obj, ask: string | null): Obj | null {
+  if (!Array.isArray(result.content)) return null;
+  let changed = false;
+  const content = result.content.map((block) => {
+    const row = obj(block);
+    if (!row || row.type !== "text" || typeof row.text !== "string") return block;
+    const text = textHostSovText(row.text, ask);
+    if (text === row.text) return block;
+    changed = true;
+    return { ...row, text };
+  });
+  return changed ? { ...result, content } : null;
+}
+
 function dropTextCardDocuments(result: Obj): Obj | null {
   if (!Array.isArray(result.content)) return null;
   let changed = false;
@@ -521,6 +559,20 @@ export function nativeCardPayload(
         const stripped = dropTextCardDocuments(base);
         if (stripped) next = stripped;
       }
+    }
+    if (
+      call.method === "tools/call" &&
+      result &&
+      result.isError !== true &&
+      String(call.params.name ?? "") === "report" &&
+      !call.claude &&
+      (call.grok || !call.inlineHtml)
+    ) {
+      const base = next ?? result;
+      const delivery = obj(obj(base.structuredContent)?.delivery);
+      const ask = typeof delivery?.ask === "string" ? delivery.ask : null;
+      const repaired = repairTextHostSov(base, ask);
+      if (repaired) next = repaired;
     }
     if (!next) return value;
     // The SDK's modern codec normally stamps these fields. Synthetic resource replies

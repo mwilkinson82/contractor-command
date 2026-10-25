@@ -34,6 +34,14 @@ Which response fields carry `<!doctype html>`:
 
 ChatGPT's render orders are still removed only by the host-independent facts pass. This transport pass removes the duplicated document from ChatGPT text; it does not rewrite the card, the resource, or `structuredContent.html`.
 
+## Grok Bot's SOV text is one table and keeps options 2 and 3
+
+`report` writes the server SOV lines with `sovSummaryText` (`SCHEDULE OF VALUES`, one row per line, contract total included). `attachAthenaCard` then copies those same lines in front as the card's markdown table, because the original text does not already start with `## `. Grok Bot prints both.
+
+The delivery question (`Where do you want this SOV to live?` and options 1, 2 and 3, from `SOV_DELIVERY_ASK`) is also written into the text, then removed by the facts pass: those exact lines are inside `SOV_DELIVERY_BLOCK`, so they are treated as guidance. `For option 2 or 3:` is not one of those lines, so it stays and the option list is gone.
+
+On a Grok Bot `report` call, and on any other host that does not inline a card, the text keeps the server SOV lines once and puts `structuredContent.delivery.ask` back in front of `For option 2 or 3:`. `structuredContent.html`, `structuredContent.card`, and the contract total are not rewritten. ChatGPT and Claude are not rewritten by this pass.
+
 ## ChatGPT drawing attachment hosts are an exact list
 
 `allowedDrawingDownloadUrl` in `src/lib/mcp/drawing-set.ts` accepts an attachment download only over HTTPS, with no userinfo and no non-default port. Hosts are the existing file hosts (`oaiusercontent.com` and `openai.com`, including `files.oaiusercontent.com`) plus these exact storage accounts:

@@ -10,7 +10,10 @@ import {
   nativeCardVisit,
   relocateGrokInstructionText,
 } from "./native-card-transport";
-import { sovRequiredTop } from "./visible";
+import { EMAIL_TO_LABEL_REQUIRED, finalizeVisible, SOV_DELIVERY_ASK, sovDeliveryAsk, sovRequiredTop } from "./visible";
+import { EMAIL_VIEW_SPEC } from "./views";
+import { buildSov, money, sovLineRows, sovSummaryText } from "./sov";
+import { sovCard } from "./cards/structured";
 import { activityIdName } from "./styled-views";
 import { phoneLookaheadText } from "./phone-reply";
 import { DATA_DATE_FUTURE_ERROR, iorPlainReply, iorSectionsText, resolveDataDate } from "./living";
@@ -351,6 +354,93 @@ describe("locked behaviors", () => {
     const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
     expect(doc).toContain("Schedule activities in this window");
     expect(doc).toContain("A1110a – Underground conduit & grounding, Nov 2 to Nov 11");
+  });
+
+  it("Grok Bot SOV text has one table and keeps options 2 and 3", async () => {
+    const lines = [
+      ["26.01", "Mobilization, bonds and general conditions", 70_000],
+      ["26.02", "Submittals and engineering", 20_000],
+      ["26.03", "Service entrance and switchgear", 210_000],
+      ["26.04", "Emergency generator and transfer switches", 180_000],
+      ["26.05", "Panelboards, transformers and feeders", 185_000],
+      ["26.06", "Branch circuit rough-in and devices", 255_000],
+      ["26.07", "Lighting fixtures and controls", 205_000],
+      ["26.08", "Site lighting, testing and closeout", 70_000],
+      ["27.01", "Low-voltage pathways", 90_000],
+      ["28.01", "Fire alarm system", 115_000],
+    ] as const;
+    const sov = buildSov(
+      lines.map(([item_no, description, scheduled_value]) => ({ item_no, description, scheduled_value })),
+      0,
+      null,
+    );
+    const rows = sovLineRows(sov);
+    const brand = {
+      company_name: "ALP",
+      logo_url: null,
+      license_number: null,
+      contact_name: null,
+      contact_phone: null,
+      website: null,
+    };
+    const summary = sovSummaryText("2701 – ", sov, brand, null, [], "internal", "lines");
+    const body = `${sovRequiredTop(rows, "To: riley@example.com")}\n${summary}\n\n${sovDeliveryAsk("internal")}\nFor option 2 or 3:\n${EMAIL_TO_LABEL_REQUIRED}\nTo: riley@example.com\nSend to: Riley Brooks, Project Manager, riley@example.com.\n${EMAIL_VIEW_SPEC.join("\n")}`;
+    const card = sovCard({
+      job: "2701 · Harbor Point",
+      rows,
+      divisions: [],
+      fee: null,
+      totalDisplay: money(sov.summary.contract_total),
+      basis: null,
+      audience: "internal",
+      view: "lines",
+    });
+    const wired = displayFactsResult(
+      finalizeVisible(
+        attachAthenaCard("report", {
+          content: [{ type: "text", text: body }],
+          structuredContent: {
+            card,
+            sov: { line_items: rows, contract_total_display: "$1,400,000.00" },
+            delivery: { ask: SOV_DELIVERY_ASK },
+          },
+        }),
+      ),
+    ) as unknown as Reply;
+    const before = textOf(wired);
+    // Card markdown, server lines, and the HTML document each repeat the first line.
+    expect(before.split("26.01").length - 1).toBe(3);
+    expect(before).not.toContain("Where do you want this SOV to live?");
+    expect(before).toContain("For option 2 or 3:");
+
+    const grok = await present("Grok Bot", "report", wired);
+    const grokResult = (grok.out.value as { result: Reply }).result;
+    const grokText = textOf(grokResult);
+    expect(grokText.split("26.01").length - 1).toBe(1);
+    expect(grokText).toContain("2701 – SCHEDULE OF VALUES");
+    expect(grokText).not.toContain("## ");
+    expect(grokText).toContain("$1,400,000.00");
+    expect(grokText).toContain("2. As an Excel file (.xlsx) or a PDF.");
+    expect(grokText).toContain("3. As a shared link");
+    expect(grokText.indexOf("2. As an Excel file")).toBeLessThan(grokText.indexOf("For option 2 or 3:"));
+    expect(grokText).toContain("To: riley@example.com");
+    expect(grokText).not.toMatch(DOCUMENT);
+    expect(grokText).not.toMatch(LEAK);
+    expect(grokResult.structuredContent.html).toBe(wired.structuredContent.html);
+    expect(grokResult.structuredContent.card).toBe((wired.structuredContent as { card: unknown }).card);
+    expect((grokResult.structuredContent as { sov?: { contract_total_display?: string } }).sov?.contract_total_display).toBe("$1,400,000.00");
+
+    for (const host of ["ChatGPT", "claude-ai"] as const) {
+      const other = await present(host, "report", wired);
+      const returned = (other.out.value as { result: Reply }).result;
+      expect(returned.structuredContent.html).toBe(wired.structuredContent.html);
+      expect(returned.structuredContent.card).toBe((wired.structuredContent as { card: unknown }).card);
+      expect(textOf(returned).split("26.01").length - 1).toBe(2);
+      expect(textOf(returned)).not.toContain("Where do you want this SOV to live?");
+    }
+    const doc = readFileSync(new URL("../../../docs/athena-locked-behaviors.md", import.meta.url), "utf8");
+    expect(doc).toContain("Grok Bot's SOV text is one table and keeps options 2 and 3");
+    expect(doc).toContain("For option 2 or 3:");
   });
 
   it("keeps a fenced HTML quote and drops the unfenced card document", async () => {
