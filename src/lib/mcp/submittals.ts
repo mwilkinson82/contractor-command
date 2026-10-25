@@ -289,9 +289,9 @@ function ballLabel(row: SubmittalRecord): string {
   return row.ball_in_court_name?.trim() ? `${ball}, ${row.ball_in_court_name.trim()}` : ball;
 }
 
-function rowLine(row: SubmittalRecord, today: string, recordUrl: string | null = null): string {
+function rowLine(row: SubmittalRecord, today: string): string {
   const overdue = submittalOverdue(row, today);
-  return `- ${row.number}. ${recordUrl ? `[${row.title}](${recordUrl})` : row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${submittalDisplayStatus(row)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)}${row.built_package ? ` Package: ${row.built_package.filename}.` : ""}${packageDelivery(row) ? ` ${packageDelivery(row)}.` : ""}`;
+  return `- ${row.number}. ${row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${submittalDisplayStatus(row)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)}${row.built_package ? ` Package: ${row.built_package.filename}.` : ""}${packageDelivery(row) ? ` ${packageDelivery(row)}.` : ""}`;
 }
 
 export function submittalDisplayStatus(row: SubmittalRecord): string {
@@ -343,7 +343,7 @@ export function presentSubmittalLog(input: {
   const noMatch = !rows.length && filtered && logged.length > 0;
   const noMatchLine = `No submittals ${filterWords(input.filter)} on this job. ${logged.length} on the log, none ${filterWords(input.filter)}.`;
   const loggedBody = rows.length
-    ? rows.map((row) => rowLine(row, input.today, submittalRecordUrl(input.boardUrl, row.number))).join("\n")
+    ? rows.map((row) => rowLine(row, input.today)).join("\n")
     : noMatch
       ? noMatchLine
       : nothing
@@ -364,7 +364,6 @@ export function presentSubmittalLog(input: {
       cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), submittalDisplayStatus(row), ballLabel(row), dueLabel(row), late ? "Yes" : "No", packageDelivery(row), sourceLine(row), row.built_package?.filename ?? (row.has_package ? "Rebuild needed" : "")],
       flag: late ? "overdue" : null,
       href: submittalRecordUrl(input.boardUrl, row.number),
-      linkCell: 1,
       refId: row.id,
     };
   });
