@@ -80,3 +80,27 @@ The reported package checks passed on #278. The remaining blocker is entering an
 4. Keep the passing #278 package/build/get/history/PDF/log/navigation checks. Verify `All 4 copies` for four same-name pieces. Nothing is sent.
 
 This is a code-level verification record. The deployed sign-in/upload result remains unverified until Grok Bot reports it; no production sign-in email or browser acceptance test was performed by Codex for this follow-up.
+
+## Member access follow-up after #279
+
+The #279 retest confirmed code completion and key retention but found that Continue did not refresh the same record and member upload access still failed. This candidate starts from deployed `c03ac4ac`. Job 2701 is read-only during preparation; live testing belongs to Grok Bot.
+
+### Database transaction mismatch
+
+Read-only inspection through Lovable Cloud found both `mcp_submittal_record_get(uuid,text)` and `mcp_submittal_record_stamp(uuid,text)` marked `STABLE`. Their existing membership check calls `mcp_gate` -> `circle_sync_user` -> `ensure_circle_company`, which locks the provisioning row with `FOR UPDATE` and can sync existing Circle membership. [PostgREST executes STABLE RPCs in a READ ONLY transaction even for POST](https://docs.postgrest.org/en/stable/references/transactions.html#access-mode). The board-token opener is VOLATILE and therefore takes a different transaction path.
+
+A local PostgreSQL regression executes the real record readers with a gate having the same row-lock requirement. The PostgREST transaction modes reproduce SQLSTATE `25006` before the correction. After applying the staged migration, the full-access member can read the record and freshness stamp; excluded and inactive accounts remain excluded. The test compares function bodies, grants, security-definer settings and search paths before/after, and checks that no package, piece or mail record changes. The reported browser's actual network error was not available, so this is a confirmed causal mechanism in the deployed definitions, not a claim to have captured that browser's response.
+
+Apply only `20261025042056_athena_submittal_member_read_transaction.sql` through Lovable Cloud. It marks exactly those two functions VOLATILE and reloads the API schema cache. It changes no function body, membership rule, table, policy or grant. It preserves the gate rather than bypassing it; the existing verified-member sync is allowed to run normally. Package get/build semantics are unchanged.
+
+### Record controls and identity
+
+- On successful code verification, an exact same-address return explicitly reloads the page. Continue is now a button that performs that action again instead of a link to the same fragment. Other validated destinations still navigate normally. The token, upload query and anchor are retained.
+- The confirmed state displays the email returned by the verified session. The record displays the browser session's email beside the upload section, including failed-access and read-only states. A token-only browser is labeled Not signed in; the connector's account is not guessed.
+- No Hub sign-in, Site URL, code generation, session-storage, connector, email template or package-renderer change. No production test write or sign-in email was performed by Codex.
+
+### Retest handoff
+
+Code verification: **2,496 tests across 239 files**, **17/17 locked behaviors**, production build and changed-file ESLint pass. The same 32 baseline TypeScript diagnostics remain. One initial inference-boundary test timed out during concurrent local build/typecheck; the unchanged test passed in the full-suite rerun with two workers. No boundary or timeout was weakened. The new database test reproduces the old failure before applying the migration and verifies the corrected result afterward.
+
+After the approved Cloud migration and publication, Grok Bot reloads the page and verifies the real signed-out -> email code -> same token/record -> signed-in email -> upload-control flow. A different/read-only account must not gain upload access. Continue and Retry must make a fresh attempt without losing the record key. Keep all passing #278 package/history/PDF/log checks. Until this live report passes, member upload acceptance remains open.

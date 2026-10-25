@@ -80,6 +80,31 @@ export function signInReturn(value: unknown): string | undefined {
   return boardSignInReturn(value) ?? todaySignInReturn(value);
 }
 
+/** A same-address link only changes the fragment; explicitly reload to retry member access. */
+export function continueBoardSignIn(
+  returnTo: unknown,
+  navigation: {
+    pathname: string;
+    search: string;
+    hash: string;
+    assign: (path: string) => void;
+    reload: () => void;
+  },
+): void {
+  const next = signInReturn(returnTo);
+  if (!next) return;
+  const target = new URL(next, PARSE_ORIGIN);
+  if (
+    target.pathname === navigation.pathname &&
+    target.search === navigation.search &&
+    target.hash === navigation.hash
+  ) {
+    navigation.reload();
+  } else {
+    navigation.assign(next);
+  }
+}
+
 /**
  * Prefer the address the member actually opened. If that address is not a
  * job board, fall back to the route's own job and page — never to the

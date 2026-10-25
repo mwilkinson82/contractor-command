@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({
   request: vi.fn(),
   verify: vi.fn(),
   assign: vi.fn(),
+  reload: vi.fn(),
 }));
 // Exercise the real component's rendered forms and handlers without a DOM or
 // production credentials. State slots persist across explicit rerenders.
@@ -29,7 +30,12 @@ import { BoardSignIn } from "./BoardSignIn";
 const RECORD = "/r/job/323a040a-7ed1-4726-8f6a-da13fdb5a0eb/submittal/05%2012%2000-001";
 const RETURN = `${RECORD}?t=fictional-board-key&upload=1#upload`;
 const verified = {
-  data: { session: { access_token: "fictional-session", user: { id: "fictional-member" } } },
+  data: {
+    session: {
+      access_token: "fictional-session",
+      user: { id: "fictional-member", email: "pm@example.com" },
+    },
+  },
   error: null,
 };
 type Element = ReactElement<Record<string, unknown>>;
@@ -73,7 +79,7 @@ beforeEach(() => {
   m.cursor = 0;
   m.request.mockReset().mockResolvedValue({ ok: true });
   m.verify.mockReset().mockResolvedValue(verified);
-  vi.stubGlobal("window", { location: { assign: m.assign } });
+  vi.stubGlobal("window", { location: { assign: m.assign, reload: m.reload } });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -96,8 +102,29 @@ describe("record email-code sign-in", () => {
     expect(m.assign).toHaveBeenCalledWith(RETURN);
     expect(m.slots[3]).toBe(false);
     expect(text(render())).not.toContain("Checking code");
-    expect(nodes(render()).find((node) => node.type === "a")?.props.href).toBe(RETURN);
+    expect(button("Continue")).toBeDefined();
+    expect(text(render())).toContain("Browser account: pm@example.com");
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("reloads the same token/upload record on success and when Continue is clicked", async () => {
+    const url = new URL(RETURN, "https://app.meetathena.io");
+    vi.stubGlobal("window", {
+      location: {
+        pathname: url.pathname,
+        search: url.search,
+        hash: url.hash,
+        assign: m.assign,
+        reload: m.reload,
+      },
+    });
+    await enterCode();
+    await submit();
+    expect(m.reload).toHaveBeenCalledOnce();
+    expect(m.assign).not.toHaveBeenCalled();
+    (button("Continue").props.onClick as () => void)();
+    expect(m.reload).toHaveBeenCalledTimes(2);
+    expect(text(render())).toContain("Browser account: pm@example.com");
   });
 
   it("times out a stalled verification and reenables Continue with an actionable error", async () => {

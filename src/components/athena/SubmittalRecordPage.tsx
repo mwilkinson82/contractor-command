@@ -140,6 +140,12 @@ export function SubmittalRecordView({
   if (payload) {
     return (
       <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
+        <p
+          role="status"
+          style={{ maxWidth: 1068, margin: "0 auto", padding: "12px 20px", color: "#1E3A5F" }}
+        >
+          Browser account: {session ? (session.user.email ?? "Email unavailable") : "Not signed in"}
+        </p>
         {packageId && !packageTarget ? (
           <p role="status" style={{ padding: "16px 24px", color: "#6B7280" }}>
             That package could not be opened. The submittal record and its available files are

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
-import { signInReturn, BOARD_SIGN_IN_TITLE } from "@/lib/board-sign-in";
+import { signInReturn, continueBoardSignIn, BOARD_SIGN_IN_TITLE } from "@/lib/board-sign-in";
 import { boundedStep, ConsentStepError } from "@/lib/consent-loading";
 import { normalizeOtpCode } from "@/lib/login-otp";
 import { ATHENA_LOGIN_LOGO } from "@/lib/login-copy";
@@ -28,6 +28,7 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
 
   async function onEmail(event: FormEvent) {
     event.preventDefault();
@@ -69,7 +70,8 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
       if (!data.session?.access_token || !data.session.user?.id)
         throw new Error("No verified session");
       setConfirmed(true);
-      window.location.assign(next);
+      setConfirmedEmail(data.session.user.email ?? null);
+      continueBoardSignIn(next, window.location);
     } catch (error) {
       setErr(
         error instanceof ConsentStepError && error.kind === "timeout"
@@ -114,9 +116,22 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
           confirmed ? (
             <div role="status">
               <p style={{ margin: "0 0 16px" }}>You're signed in. Continue to your page.</p>
-              <a href={safeReturn} style={{ color: BLUE }}>
+              {confirmedEmail ? (
+                <p style={{ marginBottom: 16 }}>Browser account: {confirmedEmail}</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => continueBoardSignIn(safeReturn, window.location)}
+                style={{
+                  border: 0,
+                  borderRadius: 8,
+                  background: BLUE,
+                  color: "#fff",
+                  padding: "12px 20px",
+                }}
+              >
                 Continue
-              </a>
+              </button>
             </div>
           ) : sent ? (
             <form onSubmit={onCode}>
