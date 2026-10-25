@@ -97,6 +97,8 @@ export type SubmittalSource = "spec_derived" | "user" | "imported";
 export type SubmittalPosture = "strict" | "advisory";
 
 export type SubmittalRecord = {
+  package_purpose?: import("./package-purpose").PackagePurpose;
+  request_details?: import("./package-purpose").RequestDetails | null;
   id: string;
   number: string;
   revision: number;
