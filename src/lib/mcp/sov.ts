@@ -1,4 +1,5 @@
 // Athena SOV lean v1 (sov-lean-v1.md). The server builds every number; the host only lays them out.
+import type { RecordStanding } from "./record-copy";
 // Money is handled in integer cents so totals tie out to the cent.
 
 export const CSI_DIVISIONS: Record<string, string> = {
@@ -53,8 +54,8 @@ const cleanSpec = (v: unknown): string | null => (typeof v === "string" && v.tri
 const ITEM = /^(\d{2})\.(\d{2,3})$/;
 const cents = (n: number) => Math.round(n * 100);
 
-/** Member-facing refusal when a save would move the SOV sum or the contract total. */
-export const SOV_TOTAL_REFUSAL = "Contract value changes only by change order. Nothing was saved.";
+/** Member-facing refusal when an official SOV dollar would move without an approved change order. */
+export const SOV_TOTAL_REFUSAL = "SOV changes only by approved change order. Nothing was saved.";
 
 type SovMoneyLine = { billable_value?: unknown; executed_change_order?: unknown; fee_included?: unknown };
 
@@ -88,10 +89,16 @@ export function sovValueCents(lines: SovMoneyLine[], feePct: number | null): { s
   return { sov, contract: Math.round(base / (1 - feePct / 100)) + change };
 }
 
+function lineCents(line: SovMoneyLine | null | undefined): number | null {
+  if (!line || typeof line.billable_value !== "number" || !Number.isFinite(line.billable_value)) return null;
+  return cents(line.billable_value);
+}
+
 /**
- * Refuse a member SOV save that moves the scheduled-value sum or the contract total.
- * No numeric SOV yet is the initial save. A fee that was blank can be recorded without moving the sum.
- * nextFee undefined keeps the fee already on the job.
+ * Official SOV only. No numeric SOV yet is the initial save.
+ * Any scheduled-value change is refused, including a rebalance that keeps the same total.
+ * Description and cost-code text stay allowed when the dollars do not move.
+ * nextFee undefined keeps the fee already on the job. A fee change that moves the contract total is refused.
  */
 export function sovTotalChangeRefusal(
   existing: { key: string; value: unknown }[],
@@ -101,16 +108,22 @@ export function sovTotalChangeRefusal(
 ): string | null {
   const feeNow = feeNumber(currentFee);
   const feeNext = nextFee === undefined ? feeNow : feeNumber(nextFee);
-  const merged = new Map(existing.map((row) => [row.key, factLine(row.value)]));
+  const before = new Map(existing.map((row) => [row.key, factLine(row.value)]));
+  if (![...before.values()].some((line) => lineCents(line) != null)) return null;
+  const after = new Map(before);
   if (incoming) {
     for (const [key, value] of Object.entries(incoming)) {
       if (key.length > 120) continue;
-      merged.set(key, factLine(value));
+      after.set(key, factLine(value));
     }
   }
-  const before = sovValueCents(existing.map((row) => factLine(row.value) ?? {}), feeNow);
-  const after = sovValueCents([...merged.values()].filter((line): line is SovMoneyLine => line != null), feeNext);
-  if ((before.sov != null && after.sov !== before.sov) || (before.contract != null && after.contract !== before.contract)) return SOV_TOTAL_REFUSAL;
+  const keys = new Set([...before.keys(), ...after.keys()]);
+  for (const key of keys) {
+    if (lineCents(before.get(key)) !== lineCents(after.get(key))) return SOV_TOTAL_REFUSAL;
+  }
+  const beforeTotal = sovValueCents([...before.values()].filter((line): line is SovMoneyLine => line != null), feeNow);
+  const afterTotal = sovValueCents([...after.values()].filter((line): line is SovMoneyLine => line != null), feeNext);
+  if (beforeTotal.contract != null && afterTotal.contract !== beforeTotal.contract) return SOV_TOTAL_REFUSAL;
   return null;
 }
 
@@ -289,8 +302,10 @@ export function sovLineRows(sov: Sov) {
 }
 
 /** Visible SOV for the PM. Default: every line item, then the total that ties out. view "divisions" shows the roll-up instead. */
-export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis: string | null, missing: string[], audience: "internal" | "client" = "internal", view: SovView = "lines"): string {
+export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis: string | null, missing: string[], audience: "internal" | "client" = "internal", view: SovView = "lines", standing: RecordStanding = "official"): string {
   const s = sov.summary;
+  const draft = standing === "draft";
+  const totalName = draft ? "Draft scheduled total" : "Contract sum";
   const body =
     view === "divisions"
       ? ["Scheduled value by division:", ...s.divisions.map((d) => `- ${d.division} ${d.title}: ${money(d.scheduled_value)} (${d.pct_of_contract.toFixed(2)}%)`)]
@@ -299,11 +314,12 @@ export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis:
           "Line | Cost code | Division | Description | Scheduled value | % of total",
           ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.cost_code ?? ""} | ${r.division} ${r.division_title} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
           ...(s.fee > 0 ? [`CF | | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
-          `Total | | | Contract sum | ${money(s.contract_total)} | 100.00%`,
+          `Total | | | ${totalName} | ${money(s.contract_total)} | 100.00%`,
         ];
   return [
+    ...(draft ? ["Draft, not official"] : []),
     `${prefix}SCHEDULE OF VALUES (${audience === "client" ? "for the owner" : "internal"}, ties out to the cent)`,
-    `Contract total: ${money(s.contract_total)}`,
+    draft ? `Draft scheduled total (not the contract value): ${money(s.contract_total)}` : `Contract total: ${money(s.contract_total)}`,
     ...(s.fee > 0 ? [`Cost of work + general conditions: ${money(s.cost_of_work_gc)} (${s.cost_of_work_gc_pct.toFixed(2)}%)`, `Contractor's fee: ${money(s.fee)} (${s.fee_pct.toFixed(2)}%)`] : []),
     `Basis: ${basis ?? "not recorded"}`,
     "",

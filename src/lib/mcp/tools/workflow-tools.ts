@@ -1,5 +1,8 @@
 import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
 import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { draftSovText, nextDraftFacts } from "../sov-draft";
+import { storedModule } from "../record-copy";
+import type { SovLineIn } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -392,6 +395,7 @@ export const intake = defineTool({
     sov_lines: z.array(sovLine).max(300).optional(),
     fee_pct: z.number().optional(),
     sov_basis: z.string().trim().max(200).optional(),
+    sov_copy: z.enum(["official", "draft"]).optional(),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -731,8 +735,55 @@ export const intake = defineTool({
         if (args.fee_pct !== undefined && !(args.fee_pct >= 0 && args.fee_pct < 100)) throw new ToolError("The fee percent must be at least 0 and under 100.");
         const budget: Record<string, unknown> = {};
         for (const b of args.budget_lines ?? []) budget[b.cost_code] = { description: b.description ?? null, amount: b.amount ?? null };
+        const savedOfficial = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", "sov");
+        if (savedOfficial.error) dbError(savedOfficial.error);
+        const officialRows = (savedOfficial.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
+        const officialByKey = new Map(officialRows.map((row) => [row.key, row.value ?? {}]));
+        if (args.sov_copy === "draft") {
+          const savedDraft = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", storedModule("sov", "draft"));
+          if (savedDraft.error) dbError(savedDraft.error);
+          const draftRows = (savedDraft.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
+          const incoming: Record<string, unknown> = {};
+          for (const s of args.sov_lines ?? []) incoming[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}) };
+          const step = nextDraftFacts(officialRows, draftRows, Object.keys(incoming).length ? incoming : null);
+          if (step.copy) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: storedModule("sov", "draft"), _facts: step.copy, _source: "member_answer" });
+          if (step.edits) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: storedModule("sov", "draft"), _facts: step.edits, _source: "member_answer" });
+          const shown = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", storedModule("sov", "draft"));
+          if (shown.error) dbError(shown.error);
+          const lines = ((shown.data ?? []) as { key: string; value: { description?: string | null; billable_value?: number | null; cost_codes?: string[] } }[]).map((row) => ({
+            item_no: row.key,
+            description: row.value?.description ?? null,
+            scheduled_value: typeof row.value?.billable_value === "number" ? row.value.billable_value : null,
+            cost_codes: row.value?.cost_codes,
+          })) satisfies SovLineIn[];
+          const { data: terms } = await sb.from("mcp_jobs").select("sov_fee_pct, sov_basis").eq("id", job.job_id).maybeSingle();
+          const cpm = await sb.rpc("mcp_living_report_get", { _job: job.job_id, _type: "cpm", _version: null });
+          const activities = ((cpm.data as { data?: { activities?: { start?: string | null; finish?: string | null }[] } } | null)?.data?.activities ?? []);
+          const starts = activities.map((row) => row.start?.slice(0, 10)).filter((day): day is string => !!day).sort();
+          const finishes = activities.map((row) => row.finish?.slice(0, 10)).filter((day): day is string => !!day).sort();
+          const { data: company } = await sb.from("mcp_companies").select("name, logo_url, license_number, contact_name, contact_phone, website").eq("id", job.company_id).maybeSingle();
+          const brand: SovBrand = {
+            company_name: company?.name ?? "",
+            logo_url: company?.logo_url ?? null,
+            license_number: company?.license_number ?? null,
+            contact_name: company?.contact_name ?? null,
+            contact_phone: company?.contact_phone ?? null,
+            website: company?.website ?? null,
+          };
+          const textBody = draftSovText(lines, terms?.sov_fee_pct == null ? null : Number(terms.sov_fee_pct), terms?.sov_basis ?? null, brand, { start: starts[0] ?? null, finish: finishes.at(-1) ?? null });
+          return text(`${prefix(job)}${textBody}`);
+        }
         const sov: Record<string, unknown> = {};
-        for (const s of args.sov_lines ?? []) sov[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}) };
+        for (const s of args.sov_lines ?? []) {
+          const old = officialByKey.get(s.line) ?? {};
+          sov[s.line] = {
+            ...old,
+            description: s.description !== undefined ? s.description : old.description ?? null,
+            cost_codes: s.cost_codes ?? (Array.isArray(old.cost_codes) ? old.cost_codes : []),
+            ...(s.spec_section ? { spec_section: s.spec_section } : {}),
+            ...(s.billable_value !== undefined ? { billable_value: s.billable_value } : {}),
+          };
+        }
         if (Object.keys(sov).length || args.fee_pct !== undefined) {
           const [savedSov, savedJob] = await Promise.all([
             sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", "sov"),
