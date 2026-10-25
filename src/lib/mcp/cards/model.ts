@@ -13,6 +13,8 @@ export type CardRow = {
   raw?: boolean;
   /** Hosted detail page. Rendered as a real anchor, never as the label. */
   href?: string | null;
+  /** Table cell that carries href. Default 0. */
+  linkCell?: number;
   /** Hidden id. Rendered as data-id, never as the label. */
   refId?: string | null;
 };

@@ -74,7 +74,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===0?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td'+(!t&&i>0?' class="blank"':/^[$\\d][\\d.,]*%?$/.test(t)?' class="num"':'')+(cols[i]?' data-label="'+esc(cols[i])+'"':'')+'>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===(r.linkCell||0)?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td'+(!t&&i>0?' class="blank"':/^[$\\d][\\d.,]*%?$/.test(t)?' class="num"':'')+(cols[i]?' data-label="'+esc(cols[i])+'"':'')+'>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
     h+='</tbody></table></div>'+close;
     return;
