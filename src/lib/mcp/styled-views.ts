@@ -58,6 +58,29 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const shortDate = (d: string) =>
   `${MON[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}, ${d.slice(0, 4)}`;
+
+function monthDay(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const day = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  return `${MON[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}`;
+}
+
+/** One lookahead row label: activity id, name, and the dates, so a/b splits are not the same line. */
+export function scheduleWindowLabel(a: {
+  id?: string | null;
+  name?: string | null;
+  description?: string | null;
+  start?: string | null;
+  finish?: string | null;
+}): string {
+  const name = activityIdName(a);
+  if (!name) return "";
+  const from = monthDay(a.start);
+  const to = monthDay(a.finish);
+  const span = from && to ? `, ${from} to ${to}` : from ? `, ${from}` : "";
+  return `${name}${span}`;
+}
 const md = (d: string) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
 const dow = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).getUTCDay();
 
