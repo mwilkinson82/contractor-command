@@ -52,6 +52,68 @@ const cleanSpec = (v: unknown): string | null => (typeof v === "string" && v.tri
 
 const ITEM = /^(\d{2})\.(\d{2,3})$/;
 const cents = (n: number) => Math.round(n * 100);
+
+/** Member-facing refusal when a save would move the SOV sum or the contract total. */
+export const SOV_TOTAL_REFUSAL = "Contract value changes only by change order. Nothing was saved.";
+
+type SovMoneyLine = { billable_value?: unknown; executed_change_order?: unknown; fee_included?: unknown };
+
+function feeNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function factLine(value: unknown): SovMoneyLine | null {
+  if (value == null || value === "unknown" || value === "" || value === "na") return null;
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  return value as SovMoneyLine;
+}
+
+/** Same cents as buildSov: base lines are grossed up by the fee; executed change lines are added at face value. */
+export function sovValueCents(lines: SovMoneyLine[], feePct: number | null): { sov: number | null; contract: number | null } {
+  let base = 0;
+  let change = 0;
+  let any = false;
+  for (const line of lines) {
+    const amount = typeof line.billable_value === "number" && Number.isFinite(line.billable_value) ? cents(line.billable_value) : null;
+    if (amount == null) continue;
+    any = true;
+    if (line.executed_change_order && line.fee_included) change += amount;
+    else base += amount;
+  }
+  if (!any) return { sov: null, contract: null };
+  const sov = base + change;
+  if (feePct == null || !(feePct >= 0 && feePct < 100)) return { sov, contract: null };
+  return { sov, contract: Math.round(base / (1 - feePct / 100)) + change };
+}
+
+/**
+ * Refuse a member SOV save that moves the scheduled-value sum or the contract total.
+ * No numeric SOV yet is the initial save. A fee that was blank can be recorded without moving the sum.
+ * nextFee undefined keeps the fee already on the job.
+ */
+export function sovTotalChangeRefusal(
+  existing: { key: string; value: unknown }[],
+  currentFee: unknown,
+  incoming: Record<string, unknown> | null,
+  nextFee?: unknown,
+): string | null {
+  const feeNow = feeNumber(currentFee);
+  const feeNext = nextFee === undefined ? feeNow : feeNumber(nextFee);
+  const merged = new Map(existing.map((row) => [row.key, factLine(row.value)]));
+  if (incoming) {
+    for (const [key, value] of Object.entries(incoming)) {
+      if (key.length > 120) continue;
+      merged.set(key, factLine(value));
+    }
+  }
+  const before = sovValueCents(existing.map((row) => factLine(row.value) ?? {}), feeNow);
+  const after = sovValueCents([...merged.values()].filter((line): line is SovMoneyLine => line != null), feeNext);
+  if ((before.sov != null && after.sov !== before.sov) || (before.contract != null && after.contract !== before.contract)) return SOV_TOTAL_REFUSAL;
+  return null;
+}
+
 const dollars = (c: number) => c / 100;
 const pct2 = (part: number, whole: number) => (whole === 0 ? 0 : Math.round((part / whole) * 10000) / 100);
 

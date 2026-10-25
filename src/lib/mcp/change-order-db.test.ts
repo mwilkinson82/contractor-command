@@ -143,6 +143,8 @@ beforeAll(async () => {
   await load("20261025140000_athena_request_package_records");
   await load("20261025150000_athena_change_order_packages");
   await load("20261025153000_athena_change_execution_tie");
+  await load("20261030130000_athena_submittal_log_approval_only");
+  await load("20261030140000_athena_sov_contract_total_guard");
 });
 afterAll(async () => {
   await db?.close();
@@ -274,5 +276,37 @@ describe("commercial packages on the shared engine", () => {
         lines: [{ category: "labor", description: "Crew", source: "Quote" }],
       }),
     ).rejects.toThrow("integer-cent rate");
+  });
+  it("keeps RFI, RFC, and change-order rows off the submittal log while their own logs stay", async () => {
+    const before = (await rpc("mcp_submittal_rows", [job])) as unknown as { submittals: { number: string }[] };
+    const rfi = await write("rfi", "create", content());
+    const rfc = await write("rfc", "create", content());
+    const pco = await change("create", coContent());
+    const added = (await rpc("mcp_submittal_log", [job, "add", JSON.stringify({
+      number: "26 05 00-009", title: "Fictional approval only", spec_section: "26 05 00", submittal_type: "product_data", status: "in_prep", ball_in_court: "gc",
+    })])) as unknown as { submittals: { number: string; transmittal_number: number }[] };
+    const numbers = (rows: { number: string }[]) => rows.map((row) => row.number).sort();
+    expect(numbers(added.submittals)).toEqual(numbers([...before.submittals, { number: "26 05 00-009" }]));
+    for (const hidden of [rfi.number, rfc.number, (await changes()).records.find((row) => row.id === pco.saved_id)!.number]) {
+      expect(numbers(added.submittals)).not.toContain(hidden);
+    }
+    const page = (await rpc("mcp_submittal_page", [job])) as unknown as { submittals: { number: string }[]; page: string };
+    expect(page.page).toBe("submittals");
+    expect(numbers(page.submittals)).toEqual(numbers(added.submittals));
+    expect((await list("rfi")).records.map((row) => row.number)).toContain(rfi.number);
+    expect((await list("rfc")).records.map((row) => row.number)).toContain(rfc.number);
+    expect((await changes()).records.map((row) => row.number)).toContain((await changes()).records.find((row) => row.id === pco.saved_id)!.number);
+    const sequence = await db.query<{ number: number }>("SELECT number FROM mcp_transmittals WHERE job_id=$1 ORDER BY number", [job]);
+    const issued = sequence.rows.map((row) => Number(row.number));
+    expect(issued).toEqual([...issued].sort((a, b) => a - b));
+    expect(new Set(issued).size).toBe(issued.length);
+    expect(issued[issued.length - 1] - issued[0] + 1).toBe(issued.length);
+    const guards = await db.query<{ n: number }>(
+      `SELECT count(*)::int n FROM pg_proc p JOIN pg_namespace ns ON ns.oid=p.pronamespace
+       WHERE ns.nspname='public' AND p.proname IN ('mcp_submittal_spec_required','mcp_submittal_package_write','mcp_submittal_delivery')
+         AND position('NOT IN (''rfi'',''rfc'')' IN pg_get_functiondef(p.oid)) > 0
+         AND position('NOT IN (''rfi'',''rfc'',''change_order'')' IN pg_get_functiondef(p.oid)) = 0`,
+    );
+    expect(guards.rows[0].n).toBe(0);
   });
 });

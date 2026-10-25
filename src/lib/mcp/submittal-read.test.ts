@@ -14,11 +14,20 @@ const state = vi.hoisted(() => {
     sb() {
       return {
         from(table: string) {
+          let purpose: string | null = null;
           const chain = {
             select() { return chain; },
-            eq(col: string, val: string) { box.filters.push({ table, col, val }); return chain; },
+            eq(col: string, val: string) {
+              box.filters.push({ table, col, val });
+              if (col === "package_purpose") purpose = val;
+              return chain;
+            },
             order() { return chain; },
-            limit() { return Promise.resolve({ data: table === "mcp_submittals" ? box.rows : [], error: null }); },
+            limit() {
+              const rows = table === "mcp_submittals" ? box.rows : [];
+              const data = purpose ? rows.filter((row) => (row.package_purpose ?? "approval") === purpose) : rows;
+              return Promise.resolve({ data, error: null });
+            },
             maybeSingle() { return Promise.resolve({ data: null, error: null }); },
             insert() { box.writes.push(`insert ${table}`); return Promise.resolve({ data: null, error: null }); },
           };
@@ -112,6 +121,7 @@ describe("submittal log read", () => {
     expect(state.rpcs).not.toContain("mcp_submittal_rows");
     expect(state.rpcs).not.toContain("mcp_add_item");
     expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "job_id", val: JOB_3101 });
+    expect(state.filters).toContainEqual({ table: "mcp_submittals", col: "package_purpose", val: "approval" });
     expect(state.filters.some((f) => f.col === "company_id")).toBe(false);
     expect(result.structuredContent.job_id).toBe(JOB_3101);
     const log = result.structuredContent.card.sections?.find((section) => section.heading === "Log");
@@ -126,6 +136,23 @@ describe("submittal log read", () => {
     expect(text).toContain("#1E5FED");
     expect(paletteViolations(result.structuredContent.html, true)).toEqual([]);
     expect(result.structuredContent.html).toContain("#DC2626");
+  });
+
+  it("leaves RFI, RFC, and change-order rows off the submittal log", async () => {
+    state.rows = [
+      ...DEMO_3101,
+      row({ id: "11111111-1111-4111-8111-111111111201", number: "RFI-001", title: "Fictional RFI", package_purpose: "rfi" }),
+      row({ id: "11111111-1111-4111-8111-111111111202", number: "RFC-001", title: "Fictional RFC", package_purpose: "rfc" }),
+      row({ id: "11111111-1111-4111-8111-111111111203", number: "PCO-001", title: "Fictional PCO", package_purpose: "change_order" }),
+    ];
+    const result = await call({ job_number: "3101" });
+    const text = result.content[0].text ?? "";
+    const log = result.structuredContent.card.sections?.find((section) => section.heading === "Log");
+    expect(log?.rows).toHaveLength(4);
+    expect(text).not.toContain("Fictional RFI");
+    expect(text).not.toContain("Fictional RFC");
+    expect(text).not.toContain("Fictional PCO");
+    expect(text).toContain("Switchgear product data");
   });
 
   it("says the job has no submittals and points at setup", async () => {

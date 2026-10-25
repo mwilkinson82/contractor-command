@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSov, lineBilling, retainagePct, sovLayout, sovLineRows, sovSummaryText, G703_COLUMNS, SovMismatch } from "./sov";
+import { buildSov, lineBilling, retainagePct, sovLayout, sovLineRows, sovSummaryText, sovTotalChangeRefusal, SOV_TOTAL_REFUSAL, G703_COLUMNS, SovMismatch } from "./sov";
 
 const c = (n: number) => Math.round(n * 100);
 // Fictional lines that sum to the reference cost of work + GC ($3,313,188.60 at a 15% fee).
@@ -130,6 +130,20 @@ describe("SOV line-item view (0.8.0)", () => {
     expect(txt).toContain("Total | | | Contract sum | $1,400,000.00 | 100.00%");
     expect(txt).not.toContain("Scheduled value by division:");
     expect(txt).not.toContain("Contractor's fee");
+  });
+  it("refuses a line edit that moves the $1,400,000 contract and allows a rebalance", () => {
+    const existing = J2701.map((line) => ({ key: line.item_no, value: { description: line.description, billable_value: line.scheduled_value } }));
+    const bump = sovTotalChangeRefusal(existing, 0, { "26.06": { description: "Branch circuit rough-in and devices", billable_value: 305000 } }, undefined);
+    expect(bump).toBe(SOV_TOTAL_REFUSAL);
+    const rebalance = sovTotalChangeRefusal(existing, 0, {
+      "26.06": { description: "Branch circuit rough-in and devices", billable_value: 305000 },
+      "26.01": { description: "Mobilization, bonds and general conditions", billable_value: 20000 },
+    }, undefined);
+    expect(rebalance).toBeNull();
+    expect(sovTotalChangeRefusal([], null, { "26.06": { description: "Branch circuit rough-in and devices", billable_value: 255000 } }, 0)).toBeNull();
+    expect(sovTotalChangeRefusal(existing, null, null, 0)).toBeNull();
+    expect(sovTotalChangeRefusal(existing, 0, null, 10)).toBe(SOV_TOTAL_REFUSAL);
+    expect(sovTotalChangeRefusal(existing, 0, { "26.06": { description: "Renamed branch rough-in", billable_value: 255000 } }, undefined)).toBeNull();
   });
   it("division roll-up only when asked", () => {
     const txt = sovSummaryText("", sov, BRAND, "Exhibit B", [], "internal", "divisions");

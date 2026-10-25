@@ -1,5 +1,5 @@
 import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, buildSov, sovSpecsMissing, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -733,6 +733,21 @@ export const intake = defineTool({
         for (const b of args.budget_lines ?? []) budget[b.cost_code] = { description: b.description ?? null, amount: b.amount ?? null };
         const sov: Record<string, unknown> = {};
         for (const s of args.sov_lines ?? []) sov[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}) };
+        if (Object.keys(sov).length || args.fee_pct !== undefined) {
+          const [savedSov, savedJob] = await Promise.all([
+            sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", "sov"),
+            sb.from("mcp_jobs").select("sov_fee_pct").eq("id", job.job_id).maybeSingle(),
+          ]);
+          if (savedSov.error) dbError(savedSov.error);
+          if (savedJob.error) dbError(savedJob.error);
+          const refusal = sovTotalChangeRefusal(
+            (savedSov.data ?? []) as { key: string; value: unknown }[],
+            (savedJob.data as { sov_fee_pct?: number | null } | null)?.sov_fee_pct ?? null,
+            Object.keys(sov).length ? sov : null,
+            args.fee_pct,
+          );
+          if (refusal) throw new ToolError(SOV_TOTAL_REFUSAL);
+        }
         if (Object.keys(budget).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "budget", _facts: budget, _source: "member_answer" });
         if (Object.keys(sov).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "sov", _facts: sov, _source: "member_answer" });
         if (args.fee_pct !== undefined || args.sov_basis) await rpc(sb, "mcp_job_sov_terms", { _job: job.job_id, _fee_pct: args.fee_pct ?? null, _basis: args.sov_basis ?? null });
