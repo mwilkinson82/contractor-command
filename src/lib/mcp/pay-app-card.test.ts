@@ -122,7 +122,7 @@ describe("pay application cards", () => {
     });
     const shown = presentPayApp(card);
     const text = shown.content[0].text;
-    expect(text).toContain("Draft: not saved");
+    expect(text).toContain("Draft, not official");
     expect(text).toContain("Tie check");
     expect(text).toContain("Retainage step-down");
     expect(text).toContain(model.tie!);
@@ -134,7 +134,7 @@ describe("pay application cards", () => {
       card.sections?.find((section) => section.heading === "Tie check")?.rows[0].flag,
     ).toBeNull();
     const saved = billingForecastCardModel("2701", model);
-    expect(saved.sections?.some((section) => section.heading === "Draft: not saved")).toBe(false);
+    expect(saved.sections?.some((section) => section.heading === "Draft, not official")).toBe(false);
     expect(saved.sections?.some((section) => section.heading === "Retainage step-down")).toBe(
       false,
     );

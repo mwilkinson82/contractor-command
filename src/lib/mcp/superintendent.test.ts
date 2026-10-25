@@ -336,17 +336,17 @@ describe("feeds", () => {
     expect(shown.structuredContent.card).toBeDefined();
     expect(shown.structuredContent.html).toContain("Monthly billing");
     expect(shown.structuredContent.html).toContain("Version v2");
-    expect(shown.structuredContent.html).not.toContain("Draft: not saved");
+    expect(shown.structuredContent.html).not.toContain("Draft, not official");
     expect(shown.content[0].text).toContain("Forecast total $1,400,000.00 = contract $1,400,000.00");
     state.rpc.mcp_living_report_get = { found: false };
     const empty = await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" });
     expect(empty.structuredContent.html).toContain("Billed to date");
     expect(empty.structuredContent.html).toContain("Needed");
-    expect(empty.structuredContent.html).not.toContain("Draft: not saved");
+    expect(empty.structuredContent.html).not.toContain("Draft, not official");
     expect(empty.structuredContent.found).toBe(false);
   });
 
-  it("builds a Draft: not saved pay app card from the schedule and the latest pay app", async () => {
+  it("builds a Draft, not official pay app card from the schedule and the latest pay app", async () => {
     state.tables.mcp_jobs = [{ sov_fee_pct: 0 }];
     state.tables.mcp_job_facts = [
       { key: "03.01", module: "sov", value: { description: "Concrete", billable_value: 1_400_000 } },
@@ -400,7 +400,7 @@ describe("feeds", () => {
       { month: "2026-10", amount: 700_000, kind: "forecast" },
     ]);
     expect(result.structuredContent.data.billing.months.reduce((sum, row) => sum + Math.round(row.amount * 100), 0)).toBe(140_000_000);
-    expect(text).toContain("Draft: not saved");
+    expect(text).toContain("Draft, not official");
     expect(text).toContain("Tie check");
     expect(text).toContain("Retainage step-down");
     expect(text).toContain("10% through 50% complete ($700,000.00), held $70,000.00.");
@@ -438,7 +438,7 @@ describe("feeds", () => {
     };
     const untied = await handle(livingReportGet, { job_number: "2701", report_type: "billing_forecast" });
     expect(untied.structuredContent.html).toContain("Needed");
-    expect(untied.structuredContent.html).not.toContain("Draft: not saved");
+    expect(untied.structuredContent.html).not.toContain("Draft, not official");
     expect(untied.structuredContent.found).toBe(false);
   });
 

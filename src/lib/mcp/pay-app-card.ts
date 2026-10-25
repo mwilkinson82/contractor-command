@@ -1,4 +1,5 @@
 import type { CardModel } from "./cards/model";
+import { DRAFT_NOT_OFFICIAL } from "./record-copy";
 import { renderHtml } from "./cards/html";
 import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import { applyCardClosing } from "./cards/silence";
@@ -88,7 +89,7 @@ export function fieldPayAppCardModel(
 }
 
 export type BillingForecastOptions = {
-  /** Unsaved forecast. Labels the card Draft: not saved and shows the retainage step-down. */
+  /** Unsaved forecast. Labels the card Draft, not official and shows the retainage step-down. */
   draft?: boolean;
   /** Retainage step-down lines. Empty shows Needed. Used only when draft is set. */
   retainageLines?: string[] | null;
@@ -121,7 +122,7 @@ export function billingForecastCardModel(
       ...(draft
         ? [
             {
-              heading: "Draft: not saved",
+              heading: DRAFT_NOT_OFFICIAL,
               kind: "list" as const,
               rows: [{ cells: ["Nothing is stored until you say yes."] }],
             },
