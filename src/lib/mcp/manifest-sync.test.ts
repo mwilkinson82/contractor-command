@@ -1,3 +1,4 @@
+import {changeOrderLog,changeOrderRecord} from "./tools/change-order-tools";
 import { jobsList, drawingSetsList } from "./tools/discovery-tools";
 import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { describe, expect, it } from "vitest";
@@ -41,7 +42,7 @@ async function liveTools(): Promise<Tool[]> {
     title: "A",
     version: "t",
     instructions: "i",
-    tools: [
+    tools: [changeOrderLog,changeOrderRecord,
       jobsList,
       drawingSetsList,
       W.onboarding,

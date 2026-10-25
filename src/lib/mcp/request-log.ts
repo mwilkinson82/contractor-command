@@ -102,7 +102,7 @@ export function requestLogCard(
         rows: records.length
           ? records.map((row) => ({
               cells: [
-                row.number,
+                `${row.number} · Revision ${row.revision} · T-${row.transmittal_number}`,
                 row.title,
                 row.state === "draft"
                   ? "Draft, not sent"

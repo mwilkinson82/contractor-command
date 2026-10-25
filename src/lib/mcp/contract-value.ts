@@ -23,7 +23,11 @@ export function setupContractValue(facts: { module: string; key: string; value: 
     if (fact.status === "unknown" || fact.status === "na") continue;
     if (!SETUP_MODULES.has(fact.module) || !SETUP_KEYS.has(fact.key)) continue;
     const amount = asMoney(fact.value);
-    if (amount != null) return amount;
+    if (amount != null) {
+      const changes=facts.find(f=>f.module==="contract" && f.key==="executed_change_orders" && f.status!=="unknown" && f.status!=="na");
+      const delta=typeof changes?.value==="number" && Number.isFinite(changes.value)?changes.value:0;
+      return Math.round((amount+delta)*100)/100;
+    }
   }
   return null;
 }
