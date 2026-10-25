@@ -36,10 +36,10 @@ or a live file-picker pass. No membership, gate, grants or RLS changes are neede
 - Duplicate filename warnings say **Both copies are kept** for two; three or
   more retain **All N copies are kept**. Matching filenames still do not assert
   identical contents.
-- Card and record history show build dates/times in **America/Manaus (UTC-4)**.
-  `2026-10-24T19:11:33+00:00` displays `Oct 24, 2026, 3:11 PM Manaus (UTC-4)`.
-  Original timestamps, transmittals, copy IDs and PDF links are unchanged. Host
-  history facts include `built_at_display` beside the original `created_at`.
+- #281 initially used Manaus for build-history display; that is superseded by
+  the job → company → member hierarchy in `submittal-history-timezones.md`.
+  Original timestamps, transmittals, copy IDs and PDF links remain unchanged.
+  Host history facts retain `built_at_display` beside the original `created_at`.
 
 Cloud-generated migration 0025 alters functions created by each submittal feature
 suite, outside the older base fixture. The base test fixture is explicitly

@@ -121,6 +121,9 @@ beforeAll(async () => {
   );
   await db.exec(readFileSync("supabase/migrations/20261029120000_athena_submittal_record_page.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030120000_athena_package_build_identity.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261023200000_athena_morning_brief.sql", "utf8"));
+  await db.exec(readFileSync("drizzle/migrations/0025_athena_submittal_member_read_transaction.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261025111504_athena_submittal_display_time_zone.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -692,8 +695,18 @@ describe("real package handlers with local DB and immutable storage", () => {
     expect(history.rows).toHaveLength(4);
     expect(history.rows.filter((r) => r.cells.at(-1) === "Superseded")).toHaveLength(3);
     expect(history.rows.every((r) => r.href?.includes("open=package&package_id="))).toBe(true);
-    expect(history.rows.every((r) => r.cells[0].includes("Manaus (UTC-4)"))).toBe(true);
+    expect(history.rows.every((r) => r.cells[0].includes("America/Manaus"))).toBe(true);
     expect(history.rows.every((r) => !/Built \d{4}-\d{2}-\d{2}T/.test(r.cells[0]))).toBe(true);
+    try {
+      await db.query("UPDATE mcp_jobs SET time_zone='America/Chicago' WHERE id=$1",[job]);
+      const local = await call(submittalPackage,{action:"get",job_number:"2701",submittal_id:sid});
+      const localHistory = local.structuredContent.card.sections.find(s=>s.heading==="Package history")!;
+      expect(localHistory.rows.every(r=>r.cells[0].includes("America/Chicago"))).toBe(true);
+      expect(JSON.stringify(localHistory)).not.toContain("Manaus");
+      expect(local.structuredContent.history?.filter(p=>p.current)).toHaveLength(1);
+    } finally {
+      await db.query("UPDATE mcp_jobs SET time_zone='America/Manaus' WHERE id=$1",[job]);
+    }
     if (process.env.ATHENA_RENDER_PROOF_DIR) {
       mkdirSync(process.env.ATHENA_RENDER_PROOF_DIR, { recursive: true });
       writeFileSync(`${process.env.ATHENA_RENDER_PROOF_DIR}/package-history-card.html`, renderHtml(got.structuredContent.card));
