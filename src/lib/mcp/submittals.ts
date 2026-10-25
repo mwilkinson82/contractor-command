@@ -18,6 +18,7 @@ export const SUBMITTAL_STATUSES = [
   "revise_and_resubmit",
   "rejected",
   "closed",
+  "void",
 ] as const;
 export const BALL_PARTIES = ["sub", "gc", "architect_engineer", "owner"] as const;
 export const PACKAGE_KINDS = ["product_cut", "shop_drawing", "sample", "calc", "warranty", "other"] as const;
@@ -47,6 +48,7 @@ export const STATUS_LABEL: Record<SubmittalStatus, string> = {
   revise_and_resubmit: "Revise and resubmit",
   rejected: "Rejected",
   closed: "Closed",
+  void: "Void",
 };
 export const BALL_LABEL: Record<BallParty, string> = {
   sub: "Sub",
@@ -300,6 +302,7 @@ export function submittalDisplayStatus(
   row: Pick<SubmittalRecord, "status" | "built_package" | "submission_sent_at" | "revision">,
   packages?: { revision: number; is_current?: boolean; sent_at?: string | null; revoked_at?: string | null }[] | null,
 ): string {
+  if (row.status === "void") return labelOf(STATUS_LABEL, row.status);
   const built = row.built_package ?? packages?.find((p) => p.revision === row.revision && p.is_current !== false && !p.revoked_at) ?? null;
   return built && !built.sent_at && !row.submission_sent_at ? SUBMITTAL_DRAFT_LABEL : labelOf(STATUS_LABEL, row.status);
 }
@@ -327,8 +330,10 @@ export function presentSubmittalLog(input: {
   const loggedNumbers = new Set(input.rows.map((row) => row.number.trim().toLowerCase()));
   const schedule = (input.schedule ?? []).filter((group) => !loggedNumbers.has(group.id.trim().toLowerCase()));
   const tracking = input.tracking ?? [];
-  const rows = filterSubmittals(input.rows, { ...input.filter, today: input.today });
-  const logged = currentSubmittals(input.rows);
+  const voided = input.filter?.status === "void" ? [] : currentSubmittals(input.rows).filter((row) => row.status === "void");
+  const pool = input.filter?.status === "void" ? input.rows : input.rows.filter((row) => row.status !== "void");
+  const rows = filterSubmittals(pool, { ...input.filter, today: input.today });
+  const logged = currentSubmittals(pool);
   const filtered = !!(input.filter?.overdue || input.filter?.status || input.filter?.ball);
   const focus = input.focusId ? input.rows.find((row) => row.id === input.focusId) ?? null : null;
   const scheduleLate = schedule.filter((group) => scheduleGroupOverdue(group, input.today)).length;
@@ -344,21 +349,26 @@ export function presentSubmittalLog(input: {
   });
   const trackingLines = tracking.map((item) => `- ${item.action}${item.due ? `. Due ${item.due}.` : ""}${item.overdue ? " Overdue." : ""}`);
   // A filtered view of a log that has rows is not an empty log: say what was asked for and how many rows the log holds.
-  const nothing = !rows.length && !schedule.length && !tracking.length && !(filtered && logged.length);
+  const nothing = !rows.length && !voided.length && !schedule.length && !tracking.length && !(filtered && logged.length);
   const noMatch = !rows.length && filtered && logged.length > 0;
   const noMatchLine = `No submittals ${filterWords(input.filter)} on this job. ${logged.length} on the log, none ${filterWords(input.filter)}.`;
   const loggedBody = rows.length
     ? rows.map((row) => rowLine(row, input.today, submittalRecordUrl(input.boardUrl, row.number))).join("\n")
     : noMatch
       ? noMatchLine
-      : nothing
-        ? "No submittals on this job yet. Set the log up: say log a submittal, or paste the log to import it."
-        : "No submittals logged yet.";
+      : voided.length
+        ? "No open submittals."
+        : nothing
+          ? "No submittals on this job yet. Set the log up: say log a submittal, or paste the log to import it."
+          : "No submittals logged yet.";
+  const historyBody = voided.length
+    ? `History\n${voided.map((row) => `- ${row.number}. ${row.title}. Status ${submittalDisplayStatus(row)}.`).join("\n")}`
+    : "";
   const focusLines = focus ? pieceLines(focus.package_items) : [];
   const focusBody = focus
     ? `Package pieces for ${focus.number}\n${focusLines.length ? focusLines.join("\n") : "No pieces logged yet. Name the cuts, drawings and documents this submittal needs and who supplies each."}`
     : "";
-  const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody, focusBody].filter(Boolean).join("\n\n");
+  const body = [scheduleLines.length ? `Schedule\n${scheduleLines.join("\n")}` : "", trackingLines.length ? `Tracking\n${trackingLines.join("\n")}` : "", loggedBody, historyBody, focusBody].filter(Boolean).join("\n\n");
   const note = input.note?.trim() ? `${input.note.trim()}\n\n` : "";
   const access = input.readOnly ? "\n\nRead only." : "";
   const logUrl = submittalLogUrl(input.boardUrl);
@@ -426,8 +436,21 @@ export function presentSubmittalLog(input: {
         : {
             heading: "Log",
             kind: "list" as const,
-            rows: [{ cells: [noMatch ? noMatchLine : nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
+            rows: [{ cells: [noMatch ? noMatchLine : voided.length ? "No open submittals." : nothing ? "No submittals on this job yet." : "No submittals logged yet."] }],
           },
+      ...(voided.length
+        ? [{
+            heading: "History",
+            kind: "table" as const,
+            columns: ["Number", "Title", "Status"],
+            rows: voided.map((row) => ({
+              cells: [row.number, row.title, submittalDisplayStatus(row)],
+              href: submittalRecordUrl(input.boardUrl, row.number),
+              linkCell: 1,
+              refId: row.id,
+            })),
+          }]
+        : []),
       ...(rows.some(row => row.built_package) ? [{ heading: "Package PDFs", kind: "list" as const,
         rows: rows.filter(row => row.built_package).map(row => ({ cells: [`Open package PDF · ${row.number} · ${row.built_package!.filename}`], href: submittalPackageUrl(input.boardUrl, row.number, row.built_package!.id) })) }] : []),
       ...(logUrl && rows.length ? [{ heading: "Upload package pieces", kind: "list" as const,
