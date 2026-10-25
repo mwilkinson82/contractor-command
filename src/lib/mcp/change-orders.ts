@@ -182,7 +182,7 @@ export function changeLogCard(
         rows: records.length
           ? records.map((r) => ({
               cells: [
-                [r.number, r.change_order_details.co_number].filter(Boolean).join(" / "),
+                `${[r.number, r.change_order_details.co_number].filter(Boolean).join(" / ")} · Revision ${r.revision} · T-${r.transmittal_number}`,
                 r.title,
                 ["draft", "priced"].includes(r.change_order_details.state)
                   ? `${r.change_order_details.state === "priced" ? "Priced · " : ""}Draft, not sent`
