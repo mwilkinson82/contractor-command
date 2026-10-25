@@ -51,4 +51,16 @@ describe("job board sign-in return", () => {
     expect(boardReturnForVisit("items", JOB, `//evil.example/r/job/${OTHER}/items`)).toBe(board);
     expect(boardReturnForVisit("items", JOB, "https://evil.example")).not.toContain("evil.example");
   });
+
+  it("keeps the submittal record key, upload intent and anchor across both return validations", () => {
+    const record = `/r/job/${JOB}/submittal/05%2012%2000-001`;
+    const expected = `${record}?t=saved-board-key&upload=1#upload`;
+    const returned = boardReturnForVisit(
+      "submittals",
+      JOB,
+      `${record}?t=saved-board-key&upload=1&utm_source=chatgpt.com#upload`,
+    );
+    expect(returned).toBe(expected);
+    expect(boardSignInReturn(returned)).toBe(expected);
+  });
 });

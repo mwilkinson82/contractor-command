@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { requestMemberMagicLink } from "@/lib/magic-link.functions";
 import { signInReturn, BOARD_SIGN_IN_TITLE } from "@/lib/board-sign-in";
-import { boundedStep } from "@/lib/consent-loading";
+import { boundedStep, ConsentStepError } from "@/lib/consent-loading";
 import { normalizeOtpCode } from "@/lib/login-otp";
 import { ATHENA_LOGIN_LOGO } from "@/lib/login-copy";
 
@@ -27,6 +27,7 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
 
   async function onEmail(event: FormEvent) {
     event.preventDefault();
@@ -34,10 +35,16 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
     setBusy(true);
     setErr(null);
     try {
-      await requestCode({ data: { email: email.trim(), return_to: safeReturn } });
+      await boundedStep("session", () =>
+        requestCode({ data: { email: email.trim(), return_to: safeReturn } }),
+      );
       setSent(true);
-    } catch {
-      setErr("We could not confirm your request. Please try again.");
+    } catch (error) {
+      setErr(
+        error instanceof ConsentStepError && error.kind === "timeout"
+          ? "Requesting a code took too long. Please try again."
+          : "We could not confirm your request. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -55,13 +62,23 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
     setBusy(true);
     setErr(null);
     try {
-      const { error } = await boundedStep("session", () =>
+      const { data, error } = await boundedStep("session", () =>
         supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" }),
       );
       if (error) throw error;
+      if (!data.session?.access_token || !data.session.user?.id)
+        throw new Error("No verified session");
+      setConfirmed(true);
       window.location.assign(next);
-    } catch {
-      setErr("That code didn't work. Use the newest email, or tap the link in it.");
+    } catch (error) {
+      setErr(
+        error instanceof ConsentStepError && error.kind === "timeout"
+          ? "Checking your code took too long. Try again, or request a new code."
+          : "That code didn't work. Use the newest email, or request a new code.",
+      );
+    } finally {
+      // Navigation may be delayed or blocked. Never leave this form disabled
+      // after verification has settled, including a successful same-page return.
       setBusy(false);
     }
   }
@@ -94,7 +111,14 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
           you can type here.
         </p>
         {safeReturn ? (
-          sent ? (
+          confirmed ? (
+            <div role="status">
+              <p style={{ margin: "0 0 16px" }}>You're signed in. Continue to your page.</p>
+              <a href={safeReturn} style={{ color: BLUE }}>
+                Continue
+              </a>
+            </div>
+          ) : sent ? (
             <form onSubmit={onCode}>
               <p style={{ margin: "0 0 16px", lineHeight: 1.5 }}>
                 Check your inbox and spam folder. Open the newest email only; each code works once.
@@ -108,7 +132,7 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
                 onChange={(event) => setCode(event.target.value)}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="123456"
+                placeholder="12345678"
                 required
                 style={{
                   marginTop: 8,
@@ -123,7 +147,9 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
                 }}
               />
               {err ? (
-                <p style={{ margin: "12px 0 0", fontSize: 13, color: DANGER }}>{err}</p>
+                <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: DANGER }}>
+                  {err}
+                </p>
               ) : null}
               <button
                 type="submit"
@@ -142,6 +168,18 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
                 }}
               >
                 {busy ? "Checking code" : "Continue"}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setCode("");
+                  setErr(null);
+                  setSent(false);
+                }}
+                style={{ marginTop: 16, border: 0, background: "transparent", color: BLUE }}
+              >
+                Request a new code or use another email
               </button>
             </form>
           ) : (
@@ -170,7 +208,9 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
                 }}
               />
               {err ? (
-                <p style={{ margin: "12px 0 0", fontSize: 13, color: DANGER }}>{err}</p>
+                <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: DANGER }}>
+                  {err}
+                </p>
               ) : null}
               <button
                 type="submit"

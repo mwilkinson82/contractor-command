@@ -1,6 +1,7 @@
 // Where an expired, missing, or bad job-board link may send the member after
 // email-code sign-in. Only a same-origin /r/job/<id>/<page> path is allowed.
-// The token and utm params are removed so the stable URL loads live data.
+// Ordinary boards drop the token. A submittal record keeps its existing token
+// so its read-only record and exact upload destination survive account sign-in.
 import { oauthReturnPath } from "./oauth-return-path";
 import { hostedPageName, isUuid, JOB_PAGES } from "./report-pages";
 
@@ -8,16 +9,17 @@ export const BOARD_SIGN_IN_TITLE = "Sign in to keep this board open";
 
 const PARSE_ORIGIN = "https://app.invalid";
 
-function dropBoardNoise(params: URLSearchParams) {
+function dropBoardNoise(params: URLSearchParams, keepToken = false) {
   for (const key of [...params.keys()]) {
     const name = key.toLowerCase();
-    if (name === "t" || name.startsWith("utm_")) params.delete(key);
+    if ((!keepToken && name === "t") || name.startsWith("utm_")) params.delete(key);
   }
 }
 
 /**
- * A relative /r/job path on this origin, with the signed token and utm params
- * removed. Anything else (other origins, other paths, protocol-relative URLs)
+ * A relative /r/job path on this origin. Submittal records retain their existing
+ * board token; other boards drop it. Tracking parameters are always removed.
+ * Anything else (other origins, other paths, protocol-relative URLs)
  * is rejected so the sign-in cannot be used as an open redirect.
  */
 export function boardSignInReturn(value: unknown): string | undefined {
@@ -36,7 +38,8 @@ export function boardSignInReturn(value: unknown): string | undefined {
   if (parts[0] !== "r" || parts[1] !== "job") return undefined;
   const jobId = parts[2];
   if (!isUuid(jobId)) return undefined;
-  dropBoardNoise(url.searchParams);
+  const isRecord = parts.length === 5 && parts[3] === "submittal";
+  dropBoardNoise(url.searchParams, isRecord);
   const search = url.searchParams.toString();
   const hash = url.hash && url.hash !== "#" ? url.hash : "";
   // A submittal record: /r/job/<id>/submittal/<number>. The number stays percent-encoded as the browser sent it.

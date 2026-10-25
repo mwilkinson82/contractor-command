@@ -332,9 +332,9 @@ describe("record page", () => {
   it("returns to the record after sign-in and keeps the token on the log's row links", () => {
     const path = `/r/job/${JOB}/submittal/26%2024%2016-001`;
     expect(boardSignInReturn(`${path}?t=old&utm_source=chatgpt.com#event-1`)).toBe(
-      `${path}#event-1`,
+      `${path}?t=old#event-1`,
     );
-    expect(boardReturnForVisit("submittals", JOB, `${path}?t=x`)).toBe(path);
+    expect(boardReturnForVisit("submittals", JOB, `${path}?t=x`)).toBe(`${path}?t=x`);
     expect(boardSignInReturn(`/r/job/${JOB}/submittal/`)).toBeUndefined();
     expect(boardSignInReturn(`/r/job/${JOB}/other/thing`)).toBeUndefined();
     const log = renderReportBody({
@@ -360,7 +360,7 @@ describe("package uploads from the card and living log", () => {
     expect(url.searchParams.get("t")).toBe(TOKEN);
     expect(url.searchParams.get("upload")).toBe("1");
     expect(url.hash).toBe("#upload");
-    expect(boardSignInReturn(url.pathname+url.search+url.hash)).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001?upload=1#upload`);
+    expect(boardSignInReturn(url.pathname+url.search+url.hash)).toBe(`/r/job/${JOB}/submittal/05%2012%2000-001?t=${TOKEN}&upload=1#upload`);
     const rows = [row({id:"fictional",number:"05 12 00-001",revision:0})];
     const shown = presentSubmittalLog({jobNumber:"2701",jobName:"Fictional",rows,today:TODAY,boardUrl:BOARD});
     expect(shown.text).toContain(upload);

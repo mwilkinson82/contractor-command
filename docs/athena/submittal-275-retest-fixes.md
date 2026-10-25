@@ -61,3 +61,22 @@ The #277 release is not a three-host acceptance pass. The next candidate is base
 - Draft-link tests cover GET/HEAD, approved delivery unchanged, expiry/revocation/unknown tokens, and the default server lookup's hash/company/job/submittal bounds. No emails, migration, Hub changes, authentication configuration changes, role grants or server-side AI calls.
 - Connector version **0.8.23**; refresh existing host tool definitions for the explicit-rebuild field. A stale client can still get/build missing content safely, but cannot request the new explicit unchanged-content rebuild until refreshed.
 - **Still required after an approved release:** sign in to the deployed record with the same Athena account as the connector; test real member file-picker upload and each link in normal ChatGPT/Claude/Grok Bot; verify the first exact PDF after later reads/rebuilds. Tess must post all three passes before submittals are called complete. Local green tests are not substituted for those passes.
+
+## Record sign-in follow-up after #278
+
+The reported package checks passed on #278. The remaining blocker is entering an email code on the record's upload section. Preparation uses the deployed `5bf08faa` base; no job data is changed. Grok Bot owns live testing.
+
+- **Return address:** `boardSignInReturn` deliberately removed `t` on every job route. It now retains the existing key only on a validated submittal record, including `upload=1` and `#upload`, through the browser and existing email-link return validation. Tracking parameters are removed and off-site returns remain rejected. Other board/token, today, OAuth and Hub login rules are unchanged. Keeping a read-only link never grants upload permission; the existing signed-in job scope still decides that.
+- **Completion:** the code check already had a 15-second promise timeout. The reported over-minute live behavior is not a reproduced hanging network request. The previous success path, however, left `busy` true after requesting navigation. Both request and check now settle within the existing timeout, expose a distinct timeout error, and clear busy in `finally`. Only an actual verified session can produce success. If navigation is delayed, a confirmed state provides a normal Continue link to the same validated URL. A timeout never permits a late result to navigate the page.
+- **Recovery:** failed checks have an alert, enabled Continue, and an explicit new-code/different-email path. Returning to that form does not send an email by itself. The existing eight-digit code generation, sign-in endpoint, session client, Site URL, Hub, permissions and access controls are not changed.
+- **Duplicate wording:** the warning says `All N copies are kept`, with all piece IDs. Historical repeated T-2 entries remain separate immutable records with their existing copy identifiers and timestamps; this change neither renumbers them nor creates a missing T-3.
+- **Verification:** 2,489 app tests across 238 files, including 13 added cases; 17/17 locked behaviors; production build and changed-component lint pass. TypeScript has the same 32 baseline diagnostics, with normalized messages identical to the prior release. No MCP schema/template changes or migration.
+
+### Grok Bot release retest
+
+1. In each host, open the real record's `?t=…&upload=1#upload` link with the Athena browser signed out. The record remains readable and offers member sign-in.
+2. Type the newest email code. Success must leave `t`, the record number, `upload=1` and `#upload` intact and reveal the uploader for the matching full-access job account. A read-only or different account must not gain upload access.
+3. An invalid/expired code must show a clear error and re-enable Continue. An unavailable/stalled request must show the timeout error within 15 seconds. The new-code control must allow recovery without an automatic email.
+4. Keep the passing #278 package/build/get/history/PDF/log/navigation checks. Verify `All 4 copies` for four same-name pieces. Nothing is sent.
+
+This is a code-level verification record. The deployed sign-in/upload result remains unverified until Grok Bot reports it; no production sign-in email or browser acceptance test was performed by Codex for this follow-up.
