@@ -133,7 +133,7 @@ export function renderHtml(card: CardModel): string {
             const attr = rowClass(r);
             const cells = Array.from({ length: width }, (_, i) => {
               const text = cellText(r.cells[i] ?? "");
-              const body = i === 0 ? linked(r, text) : esc(text);
+              const body = i === (r.linkCell ?? 0) ? linked(r, text) : esc(text);
               const cls = !text && i > 0 ? ' class="blank"' : NUMERIC.test(text) ? ' class="num"' : "";
               const label = s.columns?.[i] ? ` data-label="${esc(s.columns[i])}"` : "";
               return `<td${cls}${label}>${i === 0 ? flagged(r, body) : body}</td>`;
