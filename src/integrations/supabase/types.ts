@@ -6381,6 +6381,10 @@ export type Database = {
         }
       }
       mcp_assert_job_scope: { Args: { _job: string }; Returns: string }
+      mcp_assert_sov_total: {
+        Args: { _facts: Json; _fee: number; _job: string }
+        Returns: undefined
+      }
       mcp_audit: {
         Args: {
           _action: string
