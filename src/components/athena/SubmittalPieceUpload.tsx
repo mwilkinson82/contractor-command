@@ -5,6 +5,27 @@ import { PACKAGE_KINDS, PACKAGE_KIND_LABEL, labelOf, type PackageKind } from "@/
 import type { SubmittalRecordPayload } from "@/lib/submittal-record-page";
 import { duplicatePieceWarnings } from "@/lib/submittal-piece-input";
 
+/** Readable size beside the chosen file. Upload limits stay in the piece upload client. */
+function formatReceivedFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * What is still missing for Store and attach piece.
+ * Source is required only when the member is adding a new piece, matching
+ * `busy || !file || (piece === "new" && !source.trim())` aside from `busy`.
+ */
+function packagePieceStoreHint(piece: string, file: File | null, source: string): string | null {
+  const needsFile = !file;
+  const needsSource = piece === "new" && !source.trim();
+  if (needsFile && needsSource) return "Choose a PDF and enter the source to turn this on.";
+  if (needsFile) return "Choose a PDF to turn this on.";
+  if (needsSource) return "Enter the source to turn this on.";
+  return null;
+}
+
 export function SubmittalPieceUpload({
   payload,
   onSaved,
@@ -24,6 +45,7 @@ export function SubmittalPieceUpload({
   const [receipt, setReceipt] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const warnings = duplicatePieceWarnings(payload.current.package_items ?? []);
+  const storeHint = packagePieceStoreHint(piece, file, source);
   const selectedDuplicate =
     file &&
     (payload.current.package_items ?? []).some(
@@ -143,27 +165,52 @@ export function SubmittalPieceUpload({
           </label>
         </>
       ) : null}
-      <label className="grid min-w-0 gap-1">
-        Received file (up to 50 MB)
-        <input
-          ref={fileInput}
-          type="file"
-          className="max-w-full min-w-0"
-          accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.csv"
-          disabled={busy}
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
-            setError("");
-          }}
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={busy || !file || (piece === "new" && !source.trim())}
-        className="w-fit rounded bg-[#1E5FED] px-4 py-2 text-white disabled:bg-gray-400"
-      >
-        {busy ? "Storing…" : "Store and attach piece"}
-      </button>
+      <div className="grid min-w-0 gap-1">
+        <span id="received-file-label">Received file (up to 50 MB)</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <input
+            ref={fileInput}
+            id="received-file"
+            type="file"
+            className="sr-only"
+            accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.csv"
+            disabled={busy}
+            aria-labelledby="received-file-label"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setError("");
+            }}
+          />
+          <button
+            type="button"
+            className="w-fit rounded bg-[#1E5FED] px-4 py-2 text-white disabled:bg-gray-400"
+            disabled={busy}
+            onClick={() => fileInput.current?.click()}
+          >
+            Choose PDF
+          </button>
+          {file ? (
+            <span className="min-w-0 break-all text-sm">
+              {file.name} ({formatReceivedFileSize(file.size)})
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className="grid gap-1">
+        <button
+          type="submit"
+          disabled={busy || !file || (piece === "new" && !source.trim())}
+          aria-describedby={storeHint ? "piece-store-hint" : undefined}
+          className="w-fit rounded bg-[#1E5FED] px-4 py-2 text-white disabled:bg-gray-400"
+        >
+          {busy ? "Storing…" : "Store and attach piece"}
+        </button>
+        {storeHint ? (
+          <p id="piece-store-hint" className="text-sm text-gray-500">
+            {storeHint}
+          </p>
+        ) : null}
+      </div>
       {error ? (
         <p role="alert" className="rounded border border-gray-300 p-3">
           {error}
