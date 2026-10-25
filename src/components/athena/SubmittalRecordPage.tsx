@@ -16,12 +16,20 @@ import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { REFRESH_MS, usePageVisible } from "@/components/athena/ReportPage";
 import { SUBMITTAL_BUCKET } from "@/lib/mcp/submittal-package";
 import { SubmittalPieceUpload } from "./SubmittalPieceUpload";
-import { loadMemberSubmittalRecord, type MemberRecordCache } from "@/lib/submittal-member-record";
+import {
+  loadMemberSubmittalRecord,
+  MemberRecordLookupError,
+  type MemberRecordCache,
+} from "@/lib/submittal-member-record";
 
 type Rpc = (
   f: string,
   a: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>;
+) => PromiseLike<{
+  data: unknown;
+  error: { message: string; code?: string } | null;
+  status?: number;
+}>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
 
 type Cached = MemberRecordCache;
@@ -88,7 +96,14 @@ export function SubmittalRecordView({
     refetchIntervalInBackground: false,
     queryFn: async (): Promise<Cached> => {
       const prev = qc.getQueryData<Cached>(key);
-      return loadMemberSubmittalRecord(rpc, args, prev, withMemberUrls, uploadRequested);
+      try {
+        return await loadMemberSubmittalRecord(rpc, args, prev, withMemberUrls, uploadRequested);
+      } catch (error) {
+        const failure =
+          error instanceof MemberRecordLookupError ? error : new MemberRecordLookupError(error);
+        console.error("[athena] submittal.member-read", failure.diagnostic);
+        throw failure;
+      }
     },
     retry: false,
   });
@@ -191,6 +206,16 @@ export function SubmittalRecordView({
                 Your signed-in account could not load this job's upload access. Retry, or sign in
                 with the account connected to Athena in your chat.
               </p>
+              {q.error instanceof MemberRecordLookupError ? (
+                <details className="my-3 break-words text-sm">
+                  <summary>Upload access details</summary>
+                  <p>
+                    {q.error.diagnostic.rpc} · {q.error.diagnostic.code}
+                    {q.error.diagnostic.status ? ` · HTTP ${q.error.diagnostic.status}` : ""}
+                  </p>
+                  <p>{q.error.diagnostic.message}</p>
+                </details>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void q.refetch()}

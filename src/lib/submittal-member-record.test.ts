@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadMemberSubmittalRecord } from "./submittal-member-record";
+import { createClient } from "@supabase/supabase-js";
+import { loadMemberSubmittalRecord, MemberRecordLookupError } from "./submittal-member-record";
 import type { SubmittalRecordPayload } from "./submittal-record-page";
 
 const args = { _job: "job", _number: "03 30 00-001" };
@@ -9,6 +10,59 @@ const payload = {
   current: { id: "submittal" },
 } as SubmittalRecordPayload;
 describe("member record authorization is independent of the freshness shortcut", () => {
+  it("reads an owner's upload access through the real Supabase PromiseLike RPC builder", async () => {
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL) =>
+        new Response(JSON.stringify(String(input).includes("_stamp") ? "current" : payload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    const client = createClient("https://fictional.supabase.co", "public-fixture-key", {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch },
+    });
+    const rpc = (name: string, params: Record<string, unknown>) => client.rpc(name, params);
+    const result = await loadMemberSubmittalRecord(rpc, args, undefined, async (p) => p);
+    expect(result.payload.read_only).toBe(false);
+    expect(fetch.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      "/rest/v1/rpc/mcp_submittal_record_stamp",
+      "/rest/v1/rpc/mcp_submittal_record_get",
+    ]);
+  });
+  it("preserves a real HTTP/RPC error while removing URLs, tokens and email from support details", async () => {
+    const client = createClient("https://fictional.supabase.co", "public-fixture-key", {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: async () =>
+          new Response(
+            JSON.stringify({
+              code: "42501",
+              message:
+                "permission denied for pm@example.com https://fictional.test/?token=private-token",
+            }),
+            { status: 403 },
+          ),
+      },
+    });
+    const failure = await loadMemberSubmittalRecord(
+      (name, params) => client.rpc(name, params),
+      args,
+      undefined,
+      async (p) => p,
+      true,
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(MemberRecordLookupError);
+    expect((failure as MemberRecordLookupError).diagnostic).toEqual({
+      rpc: "mcp_submittal_record_get",
+      code: "42501",
+      status: 403,
+      message: "permission denied for [email removed] [URL removed]",
+    });
+    expect(JSON.stringify((failure as MemberRecordLookupError).diagnostic)).not.toContain(
+      "private-token",
+    );
+  });
   it.each(["error", "throw"])("reads the authorized record after a stamp %s", async (mode) => {
     const rpc = vi.fn(async (fn: string) => {
       if (fn.endsWith("stamp")) {

@@ -459,7 +459,7 @@ describe("browser POST RPC transaction mode", () => {
       for (const name of names) await expect(post(name)).rejects.toMatchObject({ code: "25006" });
       await db.exec(
         readFileSync(
-          "supabase/migrations/20261025042056_athena_submittal_member_read_transaction.sql",
+          "drizzle/migrations/0025_athena_submittal_member_read_transaction.sql",
           "utf8",
         ),
       );

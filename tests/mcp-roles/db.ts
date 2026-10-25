@@ -1,4 +1,6 @@
-// TEST-only in-process Postgres (PGlite) with Supabase-style auth stubs, loaded with the real drizzle/migrations.
+// TEST-only base Postgres fixture through 0024. Feature suites then load their
+// real supabase/migrations prerequisites explicitly. Cloud's later 0025 only
+// alters record RPCs created by that feature chain, not by this base journal.
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -24,7 +26,8 @@ export async function makeDb() {
   const db = new PGlite({ parsers: Object.fromEntries([1082, 1114, 1184, 1700].map((t) => [t, (v: string) => v])) });
   await db.exec(BOOT);
   const dir = join(process.cwd(), "drizzle/migrations");
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
+  const baseThrough = "0024_athena_reopen_open_item.sql";
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql") && f <= baseThrough).sort()) {
     const sql = readFileSync(join(dir, f), "utf8").replace(/--> statement-breakpoint/g, "");
     try { await db.exec(sql); } catch (e) { throw new Error(`${f}: ${(e as Error).message}`); }
   }

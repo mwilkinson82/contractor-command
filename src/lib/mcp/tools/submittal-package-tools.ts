@@ -26,6 +26,7 @@ import { PACKAGE_KIND_LABEL, PACKAGE_STATUS_LABEL, labelOf } from "../submittals
 import { submittalLogUrl, submittalPackageUrl, submittalUploadUrl } from "../submittal-record-url";
 import { duplicatePieceWarnings, newSubmittalPiece, submittalPieceMime } from "../../submittal-piece-input";
 import type { SubmittalRecordPayload } from "../../submittal-record-page";
+import { submittalBuildTime } from "../../submittal-build-time";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -136,7 +137,7 @@ export function packageCard(
       ...(history?.length ? [{ heading: "Package history", kind: "table" as const,
         columns: ["Package version", "Status"],
         rows: history.map((p) => ({
-          cells: [`${p.transmittal_number ? `T-${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${p.created_at} · Copy ${p.id.slice(0, 8)}`,
+          cells: [`${p.transmittal_number ? `T-${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${submittalBuildTime(p.created_at)} · Copy ${p.id.slice(0, 8)}`,
             p.revoked ? "Link turned off" : p.current ? "Current package" : "Superseded"],
           href: p.open_url,
         })) }] : []),
@@ -340,7 +341,7 @@ export const submittalPackage = defineTool({
         });
         return (record.packages ?? []).map((p) => ({
           id: p.id, filename: p.filename, transmittal_number: p.transmittal_number ?? null,
-          revision: p.revision, created_at: p.created_at, current: p.id === data.package?.id,
+          revision: p.revision, created_at: p.created_at, built_at_display: submittalBuildTime(p.created_at), current: p.id === data.package?.id,
           revoked: !!p.revoked_at, sent_at: p.sent_at ?? null,
           open_url: p.revoked_at ? null : submittalPackageUrl(logUrl, data.submittal.number, p.id),
         }));
