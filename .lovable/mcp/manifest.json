@@ -1317,7 +1317,7 @@
       {
         "name": "intake",
         "title": "Job setup intake",
-        "description": "Records a job and its setup, and for a draft, what-if or proposed SOV call it with sov_copy \"draft\" (never build one yourself) and say saved only after it returns \"Saved in Athena\".",
+        "description": "Records a job and its setup.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
