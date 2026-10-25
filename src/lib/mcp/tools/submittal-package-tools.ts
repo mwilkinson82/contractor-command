@@ -174,6 +174,84 @@ async function identify(sb: Sb, job: string, id?: string, number?: string) {
   if (!result.data?.[0]) throw new ToolError("That submittal number is not in this job’s log.");
   return result.data[0].id as string;
 }
+type SavedMail = {
+  id: string;
+  draft_key: string;
+  package_id: string | null;
+  job_id: string;
+  submittal_id: string;
+};
+const REREAD_SAVED_DRAFT =
+  "Re-read the saved draft card (call get) and stop. Do not substitute another delivery_id or draft_key.";
+function sameUuid(a: string | null | undefined, b: string | null | undefined) {
+  return (a ?? "").toLowerCase() === (b ?? "").toLowerCase();
+}
+/** Read one delivery the same way other job reads do: this job and submittal only, through the caller's own access. */
+async function readScopedDelivery(
+  sb: Sb,
+  jobId: string,
+  submittalId: string,
+  deliveryId: string,
+  packageId?: string,
+): Promise<SavedMail | null> {
+  const cols = "id,draft_key,package_id,job_id,submittal_id";
+  const result = packageId
+    ? await sb
+        .from("mcp_submittal_mail")
+        .select(cols)
+        .eq("job_id", jobId)
+        .eq("submittal_id", submittalId)
+        .eq("id", deliveryId)
+        .eq("package_id", packageId)
+        .maybeSingle()
+    : await sb
+        .from("mcp_submittal_mail")
+        .select(cols)
+        .eq("job_id", jobId)
+        .eq("submittal_id", submittalId)
+        .eq("id", deliveryId)
+        .maybeSingle();
+  if (result.error) dbError(result.error);
+  const row = result.data as SavedMail | null;
+  if (!row || !sameUuid(row.job_id, jobId) || !sameUuid(row.submittal_id, submittalId) || !sameUuid(row.id, deliveryId))
+    return null;
+  if (packageId && !sameUuid(row.package_id, packageId)) return null;
+  return row;
+}
+/**
+ * Name which saved-row id is wrong before the delivery function's generic refusal.
+ * The message never carries a replacement delivery_id or draft_key.
+ */
+function assertDeliveryPair(row: SavedMail | null, draftKey: string): SavedMail {
+  if (!row) throw new ToolError(`delivery_id not found for this package. ${REREAD_SAVED_DRAFT}`);
+  if (row.draft_key !== draftKey)
+    throw new ToolError(`draft_key does not match that delivery_id. ${REREAD_SAVED_DRAFT}`);
+  return row;
+}
+function sentBodyWarning(
+  draft: { body: string; link?: string | null },
+  sentBody: string | undefined,
+): { flag: "WARNING"; package_link_repeated: boolean; body_differs: boolean; message: string } | null {
+  const sent = (sentBody ?? "").trim();
+  if (!sent) return null;
+  const link = (draft.link ?? "").trim();
+  const packageLinkRepeated = link.length > 0 && sent.split(link).length - 1 > 1;
+  const bodyDiffers = sent !== draft.body.trim();
+  if (!packageLinkRepeated && !bodyDiffers) return null;
+  const reasons = [
+    packageLinkRepeated ? "The package link is repeated in the sent body." : "",
+    bodyDiffers ? "The sent body differs from the saved draft body." : "",
+  ].filter(Boolean);
+  return {
+    flag: "WARNING",
+    package_link_repeated: packageLinkRepeated,
+    body_differs: bodyDiffers,
+    message: `${reasons.join(" ")} The send was still recorded.`,
+  };
+}
+function pairGuidance(id: string, key: string) {
+  return `Reuse this exact pair unchanged: delivery_id ${id} and draft_key ${key}.`;
+}
 async function context(sb: Sb, job: string, submittal: string) {
   const value = await submittalRpc<PackageContext>(sb, "mcp_submittal_package_context", {
     _job: job,
@@ -590,6 +668,7 @@ export const submittalDelivery = defineTool({
     provider: z.string().trim().min(1).max(80).optional(),
     message_id: z.string().trim().min(1).max(300).optional(),
     sent_at: z.iso.datetime({ offset: true }).optional(),
+    sent_body: z.string().optional(),
     recipient_name: z.string().trim().max(120).optional(),
   },
   annotations: {
@@ -609,10 +688,17 @@ export const submittalDelivery = defineTool({
         throw new ToolError("Email sending is turned off. Nothing was sent.");
       const sid = await identify(sb, job.job_id, args.submittal_id, args.submittal_number);
       const data = await context(sb, job.job_id, sid);
+      // Diagnose a mismatched pair before the database function, which only says to show the saved draft.
+      // The read stays on this job and submittal (and this package when one was named). It never returns another row's ids.
+      if (args.action !== "draft")
+        assertDeliveryPair(
+          await readScopedDelivery(sb, job.job_id, sid, args.delivery_id!, args.package_id),
+          args.draft_key!,
+        );
       const saved = await submittalRpc<{
         id: string;
         draft_key: string;
-        draft: { to: string; cc: string[]; subject: string; body: string };
+        draft: { to: string; cc: string[]; subject: string; body: string; link?: string | null };
         approved_at: string | null;
         already_approved?: boolean;
         sent_at: string | null;
@@ -623,12 +709,24 @@ export const submittalDelivery = defineTool({
         // The host that approved or recorded this send goes on the project-record event; no host sends a conversation id yet.
         _p: { ...args, host: callHost(ctx), thread_ref: null },
       });
+      const warning = args.action === "record_sent" ? sentBodyWarning(saved.draft, args.sent_body) : null;
+      const reuse = pairGuidance(saved.id, saved.draft_key);
       const lines = [
+        // Raw so the delivery uuid stays in the text. Ordinary card labels drop uuids.
+        {
+          cells: [
+            `delivery_id: ${saved.id}`,
+            `draft_key: ${saved.draft_key}`,
+            "Reuse this exact delivery_id and draft_key pair unchanged.",
+          ],
+          raw: true,
+        },
         saved.sent_at
           ? "Send recorded from the email provider receipt."
           : saved.approved_at
             ? "Approval saved. Send receipt not yet recorded."
             : "Draft saved. Not sent. Wait for a separate yes.",
+        ...(warning ? [`WARNING: ${warning.message}`] : []),
         {
           cells: [
             `To: ${saved.draft.to}`,
@@ -661,9 +759,11 @@ export const submittalDelivery = defineTool({
           package_item_id: args.package_item_id ?? null,
           job_number: job.job_number,
           company_id: job.company_id,
+          ...(warning ? { warning } : {}),
         }),
+        reuse,
         saved.sent_at
-          ? "This send is already recorded. Show the card; do not send it again."
+          ? "This send is already recorded. Show the card; do not send it again. Never re-draft after approval."
           : saved.approved_at
             ? args.action === "approve" && saved.already_approved !== true
               ? "The member approved this exact draft; use structuredContent.draft.to, cc, subject and body unchanged with their connected email tool, never reconstruct them from card text. Send it once, then call submittal_delivery record_sent with this same structuredContent.delivery_id and draft_key plus the successful provider message id and sent time; a failure must never be recorded as sent. Never re-draft after approval."

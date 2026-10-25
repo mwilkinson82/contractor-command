@@ -75,7 +75,14 @@ const call = async (tool: unknown, args: Record<string, unknown>) =>
           card: CardModel & { sections: { rows: CardRow[] }[] };
           delivery_id?: string;
           draft_key?: string | null;
-          draft?: { to: string; cc: string[]; subject: string; body: string };
+          draft?: { to: string; cc: string[]; subject: string; body: string; link?: string | null };
+          assistant_guidance?: string[];
+          warning?: {
+            flag: string;
+            package_link_repeated: boolean;
+            body_differs: boolean;
+            message: string;
+          } | null;
           preview_only?: boolean;
           build_result?: string;
           history?: { id: string; filename: string; current: boolean; open_url: string; transmittal_number: number }[];
@@ -1282,4 +1289,229 @@ describe("submittal delivery needs the saved row ids", () => {
       await expect(call(submittalDelivery, { ...base, draft_key: "a".repeat(32) })).rejects.toThrow(message);
     });
   }
+});
+
+describe("submittal delivery ids and sent-body warning", () => {
+  const shown = (result: Awaited<ReturnType<typeof call>>) =>
+    `${result.content.map((part) => part.text ?? "").join("\n")}\n${(result.structuredContent.assistant_guidance ?? []).join("\n")}`;
+  const refusal = async (args: Record<string, unknown>) => {
+    try {
+      await call(submittalDelivery, args);
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  };
+  const expectNoPair = (message: string, ...values: string[]) => {
+    expect(message).toContain("Re-read the saved draft card (call get) and stop");
+    expect(message).not.toContain("Show the exact saved draft");
+    expect(message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    expect(message).not.toMatch(/\b[a-f0-9]{32}\b/i);
+    for (const value of values) expect(message).not.toContain(value);
+  };
+  async function chaseDraft(number: string) {
+    const sid = await create(number);
+    const ctx = await saved(sid);
+    const piece = ctx.items.find((item: { kind: string; id: string }) => item.kind === "product_cut");
+    const drafted = await call(submittalDelivery, {
+      action: "draft",
+      job_number: "2701",
+      submittal_id: sid,
+      kind: "chase",
+      package_item_id: piece.id,
+      draft: {
+        to: "supplier@example.com",
+        cc: [],
+        subject: `Chase ${number}`,
+        body: `Please send the product data for ${number}.`,
+      },
+    });
+    const delivery_id = drafted.structuredContent.delivery_id!;
+    const draft_key = drafted.structuredContent.draft_key!;
+    return { sid, drafted, delivery_id, draft_key };
+  }
+
+  it("returns the exact delivery pair on draft, get and approve and names which id is wrong", async () => {
+    const savedDraft = await chaseDraft("PAIR-001");
+    const other = await chaseDraft("PAIR-002");
+    const pairText = shown(savedDraft.drafted);
+    expect(savedDraft.drafted.structuredContent.delivery_id).toBe(savedDraft.delivery_id);
+    expect(savedDraft.drafted.structuredContent.draft_key).toBe(savedDraft.draft_key);
+    expect(pairText).toContain(`delivery_id: ${savedDraft.delivery_id}`);
+    expect(pairText).toContain(`draft_key: ${savedDraft.draft_key}`);
+    expect(pairText).toContain("Reuse this exact pair unchanged");
+    expect(pairText).toContain("Reuse this exact delivery_id and draft_key pair unchanged.");
+
+    const wrongId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const wrongKey = "f".repeat(32);
+    const hidden = [savedDraft.delivery_id, savedDraft.draft_key, other.delivery_id, other.draft_key];
+    for (const action of ["get", "approve", "record_sent"] as const) {
+      const base = {
+        action,
+        job_number: "2701",
+        submittal_id: savedDraft.sid,
+        confirmed: true,
+        provider: "local-test-only",
+        message_id: `synthetic-${action}-mismatch`,
+        sent_at: new Date().toISOString(),
+      };
+      const missingDelivery = await refusal({ ...base, delivery_id: wrongId, draft_key: savedDraft.draft_key });
+      expect(missingDelivery).toContain("delivery_id not found for this package");
+      expectNoPair(missingDelivery, ...hidden);
+
+      const otherPackage = await refusal({
+        ...base,
+        delivery_id: other.delivery_id,
+        draft_key: other.draft_key,
+      });
+      expect(otherPackage).toContain("delivery_id not found for this package");
+      expect(otherPackage).not.toContain("draft_key does not match");
+      expectNoPair(otherPackage, ...hidden);
+
+      const wrongDraftKey = await refusal({ ...base, delivery_id: savedDraft.delivery_id, draft_key: wrongKey });
+      expect(wrongDraftKey).toContain("draft_key does not match that delivery_id");
+      expect(wrongDraftKey).not.toContain("delivery_id not found");
+      expectNoPair(wrongDraftKey, ...hidden);
+    }
+    const untouched = (
+      await query("SELECT approved_at, sent_at FROM mcp_submittal_mail WHERE id=$1", [savedDraft.delivery_id])
+    )[0];
+    expect(untouched.approved_at).toBeNull();
+    expect(untouched.sent_at).toBeNull();
+
+    const got = await call(submittalDelivery, {
+      action: "get",
+      job_number: "2701",
+      submittal_id: savedDraft.sid,
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+    });
+    expect(got.structuredContent.delivery_id).toBe(savedDraft.delivery_id);
+    expect(got.structuredContent.draft_key).toBe(savedDraft.draft_key);
+    expect(shown(got)).toContain(`delivery_id: ${savedDraft.delivery_id}`);
+    expect(shown(got)).toContain(`draft_key: ${savedDraft.draft_key}`);
+    expect(shown(got)).toContain("unchanged");
+
+    const approved = await call(submittalDelivery, {
+      action: "approve",
+      job_number: "2701",
+      submittal_id: savedDraft.sid,
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+      confirmed: true,
+    });
+    expect(approved.structuredContent.delivery_id).toBe(savedDraft.delivery_id);
+    expect(approved.structuredContent.draft_key).toBe(savedDraft.draft_key);
+    const approvedText = shown(approved);
+    expect(approvedText).toContain(`delivery_id: ${savedDraft.delivery_id}`);
+    expect(approvedText).toContain(`draft_key: ${savedDraft.draft_key}`);
+    expect(approvedText).toContain("Reuse this exact pair unchanged");
+    expect(approvedText).toContain("Never re-draft after approval.");
+
+    const faithful = await call(submittalDelivery, {
+      action: "record_sent",
+      job_number: "2701",
+      submittal_id: savedDraft.sid,
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+      provider: "local-test-only",
+      message_id: "synthetic-faithful-body",
+      sent_at: new Date().toISOString(),
+      sent_body: savedDraft.drafted.structuredContent.draft!.body,
+    });
+    expect(faithful.structuredContent.sent).toBe(true);
+    expect(faithful.structuredContent.warning).toBeUndefined();
+    expect(shown(faithful)).not.toContain("WARNING:");
+  });
+
+  it("records a send when the sent body differs or repeats the package link and only flags a warning", async () => {
+    const sid = await create("PAIR-LINK");
+    const ctx = await saved(sid);
+    const source = await PDFDocument.create();
+    source.addPage();
+    const bytes = Buffer.from(await source.save()).toString("base64");
+    for (const item of ctx.items)
+      await call(submittalPackage, {
+        action: "upload_piece",
+        job_number: "2701",
+        submittal_id: sid,
+        package_item_id: item.id,
+        filename: `${item.kind}.pdf`,
+        content_base64: bytes,
+      });
+    const built = await call(submittalPackage, { action: "build", job_number: "2701", submittal_id: sid });
+    const artifact = built.structuredContent.package!;
+    const drafted = await call(submittalDelivery, {
+      action: "draft",
+      job_number: "2701",
+      submittal_id: sid,
+      kind: "package",
+      package_id: artifact.id,
+      draft: {
+        to: "reviewer@example.com",
+        cc: [],
+        subject: "Package PAIR-LINK",
+        body: `Please review ${artifact.download_url}`,
+        link: artifact.download_url,
+      },
+    });
+    const delivery_id = drafted.structuredContent.delivery_id!;
+    const draft_key = drafted.structuredContent.draft_key!;
+    const savedBody = drafted.structuredContent.draft!.body;
+    expect(savedBody.split(artifact.download_url).length - 1).toBe(1);
+    const wrongPackage = await refusal({
+      action: "approve",
+      job_number: "2701",
+      submittal_id: sid,
+      delivery_id,
+      draft_key,
+      package_id: "99999999-9999-4999-8999-999999999999",
+      confirmed: true,
+    });
+    expect(wrongPackage).toContain("delivery_id not found for this package");
+    expectNoPair(wrongPackage, delivery_id, draft_key);
+    expect(
+      (await query("SELECT approved_at FROM mcp_submittal_mail WHERE id=$1", [delivery_id]))[0].approved_at,
+    ).toBeNull();
+
+    await call(submittalDelivery, {
+      action: "approve",
+      job_number: "2701",
+      submittal_id: sid,
+      delivery_id,
+      draft_key,
+      confirmed: true,
+    });
+    const repeated = `${savedBody}\n${artifact.download_url}`;
+    const recorded = await call(submittalDelivery, {
+      action: "record_sent",
+      job_number: "2701",
+      submittal_id: sid,
+      delivery_id,
+      draft_key,
+      provider: "local-test-only",
+      message_id: "synthetic-repeated-link",
+      sent_at: new Date().toISOString(),
+      sent_body: repeated,
+    });
+    expect(recorded.structuredContent.sent).toBe(true);
+    expect(recorded.structuredContent.delivery_id).toBe(delivery_id);
+    expect(recorded.structuredContent.draft_key).toBe(draft_key);
+    expect(recorded.structuredContent.warning).toMatchObject({
+      flag: "WARNING",
+      package_link_repeated: true,
+      body_differs: true,
+    });
+    const text = shown(recorded);
+    expect(text).toContain("WARNING:");
+    expect(text).toContain("The package link is repeated");
+    expect(text).toContain("The sent body differs from the saved draft");
+    expect(text).toContain("Never re-draft after approval.");
+    const row = (
+      await query("SELECT sent_at, message_id, provider FROM mcp_submittal_mail WHERE id=$1", [delivery_id])
+    )[0];
+    expect(row.sent_at).toBeTruthy();
+    expect(row.message_id).toBe("synthetic-repeated-link");
+    expect(row.provider).toBe("local-test-only");
+  });
 });
