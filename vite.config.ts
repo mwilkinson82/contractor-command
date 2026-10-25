@@ -4,10 +4,26 @@
 //     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
+import { execSync } from "node:child_process";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 import { loadEnv } from "vite";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
+import { commitFromEnv, normalizeCommit } from "./src/lib/athena-build";
+
+function gitHeadCommit(): string {
+  try {
+    return normalizeCommit(
+      execSync("git rev-parse HEAD", {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 2000,
+      }),
+    );
+  } catch {
+    return "";
+  }
+}
 
 const serverEnvMode = process.env.NODE_ENV === "production" ? "production" : "development";
 Object.assign(process.env, loadEnv(serverEnvMode, process.cwd(), ""));
@@ -19,6 +35,10 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    define: {
+      __ATHENA_COMMIT__: JSON.stringify(commitFromEnv(process.env) || gitHeadCommit()),
+      __ATHENA_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+    },
     plugins: [
       mcpPlugin(),
       {

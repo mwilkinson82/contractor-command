@@ -41,6 +41,13 @@ async function run(
   };
   return next(0);
 }
+async function expectStamped(response: Response, original: Response) {
+  expect(response.status).toBe(original.status);
+  expect(response.headers.get("x-athena-build")).toBe("unknown");
+  expect(response.headers.get("www-authenticate")).toBe(original.headers.get("www-authenticate"));
+  expect(response.headers.get("content-type")).toBe(original.headers.get("content-type"));
+  expect(await response.text()).toBe(await original.text());
+}
 function fields(name: string): Record<string, unknown> {
   const log = vi.mocked(console.info).mock.calls.find((c) => c[0] === name);
   expect(log, "Expected diagnostic line " + name).toBeTruthy();
@@ -106,8 +113,9 @@ describe("MCP card timing middleware", () => {
     ["GET connection", () => new Request("https://app.meetathena.io/mcp")],
   ])("counts a preceding %s without changing its response", async (_label, makeRequest) => {
     const original = Response.json({ fixture: "unchanged" });
+    const body = original.clone();
     const result = (await run(makeRequest(), 0, original)) as { response: Response };
-    expect(result.response).toBe(original);
+    await expectStamped(result.response, body);
     const { NATIVE_CARD_URI } = await import("./cards/native");
     await run(
       req("resources/read", { uri: NATIVE_CARD_URI }),
@@ -126,12 +134,13 @@ describe("MCP card timing middleware", () => {
       id: 1,
       result: { content: [{ type: "text", text: "Fictional row" }] },
     });
+    const body = original.clone();
     const result = (await run(
       req("tools/call", { name: "contract_terms", arguments: { job_number: "2701" } }),
       0,
       original,
     )) as { response: Response };
-    expect(result.response).toBe(original);
+    await expectStamped(result.response, body);
     expect(fields("[athena] mcp.entitlement").outcome).toBe("allowed");
     expect(fixture.sdk).toHaveBeenCalledOnce();
   });
@@ -141,6 +150,7 @@ describe("MCP card timing middleware", () => {
     const result = (await run(
       req("tools/call", { name: "contract_terms", arguments: { job_number: "2701" } }),
     )) as Response;
+    expect(result.headers.get("x-athena-build")).toBe("unknown");
     expect(result.status).toBe(403);
     expect(await result.json()).toEqual({
       error: "forbidden",
@@ -166,15 +176,13 @@ describe("MCP card timing middleware", () => {
       status: 401,
       headers: { "www-authenticate": 'Bearer realm="Athena"' },
     });
+    const body = challenge.clone();
     const result = (await run(
       req("tools/call", { name: "contract_terms", arguments: { job_number: "2701" } }),
       0,
       challenge,
     )) as { response: Response };
-    expect(result.response).toBe(challenge);
-    expect(result.response.status).toBe(401);
-    expect(result.response.headers.get("www-authenticate")).toBe('Bearer realm="Athena"');
-    expect(await result.response.text()).toBe("Fictional auth challenge");
+    await expectStamped(result.response, body);
     expect(fields("[athena] mcp.entitlement").outcome).toBe("check-failed");
     expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toMatch(
       /private outage|fictional|Bearer|2701/,
@@ -187,11 +195,11 @@ describe("MCP card timing middleware", () => {
       { error: "unauthorized" },
       { status: 401, headers: { "www-authenticate": 'Bearer realm="Athena"' } },
     );
+    const body = rejected.clone();
     const result = (await run(req("resources/read", { uri: NATIVE_CARD_URI }), 0, rejected)) as {
       response: Response;
     };
-    expect(result.response).toBe(rejected);
-    expect(await result.response.json()).toEqual({ error: "unauthorized" });
+    await expectStamped(result.response, body);
     expect(fields("[athena] card.resource")).toMatchObject({
       outcome: "sdk-rejected",
       status: 401,
@@ -202,7 +210,12 @@ describe("MCP card timing middleware", () => {
   });
 
   it("does not count ordinary application pages as MCP requests", async () => {
-    await run(new Request("https://app.meetathena.io/"));
+    const original = Response.json({ page: "home" });
+    const result = (await run(new Request("https://app.meetathena.io/"), 0, original)) as {
+      response: Response;
+    };
+    expect(result.response).toBe(original);
+    expect(result.response.headers.get("x-athena-build")).toBeNull();
     const { NATIVE_CARD_URI } = await import("./cards/native");
     await run(
       req("resources/read", { uri: NATIVE_CARD_URI }),
