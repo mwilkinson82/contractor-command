@@ -1,4 +1,6 @@
 // The submittal record address. No imports, so the log renderer and the URL builder can both use it.
+// The router JSON-encodes numeric-looking strings. Emit its canonical form directly.
+export const SUBMITTAL_UPLOAD_QUERY = "upload=%221%22";
 
 /**
  * /r/job/<job>/submittal/<number>?t=<token>, signed with the same token as the job's submittal log link.
@@ -45,7 +47,7 @@ export function submittalUploadUrl(
   const record = submittalRecordUrl(board, number);
   if (!record) return null;
   const url = new URL(record);
-  url.searchParams.set("upload", "1");
+  url.searchParams.set("upload", JSON.stringify("1"));
   url.hash = "upload";
   return url.toString();
 }

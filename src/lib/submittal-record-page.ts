@@ -1,6 +1,7 @@
 // The submittal record page: /r/job/<job>/submittal/<number>. One address per submittal number; every log row opens it.
 // Pure logic: payload types and one HTML renderer shared by the signed-in page and the board-token page.
 // Navy, blue and gray; red only for an overdue clock. Member-facing text never names tools or vendors.
+import { submittalHistoryOrder } from "./submittal-history-order";
 import { ALERT_HEX } from "./mcp/alert-color";
 import { hostLabel } from "./mcp/call-host";
 import {
@@ -230,6 +231,7 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[],
       h2("FILES") +
         `<p style="margin:0;color:${G1}">No package has been built yet. The cover and transmittal are the first pages of the package when it is built.</p>`,
     );
+  const order = submittalHistoryOrder(packages);
   const rows = packages
     .map((p) => {
       const state = p.revoked_at
@@ -249,12 +251,12 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[],
         p.download_url && p.expires_at
           ? ` · Recipient link works until ${esc(day(p.expires_at))}`
           : "";
-      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(submittalBuildTime(p.created_at, zones))} · Copy ${esc(p.id.slice(0, 8))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
+      return `<div id="package-${esc(p.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div>${link(p.url ?? p.download_url, p.filename)} ${muted(`· ${esc(order.get(p.id) ?? "Historical build")} · Revision ${esc(String(p.revision))}${number ? ` · ${esc(transmittalLabel(number))}` : " · Transmittal not recorded"} · ${esc(String(p.page_count ?? ""))} pages · Built ${esc(submittalBuildTime(p.created_at, zones))} · Copy ${esc(p.id.slice(0, 8))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(version)} · ${esc(state)}${expiry}${t?.to_email ? ` · To ${esc(t.to_name?.trim() || t.to_email)}` : ""}</div></div>`;
     })
     .join("");
   return card(
     h2("FILES") +
-      `<p style="margin:0 0 4px;font-size:12px;color:${G1}">Every package version is kept. The cover and transmittal are the first pages of each one.</p>${rows}`,
+      `<p style="margin:0 0 4px;font-size:12px;color:${G1}">Every package version is kept. Build order identifies each copy; original transmittal numbers and PDFs stay as issued. The cover and transmittal are the first pages of each one.</p>${rows}`,
   );
 }
 

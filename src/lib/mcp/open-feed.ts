@@ -4,6 +4,27 @@ import { addDays } from "./deadlines";
 import { formatBillingText } from "../report-format";
 import { taskListFlag, type DelayNoticeFields } from "./delay-notice";
 import type { CardModel } from "./cards/model";
+import { detailAnchor } from "./plain-label";
+
+/** Existing authorized items board only; never turn another page or host into an item link. */
+export function openItemsBoardUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    if (url.origin !== "https://app.meetathena.io" || url.username || url.password ||
+      !/^\/r\/job\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/items$/i.test(url.pathname)) return null;
+    url.hash = "";
+    return url.toString();
+  } catch { return null; }
+}
+
+export function openItemRecordUrl(board: unknown, id: string): string | null {
+  const base = openItemsBoardUrl(board);
+  if (!base || !id) return null;
+  const url = new URL(base);
+  url.hash = detailAnchor("item", id);
+  return url.toString();
+}
 
 export type FeedRow = {
   id: string;
@@ -141,7 +162,8 @@ export function isDueIn7(it: FeedRow, today: string): boolean {
   return due <= addDays(today, 7);
 }
 
-export function openItemsCard(job: string, items: (FeedRow & DelayNoticeFields)[], counts: OpenCounts, today: string): CardModel {
+export function openItemsCard(job: string, items: (FeedRow & DelayNoticeFields)[], counts: OpenCounts, today: string, boardUrl?: string | null): CardModel {
+  const board = openItemsBoardUrl(boardUrl);
   return {
     state: "result",
     show_state: false,
@@ -159,8 +181,9 @@ export function openItemsCard(job: string, items: (FeedRow & DelayNoticeFields)[
         cells: [formatBillingText(itemName(it.action)), it.accountable ?? it.owner ?? "Needed", dueOf(it) || "Needed"],
         flag: taskListFlag(it, isOverdue(it, today)),
         refId: it.id,
+        ...(board ? { href: openItemRecordUrl(board, it.id) } : {}),
       })),
-    }],
+    }, ...(board ? [{ heading: "Live open items", kind: "list" as const, rows: [{ cells: ["Open live open items"], href: board, tone: "action" as const }] }] : [])],
     alerts: counts.overdue ? [{ level: "overdue", text: `${counts.overdue} overdue` }] : [],
     next_move: null,
   };
