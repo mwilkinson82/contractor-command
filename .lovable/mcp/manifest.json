@@ -9279,7 +9279,9 @@
               "maxLength": 40
             },
             "company_id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             },
             "action": {
               "type": "string",

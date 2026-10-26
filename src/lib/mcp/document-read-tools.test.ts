@@ -13,6 +13,7 @@ vi.mock("./guard", () => ({
   },
 }));
 vi.mock("./jobs", () => ({
+  memberCompanies: async () => [{ id: "alp", name: "ALP Construction" }],
   resolveJob: async (_sb: unknown, job: string, company?: string) => {
     state.calls.push(["resolve", job, company]);
     return { job_id: "job-2710", job_number: job, company_id: "alp", scope: state.scope };
@@ -100,6 +101,14 @@ describe("saved source discovery and reads", () => {
         .every((c) => c[2] === "job_id" && c[3] === "job-2710"),
     ).toBe(true);
     expect(state.calls[0]).toEqual(["resolve", "2710", "alp"]);
+  });
+  it("refuses another named company rather than falling back to a unique job", async () => {
+    await expect(call({ company_id: "unrelated-company" })).rejects.toThrow(
+      /not in the company you named/,
+    );
+    expect(state.calls.filter((c) => c[0] === "select")).toEqual([]);
+    const r = await call({ company_id: "ALP Construction" });
+    expect(r.structuredContent.company_id).toBe("alp");
   });
   it("reads only the chosen source and requested physical pages", async () => {
     const r = await call({ action: "read", document_id: id, page: 2, kind: "spec" });

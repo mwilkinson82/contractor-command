@@ -1,7 +1,7 @@
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError } from "../guard";
-import { resolveJob } from "../jobs";
+import { memberCompanies, resolveJob } from "../jobs";
 
 export type SourceDocument = {
   id: string;
@@ -57,7 +57,7 @@ export const projectDocuments = defineTool({
     "Lists, searches literal text, or reads physical PDF pages of saved contract and specification sources without uploading, changing records, or requiring reattachment.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
-    company_id: z.string().optional(),
+    company_id: z.string().trim().min(1).max(200).optional(),
     action: z.enum(["list", "search", "read"]),
     kind: z.enum(["contract", "spec"]).optional(),
     document_id: z.string().uuid().optional(),
@@ -76,6 +76,17 @@ export const projectDocuments = defineTool({
   handler: (args, ctx) =>
     run("project_documents", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
+      if (args.company_id) {
+        const want = args.company_id.toLowerCase();
+        const companies = await memberCompanies(sb);
+        const named = companies.filter(
+          (c) => c.id.toLowerCase() === want || c.name.trim().toLowerCase() === want,
+        );
+        if (named.length !== 1 || named[0].id !== job.company_id)
+          throw new ToolError(
+            "That job is not in the company you named. Choose the correct company and exact job number.",
+          );
+      }
       if (job.scope !== "full" && job.scope !== "contract")
         throw new ToolError(
           "Your role cannot read contract or specification documents on this job.",
@@ -141,7 +152,9 @@ export const projectDocuments = defineTool({
         };
       });
       const result = {
-        job_number: args.job_number,
+        job_number: job.job_number,
+        job_name: job.name,
+        company_id: job.company_id,
         action: args.action,
         documents: rows,
         next_offset: more ? args.offset + args.limit : null,
