@@ -480,7 +480,7 @@ describe("sharing a drawing set", () => {
     expect(estimateIntake.name).toBe("estimate_intake");
   });
 
-  it("stores a ~17.6 MB original in athena-drawings and rejects anything over 50 MB", async () => {
+  it("stores a ~17.6 MB original in athena-drawings and rejects anything over 100 MB", async () => {
     expect(drawingUploadLimit(DRAWING_BUCKET)).toBe(DRAWING_MAX_BYTES);
     expect(drawingUploadLimit("athena-files")).toBe(FILE_MAX_BYTES);
     expect(FILE_MAX_BYTES).toBe(10 * 1024 * 1024);

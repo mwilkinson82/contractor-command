@@ -306,7 +306,7 @@ describe("stored drawing markup tool", () => {
     const result = await call(drawingSetImport, { job_number: "2701" });
     expect(result.structuredContent.upload_context).toEqual({ job_number: "2701", company_id: "c1" });
     expect(result.structuredContent.stored).toBe(false);
-    expect(result.content[0].text).toContain("50 MB");
+    expect(result.content[0].text).toContain("100 MB");
     expect(state.uploaded).toEqual([]);
   });
   it("does not silently substitute the old set when the requested new filename is unavailable", async () => {
@@ -499,7 +499,7 @@ describe("drawing set identity and source revisions", () => {
   it("cancels a provider body above the drawing cap before storing and rejects unknown buckets", async () => {
     const cancel = vi.fn();
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ "content-length": String(DRAWING_MAX_BYTES + 1) }), body: { cancel } })));
-    await expect(storeDrawingSet(fakeSb(), job, { filename: "large.pdf", source_url: source })).rejects.toThrow(/50 MB/);
+    await expect(storeDrawingSet(fakeSb(), job, { filename: "large.pdf", source_url: source })).rejects.toThrow(/100 MB/);
     expect(cancel).toHaveBeenCalledOnce();
     expect(state.uploaded).toEqual([]);
     expect(() => drawingBucket({ storage_bucket: "public-files" })).toThrow(/invalid storage/);
