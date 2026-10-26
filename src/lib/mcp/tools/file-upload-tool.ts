@@ -3,7 +3,14 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { newSubmittalPiece } from "../../submittal-piece-input";
 import { dbError, run, text, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob } from "../jobs";
+import {
+  FULL_ACCESS_MESSAGE,
+  READ_ONLY_MESSAGE,
+  audit,
+  memberCompanies,
+  prefix,
+  resolveJob,
+} from "../jobs";
 import { FileRejected, newToken, sha256Hex, tokenHash } from "../file-share";
 import {
   DOC_BUCKET,
@@ -24,6 +31,7 @@ import {
 } from "../file-upload";
 import { findPackagePiece, pieceRef } from "../submittal-package";
 import { submittalRpc } from "./submittal-package-tools";
+import { prepareReadable, type ReadableSource } from "../document-readable";
 import { guide } from "../visible";
 
 const jobNumber = z.string().trim().min(1).max(40);
@@ -225,12 +233,13 @@ export const fileUpload = defineTool({
   title: "Upload a contract, spec, or submittal file",
   description: FILE_UPLOAD_DESCRIPTION,
   inputSchema: {
-    action: z.enum(["begin", "chunk", "finish", "from_url"]),
+    action: z.enum(["begin", "chunk", "finish", "from_url", "prepare_readable"]),
     job_number: jobNumber,
     company_id: companyId,
     purpose: z.enum(["contract", "spec", "submittal_piece"]).optional(),
     filename: z.string().trim().min(1).max(120).optional(),
     upload_id: z.string().uuid().optional(),
+    document_id: z.string().uuid().optional(),
     chunk_index: z.number().int().min(0).max(6000).optional(),
     content_base64: z.string().max(FILE_UPLOAD_CHUNK_CHARS).optional(),
     source_url: z.string().trim().max(8000).optional(),
@@ -266,6 +275,56 @@ export const fileUpload = defineTool({
       if (purposeArg === "submittal_piece" && job.scope !== "full")
         throw new ToolError(FULL_ACCESS_MESSAGE);
 
+      if (args.action === "prepare_readable") {
+        if (job.scope !== "full" && job.scope !== "contract")
+          throw new ToolError(READ_ONLY_MESSAGE);
+        if (args.company_id) {
+          const named = (await memberCompanies(sb)).filter(
+            (c) =>
+              c.id.toLowerCase() === args.company_id!.toLowerCase() ||
+              c.name.trim().toLowerCase() === args.company_id!.toLowerCase(),
+          );
+          if (named.length !== 1 || named[0].id !== job.company_id)
+            throw new ToolError("That job is not in the company you named. Nothing changed.");
+        }
+        if (!args.document_id)
+          throw new ToolError("Choose the exact saved document_id. No upload is required.");
+        const sources: (ReadableSource & { mime_type: string })[] = [];
+        for (const table of ["mcp_contract_documents", "mcp_spec_documents"] as const) {
+          const { data, error } = await sb
+            .from(table)
+            .select(
+              "id,company_id,job_id,upload_id,storage_bucket,storage_path,file_sha256,size_bytes,mime_type",
+            )
+            .eq("job_id", job.job_id)
+            .eq("company_id", job.company_id)
+            .eq("id", args.document_id)
+            .maybeSingle();
+          if (error) dbError(error);
+          if (data) sources.push(data as unknown as ReadableSource & { mime_type: string });
+        }
+        if (sources.length !== 1 || sources[0].mime_type !== "application/pdf")
+          throw new ToolError("Choose one saved PDF source on this job. Nothing changed.");
+        const source = sources[0];
+        // Validate the exact scoped reference before downloading any bytes.
+        const { readableKey } = await import("../document-readable");
+        readableKey(source);
+        const bytes = await download(sb, DOC_BUCKET, source.storage_path!);
+        if (!bytes) throw new ToolError("The original could not be read with current job access.");
+        const ready = await prepareReadable(sb, source, bytes);
+        await audit(sb, job, "file_upload", "prepare_readable", source.id);
+        return storedReply(
+          `Complete readable PDF prepared for job ${job.job_number}: ${ready.document.total_pdf_pages} physical pages. Original and contract facts unchanged.`,
+          {
+            document_id: source.id,
+            readable_state: "ready",
+            total_pdf_pages: ready.document.total_pdf_pages,
+            source_sha256: source.file_sha256,
+            reused_extraction: ready.reused,
+            original_changed: false,
+          },
+        );
+      }
       if (args.action === "begin") {
         const purpose = purposeOf(purposeArg, "begin");
         if (purpose === "submittal_piece" && job.scope !== "full")
@@ -430,23 +489,39 @@ export const fileUpload = defineTool({
         const cached = session.result.structured;
         if (session.purpose === "spec" && cached?.body_chars === 0) {
           assertSessionPath(job.company_id, job.job_id, session);
-          const { data: doc, error } = await sb.from("mcp_spec_documents")
+          const { data: doc, error } = await sb
+            .from("mcp_spec_documents")
             .select("id,body,storage_path,file_sha256")
-            .eq("job_id", job.job_id).eq("upload_id", session.id).maybeSingle();
+            .eq("job_id", job.job_id)
+            .eq("upload_id", session.id)
+            .maybeSingle();
           if (error) dbError(error);
           if (!doc || doc.id !== cached.document_id || doc.storage_path !== session.storage_path)
             throw new ToolError("The stored specification could not be verified. Nothing changed.");
-          if (doc.body) return storedReply(
-            `${prefix(job)}Specification stored: ${session.filename}.\nText read from the file: ${doc.body.length.toLocaleString()} characters.`,
-            { ...cached, body_chars: doc.body.length, truncated: doc.body.length >= EXTRACT_MAX_CHARS },
-          );
+          if (doc.body)
+            return storedReply(
+              `${prefix(job)}Specification stored: ${session.filename}.\nText read from the file: ${doc.body.length.toLocaleString()} characters.`,
+              {
+                ...cached,
+                body_chars: doc.body.length,
+                truncated: doc.body.length >= EXTRACT_MAX_CHARS,
+              },
+            );
           const bytes = await loadBytes(sb, session);
-          if (!doc.file_sha256 || await sha256Hex(bytes) !== doc.file_sha256)
-            throw new ToolError("The stored specification's original bytes could not be verified. Nothing changed.");
-          const extracted = await extractUploadDocument(bytes, uploadFilename(session.filename).ext);
+          if (!doc.file_sha256 || (await sha256Hex(bytes)) !== doc.file_sha256)
+            throw new ToolError(
+              "The stored specification's original bytes could not be verified. Nothing changed.",
+            );
+          const extracted = await extractUploadDocument(
+            bytes,
+            uploadFilename(session.filename).ext,
+          );
           if (extracted.chars) return finishBytes(sb, job, { ...session, tracked: false }, bytes);
         }
-        return storedReply(session.result.visible, cached ?? { upload_id: session.id, stored: true });
+        return storedReply(
+          session.result.visible,
+          cached ?? { upload_id: session.id, stored: true },
+        );
       }
       if (new Date(session.expires_at).getTime() <= Date.now())
         throw new ToolError("That upload link has expired. Start again. Nothing was stored.");
@@ -545,17 +620,54 @@ async function finishBytes(
         },
       },
     );
+    let readableState = "not_pdf";
+    let readablePages: number | null = null;
+    if (checked.ext === "pdf") {
+      try {
+        const ready = await prepareReadable(
+          sb,
+          {
+            id: saved.id,
+            company_id: job.company_id,
+            job_id: job.job_id,
+            upload_id: session.id,
+            storage_bucket: DOC_BUCKET,
+            storage_path: session.storage_path,
+            file_sha256: await sha256Hex(bytes),
+            size_bytes: bytes.length,
+          },
+          bytes,
+          extracted?.pdf_pages,
+        );
+        readableState = "ready";
+        readablePages = ready.document.total_pdf_pages;
+      } catch {
+        readableState = "failed";
+      }
+    }
     const label = session.purpose === "contract" ? "Contract" : "Specification";
     const read = saved.body_chars
       ? `Text read from the file: ${saved.body_chars.toLocaleString()} characters${saved.truncated ? ", which is the most kept for clause checks" : ""}.`
       : "No text could be read from the file. The file is stored.";
-    visible = [`${prefix(job)}${label} stored: ${saved.name}.`, read].join("\n");
+    visible = [
+      `${prefix(job)}${label} stored: ${saved.name}.`,
+      read,
+      readableState === "ready"
+        ? `Complete reusable readable document ready: ${readablePages} physical PDF pages.`
+        : readableState === "failed"
+          ? "Complete readable document preparation failed. Original is stored; use explicit prepare_readable to retry. Cached text may be incomplete."
+          : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
     structured = {
       stored: true,
       purpose: session.purpose,
       upload_id: session.id,
       document_id: saved.id,
       filename: saved.name,
+      readable_state: readableState,
+      total_pdf_pages: readablePages,
       body_chars: saved.body_chars,
       truncated: saved.truncated,
       size_bytes: bytes.length,

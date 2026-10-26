@@ -14,7 +14,7 @@ export const FILE_UPLOAD_LINK_BASE = "https://app.meetathena.io/r/file-upload/";
 export const DOC_BUCKET = "athena-documents";
 
 export const FILE_UPLOAD_DESCRIPTION =
-  "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece.";
+  "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece; action prepare_readable with document_id explicitly prepares complete reusable PDF text for an existing saved source without replacing or uploading its original; use project_documents for reads.";
 
 const MIME = {
   pdf: "application/pdf",
@@ -71,10 +71,7 @@ export function assertUploadBytes(bytes: Uint8Array, filename: string, purpose: 
   const file = uploadFilename(filename);
   const max = uploadMaxBytes(purpose);
   if (!bytes.length) throw new FileRejected("The file is empty. Nothing was stored.");
-  if (bytes.length > max)
-    throw new FileRejected(
-      `That file is over 100 MB. Nothing was stored.`,
-    );
+  if (bytes.length > max) throw new FileRejected(`That file is over 100 MB. Nothing was stored.`);
   if (!sniffUpload(bytes, file.ext))
     throw new FileRejected(`That file isn't a real .${file.ext} file. Nothing was stored.`);
   return file;
@@ -113,7 +110,7 @@ export function joinChunks(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-export type Extracted = { text: string; chars: number; truncated: boolean };
+export type Extracted = { text: string; chars: number; truncated: boolean; pdf_pages?: string[] };
 
 export function extractUploadText(bytes: Uint8Array, ext: UploadExt): Extracted {
   let text = "";
@@ -141,14 +138,17 @@ export async function extractUploadDocument(bytes: Uint8Array, ext: UploadExt): 
   try {
     const { extractPdfiumDocumentText } = await import("./pdf-renderer");
     const pages = await extractPdfiumDocumentText(bytes);
-    const text = pages.map((page, index) => `[[PDF page ${index + 1}]]\n${page.replaceAll("\u0000", "").trim()}`).join("\n\n");
+    const text = pages
+      .map((page, index) => `[[PDF page ${index + 1}]]\n${page.replaceAll("\u0000", "").trim()}`)
+      .join("\n\n");
     // An image-only PDF remains explicitly unreadable; markers alone are not text.
-    if (!pages.some(page => page.replaceAll("\u0000", "").trim())) return {text: "", chars: 0, truncated: false};
+    if (!pages.some((page) => page.replaceAll("\u0000", "").trim()))
+      return { text: "", chars: 0, truncated: false, pdf_pages: pages };
     const truncated = text.length > EXTRACT_MAX_CHARS;
     const kept = text.slice(0, EXTRACT_MAX_CHARS);
-    return {text: kept, chars: kept.length, truncated};
+    return { text: kept, chars: kept.length, truncated, pdf_pages: pages };
   } catch {
-    return {text: "", chars: 0, truncated: false};
+    return { text: "", chars: 0, truncated: false };
   }
 }
 

@@ -9114,7 +9114,7 @@
       {
         "name": "file_upload",
         "title": "Upload a contract, spec, or submittal file",
-        "description": "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece.",
+        "description": "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece; action prepare_readable with document_id explicitly prepares complete reusable PDF text for an existing saved source without replacing or uploading its original; use project_documents for reads.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -9131,7 +9131,8 @@
                 "begin",
                 "chunk",
                 "finish",
-                "from_url"
+                "from_url",
+                "prepare_readable"
               ]
             },
             "job_number": {
@@ -9249,6 +9250,11 @@
                 "source_party"
               ],
               "additionalProperties": false
+            },
+            "document_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           },
           "required": [
@@ -9262,7 +9268,7 @@
       {
         "name": "project_documents",
         "title": "Read saved project documents",
-        "description": "Lists, searches literal text, or reads physical PDF pages of saved contract and specification sources without reattachment; verify checks the original stored bytes and extraction without changing records.",
+        "description": "Lists saved contract/spec sources and reads or searches an exact document_id without reattachment; PDF reads reuse complete saved text tied to the original hash or verified original bytes; search scans 100 physical pages from page and continues at next_pdf_page until null; read returns up to 5 pages with next_text_offset continuation via text_offset; verify checks original bytes without changing records.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -9313,6 +9319,12 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991
+            },
+            "text_offset": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
             },
             "page_count": {
               "default": 1,

@@ -33,7 +33,9 @@ beforeAll(async () => {
   db = await makeDb();
   // Fixture for the external billing tier dependency only. All job/row/storage
   // access predicates below are loaded unchanged from their actual migrations.
-  await db.exec("CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$;");
+  await db.exec(
+    "CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$;",
+  );
   await db.exec(
     "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated; GRANT SELECT,INSERT,UPDATE,DELETE ON storage.objects TO authenticated;",
   );
@@ -166,5 +168,27 @@ describe("document ownership and isolation using existing RLS", () => {
         }),
       ]),
     ).rejects.toThrow(/not stored on this job/);
+  });
+  it("derived readable objects inherit unchanged company/job storage isolation", async () => {
+    const key = `${companyA}/${jobA}/${uploadA}/.athena-readable-v1-source-hash.json`;
+    await query(
+      users.pm,
+      "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-documents',$1)",
+      [key],
+    );
+    for (const user of [users.owner, users.pm, users.contract])
+      expect(await query(user, "SELECT name FROM storage.objects WHERE name=$1", [key])).toEqual([
+        { name: key },
+      ]);
+    for (const user of [users.outsider, users.otherPm, users.super]) {
+      expect(await query(user, "SELECT name FROM storage.objects WHERE name=$1", [key])).toEqual(
+        [],
+      );
+      await expect(
+        query(user, "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-documents',$1)", [
+          key + "-denied",
+        ]),
+      ).rejects.toThrow(/row-level security/);
+    }
   });
 });
