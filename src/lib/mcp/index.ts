@@ -1,4 +1,4 @@
-import { changeOrderLog, changeOrderRecord } from "./tools/change-order-tools";
+import {changeOrderLog,changeOrderRecord} from "./tools/change-order-tools";
 import "./widget-bridge";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_VERSION } from "./server-info-branding";
@@ -7,12 +7,7 @@ import { EMAIL_DRAFT_ONLY_RULE } from "./email-safety";
 import { REFUSAL_RULE, secureTool } from "./security";
 import { emailConfirmSend, emailDraft } from "./tools/email-tools";
 import { gettingStarted } from "./tools/getting-started-tool";
-import {
-  projectRecordSearch,
-  submittalLog,
-  submittalsImport,
-  submittalsList,
-} from "./tools/submittal-tools";
+import { projectRecordSearch, submittalLog, submittalsImport, submittalsList } from "./tools/submittal-tools";
 import { submittalVoid } from "./tools/submittal-void-tool";
 import { submittalChase } from "./tools/submittal-chase-tool";
 import { submittalPackage, submittalDelivery } from "./tools/submittal-package-tools";
@@ -41,14 +36,7 @@ import { cpmActivities, livingReportGet, livingReportSave } from "./tools/living
 import { fileShare, fileShareRevoke, lookaheadPdfTool } from "./tools/file-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import { reportPageLink, reportPageShare, reportPageShareRevoke } from "./tools/report-page-tools";
-import {
-  setCurrentCompany,
-  teamAddSeats,
-  teamInvite,
-  teamList,
-  teamRemoveMember,
-  teamUpdateMember,
-} from "./tools/team-tools";
+import { setCurrentCompany, teamAddSeats, teamInvite, teamList, teamRemoveMember, teamUpdateMember } from "./tools/team-tools";
 import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { jobsList, drawingSetsList } from "./tools/discovery-tools";
 import { ESTIMATE_SERVER_RULE } from "./estimating";
@@ -82,105 +70,13 @@ import {
   estimateTakeoffGet,
   estimateTakeoffSave,
 } from "./tools/estimate-tools";
-import {
-  estimateBidSummary,
-  estimateGeneralConditions,
-  estimatePricing,
-  estimateRateSources,
-  estimateRequirements,
-} from "./tools/estimate-bid-tools";
+import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimateRateSources, estimateRequirements } from "./tools/estimate-bid-tools";
 
 // Vite inlines the stable ref; the runtime backend URL may be a proxy.
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
 /** All Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [
-  changeOrderLog,
-  changeOrderRecord,
-  rfiLog,
-  rfiRecord,
-  rfcLog,
-  rfcRecord,
-  jobsList,
-  drawingSetsList,
-  onboarding,
-  intake,
-  nextQuestion,
-  answer,
-  report,
-  contractTerms,
-  carryForward,
-  listOpenItems,
-  lookaheadList,
-  lookaheadGet,
-  resolveItem,
-  cpmActivities,
-  livingReportGet,
-  livingReportSave,
-  fileShare,
-  fileShareRevoke,
-  lookaheadPdfTool,
-  fileUpload,
-  reportPageLink,
-  reportPageShare,
-  reportPageShareRevoke,
-  teamList,
-  teamInvite,
-  teamUpdateMember,
-  teamRemoveMember,
-  teamAddSeats,
-  setCurrentCompany,
-  drawingSetImport,
-  drawingMarkup,
-  sheetCalibrate,
-  takeoffGeometry,
-  estimateIntake,
-  estimateDocReview,
-  estimateTakeoffSave,
-  estimateTakeoffGet,
-  estimateTakeoffExport,
-  estimateGapAnalysis,
-  estimateBidCheck,
-  estimateItemMark,
-  estimateBuild,
-  estimateStatus,
-  estimatePricing,
-  estimateRateSources,
-  estimateGeneralConditions,
-  estimateRequirements,
-  estimateBidSummary,
-  superintendentView,
-  fieldBoard,
-  superintendentActivity,
-  dailyReportDraft,
-  dailyReportSave,
-  dailyReportGet,
-  fieldPayApp,
-  fieldScheduleFeed,
-  fieldProductionRates,
-  progressPhotoSave,
-  progressPhotos,
-  dailyReminder,
-  dailyReminderRun,
-  pmMeeting,
-  pmMorning,
-  pmMorningMeeting,
-  pmEvening,
-  athenaHello,
-  morningBrief,
-  morningBriefSettings,
-  emailDraft,
-  emailConfirmSend,
-  submittalLog,
-  submittalsList,
-  submittalsImport,
-  projectRecordSearch,
-  submittalChase,
-  submittalPackage,
-  submittalDelivery,
-  submittalVoid,
-  gettingStarted,
-];
+export const ATHENA_TOOLS = [changeOrderLog, changeOrderRecord, rfiLog, rfiRecord, rfcLog, rfcRecord, jobsList, drawingSetsList, onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, fileUpload, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, sheetCalibrate, takeoffGeometry, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, submittalPackage, submittalDelivery, submittalVoid, gettingStarted];
 
 export default defineMcp({
   name: "athena",

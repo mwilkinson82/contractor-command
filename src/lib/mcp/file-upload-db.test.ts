@@ -133,23 +133,37 @@ describe("contract file rows", () => {
       "SELECT kind, storage_path IS NOT NULL AS has_file FROM mcp_contract_documents WHERE job_id = $1 ORDER BY kind",
       [job],
     );
-    expect(rows).toEqual([
-      { kind: "contract", has_file: true },
-      { kind: "spec", has_file: true },
-    ]);
+    expect(rows).toEqual([{ kind: "contract", has_file: true }]);
+    const specs = await q("SELECT name FROM mcp_spec_documents WHERE job_id = $1", [job]);
+    expect(specs).toEqual([{ name: "Division 03.txt" }]);
+    const pkey = await q(
+      `SELECT a.attname FROM pg_index i
+       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey)
+       JOIN pg_class c ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = 'mcp_contract_documents' AND i.indisprimary`,
+    );
+    expect(pkey).toEqual([{ attname: "job_id" }]);
     const checked = await rpc("mcp_clauses_save", [
       job,
-      null,
+      JSON.stringify({ name: "Agreement.txt", body }),
       JSON.stringify([
         { section: "9.4", text: "notice within 7 calendar days", category: "delay_notice" },
       ]),
     ]);
     expect(checked.clauses[0].source).toBe("document");
+    const clauseFn = await q(
+      "SELECT pg_get_functiondef('public.mcp_clauses_save(uuid,jsonb,jsonb)'::regprocedure) AS def",
+    );
+    expect(clauseFn[0].def).toContain("ON CONFLICT (job_id) DO UPDATE");
+    expect(clauseFn[0].def).not.toContain("WHERE kind");
     const still = await q(
-      "SELECT storage_path FROM mcp_contract_documents WHERE job_id = $1 AND kind = 'contract'",
+      "SELECT storage_path, body FROM mcp_contract_documents WHERE job_id = $1",
       [job],
     );
+    expect(still).toHaveLength(1);
     expect(still[0].storage_path).toBe(begun.storage_path);
+    expect(still[0].body).toBe(body);
     await expect(
       rpc(
         "mcp_file_upload_begin",

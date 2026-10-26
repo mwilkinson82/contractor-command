@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { VENDOR_RE } from "./security";
@@ -43,6 +44,25 @@ function flatePdf(text: string): Uint8Array {
     "latin1",
   );
 }
+
+describe("file upload migration is add-only", () => {
+  it("keeps the contract primary key and the existing clause saver", () => {
+    const sql = readFileSync(
+      "supabase/migrations/20261031120000_athena_file_upload.sql",
+      "utf8",
+    );
+    const outside = sql.replace(/\$\$[\s\S]*?\$\$/g, "");
+    expect(outside).not.toMatch(/\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX|POLICY|FUNCTION|TRIGGER)\b/i);
+    expect(outside).not.toMatch(/CREATE OR REPLACE/i);
+    expect(outside).not.toMatch(/\bUPDATE\s+/i);
+    expect(outside).not.toMatch(/\bDELETE\s+FROM\b/i);
+    expect(outside).not.toMatch(/\bTRUNCATE\b/i);
+    expect(sql).not.toMatch(/FUNCTION\s+public\.mcp_clauses_save/i);
+    expect(sql).toContain("ON CONFLICT (job_id) DO UPDATE");
+    expect(sql).toContain("CREATE UNIQUE INDEX IF NOT EXISTS mcp_contract_documents_id_key");
+    expect(outside).not.toContain("mcp_contract_documents_pkey");
+  });
+});
 
 describe("file upload bytes", () => {
   it("keeps the published description to one sentence and off vendor names", () => {
