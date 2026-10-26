@@ -107,11 +107,61 @@ export function extractPdfiumDocumentText(bytes: Uint8Array): Promise<string[]> 
       const pages: string[] = [];
       for (let index = 0; index < document.getPageCount(); index++) {
         const page = document.getPage(index);
-        try { pages.push(page.getText()); } finally { page.close(); }
+        try {
+          pages.push(page.getText());
+        } finally {
+          page.close();
+        }
       }
       return pages;
-    } finally { document.destroy(); }
+    } finally {
+      document.destroy();
+    }
   });
-  queue = result.then(() => undefined, () => undefined);
+  queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+/** Bounded, one-based physical-page access to the original. Transform each page
+ * while it is open so searches need not retain the document's full text. */
+export function mapPdfiumTextPages<T>(
+  bytes: Uint8Array,
+  from: number,
+  count: number,
+  visit: (text: string, page: number) => T,
+): Promise<{ total_pages: number; pages: T[] }> {
+  const result = queue.then(async () => {
+    if (
+      !Number.isSafeInteger(from) ||
+      from < 1 ||
+      !Number.isSafeInteger(count) ||
+      count < 1 ||
+      count > 100
+    )
+      throw new Error("Invalid physical PDF page window.");
+    const document = await (await getLibrary()).loadDocument(bytes);
+    try {
+      const total_pages = document.getPageCount();
+      const pages: T[] = [];
+      for (let index = from - 1; index < Math.min(total_pages, from - 1 + count); index++) {
+        const page = document.getPage(index);
+        try {
+          pages.push(visit(page.getText(), index + 1));
+        } finally {
+          page.close();
+        }
+      }
+      return { total_pages, pages };
+    } finally {
+      document.destroy();
+    }
+  });
+  queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
   return result;
 }
