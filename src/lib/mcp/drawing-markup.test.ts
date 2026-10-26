@@ -263,6 +263,18 @@ describe("stored drawing markup tool", () => {
     expect(state.uploaded).toEqual([]);
     expect(state.downloads).toEqual([]);
   });
+  it("asks for sheet names on an unindexed stored set without downloading the original PDF", async () => {
+    const path = "c1/j1/drawing-unindexed/source.pdf";
+    state.objects.set(path, pdf());
+    state.objectBuckets.set(path, DRAWING_BUCKET);
+    state.records.push({ id: "unindexed-source", kind: "source", filename: "big-set.pdf", path, storage_bucket: DRAWING_BUCKET, source_key: "file:big-set.pdf", content_hash: "f".repeat(64), sheets: [], version: 1 });
+    const result = await call(drawingMarkup, { job_number: "2701", source_id: "unindexed-source", sheet: "G-0003", operation: "prepare" });
+    expect(result.structuredContent).toMatchObject({ source_id: "unindexed-source", sheet_index_required: true, requested_sheet: "G-0003" });
+    expect(result.content.some((block) => block.type === "image")).toBe(false);
+    expect(result.content[0].text).toContain("No older drawing was substituted");
+    expect(state.downloads).toEqual([]);
+    expect(state.uploaded).toEqual([]);
+  });
   it("reindexes a 17.6 MB stored original with one binary download and no base64 upload or new object", async () => {
     const bytes = new Uint8Array(17612902); bytes.fill(32); bytes.set(pdf());
     const path = "c1/j1/drawing-large/source.pdf", hash = await sha256Hex(bytes);
