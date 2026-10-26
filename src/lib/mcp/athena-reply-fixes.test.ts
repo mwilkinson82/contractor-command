@@ -117,7 +117,7 @@ describe("onboarding profile read", () => {
   it("prints the heading once and the profile once, and leaves the card HTML as it was", () => {
     const card = inferCard("onboarding", profile);
     const html = renderHtml(card);
-    const out = attachAthenaCard("onboarding", { content: [{ type: "text", text: profile }] }) as {
+    const out = attachAthenaCard("onboarding", { content: [{ type: "text", text: profile }] }) as unknown as {
       content: { text: string }[];
       structuredContent: { html: string; card: { title: string; show_state?: boolean } };
     };

@@ -55,6 +55,7 @@ export function readBoardToken(search: Record<string, unknown> | URLSearchParams
 
 type Rpc = (fn: string, args: Record<string, unknown>) => unknown;
 
+/** Option B: superintendents (scope "super") get signed board links. */
 export async function signedJobPages(
   rpc: Rpc,
   jobId: string,
