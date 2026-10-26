@@ -8,7 +8,12 @@ import { drawingUploadSecret, signDrawingReceipt, verifyDrawingUpload } from "./
 export type DrawingUploadDeps = {
   secret: string | null;
   put(bucket: string, path: string, bytes: Uint8Array): Promise<void>;
+  /** Records the token's nonce; false when it was already recorded (the link was used). */
+  claim(nonce: string): Promise<boolean>;
 };
+
+export const USED_MARKER_PREFIX = "drawing-upload-used/";
+const NONCE_RE = /^[0-9a-f-]{36}$/;
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -76,11 +81,22 @@ export function drawingUploadDepsFromEnv(): DrawingUploadDeps {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
   const url = env?.SUPABASE_URL ?? env?.VITE_SUPABASE_URL;
   const key = env?.SUPABASE_SERVICE_ROLE_KEY;
+  const adminClient = () => {
+    if (!url || !key) throw new Error("Backend unavailable");
+    return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  };
   return {
     secret: drawingUploadSecret(),
+    async claim(nonce) {
+      const up = await adminClient()
+        .storage.from(DRAWING_BUCKET)
+        .upload(`${USED_MARKER_PREFIX}${nonce}`, new Uint8Array(0), { contentType: "text/plain", upsert: false, cacheControl: "no-store" });
+      if (!up.error) return true;
+      if (/already exists|duplicate/i.test(up.error.message)) return false;
+      throw new Error(up.error.message);
+    },
     async put(bucket, path, bytes) {
-      if (!url || !key) throw new Error("Backend unavailable");
-      const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+      const admin = adminClient();
       const up = await admin.storage
         .from(bucket)
         .upload(path, bytes, { contentType: "application/pdf", upsert: false, cacheControl: "no-store" });
@@ -116,6 +132,16 @@ export async function handleDrawingUpload(
   } catch {
     return json(502, { stored: false, error: "Athena couldn't store that drawing right now. Try again in a moment." });
   }
+  // Single use, recorded only after the bytes are stored, so a failed or dropped PUT leaves
+  // the link reusable. A later PUT with the same token gets no receipt.
+  let first: boolean;
+  try {
+    first = NONCE_RE.test(String(claim.nonce)) && (await deps.claim(claim.nonce));
+  } catch {
+    return json(502, { stored: false, error: "Athena couldn't store that drawing right now. Try again in a moment." });
+  }
+  if (!first)
+    return json(403, { stored: false, error: "This upload link was already used. Start again from the card." });
   const size = bytes.length;
   const receipt = await signDrawingReceipt(claim, { path, content_hash: hash, size }, deps.secret!);
   return json(200, { stored: true, path, content_hash: hash, size, receipt });

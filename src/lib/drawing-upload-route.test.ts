@@ -9,9 +9,30 @@ const SECRET = "test-secret";
 const job = { company_id: "11111111-1111-4111-8111-111111111111", job_id: "22222222-2222-4222-8222-222222222222" };
 const pdf = new TextEncoder().encode("%PDF-1.7\n%%EOF\n");
 
-function deps() {
+function deps(opts: { failPuts?: number } = {}) {
   const puts: { bucket: string; path: string; size: number }[] = [];
-  return { puts, deps: { secret: SECRET, put: async (bucket: string, path: string, bytes: Uint8Array) => void puts.push({ bucket, path, size: bytes.length }) } };
+  const used = new Set<string>();
+  let fails = opts.failPuts ?? 0;
+  return {
+    puts,
+    used,
+    deps: {
+      secret: SECRET,
+      put: async (bucket: string, path: string, bytes: Uint8Array) => {
+        if (fails-- > 0) throw new Error("storage down");
+        puts.push({ bucket, path, size: bytes.length });
+      },
+      claim: async (nonce: string) => (used.has(nonce) ? false : (used.add(nonce), true)),
+    },
+  };
+}
+const SANDBOX = "https://web-sandbox.oaiusercontent.com";
+async function throughGuard(method: string, path: string) {
+  const { csrfOriginGuard } = await import("../start");
+  const server = (csrfOriginGuard as unknown as { options: { server: (a: unknown) => Promise<unknown> } }).options.server;
+  const request = new Request(`https://app.meetathena.io${path}`, { method, headers: { origin: SANDBOX } });
+  const out = await server({ request, next: async () => "PASSED" });
+  return out instanceof Response ? { status: out.status, text: await out.text() } : out;
 }
 const put = (url: string, body: BodyInit, headers: Record<string, string> = {}) =>
   new Request(url, { method: "PUT", body, headers: { "content-type": "application/pdf", ...headers } });
@@ -59,6 +80,46 @@ describe("drawing direct upload", () => {
     expect(bad.status).toBe(403);
     expect((await bad.json()).error).toMatch(/not valid or has expired/);
     expect(puts).toEqual([]);
+  });
+
+  it("the real cross-origin guard blocks other routes and passes only the drawing upload", async () => {
+    expect(await throughGuard("POST", "/api/drawing-upload")).toEqual({ status: 403, text: "Cross-origin request blocked" });
+    expect(await throughGuard("POST", "/r/drawing-upload/abc.def")).toEqual({ status: 403, text: "Cross-origin request blocked" });
+    expect(await throughGuard("PUT", "/r/file-upload/abc")).toEqual({ status: 403, text: "Cross-origin request blocked" });
+    expect(await throughGuard("PUT", "/r/drawing-upload/abc.def")).toBe("PASSED");
+    expect(await throughGuard("OPTIONS", "/r/drawing-upload/abc.def")).toBe("PASSED");
+  });
+
+  it("an expired token is refused with CORS headers", async () => {
+    const { puts, deps: d } = deps();
+    const { token, url } = await signDrawingUpload(job, SECRET, Date.now() - 31 * 60_000);
+    const res = await handleDrawingUpload(put(url, pdf), token, d);
+    expect(res.status).toBe(403);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect((await res.json()).error).toMatch(/not valid or has expired/);
+    expect(puts).toEqual([]);
+  });
+
+  it("a token is single use once the file is stored", async () => {
+    const { used, deps: d } = deps();
+    const { token, url } = await signDrawingUpload(job, SECRET);
+    expect((await handleDrawingUpload(put(url, pdf), token, d)).status).toBe(200);
+    expect(used.size).toBe(1);
+    const again = await handleDrawingUpload(put(url, pdf), token, d);
+    expect(again.status).toBe(403);
+    expect(again.headers.get("access-control-allow-origin")).toBe("*");
+    const body = await again.json();
+    expect(body.error).toMatch(/already used/);
+    expect(body.receipt).toBeUndefined();
+  });
+
+  it("a failed store or a rejected body leaves the token reusable", async () => {
+    const { used, deps: d } = deps({ failPuts: 1 });
+    const { token, url } = await signDrawingUpload(job, SECRET);
+    expect((await handleDrawingUpload(put(url, pdf), token, d)).status).toBe(502);
+    expect((await handleDrawingUpload(put(url, "hello"), token, d)).status).toBe(400);
+    expect(used.size).toBe(0);
+    expect((await handleDrawingUpload(put(url, pdf), token, d)).status).toBe(200);
   });
 
   it("lets only the drawing upload PUT past the cross-origin guard", () => {

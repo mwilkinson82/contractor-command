@@ -84,7 +84,7 @@ const mcpRequestTiming = createMiddleware().server(async ({ next, request }) => 
  *   - external webhook + cron endpoints under /api/public/* and /lovable/*
  *     which authenticate themselves via signatures / shared secrets.
  */
-const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
+export const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
     return next();
