@@ -54,6 +54,13 @@ it("imports, reopens and marks up a stored drawing in Workers without native can
       method: "POST",
       body: pdf.output("arraybuffer"),
     });
+    const documentRead = await worker.dispatchFetch("https://athena.example.com/test?documentText=1", {
+      method: "POST", body: pdf.output("arraybuffer"),
+    });
+    expect(await documentRead.json()).toMatchObject({
+      text: expect.stringContaining("[[PDF page 1]]\nS-100 | Fictional job 2701"),
+      truncated: false,
+    });
     expect(response.status).toBe(200);
     const result = (await response.json()) as {
       duplicate: boolean;

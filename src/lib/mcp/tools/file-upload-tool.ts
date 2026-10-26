@@ -12,7 +12,7 @@ import {
   FILE_UPLOAD_DESCRIPTION,
   assertUploadBytes,
   decodeChunk,
-  extractUploadText,
+  extractUploadDocument,
   fetchAllowedFile,
   joinChunks,
   missingChunk,
@@ -466,7 +466,7 @@ async function finishBytes(
     rejected(e);
   }
   const extracted =
-    session.purpose === "submittal_piece" ? null : extractUploadText(bytes, checked.ext);
+    session.purpose === "submittal_piece" ? null : await extractUploadDocument(bytes, checked.ext);
   let visible: string;
   let structured: Record<string, string | number | boolean | null>;
   if (session.purpose === "submittal_piece") {

@@ -97,3 +97,21 @@ export function withPdfiumPage<T>(
   );
   return result;
 }
+
+/** Text-only document reading shares the existing native queue; no raster or network. */
+export function extractPdfiumDocumentText(bytes: Uint8Array): Promise<string[]> {
+  const result = queue.then(async () => {
+    const engine = await getLibrary();
+    const document = await engine.loadDocument(bytes);
+    try {
+      const pages: string[] = [];
+      for (let index = 0; index < document.getPageCount(); index++) {
+        const page = document.getPage(index);
+        try { pages.push(page.getText()); } finally { page.close(); }
+      }
+      return pages;
+    } finally { document.destroy(); }
+  });
+  queue = result.then(() => undefined, () => undefined);
+  return result;
+}
