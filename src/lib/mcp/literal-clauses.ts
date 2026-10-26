@@ -59,6 +59,17 @@ export function indexLiteralClauses(pages: ReadableDocument["pages"]): ClauseEnt
   }
   return entries.filter((c) => c.parts.length);
 }
+/** The known article/page/document-code block is page furniture only when it
+ * occupies the whole fragment. Mixed fragments keep every continuation word. */
+function isPageFurnitureFragment(text: string): boolean {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return (
+    lines.length === 3 &&
+    /^ARTICLE\s+\d+\s*:\s*\S.*$/i.test(lines[0]) &&
+    /^Page\s+\d+\s+\d{5,}\.\d+$/i.test(lines[1]) &&
+    /^\d{5,}\.\d+$/.test(lines[2])
+  );
+}
 export function materializeClauses(
   entries: ClauseEntry[],
   readable: ReadableDocument,
@@ -68,7 +79,7 @@ export function materializeClauses(
     const parts = c.parts.map((p) => ({
       page: p.page,
       text: readable.pages[p.page - 1].text.slice(p.start, p.end),
-    }));
+    })).filter((p) => !isPageFurnitureFragment(p.text));
     return {
       source_id: identity.id,
       filename: identity.name,
@@ -78,7 +89,7 @@ export function materializeClauses(
       parts,
       text: parts.map((p) => p.text).join("\n"),
     };
-  });
+  }).filter((c) => c.parts.length > 0);
 }
 /** A numbered contents reference or a form revision is still stored source text,
  * but is not an operative clause for the notice card or deadline consumers. */

@@ -181,6 +181,10 @@ it.skipIf(!process.env.ATHENA_OFFICE_PDF)(
       name: "Office Building Alteration-Bid Specifications_2241.pdf",
       file_sha256: s.file_sha256!,
     });
+    const supervision = clauses.find((c) => c.section === "3.2.1")!;
+    expect(supervision.parts.map((p) => p.page)).toEqual([67]);
+    expect(supervision.text).toContain("Contractor shall notify Owner and Architect in writing");
+    expect(prepared.document.pages[67].text).toMatch(/^ARTICLE 3: Contractor/);
     const operativeNotices=clauses.filter(c=>clauseKinds(c).includes("notice"));
     expect(operativeNotices.slice(0,8).every(c=>c.parts[0].page>=56)).toBe(true);
     expect(clauses.filter(c=>c.parts.some(p=>p.page===15)).every(c=>c.section===null)).toBe(true);
@@ -282,4 +286,40 @@ it("retains definitions as source text without promoting them to notice actions"
   expect(isSourceClause(definition)).toBe(true);
   expect(clauseKinds(definition)).not.toContain("notice");
   expect(definition.text).toContain("Notice of Non-Compliance");
+});
+
+it("omits the exact page68 header-only fragment from clause evidence and cards, retaining source offsets", () => {
+  const furniture = "ARTICLE 3: Contractor \r\nPage 53 005961.00001\r\n26500057.1 \r\n";
+  const pages = [
+    { page: 1, text: "3.2.1 Supervision\nContractor shall notify Owner and Architect in writing.\n" },
+    { page: 2, text: furniture + "3.2.2 Staff\nProvide competent staff.\n" },
+  ];
+  const entries = indexLiteralClauses(pages);
+  const raw = entries.find((c) => c.section === "3.2.1")!;
+  expect(raw.parts.map((p) => p.page)).toEqual([1, 2]);
+  expect(pages[1].text.slice(raw.parts[1].start, raw.parts[1].end)).toBe(furniture);
+  const clauses = materializeClauses(entries, { pages } as never, identity);
+  const supervision = clauses.find((c) => c.section === "3.2.1")!;
+  expect(supervision.parts).toEqual([{ page: 1, text: pages[0].text }]);
+  expect(supervision.text).toBe(pages[0].text);
+  expect(JSON.stringify(literalClauseCard("2710", [supervision], 1, []))).not.toContain("Page 53");
+  expect(pages[1].text).toBe(furniture + "3.2.2 Staff\nProvide competent staff.\n");
+});
+
+it("preserves every genuine continuation word, including mixed furniture and text on the same page", () => {
+  const furniture = "ARTICLE 3: Contractor \r\nPage 53 005961.00001\r\n26500057.1 \r\n";
+  const continuation = furniture + "Notify Owner before proceeding, except in an emergency.\n";
+  const pages = [
+    { page: 1, text: "3.2.1 Supervision\nContractor shall give notice\n" },
+    { page: 2, text: furniture },
+    { page: 3, text: continuation + "3.2.2 Staff\nProvide competent staff.\n" },
+  ];
+  const clauses = materializeClauses(indexLiteralClauses(pages), { pages } as never, identity);
+  const supervision = clauses.find((c) => c.section === "3.2.1")!;
+  expect(supervision.parts).toEqual([
+    { page: 1, text: pages[0].text },
+    { page: 3, text: continuation },
+  ]);
+  expect(supervision.text).toBe(pages[0].text + "\n" + continuation);
+  expect(supervision.text).toContain("except in an emergency");
 });
