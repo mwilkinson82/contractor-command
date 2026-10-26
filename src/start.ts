@@ -16,6 +16,7 @@ import {
   type CardTiming,
 } from "./lib/mcp/card-timing";
 import { isTrustedHost } from "./lib/trusted-hosts";
+import { isDrawingUploadPut } from "./lib/mcp/drawing-upload";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
 import { supabaseForToken } from "./lib/mcp/supabase";
 import { athenaBuild, withAthenaBuildHeader } from "./lib/athena-build";
@@ -98,6 +99,12 @@ const csrfOriginGuard = createMiddleware().server(async ({ next, request }) => {
   // own origin allow-list in @lovable.dev/mcp-js, so browser MCP clients such
   // as Cursor's web agents must be able to POST cross-site.
   if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) {
+    return next();
+  }
+
+  // The drawing card uploads from the host's sandbox origin with a signed one-time
+  // token (no cookies), so a cross-site PUT here cannot ride a member's session.
+  if (isDrawingUploadPut(method, url.pathname)) {
     return next();
   }
 

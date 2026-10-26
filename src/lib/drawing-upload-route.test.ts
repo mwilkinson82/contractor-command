@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { handleDrawingUpload } from "./drawing-upload-route.server";
-import { signDrawingUpload, stagedPathFor, verifyDrawingReceipt, verifyDrawingUpload } from "./mcp/drawing-upload";
+import { isDrawingUploadPut, signDrawingUpload, stagedPathFor, verifyDrawingReceipt, verifyDrawingUpload } from "./mcp/drawing-upload";
 import { storeDrawingSet } from "./mcp/drawing-set";
 import { DRAWING_CARD_URI, DRAWING_CARD_URIS, drawingCardHtml, drawingResourceMeta } from "./mcp/cards/drawing-card";
 
@@ -60,9 +61,19 @@ describe("drawing direct upload", () => {
     expect(puts).toEqual([]);
   });
 
-  it("card v6 uploads by fetch, allows only the app origin, and keeps old URIs", () => {
-    expect(DRAWING_CARD_URI).toBe("ui://athena/drawing-card-v6.html");
-    for (const v of ["v5", "v4", "v3", "v2"]) expect(DRAWING_CARD_URIS.has(`ui://athena/drawing-card-${v}.html`)).toBe(true);
+  it("lets only the drawing upload PUT past the cross-origin guard", () => {
+    expect(isDrawingUploadPut("PUT", "/r/drawing-upload/abc.def")).toBe(true);
+    expect(isDrawingUploadPut("POST", "/r/drawing-upload/abc.def")).toBe(false);
+    expect(isDrawingUploadPut("PUT", "/r/file-upload/abc")).toBe(false);
+    expect(isDrawingUploadPut("PUT", "/r/drawing-upload/a/b")).toBe(false);
+    const start = readFileSync("src/start.ts", "utf8");
+    expect(start).toContain("if (isDrawingUploadPut(method, url.pathname))");
+    expect(start.indexOf("isDrawingUploadPut(method")).toBeLessThan(start.indexOf("Cross-origin request blocked"));
+  });
+
+  it("card v7 uploads by fetch, falls back to a chat attachment, allows only the app origin, and keeps old URIs", () => {
+    expect(DRAWING_CARD_URI).toBe("ui://athena/drawing-card-v7.html");
+    for (const v of ["v6", "v5", "v4", "v3", "v2"]) expect(DRAWING_CARD_URIS.has(`ui://athena/drawing-card-${v}.html`)).toBe(true);
     expect(drawingResourceMeta.ui.csp.connectDomains).toEqual(["https://app.meetathena.io"]);
     expect(drawingResourceMeta["openai/widgetCSP"].connect_domains).toEqual(["https://app.meetathena.io"]);
     const html = drawingCardHtml("https://example.supabase.co");
@@ -70,6 +81,8 @@ describe("drawing direct upload", () => {
     expect(html).toContain("staged_path:staged.path,upload_receipt:staged.receipt");
     expect(html).toContain("content_base64:btoa"); // small-file fallback for hosts without direct upload
     expect(html).toContain("toolText(m.result)");
+    expect(html).toContain("Attach it in the chat instead");
+    expect(html.match(/fetch\(/g)).toEqual(["fetch("]); // only the upload route; storage links are opened, never fetched
     expect(() => new Function(html.split("<script>")[1].split("</script>")[0])).not.toThrow();
   });
 

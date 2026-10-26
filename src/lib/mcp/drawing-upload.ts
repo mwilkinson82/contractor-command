@@ -130,3 +130,12 @@ export function stagedPathFor(claim: DrawingUploadClaim, path: string): string |
 }
 
 export { DRAWING_BUCKET };
+
+/**
+ * The card PUTs from the host's sandboxed origin, so the app's cross-origin guard
+ * must let this one route through. It uses no cookies: the signed token is the
+ * only authority, and the route answers with CORS headers and JSON errors.
+ */
+export function isDrawingUploadPut(method: string, pathname: string): boolean {
+  return method === "PUT" && /^\/r\/drawing-upload\/[A-Za-z0-9_.-]+$/.test(pathname);
+}

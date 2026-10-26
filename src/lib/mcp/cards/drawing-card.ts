@@ -2,9 +2,9 @@ import { NATIVE_CARD_MIME } from "./native";
 import { DRAWING_UPLOAD_ORIGIN, DRAWING_UPLOAD_PATH } from "../drawing-upload";
 
 /** Drawing views have preview/zoom and private PDF links; the existing card views stay unchanged. */
-export const DRAWING_CARD_URI = "ui://athena/drawing-card-v6.html";
+export const DRAWING_CARD_URI = "ui://athena/drawing-card-v7.html";
 export const LEGACY_DRAWING_CARD_URI = "ui://athena/drawing-card.html";
-export const DRAWING_CARD_URIS = new Set([DRAWING_CARD_URI, "ui://athena/drawing-card-v5.html", "ui://athena/drawing-card-v4.html", "ui://athena/drawing-card-v3.html", "ui://athena/drawing-card-v2.html", LEGACY_DRAWING_CARD_URI]);
+export const DRAWING_CARD_URIS = new Set([DRAWING_CARD_URI, "ui://athena/drawing-card-v6.html", "ui://athena/drawing-card-v5.html", "ui://athena/drawing-card-v4.html", "ui://athena/drawing-card-v3.html", "ui://athena/drawing-card-v2.html", LEGACY_DRAWING_CARD_URI]);
 export const DRAWING_CARD_TOOLS = new Set(["drawing_set_import", "drawing_markup"]);
 export const drawingCardMeta = { ui: { resourceUri: DRAWING_CARD_URI } } as const;
 export const drawingCardResultMeta = {
@@ -102,7 +102,10 @@ function uploader(body,context){
  pick.style.display="block";pick.style.marginBottom="8px";names.style.width="100%";names.style.marginBottom="10px";pick.type="file";pick.accept="application/pdf,.pdf";pick.ariaLabel="Drawing PDF";
  names.type="text";names.placeholder="S-100, S-101, A-100…";names.ariaLabel="Sheet names in PDF page order";
  panel.append(node("h2","Upload directly to Athena"),node("p","Choose a PDF up to 100 MB. It is stored on this job; your local file is unchanged.","note"),pick,node("p","Sheet names in PDF page order (optional)","note"),names);
- async function directUpload(file){
+ function attachInstead(file){
+   status.textContent="";var tip=node("section");tip.append(node("h2","Attach it in the chat instead"),node("p","This card could not send "+String(file.name||"the PDF")+" directly. Nothing was stored. Attach the PDF to your next message here (up to 100 MB) and ask: store this as the drawing set for job "+String(context.job_number||"")+".","note"));panel.append(tip);size();
+  }
+  async function directUpload(file){
    var fallback=function(msg){var e=new Error(msg);e.fallback=true;return e};
    var start=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id});
    var up=start&&start.structuredContent&&start.structuredContent.direct_upload;
@@ -118,7 +121,7 @@ function uploader(body,context){
   if(file.size>104857600){status.textContent="That PDF is over 100 MB. Nothing was stored.";size();return}
   busy=true;submit.disabled=true;status.textContent="Storing your PDF…";size();
   try{var sheets=names.value.split(/[,\\n]/).map(function(s){return s.trim()}).filter(Boolean),result=null,staged=null;
-    try{staged=await directUpload(file)}catch(e){if(!(e&&e.fallback)||file.size>${DRAWING_BASE64_FALLBACK_BYTES})throw e}
+    try{staged=await directUpload(file)}catch(e){if(!(e&&e.fallback))throw e;if(file.size>${DRAWING_BASE64_FALLBACK_BYTES}){attachInstead(file);return}}
     if(staged){status.textContent="Uploaded. Athena is registering the drawing…";size();
      result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,staged_path:staged.path,upload_receipt:staged.receipt,sheets:sheets}},180000)}
     else{var bytes=new Uint8Array(await file.arrayBuffer()),parts=[];for(var i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+8192)));
