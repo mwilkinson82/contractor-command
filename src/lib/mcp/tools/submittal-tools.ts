@@ -1,3 +1,5 @@
+import {loadJobSourceClauses} from "../source-clauses";
+import {literalClock} from "../literal-clause-clock";
 // Submittal log, import preview, and project-record search.
 // Submittal writes record themselves in the database transaction. This file does not send email.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
@@ -280,6 +282,14 @@ export const submittalLog = defineTool({
         return showListedLog(sb, job);
       }
       const payload = { ...args };
+      let reviewBasis=args.review_days===undefined ? "Existing job planning configuration; not a newly extracted contract deadline" : "Explicit planning value";
+      if(args.action==="add"||args.action==="resubmit"){
+        const sources=await loadJobSourceClauses(sb,job,args.company_id);const clock=literalClock(sources.clauses,"submittal_review");
+        if(args.review_days===undefined && clock.present){
+          if(clock.count && clock.count<=365 && clock.day_type==="calendar" && clock.trigger==="submission"){payload.review_days=clock.count;reviewBasis="Exact extracted source review period";}
+          else reviewBasis="Planning assumption only: extracted review wording is nonnumeric, compound or conflicting; source wording remains unchanged";
+        }
+      }
       delete payload.job_number;
       delete payload.company_id;
       const saved = await call<LogPayload>(sb, "mcp_submittal_log", { _job: job.job_id, _action: args.action, _payload: payload });
@@ -289,8 +299,10 @@ export const submittalLog = defineTool({
       const note = row ? `Saved ${row.number} revision ${row.revision}, ${row.title}. Transmittal T-${row.transmittal_number}.` : "Saved.";
       const boardUrl = await boardFor(sb, job);
       const presented = shown(saved, boardUrl, undefined, note, { focusId: saved.saved_id ?? null });
+      if(reviewBasis.startsWith("Planning assumption only"))presented.card.sections?.push({heading:"Review timing basis",kind:"list",rows:[{cells:[reviewBasis],tone:"unknown"}]});
       return cardResult(presented.text, presented.card, {
         saved_id: saved.saved_id ?? null,
+        review_days_basis:reviewBasis,
         read_only: false,
         record_url: row ? submittalRecordUrl(boardUrl, row.number) : null,
         // Pieces with their ids and short names, so any host can name one when a received file is attached.

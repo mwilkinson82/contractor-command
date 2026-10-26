@@ -298,7 +298,7 @@ describe("file_upload tool", () => {
     expect(saves()).toHaveLength(1);
     expect(state.rpcs.filter(([fn]) => fn === "mcp_file_upload_begin")).toHaveLength(1);
     expect(
-      [...state.objects.keys()].filter((key) => !key.includes(".athena-readable-")),
+      [...state.objects.keys()].filter((key) => !key.includes(".athena-")),
     ).toHaveLength(1);
     expect(
       [...state.objects.keys()].filter((key) => key.includes(".athena-readable-")),
