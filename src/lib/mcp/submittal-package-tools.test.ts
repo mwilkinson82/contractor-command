@@ -1426,6 +1426,16 @@ describe("submittal delivery ids and sent-body warning", () => {
     expect(savedDraft.drafted.isError).toBeUndefined();
     expect(savedDraft.drafted.structuredContent.approved_at).toBeNull();
 
+    const byPair = await call(submittalDelivery, {
+      action: "get",
+      job_number: "2701",
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+    });
+    expect(byPair.structuredContent.delivery_id).toBe(savedDraft.delivery_id);
+    expect(byPair.structuredContent.draft_key).toBe(savedDraft.draft_key);
+    expect(shown(byPair)).not.toContain("Which submittal number");
+
     const faithful = await call(submittalDelivery, {
       action: "record_sent",
       job_number: "2701",
@@ -1445,6 +1455,58 @@ describe("submittal delivery ids and sent-body warning", () => {
       expect(sample.isError).toBeUndefined();
       expect(CallToolResultSchema.safeParse(sample).success).toBe(true);
     }
+  });
+
+  it("gets the delivery from the saved pair when no submittal number is given", async () => {
+    const savedDraft = await chaseDraft("PAIR-NO-NUMBER");
+    const got = await call(submittalDelivery, {
+      action: "get",
+      job_number: "2701",
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+    });
+    expect(got.isError).toBeUndefined();
+    expect(got.structuredContent.delivery_id).toBe(savedDraft.delivery_id);
+    expect(got.structuredContent.draft_key).toBe(savedDraft.draft_key);
+    expect(shown(got)).not.toContain("Which submittal number");
+    const approved = await call(submittalDelivery, {
+      action: "approve",
+      job_number: "2701",
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+      confirmed: true,
+    });
+    expect(approved.structuredContent.approved_at).toEqual(expect.any(String));
+  });
+
+  it("rejects a submittal number that disagrees with the delivery and a bad pair without a number", async () => {
+    const savedDraft = await chaseDraft("PAIR-NUM-A");
+    await chaseDraft("PAIR-NUM-B");
+    const conflict = await refusal({
+      action: "get",
+      job_number: "2701",
+      delivery_id: savedDraft.delivery_id,
+      draft_key: savedDraft.draft_key,
+      submittal_number: "PAIR-NUM-B",
+    });
+    expect(conflict).toContain("That submittal number does not match this delivery");
+    expect(conflict).toContain("Re-read the saved draft card (call get) and stop");
+    expect(conflict).not.toContain(savedDraft.delivery_id);
+    expect(conflict).not.toContain(savedDraft.draft_key);
+    expect(conflict).not.toMatch(/\b[a-f0-9]{32}\b/i);
+    expect(conflict).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+
+    const badKey = await refusal({
+      action: "get",
+      job_number: "2701",
+      delivery_id: savedDraft.delivery_id,
+      draft_key: "a".repeat(32),
+    });
+    expect(badKey).toContain("draft_key does not match that delivery_id");
+    expect(badKey).toContain("Re-read the saved draft card (call get) and stop");
+    expect(badKey).not.toContain(savedDraft.delivery_id);
+    expect(badKey).not.toContain(savedDraft.draft_key);
+    expect(badKey).not.toMatch(/\b[a-f0-9]{32}\b/i);
   });
 
   it("records a send when the sent body differs or repeats the package link and only flags a warning", async () => {
