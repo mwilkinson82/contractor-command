@@ -9,17 +9,13 @@ describe("athena-documents bucket is created outside the migration", () => {
     expect(migration).not.toMatch(/(INSERT\s+INTO|UPDATE)\s+storage\.buckets/i);
   });
 
-  it("keeps the bucket spec private, 10 MB, PDF/DOCX/TXT only", () => {
+  it("keeps the bucket spec private, 100 MB, no bucket MIME list (the app checks types)", () => {
     expect(spec).toEqual({
       id: "athena-documents",
       name: "athena-documents",
       public: false,
-      file_size_limit: 10485760,
-      allowed_mime_types: [
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "text/plain",
-      ],
+      file_size_limit: 104857600,
+      allowed_mime_types: null,
     });
   });
 });
