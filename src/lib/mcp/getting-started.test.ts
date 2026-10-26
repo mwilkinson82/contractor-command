@@ -18,7 +18,6 @@ import {
   START_POINTS,
 } from "../athena-start-copy";
 import { AthenaStartTip } from "@/components/athena/start-tip";
-import type { CardModel } from "./cards/model";
 import { paletteViolations } from "./cards/palette";
 import { INBOX_HOST_LINE, INBOX_SECTION } from "./morning-brief";
 import { renderHtml } from "./cards/html";
@@ -49,7 +48,7 @@ vi.mock("./supabase", () => ({
     from: (table: string) => {
       const rows = table === "mcp_companies" ? jobsFixture.companies : table === "mcp_jobs" ? jobsFixture.jobs : [];
       const done = Promise.resolve({ data: rows, error: null });
-      const builder = { in: () => done, then: done.then.bind(done) };
+      const builder = { in: () => done, then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => done.then(ok, bad) };
       return { select: () => builder, insert: async () => ({ error: null }) };
     },
   }),
@@ -224,7 +223,7 @@ describe("first tool call", () => {
     );
     const first = (await run("report", ctx, { jobNumber: "2701" }, async () => ({
       content: [{ type: "text" as const, text: "Job 2701 is open." }],
-    }))) as unknown as { content: { text: string }[]; structuredContent: { getting_started: { title: string } } };
+    }))) as { content: { text: string }[]; structuredContent: { getting_started: { title: string } } };
     expect(first.content[0].text.startsWith(START_HEADLINE)).toBe(true);
     expect(first.content[0].text).toContain("Job 2701 is open.");
     expect(first.content[0].text.indexOf(START_HEADLINE)).toBeLessThan(first.content[0].text.indexOf("Job 2701 is open."));
@@ -296,7 +295,7 @@ describe("first tool call", () => {
         return { data: { show: true }, error: null };
       }),
     );
-    const result = (await gettingStarted.handler({}, ctx)) as unknown as {
+    const result = (await gettingStarted.handler({}, ctx)) as {
       content: { text: string }[];
       structuredContent: { card: { title: string }; getting_started?: unknown };
     };
@@ -334,14 +333,14 @@ describe("getting_started branches", () => {
       from(table: string) {
         const rows = table === "mcp_companies" ? companies : jobs;
         const done = Promise.resolve({ data: rows, error: null });
-        const builder = { in: () => done, then: done.then.bind(done) };
+        const builder = { in: () => done, then: (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => done.then(ok, bad) };
         return { select: () => builder };
       },
     };
   }
 
   it("with no company, opens company setup and says the next step and why", async () => {
-    const morning = vi.fn<() => Promise<CardModel>>();
+    const morning = vi.fn();
     const result = await branchGettingStarted(jobsDb([], []), morning, (company) => firstJobCard(company));
     expect(morning).not.toHaveBeenCalled();
     expect(result.title).toBe("Let's set up your company");
@@ -355,7 +354,7 @@ describe("getting_started branches", () => {
   });
 
   it("with a company and no jobs, opens first-job setup and says the next step and why", async () => {
-    const morning = vi.fn<() => Promise<CardModel>>();
+    const morning = vi.fn();
     const result = await branchGettingStarted(jobsDb([{ id: "c1" }], []), morning, (company) => firstJobCard(company));
     expect(morning).not.toHaveBeenCalled();
     expect(result.title).toBe("Let's set up your first job");
@@ -370,7 +369,7 @@ describe("getting_started branches", () => {
   });
 
   it("with one job, stays on the get-started card and does not open the morning hitlist", async () => {
-    const morning = vi.fn<() => Promise<CardModel>>();
+    const morning = vi.fn();
     const result = await branchGettingStarted(jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }]), morning, () => {
       throw new Error("setup");
     });
@@ -381,7 +380,7 @@ describe("getting_started branches", () => {
   });
 
   it("with more than one job, lists them on the card and does not ask which job's morning hitlist", async () => {
-    const morning = vi.fn<() => Promise<CardModel>>();
+    const morning = vi.fn();
     const result = await branchGettingStarted(
       jobsDb([{ id: "c1" }], [{ job_number: "410", name: "Harbor" }, { job_number: "411", name: "Ridge" }]),
       morning,
@@ -408,7 +407,7 @@ describe("getting_started tool never opens on a picker", () => {
       { job_number: "2701", name: "Harbor Point" },
       { job_number: "1234", name: "Riverside" },
     ];
-    const result = (await gettingStarted.handler({}, ctx)) as unknown as {
+    const result = (await gettingStarted.handler({}, ctx)) as {
       content: { text: string }[];
       structuredContent: { card: { title: string; ask?: { prompt: string } | null; sections?: { heading: string }[] } };
     };
@@ -440,7 +439,7 @@ describe("getting_started tool never opens on a picker", () => {
 
   it("with one job, names that morning meeting on the same card", async () => {
     jobsFixture.jobs = [{ job_number: "2701", name: "Harbor Point" }];
-    const result = (await gettingStarted.handler({}, ctx)) as unknown as {
+    const result = (await gettingStarted.handler({}, ctx)) as {
       content: { text: string }[];
       structuredContent: { card: { title: string; next_move?: string } };
     };
