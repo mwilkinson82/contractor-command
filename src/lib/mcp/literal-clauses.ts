@@ -15,6 +15,7 @@ export type LiteralClause = {
 export function indexLiteralClauses(pages: ReadableDocument["pages"]): ClauseEntry[] {
   const entries: ClauseEntry[] = [];
   let current: ClauseEntry | undefined;
+  let documentHeading: string | undefined;
   const append = (page: number, start: number, end: number) => {
     if (!current) {
       current = { section: null, heading: null, parts: [] };
@@ -23,6 +24,18 @@ export function indexLiteralClauses(pages: ReadableDocument["pages"]): ClauseEnt
     if (end > start || (start === 0 && end === 0)) current.parts.push({ page, start, end });
   };
   for (const page of pages) {
+    const boundary = page.text
+      .slice(0, 400)
+      .match(
+        /^(?:NOTICE INVITING BIDS|INSTRUCTIONS TO BIDDERS|BID FORM|AGREEMENT FORM|GENERAL CONDITIONS|SPECIAL CONDITIONS|TABLE OF CONTENTS|SECTION\s+\d{2}(?:[- ]\d{2,3})+)\s*$/im,
+      )?.[0]
+      .trim()
+      .replace(/\s+/g, " ")
+      .toUpperCase();
+    if (boundary && boundary !== documentHeading) {
+      current = undefined;
+      documentHeading = boundary;
+    }
     const marks = Array.from(
       page.text.matchAll(/(?:^|\n)[ \t]*(\d{1,2}(?:\.\d{1,3}){1,5})(?=[ \t]|\r?$)[^\r\n]*/gm),
     );
@@ -30,7 +43,15 @@ export function indexLiteralClauses(pages: ReadableDocument["pages"]): ClauseEnt
     for (const mark of marks) {
       const start = mark.index! + (mark[0].startsWith("\n") ? 1 : 0);
       if (start > at) append(page.page, at, start);
-      current = { section: mark[1], heading: mark[0].trim(), parts: [] };
+      const heading = mark[0].trim();
+      const reference =
+        /\.{3,}/.test(page.text.slice(start, start + 500)) ||
+        /^\d+(?:\.\d+)+\s*\(\d+(?:\.\d+)*\)\s*$/.test(heading);
+      current = {
+        section: reference ? null : mark[1],
+        heading: reference ? null : heading,
+        parts: [],
+      };
       entries.push(current);
       at = start;
     }
@@ -59,14 +80,26 @@ export function materializeClauses(
     };
   });
 }
+/** A numbered contents reference or a form revision is still stored source text,
+ * but is not an operative clause for the notice card or deadline consumers. */
+export function isSourceClause(c: LiteralClause): boolean {
+  if (!c.section) return false;
+  const first = c.parts[0]?.text ?? c.text;
+  if (/\.{3,}/.test(first.slice(0, 500))) return false;
+  const heading = c.heading ?? first.split(/\r?\n/)[0];
+  if (/^\d+(?:\.\d+)+\s*\(\d+(?:\.\d+)*\)\s*$/.test(heading)) return false;
+  return true;
+}
 export function clauseKinds(c: LiteralClause): string[] {
+  if (!isSourceClause(c)) return [];
   const t = c.text;
   const kinds: string[] = [];
-  const notice = /\b(notice|notices|notify|notification)\b/i.test(t);
+  const definition = /\b(means|is a|consists? of|refers to)\b/i.test(c.heading ?? "");
+  const notice = !definition && /\b(notice|notices|notify|notification)\b/i.test(t);
   if (notice) kinds.push("notice");
   if (notice && /\bdelay(s|ed)?\b/i.test(t)) kinds.push("delay_notice");
   if (notice && /\bclaims?\b/i.test(t)) kinds.push("claim_notice");
-  if (/\bsubmittals?\b/i.test(t) && /\b(review|return|turnaround)\b/i.test(t))
+  if (!definition && /\bsubmittals?\b/i.test(t) && /\b(review|return|turnaround)\b/i.test(t))
     kinds.push("submittal_review");
   if (/\b(schedule|submittal|notice|time extension)\b/i.test(t)) kinds.push("schedule_context");
   return kinds;

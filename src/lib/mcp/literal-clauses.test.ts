@@ -6,6 +6,8 @@ import { prepareReadable, loadReadable, type ReadableSource } from "./document-r
 import { clauseIndexKey, loadClauseIndex } from "./document-clause-index";
 import {
   indexLiteralClauses,
+  isSourceClause,
+  clauseKinds,
   materializeClauses,
   literalClauseCard,
   type LiteralClause,
@@ -179,6 +181,9 @@ it.skipIf(!process.env.ATHENA_OFFICE_PDF)(
       name: "Office Building Alteration-Bid Specifications_2241.pdf",
       file_sha256: s.file_sha256!,
     });
+    const operativeNotices=clauses.filter(c=>clauseKinds(c).includes("notice"));
+    expect(operativeNotices.slice(0,8).every(c=>c.parts[0].page>=56)).toBe(true);
+    expect(clauses.filter(c=>c.parts.some(p=>p.page===15)).every(c=>c.section===null)).toBe(true);
     const notice = clauses.find((c) => c.section === "8.4.4")!;
     expect(notice.parts.some((p) => p.page === 107)).toBe(true);
     expect(literalClock([notice], "delay_notice").count).toBe(5);
@@ -215,3 +220,66 @@ it.skipIf(!process.env.ATHENA_OFFICE_PDF)(
   },
   30000,
 );
+
+it("keeps contents references and form revision numbers in storage but out of clause cards and clocks", () => {
+  const toc = clause(
+    "2.2 OWNER'S RIGHT TO CARRY OUT WORK\nTWO (2) BUSINESS DAY NOTICE TO CURE........48",
+    "2.2",
+  );
+  toc.heading = "2.2 OWNER'S RIGHT TO CARRY OUT WORK";
+  const revision = clause("3.97 (8.98)\nAgreement form with notice wording", "3.97");
+  revision.heading = "3.97 (8.98)";
+  const preamble = clause("Notice in document title and contents");
+  preamble.section = null;
+  for (const c of [toc, revision, preamble]) {
+    expect(isSourceClause(c)).toBe(false);
+    expect(clauseKinds(c)).toEqual([]);
+  }
+  const real = clause(
+    "8.4.4 Give notice within five (5) calendar days from the beginning of delay.",
+  );
+  expect(clauseKinds(real)).toContain("notice");
+  expect(literalClock([toc, preamble, real], "delay_notice").count).toBe(5);
+});
+
+it("resets section attribution at contents references and unrelated document boundaries", () => {
+  const pages = [
+    { page: 1, text: "TABLE OF CONTENTS\n14.4 REMEDIES OTHER THAN TERMINATION ........134\n" },
+    {
+      page: 2,
+      text: "NOTICE INVITING BIDS\nNOTICE IS HEREBY GIVEN that Owner will receive bids.\n",
+    },
+    {
+      page: 3,
+      text: "GENERAL CONDITIONS\n1.1 Actual clause\nThe Contractor shall provide written notice.\n",
+    },
+    { page: 4, text: "GENERAL CONDITIONS\nThis is the same clause continuation.\n" },
+    { page: 5, text: "3.97 (8.98)\nAgreement form revision, not section 3.97.\n" },
+  ];
+  const entries = indexLiteralClauses(pages);
+  const extracted = materializeClauses(entries, { pages } as never, identity);
+  expect(extracted.some((c) => c.section === "14.4" || c.section === "3.97")).toBe(false);
+  const bid = extracted.find((c) => c.parts.some((p) => p.page === 2))!;
+  expect(bid.section).toBeNull();
+  expect(clauseKinds(bid)).toEqual([]);
+  expect(extracted.find((c) => c.section === "1.1")!.parts.map((p) => p.page)).toEqual([3, 4]);
+  const rebuilt = new Map<number, string>();
+  for (const e of entries)
+    for (const p of e.parts)
+      rebuilt.set(
+        p.page,
+        (rebuilt.get(p.page) ?? "") + pages[p.page - 1].text.slice(p.start, p.end),
+      );
+  expect(pages.map((p) => rebuilt.get(p.page))).toEqual(pages.map((p) => p.text));
+});
+
+it("retains definitions as source text without promoting them to notice actions", () => {
+  const definition = clause(
+    "1.1.29 Notice of Non-Compliance is a document issued by Inspector.",
+    "1.1.29",
+  );
+  definition.heading = definition.text;
+  expect(isSourceClause(definition)).toBe(true);
+  expect(clauseKinds(definition)).not.toContain("notice");
+  expect(definition.text).toContain("Notice of Non-Compliance");
+});

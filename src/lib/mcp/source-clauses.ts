@@ -88,7 +88,7 @@ export async function loadJobSourceClauses(
           file_sha256: source.file_sha256,
           state: index ? "stored_literal_index" : "saved_text",
           covered_pdf_pages: readable.covered_pdf_pages,
-          index_version: index?.index_version ?? "literal-sections-v1",
+          index_version: index?.index_version ?? "literal-sections-v2",
           clauses: index?.entries.length ?? indexLiteralClauses(readable.pages).length,
         });
         clauses.push(
