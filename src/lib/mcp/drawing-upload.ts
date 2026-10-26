@@ -7,7 +7,17 @@ export const DRAWING_UPLOAD_PATH = "/r/drawing-upload/";
 export const DRAWING_UPLOAD_SECONDS = 30 * 60;
 export const STAGED_PATH_RE = /^([0-9a-f-]{36})\/([0-9a-f-]{36})\/drawing-([0-9a-f]{64})\/source\.pdf$/;
 
-export type DrawingUploadClaim = { company_id: string; job_id: string; exp: number; nonce: string };
+export type DrawingUploadClaim = { company_id: string; job_id: string; exp: number; nonce: string; kind?: "upload" };
+/** Signed by the upload route after it stored the bytes: the confirm call trusts this, not a re-download. */
+export type DrawingUploadReceipt = {
+  kind: "receipt";
+  company_id: string;
+  job_id: string;
+  path: string;
+  content_hash: string;
+  size: number;
+  exp: number;
+};
 
 const enc = new TextEncoder();
 const b64url = (bytes: Uint8Array) =>
@@ -37,9 +47,9 @@ export async function signDrawingUpload(
     job_id: job.job_id,
     exp: Math.floor(now / 1000) + DRAWING_UPLOAD_SECONDS,
     nonce: crypto.randomUUID(),
+    kind: "upload",
   };
-  const body = b64url(enc.encode(JSON.stringify(claim)));
-  const token = `${body}.${b64url(await hmac(secret, body))}`;
+  const token = await signPayload(claim, secret);
   return {
     token,
     url: `${DRAWING_UPLOAD_ORIGIN}${DRAWING_UPLOAD_PATH}${token}`,
@@ -48,12 +58,13 @@ export async function signDrawingUpload(
   };
 }
 
-export async function verifyDrawingUpload(
-  token: string,
-  secret: string,
-  now = Date.now(),
-): Promise<DrawingUploadClaim | null> {
-  if (typeof token !== "string" || token.length > 1024) return null;
+async function signPayload(payload: object, secret: string): Promise<string> {
+  const body = b64url(enc.encode(JSON.stringify(payload)));
+  return `${body}.${b64url(await hmac(secret, body))}`;
+}
+
+async function verifyPayload<T extends { exp: number }>(token: string, secret: string, now: number): Promise<T | null> {
+  if (typeof token !== "string" || token.length > 2048) return null;
   const [body, sig, extra] = token.split(".");
   if (!body || !sig || extra !== undefined) return null;
   try {
@@ -63,14 +74,52 @@ export async function verifyDrawingUpload(
     let diff = 0;
     for (let i = 0; i < want.length; i++) diff |= want[i] ^ got[i];
     if (diff) return null;
-    const claim = JSON.parse(new TextDecoder().decode(unb64url(body))) as DrawingUploadClaim;
-    if (typeof claim.company_id !== "string" || typeof claim.job_id !== "string" || typeof claim.exp !== "number")
-      return null;
-    if (claim.exp * 1000 <= now) return null;
-    return claim;
+    const payload = JSON.parse(new TextDecoder().decode(unb64url(body))) as T;
+    if (typeof payload.exp !== "number" || payload.exp * 1000 <= now) return null;
+    return payload;
   } catch {
     return null;
   }
+}
+
+export async function verifyDrawingUpload(
+  token: string,
+  secret: string,
+  now = Date.now(),
+): Promise<DrawingUploadClaim | null> {
+  const claim = await verifyPayload<DrawingUploadClaim>(token, secret, now);
+  if (!claim || claim.kind !== "upload" || typeof claim.company_id !== "string" || typeof claim.job_id !== "string")
+    return null;
+  return claim;
+}
+
+export async function signDrawingReceipt(
+  claim: DrawingUploadClaim,
+  stored: { path: string; content_hash: string; size: number },
+  secret: string,
+): Promise<string> {
+  const receipt: DrawingUploadReceipt = {
+    kind: "receipt",
+    company_id: claim.company_id,
+    job_id: claim.job_id,
+    path: stored.path,
+    content_hash: stored.content_hash,
+    size: stored.size,
+    exp: claim.exp,
+  };
+  return signPayload(receipt, secret);
+}
+
+export async function verifyDrawingReceipt(
+  token: string,
+  secret: string,
+  now = Date.now(),
+): Promise<DrawingUploadReceipt | null> {
+  const r = await verifyPayload<DrawingUploadReceipt>(token, secret, now);
+  if (!r || r.kind !== "receipt" || typeof r.size !== "number" || typeof r.path !== "string") return null;
+  const m = STAGED_PATH_RE.exec(r.path);
+  if (!m || m[1] !== r.company_id || m[2] !== r.job_id || m[3] !== r.content_hash) return null;
+  return r;
 }
 
 /** A staged object path is valid only for the job the token was issued for. */

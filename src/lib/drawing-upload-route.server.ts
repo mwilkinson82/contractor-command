@@ -2,9 +2,8 @@
 // athena-drawings at its content-hash path and is registered by a later confirm call.
 import { createClient } from "@supabase/supabase-js";
 import { FileRejected, sha256Hex, storagePath } from "./mcp/file-share";
-import { readBounded } from "./mcp/file-upload";
 import { DRAWING_BUCKET, DRAWING_MAX_BYTES, drawingTooBigMessage } from "./mcp/drawing-set";
-import { drawingUploadSecret, verifyDrawingUpload } from "./mcp/drawing-upload";
+import { drawingUploadSecret, signDrawingReceipt, verifyDrawingUpload } from "./mcp/drawing-upload";
 
 export type DrawingUploadDeps = {
   secret: string | null;
@@ -23,6 +22,54 @@ function json(status: number, body: Record<string, unknown>) {
     status,
     headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" },
   });
+}
+
+const tooBig = () => new FileRejected(drawingTooBigMessage());
+
+/**
+ * One copy of the PDF in memory: when content-length is known the body is read
+ * straight into a buffer of that size instead of collecting chunks and joining them.
+ */
+export async function readDrawingBody(req: Request, max = DRAWING_MAX_BYTES): Promise<Uint8Array> {
+  const claimed = Number(req.headers.get("content-length") ?? "0");
+  if (claimed > max) throw tooBig();
+  if (!req.body) throw new FileRejected("The file is empty. Nothing was stored.");
+  const reader = req.body.getReader();
+  if (claimed > 0) {
+    const out = new Uint8Array(claimed);
+    let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (n + value.length > claimed) {
+        await reader.cancel();
+        throw new FileRejected("The upload was larger than announced. Nothing was stored.");
+      }
+      out.set(value, n);
+      n += value.length;
+    }
+    if (n !== claimed) throw new FileRejected("The upload did not finish. Nothing was stored.");
+    return out;
+  }
+  const parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) {
+      await reader.cancel();
+      throw tooBig();
+    }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n);
+  let at = 0;
+  for (const part of parts.splice(0)) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
 }
 
 export function drawingUploadDepsFromEnv(): DrawingUploadDeps {
@@ -55,9 +102,9 @@ export async function handleDrawingUpload(
     return json(403, { stored: false, error: "This upload link is not valid or has expired. Start again from the card. Nothing was stored." });
   let bytes: Uint8Array;
   try {
-    bytes = await readBounded(req, DRAWING_MAX_BYTES);
+    bytes = await readDrawingBody(req);
   } catch (e) {
-    const message = e instanceof FileRejected ? (/over \d+ MB/.test(e.message) ? drawingTooBigMessage() : e.message) : "The upload did not finish. Nothing was stored.";
+    const message = e instanceof FileRejected ? e.message : "The upload did not finish. Nothing was stored.";
     return json(400, { stored: false, error: message });
   }
   if (bytes.length < 5 || String.fromCharCode(...bytes.subarray(0, 5)) !== "%PDF-")
@@ -69,5 +116,7 @@ export async function handleDrawingUpload(
   } catch {
     return json(502, { stored: false, error: "Athena couldn't store that drawing right now. Try again in a moment." });
   }
-  return json(200, { stored: true, path, content_hash: hash, size: bytes.length });
+  const size = bytes.length;
+  const receipt = await signDrawingReceipt(claim, { path, content_hash: hash, size }, deps.secret!);
+  return json(200, { stored: true, path, content_hash: hash, size, receipt });
 }

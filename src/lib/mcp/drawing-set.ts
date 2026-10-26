@@ -17,6 +17,7 @@ import {
   downloadDrawingSource,
   drawingSource,
   decodeBase64,
+  safeFilename,
   sha256Hex,
   storagePath,
   validateFile,
@@ -83,11 +84,14 @@ export type DrawingUpload = {
   file?: { download_url: string; file_id: string; mime_type?: string; file_name?: string };
   sheets?: string[];
   source_url?: string;
-  /** Direct upload confirm: the content-hash path and its signed token. */
+  /** Direct upload confirm: the content-hash path and the upload route's signed receipt. */
   staged_path?: string;
-  upload_token?: string;
-  /** Internal: bytes already written to athena-drawings by the direct upload route. */
-  staged?: { bytes: Uint8Array; path: string };
+  upload_receipt?: string;
+  /**
+   * Internal: an object the direct upload route already wrote to athena-drawings,
+   * from its signed receipt. The confirm step never downloads it again.
+   */
+  staged?: { path: string; content_hash: string; size: number };
 };
 
 export type DrawingJob = { company_id: string; job_id: string };
@@ -336,6 +340,29 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
   return out;
 }
 
+/**
+ * Direct upload confirm. Hash and size come from the upload route's signed receipt,
+ * so no bytes are loaded here. Page counting is deferred to sheet indexing: a full
+ * pdf-lib parse of a 70 MB set does not fit the server's memory next to the file.
+ */
+function stagedDrawing(
+  upload: DrawingUpload,
+  staged: NonNullable<DrawingUpload["staged"]>,
+): { bytes: null; filename: string; pageCount: undefined } {
+  try {
+    const { name, ext } = safeFilename(upload.filename?.trim() || "drawing-set.pdf");
+    if (ext !== "pdf") throw new FileRejected("A drawing set has to be a PDF. Nothing was stored.");
+    if (staged.size <= 0 || staged.size > DRAWING_MAX_BYTES) throw new FileRejected(drawingTooBigMessage());
+    const names = upload.sheets ?? [];
+    if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
+      throw new FileRejected("Give each sheet one unique name in PDF page order. Nothing was stored.");
+    return { bytes: null, filename: name, pageCount: undefined };
+  } catch (e) {
+    if (e instanceof FileRejected) throw new ToolError(e.message);
+    throw e;
+  }
+}
+
 export async function readDrawingBytes(
   upload: DrawingUpload,
 ): Promise<{ bytes: Uint8Array; filename: string; pageCount: number }> {
@@ -346,8 +373,7 @@ export async function readDrawingBytes(
   if (!filename) throw new ToolError("Name the drawing PDF. Nothing was stored.");
   try {
     let bytes: Uint8Array;
-    if (upload.staged) bytes = upload.staged.bytes;
-    else if (upload.content_base64) bytes = decodeBase64(upload.content_base64, DRAWING_MAX_BYTES);
+    if (upload.content_base64) bytes = decodeBase64(upload.content_base64, DRAWING_MAX_BYTES);
     else if (upload.source_url)
       bytes = await downloadDrawingSource(upload.source_url, DRAWING_MAX_BYTES);
     else if (upload.file?.download_url) bytes = await fetchDrawing(upload.file.download_url);
@@ -415,8 +441,11 @@ export async function storeDrawingSet(
   upload: DrawingUpload,
   prior: Doc[] = [],
 ): Promise<StoredDrawing> {
-  const { bytes, filename, pageCount } = await readDrawingBytes(upload);
-  const hash = await sha256Hex(bytes);
+  const staged = upload.staged;
+  const { bytes, filename, pageCount } = staged
+    ? stagedDrawing(upload, staged)
+    : await readDrawingBytes(upload);
+  const hash = staged ? staged.content_hash : await sha256Hex(bytes!);
   const records = await drawingRecords(sb, job);
   const source = upload.source_url ? drawingSource(upload.source_url) : null;
   const existing = records.find((row) => row.content_hash === hash);
@@ -468,9 +497,9 @@ export async function storeDrawingSet(
       : DRAWING_BUCKET;
   if (!drawingOwned(path, job.company_id, job.job_id))
     throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
-  const alreadyStaged =
-    !!upload.staged && upload.staged.path === path && storageBucket === DRAWING_BUCKET;
+  const alreadyStaged = !!staged && staged.path === path && storageBucket === DRAWING_BUCKET;
   if (!existing && !legacy && !alreadyStaged) {
+    if (!bytes) throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
     // New originals go to athena-drawings (100 MB). A write into athena-files keeps the 10 MB cap.
     if (bytes.length > drawingUploadLimit(storageBucket)) {
       throw new ToolError(

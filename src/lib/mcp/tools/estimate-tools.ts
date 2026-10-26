@@ -19,7 +19,7 @@ import {
   measuredSettlement,
 } from "../takeoff/integration";
 import { drawingFile, drawingWithFile } from "../drawing-file-input";
-import { drawingUploadSecret, signDrawingUpload, stagedPathFor, verifyDrawingUpload } from "../drawing-upload";
+import { drawingUploadSecret, signDrawingUpload, verifyDrawingReceipt } from "../drawing-upload";
 // Estimating role. Same gate as the other tools: run() checks auth, the call cap and the membership entitlement.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -291,7 +291,7 @@ const drawingUpload = z
     sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
     source_url: z.string().url().max(4096).optional(),
     staged_path: z.string().max(300).optional(),
-    upload_token: z.string().max(1024).optional(),
+    upload_receipt: z.string().max(2048).optional(),
   })
   .optional();
 const bidLine = z.object({
@@ -1683,33 +1683,38 @@ async function directUpload(job: { company_id: string; job_id: string }): Promis
 }
 
 type ImportUpload = ReturnType<typeof drawingWithFile>;
-/** Confirm a PDF the card already sent to the direct upload route. Only the small path crosses the tool call. */
+/**
+ * Confirm a PDF the card already sent to the direct upload route. Only the small path and
+ * the route's signed receipt (path, sha256, size) cross the tool call. The object is
+ * checked with a storage listing, never downloaded, so a 70 MB set is not held in memory.
+ */
 async function withStagedDrawing(
   sb: Sb,
   job: { company_id: string; job_id: string },
   upload: ImportUpload,
 ): Promise<ImportUpload> {
-  if (!upload?.staged_path && !upload?.upload_token) return upload;
+  if (!upload?.staged_path && !upload?.upload_receipt) return upload;
   if (upload.content_base64 || upload.source_url || upload.file)
     throw new ToolError(
       "Provide one drawing source: the direct upload, PDF bytes, or a source link. Nothing was stored.",
     );
   const secret = drawingUploadSecret();
-  const claim =
-    secret && upload.upload_token ? await verifyDrawingUpload(upload.upload_token, secret) : null;
-  if (!claim || claim.company_id !== job.company_id || claim.job_id !== job.job_id)
+  const receipt =
+    secret && upload.upload_receipt ? await verifyDrawingReceipt(upload.upload_receipt, secret) : null;
+  if (!receipt || receipt.company_id !== job.company_id || receipt.job_id !== job.job_id)
     throw new ToolError(
-      "That upload link is not valid for this job or has expired. Choose the PDF again. Nothing was stored.",
+      "That upload is not valid for this job or has expired. Choose the PDF again. Nothing was stored.",
     );
-  const path = upload.staged_path ?? "";
-  if (!stagedPathFor(claim, path))
+  if (upload.staged_path !== receipt.path)
     throw new ToolError("The uploaded drawing is not on this job. Nothing was stored.");
-  const file = await sb.storage.from("athena-drawings").download(path);
-  if (file.error || !file.data)
+  const dir = receipt.path.slice(0, receipt.path.lastIndexOf("/"));
+  const listed = await sb.storage.from("athena-drawings").list(dir, { search: "source.pdf", limit: 2 });
+  const object = listed.data?.find((o) => o.name === "source.pdf");
+  const size = Number((object?.metadata as { size?: number } | undefined)?.size);
+  if (listed.error || !object || (Number.isFinite(size) && size !== receipt.size))
     throw new ToolError("The uploaded drawing could not be found. Choose the PDF again. Nothing was stored.");
-  const bytes = new Uint8Array(await file.data.arrayBuffer());
-  const { staged_path: _p, upload_token: _t, ...rest } = upload;
-  return { ...rest, staged: { bytes, path } };
+  const { staged_path: _p, upload_receipt: _r, ...rest } = upload;
+  return { ...rest, staged: { path: receipt.path, content_hash: receipt.content_hash, size: receipt.size } };
 }
 
 export const drawingSetImport = defineTool({
