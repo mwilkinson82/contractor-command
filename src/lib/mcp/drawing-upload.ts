@@ -16,6 +16,8 @@ export type DrawingUploadReceipt = {
   path: string;
   content_hash: string;
   size: number;
+  /** Null when the upload could not count pages without a full parse. */
+  page_count?: number | null;
   exp: number;
 };
 
@@ -95,7 +97,7 @@ export async function verifyDrawingUpload(
 
 export async function signDrawingReceipt(
   claim: DrawingUploadClaim,
-  stored: { path: string; content_hash: string; size: number },
+  stored: { path: string; content_hash: string; size: number; page_count: number | null },
   secret: string,
 ): Promise<string> {
   const receipt: DrawingUploadReceipt = {
@@ -105,6 +107,7 @@ export async function signDrawingReceipt(
     path: stored.path,
     content_hash: stored.content_hash,
     size: stored.size,
+    page_count: stored.page_count,
     exp: claim.exp,
   };
   return signPayload(receipt, secret);
@@ -117,6 +120,14 @@ export async function verifyDrawingReceipt(
 ): Promise<DrawingUploadReceipt | null> {
   const r = await verifyPayload<DrawingUploadReceipt>(token, secret, now);
   if (!r || r.kind !== "receipt" || typeof r.size !== "number" || typeof r.path !== "string") return null;
+  if (
+    r.page_count != null &&
+    (typeof r.page_count !== "number" ||
+      !Number.isInteger(r.page_count) ||
+      r.page_count < 1 ||
+      r.page_count > 10000)
+  )
+    return null;
   const m = STAGED_PATH_RE.exec(r.path);
   if (!m || m[1] !== r.company_id || m[2] !== r.job_id || m[3] !== r.content_hash) return null;
   return r;

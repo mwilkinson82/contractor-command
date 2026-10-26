@@ -1714,7 +1714,15 @@ async function withStagedDrawing(
   if (listed.error || !object || (Number.isFinite(size) && size !== receipt.size))
     throw new ToolError("The uploaded drawing could not be found. Choose the PDF again. Nothing was stored.");
   const { staged_path: _p, upload_receipt: _r, ...rest } = upload;
-  return { ...rest, staged: { path: receipt.path, content_hash: receipt.content_hash, size: receipt.size } };
+  return {
+    ...rest,
+    staged: {
+      path: receipt.path,
+      content_hash: receipt.content_hash,
+      size: receipt.size,
+      page_count: receipt.page_count ?? null,
+    },
+  };
 }
 
 export const drawingSetImport = defineTool({

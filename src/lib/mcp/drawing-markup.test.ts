@@ -95,8 +95,10 @@ function fakeSb() {
           prior &&
           prior.content_hash === input.content_hash &&
           JSON.stringify(prior.sheets) === JSON.stringify(input.sheets)
-        )
+        ) {
+          if (prior.page_count == null && input.page_count != null) prior.page_count = input.page_count;
           return { data: prior, error: null };
+        }
         const r = {
           ...input,
           id: crypto.randomUUID(),
@@ -275,19 +277,52 @@ describe("stored drawing markup tool", () => {
     expect(state.downloads).toEqual([]);
     expect(state.uploaded).toEqual([]);
   });
-  it("reindexes a 17.6 MB stored original with one binary download and no base64 upload or new object", async () => {
+  it("reindexes a stored original from its saved hash without a full download or new object", async () => {
     const bytes = new Uint8Array(17612902); bytes.fill(32); bytes.set(pdf());
     const path = "c1/j1/drawing-large/source.pdf", hash = await sha256Hex(bytes);
     state.objects.set(path, bytes);
-    state.records.push({ id: "large-source", kind: "source", filename: "large.pdf", path, storage_bucket: DRAWING_BUCKET, source_key: "file:large.pdf", content_hash: hash, sheets: ["Cover", "S-100"], version: 1 });
+    state.records.push({ id: "large-source", kind: "source", filename: "large.pdf", path, storage_bucket: DRAWING_BUCKET, source_key: "file:large.pdf", content_hash: hash, sheets: ["Cover", "S-100"], version: 1, page_count: 2 });
     const result = await call(drawingSetImport, { job_number: "2701", stored_filename: "large.pdf", sheets: ["Cover", "S-100"] });
     expect(result.structuredContent.duplicate).toBe(true);
     expect(result.structuredContent.stored).toBe(true);
+    expect(result.structuredContent.page_count).toBe(2);
     expect((result.structuredContent.source as DrawingRecord).id).toBe("large-source");
-    expect(state.downloads).toEqual([path]);
+    expect(state.downloads).toEqual([]);
     expect(state.uploaded).toEqual([]);
-    expect(state.buckets).toEqual([DRAWING_BUCKET]);
+    expect(state.buckets).toEqual([]);
     expect(await sha256Hex(state.objects.get(path)!)).toBe(hash);
+  });
+  it("indexes a large stored set from the saved page count with zero full downloads", async () => {
+    const path = `c1/j1/drawing-${"ab".repeat(32)}/source.pdf`;
+    const id = "206ee7b7-1111-4111-8111-111111111111";
+    state.records.push({ id, kind: "source", filename: "6543_Volume_2_Drawings.pdf", path, storage_bucket: DRAWING_BUCKET, source_key: "file:6543_volume_2_drawings.pdf", content_hash: "ab".repeat(32), sheets: [], page_count: 3, version: 1 });
+    const result = await call(drawingSetImport, { job_number: "2701", source_id: id, sheets: ["G-001", "G-002", "G-003"] });
+    expect(state.downloads).toEqual([]);
+    expect(state.uploaded).toEqual([]);
+    expect(result.structuredContent.stored).toBe(true);
+    expect(result.structuredContent.sheet_index_required).toBe(false);
+    expect(result.structuredContent.page_count).toBe(3);
+    expect(result.structuredContent.index_error).toBeUndefined();
+  });
+  it("says how many pages are stored when the sheet list does not match, without downloading", async () => {
+    const path = `c1/j1/drawing-${"cd".repeat(32)}/source.pdf`;
+    const id = "206ee7b7-2222-4222-8222-222222222222";
+    state.records.push({ id, kind: "source", filename: "6543_Volume_2_Drawings.pdf", path, storage_bucket: DRAWING_BUCKET, source_key: "file:6543.pdf", content_hash: "cd".repeat(32), sheets: [], page_count: 120, version: 1 });
+    const result = await call(drawingSetImport, { job_number: "2701", source_id: id, sheets: ["G-001"] });
+    expect(state.downloads).toEqual([]);
+    expect(result.structuredContent.index_error).toContain("120 pages");
+    expect(result.content[0].text).toContain("No index was changed; no re-upload is needed");
+    expect(state.records).toHaveLength(1);
+  });
+  it("indexes a legacy row that has no page count without crashing or downloading the PDF", async () => {
+    const path = `c1/j1/drawing-${"ef".repeat(32)}/source.pdf`;
+    const id = "206ee7b7-3333-4333-8333-333333333333";
+    state.records.push({ id, kind: "source", filename: "6543_Volume_2_Drawings.pdf", path, storage_bucket: DRAWING_BUCKET, source_key: "file:6543-legacy.pdf", content_hash: "ef".repeat(32), sheets: [], version: 1 });
+    const result = await call(drawingSetImport, { job_number: "2701", source_id: id, sheets: ["G-001", "G-002"] });
+    expect(state.downloads).toEqual([]);
+    expect(result.structuredContent.stored).toBe(true);
+    expect(result.structuredContent.index_error).toBeUndefined();
+    expect((result.structuredContent.source as DrawingRecord).sheets).toEqual(["G-001", "G-002"]);
   });
   it("reports the original as stored when only the legacy index sync fails, and reuses it on retry", async () => {
     state.failSetup = true;

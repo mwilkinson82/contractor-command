@@ -2,6 +2,7 @@
 // athena-drawings at its content-hash path and is registered by a later confirm call.
 import { createClient } from "@supabase/supabase-js";
 import { FileRejected, sha256Hex, storagePath } from "./mcp/file-share";
+import { boundedPdfPageCount } from "./mcp/pdf-page-count";
 import { DRAWING_BUCKET, DRAWING_MAX_BYTES, drawingTooBigMessage } from "./mcp/drawing-set";
 import { drawingUploadSecret, signDrawingReceipt, verifyDrawingUpload } from "./mcp/drawing-upload";
 
@@ -133,6 +134,12 @@ export async function handleDrawingUpload(
   if (bytes.length < 5 || String.fromCharCode(...bytes.subarray(0, 5)) !== "%PDF-")
     return json(400, { stored: false, error: "A drawing set has to be a PDF. Nothing was stored." });
   const hash = await sha256Hex(bytes);
+  let pageCount: number | null = null;
+  try {
+    pageCount = await boundedPdfPageCount(bytes);
+  } catch {
+    pageCount = null;
+  }
   const path = storagePath(claim.company_id, claim.job_id, `drawing-${hash}`, "source.pdf");
   try {
     await deps.put(DRAWING_BUCKET, path, bytes);
@@ -152,6 +159,10 @@ export async function handleDrawingUpload(
   if (!first)
     return json(403, { stored: false, error: "This upload link was already used. Start again from the card." });
   const size = bytes.length;
-  const receipt = await signDrawingReceipt(claim, { path, content_hash: hash, size }, deps.secret!);
-  return json(200, { stored: true, path, content_hash: hash, size, receipt });
+  const receipt = await signDrawingReceipt(
+    claim,
+    { path, content_hash: hash, size, page_count: pageCount },
+    deps.secret!,
+  );
+  return json(200, { stored: true, path, content_hash: hash, size, page_count: pageCount, receipt });
 }
