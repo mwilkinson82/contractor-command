@@ -1912,9 +1912,18 @@ export const drawingMarkup = defineTool({
           });
         } catch (e) {
           if (e instanceof DrawingSheetIndexRequired)
+            // Build the "sheet names needed" reply from the saved record. Re-reading
+            // a large original here (download + hash + parse) can exhaust the worker.
             return storedDrawingReply(
               job,
-              await readStoredDrawingSet(sb, job, e.record),
+              {
+                name: e.record.filename,
+                path: e.record.path,
+                sheets: e.record.sheets,
+                record: e.record,
+                duplicate: true,
+                pageCount: undefined,
+              },
               args.sheet,
             );
           throw e;
