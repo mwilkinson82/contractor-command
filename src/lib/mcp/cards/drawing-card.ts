@@ -1,9 +1,9 @@
 import { NATIVE_CARD_MIME, nativeResourceMeta } from "./native";
 
 /** Drawing views have preview/zoom and private PDF links; the existing card views stay unchanged. */
-export const DRAWING_CARD_URI = "ui://athena/drawing-card-v4.html";
+export const DRAWING_CARD_URI = "ui://athena/drawing-card-v5.html";
 export const LEGACY_DRAWING_CARD_URI = "ui://athena/drawing-card.html";
-export const DRAWING_CARD_URIS = new Set([DRAWING_CARD_URI, "ui://athena/drawing-card-v3.html", "ui://athena/drawing-card-v2.html", LEGACY_DRAWING_CARD_URI]);
+export const DRAWING_CARD_URIS = new Set([DRAWING_CARD_URI, "ui://athena/drawing-card-v4.html", "ui://athena/drawing-card-v3.html", "ui://athena/drawing-card-v2.html", LEGACY_DRAWING_CARD_URI]);
 export const DRAWING_CARD_TOOLS = new Set(["drawing_set_import", "drawing_markup"]);
 export const drawingCardMeta = { ui: { resourceUri: DRAWING_CARD_URI } } as const;
 export const drawingCardResultMeta = {
