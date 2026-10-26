@@ -166,7 +166,7 @@ export function SubmittalPieceUpload({
         </>
       ) : null}
       <div className="grid min-w-0 gap-1">
-        <span id="received-file-label">Received file (up to 50 MB)</span>
+        <span id="received-file-label">Received file (up to 100 MB)</span>
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <input
             ref={fileInput}
