@@ -7,8 +7,8 @@ import { FileRejected } from "./file-share";
 export const FILE_UPLOAD_CHUNK_CHARS = 12_000;
 export const FILE_UPLOAD_CALL_CHARS = 20_000;
 export const FILE_UPLOAD_HOURS = 2;
-export const DOC_MAX_BYTES = 10 * 1024 * 1024;
-export const PIECE_MAX_BYTES = 50 * 1024 * 1024;
+export const DOC_MAX_BYTES = 100 * 1024 * 1024;
+export const PIECE_MAX_BYTES = 100 * 1024 * 1024;
 export const EXTRACT_MAX_CHARS = 400_000;
 export const FILE_UPLOAD_LINK_BASE = "https://app.meetathena.io/r/file-upload/";
 export const DOC_BUCKET = "athena-documents";
@@ -73,7 +73,7 @@ export function assertUploadBytes(bytes: Uint8Array, filename: string, purpose: 
   if (!bytes.length) throw new FileRejected("The file is empty. Nothing was stored.");
   if (bytes.length > max)
     throw new FileRejected(
-      `That file is over ${purpose === "submittal_piece" ? "50" : "10"} MB. Nothing was stored.`,
+      `That file is over 100 MB. Nothing was stored.`,
     );
   if (!sniffUpload(bytes, file.ext))
     throw new FileRejected(`That file isn't a real .${file.ext} file. Nothing was stored.`);

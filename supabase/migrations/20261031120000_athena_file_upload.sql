@@ -210,7 +210,7 @@ BEGIN
     RAISE EXCEPTION 'MCP_BAD:The file is not stored on this job yet.';
   END IF;
   IF coalesce(_p->>'file_sha256', '') !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'MCP_BAD:The stored file could not be checked.'; END IF;
-  IF coalesce((_p->>'size_bytes')::int, 0) < 1 OR (_p->>'size_bytes')::int > 10485760 THEN RAISE EXCEPTION 'MCP_BAD:That file is over 10 MB. Nothing was stored.'; END IF;
+  IF coalesce((_p->>'size_bytes')::int, 0) < 1 OR (_p->>'size_bytes')::int > 104857600 THEN RAISE EXCEPTION 'MCP_BAD:That file is over 100 MB. Nothing was stored.'; END IF;
   doc_body := coalesce(_p->>'body', '');
   IF length(doc_body) > 400000 THEN RAISE EXCEPTION 'MCP_BAD:The readable text is too long to store.'; END IF;
   chars := length(doc_body);

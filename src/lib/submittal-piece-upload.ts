@@ -3,7 +3,7 @@ import type { SubmittalRecordPayload } from "./submittal-record-page";
 import type { PackageKind } from "./mcp/submittals";
 
 const BUCKET = "athena-submittals",
-  MAX_BYTES = 50 * 1024 * 1024;
+  MAX_BYTES = 100 * 1024 * 1024;
 type Result = { data?: unknown; error: { message: string } | null };
 export type PieceUploadClient = {
   rpc(name: string, args: Record<string, unknown>): PromiseLike<Result>;
@@ -32,7 +32,7 @@ export type PieceUploadInput = {
 export async function uploadSubmittalPiece(client: PieceUploadClient, input: PieceUploadInput) {
   const mime = submittalPieceMime(input.file.name);
   if (!mime || !input.file.size || input.file.size > MAX_BYTES)
-    throw new Error("Choose a PDF, PNG, JPEG, DOCX, XLSX or CSV between 1 byte and 50 MB.");
+    throw new Error("Choose a PDF, PNG, JPEG, DOCX, XLSX or CSV between 1 byte and 100 MB.");
   if (!!input.pieceId === !!input.newPiece)
     throw new Error("Choose an existing piece or add a new piece.");
   const parsed = input.newPiece ? newSubmittalPiece.safeParse(input.newPiece) : undefined;

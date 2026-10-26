@@ -5,7 +5,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { PackageItem, SubmittalRecord } from "./submittals";
 import { PACKAGE_PURPOSE_LABEL, packagePurpose, requestContent, requestContentGaps, type PackagePurpose, type RequestDetails } from "./package-purpose";
 export const SUBMITTAL_BUCKET = "athena-submittals";
-export const PACKAGE_MAX_BYTES = 50 * 1024 * 1024;
+export const PACKAGE_MAX_BYTES = 100 * 1024 * 1024;
 export type PackageArtifact = {
   id: string;
   filename: string;
@@ -165,7 +165,7 @@ export async function buildSubmittalPdf(
     files.length > 40 ||
     files.reduce((n, f) => n + f.bytes.length, 0) > PACKAGE_MAX_BYTES
   )
-    throw new Error("A package needs 1 to 40 files totaling at most 50 MB.");
+    throw new Error("A package needs 1 to 40 files totaling at most 100 MB.");
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -347,6 +347,6 @@ export async function buildSubmittalPdf(
     if (doc.getPageCount() > 500) throw new Error("A package may contain at most 500 pages.");
   }
   const bytes = await doc.save();
-  if (bytes.length > PACKAGE_MAX_BYTES) throw new Error("The combined package is over 50 MB.");
+  if (bytes.length > PACKAGE_MAX_BYTES) throw new Error("The combined package is over 100 MB.");
   return { bytes, pageCount: doc.getPageCount(), coverPages, manifest };
 }
