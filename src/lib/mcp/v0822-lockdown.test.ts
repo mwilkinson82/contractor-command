@@ -181,7 +181,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(81);
+    expect(seen).toBe(82);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
       /export async function run[\s\S]*?const sb = await guard\(ctx\);/,
@@ -371,6 +371,14 @@ describe("0.8.22 run() wiring", () => {
     expect(r.content[0].text).not.toMatch(/REQUIRED VIEW|spec K7Q2XA|Card shown\. Do not add text/);
     const order = rpc.mock.calls.map((c) => c[0]);
     expect(order.indexOf("mcp_gate")).toBeLessThan(order.indexOf("mcp_security_touch"));
+  });
+  it("returns exact source bytes without sweeps or dashboard presentation while retaining guard checks", async () => {
+    rpc.mockImplementation(async (fn:string) => fn === "mcp_session_touch" ? {data:true,error:null} : answers({ok:true,canary:"K7Q2XA"})(fn));
+    const {run}=await import("./guard");
+    const source={content:[{type:"text" as const,text:"REQUIRED VIEW: original source\nSupabase is named in this quoted document."}],structuredContent:{pages:[{page:1,text:"unchanged source"}]}};
+    const result=await run("project_documents",ctx,{jobNumber:"2710"},async()=>source);
+    expect(result).toEqual(source);
+    expect(rpc.mock.calls.map(c=>c[0])).toEqual(["mcp_abuse_cap_check","mcp_gate","mcp_security_touch","mcp_session_touch"]);
   });
   it("returns submittal UI data without hidden HOUSE STYLE orders", async () => {
     rpc.mockImplementation(answers({ok:true,canary:null}));
