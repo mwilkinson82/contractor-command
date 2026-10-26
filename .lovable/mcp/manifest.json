@@ -2235,7 +2235,7 @@
       {
         "name": "contract_terms",
         "title": "Read contract terms",
-        "description": "Reads contract clauses, the contract value, and the substantial completion date when asked what the contract says, what it is worth, or when the job finishes.",
+        "description": "Reads exact automatically extracted contract/spec clauses with filename, source ID and physical PDF pages, plus saved contract value and completion date; continue clause results with source_offset when next_source_offset is provided.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -2257,6 +2257,18 @@
             },
             "include_summary": {
               "type": "boolean"
+            },
+            "source_offset": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "source_limit": {
+              "default": 8,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
             }
           },
           "required": [

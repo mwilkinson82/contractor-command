@@ -68,7 +68,7 @@ it("publishes complete page text once and reuses it without PDF extraction", asy
   expect((await prepareReadable(sb, s, bytes)).reused).toBe(true);
   expect((await loadReadable(sb, s))!.pages).toEqual(first.document.pages);
   expect(extract).toHaveBeenCalledTimes(1);
-  expect(objects.size).toBe(1);
+  expect(objects.size).toBe(2);
   expect(bytes).toEqual(original);
 });
 it("refuses stale identity, incomplete coverage, corrupted text and wrong-job keys", async () => {
@@ -109,7 +109,7 @@ it("never publishes ready on a failed extraction or storage write, and reconcile
     prepareReadable(sb, s, bytes),
   ]);
   expect(prepared.map((x) => x.reused).sort()).toEqual([false, true]);
-  expect(objects.size).toBe(1);
+  expect(objects.size).toBe(2);
   const malformed = new TextEncoder().encode("not a PDF");
   await expect(prepareReadable(sb, source(malformed), malformed)).rejects.toThrow(
     /could not be extracted/,

@@ -1,3 +1,5 @@
+import {loadJobSourceClauses} from "../source-clauses";
+import {clauseKinds} from "../literal-clauses";
 import { billingForecastCardModel, presentPayApp } from "../pay-app-card";
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
 import { readDelay, ganttPins, noteDateConflicts, pageLine, payModel, type Billing } from "../styled-views";
@@ -177,10 +179,12 @@ export const cpmActivities = defineTool({
       if (job.scope === "contract") throw new ToolError(FULL_ACCESS_MESSAGE);
       const showMoney = job.scope === "full";
       const g = await getReport(sb, job, "cpm", args.version);
+      const sources=await loadJobSourceClauses(sb,job,args.company_id);
+      const sourceClauses=sources.clauses.filter(c=>clauseKinds(c).includes("schedule_context")).map(c=>({...c,text:c.text.slice(0,4000),parts:c.parts.slice(0,2).map(p=>({...p,text:p.text.slice(0,2000)})),response_truncated:c.text.length>4000||c.parts.length>2})).slice(0,25);
       await audit(sb, job, "cpm_activities", "view_cpm_activities", null);
       if (!g.found) {
         return guide(
-          { ...text(`${prefix(job)}No approved CPM is saved for this job yet, so there's no activity list to hand over. Contract completion: ${g.contract_completion_date ?? "Needed"}.\nBuild and approve the baseline first, then save it as version 1.`), structuredContent: { found: false, activities: [], contract_completion_date: g.contract_completion_date ?? null } },
+          { ...text(`${prefix(job)}No approved CPM is saved for this job yet, so there's no activity list to hand over. Contract completion: ${g.contract_completion_date ?? "Needed"}.\nBuild and approve the baseline first, then save it as version 1.`), structuredContent: { source_clauses:sourceClauses,source_issues:sources.problems,found: false, activities: [], contract_completion_date: g.contract_completion_date ?? null } },
           "No saved CPM: follow the no-schedule flow, then after the PM approves the baseline call living_report_save with report_type cpm and base_version 0. Never draw a CPM or billing split from an earlier chat.",
         );
       }
@@ -216,6 +220,7 @@ export const cpmActivities = defineTool({
           ...text(lines.join("\n")),
           structuredContent: {
             found: true,
+            source_clauses:sourceClauses,source_issues:sources.problems,
             version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null,
             contract_completion_date: g.contract_completion_date ?? null,
             count_check: count,

@@ -318,6 +318,7 @@ export const fileUpload = defineTool({
           {
             document_id: source.id,
             readable_state: "ready",
+            clause_index_state:"extracted",clause_count:ready.clause_count,clause_index_reused:ready.clause_index_reused,
             total_pdf_pages: ready.document.total_pdf_pages,
             source_sha256: source.file_sha256,
             reused_extraction: ready.reused,
@@ -622,6 +623,7 @@ async function finishBytes(
     );
     let readableState = "not_pdf";
     let readablePages: number | null = null;
+    let clauseCount:number|null=null;
     if (checked.ext === "pdf") {
       try {
         const ready = await prepareReadable(
@@ -641,6 +643,7 @@ async function finishBytes(
         );
         readableState = "ready";
         readablePages = ready.document.total_pdf_pages;
+        clauseCount=ready.clause_count;
       } catch {
         readableState = "failed";
       }
@@ -668,6 +671,7 @@ async function finishBytes(
       filename: saved.name,
       readable_state: readableState,
       total_pdf_pages: readablePages,
+      clause_index_state:readableState==="ready"?"extracted":"unavailable",clause_count:clauseCount,
       body_chars: saved.body_chars,
       truncated: saved.truncated,
       size_bytes: bytes.length,

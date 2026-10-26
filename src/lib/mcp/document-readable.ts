@@ -104,7 +104,12 @@ export async function prepareReadable(
   source: ReadableSource,
   bytes: Uint8Array,
   extractedPages?: string[],
-): Promise<{ document: ReadableDocument; reused: boolean }> {
+): Promise<{
+  document: ReadableDocument;
+  reused: boolean;
+  clause_count: number;
+  clause_index_reused: boolean;
+}> {
   readableKey(source);
   if (
     bytes.length > DOC_MAX_BYTES ||
@@ -115,7 +120,16 @@ export async function prepareReadable(
       "The original bytes do not match this source. No readable document was saved.",
     );
   const existing = await loadReadable(sb, source);
-  if (existing) return { document: existing, reused: true };
+  if (existing) {
+    const { prepareClauseIndex } = await import("./document-clause-index");
+    const indexed = await prepareClauseIndex(sb, source, existing);
+    return {
+      document: existing,
+      reused: true,
+      clause_count: indexed.index.entries.length,
+      clause_index_reused: indexed.reused,
+    };
+  }
   let texts: string[];
   try {
     texts = extractedPages ?? (await extractPdfiumDocumentText(bytes));
@@ -156,5 +170,12 @@ export async function prepareReadable(
   const saved = await loadReadable(sb, source);
   if (!saved)
     throw new ToolError("Readable document readiness could not be verified. Original unchanged.");
-  return { document: saved, reused: !!error };
+  const { prepareClauseIndex } = await import("./document-clause-index");
+  const indexed = await prepareClauseIndex(sb, source, saved);
+  return {
+    document: saved,
+    reused: !!error,
+    clause_count: indexed.index.entries.length,
+    clause_index_reused: indexed.reused,
+  };
 }
