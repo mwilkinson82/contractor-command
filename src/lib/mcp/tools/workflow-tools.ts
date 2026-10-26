@@ -498,7 +498,7 @@ export const intake = defineTool({
           _notice: pack(notice, nd), _claim: pack(claim, cd),
         });
         const termLine = (name: string, t: typeof notice, d: typeof nd) =>
-          !t ? `${name}: contract term not recorded — open item asks to confirm it (due today).`
+          !t ? source.clauses.length ? `${name}: no unambiguous automatic clock was extracted; source wording and conditions remain available, and no deadline was invented.` : `${name}: contract term not recorded — open item asks to confirm it (due today).`
             : !start ? `${name}: ${t.n_days} ${t.day_type ?? "(day type not stated)"} days${t.clause_ref ? ` (${t.clause_ref})` : ""}; start date unknown, so flagged due today — confirm start date.`
               : !d.due ? `${name}: ${d.math}` : `${name}: due ${d.due} (${d.math}${t.clause_ref ? `, ${t.clause_ref}` : ""}).${d.precautions.length ? ` ${d.precautions.join(" ")}` : ""}`;
         const j = (jr.data ?? {}) as { pm_name?: string | null; pm_email?: string | null; pm_title?: string | null; pm_user_id?: string | null };
