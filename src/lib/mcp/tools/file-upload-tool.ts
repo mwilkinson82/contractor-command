@@ -7,6 +7,7 @@ import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, prefix, resolveJob } fro
 import { FileRejected, newToken, sha256Hex, tokenHash } from "../file-share";
 import {
   DOC_BUCKET,
+  EXTRACT_MAX_CHARS,
   FILE_UPLOAD_CALL_CHARS,
   FILE_UPLOAD_CHUNK_CHARS,
   FILE_UPLOAD_DESCRIPTION,
@@ -423,11 +424,30 @@ export const fileUpload = defineTool({
       if (!session) throw new ToolError("That upload is not on this job. Nothing was stored.");
       if (session.purpose === "submittal_piece" && job.scope !== "full")
         throw new ToolError(FULL_ACCESS_MESSAGE);
-      if (session.status === "finished" && session.result?.visible)
-        return storedReply(
-          session.result.visible,
-          session.result.structured ?? { upload_id: session.id, stored: true },
-        );
+      if (session.status === "finished" && session.result?.visible) {
+        // A completed specification with no extracted text may be retried after a
+        // parser repair. Never replace an official contract or create another source.
+        const cached = session.result.structured;
+        if (session.purpose === "spec" && cached?.body_chars === 0) {
+          assertSessionPath(job.company_id, job.job_id, session);
+          const { data: doc, error } = await sb.from("mcp_spec_documents")
+            .select("id,body,storage_path,file_sha256")
+            .eq("job_id", job.job_id).eq("upload_id", session.id).maybeSingle();
+          if (error) dbError(error);
+          if (!doc || doc.id !== cached.document_id || doc.storage_path !== session.storage_path)
+            throw new ToolError("The stored specification could not be verified. Nothing changed.");
+          if (doc.body) return storedReply(
+            `${prefix(job)}Specification stored: ${session.filename}.\nText read from the file: ${doc.body.length.toLocaleString()} characters.`,
+            { ...cached, body_chars: doc.body.length, truncated: doc.body.length >= EXTRACT_MAX_CHARS },
+          );
+          const bytes = await loadBytes(sb, session);
+          if (!doc.file_sha256 || await sha256Hex(bytes) !== doc.file_sha256)
+            throw new ToolError("The stored specification's original bytes could not be verified. Nothing changed.");
+          const extracted = await extractUploadDocument(bytes, uploadFilename(session.filename).ext);
+          if (extracted.chars) return finishBytes(sb, job, { ...session, tracked: false }, bytes);
+        }
+        return storedReply(session.result.visible, cached ?? { upload_id: session.id, stored: true });
+      }
       if (new Date(session.expires_at).getTime() <= Date.now())
         throw new ToolError("That upload link has expired. Start again. Nothing was stored.");
       assertSessionPath(job.company_id, job.job_id, session);

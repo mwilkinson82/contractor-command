@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { jsPDF } from "jspdf";
+import { createHash } from "node:crypto";
 import { visibleProblems } from "./visible";
 
 const state = vi.hoisted(() => ({
@@ -14,6 +16,7 @@ const state = vi.hoisted(() => ({
   attached: "" as string,
   rpcs: [] as [string, Record<string, unknown>][],
   fetches: 0,
+  recoveredDoc: null as {id:string;body:string;storage_path:string;file_sha256:string} | null,
 }));
 
 vi.mock("./guard", () => ({
@@ -53,6 +56,7 @@ function fakeSb() {
       select: () => ({
         eq: () => ({
           eq: () => ({
+            maybeSingle: async () => ({data:state.recoveredDoc,error:null}),
             order: () => ({
               limit: async () => ({
                 data: [{ id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }],
@@ -99,6 +103,7 @@ function fakeSb() {
       }
       if (fn === "mcp_contract_document_save") {
         const body = String((args._p as { body: string }).body);
+        if (state.recoveredDoc) state.recoveredDoc.body = body;
         return {
           data: {
             id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -153,6 +158,8 @@ beforeEach(() => {
   state.attached = "";
   state.rpcs = [];
   state.fetches = 0;
+  state.recoveredDoc = null;
+  vi.unstubAllGlobals();
 });
 
 describe("file_upload tool", () => {
@@ -248,4 +255,48 @@ describe("file_upload tool", () => {
       }),
     ).rejects.toThrow(/full access/);
   });
+  it("recovers an unreadable finished spec once, retaining source and document identities", async () => {
+    await call({action:"begin",job_number:"2701",purpose:"spec",filename:"Spec.pdf"});
+    const session=state.session!;
+    const pdf=new jsPDF({compress:true});pdf.text("Submittals reviewed with reasonable promptness.",10,20);
+    const bytes=new Uint8Array(pdf.output("arraybuffer"));
+    state.objects.set(`athena-documents/${session.storage_path}`,bytes);
+    session.status="finished";session.expires_at="2000-01-01T00:00:00Z";
+    session.result={visible:"File stored, no readable text.",structured:{stored:true,body_chars:0,
+      document_id:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",upload_id:session.id,purpose:"spec"}};
+    state.recoveredDoc={id:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",body:"",
+      storage_path:String(session.storage_path),file_sha256:createHash("sha256").update(bytes).digest("hex")};
+    const result=await call({action:"finish",job_number:"2701",upload_id:session.id});
+    expect(result.structuredContent.body_chars).toBeGreaterThan(0);
+    expect(result.structuredContent.document_id).toBe(state.recoveredDoc.id);
+    const saves=()=>state.rpcs.filter(([fn])=>fn==="mcp_contract_document_save");
+    expect(saves()).toHaveLength(1);
+    const replay=await call({action:"finish",job_number:"2701",upload_id:session.id});
+    expect(replay.structuredContent.body_chars).toBeGreaterThan(0);
+    expect(saves()).toHaveLength(1);
+    expect(state.rpcs.filter(([fn])=>fn==="mcp_file_upload_begin")).toHaveLength(1);
+    expect(state.objects.size).toBe(1);
+  });
+
+  it("refuses failed-spec recovery when original bytes differ", async () => {
+    await call({action:"begin",job_number:"2701",purpose:"spec",filename:"Spec.txt"});
+    const session=state.session!;session.status="finished";
+    session.result={visible:"stored",structured:{body_chars:0,document_id:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"}};
+    state.recoveredDoc={id:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",body:"",storage_path:String(session.storage_path),file_sha256:"ab".repeat(32)};
+    state.objects.set(`athena-documents/${session.storage_path}`,new TextEncoder().encode("changed bytes"));
+    await expect(call({action:"finish",job_number:"2701",upload_id:session.id})).rejects.toThrow(/original bytes/);
+    expect(state.rpcs.some(([fn])=>fn==="mcp_contract_document_save")).toBe(false);
+  });
+
+  it("never retries completed official contracts or already readable uploads", async () => {
+    for (const purpose of ["contract", "spec"]) {
+      await call({action:"begin",job_number:"2701",purpose,filename:"source.txt"});
+      const session=state.session!;session.status="finished";
+      session.result={visible:"original receipt",structured:{body_chars:purpose==="contract"?0:20,stored:true}};
+      const result=await call({action:"finish",job_number:"2701",upload_id:session.id});
+      expect(visible(result)).toContain("original receipt");
+    }
+    expect(state.rpcs.some(([fn])=>fn==="mcp_contract_document_save")).toBe(false);
+  });
+
 });
