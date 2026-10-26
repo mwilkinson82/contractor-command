@@ -27,14 +27,6 @@ ALTER TABLE public.mcp_contract_documents
 ALTER TABLE public.mcp_contract_documents
   ADD CONSTRAINT mcp_contract_documents_size_bytes_check CHECK (size_bytes IS NULL OR size_bytes > 0);
 
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('athena-documents', 'athena-documents', false, 10485760, ARRAY[
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain'
-])
-ON CONFLICT (id) DO NOTHING;
-
 CREATE FUNCTION public.mcp_document_path_scope(_name text) RETURNS text
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
 DECLARE parts text[] := string_to_array(_name, '/'); j uuid; c uuid;
