@@ -65,7 +65,7 @@ describe("upload link", () => {
     const huge = await handleFileUpload(
       new Request("https://app.meetathena.io/x", {
         method: "PUT",
-        headers: { "content-length": String(11 * 1024 * 1024) },
+        headers: { "content-length": String(101 * 1024 * 1024) },
         body: new Uint8Array(8),
       }),
       token,
