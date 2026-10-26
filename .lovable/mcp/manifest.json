@@ -3493,6 +3493,14 @@
                   "type": "string",
                   "maxLength": 4096,
                   "format": "uri"
+                },
+                "staged_path": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "upload_token": {
+                  "type": "string",
+                  "maxLength": 1024
                 }
               }
             },
@@ -4988,6 +4996,14 @@
                   "type": "string",
                   "maxLength": 4096,
                   "format": "uri"
+                },
+                "staged_path": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "upload_token": {
+                  "type": "string",
+                  "maxLength": 1024
                 }
               }
             },
@@ -5691,6 +5707,14 @@
                   "type": "string",
                   "maxLength": 4096,
                   "format": "uri"
+                },
+                "staged_path": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "upload_token": {
+                  "type": "string",
+                  "maxLength": 1024
                 }
               }
             },

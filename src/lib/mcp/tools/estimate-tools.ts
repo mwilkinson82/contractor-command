@@ -19,6 +19,7 @@ import {
   measuredSettlement,
 } from "../takeoff/integration";
 import { drawingFile, drawingWithFile } from "../drawing-file-input";
+import { drawingUploadSecret, signDrawingUpload, stagedPathFor, verifyDrawingUpload } from "../drawing-upload";
 // Estimating role. Same gate as the other tools: run() checks auth, the call cap and the membership entitlement.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -289,6 +290,8 @@ const drawingUpload = z
       .optional(),
     sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
     source_url: z.string().url().max(4096).optional(),
+    staged_path: z.string().max(300).optional(),
+    upload_token: z.string().max(1024).optional(),
   })
   .optional();
 const bidLine = z.object({
@@ -1672,6 +1675,43 @@ function storedDrawingReply(
   );
 }
 
+/** A one-time direct upload link for the drawing card. Absent when the server has no signing key. */
+async function directUpload(job: { company_id: string; job_id: string }): Promise<Record<string, JsonValueInput>> {
+  const secret = drawingUploadSecret();
+  if (!secret) return {};
+  return { direct_upload: await signDrawingUpload(job, secret) };
+}
+
+type ImportUpload = ReturnType<typeof drawingWithFile>;
+/** Confirm a PDF the card already sent to the direct upload route. Only the small path crosses the tool call. */
+async function withStagedDrawing(
+  sb: Sb,
+  job: { company_id: string; job_id: string },
+  upload: ImportUpload,
+): Promise<ImportUpload> {
+  if (!upload?.staged_path && !upload?.upload_token) return upload;
+  if (upload.content_base64 || upload.source_url || upload.file)
+    throw new ToolError(
+      "Provide one drawing source: the direct upload, PDF bytes, or a source link. Nothing was stored.",
+    );
+  const secret = drawingUploadSecret();
+  const claim =
+    secret && upload.upload_token ? await verifyDrawingUpload(upload.upload_token, secret) : null;
+  if (!claim || claim.company_id !== job.company_id || claim.job_id !== job.job_id)
+    throw new ToolError(
+      "That upload link is not valid for this job or has expired. Choose the PDF again. Nothing was stored.",
+    );
+  const path = upload.staged_path ?? "";
+  if (!stagedPathFor(claim, path))
+    throw new ToolError("The uploaded drawing is not on this job. Nothing was stored.");
+  const file = await sb.storage.from("athena-drawings").download(path);
+  if (file.error || !file.data)
+    throw new ToolError("The uploaded drawing could not be found. Choose the PDF again. Nothing was stored.");
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+  const { staged_path: _p, upload_token: _t, ...rest } = upload;
+  return { ...rest, staged: { bytes, path } };
+}
+
 export const drawingSetImport = defineTool({
   name: "drawing_set_import",
   title: "Store a drawing set",
@@ -1701,7 +1741,11 @@ export const drawingSetImport = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         uploadContext = { job_number: job.job_number, company_id: job.company_id };
         const prior = await load(sb, job.job_id);
-        const upload = drawingWithFile(args.drawing, args.file, args.sheets);
+        const upload = await withStagedDrawing(
+          sb,
+          job,
+          drawingWithFile(args.drawing, args.file, args.sheets),
+        );
         let indexed: Awaited<ReturnType<typeof storeDrawingSet>> | undefined;
         if (args.source_id || args.stored_filename) {
           if (upload)
@@ -1757,7 +1801,7 @@ export const drawingSetImport = defineTool({
                 },
               ],
             },
-            { stored: false, upload_context: uploadContext },
+            { stored: false, upload_context: uploadContext, ...(await directUpload(job)) },
           );
         const stored = indexed ?? (await storeDrawingSet(sb, job, upload!, prior.setup.documents));
         imported = stored;
