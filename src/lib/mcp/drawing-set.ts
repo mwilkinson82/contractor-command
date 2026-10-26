@@ -25,7 +25,7 @@ import {
 export const DRAWING_URL_SECONDS = 15 * 60;
 export const DRAWING_BUCKET = "athena-drawings";
 /** New original drawings. file_share and generated markup PDFs stay on FILE_MAX_BYTES. */
-export const DRAWING_MAX_BYTES = 50 * 1024 * 1024;
+export const DRAWING_MAX_BYTES = 100 * 1024 * 1024;
 export const DRAWING_B64_MAX_CHARS = Math.ceil(DRAWING_MAX_BYTES / 3) * 4 + 8;
 export const drawingTooBigMessage = () =>
   `That drawing is over ${DRAWING_MAX_BYTES / 1024 / 1024} MB. Nothing was stored.`;
@@ -39,7 +39,7 @@ type StoredObjectRow = {
   storage_bucket?: string | null;
 };
 
-/** 50 MB only when the object is written to athena-drawings. athena-files stays at 10 MB. */
+/** 100 MB only when the object is written to athena-drawings. athena-files stays at 10 MB. */
 export function drawingUploadLimit(bucketName: string): number {
   return bucketName === DRAWING_BUCKET ? DRAWING_MAX_BYTES : FILE_MAX_BYTES;
 }
@@ -463,7 +463,7 @@ export async function storeDrawingSet(
   if (!drawingOwned(path, job.company_id, job.job_id))
     throw new ToolError("Athena couldn't store that drawing. Nothing was stored.");
   if (!existing && !legacy) {
-    // New originals go to athena-drawings (50 MB). A write into athena-files keeps the 10 MB cap.
+    // New originals go to athena-drawings (100 MB). A write into athena-files keeps the 10 MB cap.
     if (bytes.length > drawingUploadLimit(storageBucket)) {
       throw new ToolError(
         storageBucket === DRAWING_BUCKET
