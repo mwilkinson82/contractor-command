@@ -13,6 +13,13 @@ export type DrawingUploadDeps = {
 };
 
 export const USED_MARKER_PREFIX = "drawing-upload-used/";
+/**
+ * Used-link markers live outside athena-drawings (PDF only). athena-documents has no type
+ * list, and nothing lists that bucket: documents are found by their registered rows, and
+ * its member policies only match company/job paths, so these markers never surface.
+ */
+export const USED_MARKER_BUCKET = "athena-documents";
+export const USED_MARKER_CONTENT_TYPE = "text/plain";
 const NONCE_RE = /^[0-9a-f-]{36}$/;
 
 const CORS = {
@@ -89,8 +96,8 @@ export function drawingUploadDepsFromEnv(): DrawingUploadDeps {
     secret: drawingUploadSecret(),
     async claim(nonce) {
       const up = await adminClient()
-        .storage.from(DRAWING_BUCKET)
-        .upload(`${USED_MARKER_PREFIX}${nonce}`, new Uint8Array(0), { contentType: "text/plain", upsert: false, cacheControl: "no-store" });
+        .storage.from(USED_MARKER_BUCKET)
+        .upload(`${USED_MARKER_PREFIX}${nonce}`, new Uint8Array(0), { contentType: USED_MARKER_CONTENT_TYPE, upsert: false, cacheControl: "no-store" });
       if (!up.error) return true;
       if (/already exists|duplicate/i.test(up.error.message)) return false;
       throw new Error(up.error.message);
@@ -129,7 +136,8 @@ export async function handleDrawingUpload(
   const path = storagePath(claim.company_id, claim.job_id, `drawing-${hash}`, "source.pdf");
   try {
     await deps.put(DRAWING_BUCKET, path, bytes);
-  } catch {
+  } catch (e) {
+    console.error("[drawing-upload] store failed:", (e as Error).message);
     return json(502, { stored: false, error: "Athena couldn't store that drawing right now. Try again in a moment." });
   }
   // Single use, recorded only after the bytes are stored, so a failed or dropped PUT leaves
@@ -137,7 +145,8 @@ export async function handleDrawingUpload(
   let first: boolean;
   try {
     first = NONCE_RE.test(String(claim.nonce)) && (await deps.claim(claim.nonce));
-  } catch {
+  } catch (e) {
+    console.error("[drawing-upload] used-marker write failed:", (e as Error).message);
     return json(502, { stored: false, error: "Athena couldn't store that drawing right now. Try again in a moment." });
   }
   if (!first)
