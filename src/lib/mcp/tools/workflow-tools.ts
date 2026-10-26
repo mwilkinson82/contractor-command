@@ -1664,6 +1664,11 @@ export const resolveItem = defineTool({
 });
 
 // ---------- contract_terms (read-only) ----------
+/** Boolean on purpose: `job.scope === "super"` would narrow scope and make the signed-link check a type error. */
+function isSuperintendentScope(scope: string | null | undefined): boolean {
+  return scope === "super";
+}
+
 const CONTRACT_KEYS = ["pay_terms", "notice_timing", "tia_timing", "change_process", "claim_process", "retainage", "retainage_reduction", "beneficial_use_clause", "liquidated_damages", "savings_split", "closeout", "warranty_clauses"] as const;
 const CONTRACT_FLAGS = ["has_retainage", "has_lds", "beneficial_use", "notice_requirements"] as const;
 
@@ -1680,7 +1685,7 @@ export const contractTerms = defineTool({
   handler: (args, ctx) =>
     run("contract_terms", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
-      if (job.scope === "super") throw new ToolError(READ_ONLY_MESSAGE);
+      if (isSuperintendentScope(job.scope)) throw new ToolError(READ_ONLY_MESSAGE);
       const [fR, flR, jobR, valueR, iorR] = await Promise.all([
         sb.from("mcp_job_facts").select("key, value, status, source").eq("job_id", job.job_id).eq("module", "contract"),
         sb.from("mcp_job_flags").select("flag_key, value, source").eq("job_id", job.job_id).in("flag_key", [...CONTRACT_FLAGS]),
@@ -1723,6 +1728,7 @@ export const contractTerms = defineTool({
       });
       const showMoney = job.scope === "full";
       const completion = completionDate(jobR.data?.contract_completion_date ?? null, valueFacts);
+      // Option B: superintendents get signed board links. Keep "super" in this check.
       const board = job.scope === "full" || job.scope === "super" ? await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope) : {};
       const boardLinks = [
         board.items ? { label: "Open items", url: board.items } : null,
