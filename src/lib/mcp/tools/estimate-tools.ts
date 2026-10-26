@@ -19,6 +19,7 @@ import {
   measuredSettlement,
 } from "../takeoff/integration";
 import { drawingFile, drawingWithFile } from "../drawing-file-input";
+import { drawingUploadSecret, signDrawingUpload, verifyDrawingReceipt } from "../drawing-upload";
 // Estimating role. Same gate as the other tools: run() checks auth, the call cap and the membership entitlement.
 import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -289,6 +290,8 @@ const drawingUpload = z
       .optional(),
     sheets: z.array(z.string().trim().min(1).max(40)).max(400).optional(),
     source_url: z.string().url().max(4096).optional(),
+    staged_path: z.string().max(300).optional(),
+    upload_receipt: z.string().max(2048).optional(),
   })
   .optional();
 const bidLine = z.object({
@@ -1672,6 +1675,48 @@ function storedDrawingReply(
   );
 }
 
+/** A one-time direct upload link for the drawing card. Absent when the server has no signing key. */
+async function directUpload(job: { company_id: string; job_id: string }): Promise<Record<string, JsonValueInput>> {
+  const secret = drawingUploadSecret();
+  if (!secret) return {};
+  return { direct_upload: await signDrawingUpload(job, secret) };
+}
+
+type ImportUpload = ReturnType<typeof drawingWithFile>;
+/**
+ * Confirm a PDF the card already sent to the direct upload route. Only the small path and
+ * the route's signed receipt (path, sha256, size) cross the tool call. The object is
+ * checked with a storage listing, never downloaded, so a 70 MB set is not held in memory.
+ */
+async function withStagedDrawing(
+  sb: Sb,
+  job: { company_id: string; job_id: string },
+  upload: ImportUpload,
+): Promise<ImportUpload> {
+  if (!upload?.staged_path && !upload?.upload_receipt) return upload;
+  if (upload.content_base64 || upload.source_url || upload.file)
+    throw new ToolError(
+      "Provide one drawing source: the direct upload, PDF bytes, or a source link. Nothing was stored.",
+    );
+  const secret = drawingUploadSecret();
+  const receipt =
+    secret && upload.upload_receipt ? await verifyDrawingReceipt(upload.upload_receipt, secret) : null;
+  if (!receipt || receipt.company_id !== job.company_id || receipt.job_id !== job.job_id)
+    throw new ToolError(
+      "That upload is not valid for this job or has expired. Choose the PDF again. Nothing was stored.",
+    );
+  if (upload.staged_path !== receipt.path)
+    throw new ToolError("The uploaded drawing is not on this job. Nothing was stored.");
+  const dir = receipt.path.slice(0, receipt.path.lastIndexOf("/"));
+  const listed = await sb.storage.from("athena-drawings").list(dir, { search: "source.pdf", limit: 2 });
+  const object = listed.data?.find((o) => o.name === "source.pdf");
+  const size = Number((object?.metadata as { size?: number } | undefined)?.size);
+  if (listed.error || !object || (Number.isFinite(size) && size !== receipt.size))
+    throw new ToolError("The uploaded drawing could not be found. Choose the PDF again. Nothing was stored.");
+  const { staged_path: _p, upload_receipt: _r, ...rest } = upload;
+  return { ...rest, staged: { path: receipt.path, content_hash: receipt.content_hash, size: receipt.size } };
+}
+
 export const drawingSetImport = defineTool({
   name: "drawing_set_import",
   title: "Store a drawing set",
@@ -1701,7 +1746,11 @@ export const drawingSetImport = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         uploadContext = { job_number: job.job_number, company_id: job.company_id };
         const prior = await load(sb, job.job_id);
-        const upload = drawingWithFile(args.drawing, args.file, args.sheets);
+        const upload = await withStagedDrawing(
+          sb,
+          job,
+          drawingWithFile(args.drawing, args.file, args.sheets),
+        );
         let indexed: Awaited<ReturnType<typeof storeDrawingSet>> | undefined;
         if (args.source_id || args.stored_filename) {
           if (upload)
@@ -1757,7 +1806,7 @@ export const drawingSetImport = defineTool({
                 },
               ],
             },
-            { stored: false, upload_context: uploadContext },
+            { stored: false, upload_context: uploadContext, ...(await directUpload(job)) },
           );
         const stored = indexed ?? (await storeDrawingSet(sb, job, upload!, prior.setup.documents));
         imported = stored;

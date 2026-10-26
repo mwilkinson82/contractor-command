@@ -1,9 +1,10 @@
-import { NATIVE_CARD_MIME, nativeResourceMeta } from "./native";
+import { NATIVE_CARD_MIME } from "./native";
+import { DRAWING_UPLOAD_ORIGIN, DRAWING_UPLOAD_PATH } from "../drawing-upload";
 
 /** Drawing views have preview/zoom and private PDF links; the existing card views stay unchanged. */
-export const DRAWING_CARD_URI = "ui://athena/drawing-card-v5.html";
+export const DRAWING_CARD_URI = "ui://athena/drawing-card-v6.html";
 export const LEGACY_DRAWING_CARD_URI = "ui://athena/drawing-card.html";
-export const DRAWING_CARD_URIS = new Set([DRAWING_CARD_URI, "ui://athena/drawing-card-v4.html", "ui://athena/drawing-card-v3.html", "ui://athena/drawing-card-v2.html", LEGACY_DRAWING_CARD_URI]);
+export const DRAWING_CARD_URIS = new Set([DRAWING_CARD_URI, "ui://athena/drawing-card-v5.html", "ui://athena/drawing-card-v4.html", "ui://athena/drawing-card-v3.html", "ui://athena/drawing-card-v2.html", LEGACY_DRAWING_CARD_URI]);
 export const DRAWING_CARD_TOOLS = new Set(["drawing_set_import", "drawing_markup"]);
 export const drawingCardMeta = { ui: { resourceUri: DRAWING_CARD_URI } } as const;
 export const drawingCardResultMeta = {
@@ -11,7 +12,13 @@ export const drawingCardResultMeta = {
   "openai/outputTemplate": DRAWING_CARD_URI,
 } as const;
 export const DRAWING_CARD_MIME = NATIVE_CARD_MIME;
-export const drawingResourceMeta = nativeResourceMeta;
+/** The drawing card may PUT a PDF to the app's own direct upload route and nowhere else. */
+export const drawingResourceMeta = {
+  ui: { csp: { connectDomains: [DRAWING_UPLOAD_ORIGIN], resourceDomains: [] as string[] }, prefersBorder: true },
+  "openai/widgetCSP": { connect_domains: [DRAWING_UPLOAD_ORIGIN], resource_domains: [] as string[] },
+};
+/** Old cards and hosts without direct upload keep the base64 path up to this size. */
+export const DRAWING_BASE64_FALLBACK_BYTES = 20 * 1024 * 1024;
 
 export function drawingCardHtml(
   storageUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
@@ -28,7 +35,7 @@ export function drawingCardHtml(
 *{box-sizing:border-box}body{margin:0;background:#FFFFFF;color:#1E3A5F;font:15px/1.45 system-ui,sans-serif}.card{border:1px solid #6B7280;border-top:4px solid #1E5FED;border-radius:12px;overflow:hidden;min-width:0}header{background:#1E3A5F;color:#FFFFFF;padding:18px}header p{margin:4px 0}h1{font-size:22px;margin:4px 0;overflow-wrap:anywhere}.brand{font-size:11px;letter-spacing:.12em}main{padding:16px}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}.kpi{padding:12px;border:1px solid #6B7280;border-radius:8px;min-width:0}.kpi small{display:block;color:#6B7280}.kpi strong{display:block;overflow-wrap:anywhere}h2{font-size:16px;margin:20px 0 10px}.row{border-left:3px solid #1E5FED;background:#FFFFFF;padding:10px 12px;margin:8px 0;overflow-wrap:anywhere}.row p{margin:3px 0;white-space:pre-wrap}.row p+p{color:#6B7280}.alert{border-color:#DC2626}.alert strong{color:#DC2626}.tools{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}button{min-height:44px;padding:9px 13px;border:1px solid #1E5FED;border-radius:7px;background:#FFFFFF;color:#1E3A5F;font:inherit;cursor:pointer}button:focus-visible{outline:3px solid #1E5FED;outline-offset:2px}.download{background:#1E5FED;color:#FFFFFF}.preview{overflow:auto;border:1px solid #6B7280;border-radius:8px;max-height:560px;touch-action:pan-x pan-y}.preview img{display:block;width:100%;max-width:none;height:auto}.note{color:#6B7280;font-size:13px;overflow-wrap:anywhere}.status{padding:12px;border-left:3px solid #1E5FED;color:#6B7280}@media(max-width:480px){header,main{padding:12px}h1{font-size:20px}.kpis .kpi:last-child:nth-child(odd){grid-column:1/-1}.preview{max-height:400px}}
 button:disabled{background:#6B7280;border-color:#6B7280;color:#FFFFFF;cursor:default}.tools select{min-width:0;max-width:100%;min-height:44px}input{max-width:100%}input[type="text"]{min-height:44px;padding:8px;border:1px solid #6B7280;border-radius:6px;color:#1E3A5F;background:#FFFFFF;font:16px/1.4 system-ui}</style></head><body><div id="app" aria-live="polite"><p class="status">Athena · Loading your drawing…</p></div><p id="status" class="note" role="status"></p><script>
 (function(){
-var app=document.getElementById("app"),status=document.getElementById("status"),ready=false,parentOrigin=null,lastSize="",requestId=2,pending=new Set(),toolRequests=new Map(),contextRequests=new Set(),host={},storageOrigin=${origin},currentResult=null,committedResult=null,committedContext=null,supersededSources=new Set(),restoring=false,restoreAttempted=false;
+var app=document.getElementById("app"),status=document.getElementById("status"),ready=false,parentOrigin=null,lastSize="",requestId=2,pending=new Set(),toolRequests=new Map(),contextRequests=new Set(),host={},storageOrigin=${origin},UPLOAD_PREFIX=${JSON.stringify(DRAWING_UPLOAD_ORIGIN + DRAWING_UPLOAD_PATH)},currentResult=null,committedResult=null,committedContext=null,supersededSources=new Set(),restoring=false,restoreAttempted=false;
 function send(message){window.parent.postMessage(Object.assign({jsonrpc:"2.0"},message),parentOrigin&&parentOrigin!=="null"?parentOrigin:"*")}
 function size(){if(!ready)return;var box=document.body.getBoundingClientRect(),dims={width:Math.ceil(box.width),height:Math.ceil(box.height)},key=JSON.stringify(dims);if(key!==lastSize){lastSize=key;send({method:"ui/notifications/size-changed",params:dims})}}
 function node(tag,text,css){var el=document.createElement(tag);if(text!=null)el.textContent=String(text);if(css)el.className=css;return el}
@@ -48,7 +55,8 @@ function previewPins(surface,annotations){
  var pin=node("span",String(index+1),"drawing-pin");pin.title=String(a.label||"");pin.style.position="absolute";pin.style.left=String(p.x*100)+"%";pin.style.top=String(p.y*100)+"%";pin.style.transform="translate(-50%,-50%)";pin.style.border="2px solid "+(alert(a.severity)?"#DC2626":"#1E5FED");pin.style.borderRadius="50%";pin.style.background="#FFFFFF";pin.style.color="#1E3A5F";pin.style.width="24px";pin.style.height="24px";pin.style.display="grid";pin.style.placeItems="center";surface.append(pin);
  });
 }
-function callDrawingTool(name,args){return new Promise(function(resolve,reject){var id=requestId++,timer=setTimeout(function(){toolRequests.delete(id);reject(new Error("The host did not confirm storage. Check the job's drawing library before retrying."))},60000);toolRequests.set(id,{resolve:resolve,reject:reject,timer:timer});send({id:id,method:"tools/call",params:{name:name,arguments:args}})})}
+function toolText(r){var c=r&&Array.isArray(r.content)?r.content:[],t=c.map(function(x){return x&&typeof x.text==="string"?x.text:""}).filter(Boolean).join(" ");return t.slice(0,600)}
+ function callDrawingTool(name,args,wait){return new Promise(function(resolve,reject){var id=requestId++,timer=setTimeout(function(){toolRequests.delete(id);reject(new Error("The host did not confirm storage. Check the job's drawing library before retrying."))},wait||60000);toolRequests.set(id,{resolve:resolve,reject:reject,timer:timer});send({id:id,method:"tools/call",params:{name:name,arguments:args}})})}
 function sameJob(a,b){return a&&b&&a.job_number===b.job_number&&a.company_id===b.company_id}
 function storedContext(sc,fallback){var c=sc.drawing_source_context||fallback,s=sc.source;if(!c||!s||typeof s.id!=="string")return null;return {job_number:c.job_number,company_id:c.company_id,source_id:s.id}}
 function remember(result,fallback){
@@ -94,15 +102,28 @@ function uploader(body,context){
  pick.style.display="block";pick.style.marginBottom="8px";names.style.width="100%";names.style.marginBottom="10px";pick.type="file";pick.accept="application/pdf,.pdf";pick.ariaLabel="Drawing PDF";
  names.type="text";names.placeholder="S-100, S-101, A-100…";names.ariaLabel="Sheet names in PDF page order";
  panel.append(node("h2","Upload directly to Athena"),node("p","Choose a PDF up to 100 MB. It is stored on this job; your local file is unchanged.","note"),pick,node("p","Sheet names in PDF page order (optional)","note"),names);
- var submit=button("Store PDF on this job",async function(){
+ async function directUpload(file){
+   var fallback=function(msg){var e=new Error(msg);e.fallback=true;return e};
+   var start=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id});
+   var up=start&&start.structuredContent&&start.structuredContent.direct_upload;
+   if(!up||typeof up.url!=="string"||typeof up.token!=="string"||up.url.indexOf(UPLOAD_PREFIX)!==0)throw fallback("This Athena server has not enabled direct uploads yet. Nothing was stored.");
+   var res;try{res=await fetch(up.url,{method:"PUT",headers:{"content-type":"application/pdf"},body:file})}catch(e){throw fallback("This host blocked the direct upload. Nothing was stored.")}
+   var out=null;try{out=await res.json()}catch(e){out=null}
+   if(!res.ok||!out||out.stored!==true||typeof out.path!=="string"||typeof out.receipt!=="string")throw new Error(out&&typeof out.error==="string"&&out.error||"The upload did not finish (HTTP "+res.status+"). Nothing was stored.");
+   return {path:out.path,receipt:out.receipt};
+  }
+  var submit=button("Store PDF on this job",async function(){
   if(busy||!host.serverTools)return;
   var file=pick.files&&pick.files[0];if(!file){status.textContent="Choose a PDF first.";size();return}
   if(file.size>104857600){status.textContent="That PDF is over 100 MB. Nothing was stored.";size();return}
   busy=true;submit.disabled=true;status.textContent="Storing your PDF…";size();
-  try{var bytes=new Uint8Array(await file.arrayBuffer()),parts=[];for(var i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+8192)));
-   var sheets=names.value.split(/[,\\n]/).map(function(s){return s.trim()}).filter(Boolean);
-   var result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,content_base64:btoa(parts.join("")),sheets:sheets}});
-   if(result&&result.structuredContent){remember(result,context);if(result.structuredContent.stored!==true)status.textContent="The new upload was not stored. No older drawing was substituted."}
+  try{var sheets=names.value.split(/[,\\n]/).map(function(s){return s.trim()}).filter(Boolean),result=null,staged=null;
+    try{staged=await directUpload(file)}catch(e){if(!(e&&e.fallback)||file.size>${DRAWING_BASE64_FALLBACK_BYTES})throw e}
+    if(staged){status.textContent="Uploaded. Athena is registering the drawing…";size();
+     result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,staged_path:staged.path,upload_receipt:staged.receipt,sheets:sheets}},180000)}
+    else{var bytes=new Uint8Array(await file.arrayBuffer()),parts=[];for(var i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+8192)));
+     result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,content_base64:btoa(parts.join("")),sheets:sheets}})}
+   if(result&&result.structuredContent){remember(result,context);if(result.structuredContent.stored!==true)status.textContent=toolText(result)||"The new upload was not stored. No older drawing was substituted."}
    else throw new Error("The host did not return a storage result. Check the drawing library before retrying.");
   }catch(e){status.textContent=e&&e.message||"The new upload could not be stored. No older drawing was substituted."}
   finally{busy=false;submit.disabled=!host.serverTools;size()}
@@ -145,7 +166,7 @@ function receive(event){if(event.source!==window.parent)return;var m=event.data;
  if(!ready){if(m.id!==1||m.error||!m.result||typeof m.result!=="object")return;parentOrigin=event.origin;host=m.result.hostCapabilities||{};ready=true;send({method:"ui/notifications/initialized",params:{}});size();return}
  if(event.origin!==parentOrigin)return;
  if(m.method==null&&contextRequests.has(m.id)){contextRequests.delete(m.id);return}
- if(m.method==null&&toolRequests.has(m.id)){var task=toolRequests.get(m.id);toolRequests.delete(m.id);clearTimeout(task.timer);if(m.error||m.result&&m.result.isError)task.reject(new Error("Athena did not confirm this operation. Check the drawing library and saved versions before retrying; no older source was selected automatically."));else task.resolve(m.result);return}
+ if(m.method==null&&toolRequests.has(m.id)){var task=toolRequests.get(m.id);toolRequests.delete(m.id);clearTimeout(task.timer);if(m.error||m.result&&m.result.isError)task.reject(new Error(String(m.error&&m.error.message||toolText(m.result)||"Athena did not confirm this operation. Check the drawing library and saved versions before retrying; no older source was selected automatically.").slice(0,600)));else task.resolve(m.result);return}
  if(m.method==null&&pending.has(m.id)){pending.delete(m.id);status.textContent=m.error||m.result&&m.result.isError?"The file could not be opened. Use the private download link in the conversation.":"";size();return}
  if(m.method==="ui/notifications/tool-result")receiveResult(m.params);
  else if(m.method==="ui/notifications/tool-cancelled"){status.textContent="Athena request cancelled.";size()}
