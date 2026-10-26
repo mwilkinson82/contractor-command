@@ -40,7 +40,7 @@ const route = Route as unknown as {
 };
 
 function page(props?: { initialCodeSent?: boolean }) {
-  const node = props ? createElement(LoginForm, props) : createElement(route.component);
+  const node = props ? createElement(LoginForm as React.ComponentType<{ initialCodeSent?: boolean }>, props) : createElement(route.component);
   return renderToStaticMarkup(node);
 }
 

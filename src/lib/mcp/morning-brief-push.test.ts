@@ -182,7 +182,7 @@ describe("morning brief dispatch", () => {
   it("marks a dead subscription and does not send that user again the same day", async () => {
     const dead: string[] = [];
     const claimed: string[] = [];
-    const send = vi.fn(async (): Promise<FieldPushResult> => ({
+    const send = vi.fn(async (_subscription: unknown, _message: { body: string; url: string }): Promise<FieldPushResult> => ({
       status: "failed",
       httpCode: 410,
       errorText: "gone",
@@ -315,7 +315,7 @@ describe("today board sign-in", () => {
     expect(todaySignInReturn("https://evil.example/today")).toBeUndefined();
     expect(todaySignInReturn("//evil.example/today")).toBeUndefined();
     expect(signInReturn("/today")).toBe("/today");
-    const html = renderToStaticMarkup(createElement((TodayRoute as { component: () => ReactNode }).component));
+    const html = renderToStaticMarkup(createElement((TodayRoute as unknown as { component: () => ReactNode }).component));
     expect(html).toContain(BOARD_SIGN_IN_TITLE);
     expect(html).toContain("No password required");
     expect(html).toContain("Email me a sign-in code");
