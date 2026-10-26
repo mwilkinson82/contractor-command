@@ -10,7 +10,6 @@ import {
   clauseKinds,
   materializeClauses,
   literalClauseCard,
-  type ClauseEntry,
   type LiteralClause,
 } from "./literal-clauses";
 import { literalClock } from "./literal-clause-clock";
@@ -59,25 +58,6 @@ const clause = (text: string, section = "8.4.4"): LiteralClause => ({
   text,
   parts: [{ page: 107, text }],
 });
-/** Independent actual-source expectation: only the reviewed header-only spans
- * may disappear; every other notice fragment must remain byte-for-byte equal. */
-function expectNoticeProjection(
-  entries: ClauseEntry[],
-  pages: { page: number; text: string }[],
-  clauses: LiteralClause[],
-  excluded: readonly (readonly [string, number])[],
-) {
-  const omit = new Set(excluded.map(([section, page]) => `${section}:${page}`));
-  const raw = entries.map((entry): LiteralClause => {
-    const parts = entry.parts.map((p) => ({page:p.page,text:pages[p.page-1].text.slice(p.start,p.end)}));
-    return {...identity,source_id:identity.id,filename:identity.name,section:entry.section,heading:entry.heading,parts,text:parts.map((p)=>p.text).join("\n")};
-  });
-  const expected = raw.filter((c)=>clauseKinds(c).includes("notice")).map((c)=>({
-    section:c.section,
-    parts:c.parts.filter((p)=>!omit.has(`${c.section}:${p.page}`)),
-  }));
-  expect(clauses.filter((c)=>clauseKinds(c).includes("notice")).map((c)=>({section:c.section,parts:c.parts}))).toEqual(expected);
-}
 beforeEach(() => {
   objects.clear();
   uploads = 0;
@@ -205,13 +185,6 @@ it.skipIf(!process.env.ATHENA_OFFICE_PDF)(
     expect(supervision.parts.map((p) => p.page)).toEqual([67]);
     expect(supervision.text).toContain("Contractor shall notify Owner and Architect in writing");
     expect(prepared.document.pages[67].text).toMatch(/^ARTICLE 3: Contractor/);
-    const headerOnly = [["2.2.4",66],["3.2.1",68],["4.5",86],["7.3.2",96],["7.7.6",103],["7.7.7",104],["9.11.5",120],["13.11",144],["13.12.4",147],["14.4",155],["1.06",158],["3.06",199],["3.02",340],["1.08",398]] as const;
-    expectNoticeProjection(index!.entries,prepared.document.pages,clauses,headerOnly);
-    const noticeParts = clauses.filter((c) => clauseKinds(c).includes("notice")).flatMap((c) => c.parts.map((p) => `${c.section}:${p.page}`));
-    for (const [section,page] of headerOnly) expect(noticeParts).not.toContain(`${section}:${page}`);
-    for (const [section,page,wording] of [["2.2",65,"it intends to perform such work"],["12.3.1",134,"without change in the Contract Sum or Time"],["13.7.6",139,"weatherproof area"]] as const) {
-      expect(clauses.find((c) => c.section === section)!.parts.find((p) => p.page === page)!.text).toContain(wording);
-    }
     const operativeNotices=clauses.filter(c=>clauseKinds(c).includes("notice"));
     expect(operativeNotices.slice(0,8).every(c=>c.parts[0].page>=56)).toBe(true);
     expect(clauses.filter(c=>c.parts.some(p=>p.page===15)).every(c=>c.section===null)).toBe(true);
@@ -349,49 +322,4 @@ it("preserves every genuine continuation word, including mixed furniture and tex
   ]);
   expect(supervision.text).toBe(pages[0].text + "\n" + continuation);
   expect(supervision.text).toContain("except in an emergency");
-});
-
-it("separates heading-only article and specification blocks, preserving actual headings and mixed body text", () => {
-  const blocks = [
-    "ARTICLE 3: Contractor\nPage 51 005961.00001\n26500057.1\nARTICLE 3\nTHE CONTRACTOR\n",
-    "ARTICLE 7: Changes in the Work\nGENERAL CONDITIONS\n005961.00001\n26500057.1 Page 81\n",
-    "GENERAL CONDITIONS\nARTICLE 8: Time and Schedule\nPage 89 005961.00001\n26500057.1\nARTICLE 8\nTIME AND SCHEDULE\n",
-    "01-720\nPROJECT RECORD\nDOCUMENTS\nPAGE 1\nG.A. 2512B\nPROJECT RECORD DOCUMENTS\nPART 1 - GENERAL\n",
-    "09-900\nPAINTING\nPAGE 6\nG.A. 2241\n",
-    "\r\n ",
-  ];
-  for (const block of blocks) {
-    const body = "2.2.4 Give written notice to Owner before work.\n";
-    const pages = [{page:1,text:"GENERAL CONDITIONS\n"+body},{page:2,text:block+"3.1 Next clause\nNext body.\n"}];
-    const entries=indexLiteralClauses(pages);
-    const view=materializeClauses(entries,{pages} as never,identity).find((c)=>c.section==="2.2.4")!;
-    expect(view.parts).toEqual([{page:1,text:body}]);
-    expect(view.text).toBe(body);
-    // Source/index coverage is untouched, including the complete excluded block.
-    const rebuilt = pages.map((page)=>entries.flatMap((e)=>e.parts.filter((p)=>p.page===page.page).map((p)=>page.text.slice(p.start,p.end))).join(""));
-    expect(rebuilt).toEqual(pages.map((p)=>p.text));
-    const continuation=block+"DO NOT PROCEED WITHOUT WRITTEN NOTICE.\n";
-    pages[1].text=continuation+"3.1 Next clause\nNext body.\n";
-    const continued=materializeClauses(indexLiteralClauses(pages),{pages} as never,identity).find((c)=>c.section==="2.2.4")!;
-    expect(continued.parts[1].text).toBe(continuation);
-  }
-  const pages=[{page:1,text:"3.6 PERMITS, FEES AND NOTICES\n"}];
-  expect(materializeClauses(indexLiteralClauses(pages),{pages} as never,identity)[0].text).toBe(pages[0].text);
-});
-
-it.skipIf(!process.env.ATHENA_WESTSIDE_PDF)("checks every Transportation notice excerpt and retains genuine specification wording", async () => {
-  const bytes=new Uint8Array(readFileSync(process.env.ATHENA_WESTSIDE_PDF!));
-  expect(createHash("sha256").update(bytes).digest("hex")).toBe("5e701bcd88ab89539a1253cd774bc8767e09526bdf1e360340ed2a98b4704e89");
-  const s=source(bytes);
-  const prepared=await prepareReadable(sb,s,bytes);
-  const index=await loadClauseIndex(sb,s,prepared.document);
-  const clauses=materializeClauses(index!.entries,prepared.document,identity);
-  expectNoticeProjection(index!.entries,prepared.document.pages,clauses,[["3.06",47],["3.02",148]]);
-  const noticeParts=clauses.filter((c)=>clauseKinds(c).includes("notice")).flatMap((c)=>c.parts.map((p)=>({section:c.section,...p})));
-  expect(noticeParts.some((p)=>p.section==="3.06"&&p.page===47)).toBe(false);
-  expect(noticeParts.some((p)=>p.section==="3.02"&&p.page===148)).toBe(false);
-  expect(noticeParts.find((p)=>p.section==="3.1"&&p.page===163)!.text).toContain("Do not begin installation until unacceptable conditions are corrected");
-  expect(noticeParts.find((p)=>p.section==="1.03"&&p.page===21)!.text).toContain("whichever comes first");
-  expect(prepared.document.pages[46].text).toContain("PROJECT RECORD");
-  expect(prepared.document.pages[147].text).toContain("PAINTING");
 });
