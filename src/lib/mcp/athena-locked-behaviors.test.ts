@@ -17,9 +17,11 @@ import { DATA_DATE_FUTURE_ERROR, iorPlainReply, iorSectionsText, resolveDataDate
 import { scheduleWindowLabel } from "./styled-views";
 import { renderHtml } from "./cards/html";
 import { renderMarkdown } from "./cards/markdown";
+import { nativeCardPayload, nativeCardVisit } from "./native-card-transport";
 import { companyProjectSoftware } from "./scope-defaults";
 import { attachAthenaCard } from "./cards/attach";
 import { inferCard } from "./cards/infer";
+import { renderHtml } from "./cards/html";
 
 const HTML =
   '<!doctype html><html><head><style>body{color:#1E5FED}</style></head><body><article class="card">Harbor Point</article></body></html>';
@@ -402,7 +404,7 @@ describe("locked behaviors", () => {
       "Athena v0.8.23",
     ].join("\n");
     const card = inferCard("onboarding", profile);
-    const out = attachAthenaCard("onboarding", { content: [{ type: "text", text: profile }] }) as unknown as {
+    const out = attachAthenaCard("onboarding", { content: [{ type: "text", text: profile }] }) as {
       content: { text: string }[];
       structuredContent: { html: string };
     };
