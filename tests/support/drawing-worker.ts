@@ -10,6 +10,10 @@ export default {
     const { bytesToBase64 } = await import("../../src/lib/mcp/estimating-sheet");
     const { sha256Hex } = await import("../../src/lib/mcp/file-share");
     const bytes = new Uint8Array(await request.arrayBuffer());
+    if (new URL(request.url).searchParams.get("documentText") === "1") {
+      const { extractUploadDocument } = await import("../../src/lib/mcp/file-upload");
+      return Response.json(await extractUploadDocument(bytes, "pdf"));
+    }
     const hash = await sha256Hex(bytes);
     const sheetIndex = Number(new URL(request.url).searchParams.get("page") ?? 0);
     const objects = new Map<string, Uint8Array>();

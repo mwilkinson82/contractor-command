@@ -135,6 +135,23 @@ export function extractUploadText(bytes: Uint8Array, ext: UploadExt): Extracted 
   return { text, chars: text.length, truncated };
 }
 
+/** Use the existing bundled PDF engine for font mappings and page provenance. */
+export async function extractUploadDocument(bytes: Uint8Array, ext: UploadExt): Promise<Extracted> {
+  if (ext !== "pdf") return extractUploadText(bytes, ext);
+  try {
+    const { extractPdfiumDocumentText } = await import("./pdf-renderer");
+    const pages = await extractPdfiumDocumentText(bytes);
+    const text = pages.map((page, index) => `[[PDF page ${index + 1}]]\n${page.replaceAll("\u0000", "").trim()}`).join("\n\n");
+    // An image-only PDF remains explicitly unreadable; markers alone are not text.
+    if (!pages.some(page => page.replaceAll("\u0000", "").trim())) return {text: "", chars: 0, truncated: false};
+    const truncated = text.length > EXTRACT_MAX_CHARS;
+    const kept = text.slice(0, EXTRACT_MAX_CHARS);
+    return {text: kept, chars: kept.length, truncated};
+  } catch {
+    return {text: "", chars: 0, truncated: false};
+  }
+}
+
 function docxText(bytes: Uint8Array): string {
   const xml = unzipEntry(bytes, "word/document.xml");
   if (!xml) return "";
