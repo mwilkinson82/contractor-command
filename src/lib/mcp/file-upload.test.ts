@@ -8,6 +8,7 @@ import {
   assertUploadBytes,
   decodeChunk,
   extractUploadText,
+  textParts,
   missingChunk,
   sniffUpload,
   uploadFilename,
@@ -72,6 +73,22 @@ describe("file upload bytes", () => {
     expect(parts).toEqual([FILE_UPLOAD_DESCRIPTION.replace(/\.$/, "")]);
     expect(FILE_UPLOAD_DESCRIPTION).not.toMatch(VENDOR_RE);
     expect(FILE_UPLOAD_DESCRIPTION).toMatch(/begin|finish|from_url|chunk|12000/);
+  });
+
+  it("keeps the full text of a long spec and splits it into parts", () => {
+    const long = "Section 33 41 00 storm drainage. ".repeat(40_000);
+    const read = extractUploadText(new TextEncoder().encode(long), "txt");
+    expect(read.truncated).toBe(false);
+    expect(read.chars).toBe(long.trim().length);
+    expect(read.chars).toBeGreaterThan(1_000_000);
+    expect(read.text.endsWith("storm drainage.")).toBe(true);
+    const parts = textParts(read.text);
+    expect(parts.length).toBe(2);
+    expect(parts[0].length).toBe(1_000_000);
+    expect(parts.join("")).toBe(read.text);
+    expect(textParts("")).toEqual([""]);
+    const pair = "a" + "\u{1F600}" + "b";
+    expect(textParts(pair, 2)).toEqual(["a", "\u{1F600}", "b"]);
   });
 
   it("accepts pdf, docx, and txt names and reads their text", () => {
