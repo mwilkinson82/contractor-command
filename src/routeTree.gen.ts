@@ -84,6 +84,7 @@ import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/bran
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$companyId'
 import { Route as RSTokenRouteImport } from './routes/r.s.$token'
+import { Route as RDrawingUploadTokenRouteImport } from './routes/r.drawing-upload.$token'
 import { Route as RFileUploadTokenRouteImport } from './routes/r.file-upload.$token'
 import { Route as RSubmittalFileTokenRouteImport } from './routes/r.submittal-file.$token'
 import { Route as RSubmittalPreviewTokenRouteImport } from './routes/r.submittal-preview.$token'
@@ -487,6 +488,11 @@ const RSTokenRoute = RSTokenRouteImport.update({
   path: '/r/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RDrawingUploadTokenRoute = RDrawingUploadTokenRouteImport.update({
+  id: '/r/drawing-upload/$token',
+  path: '/r/drawing-upload/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RFileUploadTokenRoute = RFileUploadTokenRouteImport.update({
   id: '/r/file-upload/$token',
   path: '/r/file-upload/$token',
@@ -682,6 +688,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
   '/r/s/$token': typeof RSTokenRoute
+  '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
   '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
@@ -781,6 +788,7 @@ export interface FileRoutesByTo {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
   '/r/s/$token': typeof RSTokenRoute
+  '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
   '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
@@ -881,6 +889,7 @@ export interface FileRoutesById {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
   '/r/s/$token': typeof RSTokenRoute
+  '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
   '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
@@ -982,6 +991,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/r/portfolio/$companyId'
     | '/r/s/$token'
+    | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/submittal-file/$token'
     | '/r/submittal-preview/$token'
@@ -1081,6 +1091,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/r/portfolio/$companyId'
     | '/r/s/$token'
+    | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/submittal-file/$token'
     | '/r/submittal-preview/$token'
@@ -1180,6 +1191,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/r/portfolio/$companyId'
     | '/r/s/$token'
+    | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/submittal-file/$token'
     | '/r/submittal-preview/$token'
@@ -1276,6 +1288,7 @@ export interface RootRouteChildren {
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   RPortfolioCompanyIdRoute: typeof RPortfolioCompanyIdRoute
   RSTokenRoute: typeof RSTokenRoute
+  RDrawingUploadTokenRoute: typeof RDrawingUploadTokenRoute
   RFileUploadTokenRoute: typeof RFileUploadTokenRoute
   RSubmittalFileTokenRoute: typeof RSubmittalFileTokenRoute
   RSubmittalPreviewTokenRoute: typeof RSubmittalPreviewTokenRoute
@@ -1826,6 +1839,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RSTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/drawing-upload/$token': {
+      id: '/r/drawing-upload/$token'
+      path: '/r/drawing-upload/$token'
+      fullPath: '/r/drawing-upload/$token'
+      preLoaderRoute: typeof RDrawingUploadTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/file-upload/$token': {
       id: '/r/file-upload/$token'
       path: '/r/file-upload/$token'
@@ -2087,6 +2107,7 @@ const rootRouteChildren: RootRouteChildren = {
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   RPortfolioCompanyIdRoute: RPortfolioCompanyIdRoute,
   RSTokenRoute: RSTokenRoute,
+  RDrawingUploadTokenRoute: RDrawingUploadTokenRoute,
   RFileUploadTokenRoute: RFileUploadTokenRoute,
   RSubmittalFileTokenRoute: RSubmittalFileTokenRoute,
   RSubmittalPreviewTokenRoute: RSubmittalPreviewTokenRoute,
