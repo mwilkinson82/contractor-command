@@ -139,7 +139,7 @@ const saveTakeoff = (a: Record<string, unknown>) =>
 const OWNED = "c1/j1/drawing-11111111-1111-4111-8111-111111111111/CCW.pdf";
 const FOREIGN = "other-co/other-job/drawing-11111111-1111-4111-8111-111111111111/CCW.pdf";
 
-function twoPagePdf(): Uint8Array {
+function twoPagePdf(): Uint8Array<ArrayBuffer> {
   const doc = new jsPDF({ unit: "pt", format: [220, 140] });
   doc.text("S-001", 24, 40);
   doc.addPage();

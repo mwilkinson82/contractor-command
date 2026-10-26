@@ -28,7 +28,7 @@ const state = vi.hoisted(() => {
       ];
       return {
         from(table: string) {
-          let rows = table === "mcp_lookaheads" ? lookaheads : table === "mcp_open_items" ? items : table === "mcp_companies" ? [{ id: "co", name: "ALP" }] : [];
+          let rows: Record<string, unknown>[] = table === "mcp_lookaheads" ? lookaheads : table === "mcp_open_items" ? items : table === "mcp_companies" ? [{ id: "co", name: "ALP" }] : [];
           const api = {
             select() { return api; },
             eq(col: string, val: unknown) {
@@ -114,7 +114,7 @@ describe("lookahead_list", () => {
     expect(paletteViolations(result.structuredContent.html, false)).toEqual([]);
     expect(state.writes).toEqual([]);
     expect(state.rpcs).toEqual(["mcp_resolve_job"]);
-    expect((lookaheadList as { annotations: Record<string, boolean> }).annotations).toMatchObject({
+    expect(lookaheadList.annotations).toMatchObject({
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
