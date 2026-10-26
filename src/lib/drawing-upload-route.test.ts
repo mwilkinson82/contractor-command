@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { handleDrawingUpload } from "./drawing-upload-route.server";
+import { handleDrawingUpload, USED_MARKER_BUCKET, USED_MARKER_CONTENT_TYPE } from "./drawing-upload-route.server";
+import { DOC_BUCKET } from "./mcp/file-upload";
 import { isDrawingUploadPut, signDrawingUpload, stagedPathFor, verifyDrawingReceipt, verifyDrawingUpload } from "./mcp/drawing-upload";
 import { storeDrawingSet } from "./mcp/drawing-set";
 import { DRAWING_CARD_URI, DRAWING_CARD_URIS, drawingCardHtml, drawingResourceMeta } from "./mcp/cards/drawing-card";
@@ -98,6 +99,16 @@ describe("drawing direct upload", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect((await res.json()).error).toMatch(/not valid or has expired/);
     expect(puts).toEqual([]);
+  });
+
+  it("used markers go to a bucket that accepts their content type, not athena-drawings", () => {
+    expect(USED_MARKER_BUCKET).toBe(DOC_BUCKET);
+    const spec = JSON.parse(readFileSync("supabase/storage/athena-documents.json", "utf8"));
+    expect(spec.id).toBe(USED_MARKER_BUCKET);
+    expect(spec.allowed_mime_types === null || spec.allowed_mime_types.includes(USED_MARKER_CONTENT_TYPE)).toBe(true);
+    const src = readFileSync("src/lib/drawing-upload-route.server.ts", "utf8");
+    expect(src).toContain("storage.from(USED_MARKER_BUCKET)");
+    expect(src).toContain("contentType: USED_MARKER_CONTENT_TYPE");
   });
 
   it("a token is single use once the file is stored", async () => {
