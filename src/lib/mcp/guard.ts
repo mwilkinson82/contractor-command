@@ -87,6 +87,7 @@ export async function logWorkflow(
  * (list_open_items date_sweep: true). It no longer rides on every list_open_items call.
  * report never carries it, so it is never prepended to an SOV or any other deliverable. */
 const NEVER_SWEEP = new Set(["jobs_list", "drawing_sets_list", "report", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "list_open_items", "lookahead_get"]);
+NEVER_SWEEP.add("project_documents");
 for (const tool of ["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record"]) NEVER_SWEEP.add(tool);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
@@ -111,6 +112,10 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
   try {
     const upgrade = estimatingTool(tool) && o.jobNumber ? await estimatingUpgrade(sb, o.jobNumber, o.companyId) : null;
     const r = upgrade ? { content: [{ type: "text", text: renderMarkdown(upgrade) }], structuredContent: { card: upgrade, html: renderHtml(upgrade), upgrade_required: true, plan: "athena_office" }, _meta: { "openai/outputTemplate": TAKEOFF_CARD_URI, ui: { resourceUri: TAKEOFF_CARD_URI } } } as R : await fn(sb);
+    // Source reading feeds the host model exact text, not a dashboard widget.
+    // Keep the shared entitlement, RLS, call caps and security touch above; avoid
+    // sweeps, reminders or presentation transforms changing the source response.
+    if (tool === "project_documents") return r;
     // The host-display block rides on every result (assistant_guidance only; members never see it).
     // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.
     let swept = sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r;

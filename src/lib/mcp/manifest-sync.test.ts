@@ -8,6 +8,7 @@ import { defineMcp } from "@lovable.dev/mcp-js";
 import * as W from "./tools/workflow-tools";
 import * as L from "./tools/living-tools";
 import * as F from "./tools/file-tools";
+import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
@@ -67,6 +68,7 @@ async function liveTools(): Promise<Tool[]> {
       F.fileShareRevoke,
       F.lookaheadPdfTool,
       fileUpload,
+      projectDocuments,
       R.reportPageLink,
       R.reportPageShare,
       R.reportPageShareRevoke,

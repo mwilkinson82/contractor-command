@@ -34,6 +34,7 @@ import {
 } from "./tools/workflow-tools";
 import { cpmActivities, livingReportGet, livingReportSave } from "./tools/living-tools";
 import { fileShare, fileShareRevoke, lookaheadPdfTool } from "./tools/file-tools";
+import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import { reportPageLink, reportPageShare, reportPageShareRevoke } from "./tools/report-page-tools";
 import { setCurrentCompany, teamAddSeats, teamInvite, teamList, teamRemoveMember, teamUpdateMember } from "./tools/team-tools";
@@ -76,7 +77,7 @@ import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimat
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
 /** All Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [changeOrderLog, changeOrderRecord, rfiLog, rfiRecord, rfcLog, rfcRecord, jobsList, drawingSetsList, onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, fileUpload, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, sheetCalibrate, takeoffGeometry, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, submittalPackage, submittalDelivery, submittalVoid, gettingStarted];
+export const ATHENA_TOOLS = [changeOrderLog, changeOrderRecord, rfiLog, rfiRecord, rfcLog, rfcRecord, jobsList, drawingSetsList, onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, fileUpload, projectDocuments, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, sheetCalibrate, takeoffGeometry, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, submittalPackage, submittalDelivery, submittalVoid, gettingStarted];
 
 export default defineMcp({
   name: "athena",
@@ -101,6 +102,7 @@ export default defineMcp({
     PROJECT_RECORD_RULE +
     CHASE_SERVER_RULE +
     " To give Athena a contract, specification, or submittal piece file, call file_upload. action begin returns a two-hour upload link: send the raw PDF, DOCX, or TXT bytes to that link, or open the link and choose the file, then call action finish with the upload id. action from_url accepts the client's fetchable https file link. action chunk accepts base64 pieces of at most 12000 characters, in order, then finish. This works in ChatGPT, Claude, and Grok Bot. Do not paste the file into a text field. " +
+    " For existing contracts or specifications, use project_documents list, search and read. Retrieve the stored source by exact document ID and cite physical PDF pages. Do not ask for reattachment or use drawing_markup, intake, file_upload, submittal logs or summary contract_terms to read source documents. " +
     GETTING_STARTED_RULE,
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
