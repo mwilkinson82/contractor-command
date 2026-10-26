@@ -93,11 +93,11 @@ function uploader(body,context){
  var panel=node("section"),pick=node("input"),names=node("input"),busy=false;
  pick.style.display="block";pick.style.marginBottom="8px";names.style.width="100%";names.style.marginBottom="10px";pick.type="file";pick.accept="application/pdf,.pdf";pick.ariaLabel="Drawing PDF";
  names.type="text";names.placeholder="S-100, S-101, A-100…";names.ariaLabel="Sheet names in PDF page order";
- panel.append(node("h2","Upload directly to Athena"),node("p","Choose a PDF up to 50 MB. It is stored on this job; your local file is unchanged.","note"),pick,node("p","Sheet names in PDF page order (optional)","note"),names);
+ panel.append(node("h2","Upload directly to Athena"),node("p","Choose a PDF up to 100 MB. It is stored on this job; your local file is unchanged.","note"),pick,node("p","Sheet names in PDF page order (optional)","note"),names);
  var submit=button("Store PDF on this job",async function(){
   if(busy||!host.serverTools)return;
   var file=pick.files&&pick.files[0];if(!file){status.textContent="Choose a PDF first.";size();return}
-  if(file.size>52428800){status.textContent="That PDF is over 50 MB. Nothing was stored.";size();return}
+  if(file.size>104857600){status.textContent="That PDF is over 100 MB. Nothing was stored.";size();return}
   busy=true;submit.disabled=true;status.textContent="Storing your PDF…";size();
   try{var bytes=new Uint8Array(await file.arrayBuffer()),parts=[];for(var i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+8192)));
    var sheets=names.value.split(/[,\\n]/).map(function(s){return s.trim()}).filter(Boolean);

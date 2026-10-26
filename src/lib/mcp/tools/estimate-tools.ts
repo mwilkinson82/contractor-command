@@ -1750,7 +1750,7 @@ export const drawingSetImport = defineTool({
                     {
                       cells: [
                         "Choose the PDF in this card, then store it on this job.",
-                        "Up to 50 MB. A Drive or Dropbox link is optional. No drawing has been stored by this request.",
+                        "Up to 100 MB. A Drive or Dropbox link is optional. No drawing has been stored by this request.",
                       ],
                     },
                   ],
