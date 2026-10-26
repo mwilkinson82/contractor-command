@@ -1,13 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 const state = vi.hoisted(() => ({
   scope: "full",
   rows: {} as Record<string, Record<string, unknown>[]>,
   calls: [] as unknown[][],
   error: null as null | { message: string },
+  bytes: new Uint8Array(),
+  storageError: false,
 }));
 vi.mock("./guard", () => ({
   run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => Promise<unknown>) =>
-    fn({ from: table }),
+    fn({
+      from: table,
+      auth: { getUser: async () => ({ data: { user: { id: "fixture-reader" } }, error: null }) },
+      storage: {
+        from: (bucket: string) => ({
+          download: async (path: string) => {
+            state.calls.push(["download", bucket, path]);
+            return {
+              data: state.storageError ? null : new Blob([state.bytes as BlobPart]),
+              error: state.storageError ? { message: "denied" } : null,
+            };
+          },
+        }),
+      },
+    }),
   dbError: (e: { message: string }) => {
     throw new Error(e.message);
   },
@@ -68,6 +85,7 @@ const call = (input: Record<string, unknown>) =>
 const source = (extra: Record<string, unknown> = {}) => ({
   id,
   job_id: "job-2710",
+  company_id: "alp",
   name: "Exact source.pdf",
   size_bytes: 2511305,
   file_sha256: "5e".repeat(32),
@@ -80,6 +98,8 @@ beforeEach(() => {
   state.rows = { mcp_spec_documents: [source()] };
   state.calls = [];
   state.error = null;
+  state.storageError = false;
+  state.bytes = new Uint8Array();
 });
 describe("saved source discovery and reads", () => {
   it("lists stored identity and bytes without retrieving or exposing source body", async () => {
@@ -98,7 +118,10 @@ describe("saved source discovery and reads", () => {
     expect(
       state.calls
         .filter((c) => c[0] === "eq")
-        .every((c) => c[2] === "job_id" && c[3] === "job-2710"),
+        .every(
+          (c) =>
+            (c[2] === "job_id" && c[3] === "job-2710") || (c[2] === "company_id" && c[3] === "alp"),
+        ),
     ).toBe(true);
     expect(state.calls[0]).toEqual(["resolve", "2710", "alp"]);
   });
@@ -171,10 +194,70 @@ describe("saved source discovery and reads", () => {
     state.scope = "contract";
     await expect(call({})).resolves.toBeDefined();
   });
+  it("traces original bytes to the same record and freshly extracted content without writing", async () => {
+    const body = "Submittals reviewed with reasonable promptness.";
+    state.bytes = new TextEncoder().encode(body);
+    const hash = createHash("sha256").update(state.bytes).digest("hex");
+    state.rows.mcp_spec_documents = [
+      source({
+        name: "Source.txt",
+        body,
+        body_sha256: hash,
+        size_bytes: state.bytes.length,
+        file_sha256: hash,
+        created_by: "fixture-uploader",
+        upload_id: id,
+        storage_bucket: "athena-documents",
+        storage_path: `alp/job-2710/${id}/Source.txt`,
+      }),
+    ];
+    const trace = (await call({ action: "verify", document_id: id })).structuredContent
+      .documents[0];
+    expect(trace).toMatchObject({
+      authenticated_user_id: "fixture-reader",
+      uploader_user_id: "fixture-uploader",
+      company_id: "alp",
+      job_id: "job-2710",
+      original_matches_record: true,
+      stored_body_hash_matches: true,
+      fresh_extraction_matches_stored: true,
+      freshly_extracted_chars: body.length,
+      record_changed: false,
+    });
+    expect(trace.storage_object_key).toBe(`alp/job-2710/${id}/Source.txt`);
+    state.bytes = new TextEncoder().encode("changed bytes");
+    const changed = (await call({ action: "verify", document_id: id })).structuredContent
+      .documents[0];
+    expect(changed.original_matches_record).toBe(false);
+    expect(changed.freshly_extracted_chars).toBeNull();
+    state.storageError = true;
+    await expect(call({ action: "verify", document_id: id })).rejects.toThrow(/current job access/);
+  });
+  it("refuses cross-job source rows and mismatched storage references before downloading", async () => {
+    state.rows.mcp_spec_documents = [
+      source({ job_id: "other-job" }),
+      source({ company_id: "other-company" }),
+    ];
+    await expect(call({ action: "verify", document_id: id })).rejects.toThrow(
+      /not available on this job/,
+    );
+    state.rows.mcp_spec_documents = [
+      source({
+        storage_bucket: "athena-documents",
+        storage_path: `alp/other-job/${id}/Source.pdf`,
+      }),
+    ];
+    await expect(call({ action: "verify", document_id: id })).rejects.toThrow(
+      /not associated with this job/,
+    );
+    expect(state.calls.some((c) => c[0] === "download")).toBe(false);
+  });
   it("reports database failures and never exposes storage capabilities", async () => {
     state.error = { message: "unavailable" };
     await expect(call({})).rejects.toThrow("unavailable");
     state.error = null;
+    state.storageError = false;
+    state.bytes = new Uint8Array();
     const r = await call({});
     expect(JSON.stringify(r)).not.toMatch(/storage_path|signed_url|upload_url/);
   });

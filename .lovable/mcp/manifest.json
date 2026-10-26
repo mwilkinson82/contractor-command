@@ -9262,7 +9262,7 @@
       {
         "name": "project_documents",
         "title": "Read saved project documents",
-        "description": "Lists, searches literal text, or reads physical PDF pages of saved contract and specification sources without uploading, changing records, or requiring reattachment.",
+        "description": "Lists, searches literal text, or reads physical PDF pages of saved contract and specification sources without reattachment; verify checks the original stored bytes and extraction without changing records.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -9288,7 +9288,8 @@
               "enum": [
                 "list",
                 "search",
-                "read"
+                "read",
+                "verify"
               ]
             },
             "kind": {
