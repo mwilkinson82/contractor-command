@@ -20,6 +20,7 @@ export type SourceDocument = {
   storage_bucket?: string | null;
   storage_path?: string | null;
   body_sha256?: string;
+  mime_type?: string | null;
 };
 export function sourcePages(body: string): { page: number | null; text: string }[] {
   const re = /\[\[PDF page (\d+)\]\]\r?\n/g;
@@ -111,7 +112,7 @@ export const projectDocuments = defineTool({
         let q = sb
           .from(table)
           .select(
-            `id,name,size_bytes,file_sha256,updated_at${args.action !== "list" ? ",body" : ""}${args.action === "verify" ? ",company_id,job_id,created_by,upload_id,storage_bucket,storage_path,body_sha256" : ""}`,
+            `id,name,size_bytes,file_sha256,updated_at${args.action !== "list" ? ",body,mime_type" : ""}${args.action === "verify" ? ",company_id,job_id,created_by,upload_id,storage_bucket,storage_path,body_sha256" : ""}`,
           )
           .eq("job_id", job.job_id)
           .eq("company_id", job.company_id);
@@ -197,12 +198,19 @@ export const projectDocuments = defineTool({
           }
           const { body, ...source } = doc;
           if (args.action === "list") return source;
-          const pages = sourcePages(body ?? "");
+          const pages =
+            doc.mime_type === "application/pdf"
+              ? sourcePages(body ?? "")
+              : body
+                ? [{ page: null, text: body }]
+                : [];
           if (args.action === "search")
             return {
               ...source,
               query: args.query,
-              hits: searchSource(body ?? "", args.query!, args.limit),
+              hits: searchSource(body ?? "", args.query!, args.limit).map((hit) =>
+                doc.mime_type === "application/pdf" ? hit : { ...hit, page: null },
+              ),
             };
           const from = args.page ?? 1;
           return {

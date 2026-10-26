@@ -87,6 +87,7 @@ const source = (extra: Record<string, unknown> = {}) => ({
   job_id: "job-2710",
   company_id: "alp",
   name: "Exact source.pdf",
+  mime_type: "application/pdf",
   size_bytes: 2511305,
   file_sha256: "5e".repeat(32),
   updated_at: "2026-10-26",
@@ -108,6 +109,7 @@ describe("saved source discovery and reads", () => {
     expect(r.structuredContent.documents[0]).toMatchObject({
       id,
       name: "Exact source.pdf",
+      mime_type: "application/pdf",
       size_bytes: 2511305,
       kind: "spec",
     });
@@ -273,6 +275,16 @@ describe("physical page provenance", () => {
       expect(sourcePages(body)).toEqual([{ page: null, text: body }]);
     expect(sourcePages("")).toEqual([]);
     expect(searchSource("anything", "", 10)).toEqual([]);
+  });
+  it("does not turn page-like text in a TXT file into physical PDF citations", async () => {
+    state.rows.mcp_spec_documents = [source({ name: "Source.txt", mime_type: "text/plain" })];
+    const read = (await call({ action: "read", document_id: id })).structuredContent.documents[0];
+    expect(read.page_citations_available).toBe(false);
+    expect(read.pages[0].page).toBeNull();
+    expect(
+      (await call({ action: "search", query: "reasonable" })).structuredContent.documents[0].hits[0]
+        .page,
+    ).toBeNull();
   });
   it("caps page response text explicitly while preserving source identity", async () => {
     state.rows.mcp_spec_documents = [source({ body: "[[PDF page 1]]\n" + "a".repeat(40001) })];
