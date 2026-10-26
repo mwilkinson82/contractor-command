@@ -9,7 +9,8 @@ export const FILE_UPLOAD_CALL_CHARS = 20_000;
 export const FILE_UPLOAD_HOURS = 2;
 export const DOC_MAX_BYTES = 100 * 1024 * 1024;
 export const PIECE_MAX_BYTES = 100 * 1024 * 1024;
-export const EXTRACT_MAX_CHARS = 400_000;
+// Readable text is kept in full and sent to the database in parts of this size.
+export const DOC_TEXT_PART_CHARS = 1_000_000;
 export const FILE_UPLOAD_LINK_BASE = "https://app.meetathena.io/r/file-upload/";
 export const DOC_BUCKET = "athena-documents";
 
@@ -130,9 +131,20 @@ export function extractUploadText(bytes: Uint8Array, ext: UploadExt): Extracted 
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  const truncated = text.length > EXTRACT_MAX_CHARS;
-  if (truncated) text = text.slice(0, EXTRACT_MAX_CHARS);
-  return { text, chars: text.length, truncated };
+  return { text, chars: text.length, truncated: false };
+}
+
+export function textParts(text: string, size = DOC_TEXT_PART_CHARS): string[] {
+  if (!text) return [""];
+  const out: string[] = [];
+  for (let i = 0; i < text.length; ) {
+    let end = Math.min(i + size, text.length);
+    // Never split a surrogate pair across parts.
+    if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1])) end--;
+    out.push(text.slice(i, end));
+    i = end;
+  }
+  return out;
 }
 
 function docxText(bytes: Uint8Array): string {

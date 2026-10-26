@@ -32,6 +32,7 @@ beforeAll(async () => {
     `CREATE SCHEMA IF NOT EXISTS storage; CREATE TABLE IF NOT EXISTS storage.buckets(id text PRIMARY KEY, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]); CREATE TABLE IF NOT EXISTS storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated, service_role; GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated, service_role; GRANT SELECT, INSERT, UPDATE, DELETE ON storage.buckets TO authenticated, service_role;`,
   );
   await db.exec(readFileSync("supabase/migrations/20261031120000_athena_file_upload.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261101120000_athena_document_full_text.sql", "utf8"));
   for (const id of [owner, superId, estimator]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [id, claims(id).email]);
     await db.query("INSERT INTO test_active_members VALUES ($1)", [id]);
@@ -129,6 +130,17 @@ describe("contract file rows", () => {
       }),
     ]);
     expect(spec.kind).toBe("spec");
+    const tail = "Section 33 41 00 is on page 400.";
+    const added = await rpc("mcp_contract_document_append", [job, "spec", spec.id, tail, true]);
+    expect(added.body_chars).toBe("Fine grade is required.".length + tail.length);
+    const [full] = await q(
+      "SELECT body, body_sha256 = encode(sha256(convert_to(body, 'UTF8')), 'hex') AS hashed FROM mcp_spec_documents WHERE id = $1",
+      [spec.id],
+    );
+    expect(full).toEqual({ body: "Fine grade is required." + tail, hashed: true });
+    await expect(
+      rpc("mcp_contract_document_append", [job, "spec", "33333333-3333-4333-8333-333333333333", "x", true]),
+    ).rejects.toThrow(/not on this job/);
     const rows = await q(
       "SELECT kind, storage_path IS NOT NULL AS has_file FROM mcp_contract_documents WHERE job_id = $1 ORDER BY kind",
       [job],
