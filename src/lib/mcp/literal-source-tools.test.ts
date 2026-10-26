@@ -140,3 +140,11 @@ it("rejects a wrongly named company rather than falling back to a unique job", a
   );
   expect(state.writes).toEqual([]);
 });
+
+it("preserves the legacy response when an older source uses a different storage reference", async () => {
+  state.source.storage_bucket = "legacy-private-bucket";
+  const result = (await call(contractTerms)).structuredContent;
+  expect(result.source_clauses).toBeUndefined();
+  expect(result.source_issues[0]).toContain("original and existing records are unchanged");
+  expect(state.writes).toEqual([]);
+});

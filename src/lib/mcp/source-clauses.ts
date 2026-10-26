@@ -56,7 +56,15 @@ export async function loadJobSourceClauses(
           );
           continue;
         }
-        const readable = await loadReadable(sb, source);
+        let readable: Awaited<ReturnType<typeof loadReadable>>;
+        try {
+          readable = await loadReadable(sb, source);
+        } catch {
+          problems.push(
+            `${source.name}: complete saved page text is unavailable through this source reference; its original and existing records are unchanged.`,
+          );
+          continue;
+        }
         if (!readable) {
           problems.push(`${source.name}: readable extraction is not yet prepared.`);
           continue;
