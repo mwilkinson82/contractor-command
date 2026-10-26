@@ -59,16 +59,32 @@ export function indexLiteralClauses(pages: ReadableDocument["pages"]): ClauseEnt
   }
   return entries.filter((c) => c.parts.length);
 }
-/** The known article/page/document-code block is page furniture only when it
- * occupies the whole fragment. Mixed fragments keep every continuation word. */
+/** Recognize complete layout/title blocks, never individual body lines. A fragment
+ * with any unmatched continuation stays verbatim, even when it starts with a header. */
 function isPageFurnitureFragment(text: string): boolean {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  return (
-    lines.length === 3 &&
-    /^ARTICLE\s+\d+\s*:\s*\S.*$/i.test(lines[0]) &&
-    /^Page\s+\d+\s+\d{5,}\.\d+$/i.test(lines[1]) &&
-    /^\d{5,}\.\d+$/.test(lines[2])
-  );
+  if (!lines.length) return true;
+  const title = (value: string) => value.toUpperCase().replace(/^THE\s+/, "").replace(/[^A-Z0-9]/g, "");
+  const pageLine = /^Page(?:\s+\d+)?(?:\s+\d{5,}\.\d+)?$/i;
+  const documentLine = /^\d{5,}\.\d+(?:\s+Page\s+\d+|\s+©.*)?$/i;
+  const article = lines.map((line) => line.match(/^ARTICLE\s+(\d+)\s*:\s*(\S.*)$/i)).find(Boolean);
+  if (article && lines.some((line) => pageLine.test(line) || /\bPage\s+\d+$/i.test(line)) && lines.some((line) => documentLine.test(line))) {
+    return lines.every((line) =>
+      pageLine.test(line) || documentLine.test(line) || /^GENERAL CONDITIONS$/i.test(line) ||
+      line.match(/^ARTICLE\s+(\d+)\s*:\s*(\S.*)$/i)?.[0] === article[0] ||
+      line.match(/^ARTICLE\s+(\d+)$/i)?.[1] === article[1] ||
+      title(line) === title(article[2]),
+    );
+  }
+  // A specification's title is learned from its own section/page/project header.
+  // Only that same title and an optional PART heading may follow the metadata.
+  const pageAt = lines.findIndex((line) => /^PAGE\s+\d+$/i.test(line));
+  if (!/^\d{2}(?:[- ]\d{2,3}){1,2}$/.test(lines[0]) || pageAt < 2 || !/^G\.A\.\s*\d+[A-Z]?$/i.test(lines[pageAt + 1] ?? ""))
+    return false;
+  const headerTitle = title(lines.slice(1, pageAt).join(" "));
+  const rest = lines.slice(pageAt + 2);
+  if (/^PART\s+\d+\s*[-–]\s*(GENERAL|PRODUCTS|EXECUTION)$/i.test(rest.at(-1) ?? "")) rest.pop();
+  return rest.length === 0 || title(rest.join(" ")) === headerTitle;
 }
 export function materializeClauses(
   entries: ClauseEntry[],
