@@ -49,11 +49,11 @@ describe("member piece upload failure boundaries", () => {
       new File([], "empty.pdf"),
       new File(["x"], "../outside.pdf"),
       new File(["x"], "script.exe"),
-      { name: "big.pdf", size: 50 * 1024 * 1024 + 1 } as File,
+      { name: "big.pdf", size: 100 * 1024 * 1024 + 1 } as File,
     ]) {
       const sb = client();
       await expect(uploadSubmittalPiece(sb, { ...input, file })).rejects.toThrow(
-        "between 1 byte and 50 MB",
+        "between 1 byte and 100 MB",
       );
       expect(sb.rpc).not.toHaveBeenCalled();
     }

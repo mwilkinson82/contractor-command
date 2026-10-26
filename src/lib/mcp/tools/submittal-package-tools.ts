@@ -275,7 +275,7 @@ async function bounded(response: Response) {
     size += value.length;
     if (size > PACKAGE_MAX_BYTES) {
       await reader.cancel();
-      throw new ToolError("The file is over 50 MB.");
+      throw new ToolError("The file is over 100 MB.");
     }
     chunks.push(value);
   }
@@ -386,7 +386,7 @@ export const submittalPackage = defineTool({
             "Pass the received file bytes or the AI-hosted file; Athena never edits the supplier copy.",
           );
         if (!bytes.length || bytes.length > PACKAGE_MAX_BYTES)
-          throw new ToolError("The file must be between 1 byte and 50 MB.");
+          throw new ToolError("The file must be between 1 byte and 100 MB.");
         const path = `${job.company_id}/${job.job_id}/pieces/${crypto.randomUUID()}/${filename}`;
         const up = await sb.storage
           .from(SUBMITTAL_BUCKET)
@@ -474,7 +474,7 @@ export const submittalPackage = defineTool({
             );
           total += blob.size;
           if (total > PACKAGE_MAX_BYTES)
-            throw new ToolError("The package files total more than 50 MB.");
+            throw new ToolError("The package files total more than 100 MB.");
           files.push({ item, name: ref.name, bytes: new Uint8Array(await blob.arrayBuffer()) });
         }
         let logo: Uint8Array | undefined;
