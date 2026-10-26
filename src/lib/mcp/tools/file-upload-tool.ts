@@ -16,6 +16,7 @@ import {
   fetchAllowedFile,
   joinChunks,
   missingChunk,
+  textParts,
   uploadFilename,
   uploadLink,
   uploadMaxBytes,
@@ -506,6 +507,7 @@ async function finishBytes(
       file_ref: `athena-submittals/${relative}`,
     };
   } else {
+    const parts = textParts(extracted?.text ?? "");
     const saved = await rpc<{ id: string; body_chars: number; truncated: boolean; name: string }>(
       sb,
       "mcp_contract_document_save",
@@ -514,7 +516,7 @@ async function finishBytes(
         _p: {
           kind: session.purpose,
           name: checked.name,
-          body: extracted?.text ?? "",
+          body: parts[0],
           bucket: DOC_BUCKET,
           path: session.storage_path,
           mime_type: checked.mime,
@@ -525,6 +527,17 @@ async function finishBytes(
         },
       },
     );
+    for (let i = 1; i < parts.length; i++) {
+      const added = await rpc<{ body_chars: number }>(sb, "mcp_contract_document_append", {
+        _job: job.job_id,
+        _kind: session.purpose,
+        _id: saved.id,
+        _part: parts[i],
+        _last: i === parts.length - 1,
+      });
+      parts[i] = "";
+      saved.body_chars = added.body_chars;
+    }
     const label = session.purpose === "contract" ? "Contract" : "Specification";
     const read = saved.body_chars
       ? `Text read from the file: ${saved.body_chars.toLocaleString()} characters${saved.truncated ? ", which is the most kept for clause checks" : ""}.`
