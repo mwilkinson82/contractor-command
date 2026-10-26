@@ -1,4 +1,4 @@
-import {changeOrderLog,changeOrderRecord} from "./tools/change-order-tools";
+import { changeOrderLog, changeOrderRecord } from "./tools/change-order-tools";
 import { jobsList, drawingSetsList } from "./tools/discovery-tools";
 import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import { defineMcp } from "@lovable.dev/mcp-js";
 import * as W from "./tools/workflow-tools";
 import * as L from "./tools/living-tools";
 import * as F from "./tools/file-tools";
+import { fileUpload } from "./tools/file-upload-tool";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
@@ -43,7 +44,9 @@ async function liveTools(): Promise<Tool[]> {
     title: "A",
     version: "t",
     instructions: "i",
-    tools: [changeOrderLog,changeOrderRecord,
+    tools: [
+      changeOrderLog,
+      changeOrderRecord,
       jobsList,
       drawingSetsList,
       W.onboarding,
@@ -63,6 +66,7 @@ async function liveTools(): Promise<Tool[]> {
       F.fileShare,
       F.fileShareRevoke,
       F.lookaheadPdfTool,
+      fileUpload,
       R.reportPageLink,
       R.reportPageShare,
       R.reportPageShareRevoke,
@@ -121,7 +125,10 @@ async function liveTools(): Promise<Tool[]> {
       Void.submittalVoid,
       Package.submittalPackage,
       Package.submittalDelivery,
-      rfiLog, rfiRecord, rfcLog, rfcRecord,
+      rfiLog,
+      rfiRecord,
+      rfcLog,
+      rfcRecord,
       Start.gettingStarted,
     ],
     metrics: false,
@@ -188,10 +195,15 @@ describe("MCP manifest is in sync with source", () => {
     const lv = byName(live);
     for (const t of manifest.mcp.tools) expect(t.inputSchema, t.name).toEqual(lv[t.name]);
     // Assert the actual SDK discovery wire, not just our Zod object or a committed manifest.
-    const pkg = live.find(t => t.name === "submittal_package")!;
-    expect(pkg.inputSchema.properties.rebuild_from_package_id).toMatchObject({ type: "string", format: "uuid" });
+    const pkg = live.find((t) => t.name === "submittal_package")!;
+    expect(pkg.inputSchema.properties.rebuild_from_package_id).toMatchObject({
+      type: "string",
+      format: "uuid",
+    });
     expect(pkg.inputSchema.properties.new_piece).toMatchObject({
-      type: "object", required: ["kind", "source_party"], additionalProperties: false,
+      type: "object",
+      required: ["kind", "source_party"],
+      additionalProperties: false,
       properties: {
         kind: { enum: ["product_cut", "shop_drawing", "sample", "calc", "warranty", "other"] },
         source_party: { type: "string", minLength: 1, maxLength: 120 },
