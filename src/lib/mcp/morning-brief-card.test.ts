@@ -72,7 +72,7 @@ describe("morning card due once per local day", () => {
         select: () => Promise.resolve({ data: [], error: null }),
       }),
     };
-    const first = await attachMorningCard<{ content: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> }>(sb, { content: [{ type: "text", text: "Job body" }] }, { fresh: true, explicit: false });
+    const first = await attachMorningCard(sb, { content: [{ type: "text", text: "Job body" }] }, { fresh: true, explicit: false });
     const text = first.content?.[0]?.text ?? "";
     expect(text).not.toContain("Overnight emails");
     expect(text.indexOf("Why")).toBeLessThan(text.indexOf("Job body"));

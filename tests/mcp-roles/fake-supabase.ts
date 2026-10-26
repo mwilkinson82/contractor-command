@@ -23,7 +23,7 @@ async function loadArgTypes(db: PGlite) {
     `SELECT p.proname, p.proargnames AS names, format_type(p.prorettype, NULL) AS ret, p.proretset AS set, ARRAY(SELECT format_type(t, NULL) FROM unnest(p.proargtypes) t) AS types
      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'mcp_%'`,
   );
-  argTypes = new Map(r.rows.map((x) => { retInfo.set(x.proname, { ret: x.ret, set: x.set }); return x; }).map((x) => [x.proname, new Map((x.names ?? []).map((n, i) => [n, x.types[i]]))]));
+  argTypes = new Map(r.rows.map((x: any) => { retInfo.set(x.proname, { ret: x.ret, set: x.set }); return x; }).map((x) => [x.proname, new Map((x.names ?? []).map((n, i) => [n, x.types[i]]))]));
   return argTypes;
 }
 
