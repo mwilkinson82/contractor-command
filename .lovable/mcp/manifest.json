@@ -9088,6 +9088,154 @@
         "outputSchema": null
       },
       {
+        "name": "file_upload",
+        "title": "Upload a contract, spec, or submittal file",
+        "description": "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "begin",
+                "chunk",
+                "finish",
+                "from_url"
+              ]
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "purpose": {
+              "type": "string",
+              "enum": [
+                "contract",
+                "spec",
+                "submittal_piece"
+              ]
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "upload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "chunk_index": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6000
+            },
+            "content_base64": {
+              "type": "string",
+              "maxLength": 12000
+            },
+            "source_url": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string",
+                  "maxLength": 8000
+                },
+                "file_id": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "file_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "mime_type": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "download_url"
+              ]
+            },
+            "submittal_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "submittal_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "package_item": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "package_item_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "new_piece": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "product_cut",
+                    "shop_drawing",
+                    "sample",
+                    "calc",
+                    "warranty",
+                    "other"
+                  ]
+                },
+                "source_party": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "required": {
+                  "default": true,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "source_party"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "action",
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "getting_started",
         "title": "Hey Athena, let's get started",
         "description": "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker and never asking which job's morning hitlist, using first-job or company setup when there are no jobs, and otherwise showing the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting on that same card.",

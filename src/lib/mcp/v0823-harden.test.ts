@@ -19,6 +19,7 @@ import * as Sub from "./tools/submittal-tools";
 import * as Chase from "./tools/submittal-chase-tool";
 import * as Void from "./tools/submittal-void-tool";
 import * as Package from "./tools/submittal-package-tools";
+import { fileUpload } from "./tools/file-upload-tool";
 
 const ALL = [
   W.onboarding,
@@ -36,6 +37,7 @@ const ALL = [
   F.fileShare,
   F.fileShareRevoke,
   F.lookaheadPdfTool,
+  fileUpload,
   R.reportPageLink,
   R.reportPageShare,
   R.reportPageShareRevoke,
@@ -86,8 +88,8 @@ const ALL = [
   Sub.submittalsImport,
   Sub.projectRecordSearch,
   Chase.submittalChase,
-      Package.submittalPackage,
-      Package.submittalDelivery,
+  Package.submittalPackage,
+  Package.submittalDelivery,
   Void.submittalVoid,
   Start.gettingStarted,
 ];
@@ -152,18 +154,26 @@ function schemaDescriptions(node: unknown, out: string[] = []): string[] {
 
 describe("0.8.23 host-facing tool text", () => {
   it("field board phrases belong to the field board tools", () => {
-    const phrases = ["field board", "super board", "superintendent board", "super's plan", "crew is doing"];
+    const phrases = [
+      "field board",
+      "super board",
+      "superintendent board",
+      "super's plan",
+      "crew is doing",
+    ];
     for (const tool of ALL) {
-      const text = `${tool.name} ${"title" in tool ? String(tool.title ?? "") : ""} ${tool.description ?? ""}`.toLowerCase();
+      const text =
+        `${tool.name} ${"title" in tool ? String(tool.title ?? "") : ""} ${tool.description ?? ""}`.toLowerCase();
       const claims = phrases.some((p) => text.includes(p));
-      if (tool.name === "superintendent_view" || tool.name === "field_board") expect(claims, tool.name).toBe(true);
+      if (tool.name === "superintendent_view" || tool.name === "field_board")
+        expect(claims, tool.name).toBe(true);
       else expect(claims, tool.name).toBe(false);
     }
   });
 
   it("each tool description is one sentence and carries no style or rule labels", async () => {
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(69);
+    expect(list).toHaveLength(70);
     for (const t of list) {
       expect(sentences(t.description), t.name).toEqual([t.description.replace(/\.$/, "")]);
       expect(t.description, t.name).not.toMatch(/#[0-9A-Fa-f]{3,8}/);
