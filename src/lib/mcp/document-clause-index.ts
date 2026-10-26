@@ -7,19 +7,19 @@ import { indexLiteralClauses, type ClauseEntry } from "./literal-clauses";
 const BUCKET = "athena-documents",
   MAX_BYTES = 100 * 1024 * 1024;
 export type ClauseIndex = {
-  format: "athena-clause-index-v1";
+  format: "athena-clause-index-v2";
   state: "extracted";
   source_id: string;
   source_sha256: string;
   source_text_sha256: string;
   source_extraction_version: string;
   covered_pdf_pages: number;
-  index_version: "literal-sections-v1";
+  index_version: "literal-sections-v2";
   entries_sha256: string;
   entries: ClauseEntry[];
 };
 export const clauseIndexKey = (s: ReadableSource) =>
-  readableKey(s).replace(".athena-readable-v1-", ".athena-clauses-v1-");
+  readableKey(s).replace(".athena-readable-v1-", ".athena-clauses-v2-");
 const hash = (v: unknown) => sha256Hex(new TextEncoder().encode(JSON.stringify(v)));
 export async function loadClauseIndex(
   sb: Sb,
@@ -45,9 +45,9 @@ export async function loadClauseIndex(
   }
   if (
     !index ||
-    index.format !== "athena-clause-index-v1" ||
+    index.format !== "athena-clause-index-v2" ||
     index.state !== "extracted" ||
-    index.index_version !== "literal-sections-v1" ||
+    index.index_version !== "literal-sections-v2" ||
     index.source_id !== source.id ||
     index.source_sha256 !== source.file_sha256 ||
     index.source_text_sha256 !== readable.text_sha256 ||
@@ -96,14 +96,14 @@ export async function prepareClauseIndex(
   if (existing) return { index: existing, reused: true };
   const entries = indexLiteralClauses(readable.pages);
   const index: ClauseIndex = {
-    format: "athena-clause-index-v1",
+    format: "athena-clause-index-v2",
     state: "extracted",
     source_id: source.id,
     source_sha256: source.file_sha256!,
     source_text_sha256: readable.text_sha256,
     source_extraction_version: readable.extraction_version,
     covered_pdf_pages: readable.total_pdf_pages,
-    index_version: "literal-sections-v1",
+    index_version: "literal-sections-v2",
     entries_sha256: await hash(entries),
     entries,
   };

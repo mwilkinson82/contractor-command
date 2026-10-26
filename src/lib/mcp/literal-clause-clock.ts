@@ -1,3 +1,4 @@
+import { clauseKinds } from "./literal-clauses";
 import type { LiteralClause } from "./literal-clauses";
 import type { DayType } from "./deadlines";
 /** Never flatten compound timing or turn nonnumeric wording into a deadline. */
@@ -6,6 +7,8 @@ export function literalClock(
   kind: "delay_notice" | "claim_notice" | "submittal_review",
 ) {
   const match = clauses.filter((c) => {
+    if (!clauseKinds(c).includes(kind === "submittal_review" ? "submittal_review" : "notice"))
+      return false;
     const t = c.text;
     if (kind === "submittal_review")
       return /\bsubmittals?\b/i.test(t) && /\b(review|return|turnaround)\b/i.test(t);
