@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { handleDrawingUpload } from "./drawing-upload-route.server";
-import { signDrawingUpload, stagedPathFor, verifyDrawingUpload } from "./mcp/drawing-upload";
+import { signDrawingUpload, stagedPathFor, verifyDrawingReceipt, verifyDrawingUpload } from "./mcp/drawing-upload";
+import { storeDrawingSet } from "./mcp/drawing-set";
 import { DRAWING_CARD_URI, DRAWING_CARD_URIS, drawingCardHtml, drawingResourceMeta } from "./mcp/cards/drawing-card";
 
 const SECRET = "test-secret";
@@ -35,6 +36,10 @@ describe("drawing direct upload", () => {
     expect(body.stored).toBe(true);
     expect(body.path).toMatch(new RegExp(`^${job.company_id}/${job.job_id}/drawing-[0-9a-f]{64}/source\\.pdf$`));
     expect(puts).toEqual([{ bucket: "athena-drawings", path: body.path, size: pdf.length }]);
+    const receipt = (await verifyDrawingReceipt(body.receipt, SECRET))!;
+    expect(receipt).toMatchObject({ ...job, path: body.path, content_hash: body.content_hash, size: pdf.length });
+    expect(await verifyDrawingReceipt(token, SECRET)).toBeNull(); // an upload token is not a receipt
+    expect(await verifyDrawingUpload(body.receipt, SECRET)).toBeNull(); // and a receipt is not an upload token
     const claim = (await verifyDrawingUpload(token, SECRET))!;
     expect(stagedPathFor(claim, body.path)).toBe(body.content_hash);
     expect(stagedPathFor({ ...claim, job_id: "33333333-3333-4333-8333-333333333333" }, body.path)).toBeNull();
@@ -62,9 +67,38 @@ describe("drawing direct upload", () => {
     expect(drawingResourceMeta["openai/widgetCSP"].connect_domains).toEqual(["https://app.meetathena.io"]);
     const html = drawingCardHtml("https://example.supabase.co");
     expect(html).toContain('fetch(up.url,{method:"PUT"');
-    expect(html).toContain("staged_path:staged.path");
+    expect(html).toContain("staged_path:staged.path,upload_receipt:staged.receipt");
     expect(html).toContain("content_base64:btoa"); // small-file fallback for hosts without direct upload
     expect(html).toContain("toolText(m.result)");
     expect(() => new Function(html.split("<script>")[1].split("</script>")[0])).not.toThrow();
+  });
+
+  it("confirms a staged upload from its receipt without downloading, re-uploading or parsing the PDF", async () => {
+    const hash = "a".repeat(64);
+    const path = `${job.company_id}/${job.job_id}/drawing-${hash}/source.pdf`;
+    const touched: string[] = [];
+    const saved: Record<string, unknown>[] = [];
+    const sb = {
+      storage: { from: () => ({
+        download: async () => (touched.push("download"), { data: null, error: { message: "no" } }),
+        upload: async () => (touched.push("upload"), { error: null }),
+      }) },
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        if (fn === "mcp_drawing_records") return { data: [], error: null };
+        if (fn === "mcp_drawing_source_save") {
+          saved.push(args._record as Record<string, unknown>);
+          return { data: { ...(args._record as object), id: "d1", version: 1 }, error: null };
+        }
+        return { data: null, error: null };
+      },
+    };
+    const stored = await storeDrawingSet(sb as never, { ...job, job_number: "EX-1" } as never, {
+      filename: "Example Set.pdf",
+      sheets: ["S-100"],
+      staged: { path, content_hash: hash, size: 73_400_320 },
+    });
+    expect(touched).toEqual([]);
+    expect(saved[0]).toMatchObject({ path, storage_bucket: "athena-drawings", content_hash: hash });
+    expect(stored.pageCount).toBeUndefined();
   });
 });

@@ -109,8 +109,8 @@ function uploader(body,context){
    if(!up||typeof up.url!=="string"||typeof up.token!=="string"||up.url.indexOf(UPLOAD_PREFIX)!==0)throw fallback("This Athena server has not enabled direct uploads yet. Nothing was stored.");
    var res;try{res=await fetch(up.url,{method:"PUT",headers:{"content-type":"application/pdf"},body:file})}catch(e){throw fallback("This host blocked the direct upload. Nothing was stored.")}
    var out=null;try{out=await res.json()}catch(e){out=null}
-   if(!res.ok||!out||out.stored!==true||typeof out.path!=="string")throw new Error(out&&typeof out.error==="string"&&out.error||"The upload did not finish (HTTP "+res.status+"). Nothing was stored.");
-   return {path:out.path,token:up.token};
+   if(!res.ok||!out||out.stored!==true||typeof out.path!=="string"||typeof out.receipt!=="string")throw new Error(out&&typeof out.error==="string"&&out.error||"The upload did not finish (HTTP "+res.status+"). Nothing was stored.");
+   return {path:out.path,receipt:out.receipt};
   }
   var submit=button("Store PDF on this job",async function(){
   if(busy||!host.serverTools)return;
@@ -120,7 +120,7 @@ function uploader(body,context){
   try{var sheets=names.value.split(/[,\\n]/).map(function(s){return s.trim()}).filter(Boolean),result=null,staged=null;
     try{staged=await directUpload(file)}catch(e){if(!(e&&e.fallback)||file.size>${DRAWING_BASE64_FALLBACK_BYTES})throw e}
     if(staged){status.textContent="Uploaded. Athena is registering the drawing…";size();
-     result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,staged_path:staged.path,upload_token:staged.token,sheets:sheets}},180000)}
+     result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,staged_path:staged.path,upload_receipt:staged.receipt,sheets:sheets}},180000)}
     else{var bytes=new Uint8Array(await file.arrayBuffer()),parts=[];for(var i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+8192)));
      result=await callDrawingTool("drawing_set_import",{job_number:context.job_number,company_id:context.company_id,drawing:{filename:file.name,content_base64:btoa(parts.join("")),sheets:sheets}})}
    if(result&&result.structuredContent){remember(result,context);if(result.structuredContent.stored!==true)status.textContent=toolText(result)||"The new upload was not stored. No older drawing was substituted."}

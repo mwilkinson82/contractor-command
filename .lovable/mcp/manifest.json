@@ -3498,9 +3498,9 @@
                   "type": "string",
                   "maxLength": 300
                 },
-                "upload_token": {
+                "upload_receipt": {
                   "type": "string",
-                  "maxLength": 1024
+                  "maxLength": 2048
                 }
               }
             },
@@ -5001,9 +5001,9 @@
                   "type": "string",
                   "maxLength": 300
                 },
-                "upload_token": {
+                "upload_receipt": {
                   "type": "string",
-                  "maxLength": 1024
+                  "maxLength": 2048
                 }
               }
             },
@@ -5712,9 +5712,9 @@
                   "type": "string",
                   "maxLength": 300
                 },
-                "upload_token": {
+                "upload_receipt": {
                   "type": "string",
-                  "maxLength": 1024
+                  "maxLength": 2048
                 }
               }
             },
