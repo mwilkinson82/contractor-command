@@ -20,13 +20,14 @@ let db: PGlite;
 const query = async (sql: string, args: unknown[] = [], who = owner) =>
   asUser(db, claims(who), async (tx) => (await tx.query(sql, args)).rows);
 const path = (name = "drawing-hash/source.pdf", j = job) => `${company}/${j}/${name}`;
-const src = (hash = "a".repeat(64), key = "drive:test") => ({
+const src = (hash = "a".repeat(64), key = "drive:test", page_count?: number) => ({
   path: path(),
   filename: "set.pdf",
   source_key: key,
   source_url: "https://drive.google.com/file/d/test/view",
   content_hash: hash,
   sheets: ["Cover", "S-100"],
+  ...(page_count == null ? {} : { page_count }),
 });
 const save = async (record = src(), j = job, who = owner) =>
   (
@@ -51,6 +52,9 @@ beforeAll(async () => {
       ('athena-progress', 'athena-progress', false, 8388608, ARRAY['image/jpeg']);`);
   await db.exec(
     readFileSync("supabase/migrations/20261027130000_athena_drawing_versions.sql", "utf8"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/20261101120000_athena_drawing_page_count.sql", "utf8"),
   );
   for (const id of [owner, outsider, estimator, superId]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [id, claims(id).email]);
@@ -89,6 +93,21 @@ describe("drawing version migration, real Postgres permissions", () => {
     const names = readdirSync("supabase/migrations").filter((name) => name.endsWith(".sql"));
     const versions = names.map((name) => name.split("_")[0]);
     expect(new Set(versions).size).toBe(versions.length);
+  });
+  it("stores a page count beside the content hash and backfills a null count in place", async () => {
+    const key = "file:page-count.pdf";
+    const first = await save(src("9".repeat(64), key, 12));
+    expect(first.page_count).toBe(12);
+    const same = await save(src("9".repeat(64), key, 99));
+    expect(same.id).toBe(first.id);
+    expect(same.page_count).toBe(12);
+    const blank = await save(src("8".repeat(64), "file:page-count-blank.pdf"));
+    expect(blank.page_count).toBeNull();
+    const filled = await save(src("8".repeat(64), "file:page-count-blank.pdf", 4));
+    expect(filled.id).toBe(blank.id);
+    expect(filled.version).toBe(1);
+    expect(filled.page_count).toBe(4);
+    await db.query("DELETE FROM public.mcp_drawing_versions WHERE source_key LIKE 'file:page-count%'");
   });
   it("deduplicates source identity, revisions changed bytes, keeps all originals and source links", async () => {
     const first = await save();

@@ -60,7 +60,8 @@ describe("drawing direct upload", () => {
     expect(body.path).toMatch(new RegExp(`^${job.company_id}/${job.job_id}/drawing-[0-9a-f]{64}/source\\.pdf$`));
     expect(puts).toEqual([{ bucket: "athena-drawings", path: body.path, size: pdf.length }]);
     const receipt = (await verifyDrawingReceipt(body.receipt, SECRET))!;
-    expect(receipt).toMatchObject({ ...job, path: body.path, content_hash: body.content_hash, size: pdf.length });
+    expect(receipt).toMatchObject({ ...job, path: body.path, content_hash: body.content_hash, size: pdf.length, page_count: null });
+    expect(body.page_count).toBeNull();
     expect(await verifyDrawingReceipt(token, SECRET)).toBeNull(); // an upload token is not a receipt
     expect(await verifyDrawingUpload(body.receipt, SECRET)).toBeNull(); // and a receipt is not an upload token
     const claim = (await verifyDrawingUpload(token, SECRET))!;
@@ -180,10 +181,10 @@ describe("drawing direct upload", () => {
     const stored = await storeDrawingSet(sb as never, { ...job, job_number: "EX-1" } as never, {
       filename: "Example Set.pdf",
       sheets: ["S-100"],
-      staged: { path, content_hash: hash, size: 73_400_320 },
+      staged: { path, content_hash: hash, size: 73_400_320, page_count: 42 },
     });
     expect(touched).toEqual([]);
-    expect(saved[0]).toMatchObject({ path, storage_bucket: "athena-drawings", content_hash: hash });
-    expect(stored.pageCount).toBeUndefined();
+    expect(saved[0]).toMatchObject({ path, storage_bucket: "athena-drawings", content_hash: hash, page_count: 42 });
+    expect(stored.pageCount).toBe(42);
   });
 });

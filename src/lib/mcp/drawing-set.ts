@@ -1,5 +1,5 @@
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
-import { pdfPageCount } from "./pdf-pages";
+import { boundedPdfPageCount, normalizePageCount, pageCountFromSource, type PdfRead } from "./pdf-page-count";
 import { htmlBlock } from "./cards/markdown";
 // Stored drawing sets. New originals use a dedicated private drawing bucket; #190
 // originals remain in athena-files. Both use the same guarded
@@ -91,7 +91,7 @@ export type DrawingUpload = {
    * Internal: an object the direct upload route already wrote to athena-drawings,
    * from its signed receipt. The confirm step never downloads it again.
    */
-  staged?: { path: string; content_hash: string; size: number };
+  staged?: { path: string; content_hash: string; size: number; page_count?: number | null };
 };
 
 export type DrawingJob = { company_id: string; job_id: string };
@@ -118,6 +118,7 @@ export type DrawingRecord = {
   page?: number;
   parent_id?: string;
   storage_bucket?: string;
+  page_count?: number | null;
 };
 
 export type SheetPage = {
@@ -342,13 +343,12 @@ async function fetchDrawing(url: string): Promise<Uint8Array> {
 
 /**
  * Direct upload confirm. Hash and size come from the upload route's signed receipt,
- * so no bytes are loaded here. Page counting is deferred to sheet indexing: a full
- * pdf-lib parse of a 70 MB set does not fit the server's memory next to the file.
+ * so no bytes are loaded here. Page count and sha256 were saved with the upload receipt.
  */
 function stagedDrawing(
   upload: DrawingUpload,
   staged: NonNullable<DrawingUpload["staged"]>,
-): { bytes: null; filename: string; pageCount: undefined } {
+): { bytes: null; filename: string; pageCount: number | null } {
   try {
     const { name, ext } = safeFilename(upload.filename?.trim() || "drawing-set.pdf");
     if (ext !== "pdf") throw new FileRejected("A drawing set has to be a PDF. Nothing was stored.");
@@ -356,7 +356,7 @@ function stagedDrawing(
     const names = upload.sheets ?? [];
     if (new Set(names.map((s) => s.trim().toLowerCase())).size !== names.length)
       throw new FileRejected("Give each sheet one unique name in PDF page order. Nothing was stored.");
-    return { bytes: null, filename: name, pageCount: undefined };
+    return { bytes: null, filename: name, pageCount: normalizePageCount(staged.page_count) };
   } catch (e) {
     if (e instanceof FileRejected) throw new ToolError(e.message);
     throw e;
@@ -365,7 +365,7 @@ function stagedDrawing(
 
 export async function readDrawingBytes(
   upload: DrawingUpload,
-): Promise<{ bytes: Uint8Array; filename: string; pageCount: number }> {
+): Promise<{ bytes: Uint8Array; filename: string; pageCount: number | null }> {
   const filename =
     upload.filename?.trim() ||
     upload.file?.file_name?.trim() ||
@@ -386,19 +386,10 @@ export async function readDrawingBytes(
       throw new FileRejected(
         "Give each sheet one unique name in PDF page order. Nothing was stored.",
       );
-    // Import uses the existing pure-JavaScript PDF parser, without loading a
-    // renderer or requiring browser globals/native canvas support.
-    let pageCount: number;
-    try {
-      pageCount = await pdfPageCount(bytes);
-    } catch (err) {
-      const reason =
-        err instanceof Error && err.message ? err.message : "This PDF could not be read.";
-      throw new FileRejected(
-        /Nothing was stored\.$/.test(reason) ? reason : `${reason} Nothing was stored.`,
-      );
-    }
-    if (names.length > pageCount)
+    // Trailer walk, with pdf-lib only for a small PDF the trailer could not count.
+    // A large drawing stores a null page count instead of parsing the whole file.
+    const pageCount = await boundedPdfPageCount(bytes);
+    if (pageCount != null && names.length > pageCount)
       throw new FileRejected(
         "There are more sheet names than PDF pages. Correct the page index; nothing was stored.",
       );
@@ -535,6 +526,7 @@ export async function storeDrawingSet(
       source_key: source?.key ?? existing?.source_key ?? `file:${filename.toLowerCase()}`,
       source_url: source?.url ?? existing?.source_url ?? null,
       sheets,
+      page_count: pageCount,
     },
   });
   return {
@@ -543,8 +535,89 @@ export async function storeDrawingSet(
     sheets: record.sheets,
     record,
     duplicate: !!existing || !!legacy,
-    pageCount,
+    pageCount: pageCount ?? undefined,
   };
+}
+
+const HASH_IN_PATH = /\/drawing-([0-9a-f]{64})\/source\.pdf$/;
+
+async function fetchByteRange(
+  url: string,
+  range: string,
+  max: number,
+): Promise<{ bytes: Uint8Array; start: number; total: number | null } | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await fetch(url, { headers: { Range: range }, redirect: "manual", signal: ctrl.signal });
+    if (res.status !== 206 || !res.body) {
+      await res.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    const match = /^bytes (\d+)-(\d+)\/(\d+|\*)$/.exec(res.headers.get("content-range") ?? "");
+    if (!match) {
+      await res.body.cancel().catch(() => undefined);
+      return null;
+    }
+    const start = Number(match[1]);
+    const last = Number(match[2]);
+    const total = match[3] === "*" ? null : Number(match[3]);
+    const n = last - start + 1;
+    if (n <= 0 || n > max) {
+      await res.body.cancel().catch(() => undefined);
+      return null;
+    }
+    const buf = new Uint8Array(n);
+    let at = 0;
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (at + value.length > n) {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+      buf.set(value, at);
+      at += value.length;
+    }
+    if (at !== n) return null;
+    return { bytes: buf, start, total };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Page count from the PDF trailer via ranged reads. A full-object response is discarded. */
+async function rangePageCount(sb: DrawingStore, bucketName: string, path: string): Promise<number | null> {
+  try {
+    const signed = await bucket(sb, bucketName).createSignedUrl(path, 120);
+    const raw = signed.data?.signedUrl;
+    if (!raw) return null;
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    if (!url.hostname.endsWith(".supabase.co") || !url.pathname.includes("/storage/v1/object/"))
+      return null;
+    const probe = await fetchByteRange(url.href, "bytes=-4096", 4096);
+    if (!probe?.total) return null;
+    let requests = 0;
+    const cache: { start: number; bytes: Uint8Array }[] = [{ start: probe.start, bytes: probe.bytes }];
+    const read: PdfRead = async (start, end) => {
+      for (const hit of cache) {
+        if (start >= hit.start && end <= hit.start + hit.bytes.length)
+          return hit.bytes.subarray(start - hit.start, end - hit.start);
+      }
+      if (++requests > 12) return null;
+      const got = await fetchByteRange(url.href, `bytes=${start}-${end - 1}`, end - start);
+      if (!got || got.start !== start || got.bytes.length !== end - start) return null;
+      cache.push(got);
+      return got.bytes;
+    };
+    return pageCountFromSource(probe.total, read);
+  } catch {
+    return null;
+  }
 }
 
 /** Read a job-owned original by identity, without rewriting its file or registry row. */
@@ -571,18 +644,43 @@ export async function readStoredDrawingSet(
   job: DrawingJob,
   record: DrawingRecord,
 ): Promise<StoredDrawing> {
-  const bytes = await readStoredDrawingBytes(sb, job, record);
+  if (!drawingOwned(record.path, job.company_id, job.job_id))
+    throw new ToolError("That drawing source does not belong to this job.");
+  let pageCount = normalizePageCount(record.page_count);
+  let next = record;
+  if (pageCount == null) {
+    pageCount = await rangePageCount(sb, drawingBucket(record), record.path);
+    if (pageCount != null) {
+      try {
+        next = await drawingRpc<DrawingRecord>(sb, "mcp_drawing_source_save", {
+          _job: job.job_id,
+          _record: {
+            path: record.path,
+            storage_bucket: drawingBucket(record),
+            filename: record.filename,
+            content_hash: record.content_hash,
+            source_key: record.source_key,
+            source_url: record.source_url,
+            sheets: record.sheets,
+            page_count: pageCount,
+          },
+        });
+      } catch {
+        next = { ...record, page_count: pageCount };
+      }
+    }
+  }
   return {
-    name: record.filename,
-    path: record.path,
-    sheets: record.sheets,
-    record,
+    name: next.filename,
+    path: next.path,
+    sheets: next.sheets,
+    record: next,
     duplicate: true,
-    pageCount: await pdfPageCount(bytes),
+    pageCount: pageCount ?? undefined,
   };
 }
 
-/** Re-index an existing original in place without encoding its bytes into a new upload. */
+/** Re-index an existing original from its saved hash and page count. Does not re-download a known file. */
 export async function indexStoredDrawingSet(
   sb: DrawingStore,
   job: DrawingJob,
@@ -599,27 +697,39 @@ export async function indexStoredDrawingSet(
     (input.record && input.record.path !== input.path)
   )
     throw new ToolError("That drawing source does not belong to this job. Nothing was indexed.");
-  const storageBucket = drawingBucket(input.record);
-  const file = await bucket(sb, storageBucket).download(input.path);
-  if (file.error || !file.data)
-    throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
-  const bytes = new Uint8Array(await file.data.arrayBuffer());
-  const checked = validateFile(bytes, input.filename, DRAWING_MAX_BYTES);
-  if (checked.ext !== "pdf")
-    throw new ToolError("A drawing set has to be a PDF. Nothing was indexed.");
-  const hash = await sha256Hex(bytes);
-  if (input.record && hash !== input.record.content_hash)
-    throw new ToolError(
-      "The stored drawing does not match its saved fingerprint. Review its source revision first.",
-    );
   if (new Set(input.sheets.map((name) => name.trim().toLowerCase())).size !== input.sheets.length)
     throw new ToolError("Give each sheet one unique name in PDF page order. Nothing was indexed.");
-  const pageCount = await pdfPageCount(bytes);
-  if (input.sheets.length > pageCount)
+  let filename = input.filename;
+  try {
+    const named = safeFilename(input.filename);
+    if (named.ext !== "pdf") throw new FileRejected("pdf");
+    filename = named.name;
+  } catch {
+    throw new ToolError("A drawing set has to be a PDF. Nothing was indexed.");
+  }
+  const storageBucket = drawingBucket(input.record);
+  let hash = input.record?.content_hash ?? HASH_IN_PATH.exec(input.path)?.[1] ?? null;
+  let held: Uint8Array | null = null;
+  if (!hash) {
+    const file = await bucket(sb, storageBucket).download(input.path);
+    if (file.error || !file.data)
+      throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
+    held = new Uint8Array(await file.data.arrayBuffer());
+    try {
+      if (validateFile(held, filename, DRAWING_MAX_BYTES).ext !== "pdf") throw new FileRejected("pdf");
+    } catch {
+      throw new ToolError("A drawing set has to be a PDF. Nothing was indexed.");
+    }
+    hash = await sha256Hex(held);
+  }
+  let pageCount = normalizePageCount(input.record?.page_count);
+  if (pageCount == null && held) pageCount = await boundedPdfPageCount(held);
+  if (pageCount == null && !held) pageCount = await rangePageCount(sb, storageBucket, input.path);
+  if (pageCount != null && input.sheets.length > pageCount)
     throw new ToolError(
       "There are more sheet names than PDF pages. Correct the page index; nothing was indexed.",
     );
-  if (input.complete && input.sheets.length !== pageCount)
+  if (pageCount != null && input.complete && input.sheets.length !== pageCount)
     throw new ToolError(
       `This stored PDF has ${pageCount} pages. Give one sheet name per PDF page, in order. No index was changed; no re-upload is needed.`,
     );
@@ -628,11 +738,12 @@ export async function indexStoredDrawingSet(
     _record: {
       path: input.path,
       storage_bucket: storageBucket,
-      filename: input.record?.filename ?? input.filename,
+      filename: input.record?.filename ?? filename,
       content_hash: hash,
-      source_key: input.record?.source_key ?? `file:${input.filename.toLowerCase()}`,
+      source_key: input.record?.source_key ?? `file:${filename.toLowerCase()}`,
       source_url: input.record?.source_url ?? null,
       sheets: input.sheets,
+      page_count: pageCount,
     },
   });
   return {
@@ -641,7 +752,7 @@ export async function indexStoredDrawingSet(
     sheets: record.sheets,
     record,
     duplicate: true,
-    pageCount,
+    pageCount: pageCount ?? undefined,
   };
 }
 
