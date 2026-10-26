@@ -156,6 +156,10 @@ describe("drawing card view", () => {
     Object.assign(v.all().find(e => e.tagName === "INPUT")!, { files: [{ name: "A200(4).pdf", size: 10, arrayBuffer: async () => new Uint8Array(10).buffer }] });
     const uploading = v.all().find(e => e.textContent === "Store PDF on this job")!.handlers.click();
     await new Promise(resolve => setTimeout(resolve, 0));
+    const startCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
+    expect((startCall.params as { arguments: object }).arguments).not.toHaveProperty("drawing");
+    v.message({ jsonrpc: "2.0", id: startCall.id, result: initial });
+    await new Promise(resolve => setTimeout(resolve, 0));
     const uploadCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
     const stored = { structuredContent: { stored: true, sheet_index_required: true, page_count: 5, source: { id: "unindexed", filename: "A200(4).pdf", sheets: [] }, drawing_source_context: { ...context, source_id: "unindexed" }, sheet_index_context: { ...context, source_id: "unindexed" }, card: { title: "Drawing stored — sheet names needed" } } };
     v.message({ jsonrpc: "2.0", id: uploadCall.id, result: stored }); await uploading;
@@ -319,9 +323,15 @@ describe("drawing card view", () => {
     const upload = submit.handlers.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     submit.handlers.click();
+    const starts = v.sent.filter(({ data }) => data.method === "tools/call");
+    expect(starts).toHaveLength(1);
+    // No direct_upload link from this server: a small PDF falls back to the base64 path.
+    v.message({ jsonrpc: "2.0", id: (starts[0].data as { id: number }).id, result: { structuredContent: { stored: false } } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    submit.handlers.click();
     const calls = v.sent.filter(({ data }) => data.method === "tools/call");
-    expect(calls).toHaveLength(1);
-    const request = calls[0].data as {
+    expect(calls).toHaveLength(2);
+    const request = calls[1].data as {
       id: number;
       params: {
         name: string;
@@ -478,6 +488,8 @@ describe("drawing card view", () => {
     const html = drawingCardHtml("");
     expect(html).toContain('storageOrigin=""');
     expect(html).not.toContain("innerHTML");
-    expect(html).not.toContain("fetch(");
+    expect(html.match(/fetch\(/g)).toEqual(["fetch("]);
+    expect(html).toContain('fetch(up.url,{method:"PUT"');
+    expect(html).toContain('UPLOAD_PREFIX="https://app.meetathena.io/r/drawing-upload/"');
   });
 });
