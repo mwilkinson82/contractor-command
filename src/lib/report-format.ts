@@ -18,13 +18,20 @@ const DOLLAR_MARGIN_RE = /amount|dollar|cost|profit|revenue|exposure|price|(?:^|
 /** Percents that are still financial, so a no-money view does not print them. */
 const FINANCIAL_PERCENT_RE = /margin|markup|gp|fee|profit|overhead|billed|retainage|revenue|cost/i;
 
+/** Identifiers are not amounts. Strings retain their exact source precision. */
+export function isIdentifierKey(key: string): boolean {
+  return /(?:^|_)(?:cost_codes?|sov_codes?|sov_lines?)(?:_|$)/i.test(key);
+}
+
 export function isPercentKey(key: string): boolean {
+  if (isIdentifierKey(key)) return false;
+  if (/^(?:profit|overhead)_markup$/i.test(key)) return true;
   if (RATIO_RE.test(key) && DOLLAR_MARGIN_RE.test(key) && !PERCENT_RE.test(key)) return false;
   return RATIO_RE.test(key) || PERCENT_RE.test(key);
 }
 
 export function isPlainKey(key: string): boolean {
-  return !isPercentKey(key) && PLAIN_RE.test(key);
+  return isIdentifierKey(key) || (!isPercentKey(key) && PLAIN_RE.test(key));
 }
 
 export function isMoneyKey(key: string): boolean {
@@ -57,6 +64,7 @@ export function formatPlainNumber(value: number): string {
  */
 export function formatReportNumber(key: string, value: number, moneyOk = true): string {
   if (!Number.isFinite(value)) return "";
+  if (isIdentifierKey(key)) return String(value);
   if (isPercentKey(key)) {
     // Four figures on a margin key are dollars (a ratio is never 1,000).
     if (Math.abs(value) >= 1000 && RATIO_RE.test(key) && !PERCENT_RE.test(key)) return moneyOk ? money(value) : "—";

@@ -4,6 +4,8 @@
 import { money } from "./sov";
 import { ALERT_COLOR } from "./alert-color";
 import { addCountedDays, addDays, federalHolidays, todayIn } from "./deadlines";
+import { asReportNumber, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey } from "../report-format";
+import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "../ior-hold-summary";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -553,8 +555,9 @@ function iorLabel(key: string): string {
 
 function iorScalar(key: string, value: unknown): string | null {
   if (value == null || value === "") return null;
+  if (isIdentifierKey(key) && (typeof value === "string" || typeof value === "number")) return String(value);
   if (typeof value === "number" && Number.isFinite(value)) {
-    if (/pct|percent|probability|margin/i.test(key) && Math.abs(value) <= 1) return `${Math.round(value * 1000) / 10}%`;
+    if (isPercentKey(key)) return formatReportNumber(key, value);
     if (/amount|exposure|contract|profit|cost|revenue|fee|billed|paid|balance|value/i.test(key) && !/pct|percent/i.test(key)) return money(value);
     return String(value);
   }
@@ -562,6 +565,8 @@ function iorScalar(key: string, value: unknown): string | null {
   if (typeof value === "string") {
     const text = value.trim();
     if (!text || IOR_UUID.test(text)) return null;
+    const numeric = asReportNumber(text);
+    if (numeric != null && (isPercentKey(key) || isMoneyKey(key))) return formatReportNumber(key, numeric);
     return text;
   }
   return null;
@@ -593,7 +598,7 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
     if (label && href) lines.push(`${label}: ${href}`);
   }
   const data = sc?.data && typeof sc.data === "object" && !Array.isArray(sc.data) ? (sc.data as Record<string, unknown>) : null;
-  const sections = iorSectionsText(data);
+  const sections = sc?.no_financials === true ? [] : iorSectionsText(data);
   if (sections.length) lines.push("", ...sections);
   if (typeof sc?.version === "number") {
     const who = textOf(sc.updated_by);
@@ -619,12 +624,14 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
 export function iorSectionsText(data: Record<string, unknown> | null | undefined): string[] {
   if (!data) return [];
   const lines: string[] = [];
+  const holds = iorHoldSummary(data);
+  const summarized = (key: string) => !!holds && (isExposureHoldTotal(key) || (holds.contingencyCents != null && isContingencyHoldTotal(key)));
   const title = iorScalar("title", data.title);
   if (title) lines.push(title);
   const kpis = data.kpis;
   if (kpis && typeof kpis === "object" && !Array.isArray(kpis)) {
     const bits = Object.entries(kpis as Record<string, unknown>)
-      .filter(([key]) => !IOR_HIDDEN.has(key))
+      .filter(([key]) => !IOR_HIDDEN.has(key) && !summarized(key))
       .map(([key, value]) => {
         const shown = iorScalar(key, value);
         return shown ? `${iorLabel(key)}: ${shown}` : "";
@@ -632,8 +639,12 @@ export function iorSectionsText(data: Record<string, unknown> | null | undefined
       .filter(Boolean);
     if (bits.length) lines.push("Job health", ...bits.map((bit) => `- ${bit}`));
   }
+  if (holds) {
+    lines.push(`Listed E-holds: ${money(holds.exposureCents / 100)} · ${holds.count} listed`);
+    if (holds.contingencyCents != null) lines.push(`C-holds: ${money(holds.contingencyCents / 100)}`);
+  }
   for (const [key, value] of Object.entries(data)) {
-    if (key === "title" || key === "kpis" || IOR_HIDDEN.has(key) || IOR_SKIP.has(key)) continue;
+    if (key === "title" || key === "kpis" || IOR_HIDDEN.has(key) || IOR_SKIP.has(key) || summarized(key)) continue;
     if (Array.isArray(value)) {
       const rows = value.filter((row) => row && typeof row === "object") as Record<string, unknown>[];
       const scalars = value.filter((row): row is string | number => typeof row === "string" || typeof row === "number");
