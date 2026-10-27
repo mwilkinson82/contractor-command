@@ -113,6 +113,33 @@ export type ProductionFact = ProjectRef & {
   manHours: number;
 };
 
+/** Select the latest recorded revision per logical line before filtering by
+ * allocation. Filtering first would resurrect an old fact after a correction
+ * changes its allocation. Persistence must guarantee revisions are immutable. */
+export function currentProductionFacts(
+  project: ProjectRef,
+  facts: ProductionFact[],
+): ProductionFact[] {
+  const current = new Map<string, ProductionFact>();
+  const revisions = new Set<string>();
+  for (const fact of facts) {
+    if (
+      !sameProject(project, fact) ||
+      !fact.logicalLineId ||
+      !Number.isInteger(fact.revision) ||
+      fact.revision < 1
+    ) {
+      throw new Error("A production revision has an invalid project, line ID, or revision.");
+    }
+    const key = JSON.stringify([fact.logicalLineId, fact.revision]);
+    if (revisions.has(key)) throw new Error("Duplicate production revision.");
+    revisions.add(key);
+    const previous = current.get(fact.logicalLineId);
+    if (!previous || previous.revision < fact.revision) current.set(fact.logicalLineId, fact);
+  }
+  return [...current.values()];
+}
+
 /** A caller supplies current, already-authorized revisions pinned to one mapping allocation.
  * This deliberately does not calculate earned value or touch billing. */
 export function productionTotals(

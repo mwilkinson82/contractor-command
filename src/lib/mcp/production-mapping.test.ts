@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  currentProductionFacts,
   plannedRate,
   productionTotals,
   validateMapping,
@@ -103,5 +104,16 @@ describe("proposed production mapping", () => {
     expect(
       productionTotals(project, a, [{ ...fact("day1", 30, 8), allocationId: "a2" }]).actualRate,
     ).toBe(3.75);
+  });
+  it("selects corrections before filtering allocations so old facts do not reappear", () => {
+    const original = fact("day1", 300, 80);
+    const corrected = { ...original, revision: 2, quantity: 320, allocationId: "a2" };
+    const current = currentProductionFacts(project, [corrected, original]);
+    expect(current).toEqual([corrected]);
+    expect(current.filter((f) => f.allocationId === "a1")).toEqual([]);
+    expect(() => currentProductionFacts(project, [original, original])).toThrow(
+      "Duplicate production revision",
+    );
+    expect(() => currentProductionFacts(project, [{ ...original, companyId: "other" }])).toThrow();
   });
 });
