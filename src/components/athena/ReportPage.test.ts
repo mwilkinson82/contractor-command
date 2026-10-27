@@ -71,6 +71,23 @@ function signInReturn(html: string): string {
 }
 
 describe("board link page without a session", () => {
+  it("passes the authorized daily route identity to presentation without changing the saved payload", () => {
+    const payload = JSON.stringify({
+      page: "daily", found: true, job_number: "2708", job_name: "Cedar Grove Medical Office Building",
+      report_date: "2026-10-27", weather: "FICTIONAL DEMO: Light rain, work indoors.",
+      manpower: "FICTIONAL DEMO: 3 workers, 8 hours each, 24 person-hours.",
+      lines: [{ work: "FICTIONAL DEMO: Installed 96 LF EMT.", qty: 96, unit: "LF", crew: 3, hours: 8, activity_id: "E090" }],
+    });
+    state.linkQuery = { data: { status: "ok", payload }, isLoading: false, error: null };
+    const html = renderToStaticMarkup(createElement(ReportPageView, {
+      page: "daily", jobId: "289ca2cd-b585-419a-8c09-3501d1be48c3", token: "live-token",
+    }));
+    expect(html).toContain("Daily Report for October 27, 2026");
+    expect(html).toContain("96 LF · crew 3 · 8 hours");
+    expect(html).not.toContain("FICTIONAL DEMO:");
+    expect(state.linkQuery.data).toEqual({ status: "ok", payload });
+  });
+
   it("renders the token payload when there is no session", () => {
     state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: null };
     const html = renderPage("items", "live-token");
