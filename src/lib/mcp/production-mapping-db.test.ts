@@ -324,6 +324,17 @@ describe("historical and mapping revisions", () => {
     const p = await preview(allocations, job, owner, 1);
     const second = (await approve(p, "10000000-0000-4000-8000-000000000007", 1)).rows[0].result;
     expect(second.version).toBe(2);
+    const original = (
+      await db.query<{ request_payload: { preview: unknown } }>(
+        "SELECT request_payload FROM mcp_production_mapping_versions WHERE job_id=$1 AND version=1",
+        [job],
+      )
+    ).rows[0].request_payload.preview;
+    expect((await approve(original)).rows[0].result).toMatchObject({
+      version: 1,
+      replayed: true,
+      is_current: false,
+    });
     const allocation2 = (
       await db.query<{ id: string }>(
         "SELECT id FROM mcp_production_allocations WHERE mapping_id=$1 AND activity_id='E090'",

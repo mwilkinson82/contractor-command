@@ -166,25 +166,28 @@ export const productionMappingApprove = defineTool({
       if (!args.confirmed)
         throw new ToolError("Ask the PM to approve the reviewed mapping first. Nothing was saved.");
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
-      const result = await rpc<{ id: string; version: number; replayed: boolean }>(
-        sb,
-        "mcp_production_mapping_approve",
-        {
-          _job: job.job_id,
-          _cpm: args.cpm_id,
-          _base_version: args.base_version,
-          _effective: args.effective_date,
-          _reason: args.reason,
-          _request_key: args.request_key,
-          _preview: args.preview,
-          _allocations: args.allocations,
-          _confirmed: true,
-        },
-      );
+      const result = await rpc<{
+        id: string;
+        version: number;
+        replayed: boolean;
+        is_current: boolean;
+      }>(sb, "mcp_production_mapping_approve", {
+        _job: job.job_id,
+        _cpm: args.cpm_id,
+        _base_version: args.base_version,
+        _effective: args.effective_date,
+        _reason: args.reason,
+        _request_key: args.request_key,
+        _preview: args.preview,
+        _allocations: args.allocations,
+        _confirmed: true,
+      });
       await audit(sb, job, "production_mapping_approve", "approve_production_mapping", result.id);
       return {
         ...text(
-          `${prefix(job)}Approved mapping v${result.version} is saved${result.replayed ? " (existing request)" : ""}.`,
+          result.replayed && !result.is_current
+            ? `${prefix(job)}This request previously approved mapping v${result.version}; a later mapping version is now on file. Review current references before recording work.`
+            : `${prefix(job)}Approved mapping v${result.version} is saved${result.replayed ? " (existing request)" : ""}.`,
         ),
         structuredContent: result,
       };

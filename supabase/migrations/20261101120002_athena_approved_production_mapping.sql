@@ -80,7 +80,7 @@ BEGIN
  SELECT * INTO prior FROM public.mcp_production_mapping_versions WHERE job_id=_job AND request_key=_request_key;
  IF prior.id IS NOT NULL THEN
    IF prior.request_payload <> payload THEN RAISE EXCEPTION 'MCP_BAD:Request key already used for different mapping.'; END IF;
-   RETURN jsonb_build_object('id',prior.id,'version',prior.version,'replayed',true);
+   RETURN jsonb_build_object('id',prior.id,'version',prior.version,'replayed',true,'is_current',prior.version=(SELECT max(version) FROM public.mcp_production_mapping_versions WHERE job_id=_job));
  END IF;
  SELECT coalesce(max(version),0) INTO ver FROM public.mcp_production_mapping_versions WHERE job_id=_job;
  IF _base_version IS DISTINCT FROM ver THEN RAISE EXCEPTION 'MCP_BAD:Mapping changed. Reload before approval.'; END IF;
@@ -96,7 +96,7 @@ BEGIN
    INSERT INTO public.mcp_production_allocations(mapping_id,job_id,company_id,sov_fact_id,sov_item,activity_id,allocated_cents,planned_quantity,unit,planned_man_hours,planned_source)
    VALUES(mid,_job,cid,fid,item,x->>'activity_id',(x->>'allocated_cents')::bigint,nullif(x->>'planned_quantity','')::numeric,nullif(btrim(x->>'unit'),''),nullif(x->>'planned_man_hours','')::numeric,nullif(btrim(x->>'planned_source'),''));
  END LOOP;
- RETURN jsonb_build_object('id',mid,'version',ver+1,'replayed',false);
+ RETURN jsonb_build_object('id',mid,'version',ver+1,'replayed',false,'is_current',true);
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_production_mapping_approve(uuid,uuid,integer,date,text,uuid,jsonb,jsonb,boolean) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.mcp_production_mapping_approve(uuid,uuid,integer,date,text,uuid,jsonb,jsonb,boolean) TO authenticated;
