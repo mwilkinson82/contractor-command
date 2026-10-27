@@ -46,6 +46,7 @@ const PHOTO_BUCKET = "athena-progress";
 
 const workIn = z.object({
   work: z.string().trim().min(1).max(400),
+  allocation_id: z.string().uuid().optional(),
   sov_item: z.string().trim().max(20).nullable().optional(),
   activity_id: z.string().trim().max(20).nullable().optional(),
   qty: z.number().nullable().optional(),
@@ -257,10 +258,19 @@ export const dailyReportDraft = defineTool({
       const zone = await jobTimeZone(sb, job.job_id);
       const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
+      const refs = await call<{ allocation_id: string; mapping_version: number; sov_item: string; activity_id: string; unit: string | null }[]>(sb, "mcp_production_work_references", { _job: job.job_id, _date: day });
+      const status = await call<{ found: boolean; revision: number }>(sb, "mcp_daily_revision_status", { _job: job.job_id, _date: day });
+      const mapped = draft.work.map((line) => {
+        const hits = refs.filter((r) => r.sov_item === line.sov_item && r.activity_id === line.activity_id && (r.unit == null || r.unit === line.unit));
+        return { ...line, allocation_id: hits.length === 1 ? hits[0].allocation_id : null, mapping_version: hits.length === 1 ? hits[0].mapping_version : null };
+      });
+      const missing = mapped.some((w) => !w.allocation_id);
+      const ready = draft.ready && !missing;
+      const requestKey = crypto.randomUUID();
       await audit(sb, job, "daily_report_draft", "draft_daily", null);
       return guide(
-        { ...text(dailyCard(`${named(job)} `, day, draft, false)), structuredContent: { saved: false, report_date: day, ready: draft.ready, follow_ups: draft.follow_ups, draft } },
-        draft.ready ? "The daily is complete. Ask the superintendent to confirm, and only after a yes call daily_report_save with confirmed true." : "Ask every still-needed question. Do not save yet.",
+        { ...text([dailyCard(`${named(job)} `, day, draft, false), ...mapped.map((w) => w.allocation_id ? `Approved mapping v${w.mapping_version}: SOV ${w.sov_item}, ${w.activity_id}.` : `No unique approved work reference for SOV ${w.sov_item ?? "needed"}, ${w.activity_id ?? "activity needed"}.`), ...(status.found ? ["A correction reason is required for a changed saved daily."] : [])].join("\n")), structuredContent: { saved: false, report_date: day, ready, follow_ups: draft.follow_ups, draft: { ...draft, work: mapped }, expected_revision: status.revision, request_key: requestKey, correction_reason_required: status.found } },
+        ready ? "Review the daily and approved references with the superintendent. Only after a yes call daily_report_save with confirmed true, the exact work allocation IDs, expected revision and request key. A changed saved daily also needs a correction reason." : "Resolve each missing section and approved work reference before saving.",
       );
     }),
 });
@@ -269,7 +279,7 @@ export const dailyReportSave = defineTool({
   name: "daily_report_save",
   title: "Save a confirmed daily report",
   description: "Saves a daily report after the superintendent confirms it.",
-  inputSchema: { ...dailyFields, confirmed: z.boolean() },
+  inputSchema: { ...dailyFields, confirmed: z.boolean(), expected_revision: z.number().int().min(0), request_key: z.string().uuid(), correction_reason: z.string().trim().min(1).max(1000).optional() },
   annotations: SAVE,
   handler: (args, ctx) =>
     run("daily_report_save", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -280,17 +290,23 @@ export const dailyReportSave = defineTool({
       const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
       if (!draft.ready) throw new ToolError(`${prefix(job)}Not saved.\n${draft.follow_ups.map((q) => `- ${q}`).join("\n")}`);
-      const saved = await call<{ id: string; lines: number }>(sb, "mcp_daily_report_save", {
+      if (!args.work || args.work.length !== draft.work.length || args.work.some((w) => !w.allocation_id)) throw new ToolError("Review the approved work references in the daily draft first. Nothing was saved.");
+      const saved = await call<{ id: string; lines: number; revision: number; revision_id: string; replayed: boolean; is_current: boolean }>(sb, "mcp_daily_report_save_v2", {
         _job: job.job_id, _date: day, _confirmed: true,
         _weather: draft.weather, _manpower: draft.manpower, _subs: draft.subs_on_site, _deliveries: draft.deliveries,
         _issues: draft.issues, _delays: draft.delays, _safety: draft.safety, _transcript: args.transcript ?? null,
-        _lines: draft.work.map((w) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete })),
+        _lines: draft.work.map((w, i) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete, allocation_id: args.work![i].allocation_id })),
+        _expected_revision: args.expected_revision, _request_key: args.request_key, _reason: args.correction_reason ?? null,
       });
       await audit(sb, job, "daily_report_save", "save_daily", saved.id);
+      if (saved.replayed && !saved.is_current) return guide(
+        { ...text(`${prefix(job)}This request was already saved as revision ${saved.revision}; the daily has since changed. Open the current daily before taking further action.`), structuredContent: { ...saved, saved: true, report_date: day } },
+        "This is a replay of an earlier revision, not the current daily. Call daily_report_get to show the current record.",
+      );
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
-        "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save.",
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true), `Revision ${saved.revision}${saved.replayed ? " · existing request" : ""}`].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, revision: saved.revision, revision_id: saved.revision_id, replayed: saved.replayed, rates: draft.work.map(rateFromLine).filter(Boolean) } },
+        "Saved against the approved work references. Production is distinct from actual billing and payment. This save does not change the saved schedule.",
       );
     }),
 });
@@ -308,13 +324,14 @@ export const dailyReportGet = defineTool({
       const zone = await jobTimeZone(sb, job.job_id);
       const day = args.report_date ?? todayIn(zone);
       const got = await call<{ found: boolean; weather?: string; manpower?: string; subs_on_site?: string; deliveries?: string; issues?: string; delays?: string; safety?: string; lines?: { work: string; sov_item: string; activity_id: string; qty: number; unit: string; crew: number; hours: number; pct_complete: number | null }[] }>(sb, "mcp_daily_report_get", { _job: job.job_id, _date: day });
+      const revision = await call<{ revision: number; lines: { revision_line_id: string; line_no: number; allocation_id: string | null }[]; legacy?: boolean }>(sb, "mcp_daily_revision_status", { _job: job.job_id, _date: day });
       await audit(sb, job, "daily_report_get", "view_daily", null);
       if (!got.found) return guide({ ...text(`${prefix(job)}No daily is saved for ${day}.`), structuredContent: { found: false, report_date: day } }, "Nothing saved for that date.");
       const draft = assembleDaily({ ...got, work: got.lines ?? [] });
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got } },
-        "Show the card as saved.",
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got, revision, photo_association_request_key: crypto.randomUUID() } },
+        "Show the card as saved. For an explicit photo association, use the chosen revision line ID and the returned photo association request key; reuse that key to reconcile a retry.",
       );
     }),
 });

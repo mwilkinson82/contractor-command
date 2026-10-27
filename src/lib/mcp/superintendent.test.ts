@@ -132,6 +132,7 @@ import {
   progressPhotoSave,
   superintendentView,
 } from "./tools/superintendent-tools";
+import { productionMappingPreview, productionMappingApprove, weeklyProduction } from "./tools/production-tools";
 
 type H = (a: Record<string, unknown>, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: Record<string, unknown> }>;
 const handle = (tool: unknown, args: Record<string, unknown>) => (tool as { handler: H }).handler(args, {});
@@ -141,6 +142,8 @@ const dailyOk = {
   job_number: "2701",
   report_date: "2026-10-21",
   confirmed: true,
+  expected_revision: 0,
+  request_key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   weather: "Clear",
   manpower: "4 carpenters",
   subs_on_site: "none",
@@ -148,7 +151,7 @@ const dailyOk = {
   issues: "none",
   delays: "none",
   safety: "Toolbox talk",
-  work: [{ work: "Footings", sov_item: "03.01", activity_id: "A1000", qty: 40, unit: "cy", crew: 4, hours: 8, pct_complete: 30 }],
+  work: [{ work: "Footings", sov_item: "03.01", activity_id: "A1000", qty: 40, unit: "cy", crew: 4, hours: 8, pct_complete: 30, allocation_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }],
 };
 
 beforeEach(() => {
@@ -157,7 +160,7 @@ beforeEach(() => {
   state.removed = [];
   state.rpcs = [];
   state.tables = {};
-  state.rpc = {};
+  state.rpc = { mcp_production_work_references: [], mcp_daily_revision_status: { found: false, revision: 0, lines: [] } };
   delete process.env.ATHENA_FIELD_REMINDER_EMAIL_ENABLED;
 });
 
@@ -274,10 +277,10 @@ describe("daily assembly", () => {
   });
 
   it("saves only a complete confirmed daily and records the production rate", async () => {
-    state.rpc.mcp_daily_report_save = { id: "d1", lines: 1, saved: true };
+    state.rpc.mcp_daily_report_save_v2 = { id: "d1", lines: 1, revision: 1, revision_id: "r1", replayed: false };
     const r = await handle(dailyReportSave, dailyOk);
     expect(r.structuredContent.saved).toBe(true);
-    expect(state.rpcs[0][0]).toBe("mcp_daily_report_save");
+    expect(state.rpcs[0][0]).toBe("mcp_daily_report_save_v2");
     expect(state.rpcs[0][1]._confirmed).toBe(true);
     expect(r.content[0].text).toContain("Saved.");
     expect(rateFromLine(parseWorkLine("Footings SOV 03.01 A1000 40 cy crew 4 8 hours"))).toMatchObject({
@@ -285,6 +288,25 @@ describe("daily assembly", () => {
       qty_per_man_hour: 1.25,
       sov_item: "03.01",
     });
+  });
+
+  it("offers only the matching approved work reference in a reviewed draft", async () => {
+    state.rpc.mcp_production_work_references = [{ allocation_id: dailyOk.work[0].allocation_id, mapping_version: 2, sov_item: "03.01", activity_id: "A1000", unit: "cy" }];
+    state.rpc.mcp_daily_revision_status = { found: true, revision: 3 };
+    const result = await handle(dailyReportDraft, dailyOk);
+    expect(result.structuredContent).toMatchObject({ ready: true, expected_revision: 3, correction_reason_required: true, draft: { work: [{ allocation_id: dailyOk.work[0].allocation_id, mapping_version: 2 }] } });
+    expect(result.content[0].text).toContain("Approved mapping v2");
+    expect(result.structuredContent.request_key).toMatch(/^[0-9a-f-]{36}$/);
+    state.rpc.mcp_production_work_references = [];
+    const missing = await handle(dailyReportDraft, dailyOk);
+    expect(missing.structuredContent.ready).toBe(false);
+  });
+
+  it("does not present an earlier replay as the current daily", async () => {
+    state.rpc.mcp_daily_report_save_v2 = { id: "d1", lines: 1, revision: 1, revision_id: "r1", replayed: true, is_current: false };
+    const result = await handle(dailyReportSave, dailyOk);
+    expect(result.content[0].text).toMatch(/daily has since changed/);
+    expect(result.content[0].text).not.toContain("Saved.");
   });
 });
 
@@ -651,5 +673,27 @@ describe("percent card", () => {
     const card = payAppPercentCard("2701 – ", "2026-10-21", [{ item_no: "03.01", pct: 30, qty: 40, unit: "cy" }]);
     expect(card).not.toContain("$");
     expect(card).toContain("30% complete");
+  });
+});
+
+describe("approved production tools", () => {
+  it("shows a full reviewed allocation and waits for explicit approval", async () => {
+    const item = { sov_fact_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", activity_id: "E090", allocated_cents: 10000, planned_quantity: 1000, unit: "LF", planned_man_hours: 250, planned_source: "field plan" };
+    state.rpc.mcp_production_mapping_sources = { cpm_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", cpm_version: 1, mapping_version: 0, activities: [], sov: [{ fact_id: item.sov_fact_id, item: "26.04" }, { fact_id: "other", item: "26.05" }] };
+    state.rpc.mcp_production_mapping_preview = { cpm_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", cpm_version: 1, sov: [{ fact_id: item.sov_fact_id, item: "26.04", value: { description: "Conduit" } }], allocations: [item] };
+    const args = { job_number: "2701", cpm_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", effective_date: "2026-10-26", reason: "field plan", allocations: [item] };
+    const draft = await handle(productionMappingPreview, args);
+    expect(draft.content[0].text).toContain("SOV 26.04 (Conduit) → E090: $100.00");
+    expect(draft.content[0].text).toContain("Unallocated SOV lines at source read: 26.05");
+    expect(state.rpcs.map((r) => r[0])).not.toContain("mcp_production_mapping_approve");
+    await expect(handle(productionMappingApprove, { ...args, ...draft.structuredContent, confirmed: false })).rejects.toThrow(/approve/);
+    expect(state.rpcs.map((r) => r[0])).not.toContain("mcp_production_mapping_approve");
+  });
+  it("shows unknown planned rates and keeps physical progress distinct from billing", async () => {
+    state.rpc.mcp_weekly_production = { rows: [{ sov_item: "26.04", activity_id: "E090", mapping_version: 1, unit: "LF", period_quantity: 30, period_man_hours: 8, actual_rate: 3.75, planned_rate: null, planned_source: null, cumulative_quantity: 30, cumulative_man_hours: 8 }], unmapped_current_lines: 1, earned_value: null };
+    const result = await handle(weeklyProduction, { job_number: "2701", from: "2026-10-26", to: "2026-11-01" });
+    expect(result.content[0].text).toContain("actual 3.75 LF/person-hour; planned unknown");
+    expect(result.content[0].text).toContain("no approved mapping and are excluded");
+    expect(result.content[0].text).toContain("Earned value: unknown");
   });
 });

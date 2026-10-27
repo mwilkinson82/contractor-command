@@ -1,8 +1,9 @@
 # Approved SOV/CPM mapping and production: implementation contract
 
-Status: **design and isolated calculation checks only**. No migration, saved mapping,
-approval workflow, daily revision, photo link, weekly view, or live integration is
-implemented by this document. Do not release this track on the strength of these checks.
+Status: **implementation in review**. The staged migration and MCP tools implement
+mapping approval, daily revisions, explicit photo links and quantity/rate reporting.
+Local database fixtures exercise these paths; the migration has not been applied and
+the real app path has not been verified. Do not release on fixture checks alone.
 
 ## Existing sources and boundary
 
@@ -66,17 +67,17 @@ references and production information their role may see.
 
 ## Intended API shape
 
-- `preview_mapping(project, cpm_report_id, sov_fact_ids, allocations)` returns the
+- `production_mapping_sources` supplies the saved source records; `production_mapping_preview` returns the
   source snapshot, validation errors, and exact reconciliation for human review;
   it writes nothing.
-- `approve_mapping(project, expected_mapping_version, preview_source_token,
+- `production_mapping_approve(project, expected_mapping_version, preview_source_token,
   effective_date, allocations, reason, idempotency_key)` atomically rechecks the
   sources and authority, records the approver, and returns the immutable version.
 - Extend the existing confirmed `daily_report_save` with expected revision,
   idempotency key, correction reason and explicit allocation IDs. Existing reports
   must remain readable; migration and compatibility need careful rollout. No caller
   may bypass the mapping checks through the old signature.
-- `associate_photo(project, photo_id, work_revision_line_id, idempotency_key)`
+- `production_photo_associate(project, photo_id, work_revision_line_id, idempotency_key)`
   records an explicit project-scoped association.
 - `weekly_production(project, from, to)` reads current revisions and approved
   references with provenance. Full-scope financial output is separate from field
