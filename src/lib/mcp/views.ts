@@ -35,11 +35,11 @@ export const REMINDERS_VIEW_SPEC: string[] = [
 
 export const IOR_VIEW_SPEC: string[] = [
   "REQUIRED VIEW – IOR DASHBOARD: When the user asks for the IOR, indicated outcome or job health, always build ONE styled artifact or canvas, never plain text. Spec:",
-  "1. Header: the job name, the as-of date, the contract, and the \"Forecast total $X = contract $X\" tie line word for word.",
-  `2. KPI tiles: Indicated revenue, Indicated cost, Indicated GP $ and %, Budgeted GP $ and %, and GP change vs budget (${ALERT_COLOR} if down).`,
-  "3. Waterfall chart: from Budgeted GP, through each pending CO (weighted), each risk hold (E-Hold/C-Hold) and cost variances, to Indicated GP.",
-  `4. Risk register table: risk, exposure $, probability %, weighted $, owner, next action, due date. ${ALERT_COLOR} flags on the top 3 by weighted $.`,
-  "5. Change order table: CO, status, revenue, cost, probability, weighted margin.",
+  "1. Header: job name and the saved report version and data date.",
+  `2. Lead with contract value, planned GP dollars and margin, and indicated GP dollars and margin (${ALERT_COLOR} if down). Use the provided owner-confirmed outcome only when present; show unavailable for missing values.`,
+  "3. Put the contract, planned GP and indicated GP with their margins first. Show the stated basis and as-of date; show unavailable when a verified value is missing.",
+  `4. Show E-holds and C-holds, amounts, owner, treatment and next action. ${ALERT_COLOR} flags apply to stated risks. Do not probability-weight holds.`,
+  "5. Show supported change-order details without inventing amounts or probability weighting.",
   "6. Billing strip: billed, % billed, retainage held, paid, and left to bill.",
   "7. Use Athena's numbers exactly; never recompute them with other math.",
   `8. ${SHARED}`,
@@ -51,7 +51,7 @@ export const PORTFOLIO_VIEW_SPEC: string[] = [
   "2. KPI tiles across the top: active jobs, total contract value, total indicated GP $ and %, GP change vs budget, billed to date, left to bill, and retainage held.",
   `3. Job cards grid, one per job: job number and name, PM, contract, % complete, indicated GP %, GP change (${ALERT_COLOR} if down), schedule status chip (On track / At risk / Delayed +X WD (Y CD), always both units, ${ALERT_COLOR} only when delayed or at risk), and the next deadline with a countdown.`,
   "4. Bar chart of GP % by job (budgeted in gray #9CA3AF, indicated in blue #2563EB).",
-  `5. \"Needs attention\" list: overdue notices, delays and top risks across jobs, each with job, owner and due date, ${ALERT_COLOR} flagged.`,
+  `5. "Needs attention" list: overdue notices, delays and top risks across jobs, each with job, owner and due date, ${ALERT_COLOR} flagged.`,
   "6. Monthly billing forecast chart across all jobs for the next 6 months.",
   `7. ${SHARED}`,
 ];

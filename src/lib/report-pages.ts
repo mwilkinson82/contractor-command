@@ -314,9 +314,10 @@ function scheduleView(p: JobPayload): string {
   return out.join("");
 }
 
-function iorView(p: JobPayload): string {
+function iorView(p: JobPayload, jobId?: string): string {
   return renderIorLayout({
     report: p.report,
+    jobId,
     names: { ...p.names, job_name: p.names?.job_name ?? p.job_name },
   });
 }
@@ -490,7 +491,7 @@ export function renderReportBody(p: PagePayload, context?: { jobId?: string }): 
   else if (p.page === "payapp") body = payAppPageView(p);
   else if (p.page === "briefing") body = briefingPageView(p);
   else if (!p.report?.found) body = card(`<p style="margin:0;color:${G1}">Nothing saved yet. Once the ${PAGE_LABEL[p.page]} is saved in Athena, it shows here and stays up to date.</p>`);
-  else { st = stamp(p.report); body = p.page === "schedule" ? scheduleView(p as JobPayload) : iorView(p as JobPayload); }
+  else { st = stamp(p.report); body = p.page === "schedule" ? scheduleView(p as JobPayload) : iorView(p as JobPayload, context?.jobId); }
   if (p.page === "payapp" && p.report?.found) st = stamp(p.report);
   if (p.page === "briefing") st = `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">${esc(shortDate(p.today))}</p>`;
   const foot = p.shared ? `Shared view${p.expires_at ? ` · link works until ${esc(p.expires_at.slice(0, 10))}` : ""} · Athena powered by ALP` : "Private to your company · updates when Athena saves a new version · Athena powered by ALP";

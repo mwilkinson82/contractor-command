@@ -3,6 +3,7 @@
 import { ALERT_HEX } from "./mcp/alert-color";
 import { asReportNumber, formatBillingText, formatMoneyPhrase, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey, isPlainKey, money } from "./report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "./ior-hold-summary";
+import { cedarOutcome } from "./ior-outcome";
 
 export type ReportNames = {
   job_id?: string | null;
@@ -100,7 +101,7 @@ export function nameForToken(token: string, names?: ReportNames | null): string 
 /** Visible words. A hash or id becomes the item, person, or job name. Unresolved hashes drop out. Activity codes stay. */
 export function plainReportText(value: string, names?: ReportNames | null): string {
   let text = value.replace(UUID, (id) => nameForToken(id, names) ?? "");
-  text = text.replace(/#?[0-9A-Fa-f]{5,8}\b/g, (token) => {
+  text = text.replace(/(?<![A-Za-z0-9])#?[0-9A-Fa-f]{5,8}\b/g, (token) => {
     const named = nameForToken(token, names);
     if (named) return named;
     const bare = token.replace(/^#/, "");
@@ -236,16 +237,30 @@ function isFigure(key: string, value: unknown): boolean {
 }
 
 export function renderIorLayout(input: {
-  report: { scope?: string; contract_total?: number | null; forecast_total?: number | null; data?: Record<string, unknown> };
+  report: { scope?: string; version?: number; contract_total?: number | null; forecast_total?: number | null; data?: Record<string, unknown> };
   names?: ReportNames | null;
+  jobId?: string | null;
 }): string {
   const report = input.report;
   const data = report.data ?? {};
   const moneyOk = report.scope === "full";
   const names = input.names;
-  const holds = moneyOk ? iorHoldSummary(data) : null;
+  const outcome = moneyOk ? cedarOutcome(input.jobId, report) : null;
+  const holds = moneyOk && !outcome ? iorHoldSummary(data) : null;
   const summarized = (key: string) => !!holds && (isExposureHoldTotal(key) || (holds.contingencyCents != null && isContingencyHoldTotal(key)));
   const out: string[] = [];
+  if (outcome) {
+    const show = (v: number | null) => v == null ? "Not available" : esc(money(v / 100));
+    const gp = (v: number | null) => `${show(v)}${v != null && outcome.contract ? ` · ${(v / outcome.contract * 100).toFixed(2)}%` : ""}`;
+    const basis = outcome.indicated == null ? "Calculation unavailable: review the current report basis and inputs." : "Owner-confirmed report v3 basis: planned profit after allocated overhead less active E- and C-holds. Actual cost and billing are not supplied; no actuals are assumed.";
+    out.push(card("Indicated outcome", `<div style="display:flex;flex-wrap:wrap;gap:12px">${tile("Contract value", show(outcome.contract))}${tile("Planned gross profit · margin", gp(outcome.planned))}${tile("Current indicated gross profit · margin", gp(outcome.indicated))}</div><p style="margin:12px 0 0;font-size:13px;color:${GRAY}">${esc(basis)}</p>`));
+    if (outcome.eHolds != null && outcome.cHolds != null && isRecord(data.holds)) {
+      const { e_holds: _e, c_holds: _c, c_hold_total: _total, ...sourceNotes } = data.holds;
+      void _e; void _c; void _total;
+      const note = outcome.indicated == null ? "Saved hold notes:" : "The saved notes below describe the earlier sensitivity basis; the owner-confirmed outcome above deducts the active holds.";
+      out.push(card("E-holds and C-holds", `<div style="display:flex;flex-wrap:wrap;gap:12px">${tile("E-holds", show(outcome.eHolds))}${tile("C-holds", show(outcome.cHolds))}</div>${renderTable(outcome.eRows, moneyOk, names)}${outcome.cRows.length ? renderTable(outcome.cRows, moneyOk, names) : ""}<p style="font-size:12px;color:${GRAY}">${esc(note)}</p>${renderFacts(sourceNotes, moneyOk, names)}`));
+    } else out.push(card("Holds", `<p style="margin:0;font-size:13px;color:${GRAY}">Hold summary: Not available</p>`));
+  }
   if (moneyOk && typeof report.contract_total === "number" && typeof report.forecast_total === "number") {
     const ties = Math.round(report.contract_total * 100) === Math.round(report.forecast_total * 100);
     const line = ties
@@ -267,7 +282,7 @@ export function renderIorLayout(input: {
   const sections: string[] = [];
   const lists: string[] = [];
   for (const [key, value] of Object.entries(data)) {
-    if (isHidden(key) || summarized(key) || key === "kpis" || key === "risks" || key === "activities" || key === "tia" || key === holds?.detailKey) continue;
+    if (isHidden(key) || summarized(key) || key === "kpis" || key === "risks" || key === "activities" || key === "tia" || key === holds?.detailKey || (key === "holds" && outcome?.eHolds != null && outcome.cHolds != null)) continue;
     if (key === "billing" && value != null && typeof value === "object") continue;
     if (key === "title" && typeof value === "string") {
       title = plainReportText(value, names);
@@ -298,7 +313,7 @@ export function renderIorLayout(input: {
   if (holds) {
     const c = tile("C-holds", holds.contingencyCents == null ? "Not available" : esc(money(holds.contingencyCents / 100)));
     out.push(card("Holds", `<div style="display:flex;flex-wrap:wrap;gap:12px">${tile("Listed E-holds", `${esc(money(holds.exposureCents / 100))} · ${holds.count} listed`)}${c}</div>${renderTable(holds.rows, moneyOk, names)}`));
-  } else if (moneyOk) {
+  } else if (moneyOk && !outcome) {
     out.push(card("Holds", `<p style="margin:0;font-size:13px;color:${GRAY}">Hold summary: Not available</p>`));
   }
   out.push(...lists, ...sections);
