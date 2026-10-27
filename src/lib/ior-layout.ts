@@ -1,7 +1,8 @@
 // House-style IOR page. Labels come from the map. Numbers are typed, so a version is not currency
 // and a margin ratio is a percent. Names replace item, user, and job ids. Raw JSON is never printed.
 import { ALERT_HEX } from "./mcp/alert-color";
-import { asReportNumber, formatBillingText, formatMoneyPhrase, formatReportNumber, isMoneyKey, isPercentKey, isPlainKey, money } from "./report-format";
+import { asReportNumber, formatBillingText, formatMoneyPhrase, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey, isPlainKey, money } from "./report-format";
+import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "./ior-hold-summary";
 
 export type ReportNames = {
   job_id?: string | null;
@@ -145,6 +146,7 @@ function formatValue(key: string, value: unknown, moneyOk: boolean, names?: Repo
   if (typeof value === "number" && Number.isFinite(value)) return formatReportNumber(key, value, moneyOk);
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "string") {
+    if (isIdentifierKey(key)) return esc(value);
     const phrase = isMoneyKey(key) ? formatMoneyPhrase(value) : null;
     if (phrase) return moneyOk ? phrase : "—";
     const numeric = asReportNumber(value);
@@ -202,8 +204,8 @@ function renderFacts(record: Record<string, unknown>, moneyOk: boolean, names?: 
     }
     const shown = formatValue(key, value, moneyOk, names);
     if (!shown) continue;
-    if (typeof value === "number" || (typeof value === "string" && (isPercentKey(key) || isMoneyKey(key) || formatMoneyPhrase(value)))) tiles.push(tile(humanLabel(key), shown, actualRisk({ status: key })));
-    else notes.push(`<p style="margin:8px 0 0;font-size:13px;color:${NAVY}">${shown}</p>`);
+    if (isFigure(key, value)) tiles.push(tile(humanLabel(key), shown, actualRisk({ status: key })));
+    else notes.push(`<p style="margin:8px 0 0;font-size:13px;color:${NAVY}"><span style="color:${GRAY}">${esc(humanLabel(key))}</span> ${shown}</p>`);
   }
   return `${tiles.length ? `<div style="display:flex;flex-wrap:wrap;gap:12px">${tiles.join("")}</div>` : ""}${notes.join("")}`;
 }
@@ -227,9 +229,10 @@ function riskCards(rows: Record<string, unknown>[], moneyOk: boolean, names?: Re
 }
 
 function isFigure(key: string, value: unknown): boolean {
+  if (isIdentifierKey(key)) return false;
   if (typeof value === "number") return true;
   if (typeof value !== "string") return false;
-  return isPercentKey(key) || isMoneyKey(key) || formatMoneyPhrase(value) != null;
+  return ((isPercentKey(key) || isMoneyKey(key)) && asReportNumber(value) != null) || formatMoneyPhrase(value) != null;
 }
 
 export function renderIorLayout(input: {
@@ -240,8 +243,10 @@ export function renderIorLayout(input: {
   const data = report.data ?? {};
   const moneyOk = report.scope === "full";
   const names = input.names;
+  const holds = moneyOk ? iorHoldSummary(data) : null;
+  const summarized = (key: string) => !!holds && (isExposureHoldTotal(key) || (holds.contingencyCents != null && isContingencyHoldTotal(key)));
   const out: string[] = [];
-  if (typeof report.contract_total === "number" && typeof report.forecast_total === "number") {
+  if (moneyOk && typeof report.contract_total === "number" && typeof report.forecast_total === "number") {
     const ties = Math.round(report.contract_total * 100) === Math.round(report.forecast_total * 100);
     const line = ties
       ? `Forecast ${money(report.forecast_total)} = contract ${money(report.contract_total)}`
@@ -253,16 +258,16 @@ export function renderIorLayout(input: {
   const notes: string[] = [];
   let title = "";
   for (const [key, value] of Object.entries(kpis)) {
-    if (isHidden(key)) continue;
+    if (isHidden(key) || summarized(key)) continue;
     const shown = formatValue(key, value, moneyOk, names);
     if (!shown) continue;
     if (isFigure(key, value)) figures.push(tile(humanLabel(key), shown, actualRisk({ status: key })));
-    else notes.push(`<p style="margin:8px 0 0;font-size:13px;color:${NAVY}">${shown}</p>`);
+    else notes.push(`<p style="margin:8px 0 0;font-size:13px;color:${NAVY}"><span style="color:${GRAY}">${esc(humanLabel(key))}</span> ${shown}</p>`);
   }
   const sections: string[] = [];
   const lists: string[] = [];
   for (const [key, value] of Object.entries(data)) {
-    if (isHidden(key) || key === "kpis" || key === "risks" || key === "activities" || key === "tia") continue;
+    if (isHidden(key) || summarized(key) || key === "kpis" || key === "risks" || key === "activities" || key === "tia" || key === holds?.detailKey) continue;
     if (key === "billing" && value != null && typeof value === "object") continue;
     if (key === "title" && typeof value === "string") {
       title = plainReportText(value, names);
@@ -278,7 +283,7 @@ export function renderIorLayout(input: {
       lists.push(card(humanLabel(key), renderTable(records, moneyOk, names)));
       continue;
     }
-    if (typeof value === "string") {
+    if (typeof value === "string" || (typeof value === "number" && isIdentifierKey(key))) {
       const shown = formatValue(key, value, moneyOk, names);
       if (shown) notes.push(`<p style="margin:8px 0 0;font-size:13px;color:${NAVY}"><span style="color:${GRAY}">${esc(humanLabel(key))}</span> ${shown}</p>`);
       continue;
@@ -290,6 +295,12 @@ export function renderIorLayout(input: {
   }
   if (title) out.push(`<h2 style="margin:0 0 12px;font-size:18px;color:${NAVY}">${esc(title)}</h2>`);
   if (figures.length || notes.length) out.push(card("Job health", `${figures.length ? `<div style="display:flex;flex-wrap:wrap;gap:12px">${figures.join("")}</div>` : ""}${notes.join("")}`));
+  if (holds) {
+    const c = tile("C-holds", holds.contingencyCents == null ? "Not available" : esc(money(holds.contingencyCents / 100)));
+    out.push(card("Holds", `<div style="display:flex;flex-wrap:wrap;gap:12px">${tile("Listed E-holds", `${esc(money(holds.exposureCents / 100))} · ${holds.count} listed`)}${c}</div>${renderTable(holds.rows, moneyOk, names)}`));
+  } else if (moneyOk) {
+    out.push(card("Holds", `<p style="margin:0;font-size:13px;color:${GRAY}">Hold summary: Not available</p>`));
+  }
   out.push(...lists, ...sections);
   const risks = Array.isArray(data.risks) ? data.risks : [];
   const riskRows = risks.map((entry) => (isRecord(entry) ? entry : { description: entry }));
