@@ -111,7 +111,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       ? `${lookaheadModel(laWindow.start, laWindow.end, (la.report?.data?.activities ?? []) as SAct[], la.items ?? [], { today: la.today, dataDate: la.report?.data_date }).counts.activities} activities in window`
       : laWindow
         ? "Activity details unavailable"
-        : "No lookahead window or saved schedule yet";
+        : la?.report && typeof la.report.found === "boolean"
+          ? "No lookahead window or saved schedule yet"
+          : "Currently unavailable";
   const count = Array.isArray(base.items)
     ? dedupeOpenRows(
         (base.items ?? []).map((item, i) => ({
@@ -130,7 +132,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           ? Array.isArray(sched.data?.activities)
             ? `${sched.data.activities.length} saved activities`
             : "Activity details unavailable"
-          : "No schedule recorded yet",
+          : sched?.found === false
+            ? "No schedule recorded yet"
+            : "Currently unavailable",
       ),
       page: "schedule",
     },
@@ -161,7 +165,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
         daily,
         today?.found
           ? `Latest report · ${today.report_date ?? "Date not recorded"}`
-          : "No report recorded yet",
+          : today?.found === false
+            ? "No report recorded yet"
+            : "Currently unavailable",
       ),
       page: "daily",
     },
@@ -176,7 +182,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
               billing,
               billing.data?.page === "payapp" && billing.data.report?.found
                 ? "View saved billing"
-                : "No billing recorded yet",
+                : billing.data?.page === "payapp" && billing.data.report?.found === false
+                  ? "No billing recorded yet"
+                  : "Currently unavailable",
             ),
             page: "payapp",
           },
@@ -186,7 +194,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
               ior,
               ior.data?.page === "ior" && ior.data.report?.found
                 ? "View saved IOR"
-                : "No IOR recorded yet",
+                : ior.data?.page === "ior" && ior.data.report?.found === false
+                  ? "No IOR recorded yet"
+                  : "Currently unavailable",
             ),
             page: "ior",
           },

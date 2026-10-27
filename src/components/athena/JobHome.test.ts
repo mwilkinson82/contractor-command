@@ -106,6 +106,16 @@ describe("persistent job home", () => {
     expect(html).toContain("Saved jobs");
     expect(html).not.toContain("From your inbox and calendar");
   });
+  it("treats missing payload fields as unavailable instead of an empty record", () => {
+    fixture.rows.schedule = ok({ page: "schedule" });
+    fixture.rows.daily = ok({ page: "daily" });
+    fixture.rows.ior = ok({ page: "ior" });
+    const html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html).not.toContain("No schedule recorded yet");
+    expect(html).not.toContain("No report recorded yet");
+    expect(html).not.toContain("No IOR recorded yet");
+    expect(html.match(/Currently unavailable/g)?.length).toBeGreaterThanOrEqual(3);
+  });
   it("does not expose commercial destinations for field scope or cached data after denial", () => {
     fixture.rows.field = ok({ page: "field", scope: "super", job_number: "QA-1", items: [] });
     let html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
