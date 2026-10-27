@@ -6,6 +6,7 @@ import { ALERT_COLOR } from "./alert-color";
 import { addCountedDays, addDays, federalHolidays, todayIn } from "./deadlines";
 import { asReportNumber, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey } from "../report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "../ior-hold-summary";
+import { cedarOutcome } from "../ior-outcome";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -598,7 +599,7 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
     if (label && href) lines.push(`${label}: ${href}`);
   }
   const data = sc?.data && typeof sc.data === "object" && !Array.isArray(sc.data) ? (sc.data as Record<string, unknown>) : null;
-  const sections = sc?.no_financials === true ? [] : iorSectionsText(data);
+  const sections = sc?.no_financials === true ? [] : iorSectionsText(data, { jobId: typeof sc?.job_id === "string" ? sc.job_id : null, version: typeof sc?.version === "number" ? sc.version : undefined, contract_total: sc?.contract_total, forecast_total: sc?.forecast_total });
   if (sections.length) lines.push("", ...sections);
   if (typeof sc?.version === "number") {
     const who = textOf(sc.updated_by);
@@ -621,11 +622,21 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
 }
 
 /** Readable IOR sections. Links, the version line, and the change log stay where the tool already prints them. */
-export function iorSectionsText(data: Record<string, unknown> | null | undefined): string[] {
+export function iorSectionsText(data: Record<string, unknown> | null | undefined, context?: { jobId?: string | null; version?: number; contract_total?: unknown; forecast_total?: unknown }): string[] {
   if (!data) return [];
   const lines: string[] = [];
-  const holds = iorHoldSummary(data);
+  const outcome = cedarOutcome(context?.jobId, { ...context, data });
+  const holds = outcome ? null : iorHoldSummary(data);
   const summarized = (key: string) => !!holds && (isExposureHoldTotal(key) || (holds.contingencyCents != null && isContingencyHoldTotal(key)));
+  if (outcome) {
+    const show = (v: number | null) => v == null ? "Not available" : money(v / 100);
+    const gp = (v: number | null) => `${show(v)}${v != null && outcome.contract ? ` · ${(v / outcome.contract * 100).toFixed(2)}% of contract` : ""}`;
+    lines.push("Indicated outcome", `Contract value: ${show(outcome.contract)}`, `Planned gross profit: ${gp(outcome.planned)}`, `Current indicated gross profit: ${gp(outcome.indicated)}`, outcome.indicated == null ? "Calculation unavailable: review the current report basis and inputs." : "Basis: owner-confirmed report v3 planned profit after allocated overhead less active E- and C-holds; actual cost and billing are not supplied.");
+    if (outcome.eHolds != null && outcome.cHolds != null) {
+      lines.push(`E-holds: ${show(outcome.eHolds)}`, `C-holds: ${show(outcome.cHolds)}`);
+      for (const row of [...outcome.eRows, ...outcome.cRows]) { const line = iorRecordLine(row); if (line) lines.push(`- ${line}`); }
+    } else lines.push("Hold summary: Not available");
+  }
   const title = iorScalar("title", data.title);
   if (title) lines.push(title);
   const kpis = data.kpis;
@@ -642,9 +653,27 @@ export function iorSectionsText(data: Record<string, unknown> | null | undefined
   if (holds) {
     lines.push(`Listed E-holds: ${money(holds.exposureCents / 100)} · ${holds.count} listed`);
     lines.push(`C-holds: ${holds.contingencyCents == null ? "Not available" : money(holds.contingencyCents / 100)}`);
-  } else lines.push("Hold summary: Not available");
+  } else if (!outcome) lines.push("Hold summary: Not available");
   for (const [key, value] of Object.entries(data)) {
     if (key === "title" || key === "kpis" || IOR_HIDDEN.has(key) || IOR_SKIP.has(key) || summarized(key)) continue;
+    if (key === "holds" && outcome?.eHolds != null && outcome.cHolds != null && value && typeof value === "object" && !Array.isArray(value)) {
+      const { e_holds: _e, c_holds: _c, c_hold_total: _total, ...notes } = value as Record<string, unknown>;
+      void _e; void _c; void _total;
+      const line = iorRecordLine(notes);
+      if (line) lines.push("Saved hold notes (earlier sensitivity basis)", `- ${line}`);
+      continue;
+    }
+    if (key === "holds" && value && typeof value === "object" && !Array.isArray(value)) {
+      const record = value as Record<string, unknown>;
+      const line = iorRecordLine(record);
+      if (line) lines.push("Holds", `- ${line}`);
+      for (const field of ["e_holds", "c_holds"]) {
+        if (!Array.isArray(record[field])) continue;
+        lines.push(iorLabel(field));
+        for (const row of record[field]) if (row && typeof row === "object" && !Array.isArray(row)) { const detail = iorRecordLine(row as Record<string, unknown>); if (detail) lines.push(`- ${detail}`); }
+      }
+      continue;
+    }
     if (Array.isArray(value)) {
       const rows = value.filter((row) => row && typeof row === "object") as Record<string, unknown>[];
       const scalars = value.filter((row): row is string | number => typeof row === "string" || typeof row === "number");
