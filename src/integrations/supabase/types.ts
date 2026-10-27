@@ -995,6 +995,324 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_billing_allocations: {
+        Row: {
+          amount_cents: number
+          effective_date: string
+          id: string
+          invoice_id: string
+          job_id: string
+          receipt_id: string
+          recorded_at: string
+          recorded_by: string
+          reversal_of: string | null
+          source: string
+        }
+        Insert: {
+          amount_cents: number
+          effective_date: string
+          id: string
+          invoice_id: string
+          job_id: string
+          receipt_id: string
+          recorded_at?: string
+          recorded_by: string
+          reversal_of?: string | null
+          source: string
+        }
+        Update: {
+          amount_cents?: number
+          effective_date?: string
+          id?: string
+          invoice_id?: string
+          job_id?: string
+          receipt_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          reversal_of?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_allocations_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_allocations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_allocations_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_allocations_reversal_of_fkey"
+            columns: ["reversal_of"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_allocations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_invoice_versions: {
+        Row: {
+          certified_cents: number | null
+          certified_date: string | null
+          effective_date: string
+          gross_cents: number | null
+          invoice_date: string
+          invoice_id: string
+          job_id: string
+          net_due_cents: number
+          period_end: string | null
+          period_start: string | null
+          reason: string | null
+          recorded_at: string
+          recorded_by: string
+          released_cents: number | null
+          source: string
+          status: string
+          version: number
+          withheld_cents: number | null
+        }
+        Insert: {
+          certified_cents?: number | null
+          certified_date?: string | null
+          effective_date: string
+          gross_cents?: number | null
+          invoice_date: string
+          invoice_id: string
+          job_id: string
+          net_due_cents: number
+          period_end?: string | null
+          period_start?: string | null
+          reason?: string | null
+          recorded_at?: string
+          recorded_by: string
+          released_cents?: number | null
+          source: string
+          status: string
+          version: number
+          withheld_cents?: number | null
+        }
+        Update: {
+          certified_cents?: number | null
+          certified_date?: string | null
+          effective_date?: string
+          gross_cents?: number | null
+          invoice_date?: string
+          invoice_id?: string
+          job_id?: string
+          net_due_cents?: number
+          period_end?: string | null
+          period_start?: string | null
+          reason?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          released_cents?: number | null
+          source?: string
+          status?: string
+          version?: number
+          withheld_cents?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_invoice_versions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_invoice_versions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_invoices: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          credit_for: string | null
+          document_number: string
+          id: string
+          job_id: string
+          kind: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          credit_for?: string | null
+          document_number: string
+          id: string
+          job_id: string
+          kind: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          credit_for?: string | null
+          document_number?: string
+          id?: string
+          job_id?: string
+          kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_invoices_credit_for_fkey"
+            columns: ["credit_for"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_operations: {
+        Row: {
+          actor_id: string
+          job_id: string
+          recorded_at: string
+          request_id: string
+          result: Json
+          signature: string
+        }
+        Insert: {
+          actor_id: string
+          job_id: string
+          recorded_at?: string
+          request_id: string
+          result: Json
+          signature: string
+        }
+        Update: {
+          actor_id?: string
+          job_id?: string
+          recorded_at?: string
+          request_id?: string
+          result?: Json
+          signature?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_operations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_receipt_reversals: {
+        Row: {
+          amount_cents: number
+          effective_date: string
+          id: string
+          job_id: string
+          receipt_id: string
+          recorded_at: string
+          recorded_by: string
+          source: string
+        }
+        Insert: {
+          amount_cents: number
+          effective_date: string
+          id: string
+          job_id: string
+          receipt_id: string
+          recorded_at?: string
+          recorded_by: string
+          source: string
+        }
+        Update: {
+          amount_cents?: number
+          effective_date?: string
+          id?: string
+          job_id?: string
+          receipt_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_receipt_reversals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_receipt_reversals_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_receipts: {
+        Row: {
+          amount_cents: number
+          company_id: string
+          id: string
+          job_id: string
+          receipt_date: string
+          recorded_at: string
+          recorded_by: string
+          source: string
+        }
+        Insert: {
+          amount_cents: number
+          company_id: string
+          id: string
+          job_id: string
+          receipt_date: string
+          recorded_at?: string
+          recorded_by: string
+          source: string
+        }
+        Update: {
+          amount_cents?: number
+          company_id?: string
+          id?: string
+          job_id?: string
+          receipt_date?: string
+          recorded_at?: string
+          recorded_by?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_receipts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_board_link_opens: {
         Row: {
           id: string
@@ -6555,6 +6873,15 @@ export type Database = {
       mcp_audit_job: {
         Args: { _action: string; _job: string; _object: string; _tool: string }
         Returns: undefined
+      }
+      mcp_billing_evidence_get: { Args: { _job: string }; Returns: Json }
+      mcp_billing_evidence_record: {
+        Args: { _action: string; _job: string; _p: Json }
+        Returns: Json
+      }
+      mcp_billing_posted_credits: {
+        Args: { _exclude?: string; _invoice: string; _job: string }
+        Returns: number
       }
       mcp_board_link_create: {
         Args: { _expires_at: string; _job: string; _token_hash: string }
