@@ -40,6 +40,8 @@ const fixture = vi.hoisted(() => ({
 vi.mock("./supabase", () => ({ supabaseForUser: () => ({ rpc, from }) }));
 import { run } from "./guard";
 import { gettingStarted } from "./tools/getting-started-tool";
+import { athenaHello, morningBrief } from "./tools/morning-brief-tools";
+import { ATHENA_ROUTE_LINE } from "./greeting";
 const ctx = { isAuthenticated: () => true, getToken: () => "t" } as never;
 function jobsDb() {
   return {
@@ -86,6 +88,87 @@ type Result = {
 const shown = (result: Result) => plainGettingStarted(result.structuredContent.card);
 
 describe("first use and returning jobs", () => {
+  it.each([gettingStarted, athenaHello])(
+    "keeps fresh entry on saved-job choices even when a morning brief is due: $name",
+    async (tool) => {
+      fixture.companies = [{ id: "c1", name: "Fictional Builder" }];
+      fixture.jobs = [{ job_number: "QA-1", name: "Harbor", company_id: "c1" }];
+      rpc.mockImplementation(async (fn) => {
+        if (fn === "mcp_session_touch") return { data: true, error: null };
+        if (fn === "mcp_morning_brief_card_status")
+          return {
+            data: {
+              enabled: true,
+              local_date: "2026-10-27",
+              local_minutes: 900,
+              send_local: "06:30",
+              already_shown: false,
+            },
+            error: null,
+          };
+        return gate()(fn);
+      });
+      const before = structuredClone(fixture);
+      for (let n = 0; n < 3; n++) {
+        const result = (await tool.handler({} as never, ctx)) as unknown as Result;
+        expect(result.structuredContent.branch).toBe("resume");
+        expect(result.structuredContent.card.presentation).toBe("onboarding");
+        expect(shown(result)).toContain("QA-1 · Harbor");
+        for (const choice of [
+          "See what needs attention",
+          "Open a job dashboard",
+          "Bring in project documents",
+        ])
+          expect(shown(result)).toContain(choice);
+        expect(JSON.stringify(result)).not.toContain('"morning_card"');
+        expect(result.content[0].text).not.toContain("From your inbox and calendar");
+      }
+      expect(fixture).toEqual(before);
+      // Entitlement/security/session bookkeeping and first-run flag are allowed; no briefing, source, deadline or project operations.
+      expect(new Set(rpc.mock.calls.map(([fn]) => fn))).toEqual(
+        new Set([
+          "mcp_abuse_cap_check",
+          "mcp_gate",
+          "mcp_security_touch",
+          "mcp_session_touch",
+          "mcp_getting_started_claim",
+        ]),
+      );
+      expect(new Set(from.mock.calls.map(([table]) => table))).toEqual(
+        new Set(["mcp_companies", "mcp_jobs"]),
+      );
+    },
+  );
+  it.each([false, true])(
+    "gives greeting fallback the same honest empty state (company=%s)",
+    async (company) => {
+      fixture.companies = company ? [{ id: "c1" }] : [];
+      const result = (await athenaHello.handler(
+        { company_id: undefined, job_number: undefined },
+        ctx,
+      )) as unknown as Result;
+      expect(result.structuredContent.branch).toBe("first_job");
+      expect(shown(result)).toContain("No saved jobs yet");
+      expect(shown(result)).toContain(company ? "job number and name" : "your company name");
+    },
+  );
+  it("prioritizes entry without treating every Athena mention as a morning request", () => {
+    for (const contract of [
+      ATHENA_ROUTE_LINE,
+      GETTING_STARTED_RULE,
+      gettingStarted.description,
+      athenaHello.description,
+    ])
+      expect(contract).toContain("Hey Athena, let's get started");
+    expect(ATHENA_ROUTE_LINE).toContain("Good morning Athena");
+    expect(ATHENA_ROUTE_LINE).toContain("call morning_brief");
+    expect(morningBrief.description).toContain(
+      "get-started requests use getting_started or athena_hello instead",
+    );
+    expect(readFileSync("src/lib/mcp/index.ts", "utf8")).not.toContain(
+      "Athena at the start or mid-sentence",
+    );
+  });
   it("gives a no-company user a concrete choice, without saving a company or duplicating the introduction", async () => {
     const result = (await gettingStarted.handler({ focus: undefined }, ctx)) as unknown as Result;
     expect(result.structuredContent.branch).toBe("first_job");

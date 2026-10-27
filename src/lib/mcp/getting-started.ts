@@ -35,7 +35,7 @@ export const GETTING_STARTED_GUIDANCE = [
 ].join(" ");
 
 export const GETTING_STARTED_RULE =
-  " When the member asks to get started, asks how Athena works, asks how to supply existing project documents or company cost codes, call getting_started (focus documents or cost_codes for those questions). Show one concise onboarding card with the saved jobs or first-job empty state and a clear next choice. Do not open a morning meeting, run suggestions, create records or reset setup merely from a greeting or getting started. Existing jobs are resumed, never recreated. First use is guidance, not an instruction to create a job. On back/cancel, stop pending setup and preserve saved work. " +
+  " Entry intent takes priority over greeting and proactive morning-brief rules: for Hey Athena, let's get started, let's get started, or a simple get-started request, call getting_started. When the member asks to get started, asks how Athena works, asks how to supply existing project documents or company cost codes, call getting_started (focus documents or cost_codes for those questions). Show one concise onboarding card with the saved jobs or first-job empty state and a clear next choice. Do not open a morning meeting, run suggestions, create records or reset setup merely from a greeting or getting started. Existing jobs are resumed, never recreated. First use is guidance, not an instruction to create a job. On back/cancel, stop pending setup and preserve saved work. " +
   GETTING_STARTED_GUIDANCE;
 
 /** A host preference is available on request, without claiming it was saved. */
@@ -187,7 +187,6 @@ export async function memberJobs(sb: MemberDb): Promise<{ company: boolean; jobs
 
 export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
   const one = jobs.length === 1 ? jobs[0] : null;
-  const scope = one ? ` on job ${one.job_number}` : " on a job";
   const shown = jobs
     .slice(0, 5)
     .map(
@@ -206,11 +205,7 @@ export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
       : `${jobs.length} saved jobs. Choose the job and the task.`,
     sections: [
       list(one ? "Your saved job" : "Your saved jobs", shown, true),
-      choices([
-        `What needs attention${scope}?`,
-        `Show the job dashboard${scope}`,
-        "Show my job list",
-      ]),
+      choices(["See what needs attention", "Open a job dashboard", "Bring in project documents"]),
       list("Open a live view when you need it", [
         "Ask for the PM meeting, lookahead or field board. Athena uses the selected job's saved records; missing information stays unknown.",
       ]),
