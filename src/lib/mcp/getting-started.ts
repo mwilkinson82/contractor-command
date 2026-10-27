@@ -211,7 +211,7 @@ export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
         framed: true,
         rows: shown.map((line, index) => ({
           cells: [line],
-          ...(jobs[index]?.id
+          ...(index < 5 && jobs[index]?.id
             ? { href: `https://app.meetathena.io/r/job/${jobs[index].id}/home` }
             : {}),
         })),

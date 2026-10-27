@@ -71,6 +71,16 @@ describe("persistent job home", () => {
       `/r/job/${job}/home`,
     );
   });
+  it("does not turn the overflow guidance into a sixth job link", () => {
+    const jobs = Array.from({ length: 6 }, (_, i) => ({
+      id: `00000000-0000-4000-8000-00000000000${i}`,
+      job_number: `QA-${i}`,
+      name: "Fixture",
+    }));
+    const rows = startedWithJobsCard(jobs).sections![0].rows;
+    expect(rows[4].href).toContain("/home");
+    expect(rows[5].href).toBeUndefined();
+  });
   it("renders real counts, destinations, empty and unavailable states", () => {
     const html = renderToStaticMarkup(
       React.createElement(JobHome, { jobId: job, token: "test-token" }),
