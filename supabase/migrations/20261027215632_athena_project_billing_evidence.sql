@@ -13,6 +13,7 @@ CREATE TABLE public.mcp_billing_invoices (
  UNIQUE(job_id, document_number),
  CHECK ((kind = 'credit') = (credit_for IS NOT NULL))
 );
+CREATE UNIQUE INDEX mcp_billing_invoice_source_number_idx ON public.mcp_billing_invoices(job_id, lower(btrim(document_number)));
 CREATE TABLE public.mcp_billing_invoice_versions (
  invoice_id uuid NOT NULL REFERENCES public.mcp_billing_invoices(id), job_id uuid NOT NULL REFERENCES public.mcp_jobs(id),
  version integer NOT NULL CHECK (version > 0), status text NOT NULL CHECK (status IN ('draft','submitted','certified','void')),
@@ -33,6 +34,7 @@ CREATE TABLE public.mcp_billing_receipts (
  amount_cents bigint NOT NULL CHECK(amount_cents > 0), recorded_at timestamptz NOT NULL DEFAULT now(), recorded_by uuid NOT NULL
 );
 CREATE INDEX mcp_billing_receipts_job_idx ON public.mcp_billing_receipts(job_id, receipt_date DESC);
+CREATE UNIQUE INDEX mcp_billing_receipt_source_idx ON public.mcp_billing_receipts(job_id, lower(btrim(source)));
 CREATE TABLE public.mcp_billing_allocations (
  id uuid PRIMARY KEY, job_id uuid NOT NULL REFERENCES public.mcp_jobs(id), receipt_id uuid NOT NULL REFERENCES public.mcp_billing_receipts(id),
  invoice_id uuid NOT NULL REFERENCES public.mcp_billing_invoices(id), amount_cents bigint NOT NULL CHECK(amount_cents > 0),

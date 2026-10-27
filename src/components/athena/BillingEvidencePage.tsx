@@ -313,7 +313,12 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                     <summary>Version history ({i.versions.length})</summary>
                     {i.versions.map((h) => (
                       <p key={h.version}>
-                        Version {h.version}: {h.status}
+                        Version {h.version}: {h.status} · effective {h.effective_date} · {h.source}{" "}
+                        · gross {money(h.gross_cents)} · withheld {money(h.withheld_cents)} ·
+                        released {money(h.released_cents)} · source net due {money(h.net_due_cents)}
+                        {h.certified_cents !== null
+                          ? ` · certified ${money(h.certified_cents)} on ${h.certified_date}`
+                          : ""}
                         {h.reason ? ` — ${h.reason}` : ""}
                       </p>
                     ))}
@@ -580,7 +585,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
               <input required name="amount" inputMode="decimal" className={input} />
             </label>
             <label className="sm:col-span-2">
-              Source or reference
+              Unique receipt source or reference
               <input required name="source" className={input} />
             </label>
             <div>

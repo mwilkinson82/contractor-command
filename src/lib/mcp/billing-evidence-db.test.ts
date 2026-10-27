@@ -95,6 +95,14 @@ describe("project billing evidence", () => {
       amount_cents: 40000,
     };
     await record("receipt", receipt);
+    await expect(
+      record("receipt", {
+        ...receipt,
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        source: " CHECK 1 ",
+      }),
+    ).rejects.toThrow();
     const allocation = {
       request_id: crypto.randomUUID(),
       id: crypto.randomUUID(),
