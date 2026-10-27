@@ -154,18 +154,65 @@ describe("Athena CPM presentation", () => {
   });
   it("aligns calendar month boundaries, ticks and bars across a year and leap day", () => {
     const activities = [
-      { id: "BOUND", name: "Boundary", duration: 3, start: "2024-12-31", finish: "2025-01-02", total_float: -2, critical: true, pct_complete: 30 },
-      { id: "LEAP", name: "Leap", duration: 0, start: "2024-02-29", finish: "2024-02-29", total_float: 0, critical: false, pct_complete: 0 },
+      {
+        id: "BOUND",
+        name: "Boundary",
+        duration: 3,
+        start: "2024-12-31",
+        finish: "2025-01-02",
+        total_float: -2,
+        critical: true,
+        pct_complete: 30,
+      },
+      {
+        id: "LEAP",
+        name: "Leap",
+        duration: 0,
+        start: "2024-02-29",
+        finish: "2024-02-29",
+        total_float: 0,
+        critical: false,
+        pct_complete: 0,
+      },
     ];
     const fixture: JobPayload = { page: "schedule", report: { found: true, data: { activities } } };
     const before = JSON.stringify(fixture);
     const html = renderReportBody(fixture);
-    for (const label of ["Activity ID", "Activity", "Duration", "Start", "Finish", "Float", "Feb 2024", "Dec 2024", "Jan 2025"]) expect(html).toContain(label);
+    for (const label of [
+      "Activity ID",
+      "Activity",
+      "Duration",
+      "Start",
+      "Finish",
+      "Float",
+      "Feb 2024",
+      "Dec 2024",
+      "Jan 2025",
+    ])
+      expect(html).toContain(label);
     const offset = (pattern: RegExp) => Number(html.match(pattern)?.[1]);
-    const dateOffset = (iso: string) => (Date.parse(`${iso}T00:00:00Z`) - Date.parse("2024-02-01T00:00:00Z")) / (Date.parse("2025-02-01T00:00:00Z") - Date.parse("2024-02-01T00:00:00Z")) * 100;
-    expect(offset(/data-month="2025-01" style="position:absolute;left:([\d.]+)%/)).toBeCloseTo(dateOffset("2025-01-01"), 4);
-    expect(offset(/data-tick="2025-01-08" style="position:absolute;left:([\d.]+)%/)).toBeCloseTo(dateOffset("2025-01-08"), 4);
-    expect(offset(/data-bar-start="2024-12-31" data-bar-finish="2025-01-02" style="position:absolute;left:([\d.]+)%/)).toBeCloseTo(dateOffset("2024-12-31"), 4);
+    const dateOffset = (iso: string) =>
+      ((Date.parse(`${iso}T00:00:00Z`) - Date.parse("2024-02-01T00:00:00Z")) /
+        (Date.parse("2025-02-01T00:00:00Z") - Date.parse("2024-02-01T00:00:00Z"))) *
+      100;
+    expect(offset(/data-month="2025-01" style="position:absolute;left:([\d.]+)%/)).toBeCloseTo(
+      dateOffset("2025-01-01"),
+      4,
+    );
+    expect(offset(/data-tick="2025-01-08" style="position:absolute;left:([\d.]+)%/)).toBeCloseTo(
+      dateOffset("2025-01-08"),
+      4,
+    );
+    expect(
+      offset(
+        /data-bar-start="2024-12-31" data-bar-finish="2025-01-02" style="position:absolute;left:([\d.]+)%/,
+      ),
+    ).toBeCloseTo(dateOffset("2024-12-31"), 4);
+    expect(html).toContain(`#D1D5DB ${dateOffset("2025-01-01").toFixed(4)}%`);
+    expect(html).toContain(`#EBEDF0 ${dateOffset("2025-01-08").toFixed(4)}%`);
+    expect(row(html, "BOUND")).toContain("12/31/2024");
+    expect(row(html, "BOUND")).toContain("01/02/2025");
+    expect(row(html, "LEAP")).toContain("02/29/2024");
     expect(row(html, "BOUND")).toContain(">-2</td>");
     expect(row(html, "LEAP")).toContain('data-milestone="true"');
     expect(JSON.stringify(fixture)).toBe(before);
@@ -190,11 +237,51 @@ describe("Athena CPM presentation", () => {
       { id: "TIME", name: "Timestamp", start: "2026-01-05T12:00:00Z", finish: "2026-01-06T12:00:00Z", duration: 2, total_float: 0, critical: false, pct_complete: 0 },
     ] } } };
     expect(row(renderReportBody(fixture), "TIME")).toContain('data-bar-start="2026-01-05T12:00:00Z"');
+    expect(row(renderReportBody(fixture), "TIME")).toContain("01/05/2026");
+  });
+  it("labels data-date range honestly and draws blue only within the unchanged axis", () => {
+    const render = (data_date: string | null) =>
+      renderReportBody({ ...source, report: { ...source.report, data_date } });
+    const within = render("2026-01-12");
+    expect(within).toContain('data-date-range="within">Data date: 01/12/2026');
+    expect(row(within, "A")).toContain(
+      'data-date-marker="true" style="position:absolute;left:35.4839%',
+    );
+    expect(row(within, "A")).toContain("width:1px;background:#2563EB");
+    const before = render("2025-12-31");
+    const after = render("2026-02-01");
+    expect(before).toContain('data-date-range="before">Data date: 12/31/2025 · before timeline');
+    expect(after).toContain('data-date-range="after">Data date: 02/01/2026 · after timeline');
+    expect(before).not.toContain('data-date-marker="true"');
+    expect(after).not.toContain('data-date-marker="true"');
+    expect(before).toContain('data-month="2026-01"');
+    expect(before).not.toContain('data-month="2025-12"');
+    expect(after).not.toContain('data-month="2026-02"');
+    expect(render(null)).toContain('data-date-range="missing">Data date: Needed');
+    expect(render(null)).not.toContain('data-date-marker="true"');
+    expect(render("2026-02-30")).toContain('data-date-range="missing">Data date: Invalid date');
   });
   it("bounds very long axes while retaining real dates and a scrollable script-free table", () => {
-    const fixture: JobPayload = { page: "schedule", report: { found: true, data: { activities: [
-      { id: "LONG", name: "Long", start: "2000-01-01", finish: "2100-12-31", duration: 12, total_float: 2, critical: false, pct_complete: 0 },
-    ] } } };
+    const fixture: JobPayload = {
+      page: "schedule",
+      report: {
+        found: true,
+        data: {
+          activities: [
+            {
+              id: "LONG",
+              name: "Long",
+              start: "2000-01-01",
+              finish: "2100-12-31",
+              duration: 12,
+              total_float: 2,
+              critical: false,
+              pct_complete: 0,
+            },
+          ],
+        },
+      },
+    };
     const html = renderReportBody(fixture);
     expect(html).toContain('style="width:18000px"');
     expect(html).toContain('data-bar-start="2000-01-01" data-bar-finish="2100-12-31"');
