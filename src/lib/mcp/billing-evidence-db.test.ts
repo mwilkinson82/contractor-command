@@ -89,6 +89,10 @@ beforeAll(async () => {
     superintendent,
     owner,
   ]);
+  // Minimal rows to exercise the billing reader's contract snapshot; change-order behavior is tested separately with its real migration.
+  await db.exec(
+    "CREATE TABLE mcp_submittals(id uuid PRIMARY KEY,job_id uuid,number text,revision integer); CREATE TABLE mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb);",
+  );
   await db.exec(
     readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"),
   );
@@ -495,5 +499,60 @@ describe("project billing evidence", () => {
     );
     expect(reversals.rows).toHaveLength(1);
     expect(Number(reversals.rows[0].amount_cents)).toBe(10000);
+  });
+  it("shows original plus current approved or executed signed changes once and excludes pending", async () => {
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'contract','contract_value','1000','known','member_answer',$2)",
+      [job, owner],
+    );
+    const changes = [
+      { id: crypto.randomUUID(), number: "CO-A", revision: 0, state: "approved", cents: -10000 },
+      { id: crypto.randomUUID(), number: "CO-B", revision: 0, state: "executed", cents: 20000 },
+      { id: crypto.randomUUID(), number: "CO-C", revision: 0, state: "priced", cents: 30000 },
+    ];
+    for (const c of changes) {
+      await db.query("INSERT INTO mcp_submittals(id,job_id,number,revision) VALUES($1,$2,$3,$4)", [
+        c.id,
+        job,
+        c.number,
+        c.revision,
+      ]);
+      await db.query(
+        "INSERT INTO mcp_change_orders(submittal_id,job_id,details) VALUES($1,$2,$3::jsonb)",
+        [c.id, job, JSON.stringify({ state: c.state, total_cents: c.cents })],
+      );
+    }
+    const result = (await query("SELECT public.mcp_billing_evidence_get($1) AS data", [job]))
+      .rows[0].data as {
+      recorded_contract: {
+        original_cents: number;
+        recorded_change_cents: number;
+        approved_cents: number;
+      };
+    };
+    expect(result.recorded_contract).toEqual({
+      original_cents: 100000,
+      recorded_change_cents: 10000,
+      approved_cents: 110000,
+    });
+    const old = crypto.randomUUID(),
+      newer = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO mcp_submittals(id,job_id,number,revision) VALUES($1,$3,'CO-D',0),($2,$3,'CO-D',1)",
+      [old, newer, job],
+    );
+    await db.query(
+      "INSERT INTO mcp_change_orders(submittal_id,job_id,details) VALUES($1,$3,$4::jsonb),($2,$3,$5::jsonb)",
+      [
+        old,
+        newer,
+        job,
+        JSON.stringify({ state: "approved", total_cents: 5000 }),
+        JSON.stringify({ state: "draft", total_cents: 5000 }),
+      ],
+    );
+    const uncertain = (await query("SELECT public.mcp_billing_evidence_get($1) AS data", [job]))
+      .rows[0].data as { recorded_contract: { approved_cents: number | null } };
+    expect(uncertain.recorded_contract.approved_cents).toBeNull();
   });
 });

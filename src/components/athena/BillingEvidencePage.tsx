@@ -48,6 +48,11 @@ type Payload = {
   receipts: Receipt[];
   allocations: Allocation[];
   receipt_reversals: ReceiptReversal[];
+  recorded_contract: {
+    original_cents: number | null;
+    recorded_change_cents: number | null;
+    approved_cents: number | null;
+  };
 };
 const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
@@ -294,7 +299,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
         <button onClick={() => void data.refetch()}>Retry</button>
       </main>
     );
-  const { invoices, receipts, allocations, receipt_reversals } = data.data;
+  const { invoices, receipts, allocations, receipt_reversals, recorded_contract } = data.data;
   const totals = recordedTotals(invoices, receipts, receipt_reversals);
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-6 text-[#1E3A5F]">
@@ -326,6 +331,10 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
           </div>
         ))}
       </section>
+      <p className="text-sm text-gray-600">
+        Recorded approved contract is the original contract plus current recorded approved and
+        executed changes; pending proposals and invoice credits are excluded.
+      </p>
       {error && (
         <p role="alert" className="text-red-700">
           {error}

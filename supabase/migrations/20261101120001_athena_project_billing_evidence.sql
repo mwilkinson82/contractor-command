@@ -69,7 +69,7 @@ GRANT ALL ON public.mcp_billing_invoices, public.mcp_billing_invoice_versions, p
 CREATE FUNCTION public.mcp_billing_evidence_get(_job uuid) RETURNS jsonb
 -- The active-member gate can write its cache/sync; PostgREST must use a writable transaction.
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
-DECLARE invoices jsonb; receipts jsonb; allocations jsonb; receipt_reversals jsonb;
+DECLARE invoices jsonb; receipts jsonb; allocations jsonb; receipt_reversals jsonb; original numeric; changes numeric; incomplete boolean; contract_value jsonb;
 BEGIN
  PERFORM public.mcp_assert_active();
  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
@@ -81,7 +81,27 @@ BEGIN
  SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.recorded_at),'[]'::jsonb)
  INTO allocations FROM public.mcp_billing_allocations a WHERE a.job_id=_job;
  SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.recorded_at),'[]'::jsonb) INTO receipt_reversals FROM public.mcp_billing_receipt_reversals r WHERE r.job_id=_job;
- RETURN jsonb_build_object('invoices',invoices,'receipts',receipts,'allocations',allocations,'receipt_reversals',receipt_reversals,'currency','USD');
+ -- Read the original setup amount and each current approved/executed CO exactly once.
+ -- Pending proposals and the separately maintained executed_change_orders aggregate are excluded.
+ SELECT CASE WHEN jsonb_typeof(value)='number' THEN (value::text)::numeric END INTO original
+ FROM public.mcp_job_facts WHERE job_id=_job AND module='contract' AND key='contract_value' AND status='known';
+ SELECT coalesce(sum(CASE WHEN jsonb_typeof(c.details->'total_cents')='number' THEN (c.details->>'total_cents')::numeric END),0),
+   coalesce(bool_or(CASE WHEN jsonb_typeof(c.details->'total_cents')='number' THEN (c.details->>'total_cents')::numeric <> trunc((c.details->>'total_cents')::numeric) OR abs((c.details->>'total_cents')::numeric)>9000000000000 ELSE true END),false)
+ INTO changes,incomplete
+ FROM public.mcp_change_orders c JOIN public.mcp_submittals sub ON sub.id=c.submittal_id AND sub.job_id=_job
+ WHERE c.job_id=_job AND c.details->>'state' IN ('approved','executed')
+   AND NOT EXISTS (SELECT 1 FROM public.mcp_submittals newer WHERE newer.job_id=_job AND newer.number=sub.number AND newer.revision>sub.revision);
+ -- A newer unapproved revision does not prove that an earlier approval was revoked.
+ IF EXISTS (SELECT 1 FROM public.mcp_change_orders older JOIN public.mcp_submittals old_sub ON old_sub.id=older.submittal_id AND old_sub.job_id=_job
+   JOIN public.mcp_submittals newer ON newer.job_id=_job AND newer.number=old_sub.number AND newer.revision>old_sub.revision
+   LEFT JOIN public.mcp_change_orders newer_co ON newer_co.submittal_id=newer.id AND newer_co.job_id=_job
+   WHERE older.job_id=_job AND older.details->>'state' IN ('approved','executed')
+     AND coalesce(newer_co.details->>'state','') NOT IN ('approved','executed')
+     AND NOT EXISTS (SELECT 1 FROM public.mcp_submittals newest WHERE newest.job_id=_job AND newest.number=newer.number AND newest.revision>newer.revision)) THEN incomplete:=true; END IF;
+ contract_value:=jsonb_build_object('original_cents',CASE WHEN original>=0 AND original*100=trunc(original*100) AND original*100<=9000000000000 THEN original*100 END,
+   'recorded_change_cents',CASE WHEN NOT incomplete AND abs(changes)<=9000000000000 THEN changes END,
+   'approved_cents',CASE WHEN original>=0 AND original*100=trunc(original*100) AND NOT incomplete AND original*100+changes BETWEEN 0 AND 9000000000000 THEN original*100+changes END);
+ RETURN jsonb_build_object('invoices',invoices,'receipts',receipts,'allocations',allocations,'receipt_reversals',receipt_reversals,'recorded_contract',contract_value,'currency','USD');
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_billing_evidence_get(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_billing_evidence_get(uuid) TO authenticated;
