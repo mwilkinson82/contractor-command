@@ -395,12 +395,12 @@ describe("native card presentation after the SDK", () => {
     const returned = await response.json();
     const body = returned.result.content.map((block: { text?: string }) => block.text ?? "").join("\n");
     for (let i = 1; i <= 17; i++) expect(body).toContain(`Job 2701 task ${i}`);
-    expect(body).toContain("## 🔵 Open items");
-    expect(body).toContain("**17 open · 🔴 3 overdue · 5 due within 7 days**");
+    expect(body).toContain("## Open items");
+    expect(body).toContain("**17 open · 3 overdue · 5 due within 7 days**");
     expect(body).toContain("due Oct 21");
     expect(body).toContain("due Oct 23");
     expect(body).toContain("due Nov 2");
-    const openHeadings = ["### 🔴 Overdue", "### Due within 7 days", "### Coming up"];
+    const openHeadings = ["### Overdue", "### Due within 7 days", "### Coming up"];
     let openAt = -1;
     for (const heading of openHeadings) {
       const next = body.indexOf(heading);
@@ -461,7 +461,7 @@ describe("native card presentation after the SDK", () => {
     const plain = await transform("tools/call", { name: "list_open_items" }, input);
     expect(plain.changed).toBe(true);
     const text = (plain.value as { result: { content: { text: string }[] } }).result.content[0].text;
-    expect(text).toContain("## 🔵 Open items");
+    expect(text).toContain("## Open items");
     expect(text).toContain("Fictional task");
     expect(text).not.toMatch(/^\s*\|/m);
     expect(text).not.toContain("<!doctype");

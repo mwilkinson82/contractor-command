@@ -131,7 +131,7 @@ describe("estimate_status without a job", () => {
     );
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toContain("No estimate on this job yet");
-    expect(result.content[0].text).toContain("## 🔵 No estimate on this job yet");
+    expect(result.content[0].text).toContain("## No estimate on this job yet");
   });
 });
 

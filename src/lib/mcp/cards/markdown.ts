@@ -1,14 +1,19 @@
 import { verbatimBlock } from "./verbatim";
 import { rowPlain } from "../plain-label";
-import { MARK, isAlertLevel } from "./palette";
+import { isAlertLevel } from "./palette";
 import { STATE_LABEL, type CardModel, type CardRow, type CardSection } from "./model";
 
 const cell = (s: string) => s.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
 
-function toneMark(row: CardRow): string {
-  if (isAlertLevel(row.flag)) return MARK.alert;
-  if (row.tone === "unknown") return MARK.neutral;
-  return MARK.action;
+function statusText(text: string, flag: unknown, unknown = false): string {
+  const label = isAlertLevel(flag)
+    ? flag[0].toUpperCase() + flag.slice(1)
+    : unknown
+      ? "Unknown"
+      : "";
+  return label && !new RegExp(`^(?:\\*\\*)?${label}\\b`, "i").test(text)
+    ? `${label}: ${text}`
+    : text;
 }
 
 function linked(row: CardRow): string {
@@ -18,9 +23,9 @@ function linked(row: CardRow): string {
 }
 
 function section(s: CardSection): string[] {
-  const lines = [`### ${isAlertLevel(s.flag) ? `${MARK.alert} ` : ""}${s.heading}`];
+  const lines = [`### ${statusText(s.heading, s.flag)}`];
   if (!s.rows.length) {
-    lines.push(`${MARK.neutral} Nothing on this card yet.`);
+    lines.push("Nothing on this card yet.");
     return lines;
   }
   if (s.kind === "table") {
@@ -36,13 +41,13 @@ function section(s: CardSection): string[] {
         const text = part.label === "Item" && part.refId ? "" : cell(part.label);
         return i === (row.linkCell ?? 0) ? (view.href ? `[${text || cell(view.label)}](${view.href})` : text || cell(view.label)) : text;
       });
-      if (isAlertLevel(row.flag)) cells[0] = `${MARK.alert} ${cells[0]}`.trim();
+      cells[0] = statusText(cells[0], row.flag, row.tone === "unknown");
       lines.push(`| ${cells.join(" | ")} |`);
     }
     return lines;
   }
   if (s.kind === "chips") {
-    lines.push(s.rows.map((r) => `${toneMark(r)} ${linked(r)}`).join(" · "));
+    lines.push(s.rows.map((r) => statusText(linked(r), r.flag, r.tone === "unknown")).join(" · "));
     return lines;
   }
   for (const row of s.rows) {
@@ -55,40 +60,38 @@ function section(s: CardSection): string[] {
       continue;
     }
     if (row.raw) {
-      if (row.flag) lines.push(`- ${toneMark(row)} **${row.flag === "delay" ? "Delay" : row.flag === "overdue" ? "Overdue" : row.flag === "risk" ? "Risk" : "Callout"}**`);
+      if (row.flag) lines.push(`- **${row.flag === "delay" ? "Delay" : row.flag === "overdue" ? "Overdue" : row.flag === "risk" ? "Risk" : "Callout"}**`);
       lines.push(row.cells.join("\n"));
       continue;
     }
-    lines.push(`- ${toneMark(row)} ${linked(row)}`);
+    lines.push(`- ${statusText(linked(row), row.flag, row.tone === "unknown")}`);
   }
   return lines;
 }
 
-/** Server-built markdown card. Markers are only blue, neutral, and red. */
+/** Server-built markdown card. Status words carry meaning without decorative circles. */
 export function renderMarkdown(card: CardModel): string {
   const lines: string[] = [];
-  lines.push(`## ${MARK.action} ${card.title}`);
+  lines.push(`## ${card.title}`);
   const stateLine = card.show_state === false ? (card.job ?? "") : `**${STATE_LABEL[card.state]}**${card.job ? ` · ${card.job}` : ""}`;
   if (stateLine) lines.push(stateLine);
   if (card.progress && card.progress.total > 0) {
     const done = Math.max(0, Math.min(card.progress.done, card.progress.total));
-    const bar = MARK.action.repeat(done) + MARK.neutral.repeat(card.progress.total - done);
-    lines.push(`**Progress:** ${done} of ${card.progress.total} ${bar}`);
+    lines.push(`**Progress:** ${done} of ${card.progress.total}`);
   }
   if (card.kpis?.length) {
     lines.push("", "| | |", "| --- | --- |");
     for (const k of card.kpis) {
-      const v = isAlertLevel(k.flag) ? `${MARK.alert} ${cell(k.value)}` : cell(k.value);
-      lines.push(`| ${cell(k.label)} | ${v} |`);
+      lines.push(`| ${statusText(cell(k.label), k.flag)} | ${cell(k.value)} |`);
     }
   }
   for (const s of card.sections ?? []) lines.push("", ...section(s));
   if (card.ask?.prompt) {
-    lines.push("", `### ${MARK.action} This question`, card.ask.prompt);
+    lines.push("", "### This question", card.ask.prompt);
   }
   if (card.alerts?.length) {
     lines.push("", "### Alerts");
-    for (const a of card.alerts) lines.push(`- ${MARK.alert} ${a.level}: ${a.text}`);
+    for (const a of card.alerts) lines.push(`- ${statusText(a.text, a.level)}`);
   }
   if (card.next_move) lines.push("", `**Next move:** ${card.next_move}`);
   return lines.join("\n");

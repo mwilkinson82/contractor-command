@@ -136,7 +136,7 @@ export function phoneLookaheadText(sc: Sc): string | null {
   const savedCount = kpiNumber(card, "Saved items") ?? saved.length;
   const openCount = kpiNumber(card, "Open saved items") ?? saved.filter((row) => !isResolved(row)).length;
   const overdueCount = kpiNumber(card, "Overdue on job") ?? kpiNumber(card, "Overdue saved items") ?? overdue.length;
-  const lines = ["## 🔵 14-day lookahead"];
+  const lines = ["## 14-day lookahead"];
   if (card?.job) lines.push(`**${clean(card.job)}**`);
   const win = sc.window && typeof sc.window === "object" ? (sc.window as { start?: unknown; end?: unknown }) : null;
   const start = monthDay(asDate(win?.start));
@@ -151,12 +151,12 @@ export function phoneLookaheadText(sc: Sc): string | null {
   const dateBit = dataDate ? `Data date is ${dataDate}${version == null ? "" : ` (CPM v${version})`}.` : "";
   const windowLine = [windowBits ? `${windowBits}.` : "", dateBit].filter(Boolean).join(" ");
   if (windowLine) lines.push(windowLine);
-  const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue on the job` : `${overdueCount} overdue on the job`;
+  const overdueWords = `${overdueCount} overdue on the job`;
   lines.push(`**${savedCount} saved item${savedCount === 1 ? "" : "s"} · ${openCount} open · ${overdueWords}**`);
-  section(lines, "### 🔴 Overdue", overdue);
+  section(lines, "### Overdue", overdue);
   section(lines, "### Due within 7 days", due7);
   section(lines, "### Coming up", later);
-  section(lines, "### 🔴 Delay / risk notices", delay);
+  section(lines, "### Delay / risk notices", delay);
   const activities = (Array.isArray(sc.activities) ? sc.activities : []) as {
     name?: string | null;
     description?: string | null;
@@ -238,16 +238,16 @@ export function phoneOpenItemsText(sc: Sc): string | null {
   const openCount = typeof counts?.open === "number" ? counts.open : kpiNumber(card, "Open") ?? source.length;
   const overdueCount = typeof counts?.overdue === "number" ? counts.overdue : kpiNumber(card, "Overdue") ?? overdue.length;
   const dueCount = due7Count ?? due7.length;
-  const lines = ["## 🔵 Open items"];
+  const lines = ["## Open items"];
   const board = openItemsBoardUrl(sc.board_url) ?? openItemsBoardUrl(card?.sections?.find((section) => section.heading === "Live open items")?.rows[0]?.href);
   if (card?.job) lines.push(`**${clean(card.job)}**`);
   if (board) lines.push(mdLink("Open live open items", board));
-  const overdueWords = overdueCount > 0 ? `🔴 ${overdueCount} overdue` : `${overdueCount} overdue`;
+  const overdueWords = `${overdueCount} overdue`;
   lines.push(`**${openCount} open · ${overdueWords} · ${dueCount} due within 7 days**`);
-  section(lines, "### 🔴 Overdue", overdue);
+  section(lines, "### Overdue", overdue);
   section(lines, "### Due within 7 days", due7);
   section(lines, "### Coming up", later);
-  section(lines, "### 🔴 Delay notices", delay);
+  section(lines, "### Delay notices", delay);
   if (resolved.length) lines.push("", `✅ Resolved: ${resolved.map((row) => splitAction(row.action ?? "Item").title).join(", ")}`);
   const next = nextMove(sc, card);
   if (next) lines.push("", `**Athena's next move:** ${next}`);

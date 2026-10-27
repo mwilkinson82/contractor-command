@@ -92,7 +92,7 @@ describe("contract terms card from clause rows", () => {
     expect(alertMarkupViolations(html)).toEqual([]);
     expect(html).not.toContain("**");
     const md = renderMarkdown(card);
-    expect(md).toContain("### 🔴 §6.2 Delay Notice");
+    expect(md).toContain("### Delay: §6.2 Delay Notice");
     expect(md).toContain("> 6.2 Delay Notice. Subcontractor shall give written notice");
     const painted = widget(card);
     expect(painted.match(/<section class="framed/g)).toHaveLength(clauses.length);

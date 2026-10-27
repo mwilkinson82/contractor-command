@@ -68,7 +68,7 @@ describe("which-job and picker cards end on the pick", () => {
       expect(out._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
       expect(out.structuredContent.which_job).toBe(true);
       expect(out.structuredContent.card.title).toBe("Which job?");
-      expect(out.content[0].text?.startsWith("## 🔵 Which job?")).toBe(true);
+      expect(out.content[0].text?.startsWith("## Which job?")).toBe(true);
       return;
     }
     assertCardContract(out, CARD_SHOWN_PICK);
@@ -77,7 +77,7 @@ describe("which-job and picker cards end on the pick", () => {
     expect(out.structuredContent.card.state).toBe("ask");
     expect(out.content[0].text).toContain("1001");
     expect(out.content[0].text).toContain("Lakeview Elementary Gym");
-    expect(out.content[0].text?.startsWith("## 🔵 Which job?")).toBe(true);
+    expect(out.content[0].text?.startsWith("## Which job?")).toBe(true);
   });
 
   it("team_list picker uses the same closing and the existing template", () => {

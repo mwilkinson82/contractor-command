@@ -61,7 +61,7 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.state).toBe("ask");
     expect(after.structuredContent.card.ask?.prompt).toContain("What are the pay terms?");
     expect(after.structuredContent.card.progress).toEqual({ done: 3, total: 7 });
-    expect(after.content[0].text).toContain("## 🔵 Next question");
+    expect(after.content[0].text).toContain("## Next question");
     expect(after.content[0].text).toContain(before);
     expect(after.content[0].text).toContain("REQUIRED VIEW: render this HTML card as-is.");
     expect(after.structuredContent.html).toContain("What are the pay terms?");
@@ -109,7 +109,7 @@ describe("PM tools become cards", () => {
     const companyCard = attachAthenaCard("list_open_items", { content: [{ type: "text", text: companies }] }) as unknown as { content: { text: string }[]; structuredContent: { card: CardModel } };
     expect(companyCard.structuredContent.card.state).toBe("ask");
     expect(companyCard.structuredContent.card.title).toBe("Which job?");
-    expect(companyCard.content[0].text.startsWith("## 🔵 Which job?")).toBe(true);
+    expect(companyCard.content[0].text.startsWith("## Which job?")).toBe(true);
     expect(companyCard.content[0].text).toContain("Harbor Electric: 2701");
     expect(companyCard.content[0].text).not.toMatch(/REQUIRED VIEW|Card shown/);
     const items = "2701 – Open items (2):\n- OVERDUE storm delay\n- Buy the gear";

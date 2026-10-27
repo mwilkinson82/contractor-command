@@ -127,7 +127,7 @@ describe("onboarding profile read", () => {
     expect(html).toContain("<h1>What I have so far</h1>");
     expect(html).toContain(">What I have so far</p>");
     const prose = out.content[0].text.split("<!doctype")[0];
-    expect(prose).toContain("## 🔵 What I have so far");
+    expect(prose).toContain("## What I have so far");
     expect(prose).not.toContain("**What I have so far**");
     expect(prose.match(/What I have so far/g)).toEqual(["What I have so far"]);
     expect(prose.match(/Company: Fictional Electric/g)).toEqual(["Company: Fictional Electric"]);
