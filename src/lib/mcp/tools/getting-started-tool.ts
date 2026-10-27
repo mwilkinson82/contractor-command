@@ -1,51 +1,50 @@
-// The get-started card comes first. Job setup or the morning meeting sits on that card.
-// This tool does not open with a which-job picker.
 import { defineTool } from "@lovable.dev/mcp-js";
-import type { CardModel } from "../cards/model";
+import { z } from "zod";
 import {
+  GETTING_STARTED_GUIDANCE,
   claimGettingStarted,
   firstJobCard,
   firstJobGuidance,
   memberJobs,
   renderGettingStarted,
+  sourceGuidanceCard,
   startedWithJobsCard,
-  withMemoryOffer,
 } from "../getting-started";
 import { run, text } from "../guard";
-import { INBOX_HOST_LINE } from "../morning-brief";
 import { guide } from "../visible";
 
-const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
-
-function cardResult(card: CardModel, guidance: string, lead = "") {
-  const shown = lead ? `${lead}\n\n${renderGettingStarted(card)}` : renderGettingStarted(card);
-  return guide(
-    { ...text(shown), structuredContent: { card, branch: card.title } },
-    guidance,
-  );
-}
-
+const READ = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+} as const;
 export const gettingStarted = defineTool({
   name: "getting_started",
-  title: "Hey Athena, let's get started",
+  title: "Start or resume with Athena",
   description:
-    "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker and never asking which job's morning hitlist, using first-job or company setup when there are no jobs, and otherwise showing the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting on that same card.",
-  inputSchema: {},
+    "Shows saved jobs or first-job guidance and explains current document and cost-code routes without creating records, starting meetings or importing data.",
+  inputSchema: { focus: z.enum(["overview", "documents", "cost_codes"]).optional() },
   annotations: READ,
   handler: (args, ctx) =>
     run("getting_started", ctx, undefined, async (sb) => {
-      void args;
       await claimGettingStarted(sb);
       const found = await memberJobs(sb as never);
-      if (!found.jobs.length) return withMemoryOffer(cardResult(firstJobCard(found.company), firstJobGuidance(found.company)));
-      const card = startedWithJobsCard(found.jobs);
-      const one = found.jobs.length === 1 ? found.jobs[0].job_number : null;
-      return withMemoryOffer(cardResult(
-        card,
-        one
-          ? `Show this card and stop. Do not call athena_morning_hitlist, pm_morning, or morning_brief in this reply. Do not ask which job's morning hitlist. The morning meeting on the card is ${one}. Save nothing until they say yes. ${INBOX_HOST_LINE}`
-          : `Show this card and stop. Do not call athena_morning_hitlist, pm_morning, or morning_brief in this reply. Do not ask which job's morning hitlist. The jobs are listed under Morning meeting. Save nothing until they say yes. ${INBOX_HOST_LINE}`,
-        INBOX_HOST_LINE,
-      ));
+      const focus = args.focus ?? "overview";
+      const card =
+        focus !== "overview"
+          ? sourceGuidanceCard(focus, found)
+          : found.jobs.length
+            ? startedWithJobsCard(found.jobs)
+            : firstJobCard(found.company);
+      return guide(
+        {
+          ...text(renderGettingStarted(card)),
+          structuredContent: { card, branch: found.jobs.length ? "resume" : "first_job", focus },
+        },
+        found.jobs.length || focus !== "overview"
+          ? GETTING_STARTED_GUIDANCE
+          : firstJobGuidance(found.company),
+      );
     }),
 });

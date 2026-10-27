@@ -1,38 +1,44 @@
-// First-chat card: start with @Athena. Hey Athena is only the bonus, after the memory line is saved.
-// The flag is one row per user. A missing migration fails open (no card, no throw).
+// Context-aware guidance on the existing first-use surface. Entry reads saved work;
+// only the existing first-run flag is claimed. It never creates or resets a job.
 import { htmlBlock } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
-import type { CardModel } from "./cards/model";
-import { INBOX_SECTION } from "./morning-brief";
+import type { CardModel, CardSection } from "./cards/model";
 import {
+  CONNECTOR_ROUTE,
+  COST_CODE_ASK,
+  COST_CODE_ROUTE,
+  DOCUMENT_ASK,
+  DOCUMENT_ROUTE,
   MEMORY_ASK,
-  MEMORY_BONUS,
   MEMORY_HOST_LINES,
   MEMORY_LINE,
-  MEMORY_WAIT,
-  START_AT_EXAMPLES,
+  NAVIGATION_LINE,
   START_BACKUP,
   START_EXAMPLES,
   START_HABIT,
   START_HEADLINE,
   START_HOSTS,
-  START_MEMORY_OFFER,
   START_POINTS,
 } from "../athena-start-copy";
 
 export const GETTING_STARTED_GUIDANCE = [
-  "Show the getting-started card first. Its headline is @Athena, let's get started. Every Try one line starts with @Athena. Hey Athena stays only on the bonus line, and it works after the memory line is saved.",
-  `Ask first. The card asks: ${MEMORY_ASK} Save nothing in that reply.`,
-  `Only after the member says yes, save this exact line in the member's own AI: ${MEMORY_LINE}.`,
-  ...MEMORY_HOST_LINES,
-  "If the member says no, save nothing.",
-  `Keep teaching the one habit: ${START_HABIT} The memory line is the bonus so plain Hey Athena also works.`,
+  "Show the onboarding card once, with its useful next step or saved jobs first. These are choices, not instructions to execute every suggestion.",
+  "Greeting, getting started, back, cancel or repeated entry never authorizes company/job creation, reset, imports, mapping or any unrelated write. On back or cancel, stop the pending setup and show choices; retain saved work.",
+  "Start a job only after the member explicitly requests creation and supplies the required company, job number and name. Check existing jobs first; resume a matching record rather than create a duplicate. Ask when the company or job is ambiguous.",
+  `Ask about existing data without blocking their chosen task: ${DOCUMENT_ASK} ${COST_CODE_ASK}`,
+  "Use only routes actually available in this host. Attachments must be readable here; another service needs a working connected tool or authorized signed-in browser. Never promise universal login or access. If access fails, say what was not read and offer a user-provided export or pasted text. Do not retry a denied download.",
+  "For supplied documents, inspect the accessible file and name it before claiming review. Continue the requested extraction without an extra approval step. For requested contract/spec uploads, use file_upload begin for the existing private browser file picker, or from_url only for a genuinely fetchable allowed file; never send large base64 in one tool call. Use project_documents list/read/search to reuse saved sources before requesting another upload; keep physical-page/offset continuation and source identity. Existing file_upload prepare_readable can prepare an already stored source when needed, without reupload. Use the existing contract extraction/verification path and intake contract_clauses/contract_terms for exact cited clauses, submittals_import for requested specification requirements, and drawing_set_import only for requested drawings. List existing drawings with drawing_sets_list first. Keep unread, absent and already supplied distinct; never say missing merely because onboarding has not checked.",
+  "For supplied cost codes, preserve the member's codes and descriptions. Review the provided list with them; use the existing intake budget path only for an explicitly requested job budget/SOV save with the required data. Do not invent a company code import, parsing pipeline, account mapping or a new integration.",
+  "Route a selected choice through current tools: show job list -> jobs_list; job dashboard/boards -> report_page_link using an existing page such as items, ior or field (never a made-up dashboard page); what needs attention -> list_open_items; PM meeting -> pm_meeting; lookahead -> lookahead_get; field board -> field_board. Carry the selected job and company; ask if ambiguous. Do not call them merely because they appear on this card.",
+  `${START_HABIT} ${START_BACKUP} Do not claim a wake word, guaranteed host routing, mandatory manual selection, or control over host composer predictions.`,
+  "Host memory is optional and never the primary onboarding task. Save nothing in that reply. Only after the member explicitly requests it and the host supports it, offer the preference below. If the member says no, save nothing.",
 ].join(" ");
 
 export const GETTING_STARTED_RULE =
-  " When the member says Hey Athena, let's get started, Athena, let's get started, let's get going, getting started, @Athena let's get started, or Hey Athena, getting started, call getting_started and show that card first. Never start that reply with a which-job picker, and never ask Which job's morning hitlist? Do not call athena_morning_hitlist, pm_morning, or morning_brief for that phrase. No jobs: first-job setup, or company setup when there is no company. Jobs already on file stay on that card: the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting. One job: name it on the card. More than one job: the job list sits inside that same card. On a member's first tool call, show the getting-started card before the rest of the reply. Good morning Athena and Hey Athena, what's on my plate today? call athena_hello or morning_brief. Keep teaching the one habit: start every message with @Athena. Ask first. Save nothing in that reply. Only after the member says yes, save the line. ChatGPT: ask ChatGPT to remember it in saved memory. Claude: save it in memory or project instructions. Grok Bot: save it in memory. If the member says no, save nothing. Do not answer the setup questions for the member.";
+  " When the member asks to get started, asks how Athena works, asks how to supply existing project documents or company cost codes, call getting_started (focus documents or cost_codes for those questions). Show one concise onboarding card with the saved jobs or first-job empty state and a clear next choice. Do not open a morning meeting, run suggestions, create records or reset setup merely from a greeting or getting started. Existing jobs are resumed, never recreated. First use is guidance, not an instruction to create a job. On back/cancel, stop pending setup and preserve saved work. " +
+  GETTING_STARTED_GUIDANCE;
 
-/** What the host reads when it is time to save. saved stays false until the member says yes. */
+/** A host preference is available on request, without claiming it was saved. */
 export function memoryOffer() {
   return {
     line: MEMORY_LINE,
@@ -48,205 +54,271 @@ export function memoryOffer() {
   };
 }
 
+const list = (heading: string, lines: readonly string[], framed = false): CardSection => ({
+  heading,
+  kind: "list",
+  framed,
+  rows: lines.map((line) => ({ cells: [line] })),
+});
+const choices = (lines: readonly string[]): CardSection => ({
+  heading: "Try asking",
+  kind: "chips",
+  rows: lines.map((line) => ({ cells: [line] })),
+});
+const bringExisting = () =>
+  list("Bring what you already have", [
+    "Have a contract, specifications or a schedule? Ask “How do I bring my documents?”",
+    COST_CODE_ASK,
+  ]);
+const workingTogether = () =>
+  list("A saved job, not a new chat every time", [START_POINTS[0], NAVIGATION_LINE]);
+
+/** Compact introduction used only as the first-run lead on another requested tool. */
 export function gettingStartedCard(): CardModel {
   return {
+    presentation: "onboarding",
     state: "result",
     show_state: false,
     title: START_HEADLINE,
     job: START_HOSTS,
     sections: [
-      { heading: "Your work", kind: "list", rows: START_POINTS.map((line) => ({ cells: [line] })) },
-      { heading: "Try one", kind: "list", rows: START_EXAMPLES.map((ask) => ({ cells: [ask] })) },
-      { heading: "One habit", kind: "list", rows: [{ cells: [START_HABIT] }] },
-      { heading: "Backup", kind: "list", rows: [{ cells: [START_BACKUP] }] },
-      {
-        heading: "Bonus",
-        kind: "list",
-        rows: [{ cells: [MEMORY_LINE] }, { cells: [MEMORY_BONUS] }, { cells: [MEMORY_WAIT] }],
-      },
-      { heading: "If you say yes", kind: "list", rows: MEMORY_HOST_LINES.map((line) => ({ cells: [line] })) },
+      list("Start here", [START_POINTS[0]], true),
+      choices(START_EXAMPLES),
+      bringExisting(),
     ],
-    next_move: MEMORY_ASK,
+    next_move: "Choose a task in your own words. Your requested result follows below.",
   };
 }
 
-/** Readable text for a host that does not paint ui://athena/card.html. Same words as the card. */
 export function plainGettingStarted(card: CardModel = gettingStartedCard()): string {
-  const lines: string[] = [card.title];
-  if (card.job) lines.push(card.job, "");
+  const lines = [card.title, ...(card.job ? [card.job, ""] : [])];
   if (card.ask?.prompt) lines.push(card.ask.prompt, "");
   for (const section of card.sections ?? []) {
-    lines.push(section.heading);
-    for (const row of section.rows) {
-      const line = row.cells.filter(Boolean).join(" ");
-      if (line) lines.push(line);
-    }
-    lines.push("");
+    lines.push(
+      section.heading,
+      ...section.rows.map((row) => row.cells.filter(Boolean).join(" ")),
+      "",
+    );
   }
   if (card.next_move) lines.push(`Next move: ${card.next_move}`);
   return lines.join("\n").trim();
 }
 
 export function firstJobCard(company: boolean): CardModel {
-  if (!company) {
-    return {
-      state: "ask",
-      show_state: false,
-      title: "Let's set up your company",
-      ask: { prompt: "What is the company name?" },
-      sections: [{ heading: "Why", kind: "list", rows: [{ cells: ["Jobs belong to a company. The company name is the first save."] }] }],
-      next_move: "Send the company name.",
-    };
-  }
   return {
-    state: "ask",
+    presentation: "onboarding",
+    state: "result",
     show_state: false,
-    title: "Let's set up your first job",
-    ask: { prompt: "What is the job number, and what should we call the job?" },
-    sections: [{ heading: "Why", kind: "list", rows: [{ cells: ["The job number is required. The morning meeting and the boards start from that job."] }] }],
-    next_move: "Send the job number and the name.",
+    title: "Your first job starts here.",
+    job: "No saved jobs yet. Start with one useful task.",
+    sections: [
+      list(
+        "Start a job",
+        [
+          company
+            ? "Tell me “start a job” with its job number and name. We will build its saved record together."
+            : "Tell me “start a job” and your company name. Then we will add the job number and name.",
+        ],
+        true,
+      ),
+      choices(["Start a job", "How do I bring my documents?", "What can Athena show me?"]),
+      bringExisting(),
+      workingTogether(),
+    ],
+    next_move:
+      "Start a job, or tell me where your existing project information lives. You can begin without all the documents.",
   };
 }
 
 export function firstJobGuidance(company: boolean): string {
-  return company
-    ? "Ask for the job number and the job name. Do not invent them. Record the job with intake section create_job. The scope question is next. Do not assume the job type."
-    : "Ask for the company name. Do not invent it. Record it with onboarding action save_company. Then ask for the job number and the job name.";
+  return (
+    (company
+      ? "If they choose to start a job, ask for its number and name; use intake section create_job only after their explicit request. The scope question follows; never assume job type."
+      : "If they choose to start a job, ask for the company name; use onboarding action save_company only for the requested company. Then ask for the job number and name.") +
+    " " +
+    GETTING_STARTED_GUIDANCE
+  );
 }
 
-type MemberDb = {
-  from: (table: string) => {
-    select: (cols: string) => {
-      in: (col: string, ids: string[]) => Promise<{ data: unknown; error: { message?: string } | null }>;
-      then: Promise<{ data: unknown; error: { message?: string } | null }>["then"];
-    };
-  };
+type Company = { id: string; name?: string | null };
+export type StartedJob = {
+  job_number: string;
+  name: string | null;
+  company_id?: string;
+  company_name?: string | null;
 };
+type Query = PromiseLike<{ data: unknown; error: { message?: string } | null }> & {
+  in: (
+    col: string,
+    ids: string[],
+  ) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
+};
+type MemberDb = { from: (table: string) => { select: (cols: string) => Query } };
 
-export async function memberJobs(sb: MemberDb): Promise<{ company: boolean; jobs: { job_number: string; name: string | null }[] }> {
-  const companies = await sb.from("mcp_companies").select("id");
+export async function memberJobs(sb: MemberDb): Promise<{ company: boolean; jobs: StartedJob[] }> {
+  const companies = await sb.from("mcp_companies").select("id, name");
   if (companies.error) throw new Error(companies.error.message ?? "database error");
-  const ids = ((companies.data ?? []) as { id: string }[]).map((c) => c.id);
-  if (!ids.length) return { company: false, jobs: [] };
-  const jobs = await sb.from("mcp_jobs").select("job_number, name").in("company_id", ids);
+  const rows = (companies.data ?? []) as Company[];
+  if (!rows.length) return { company: false, jobs: [] };
+  const jobs = await sb
+    .from("mcp_jobs")
+    .select("job_number, name, company_id")
+    .in(
+      "company_id",
+      rows.map((c) => c.id),
+    );
   if (jobs.error) throw new Error(jobs.error.message ?? "database error");
-  return { company: true, jobs: (jobs.data ?? []) as { job_number: string; name: string | null }[] };
-}
-
-export type StartedJob = { job_number: string; name: string | null };
-
-/**
- * The get-started card for a member who already has jobs.
- * The title stays the habit. A job list, when there is more than one job, is a section on this card.
- */
-export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
-  const base = gettingStartedCard();
-  const one = jobs.length === 1 ? jobs[0] : null;
-  const label = (job: StartedJob) => `${job.job_number}${job.name ? ` (${job.name})` : ""}`;
-  const jobsRows = one
-    ? [{ cells: [`Open it on ${label(one)}.`], tone: "action" as const }]
-    : [
-        ...jobs.map((job) => ({ cells: [label(job)], tone: "action" as const })),
-        { cells: ["Name the job for the morning meeting."], tone: "action" as const },
-      ];
   return {
-    ...base,
-    title: "Hey Athena, let's get started",
-    ask: null,
-    sections: [
-      ...(base.sections ?? []),
-      { heading: "@Athena", kind: "list", rows: START_AT_EXAMPLES.map((line) => ({ cells: [line] })) },
-      { heading: "Memory", kind: "list", rows: [{ cells: [START_MEMORY_OFFER], tone: "action" }] },
-      {
-        heading: INBOX_SECTION,
-        kind: "list",
-        placeholder: true,
-        rows: [{ cells: ["Overnight emails, unanswered emails, and today's meetings."], tone: "unknown" }],
-      },
-      { heading: "Morning meeting", kind: "list", rows: jobsRows },
-    ],
-    next_move: one ? `The morning meeting is on ${one.job_number}.` : "Name the job and I will open the morning meeting.",
+    company: true,
+    jobs: ((jobs.data ?? []) as StartedJob[])
+      .map((job) => ({
+        ...job,
+        ...(job.company_id
+          ? { company_name: rows.find((c) => c.id === job.company_id)?.name ?? null }
+          : {}),
+      }))
+      .sort(
+        (a, b) =>
+          (a.company_name ?? "").localeCompare(b.company_name ?? "") ||
+          a.job_number.localeCompare(b.job_number),
+      ),
   };
 }
 
-/** No jobs opens setup. Jobs already on file stay on the get-started card. The morning meeting is not opened here. */
-export async function branchGettingStarted<T>(sb: MemberDb, morning: (jobNumber?: string) => Promise<T>, setup: (company: boolean) => T): Promise<T> {
-  const found = await memberJobs(sb);
-  if (!found.jobs.length) return setup(found.company);
-  void morning;
-  return startedWithJobsCard(found.jobs) as T;
+export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
+  const one = jobs.length === 1 ? jobs[0] : null;
+  const scope = one ? ` on job ${one.job_number}` : " on a job";
+  const shown = jobs
+    .slice(0, 5)
+    .map(
+      (job) =>
+        `${job.job_number}${job.name ? ` · ${job.name}` : ""}${job.company_name ? ` · ${job.company_name}` : ""}`,
+    );
+  if (jobs.length > 5)
+    shown.push(`${jobs.length - 5} more saved jobs. Ask “show my job list” for all of them.`);
+  return {
+    presentation: "onboarding",
+    state: "result",
+    show_state: false,
+    title: "Pick up where you left off.",
+    job: one
+      ? "Your saved job is ready. Choose what to open."
+      : `${jobs.length} saved jobs. Choose the job and the task.`,
+    sections: [
+      list(one ? "Your saved job" : "Your saved jobs", shown, true),
+      choices([
+        `What needs attention${scope}?`,
+        `Show the job dashboard${scope}`,
+        "Show my job list",
+      ]),
+      list("Open a live view when you need it", [
+        "Ask for the PM meeting, lookahead or field board. Athena uses the selected job's saved records; missing information stays unknown.",
+      ]),
+      bringExisting(),
+      workingTogether(),
+    ],
+    next_move: one
+      ? `Try “What needs attention on job ${one.job_number}?”`
+      : "Name a saved job and ask what needs attention, or show the full job list.",
+  };
 }
 
+export type OnboardingFocus = "overview" | "documents" | "cost_codes";
+export function sourceGuidanceCard(
+  focus: Exclude<OnboardingFocus, "overview">,
+  found: { company: boolean; jobs: StartedJob[] },
+): CardModel {
+  const codes = focus === "cost_codes";
+  return {
+    presentation: "onboarding",
+    state: "result",
+    show_state: false,
+    title: codes ? "Start with your own cost codes." : "Bring the work you already have.",
+    job:
+      found.jobs.length === 1
+        ? `For job ${found.jobs[0].job_number} · ${found.jobs[0].name ?? "Saved job"}`
+        : "Use the same saved job as you add information.",
+    sections: [
+      list(
+        codes ? "Your existing list" : "Supply a document",
+        [codes ? COST_CODE_ROUTE : DOCUMENT_ROUTE],
+        true,
+      ),
+      list("Choose an available route", [CONNECTOR_ROUTE]),
+      list("Already supplied it?", [
+        codes
+          ? "Name the code list already available in this chat and the job you want to review. Keep your existing codes and descriptions; add missing information when you have it."
+          : "Name the file and the job, and say what you want extracted or reviewed. Athena can list, read or search saved contracts and specifications before asking for another upload. Unread information stays unknown.",
+      ]),
+      list("Not ready yet?", [
+        "You can start or resume a job without every file or code. Add them when available; keep the gaps visible.",
+      ]),
+      list("One useful question", [codes ? COST_CODE_ASK : DOCUMENT_ASK]),
+    ],
+    next_move: codes
+      ? "Tell me whether you have a code list and where it lives."
+      : "Tell me the job and where the files live, or name the file you already supplied.",
+  };
+}
+
+export async function branchGettingStarted<T>(
+  sb: MemberDb,
+  morning: (jobNumber?: string) => Promise<T>,
+  setup: (company: boolean) => T,
+): Promise<T> {
+  const found = await memberJobs(sb);
+  void morning; // Getting started never starts a meeting as a side effect.
+  return found.jobs.length ? (startedWithJobsCard(found.jobs) as T) : setup(found.company);
+}
 export function renderGettingStarted(card: CardModel = gettingStartedCard()): string {
   return `${plainGettingStarted(card)}\n\n${htmlBlock(renderHtml(card))}`;
 }
 
 type TextBlock = { type: string; text?: string };
 type TextRes = { content?: TextBlock[]; structuredContent?: Record<string, unknown> };
-type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
-
-/** True only when this call inserted the user's first-run row. */
+type Rpc = {
+  rpc: (
+    fn: string,
+    args?: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: unknown }>;
+};
 export async function claimGettingStarted(sb: Rpc): Promise<boolean> {
   try {
     const { data, error } = await sb.rpc("mcp_getting_started_claim");
-    if (error) return false;
-    return !!data && typeof data === "object" && (data as { show?: boolean }).show === true;
+    return (
+      !error && !!data && typeof data === "object" && (data as { show?: boolean }).show === true
+    );
   } catch {
     return false;
   }
 }
-
-/**
- * Puts the start card on the first tool result for this user.
- * Card-first tools keep their reply text and carry the card on structuredContent
- * so the widget paints it above the tool card.
- */
-export async function attachGettingStarted<R>(sb: Rpc, result: R, opts?: { prepend?: boolean }): Promise<R> {
+export async function attachGettingStarted<R>(
+  sb: Rpc,
+  result: R,
+  opts?: { prepend?: boolean },
+): Promise<R> {
   const res = result as unknown as TextRes;
   const first = res?.content?.find((c) => c.type === "text" && typeof c.text === "string");
-  if (!first?.text) return result;
-  const sc = { ...(res.structuredContent ?? {}) };
-  if ("getting_started" in sc) return result;
-  const show = await claimGettingStarted(sb);
-  if (!show) return result;
+  if (!first?.text || "getting_started" in (res.structuredContent ?? {})) return result;
+  // Explicit onboarding already contains the complete contextual card.
+  if ((res.structuredContent?.card as CardModel | undefined)?.presentation === "onboarding")
+    return result;
+  if (!(await claimGettingStarted(sb))) return result;
   const card = gettingStartedCard();
+  const sc = res.structuredContent ?? {};
   const prior = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as string[]) : [];
-  const structuredContent = {
-    ...sc,
-    getting_started: card,
-    memory_offer: memoryOffer(),
-    assistant_guidance: prior.includes(GETTING_STARTED_GUIDANCE) ? prior : [...prior, GETTING_STARTED_GUIDANCE],
-  };
-  const content =
-    opts?.prepend === false
-      ? res.content
-      : res.content!.map((c) => (c === first ? { ...c, text: `${renderGettingStarted(card)}\n\n${first.text}` } : c));
-  return { ...(res as object), content, structuredContent } as R;
-}
-
-/**
- * Puts the getting-started card, with the memory ask, in front of a guided result.
- * The host saves the line only after a later yes. This reply does not save it.
- */
-export function withMemoryOffer<R>(result: R): R {
-  const res = result as unknown as TextRes;
-  const first = res?.content?.find((c) => c.type === "text" && typeof c.text === "string");
-  if (!first?.text) return result;
-  const card = gettingStartedCard();
-  const sc = { ...(res.structuredContent ?? {}) };
-  const prior = Array.isArray(sc.assistant_guidance) ? (sc.assistant_guidance as string[]) : [];
-  const assistant_guidance = prior.includes(GETTING_STARTED_GUIDANCE) ? prior : [GETTING_STARTED_GUIDANCE, ...prior];
-  const content = first.text.includes(MEMORY_LINE)
-    ? res.content
-    : res.content!.map((c) => (c === first ? { ...c, text: `${renderGettingStarted(card)}\n\n${first.text}` } : c));
   return {
-    ...(res as object),
-    content,
+    ...res,
+    content:
+      opts?.prepend === false
+        ? res.content
+        : res.content!.map((c) =>
+            c === first ? { ...c, text: `${renderGettingStarted(card)}\n\n${first.text}` } : c,
+          ),
     structuredContent: {
       ...sc,
       getting_started: card,
-      memory_offer: memoryOffer(),
-      assistant_guidance,
+      assistant_guidance: [...prior, GETTING_STARTED_GUIDANCE],
     },
   } as R;
 }

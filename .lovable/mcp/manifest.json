@@ -9423,8 +9423,8 @@
       },
       {
         "name": "getting_started",
-        "title": "Hey Athena, let's get started",
-        "description": "Shows the get-started card for Hey Athena, let's get started, Athena, let's get started, and @Athena let's get started, never opening with a which-job picker and never asking which job's morning hitlist, using first-job or company setup when there are no jobs, and otherwise showing the @Athena example lines, the offer to save When I say Athena, always use the Athena connector and how to remove it, then the morning meeting on that same card.",
+        "title": "Start or resume with Athena",
+        "description": "Shows saved jobs or first-job guidance and explains current document and cost-code routes without creating records, starting meetings or importing data.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -9432,9 +9432,18 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
-          "properties": {},
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "focus": {
+              "type": "string",
+              "enum": [
+                "overview",
+                "documents",
+                "cost_codes"
+              ]
+            }
+          },
           "additionalProperties": false
         },
         "outputSchema": null

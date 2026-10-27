@@ -2,6 +2,7 @@ import { plainLabel, rowPlain } from "../plain-label";
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, isAlertLevel } from "./palette";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 import { responsiveCardCss } from "./responsive";
+import { onboardingCss } from "./onboarding-style";
 
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -102,6 +103,7 @@ export function renderHtml(card: CardModel): string {
     alert ? `.framed.alert{border:2px solid ${alertColor};color:${navy}}` : "",
     alert ? `.framed.alert h2{background:${alertColor};color:${white};border-bottom:0}` : "",
     responsiveCardCss(alert),
+    card.presentation === "onboarding" ? onboardingCss : "",
   ]
     .filter(Boolean)
     .join("");
@@ -167,5 +169,5 @@ export function renderHtml(card: CardModel): string {
   const next = card.next_move ? `<p class="next">Next move: ${esc(card.next_move)}</p>` : "";
   const eyebrow = card.show_state === false ? "" : `<p class="eyebrow">${esc(STATE_LABEL[card.state])}</p>`;
 
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(card.title)}</title><style>${css}</style></head><body><article class="card" data-state="${card.state}"><header><p class="mark">Athena</p><h1>${esc(card.title)}</h1>${card.job ? `<p class="job">${esc(card.job)}</p>` : ""}</header><div class="body">${eyebrow}${progress}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${ask}${sections}${alerts}${next}</div></article></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(card.title)}</title><style>${css}</style></head><body><article class="card"${card.presentation === "onboarding" ? ' data-presentation="onboarding"' : ""} data-state="${card.state}"><header><p class="mark">Athena</p><h1>${esc(card.title)}</h1>${card.job ? `<p class="job">${esc(card.job)}</p>` : ""}</header><div class="body">${eyebrow}${progress}${kpis ? `<div class="kpis">${kpis}</div>` : ""}${ask}${sections}${alerts}${next}</div></article></body></html>`;
 }

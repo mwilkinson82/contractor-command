@@ -1,9 +1,12 @@
 import {
-  MEMORY_ASK,
+  CONNECTOR_ROUTE,
+  COST_CODE_ASK,
+  COST_CODE_ROUTE,
+  DOCUMENT_ASK,
+  DOCUMENT_ROUTE,
   MEMORY_BONUS,
-  MEMORY_HOST_LINES,
-  MEMORY_LINE,
   MEMORY_WAIT,
+  NAVIGATION_LINE,
   START_BACKUP,
   START_EXAMPLES,
   START_HABIT,
@@ -11,79 +14,73 @@ import {
   START_HOSTS,
   START_POINTS,
 } from "@/lib/athena-start-copy";
+import { onboardingCss } from "@/lib/mcp/cards/onboarding-style";
 import { BLUE, GRAY, NAVY, WHITE } from "@/lib/mcp/cards/palette";
 
-/** Athena-branded start tip. Navy, blue, and gray. No alert red. */
+/** The existing connection handoff: one useful next step, then optional details. */
 export function AthenaStartTip() {
   return (
     <section
       data-testid="athena-start-tip"
+      data-presentation="onboarding"
+      className="card"
       style={{
         maxWidth: 640,
-        border: `1px solid ${GRAY}`,
-        borderRadius: 14,
         overflow: "hidden",
         background: WHITE,
         color: NAVY,
-        font: "15px/1.45 system-ui, sans-serif",
+        font: "15px/1.5 system-ui, sans-serif",
       }}
     >
-      <header style={{ background: NAVY, color: WHITE, padding: "16px 18px" }}>
-        <p style={{ margin: "0 0 6px", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>Athena</p>
-        <h2 style={{ margin: 0, fontSize: 22, lineHeight: 1.25 }}>{START_HEADLINE}</h2>
-        <p style={{ margin: "6px 0 0", opacity: 0.9 }}>{START_HOSTS}</p>
+      <style>{onboardingCss}</style>
+      <header>
+        <p className="mark">Athena · Start here</p>
+        <h1>{START_HEADLINE}</h1>
+        <p className="job">{START_HOSTS}</p>
       </header>
-      <div style={{ padding: "16px 18px" }}>
-        <p
-          style={{
-            display: "inline-block",
-            margin: "0 0 10px",
-            padding: "3px 8px",
-            borderRadius: 999,
-            background: BLUE,
-            color: WHITE,
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-        >
-          Start here
-        </p>
-        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          {START_POINTS.map((line) => (
-            <li key={line} style={{ margin: "8px 0" }}>
-              {line}
-            </li>
-          ))}
-        </ul>
-        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>Try one</h3>
-        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+      <div className="body">
+        <section className="framed">
+          <h2>One useful first step</h2>
+          <p style={{ margin: 0 }}>
+            In your connected chat, say <strong>“Start a job”</strong> or{" "}
+            <strong>“Show my job list.”</strong>
+          </p>
+        </section>
+        <h2>Try asking</h2>
+        <div aria-label="Example requests">
           {START_EXAMPLES.map((ask) => (
-            <li key={ask} style={{ margin: "8px 0", padding: "8px 12px", borderLeft: `4px solid ${BLUE}` }}>
+            <span key={ask} className="chip">
               {ask}
-            </li>
+            </span>
           ))}
-        </ul>
-        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>One habit</h3>
-        <p style={{ margin: 0, padding: "8px 12px", borderLeft: `4px solid ${BLUE}` }}>{START_HABIT}</p>
-        <h3 style={{ margin: "16px 0 8px", fontSize: 14, color: GRAY }}>Backup</h3>
-        <p style={{ margin: 0, padding: "8px 12px", borderLeft: `4px solid ${GRAY}` }}>{START_BACKUP}</p>
-        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>Bonus</h3>
-        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          {[MEMORY_LINE, MEMORY_BONUS, MEMORY_WAIT].map((line) => (
-            <li key={line} style={{ margin: "8px 0" }}>
-              {line}
-            </li>
-          ))}
-        </ul>
-        <h3 style={{ margin: "16px 0 8px", fontSize: 14 }}>If you say yes</h3>
-        <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          {MEMORY_HOST_LINES.map((line) => (
-            <li key={line} style={{ margin: "8px 0", padding: "8px 12px", borderLeft: `4px solid ${BLUE}` }}>
-              {line}
-            </li>
-          ))}
-        </ul>
-        <p style={{ margin: "14px 0 0", fontWeight: 700 }}>{`Next move: ${MEMORY_ASK}`}</p>
+        </div>
+        <p style={{ margin: "10px 0 16px" }}>{START_POINTS[0]}</p>
+        <details style={{ borderTop: `1px solid ${GRAY}33`, padding: "12px 0" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 650, color: BLUE }}>
+            Bring existing documents and cost codes
+          </summary>
+          <p>{DOCUMENT_ASK}</p>
+          <p>{DOCUMENT_ROUTE}</p>
+          <p>{CONNECTOR_ROUTE}</p>
+          <p>
+            <strong>{COST_CODE_ASK}</strong>
+          </p>
+          <p>{COST_CODE_ROUTE}</p>
+          <p>
+            You can begin without every file. Name an already supplied file so Athena can use the
+            saved source before asking for another upload.
+          </p>
+        </details>
+        <details style={{ borderTop: `1px solid ${GRAY}33`, padding: "12px 0" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 650 }}>
+            Using your connected chat
+          </summary>
+          <p>{START_HABIT}</p>
+          <p>{START_BACKUP}</p>
+          <p>{MEMORY_BONUS}</p>
+          <p>{MEMORY_WAIT}</p>
+        </details>
+        <p style={{ margin: "8px 0 0", color: GRAY, fontSize: 13 }}>{NAVIGATION_LINE}</p>
       </div>
     </section>
   );
