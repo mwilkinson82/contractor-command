@@ -100,7 +100,9 @@ boundary. Reconcile an uncertain result by idempotency key before retrying.
 
 1. After billing is accepted, reconcile the release branch and managed migration
    history, confirm that `20261101120002` follows the accepted billing migration,
-   and rerun the checks against that exact combined head. Keep the PR in draft until
+   account for the applied managed billing migration `0033` as well as the existing
+   timestamped migration files, and rerun the checks against that exact combined head.
+   Do not rewrite migration history or assume the next managed number. Keep the PR in draft until
    this succeeds and the parent coordinates the release. Verify the table-alter and
    index-build lock duration under representative daily-save traffic in an isolated
    supported environment. The migration has a five-second lock timeout, but that
@@ -121,7 +123,10 @@ boundary. Reconcile an uncertain result by idempotency key before retrying.
    daily. Updated callers use version checks and keys.
 4. Verify the existing Cedar Grove reports and 3.75/4 LF per person-hour rates by
    read only, before and after rollout; never save or modify those fixtures. Use a
-   separate QA project for writes. Test an old-client unlinked save, an unmapped job,
+   separate QA project for writes. Before creating it, independently verify the intended
+   test company and explicitly pass its company ID; after creation, re-read the job and
+   confirm its company before any other writes. Stop if the company does not match.
+   Do not use the empty `BILL-QA-20261027-A` job created in ALP. Test an old-client unlinked save, an unmapped job,
    an approved mapped correction, void/replay and existing field-board views, as well as
    actual billing/cash non-mutation. Capture real app screenshots.
 5. If service rollback is necessary after mapped or voided work exists, retain the
