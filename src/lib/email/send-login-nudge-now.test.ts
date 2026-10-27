@@ -23,7 +23,8 @@ function fakeAdmin(opts: { suppressed?: boolean } = {}) {
         maybeSingle: async () => {
           if (table === "suppressed_emails")
             return { data: opts.suppressed ? { email: "x" } : null };
-          if (table === "email_unsubscribe_tokens") return { data: { token: "unsub", used_at: null } };
+          if (table === "email_unsubscribe_tokens")
+            return { data: { token: "unsub", used_at: null } };
           return { data: null };
         },
       };
@@ -109,6 +110,33 @@ describe("sendLoginNudgeNow variants", () => {
     const p = m.send.mock.calls[0][0];
     expect(p.html).toContain("finish connecting your AI app");
     expect(p.html).toContain("482913");
+  });
+
+  it("preview Athena code email has no callback link and requires a code", async () => {
+    await sendLoginNudgeNow({
+      ...base,
+      supabaseAdmin: fakeAdmin(),
+      channel: "public_magic_link",
+      variant: "athena-code",
+      otpCode: "482913",
+    });
+    const p = m.send.mock.calls[0][0];
+    expect(p.subject).toBe("Your Athena sign-in code");
+    expect(p.from).toBe("Athena <no-reply@notify.mail.alpcontractorcircle.com>");
+    expect(p.html).toContain("482913");
+    expect(p.text).toContain("482913");
+    expect(decode(p.html)).not.toContain(URL_EXACT);
+    expect(p.text).not.toContain(URL_EXACT);
+    m.send.mockClear();
+    await expect(
+      sendLoginNudgeNow({
+        ...base,
+        supabaseAdmin: fakeAdmin(),
+        channel: "public_magic_link",
+        variant: "athena-code",
+      }),
+    ).rejects.toThrow("Preview sign-in code is missing");
+    expect(m.send).not.toHaveBeenCalled();
   });
 
   it("athena still honors suppression", async () => {

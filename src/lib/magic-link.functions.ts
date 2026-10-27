@@ -9,7 +9,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { athenaPageReturn } from "@/lib/athena-page-return";
-import { signInReturn } from "@/lib/board-sign-in";
+import { boardSignInReturn, signInReturn } from "@/lib/board-sign-in";
+import { normalizeOtpCode } from "@/lib/login-otp";
 import { oauthConsentReturn } from "@/lib/oauth-return-path";
 import { buildTokenHashAuthUrl } from "@/lib/auth-link-url";
 import { hubOrigin } from "@/lib/auth-origins";
@@ -57,6 +58,21 @@ function originFromUrl(value: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+// Presentation only. Do not add these hosts to the callback-origin allowlist:
+// preview boards use the existing same-tab OTP verification, not a link.
+const PREVIEW_BOARD_ORIGINS = new Set([
+  "https://preview--contractor-command.lovable.app",
+  "https://id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app",
+]);
+
+function isPreviewBoardCodeRequest(request: Request | undefined, returnTo: unknown): boolean {
+  if (!request || !boardSignInReturn(returnTo)) return false;
+  const originHeader = request.headers.get("origin");
+  const candidate =
+    originHeader ?? originFromUrl(request.headers.get("referer")) ?? originFromUrl(request.url);
+  return candidate !== null && PREVIEW_BOARD_ORIGINS.has(candidate);
 }
 
 function appOrigin(): string {
@@ -171,6 +187,7 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
     // server rejects consent calls from that origin ("unauthorized request
     // origin") while the Site URL is elsewhere, so the authorization never got a user.
     const origin = appOrigin();
+    const previewBoardCode = isPreviewBoardCodeRequest(getRequest(), data.return_to);
     const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
     let internalAction:
       | "sent"
@@ -196,7 +213,11 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
       if (path) assertOAuthContinuationConfigured();
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-      if (await ensureAuthUserForMember(supabaseAdmin, email)) {
+      // Preview testing never provisions an account; use the existing identity only.
+      const eligible = previewBoardCode
+        ? Boolean(await findAuthUserByEmail(supabaseAdmin, email))
+        : await ensureAuthUserForMember(supabaseAdmin, email);
+      if (eligible) {
         const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
           type: "magiclink",
           email,
@@ -204,11 +225,16 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
         });
 
         const tokenHash = link?.properties?.hashed_token;
-        if (error || !tokenHash) {
+        const previewOtp =
+          typeof link?.properties?.email_otp === "string"
+            ? normalizeOtpCode(link.properties.email_otp)
+            : null;
+        if (error || !tokenHash || (previewBoardCode && !previewOtp)) {
           internalAction = "link_failed";
           console.error("[magic-link] generateLink failed", {
             email: redactEmail(email),
-            reason: "link_generation_failed",
+            reason:
+              previewBoardCode && !previewOtp ? "preview_code_missing" : "link_generation_failed",
           });
         } else {
           const continuation = path
@@ -233,13 +259,18 @@ export const requestMemberMagicLink = createServerFn({ method: "POST" })
             siteUrl: origin,
             // v0.8.19: the same one-time code, typed in the tab that started the
             // connect, so a phone never has to switch tabs or browsers.
-            ...((continuation || isAthenaOrigin(origin)) && link.properties?.email_otp
-              ? { otpCode: String(link.properties.email_otp) }
+            ...((previewBoardCode || continuation || isAthenaOrigin(origin)) &&
+            link.properties?.email_otp
+              ? { otpCode: previewBoardCode ? previewOtp! : String(link.properties.email_otp) }
               : {}),
             // Presentation only: a validated consent continuation, or a sign-in
             // started on the Athena host, gets the Athena email. Not proof of
             // client identity; the link and checks are the same for both.
-            ...(continuation || isAthenaOrigin(origin) ? { variant: "athena" as const } : {}),
+            ...(previewBoardCode
+              ? { variant: "athena-code" as const }
+              : continuation || isAthenaOrigin(origin)
+                ? { variant: "athena" as const }
+                : {}),
             ...(continuation ? { connecting: true } : {}),
           });
           internalAction =
