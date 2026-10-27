@@ -160,12 +160,13 @@ describe("0.8.12 date sweep: grouped reminders only", () => {
 });
 
 describe("0.8.12 IOR and portfolio views", () => {
-  it("IOR spec: tie line, waterfall, red flags on top-3 risks via the shared constant", () => {
+  it("IOR spec leads with the financial outcome and does not weight holds", () => {
     const s = IOR_VIEW_SPEC.join("\n");
     expect(IOR_VIEW_SPEC[0]).toMatch(/^REQUIRED VIEW – IOR DASHBOARD/);
-    expect(s).toContain("Forecast total $X = contract $X");
-    expect(s).toContain("Waterfall chart");
-    expect(s).toContain(`${ALERT_COLOR} flags on the top 3 by weighted $`);
+    expect(s).toContain("contract value, planned GP dollars and margin, and indicated GP dollars and margin");
+    expect(s).toContain("show unavailable for missing values");
+    expect(s).toContain("Do not probability-weight holds");
+    expect(s).not.toContain("weighted $");
   });
   it("portfolio spec: access line, job cards, alert color only for down/delayed/at risk", () => {
     const s = PORTFOLIO_VIEW_SPEC.join("\n");
