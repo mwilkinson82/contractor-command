@@ -60,10 +60,21 @@ describe("published Athena entry routing contract", () => {
       clientInfo: { name: "project-board-test", version: "1" },
     });
     expect(initialized.instructions).toContain(
-      'For "open the project board", "open the job board", project home, or a job dashboard, call report_page_link with page "home"',
+      'call report_page_link with page "home" and the job_number the member supplied',
+    );
+    for (const phrase of [
+      "open the project board",
+      "open the job board",
+      "give me the job board",
+      "show me the job board",
+    ]) {
+      expect(initialized.instructions).toContain(`"${phrase}"`);
+    }
+    expect(initialized.instructions).toContain(
+      'Use page "items" or list_open_items for explicit open-items requests',
     );
     expect(initialized.instructions).toContain(
-      'Use page "items" or list_open_items only for an explicit open-items request',
+      "use field_board or superintendent_view for explicit field board",
     );
     expect(initialized.instructions.indexOf('For "open the project board"')).toBeLessThan(
       initialized.instructions.indexOf("Welcome back. Athena is ready."),
@@ -81,6 +92,11 @@ describe("published Athena entry routing contract", () => {
       (tool: { name: string }) => tool.name === "list_open_items",
     );
     expect(items.description).toContain('use report_page_link with page "home" instead');
+    for (const name of ["field_board", "superintendent_view"]) {
+      const field = discovered.tools.find((tool: { name: string }) => tool.name === name);
+      expect(field.description).toContain('generic "give me the job board"');
+      expect(field.description).toContain('use report_page_link with page "home" instead');
+    }
   });
   it("keeps discovery descriptions identical to the committed manifest", async () => {
     const result = await rpc("tools/list", 2);
@@ -91,6 +107,8 @@ describe("published Athena entry routing contract", () => {
       "morning_brief",
       "report_page_link",
       "list_open_items",
+      "field_board",
+      "superintendent_view",
     ]) {
       const live = result.tools.find((tool: { name: string }) => tool.name === name);
       expect(live.annotations.readOnlyHint).toBe(true);

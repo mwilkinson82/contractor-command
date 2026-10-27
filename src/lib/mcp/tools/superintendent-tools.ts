@@ -76,8 +76,10 @@ async function boardPages(sb: Sb, job: Job): Promise<Partial<Record<BoardPage, s
 const boardHref = (pages: Partial<Record<BoardPage, string>>, page: BoardPage) => pages[page] ?? null;
 
 const FIELD_TITLE = "Superintendent field board";
-const FIELD_DESCRIPTION = "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.";
-const FIELD_ALIAS_DESCRIPTION = "Shows the field board, the super board, the superintendent board, the super's plan, and what the crew is doing for a job.";
+const FIELD_DESCRIPTION =
+  'Shows the explicitly requested superintendent field board, also called the field board, the super board, or the superintendent board, including the super\'s plan and what the crew is doing; generic "give me the job board" or "open the project board" requests use report_page_link with page "home" instead.';
+const FIELD_ALIAS_DESCRIPTION =
+  'Shows an explicitly requested field board, super board, superintendent board, super\'s plan, or what the crew is doing for a job; generic "give me the job board" or "open the project board" requests use report_page_link with page "home" instead.';
 
 async function showFieldBoard(tool: "superintendent_view" | "field_board", sb: Sb, args: { job_number: string; company_id?: string }) {
   const job = await resolveJob(sb, args.job_number, args.company_id);

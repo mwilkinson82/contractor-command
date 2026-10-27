@@ -6,7 +6,7 @@ import { mintJobBoardLinks, withBoardToken, type BoardPage, type BoardScope } fr
 export type BoardLinkPage = AnyPage | "home";
 
 export const PROJECT_HOME_ROUTE_RULE =
-  ' For "open the project board", "open the job board", project home, or a job dashboard, call report_page_link with page "home" and the job_number the member supplied; preserve company_id when known. This navigation intent takes priority over greeting, morning-brief, and open-item rules. Use page "items" or list_open_items only for an explicit open-items request; never present an Open items destination as the project home. ';
+  ' For "open the project board", "open the job board", "give me the job board", "show me the job board", project home, or a job dashboard, call report_page_link with page "home" and the job_number the member supplied; preserve company_id when known. This generic navigation intent takes priority over greeting, morning-brief, open-item, and superintendent rules. Use page "items" or list_open_items for explicit open-items requests; use field_board or superintendent_view for explicit field board, super board, superintendent board, super plan, or crew-plan requests. Never present an Open items or Field board destination as the project home. ';
 
 const ALIASES: Record<string, BoardLinkPage> = {
   board: "home",

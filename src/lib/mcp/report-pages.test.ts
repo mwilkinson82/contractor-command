@@ -83,6 +83,15 @@ describe("0.8.14 report_page_link", () => {
       });
     },
   );
+  it.each(["field board", "super board", "superintendent board"])(
+    "preserves explicit field navigation: %s",
+    async (page) => {
+      const result = await call(reportPageLink, { page, job_number: "2701" });
+      expect(result.structuredContent.page).toBe("field");
+      expect(String(result.structuredContent.url)).toMatch(/\/field\?t=/);
+      expect(result.structuredContent.card).toMatchObject({ title: "Field board" });
+    },
+  );
   it("requires a job for default-home navigation and still rejects an unknown page", async () => {
     await expect(call(reportPageLink, {})).rejects.toThrow("Which job?");
     await expect(

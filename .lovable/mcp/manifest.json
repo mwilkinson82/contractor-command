@@ -7033,7 +7033,7 @@
       {
         "name": "superintendent_view",
         "title": "Superintendent field board",
-        "description": "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.",
+        "description": "Shows the explicitly requested superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing; generic \"give me the job board\" or \"open the project board\" requests use report_page_link with page \"home\" instead.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -7064,7 +7064,7 @@
       {
         "name": "field_board",
         "title": "Field board",
-        "description": "Shows the field board, the super board, the superintendent board, the super's plan, and what the crew is doing for a job.",
+        "description": "Shows an explicitly requested field board, super board, superintendent board, super's plan, or what the crew is doing for a job; generic \"give me the job board\" or \"open the project board\" requests use report_page_link with page \"home\" instead.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
