@@ -6,7 +6,7 @@ import { ALERT_HEX } from "./mcp/alert-color";
 import { isDelayNoticeTask } from "./mcp/delay-notice";
 import { delayCallout, jobWorkingDays } from "./mcp/living";
 import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
-import { activityLine, activityTitle, briefingModel, dayHead, lookaheadModel, lookaheadAlert, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
+import { activityLine, activityTitle, identifiedDelayActivityId, briefingModel, dayHead, lookaheadModel, lookaheadAlert, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
 import { renderIorLayout, type ReportNames } from "./ior-layout";
 import { formatReportNumber, money } from "./report-format";
@@ -136,6 +136,7 @@ function scheduleView(p: JobPayload): string {
   const r = p.report, d = r.data ?? {};
   const acts = (d.activities ?? []).filter((a) => a.start && a.finish);
   const tia = d.tia ?? null;
+  const delayId = identifiedDelayActivityId(d);
   const out: string[] = [];
   if (tia?.prior_completion && tia.updated_completion && tia.updated_completion !== tia.prior_completion) {
     const fragId = String(tia.fragnet ?? tia.fragment ?? "");
@@ -149,17 +150,21 @@ function scheduleView(p: JobPayload): string {
     const span = Math.max(hi - lo, 86_400_000);
     const dd = r.data_date ? day(r.data_date) : NaN;
     const today = Date.parse(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
-    const mark = Number.isFinite(dd) && dd > today ? dd : today;
+    const mark = Number.isFinite(dd) ? dd : today;
     const markPct = ((mark - lo) / span) * 100;
     const rows = acts.map((a) => {
       const l = ((day(a.start!) - lo) / span) * 100, w = Math.max(((day(a.finish!) - day(a.start!)) / span) * 100, 0.6);
-      const frag = /^FRAG|^D\d/i.test(a.id) || /fragnet|delay/i.test(a.name);
-      const color = frag ? RED : a.critical ? BLUE : G2;
-      const bar = frag ? `background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)` : `background:${color}`;
-      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;${bar}"></div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
+      const frag = delayId === a.id;
+      const pct = isNum(a.pct_complete) ? Math.min(100, Math.max(0, a.pct_complete)) : null;
+      const remaining = a.critical === true ? "#C12D2D" : a.critical === false ? "#16834A" : G2;
+      const background = frag ? `repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)` : remaining;
+      const progress = pct === null ? "" : `<div data-progress="${pct}" style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:${BLUE}"></div>`;
+      const status = (pct === null ? "Progress Needed" : `${pct}% complete`) + (pct !== 100 && a.critical == null ? " · Criticality Needed" : "");
+      const delay = frag ? ` · Delay: ${esc(activityTitle(a))}${isNum(a.duration) ? ` · ${esc(a.duration)} WD` : " · Duration Needed"}` : "";
+      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)} · ${esc(status)}${delay}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px;background:${G4};border-radius:3px"><div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;overflow:hidden;background:${pct === null && !frag ? G2 : background}">${progress}</div>${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
     }).join("");
     out.push(card(`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Dates</th><th style="padding:4px 8px">Float</th><th style="padding:4px 8px">Gantt</th></tr></thead><tbody>${rows}</tbody></table></div>` +
-      `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${G2}"></span> Non-critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:${RED}"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${Number.isFinite(dd) && dd > today ? "Data date" : "Today"}</p>`));
+      `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Actual progress &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#16834A"></span> Remaining noncritical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#C12D2D"></span> Remaining critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${Number.isFinite(dd) ? "Data date" : "Today"}</p>`));
   }
   return out.join("");
 }
@@ -232,9 +237,9 @@ function payAppPageView(p: PayAppPayload): string {
   const m = payModel((r.data?.billing ?? null) as Billing | null, isNum(r.contract_total) ? r.contract_total : null);
   const out: string[] = [];
   if (m.tie) out.push(`<p style="margin:0 0 12px;font-weight:600;color:${m.tie.startsWith("Doesn't") ? RED : NAVY}">${esc(m.tie)}</p>`);
-  out.push(tiles([tile("Billed to date", money(m.billed)), tile("Forecast remaining", money(m.forecast)), tile("Contract", m.contract === null ? "Needed" : money(m.contract)), tile("Left to bill", m.left === null ? "Needed" : money(m.left))]));
+  out.push(tiles([tile("Billed to date", m.billed === null ? "Unknown" : money(m.billed)), tile("Payments received", m.payments === null ? "Unknown" : money(m.payments)), tile("Planned schedule allocation", m.forecast === null ? "Unknown" : money(m.forecast)), tile("Contract", m.contract === null ? "Needed" : money(m.contract)), tile("Left to bill", m.left === null ? "Needed" : money(m.left))]));
   const max = Math.max(1, ...m.months.map((x) => x.amount));
-  out.push(card(h2("MONTHLY BILLING") + `<table style="border-collapse:collapse;width:100%">${m.months.map((x) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;color:${NAVY};white-space:nowrap">${esc(x.month)}</td><td style="padding:6px 8px;width:50%"><div style="height:12px;border-radius:3px;width:${((x.amount / max) * 100).toFixed(1)}%;background:${x.kind === "actual" ? BLUE : G2}"></div></td><td style="padding:6px 8px;font-size:12px;color:${NAVY};text-align:right">${money(x.amount)}</td><td style="padding:6px 8px;font-size:12px;color:${G1};text-align:right">${money(x.cum)}</td></tr>`).join("")}<tr style="border-top:2px solid ${G3}"><td style="padding:6px 8px;font-weight:600">Total</td><td></td><td style="padding:6px 8px;font-weight:600;text-align:right">${money(m.total)}</td><td></td></tr></table>` + legend([[sw(BLUE), "Billed"], [sw(G2), "Forecast"]])));
+  out.push(card(h2("MONTHLY BILLING") + `<table style="border-collapse:collapse;width:100%">${m.months.map((x) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;color:${NAVY};white-space:nowrap">${esc(x.month)}</td><td style="padding:6px 8px;width:50%"><div style="height:12px;border-radius:3px;width:${((x.amount / max) * 100).toFixed(1)}%;background:${x.kind === "unverified" ? BLUE : G2}"></div></td><td style="padding:6px 8px;font-size:12px;color:${NAVY};text-align:right">${money(x.amount)}</td><td style="padding:6px 8px;font-size:12px;color:${G1};text-align:right">${money(x.cum)}</td></tr>`).join("")}<tr style="border-top:2px solid ${G3}"><td style="padding:6px 8px;font-weight:600">Total</td><td></td><td style="padding:6px 8px;font-weight:600;text-align:right">${money(m.total)}</td><td></td></tr></table>` + legend([[sw(BLUE), "Recorded; source unverified"], [sw(G2), "Planned"]])));
   return out.join("");
 }
 

@@ -107,6 +107,20 @@ export type DelayInfo = {
   line: string;
 };
 
+/** Only a saved delay result that names an existing activity identifies a delay bar. */
+export function identifiedDelayActivityId(data: Record<string, unknown> | null | undefined): string | null {
+  if (!data) return null;
+  const analysis = data.delay_analysis && typeof data.delay_analysis === "object" ? data.delay_analysis as Record<string, unknown> : null;
+  const tia = data.tia && typeof data.tia === "object" ? data.tia as Record<string, unknown> : null;
+  const ids = [analysis?.fragnet, tia?.fragnet, tia?.fragment]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+  const unique = [...new Set(ids)];
+  if (unique.length !== 1) return null;
+  const activities = Array.isArray(data.activities) ? data.activities : [];
+  return activities.some((a) => a && typeof a === "object" && (a as { id?: unknown }).id === unique[0]) ? unique[0] : null;
+}
+
 /**
  * Reads the delay result however it was saved. v3 of job 2701 saved it as data.delay_analysis
  * ({fragnet, delay_workdays, completion_impact_workdays, ...}); cpm_activities only read data.tia, so no delay line showed.
@@ -640,13 +654,23 @@ export function lookaheadView(v: {
 // ---------- pay app ----------
 export type Billing = {
   billed_to_date?: number | null;
-  months?: { month: string; amount: number; kind: "actual" | "forecast" }[];
+  unverified_billed_to_date?: number | null;
+  unverified_payments_received?: number | null;
+  earned_from_dailies?: number | null;
+  earned_from_schedule?: number | null;
+  payments_received?: number | null;
+  months?: { month: string; amount: number; kind: "actual" | "forecast" | "unverified" }[];
 };
 const usd = (n: number) =>
   `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export type PayModel = {
-  billed: number;
-  forecast: number;
+  billed: number | null;
+  payments: number | null;
+  earnedDaily: number | null;
+  earnedSchedule: number | null;
+  legacyBilled: number | null;
+  legacyPayments: number | null;
+  forecast: number | null;
   total: number;
   contract: number | null;
   left: number | null;
@@ -658,11 +682,13 @@ export function payModel(b: Billing | null | undefined, contract: number | null)
   const cents = (value: number) => Math.round(value * 100);
   const dollars = (value: number) => value / 100;
   let cumulativeCents = 0;
-  const rows = months.map((m) => ({ ...m, cum: dollars(cumulativeCents += cents(m.amount)) }));
+  // Legacy actual rows may have originated from an earned-progress forecast.
+  const rows = months.map((m) => ({ ...m, kind: m.kind === "actual" ? "unverified" : m.kind, cum: dollars(cumulativeCents += cents(m.amount)) }));
   const sumCents = (kind?: string) => months.filter((m) => !kind || m.kind === kind).reduce((sum, m) => sum + cents(m.amount), 0);
-  const billed = dollars(b?.billed_to_date == null ? sumCents("actual") : cents(b.billed_to_date));
+  const billed = null; // No authoritative issued billing ledger is available here.
+  const legacyBilled = b?.unverified_billed_to_date ?? b?.billed_to_date ?? null;
   const total = dollars(sumCents());
-  const forecast = dollars(sumCents("forecast"));
+  const forecast = months.some((m) => m.kind === "forecast") ? dollars(sumCents("forecast")) : null;
   const tie =
     contract === null
       ? null
@@ -671,10 +697,15 @@ export function payModel(b: Billing | null | undefined, contract: number | null)
         : `Doesn't tie: forecast ${usd(total)} vs contract ${usd(contract)}, off by ${usd(Math.abs(total - contract))}`;
   return {
     billed,
+    payments: null, // No authoritative payment-receipt ledger is available here.
+    earnedDaily: b?.earned_from_dailies ?? null,
+    earnedSchedule: b?.earned_from_schedule ?? null,
+    legacyBilled,
+    legacyPayments: b?.unverified_payments_received ?? b?.payments_received ?? null,
     forecast,
     total,
     contract,
-    left: contract === null ? null : Math.round((contract - billed) * 100) / 100,
+    left: null,
     months: rows,
     tie,
   };
