@@ -74,7 +74,24 @@ function boardLinkCard(page: string, job: string | null, url: string, expiresAt:
     job,
     sections: [
       { heading: "Open", kind: "chips", rows: [{ cells: [BOARD_BUTTON[page] ?? `Open ${label}`], href: url, tone: "action" }] },
-      ...(expiresAt ? [{ heading: "Link", kind: "list" as const, rows: [{ cells: [`This link works until ${shortDate(expiresAt.slice(0, 10))}.`], tone: "known" as const }] }] : []),
+      ...(expiresAt
+        ? [
+            {
+              heading: "Link",
+              kind: "list" as const,
+              rows: [
+                {
+                  cells: [
+                    page === "home"
+                      ? `Temporary access from this chat lasts 24 hours and expires on ${shortDate(expiresAt.slice(0, 10))}. The project home address stays the same; sign in to keep opening your saved home after this access expires.`
+                      : `This link works until ${shortDate(expiresAt.slice(0, 10))}.`,
+                  ],
+                  tone: "known" as const,
+                },
+              ],
+            },
+          ]
+        : []),
     ],
     next_move: null,
   };
