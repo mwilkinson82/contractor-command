@@ -166,8 +166,11 @@ describe("Access before explicit company onboarding", () => {
       throw new Error("No job yet: onboarding must open first");
     };
     const card = await branchGettingStarted(client(who) as never, morning, firstJobCard);
-    expect(card.title).toBe("Let's set up your company");
-    expect(card.ask?.prompt).toBe("What is the company name?");
+    expect(card.title).toBe("Your first job starts here.");
+    expect(JSON.stringify(card.sections)).toContain("your company name");
+    expect(card.ask).toBeUndefined();
+    await branchGettingStarted(client(who) as never, morning, firstJobCard);
+    expect(await counts()).toEqual(before);
   });
 
   it("granted Circle access also opens onboarding without a Stripe subscription or company", async () => {

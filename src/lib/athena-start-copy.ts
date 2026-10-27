@@ -1,52 +1,37 @@
-// Shared copy for the first-chat card and the app.meetathena.io start tip.
-// The asks map to tools Athena already has.
-
-export const START_HEADLINE = "@Athena, let's get started";
-export const START_HOSTS = "ChatGPT, Claude and Grok Bot";
-
+// Shared first-use copy. Each example maps to an existing Athena tool.
+export const START_HEADLINE = "Your next move, made clear.";
+export const START_HOSTS = "Your jobs. Your records. One place to pick up.";
 export const START_POINTS = [
-  "The same Athena knows your jobs wherever you open her, in ChatGPT, Claude and Grok Bot.",
-  "Your work lives on Athena's servers.",
-  "Every job has its own dashboard and boards that stay up to date.",
+  "Athena keeps a saved record for each job, so you can pick up where you left off.",
+  "Ask for the job dashboard, open items, lookahead or field board when you need them.",
 ] as const;
-
-export const START_EXAMPLES = [
-  "@Athena, run my PM meeting",
-  "@Athena, give me the 2-week lookahead",
-  "@Athena, where's my billing forecast",
-  "@Athena, log today's daily",
-  "@Athena, show open change orders",
-  "@Athena, show the field board",
-] as const;
-
+export const START_EXAMPLES = ["Start a job", "Show my job list", "What needs attention?"] as const;
+export const START_HABIT =
+  "With Athena connected and signed in, ask naturally and name the job when you know it.";
 export const START_BACKUP =
-  "If it misses, start with @Athena. It routes the ask to Athena instead of the general AI.";
+  "If your host does not use Athena, select the Athena app or connector and try again. Available routes depend on your host.";
+export const DOCUMENT_ASK =
+  "Where does your project information live today: files, a shared drive, project software or a spreadsheet?";
+export const COST_CODE_ASK =
+  "Do you already use company cost codes? If so, where is the current list?";
+export const DOCUMENT_ROUTE =
+  "For a contract or specifications, ask “upload this to job…” and name the job. Athena can give you a private upload link with a file picker. A readable chat attachment also works when your host supports it.";
+export const CONNECTOR_ROUTE =
+  "For files in another service, use a connected file tool or a signed-in browser only when this host provides that access. Otherwise, download an export yourself and attach it here.";
+export const COST_CODE_ROUTE =
+  "You can supply your existing code list as an attachment or paste the codes and descriptions. I can help review it for the job; this does not automatically import a company code library or map your accounts.";
+export const NAVIGATION_LINE =
+  "Say “show my job list” to switch jobs, “back” to choose another task, or “cancel” to stop setup. Your saved work stays in place.";
 
-/** The one habit. The memory line is only the bonus. */
-export const START_HABIT = "Start every message with @Athena.";
-
-/** Saved in the member's own AI, and only after they say yes. Exact line. */
+// Optional host preference, retained for members who ask about it. Never a prerequisite.
 export const MEMORY_LINE = "When I say Athena, always use the Athena connector";
-
-export const MEMORY_BONUS = "That line is the bonus, so plain Hey Athena also works.";
-
-export const MEMORY_WAIT = "Nothing is saved until you say yes.";
-
-export const MEMORY_ASK = "Save this line in your AI? Yes or no?";
-
+export const MEMORY_BONUS =
+  "A host preference can help, but “Hey Athena” alone does not guarantee routing.";
+export const MEMORY_WAIT =
+  "Save a host preference only when you explicitly ask and the host supports it.";
+export const MEMORY_ASK = "Would you like help setting a host preference?";
 export const MEMORY_HOST_LINES = [
-  "ChatGPT: ask ChatGPT to remember it in saved memory.",
-  "Claude: save it in memory or project instructions.",
-  "Grok Bot: save it in memory.",
+  "ChatGPT: use saved memory only if it is available.",
+  "Claude: use memory or project instructions only if available.",
+  "Other hosts: check their supported settings.",
 ] as const;
-
-/** Lines that show @Athena as the way to start. They sit on the get-started card, before the memory offer. */
-export const START_AT_EXAMPLES = [
-  "@Athena, run my PM meeting",
-  "@Athena, what's on my plate today?",
-  "@Athena, show the field board",
-] as const;
-
-/** The line the member can save, and the line that removes it. */
-export const START_CONNECTOR_MEMORY = MEMORY_LINE;
-export const START_MEMORY_OFFER = `Want me to save this? ${START_CONNECTOR_MEMORY}. Say yes and I will. To remove it, say forget that memory.`;
