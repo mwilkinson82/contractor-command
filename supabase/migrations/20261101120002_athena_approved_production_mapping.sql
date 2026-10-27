@@ -40,6 +40,11 @@ BEGIN
    IF f.id IS NULL OR jsonb_typeof(f.value->'billable_value') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Each SOV source must be a valued line from this project.'; END IF;
    v := (f.value->>'billable_value')::numeric * 100;
    IF v <> trunc(v) OR abs(v) > 9223372036854775807 THEN RAISE EXCEPTION 'MCP_BAD:The SOV amount is unsupported or not in cents.'; END IF;
+   IF v < 0 AND (f.value->'fee_included' IS DISTINCT FROM 'true'::jsonb OR NOT EXISTS (
+     SELECT 1 FROM public.mcp_change_orders c WHERE c.job_id=_job AND c.submittal_id::text=f.value->>'executed_change_order'
+       AND c.details->>'state'='executed' AND c.details->'execution'->>'sov_item'=f.key
+       AND jsonb_typeof(c.details->'total_cents')='number' AND (c.details->>'total_cents')::numeric=v
+   )) THEN RAISE EXCEPTION 'MCP_BAD:A negative SOV line needs a matching executed credit change source.'; END IF;
    IF (SELECT count(*) FROM jsonb_array_elements(coalesce(report.data->'activities','[]'::jsonb)) a WHERE a->>'id'=x->>'activity_id') <> 1 THEN RAISE EXCEPTION 'MCP_BAD:Each activity must occur exactly once in the saved CPM.'; END IF;
    pair := f.id::text || ':' || coalesce(x->>'activity_id','');
    IF pair=ANY(seen) THEN RAISE EXCEPTION 'MCP_BAD:An SOV/activity pair is duplicated.'; END IF;
@@ -61,8 +66,9 @@ BEGIN
    SELECT * INTO f FROM public.mcp_job_facts WHERE id=totals.id;
    IF totals.amount <> (f.value->>'billable_value')::numeric * 100 THEN RAISE EXCEPTION 'MCP_BAD:Allocations must reconcile to each included SOV line.'; END IF;
  END LOOP;
- SELECT jsonb_agg(jsonb_build_object('fact_id',id,'item',key,'value',value,'status',status,'source',source,'updated_at',updated_at) ORDER BY id)
- INTO snapshot FROM public.mcp_job_facts WHERE id=ANY(ids) AND job_id=_job AND module='sov';
+ SELECT jsonb_agg(jsonb_build_object('fact_id',sf.id,'item',sf.key,'value',sf.value,'status',sf.status,'source',sf.source,'updated_at',sf.updated_at,
+   'executed_change',(SELECT jsonb_build_object('id',c.submittal_id,'details',c.details,'updated_at',c.updated_at) FROM public.mcp_change_orders c WHERE c.job_id=_job AND c.submittal_id::text=sf.value->>'executed_change_order')) ORDER BY sf.id)
+ INTO snapshot FROM public.mcp_job_facts sf WHERE sf.id=ANY(ids) AND sf.job_id=_job AND sf.module='sov';
  RETURN jsonb_build_object('currency','USD','cpm_id',report.id,'cpm_version',report.version,'base_version',_base_version,'effective_date',_effective,'reason',btrim(_reason),'sov',snapshot,'allocations',_allocations);
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_production_mapping_preview(uuid,uuid,integer,date,text,jsonb) FROM PUBLIC,anon;
@@ -86,6 +92,7 @@ BEGIN
  IF _base_version IS DISTINCT FROM ver THEN RAISE EXCEPTION 'MCP_BAD:Mapping changed. Reload before approval.'; END IF;
  -- Lock source facts before rechecking the reviewed preview.
  PERFORM 1 FROM public.mcp_job_facts WHERE job_id=_job AND id IN (SELECT (a->>'sov_fact_id')::uuid FROM jsonb_array_elements(_allocations) a) ORDER BY id FOR SHARE;
+ PERFORM c.submittal_id FROM public.mcp_change_orders c JOIN public.mcp_job_facts sf ON sf.job_id=c.job_id AND sf.value->>'executed_change_order'=c.submittal_id::text WHERE sf.job_id=_job AND sf.id IN (SELECT (a->>'sov_fact_id')::uuid FROM jsonb_array_elements(_allocations) a) ORDER BY c.submittal_id FOR SHARE OF c;
  snap:=public.mcp_production_mapping_preview(_job,_cpm,_base_version,_effective,_reason,_allocations);
  IF snap IS DISTINCT FROM _preview THEN RAISE EXCEPTION 'MCP_BAD:Source or allocations changed after review. Review again.'; END IF;
  SELECT company_id INTO cid FROM public.mcp_jobs WHERE id=_job;

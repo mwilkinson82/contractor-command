@@ -50,7 +50,7 @@ const approve = (p: unknown, req = key, base = 0, a: unknown = allocations) =>
 beforeAll(async () => {
   db = await makeDb();
   await db.exec(
-    `CREATE TABLE public.mcp_living_reports(id uuid PRIMARY KEY,job_id uuid,report_type text,version integer,status text,data jsonb);`,
+    `CREATE TABLE public.mcp_living_reports(id uuid PRIMARY KEY,job_id uuid,report_type text,version integer,status text,data jsonb); CREATE TABLE public.mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb,updated_at timestamptz NOT NULL DEFAULT now());`,
   );
   await db.exec(
     `CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; CREATE FUNCTION public.mcp_file_path_scope(text) RETURNS text LANGUAGE sql AS $$ SELECT 'full'::text $$;`,
@@ -424,10 +424,45 @@ describe("USD contract credit allocation", () => {
         JSON.stringify({
           description: "TEST executed credit",
           billable_value: -10000,
-          executed_change_order: "TEST-CO",
+          executed_change_order: "10000000-0000-4000-8000-000000000040",
           fee_included: true,
         }),
         owner,
+      ],
+    );
+    await db.query("UPDATE mcp_job_facts SET value=value-'executed_change_order' WHERE id=$1", [
+      credit,
+    ]);
+    await expect(
+      preview(
+        [...allocations, { sov_fact_id: credit, activity_id: "E090", allocated_cents: -1000000 }],
+        job,
+        owner,
+        2,
+      ),
+    ).rejects.toThrow(/executed credit change source/);
+    await db.query("UPDATE mcp_job_facts SET value=value||$2::jsonb WHERE id=$1", [
+      credit,
+      JSON.stringify({ executed_change_order: "10000000-0000-4000-8000-000000000040" }),
+    ]);
+    await expect(
+      preview(
+        [...allocations, { sov_fact_id: credit, activity_id: "E090", allocated_cents: -1000000 }],
+        job,
+        owner,
+        2,
+      ),
+    ).rejects.toThrow(/executed credit change source/);
+    await db.query(
+      "INSERT INTO mcp_change_orders(submittal_id,job_id,details) VALUES($1,$2,$3::jsonb)",
+      [
+        "10000000-0000-4000-8000-000000000040",
+        job,
+        JSON.stringify({
+          state: "executed",
+          total_cents: -1000000,
+          execution: { sov_item: "26.05" },
+        }),
       ],
     );
     const parts = [
@@ -441,7 +476,15 @@ describe("USD contract credit allocation", () => {
     const complete = [...allocations, ...parts];
     const reviewed = await preview(complete, job, owner, 2);
     expect(reviewed.currency).toBe("USD");
-    const next = (await approve(reviewed, "10000000-0000-4000-8000-000000000031", 2, complete))
+    await db.query(
+      'UPDATE mcp_change_orders SET details=details||\'{"note":"changed"}\'::jsonb WHERE submittal_id=$1',
+      ["10000000-0000-4000-8000-000000000040"],
+    );
+    await expect(
+      approve(reviewed, "10000000-0000-4000-8000-000000000031", 2, complete),
+    ).rejects.toThrow(/changed after review/);
+    const refreshed = await preview(complete, job, owner, 2);
+    const next = (await approve(refreshed, "10000000-0000-4000-8000-000000000031", 2, complete))
       .rows[0].result;
     expect(next.version).toBe(3);
     const record = (

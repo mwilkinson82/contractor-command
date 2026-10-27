@@ -38,8 +38,9 @@ references and production information their role may see.
    explicit allocated USD cents and optional sourced planned quantity, unit, and planned
    man-hours. Each SOV/activity pair appears at most once in a version. Allocations
    for each included SOV line must sum exactly to its captured value. Unincluded
-   lines remain unallocated/unknown. A recorded negative SOV credit is allocated
-   with the same negative sign and reconciles to that source; this does not create
+   lines remain unallocated/unknown. A negative SOV credit must match an executed
+   credit change order and its SOV line and amount; the source is snapshotted and
+   rechecked at approval. Its allocation has the same negative sign. This does not create
    or change a credit change order or an invoice credit. Each new version retains
    the previously mapped SOV lines, and never updates allocations referenced by old facts.
 3. **Daily revisions:** the existing report remains the current projection. Before

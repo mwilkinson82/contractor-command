@@ -24,7 +24,7 @@ const call = async (role: "owner" | "super", name: string, args: Record<string, 
 beforeAll(async () => {
   tok = await setupKeysAndFetch();
   const db = await bootDb();
-  await db.exec(`CREATE TABLE public.mcp_living_reports(id uuid PRIMARY KEY,job_id uuid,report_type text,version integer,status text,data jsonb);
+  await db.exec(`CREATE TABLE public.mcp_living_reports(id uuid PRIMARY KEY,job_id uuid,report_type text,version integer,status text,data jsonb); CREATE TABLE public.mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb,updated_at timestamptz NOT NULL DEFAULT now());
     CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
     CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
     CREATE FUNCTION public.mcp_file_path_scope(text) RETURNS text LANGUAGE sql AS $$ SELECT 'full'::text $$;`);
