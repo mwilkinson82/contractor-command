@@ -292,7 +292,7 @@ describe("daily assembly", () => {
 
   it("offers only the matching approved work reference in a reviewed draft", async () => {
     state.rpc.mcp_production_work_references = [{ allocation_id: dailyOk.work[0].allocation_id, mapping_version: 2, sov_item: "03.01", activity_id: "A1000", unit: "cy" }];
-    state.rpc.mcp_daily_revision_status = { found: true, revision: 3 };
+    state.rpc.mcp_daily_revision_status = { found: true, revision: 3, lines: [] };
     const result = await handle(dailyReportDraft, dailyOk);
     expect(result.structuredContent).toMatchObject({ ready: true, expected_revision: 3, correction_reason_required: true, draft: { work: [{ allocation_id: dailyOk.work[0].allocation_id, mapping_version: 2 }] } });
     expect(result.content[0].text).toContain("Approved mapping v2");
@@ -300,6 +300,17 @@ describe("daily assembly", () => {
     state.rpc.mcp_production_work_references = [];
     const missing = await handle(dailyReportDraft, dailyOk);
     expect(missing.structuredContent.ready).toBe(false);
+  });
+
+  it("preserves an existing mapping unless a different approved reference is selected", async () => {
+    const previous = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    state.rpc.mcp_daily_revision_status = { found: true, revision: 1, lines: [{ line_no: 1, allocation_id: previous, sov_item: "03.01", activity_id: "A1000", unit: "cy", mapping_version: 1 }] };
+    state.rpc.mcp_production_work_references = [{ allocation_id: dailyOk.work[0].allocation_id, mapping_version: 2, sov_item: "03.01", activity_id: "A1000", unit: "cy" }];
+    const { allocation_id: _discard, ...workWithoutSelection } = dailyOk.work[0];
+    const kept = await handle(dailyReportDraft, { ...dailyOk, work: [workWithoutSelection] });
+    expect(kept.structuredContent).toMatchObject({ draft: { work: [{ allocation_id: previous, mapping_version: 1 }] } });
+    const changed = await handle(dailyReportDraft, dailyOk);
+    expect(changed.content[0].text).toContain("mapping v2: SOV 03.01, A1000 (previously v1)");
   });
 
   it("does not present an earlier replay as the current daily", async () => {

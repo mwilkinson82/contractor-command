@@ -5,13 +5,13 @@ SET LOCAL statement_timeout = '60s';
 
 CREATE TABLE public.mcp_production_mapping_versions (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid NOT NULL REFERENCES public.mcp_jobs(id), company_id uuid NOT NULL,
- version integer NOT NULL CHECK(version > 0), cpm_report_id uuid NOT NULL REFERENCES public.mcp_living_reports(id), cpm_version integer NOT NULL,
+ version integer NOT NULL CHECK(version > 0), currency text NOT NULL DEFAULT 'USD' CHECK(currency='USD'), cpm_report_id uuid NOT NULL REFERENCES public.mcp_living_reports(id), cpm_version integer NOT NULL,
  effective_date date NOT NULL, source_snapshot jsonb NOT NULL, reason text NOT NULL, approved_by uuid NOT NULL, approved_at timestamptz NOT NULL DEFAULT now(),
  request_key uuid NOT NULL, request_payload jsonb NOT NULL, UNIQUE(job_id,version), UNIQUE(job_id,request_key), UNIQUE(id,job_id)
 );
 CREATE TABLE public.mcp_production_allocations (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), mapping_id uuid NOT NULL, job_id uuid NOT NULL, company_id uuid NOT NULL,
- sov_fact_id uuid NOT NULL, sov_item text NOT NULL, activity_id text NOT NULL, allocated_cents bigint NOT NULL CHECK(allocated_cents >= 0),
+ sov_fact_id uuid NOT NULL, sov_item text NOT NULL, activity_id text NOT NULL, allocated_cents bigint NOT NULL,
  planned_quantity numeric CHECK(planned_quantity > 0), unit text, planned_man_hours numeric CHECK(planned_man_hours > 0), planned_source text,
  FOREIGN KEY(mapping_id,job_id) REFERENCES public.mcp_production_mapping_versions(id,job_id),
  UNIQUE(mapping_id,sov_fact_id,activity_id), UNIQUE(id,job_id)
@@ -39,14 +39,14 @@ BEGIN
    SELECT * INTO f FROM public.mcp_job_facts WHERE id=(x->>'sov_fact_id')::uuid AND job_id=_job AND module='sov' AND status='known';
    IF f.id IS NULL OR jsonb_typeof(f.value->'billable_value') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Each SOV source must be a valued line from this project.'; END IF;
    v := (f.value->>'billable_value')::numeric * 100;
-   IF v < 0 OR v <> trunc(v) OR v > 9223372036854775807 THEN RAISE EXCEPTION 'MCP_BAD:The SOV amount is unsupported or not in cents.'; END IF;
+   IF v <> trunc(v) OR abs(v) > 9223372036854775807 THEN RAISE EXCEPTION 'MCP_BAD:The SOV amount is unsupported or not in cents.'; END IF;
    IF (SELECT count(*) FROM jsonb_array_elements(coalesce(report.data->'activities','[]'::jsonb)) a WHERE a->>'id'=x->>'activity_id') <> 1 THEN RAISE EXCEPTION 'MCP_BAD:Each activity must occur exactly once in the saved CPM.'; END IF;
    pair := f.id::text || ':' || coalesce(x->>'activity_id','');
    IF pair=ANY(seen) THEN RAISE EXCEPTION 'MCP_BAD:An SOV/activity pair is duplicated.'; END IF;
    seen := array_append(seen,pair); ids := array_append(ids,f.id);
    IF jsonb_typeof(x->'allocated_cents') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Allocated cents are required.'; END IF;
    amount := (x->>'allocated_cents')::numeric;
-   IF amount < 0 OR amount <> trunc(amount) OR amount > 9223372036854775807 THEN RAISE EXCEPTION 'MCP_BAD:Allocated cents must be nonnegative whole cents.'; END IF;
+   IF amount <> trunc(amount) OR abs(amount) > 9223372036854775807 OR (v > 0 AND amount < 0) OR (v < 0 AND amount > 0) OR (v = 0 AND amount <> 0) THEN RAISE EXCEPTION 'MCP_BAD:Allocated cents must have the SOV line''s sign and be whole cents.'; END IF;
    IF x->>'planned_quantity' IS NOT NULL AND (jsonb_typeof(x->'planned_quantity') IS DISTINCT FROM 'number' OR (x->>'planned_quantity')::numeric <= 0 OR (x->>'planned_quantity')::numeric > 1000000000000) THEN RAISE EXCEPTION 'MCP_BAD:Planned quantity must be positive.'; END IF;
    IF x->>'planned_man_hours' IS NOT NULL AND (jsonb_typeof(x->'planned_man_hours') IS DISTINCT FROM 'number' OR (x->>'planned_man_hours')::numeric <= 0 OR (x->>'planned_man_hours')::numeric > 1000000000000) THEN RAISE EXCEPTION 'MCP_BAD:Planned man-hours must be positive.'; END IF;
    IF (x->>'planned_quantity' IS NOT NULL OR x->>'planned_man_hours' IS NOT NULL) AND (nullif(btrim(x->>'unit'),'') IS NULL OR nullif(btrim(x->>'planned_source'),'') IS NULL OR length(btrim(x->>'unit'))>20 OR length(btrim(x->>'planned_source'))>1000) THEN RAISE EXCEPTION 'MCP_BAD:Planned inputs require a unit and source.'; END IF;
@@ -57,7 +57,7 @@ BEGIN
  END LOOP;
  SELECT jsonb_agg(jsonb_build_object('fact_id',id,'item',key,'value',value,'status',status,'source',source,'updated_at',updated_at) ORDER BY id)
  INTO snapshot FROM public.mcp_job_facts WHERE id=ANY(ids) AND job_id=_job AND module='sov';
- RETURN jsonb_build_object('cpm_id',report.id,'cpm_version',report.version,'base_version',_base_version,'effective_date',_effective,'reason',btrim(_reason),'sov',snapshot,'allocations',_allocations);
+ RETURN jsonb_build_object('currency','USD','cpm_id',report.id,'cpm_version',report.version,'base_version',_base_version,'effective_date',_effective,'reason',btrim(_reason),'sov',snapshot,'allocations',_allocations);
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_production_mapping_preview(uuid,uuid,integer,date,text,jsonb) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.mcp_production_mapping_preview(uuid,uuid,integer,date,text,jsonb) TO authenticated;
@@ -104,7 +104,7 @@ BEGIN
  SELECT * INTO report FROM public.mcp_living_reports WHERE job_id=_job AND report_type='cpm' AND status='approved' ORDER BY version DESC LIMIT 1;
  SELECT coalesce(jsonb_agg(jsonb_build_object('fact_id',id,'item',key,'value',value,'status',status,'source',source,'updated_at',updated_at) ORDER BY key),'[]'::jsonb) INTO sov FROM public.mcp_job_facts WHERE job_id=_job AND module='sov';
  SELECT coalesce(max(version),0) INTO ver FROM public.mcp_production_mapping_versions WHERE job_id=_job;
- RETURN jsonb_build_object('cpm_id',report.id,'cpm_version',report.version,'activities',coalesce(report.data->'activities','[]'::jsonb),'sov',sov,'mapping_version',ver);
+ RETURN jsonb_build_object('currency','USD','cpm_id',report.id,'cpm_version',report.version,'activities',coalesce(report.data->'activities','[]'::jsonb),'sov',sov,'mapping_version',ver);
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_production_mapping_sources(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.mcp_production_mapping_sources(uuid) TO authenticated;
@@ -307,7 +307,7 @@ BEGIN
  SELECT * INTO d FROM public.mcp_daily_reports WHERE job_id=_job AND report_date=_date;
  IF d.id IS NULL THEN RETURN jsonb_build_object('found',false,'revision',0,'lines','[]'::jsonb); END IF;
  SELECT * INTO r FROM public.mcp_daily_revisions WHERE daily_id=d.id ORDER BY revision DESC LIMIT 1;
- SELECT coalesce(jsonb_agg(jsonb_build_object('revision_line_id',id,'line_no',line_no,'allocation_id',allocation_id) ORDER BY line_no),'[]'::jsonb) INTO lines FROM public.mcp_daily_revision_lines WHERE revision_id=r.id;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('revision_line_id',l.id,'line_no',l.line_no,'allocation_id',l.allocation_id,'sov_item',l.snapshot->>'sov_item','activity_id',l.snapshot->>'activity_id','unit',l.snapshot->>'unit','mapping_version',m.version) ORDER BY l.line_no),'[]'::jsonb) INTO lines FROM public.mcp_daily_revision_lines l LEFT JOIN public.mcp_production_allocations a ON a.id=l.allocation_id AND a.job_id=l.job_id LEFT JOIN public.mcp_production_mapping_versions m ON m.id=a.mapping_id AND m.job_id=a.job_id WHERE l.revision_id=r.id;
  RETURN jsonb_build_object('found',true,'daily_id',d.id,'revision',coalesce(r.revision,0),'revision_id',r.id,'lines',lines,'legacy',r.id IS NULL);
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_daily_revision_status(uuid,date) FROM PUBLIC,anon;

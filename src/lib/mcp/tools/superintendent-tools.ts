@@ -259,17 +259,20 @@ export const dailyReportDraft = defineTool({
       const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
       const refs = await call<{ allocation_id: string; mapping_version: number; sov_item: string; activity_id: string; unit: string | null }[]>(sb, "mcp_production_work_references", { _job: job.job_id, _date: day });
-      const status = await call<{ found: boolean; revision: number }>(sb, "mcp_daily_revision_status", { _job: job.job_id, _date: day });
-      const mapped = draft.work.map((line) => {
+      const status = await call<{ found: boolean; revision: number; lines: { line_no: number; allocation_id: string | null; sov_item: string | null; activity_id: string | null; unit: string | null; mapping_version: number | null }[] }>(sb, "mcp_daily_revision_status", { _job: job.job_id, _date: day });
+      const mapped = draft.work.map((line, i) => {
         const hits = refs.filter((r) => r.sov_item === line.sov_item && r.activity_id === line.activity_id && (r.unit == null || r.unit === line.unit));
-        return { ...line, allocation_id: hits.length === 1 ? hits[0].allocation_id : null, mapping_version: hits.length === 1 ? hits[0].mapping_version : null };
+        const previous = status.lines.find((r) => r.line_no === i + 1 && r.sov_item === line.sov_item && r.activity_id === line.activity_id && r.unit === line.unit && r.allocation_id);
+        const requested = args.work?.[i]?.allocation_id;
+        const selected = requested ? (previous?.allocation_id === requested ? previous : hits.find((r) => r.allocation_id === requested)) : (previous ?? (hits.length === 1 ? hits[0] : null));
+        return { ...line, allocation_id: selected?.allocation_id ?? null, mapping_version: selected?.mapping_version ?? null, previous_mapping_version: previous?.mapping_version ?? null };
       });
       const missing = mapped.some((w) => !w.allocation_id);
       const ready = draft.ready && !missing;
       const requestKey = crypto.randomUUID();
       await audit(sb, job, "daily_report_draft", "draft_daily", null);
       return guide(
-        { ...text([dailyCard(`${named(job)} `, day, draft, false), ...mapped.map((w) => w.allocation_id ? `Approved mapping v${w.mapping_version}: SOV ${w.sov_item}, ${w.activity_id}.` : `No unique approved work reference for SOV ${w.sov_item ?? "needed"}, ${w.activity_id ?? "activity needed"}.`), ...(status.found ? ["A correction reason is required for a changed saved daily."] : [])].join("\n")), structuredContent: { saved: false, report_date: day, ready, follow_ups: draft.follow_ups, draft: { ...draft, work: mapped }, expected_revision: status.revision, request_key: requestKey, correction_reason_required: status.found } },
+        { ...text([dailyCard(`${named(job)} `, day, draft, false), ...mapped.map((w) => w.allocation_id ? `Approved mapping v${w.mapping_version}: SOV ${w.sov_item}, ${w.activity_id}${w.previous_mapping_version != null && w.previous_mapping_version !== w.mapping_version ? ` (previously v${w.previous_mapping_version})` : ""}.` : `No unique approved work reference for SOV ${w.sov_item ?? "needed"}, ${w.activity_id ?? "activity needed"}.`), ...(status.found ? ["A correction reason is required for a changed saved daily."] : [])].join("\n")), structuredContent: { saved: false, report_date: day, ready, follow_ups: draft.follow_ups, draft: { ...draft, work: mapped }, expected_revision: status.revision, request_key: requestKey, correction_reason_required: status.found } },
         ready ? "Review the daily and approved references with the superintendent. Only after a yes call daily_report_save with confirmed true, the exact work allocation IDs, expected revision and request key. A changed saved daily also needs a correction reason." : "Resolve each missing section and approved work reference before saving.",
       );
     }),

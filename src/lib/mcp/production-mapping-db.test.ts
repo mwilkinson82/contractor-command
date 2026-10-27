@@ -401,3 +401,46 @@ describe("field authorization", () => {
     ).toBe(1);
   });
 });
+
+describe("USD contract credit allocation", () => {
+  it("conserves a negative SOV credit without creating a billing or contract change", async () => {
+    const credit = "10000000-0000-4000-8000-000000000030";
+    await db.query(
+      "INSERT INTO mcp_job_facts(id,job_id,module,key,value,status,source,updated_by) VALUES ($1,$2,'sov','26.05',$3::jsonb,'known','member_answer',$4)",
+      [
+        credit,
+        job,
+        JSON.stringify({
+          description: "TEST executed credit",
+          billable_value: -10000,
+          executed_change_order: "TEST-CO",
+          fee_included: true,
+        }),
+        owner,
+      ],
+    );
+    const parts = [
+      { sov_fact_id: credit, activity_id: "E090", allocated_cents: -600000 },
+      { sov_fact_id: credit, activity_id: "E100", allocated_cents: -400000 },
+    ];
+    await expect(
+      preview([{ ...parts[0], allocated_cents: 600000 }, parts[1]], job, owner, 2),
+    ).rejects.toThrow(/sign/);
+    const reviewed = await preview(parts, job, owner, 2);
+    expect(reviewed.currency).toBe("USD");
+    const next = (await approve(reviewed, "10000000-0000-4000-8000-000000000031", 2, parts)).rows[0]
+      .result;
+    expect(next.version).toBe(3);
+    const record = (
+      await db.query<{ currency: string; sum: string }>(
+        "SELECT m.currency,sum(a.allocated_cents)::text AS sum FROM mcp_production_mapping_versions m JOIN mcp_production_allocations a ON a.mapping_id=m.id WHERE m.id=$1 GROUP BY m.currency",
+        [next.id],
+      )
+    ).rows[0];
+    expect(record).toEqual({ currency: "USD", sum: "-1000000" });
+    const source = (
+      await db.query<{ value: any }>("SELECT value FROM mcp_job_facts WHERE id=$1", [credit])
+    ).rows[0].value;
+    expect(source.billable_value).toBe(-10000);
+  });
+});

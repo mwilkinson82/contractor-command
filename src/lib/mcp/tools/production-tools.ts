@@ -12,7 +12,7 @@ const uuid = z.string().uuid();
 const allocation = z.object({
   sov_fact_id: uuid,
   activity_id: z.string().trim().min(1).max(20),
-  allocated_cents: z.number().int().min(0).safe(),
+  allocated_cents: z.number().int().safe(),
   planned_quantity: z.number().positive().nullable().optional(),
   unit: z.string().trim().min(1).max(20).nullable().optional(),
   planned_man_hours: z.number().positive().nullable().optional(),
@@ -43,6 +43,7 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 }
 
 type Sources = {
+  currency: "USD";
   cpm_id: string | null;
   cpm_version: number | null;
   activities: unknown[];
@@ -69,7 +70,7 @@ export const productionMappingSources = defineTool({
           ),
           structuredContent: { ...sources } as never,
         },
-        "Propose allocations only from these saved sources. SOV amounts are line values before separately stated contract fee. Preserve item and activity IDs. Do not guess quantities, labor basis, or allocation amounts. Review with production_mapping_preview before approval.",
+        "Propose allocations only from these saved USD sources. SOV amounts are line values before separately stated contract fee; a negative SOV credit is allocated as a negative value. Preserve item and activity IDs. Do not guess quantities, labor basis, or allocation amounts. Review with production_mapping_preview before approval.",
       );
     }),
 });
@@ -109,7 +110,8 @@ export const productionMappingPreview = defineTool({
       }[];
       const lines = args.allocations.map((a) => {
         const source = sov.find((s) => s.fact_id === a.sov_fact_id);
-        return `SOV ${source?.item ?? a.sov_fact_id}${source?.value.description ? ` (${source.value.description})` : ""} → ${a.activity_id}: $${(a.allocated_cents / 100).toFixed(2)}${a.planned_quantity != null ? ` · planned ${a.planned_quantity} ${a.unit ?? "unit needed"}` : ""}${a.planned_man_hours != null ? ` · ${a.planned_man_hours} planned person-hours` : ""}${a.planned_source ? ` · basis: ${a.planned_source}` : ""}`;
+        const value = `${a.allocated_cents < 0 ? "-" : ""}$${(Math.abs(a.allocated_cents) / 100).toFixed(2)} USD`;
+        return `SOV ${source?.item ?? a.sov_fact_id}${source?.value.description ? ` (${source.value.description})` : ""} → ${a.activity_id}: ${value}${a.planned_quantity != null ? ` · planned ${a.planned_quantity} ${a.unit ?? "unit needed"}` : ""}${a.planned_man_hours != null ? ` · ${a.planned_man_hours} planned person-hours` : ""}${a.planned_source ? ` · basis: ${a.planned_source}` : ""}`;
       });
       const included = new Set(args.allocations.map((a) => a.sov_fact_id));
       const omitted = sources.sov.filter((s) => !included.has(s.fact_id)).map((s) => s.item);

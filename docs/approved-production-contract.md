@@ -35,11 +35,12 @@ references and production information their role may see.
    becoming the next version. At approval re-read and compare the SOV source and
    CPM report to the preview; reject stale or foreign source records.
 2. **Allocation:** immutable ID, mapping version, SOV fact ID and CPM activity ID,
-   explicit allocated cents and optional sourced planned quantity, unit, and planned
+   explicit allocated USD cents and optional sourced planned quantity, unit, and planned
    man-hours. Each SOV/activity pair appears at most once in a version. Allocations
    for each included SOV line must sum exactly to its captured value. Unincluded
-   lines remain unallocated/unknown. Credits require a separate agreed policy;
-   never discard or turn one into zero. A new mapping is a new version, not an
+   lines remain unallocated/unknown. A recorded negative SOV credit is allocated
+   with the same negative sign and reconciles to that source; this does not create
+   or change a credit change order or an invoice credit. A new mapping is a new version, not an
    update of allocations referenced by old facts.
 3. **Daily revisions:** the existing report remains the current projection. Before
    any destructive replacement, transactionally capture the complete previous
