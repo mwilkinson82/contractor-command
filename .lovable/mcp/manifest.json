@@ -2325,7 +2325,7 @@
       {
         "name": "list_open_items",
         "title": "List open items",
-        "description": "Lists open items for a job_number the member just gave, and must not fill job_number from chat context.",
+        "description": "Lists explicitly requested open items for a job_number the member just gave without filling job_number from chat context; for \"open the project board\" or \"open the job board\", use report_page_link with page \"home\" instead.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -3141,8 +3141,8 @@
       },
       {
         "name": "report_page_link",
-        "title": "Job board link",
-        "description": "Returns private job board links; use page chat to refuse requests for owner or client chat access and offer a read-only client report instead.",
+        "title": "Project home or report link",
+        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -3154,6 +3154,7 @@
           "type": "object",
           "properties": {
             "page": {
+              "default": "home",
               "type": "string",
               "minLength": 1,
               "maxLength": 40
@@ -3169,9 +3170,6 @@
               "maxLength": 200
             }
           },
-          "required": [
-            "page"
-          ],
           "additionalProperties": false
         },
         "outputSchema": null
@@ -7035,7 +7033,7 @@
       {
         "name": "superintendent_view",
         "title": "Superintendent field board",
-        "description": "Shows the superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing.",
+        "description": "Shows the explicitly requested superintendent field board, also called the field board, the super board, or the superintendent board, including the super's plan and what the crew is doing; generic \"give me the job board\" or \"open the project board\" requests use report_page_link with page \"home\" instead.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -7066,7 +7064,7 @@
       {
         "name": "field_board",
         "title": "Field board",
-        "description": "Shows the field board, the super board, the superintendent board, the super's plan, and what the crew is doing for a job.",
+        "description": "Shows an explicitly requested field board, super board, superintendent board, super's plan, or what the crew is doing for a job; generic \"give me the job board\" or \"open the project board\" requests use report_page_link with page \"home\" instead.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,

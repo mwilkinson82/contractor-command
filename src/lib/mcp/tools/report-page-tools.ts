@@ -20,7 +20,7 @@ import { PAGE_LABEL, REPORT_PAGES, SHARE_DEFAULT_DAYS, SHARE_MAX_DAYS, pageAllow
 const jobNumber = z.string().trim().min(1).max(40).optional();
 const companyId = z.string().trim().min(1).max(200).optional();
 const sharePage = z.enum([...REPORT_PAGES, "chat"]);
-const page = z.string().trim().min(1).max(40);
+const page = z.string().trim().min(1).max(40).default("home");
 
 function refuseChatAccess(jobNumber?: string) {
   const card = privateChatRefusalCard(jobNumber);
@@ -99,15 +99,18 @@ function boardLinkCard(page: string, job: string | null, url: string, expiresAt:
 
 export const reportPageLink = defineTool({
   name: "report_page_link",
-  title: "Job board link",
-  description: "Returns private job board links; use page chat to refuse requests for owner or client chat access and offer a read-only client report instead.",
+  title: "Project home or report link",
+  description:
+    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
   inputSchema: { page, job_number: jobNumber, company_id: companyId },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("report_page_link", ctx, { jobNumber: args.job_number }, async (sb) => {
-      if (isChatAccessPage(args.page)) return refuseChatAccess(args.job_number);
-      const asked = boardPageFor(args.page);
-      if (!asked) throw new ToolError("Which board? items, ior, or field.");
+      const requestedPage = args.page ?? "home";
+      if (isChatAccessPage(requestedPage)) return refuseChatAccess(args.job_number);
+      const asked = boardPageFor(requestedPage);
+      if (!asked)
+        throw new ToolError("Which page? home, items, ior, field, or another named report.");
       const t = await target(sb, { ...args, page: asked });
       const expires = t.p === "portfolio" ? null : boardLinkExpiry();
       const board = t.job ? await signedJobPages((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope) : {};

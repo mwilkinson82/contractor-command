@@ -53,10 +53,63 @@ describe("published Athena entry routing contract", () => {
     expect(result.instructions).not.toContain("Athena at the start or mid-sentence");
     expect(result.instructions).not.toContain("call athena_hello or morning_brief");
   });
+  it("publishes project-home routing before greeting rules and keeps explicit items distinct", async () => {
+    const initialized = await rpc("initialize", 3, {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "project-board-test", version: "1" },
+    });
+    expect(initialized.instructions).toContain(
+      'call report_page_link with page "home" and the job_number the member supplied',
+    );
+    for (const phrase of [
+      "open the project board",
+      "open the job board",
+      "give me the job board",
+      "show me the job board",
+    ]) {
+      expect(initialized.instructions).toContain(`"${phrase}"`);
+    }
+    expect(initialized.instructions).toContain(
+      'Use page "items" or list_open_items for explicit open-items requests',
+    );
+    expect(initialized.instructions).toContain(
+      "use field_board or superintendent_view for explicit field board",
+    );
+    expect(initialized.instructions.indexOf('For "open the project board"')).toBeLessThan(
+      initialized.instructions.indexOf("Welcome back. Athena is ready."),
+    );
+    const discovered = await rpc("tools/list", 4);
+    const board = discovered.tools.find(
+      (tool: { name: string }) => tool.name === "report_page_link",
+    );
+    expect(board.description).toContain(
+      'project board, job board, project home, or job dashboard with page "home"',
+    );
+    expect(board.inputSchema.properties.page.default).toBe("home");
+    expect(board.inputSchema.required ?? []).not.toContain("page");
+    const items = discovered.tools.find(
+      (tool: { name: string }) => tool.name === "list_open_items",
+    );
+    expect(items.description).toContain('use report_page_link with page "home" instead');
+    for (const name of ["field_board", "superintendent_view"]) {
+      const field = discovered.tools.find((tool: { name: string }) => tool.name === name);
+      expect(field.description).toContain('generic "give me the job board"');
+      expect(field.description).toContain('use report_page_link with page "home" instead');
+    }
+  });
   it("keeps discovery descriptions identical to the committed manifest", async () => {
     const result = await rpc("tools/list", 2);
     const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8"));
-    for (const name of ["getting_started", "athena_hello", "morning_brief"]) {
+    for (const name of [
+      "getting_started",
+      "athena_hello",
+      "morning_brief",
+      "report_page_link",
+      "list_open_items",
+      "field_board",
+      "superintendent_view",
+    ]) {
       const live = result.tools.find((tool: { name: string }) => tool.name === name);
       expect(live.annotations.readOnlyHint).toBe(true);
       expect(

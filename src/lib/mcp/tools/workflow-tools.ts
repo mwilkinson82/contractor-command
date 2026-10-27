@@ -1395,7 +1395,7 @@ export async function listCompaniesAndJobs(sb: Sb, companyId?: string, tool = "l
 export const listOpenItems = defineTool({
   name: "list_open_items",
   title: "List open items",
-  description: "Lists open items for a job_number the member just gave, and must not fill job_number from chat context.",
+  description: 'Lists explicitly requested open items for a job_number the member just gave without filling job_number from chat context; for "open the project board" or "open the job board", use report_page_link with page "home" instead.',
   inputSchema: {
     job_number: listJobNumber,
     company_id: companyId,
