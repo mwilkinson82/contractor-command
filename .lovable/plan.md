@@ -1,22 +1,46 @@
-# Athena release preflight (PRs #219, #221) — findings and release steps
+# Can the managed migration record a function replacement without psql access?
 
-Read-only check. I changed nothing: no files, SQL, settings, emails, or publish.
+This answer is based only on the tool's published description and what I've seen it do earlier in this project. Nothing was run, queried or changed.
 
-## Findings
+## Short answer
+Yes, in principle. The managed migration operation uses its own privileged session connection, so it does not depend on the agent's psql role. The `permission denied` on `drizzle.__drizzle_migrations` means the agent cannot read that history itself. It does not show that the operation would fail.
 
-1. **Code in this workspace:** HEAD is `4406c5ad4ec3e2a8c945694b145c00019abbe5a5` ("Split combined meeting notes… (#217)"). The local branch is a Lovable working branch (`edit/edt-86648b…`), and the working tree is clean. I cannot see the connected GitHub repo or which branch is selected for sync. The owner must confirm both under Project settings → Git. HEAD shows PR #217 as the latest merge. **I cannot see #219 or #221 in this checkout,** so they are not synced here yet.
-2. **Domains:** the published app is `contractor-command.lovable.app` (also the primary address). Custom domains are `app.meetathena.io` and `app.alpcontractorcircle.com`. My tools can't see the currently published commit or deploy id.
-3. **Shared deployment:** both custom domains belong to this one project. So `app.meetathena.io/mcp` is served from this project's single published build, and publishing also changes `app.alpcontractorcircle.com` and the Lovable address. You can't publish to one domain only.
-4. **Backend:** Lovable Cloud, managed. One live instance (ref `qcbbjjjxcacrscfhgfmf`) serves both the preview and the published app. Any database migration goes live as soon as it is applied, before you publish.
-5. **Pending database files:** the newest applied-tool record is `drizzle/migrations/0024_athena_reopen_open_item.sql`. The repo also has files in `supabase/migrations` dated 2026-10-26/27 (drawing_sets, report_item_severity, delay_notice_severity, drawing_versions). I have not checked whether these are already in the database. I'll check that before applying anything.
+## What the operation does (from its description)
+- Creates an empty Drizzle Kit custom migration and writes the submitted SQL into it verbatim.
+- Runs `drizzle-kit check` on the migration set.
+- Applies the migration with Drizzle's migrator over a privileged connection that the tool supplies. Drizzle records the history row in `drizzle.__drizzle_migrations`.
+- Regenerates `src/integrations/supabase/types.ts`.
+- If anything fails, it rolls back the migration file and the journal entry, so nothing is applied.
 
-## Supported workflow (needs approval to run)
+## Prerequisites and permissions
+- The SQL must be DDL only and cannot contain `BEGIN;`/`COMMIT;`.
+- Breaking changes are refused before they run: DROP or rename, type changes, or adding a NOT NULL column without a default.
+- Destructive SQL waits for the user's yes or no. A `CREATE OR REPLACE FUNCTION` followed by `REVOKE` is not on that list, so it should apply straight away.
+- `INSERT`/`UPDATE` on `storage.buckets` is refused.
+- On a draft, the change is staged rather than applied.
+- The "Execute backward incompatible database migrations" preference only matters for breaking changes.
 
-1. **Sync:** merge #219 and #221 into the synced branch on GitHub. Lovable pulls them automatically when that branch receives a push. Then I confirm HEAD equals the approved merge commit and that the diff covers only those PRs.
-2. **Find the one staged migration:** identify the single new SQL file from those PRs and check read-only that it isn't applied yet.
-3. **Apply the migration:** run it once, unchanged, through Lovable Cloud's migration tool. This takes effect on the live database immediately. The tool also writes its own drizzle copy and journal entry and refreshes `types.ts`. That's expected bookkeeping, not a code change.
-4. **Verify:** check the build log, typecheck, and confirm the migration's tables and functions exist. I won't count preview results or test runs as proof that the release is deployed.
-5. **Publish:** Publish → Publish changes, triggered by the owner or by me on explicit instruction. This updates all three domains together.
-6. **Post-check:** after publishing, read-only checks of `https://app.meetathena.io/mcp` metadata and the manifest version.
+## Receipt and evidence the operation provides
+- On success, it returns the path of the applied migration file (`drizzle/migrations/NNNN_<name>.sql`).
+- The repo gets the new `.sql` file, a `meta/NNNN_snapshot.json`, an updated `meta/_journal.json`, and the types refresh.
+- The file content can be hashed against the reviewed SHA-256.
 
-Sign-in settings, Site URL, Hub, and permissions stay untouched throughout.
+## What I can verify vs. don't know
+I can verify:
+- The submitted text and its hash.
+- The generated file, journal and snapshot entries.
+- The success or failure message the tool returns.
+
+I don't know, and can't verify without read access:
+- The database history row: its id, `created_at` and hash.
+- Whether the migrator silently skipped the entry. Drizzle skips, without an error, any entry whose `when` is not greater than the newest applied `created_at`, and `drizzle-kit check` exits 0 anyway. This is the main gap.
+- Whether the live function body changed. Earlier releases confirmed this with read queries, such as MD5 of the function definition. Without SELECT access to `pg_proc`, that confirmation isn't available.
+- Whether the tool keeps or strips the final newline. Earlier runs did both.
+- The tool does not return a structured receipt with a database transaction ID or history row.
+
+## Recommendation (no action taken)
+To get independent proof after applying, read access is needed for:
+- `drizzle.__drizzle_migrations` (history count and newest row).
+- `pg_proc` / `pg_get_functiondef` (function MD5 and ACL).
+
+Without it, the evidence is limited to what the tool returns plus the files it generates in the repo.
