@@ -101,7 +101,11 @@ boundary. Reconcile an uncertain result by idempotency key before retrying.
 1. After billing is accepted, reconcile the release branch and managed migration
    history, confirm that `20261101120002` follows the accepted billing migration,
    and rerun the checks against that exact combined head. Keep the PR in draft until
-   this succeeds and the parent coordinates the release.
+   this succeeds and the parent coordinates the release. Verify the table-alter and
+   index-build lock duration under representative daily-save traffic in an isolated
+   supported environment. The migration has a five-second lock timeout, but that
+   alone does not prove uninterrupted service; hold deployment if the test shows a
+   disruptive lock or if the supported flow cannot establish that evidence.
 2. Apply the reviewed migration through the supported managed flow before the updated
    MCP service. The original daily-save RPC remains available during that interval:
    confirmed old-client saves are recorded as unlinked and history is retained. Existing
