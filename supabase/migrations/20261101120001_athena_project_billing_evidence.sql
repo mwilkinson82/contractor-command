@@ -1,6 +1,5 @@
 -- Staged project billing evidence. Apply only through the managed release lane.
 -- Amounts are source-entered USD cents; no production or forecast values are posted here.
-BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
@@ -233,4 +232,3 @@ END $$;
 REVOKE ALL ON FUNCTION public.mcp_billing_evidence_record(uuid,text,jsonb) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_billing_evidence_record(uuid,text,jsonb) TO authenticated;
 NOTIFY pgrst, 'reload schema';
-COMMIT;
