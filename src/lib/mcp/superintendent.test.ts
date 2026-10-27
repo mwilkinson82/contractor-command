@@ -385,7 +385,7 @@ describe("feeds", () => {
         draft: boolean;
         contract_total: number;
         tie: { ties: boolean; line: string };
-        data: { billing: { billed_to_date: number; months: { month: string; amount: number; kind: string }[] } };
+        data: { billing: { billed_to_date: number | null; earned_from_dailies: number | null; earned_from_schedule: number | null; payments_received: number | null; months: { month: string; amount: number; kind: string }[] } };
       };
     };
     const text = result.content[0].text;
@@ -394,10 +394,12 @@ describe("feeds", () => {
     expect(result.structuredContent.contract_total).toBe(1_400_000);
     expect(result.structuredContent.tie.ties).toBe(true);
     expect(result.structuredContent.tie.line).toBe("Forecast total $1,400,000.00 = contract $1,400,000.00");
-    expect(result.structuredContent.data.billing.billed_to_date).toBe(700_000);
+    expect(result.structuredContent.data.billing.billed_to_date).toBeNull();
+    expect(result.structuredContent.data.billing.earned_from_dailies).toBe(700_000);
+    expect(result.structuredContent.data.billing.earned_from_schedule).toBe(0);
+    expect(result.structuredContent.data.billing.payments_received).toBeNull();
     expect(result.structuredContent.data.billing.months).toEqual([
-      { month: "2026-10", amount: 700_000, kind: "actual" },
-      { month: "2026-10", amount: 700_000, kind: "forecast" },
+      { month: "2026-10", amount: 1_400_000, kind: "forecast" },
     ]);
     expect(result.structuredContent.data.billing.months.reduce((sum, row) => sum + Math.round(row.amount * 100), 0)).toBe(140_000_000);
     expect(text).toContain("Draft: not saved");

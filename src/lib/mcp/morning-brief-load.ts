@@ -79,7 +79,8 @@ function payAppsOf(billing: RawJob["billing"]): { payApps: BriefPay[]; invoices:
   if (!billing || billing.found === false || !billing.data) return { payApps: [], invoices: [] };
   const data = billing.data;
   const body = data.billing && typeof data.billing === "object" ? (data.billing as Record<string, unknown>) : data;
-  const amount = num(body.billed_to_date);
+  // Legacy forecast totals are not evidence of issued billing.
+  const amount = null;
   const payApps: BriefPay[] = [];
   for (const key of ["pay_app_date", "application_date", "period_to"]) {
     const due = body[key];
