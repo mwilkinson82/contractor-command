@@ -64,6 +64,11 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(`CREATE FUNCTION public.mcp_living_report_get(uuid,text,integer) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{"data":{"activities":[]}}'::jsonb $$;
+    CREATE FUNCTION public.mcp_report_latest_lookahead(uuid) RETURNS jsonb LANGUAGE sql AS $$ SELECT NULL::jsonb $$;
+    CREATE FUNCTION public.mcp_report_open_items(uuid,boolean) RETURNS jsonb LANGUAGE sql AS $$ SELECT '[]'::jsonb $$;
+    CREATE TABLE public.mcp_estimate_takeoffs(id uuid,job_id uuid,version integer);
+    CREATE TABLE public.mcp_estimate_takeoff_lines(takeoff_id uuid,job_id uuid,item text,material text,qty numeric,unit text,trade text);`);
   await db.query(
     "INSERT INTO auth.users(id,email) VALUES ($1,'owner@example.com'),($2,'test@example.com'),($3,'super@example.com')",
     [owner, stranger, superUser],
@@ -170,7 +175,7 @@ const save = (
   user = owner,
 ) =>
   call(
-    "SELECT public.mcp_daily_report_save_v2($1,$2,true,'clear','crew','none','none','none','none','none',NULL,$3::jsonb,$4,$5,$6) result",
+    "SELECT public.mcp_daily_report_save_v2($1,$2,true,'clear','crew','none','none','none','none','none',NULL,$3::jsonb,$4,$5,$6,'approved') result",
     [j, date, JSON.stringify(lines), expected, request, reason],
     user,
   );
@@ -224,6 +229,42 @@ describe("daily production persistence", () => {
     expect(histories.rows).toHaveLength(2);
     expect(Number(histories.rows[0].snapshot.lines[0].qty)).toBe(300);
     expect(Number(histories.rows[1].snapshot.lines[0].qty)).toBe(320);
+    const oldWork = histories.rows[0].snapshot.lines[0].id;
+    const oldRate = histories.rows[0].snapshot.rates[0].id;
+    expect(
+      (
+        await db.query<{ is_current: boolean; qty: string }>(
+          "SELECT is_current,qty FROM mcp_daily_work_lines WHERE id=$1",
+          [oldWork],
+        )
+      ).rows[0],
+    ).toMatchObject({ is_current: false, qty: "300" });
+    expect(
+      (
+        await db.query<{ is_current: boolean }>(
+          "SELECT is_current FROM mcp_production_rates WHERE id=$1",
+          [oldRate],
+        )
+      ).rows[0].is_current,
+    ).toBe(false);
+    await expect(
+      db.query("DELETE FROM mcp_daily_work_lines WHERE id=$1", [oldWork]),
+    ).rejects.toThrow(/retained/);
+    await expect(
+      db.query("UPDATE mcp_production_rates SET qty=999 WHERE id=$1", [oldRate]),
+    ).rejects.toThrow(/immutable/);
+    const current = await asUser(
+      db,
+      claims(),
+      (tx) =>
+        tx.query("SELECT * FROM mcp_production_rates WHERE daily_id=$1", [
+          corrected.id,
+        ]) as Promise<{ rows: unknown[] }>,
+    );
+    expect(current.rows).toHaveLength(1);
+    const board = (await call("SELECT public.mcp_field_board($1) result", [job])).rows[0].result;
+    expect(board.rates).toHaveLength(2);
+    expect(board.installed).toHaveLength(2);
     expect(Number((await weekly()).rows[0].period_quantity)).toBe(1020);
     await expect(
       save("2026-10-26", line(allocation1, 320, 4, 20), 1, request3, "changed reason"),
@@ -238,10 +279,10 @@ describe("daily production persistence", () => {
     ).rejects.toThrow();
     await expect(
       call(
-        "SELECT public.mcp_daily_report_save($1,'2026-10-28',true,'clear','crew','none','none','none','none','none',NULL,'[]'::jsonb)",
-        [job],
+        "SELECT public.mcp_daily_report_save($1,'2026-10-26',true,'clear','crew','none','none','none','none','none',NULL,$2::jsonb)",
+        [job, JSON.stringify([{ ...line(allocation1, 10, 1, 1)[0], allocation_id: undefined }])],
       ),
-    ).rejects.toThrow(/approved production save/);
+    ).rejects.toThrow(/approved work references/);
   });
   it("pins photo to an approved work revision and rejects foreign project references", async () => {
     const r = await call("SELECT public.mcp_daily_revision_status($1,'2026-10-26') result", [job]);
@@ -498,5 +539,186 @@ describe("USD contract credit allocation", () => {
       await db.query<{ value: any }>("SELECT value FROM mcp_job_facts WHERE id=$1", [credit])
     ).rows[0].value;
     expect(source.billable_value).toBe(-10000);
+  });
+});
+
+describe("legacy client compatibility and audited void", () => {
+  it("keeps the old confirmed RPC working for unlinked projects and deduplicates repeats", async () => {
+    const work = [
+      {
+        work: "Legacy conduit",
+        sov_item: "26.04",
+        activity_id: "E090",
+        qty: 40,
+        unit: "LF",
+        crew: 2,
+        hours: 4,
+        pct_complete: null,
+      },
+    ];
+    const sql =
+      "SELECT public.mcp_daily_report_save($1,'2026-11-02',true,'clear','crew','none','none','none','none','none',NULL,$2::jsonb) result";
+    const first = (await call(sql, [job, JSON.stringify(work)])).rows[0].result;
+    const again = (await call(sql, [job, JSON.stringify(work)])).rows[0].result;
+    expect(first).toMatchObject({ saved: true, mapping_status: "unlinked", revision: 1 });
+    expect(again).toMatchObject({
+      id: first.id,
+      revision: 1,
+      replayed: true,
+      mapping_status: "unlinked",
+    });
+    expect(
+      (await db.query("SELECT * FROM mcp_production_rates WHERE daily_id=$1", [first.id])).rows,
+    ).toHaveLength(1);
+    const changed = [{ ...work[0], qty: 45 }];
+    const correction = (await call(sql, [job, JSON.stringify(changed)])).rows[0].result;
+    expect(correction.revision).toBe(2);
+    await expect(call(sql, [job, JSON.stringify(work)])).rejects.toThrow(/later daily revision/);
+    const prior = (
+      await db.query<{ origin: string; reason: string | null; snapshot: any }>(
+        "SELECT origin,reason,snapshot FROM mcp_daily_revisions WHERE daily_id=$1 AND revision=1",
+        [first.id],
+      )
+    ).rows[0];
+    expect(prior.origin).toBe("legacy_compat");
+    expect(prior.reason).toBeNull();
+    expect(Number(prior.snapshot.lines[0].qty)).toBe(40);
+  });
+  it("voids the only work line with confirmation, reason and immutable history", async () => {
+    const status = (
+      await call("SELECT public.mcp_daily_revision_status($1,'2026-10-26') result", [job])
+    ).rows[0].result;
+    const previous = status.lines[0].revision_line_id;
+    const facts = (
+      await db.query<{ work_id: string; rate_id: string }>(
+        "SELECT w.id work_id,r.id rate_id FROM mcp_daily_work_lines w JOIN mcp_production_rates r ON r.work_line_id=w.id WHERE w.daily_id=$1 AND w.is_current AND r.is_current",
+        [status.daily_id],
+      )
+    ).rows[0];
+    const key = "10000000-0000-4000-8000-000000000041";
+    await expect(
+      call("SELECT public.mcp_daily_work_void($1,'2026-10-26',$2,$3,NULL,true)", [
+        job,
+        status.revision,
+        key,
+      ]),
+    ).rejects.toThrow(/reason/);
+    await expect(
+      call("SELECT public.mcp_daily_work_void($1,'2026-10-26',$2,$3,'error',false)", [
+        job,
+        status.revision,
+        key,
+      ]),
+    ).rejects.toThrow(/Confirmation/);
+    const result = (
+      await call(
+        "SELECT public.mcp_daily_work_void($1,'2026-10-26',$2,$3,'Incorrect work',true) result",
+        [job, status.revision, key],
+      )
+    ).rows[0].result;
+    expect(result).toMatchObject({ revision: status.revision + 1, work_status: "voided" });
+    const replay = (
+      await call(
+        "SELECT public.mcp_daily_work_void($1,'2026-10-26',$2,$3,'Incorrect work',true) result",
+        [job, status.revision, key],
+      )
+    ).rows[0].result;
+    expect(replay).toMatchObject({ revision: result.revision, replayed: true });
+    const current = (
+      await call("SELECT public.mcp_daily_report_get($1,'2026-10-26') result", [job])
+    ).rows[0].result;
+    expect(current).toMatchObject({ found: true, work_voided: true, lines: [] });
+    expect(
+      (
+        await db.query<{ is_current: boolean }>(
+          "SELECT is_current FROM mcp_daily_work_lines WHERE id=$1",
+          [facts.work_id],
+        )
+      ).rows[0].is_current,
+    ).toBe(false);
+    expect(
+      (
+        await db.query<{ is_current: boolean }>(
+          "SELECT is_current FROM mcp_production_rates WHERE id=$1",
+          [facts.rate_id],
+        )
+      ).rows[0].is_current,
+    ).toBe(false);
+    const old = (await db.query("SELECT * FROM mcp_daily_revision_lines WHERE id=$1", [previous]))
+      .rows;
+    expect(old).toHaveLength(1);
+    expect(
+      (
+        await db.query("SELECT * FROM mcp_production_photo_links WHERE revision_line_id=$1", [
+          previous,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+    await expect(
+      call(
+        "SELECT public.mcp_daily_report_save($1,'2026-10-26',true,'clear','crew','none','none','none','none','none',NULL,$2::jsonb)",
+        [job, JSON.stringify([{ ...line(allocation1, 320, 4, 20)[0], allocation_id: undefined }])],
+      ),
+    ).rejects.toThrow(/voided/);
+  });
+});
+
+describe("additive migration on existing dailies", () => {
+  it("leaves preexisting daily and rate values unchanged without a save", async () => {
+    const priorDb = await makeDb();
+    try {
+      await priorDb.exec(
+        `CREATE TABLE public.mcp_living_reports(id uuid PRIMARY KEY,job_id uuid,report_type text,version integer,status text,data jsonb); CREATE TABLE public.mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb,updated_at timestamptz NOT NULL DEFAULT now()); CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; CREATE FUNCTION public.mcp_file_path_scope(text) RETURNS text LANGUAGE sql AS $$ SELECT 'full'::text $$;`,
+      );
+      await priorDb.exec(
+        readFileSync("supabase/migrations/20261023020000_athena_superintendent.sql", "utf8"),
+      );
+      await priorDb.query(
+        "INSERT INTO auth.users(id,email) VALUES ($1,'fixture@example.invalid')",
+        [owner],
+      );
+      await priorDb.query(
+        "INSERT INTO mcp_companies(id,name,created_by) VALUES ($1,'TEST fixture',$2)",
+        [company, owner],
+      );
+      await priorDb.query(
+        "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name) VALUES ($1,$2,$3,'FIXTURE','TEST fixture')",
+        [job, owner, company],
+      );
+      const days = ["20000000-0000-4000-8000-000000000011", "20000000-0000-4000-8000-000000000012"];
+      for (let i = 0; i < 2; i++) {
+        const qty = i === 0 ? 120 : 96;
+        const crew = i === 0 ? 4 : 3;
+        const rate = i === 0 ? 3.75 : 4;
+        await priorDb.query(
+          "INSERT INTO mcp_daily_reports(id,job_id,company_id,report_date,weather,manpower,subs_on_site,deliveries,issues,delays,safety) VALUES($1,$2,$3,$4,'clear','crew','none','none','none','none','none')",
+          [days[i], job, company, i === 0 ? "2026-10-26" : "2026-10-27"],
+        );
+        await priorDb.query(
+          "INSERT INTO mcp_daily_work_lines(daily_id,job_id,company_id,line_no,work,sov_item,activity_id,qty,unit,crew,hours) VALUES($1,$2,$3,1,'TEST','26.04','E090',$4,'LF',$5,8)",
+          [days[i], job, company, qty, crew],
+        );
+        await priorDb.query(
+          "INSERT INTO mcp_production_rates(daily_id,job_id,company_id,work,sov_item,activity_id,qty,unit,crew,hours,man_hours,qty_per_man_hour) VALUES($1,$2,$3,'TEST','26.04','E090',$4,'LF',$5,8,$6,$7)",
+          [days[i], job, company, qty, crew, crew * 8, rate],
+        );
+      }
+      const read = () =>
+        priorDb.query(
+          "SELECT d.id,d.report_date,w.id work_id,w.qty,w.crew,w.hours,r.id rate_id,r.man_hours,r.qty_per_man_hour FROM mcp_daily_reports d JOIN mcp_daily_work_lines w ON w.daily_id=d.id JOIN mcp_production_rates r ON r.daily_id=d.id WHERE d.job_id=$1 ORDER BY d.report_date",
+          [job],
+        );
+      const before = (await read()).rows;
+      await priorDb.exec(
+        readFileSync(
+          "supabase/migrations/20261101120002_athena_approved_production_mapping.sql",
+          "utf8",
+        ),
+      );
+      expect((await read()).rows).toEqual(before);
+      expect((await priorDb.query("SELECT * FROM mcp_daily_revisions")).rows).toEqual([]);
+    } finally {
+      await priorDb.close();
+    }
   });
 });

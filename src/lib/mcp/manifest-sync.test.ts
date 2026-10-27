@@ -104,6 +104,7 @@ async function liveTools(): Promise<Tool[]> {
       Field.dailyReportDraft,
       Field.dailyReportSave,
       Field.dailyReportGet,
+      Field.dailyWorkVoid,
       Field.fieldPayApp,
       Field.fieldScheduleFeed,
       Field.fieldProductionRates,

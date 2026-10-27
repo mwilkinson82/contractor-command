@@ -127,6 +127,7 @@ import {
   dailyReminderRun,
   dailyReportDraft,
   dailyReportSave,
+  dailyWorkVoid,
   fieldPayApp,
   fieldProductionRates,
   progressPhotoSave,
@@ -299,7 +300,8 @@ describe("daily assembly", () => {
     expect(result.structuredContent.request_key).toMatch(/^[0-9a-f-]{36}$/);
     state.rpc.mcp_production_work_references = [];
     const missing = await handle(dailyReportDraft, dailyOk);
-    expect(missing.structuredContent.ready).toBe(false);
+    expect(missing.structuredContent).toMatchObject({ ready: true, capture_mode: "legacy" });
+    expect(missing.content[0].text).toContain("saved unlinked");
   });
 
   it("preserves an existing mapping unless a different approved reference is selected", async () => {
@@ -318,6 +320,25 @@ describe("daily assembly", () => {
     const result = await handle(dailyReportSave, dailyOk);
     expect(result.content[0].text).toMatch(/daily has since changed/);
     expect(result.content[0].text).not.toContain("Saved.");
+  });
+
+  it("keeps the original confirmed save available as clearly unlinked work", async () => {
+    state.rpc.mcp_daily_report_save = { id: "d2", revision: 1, mapping_status: "unlinked" };
+    const { allocation_id: _allocation, ...work } = dailyOk.work[0];
+    const result = await handle(dailyReportSave, { ...dailyOk, work: [work], expected_revision: undefined, request_key: undefined });
+    expect(state.rpcs[0][0]).toBe("mcp_daily_report_save");
+    expect(result.content[0].text).toContain("unlinked to an approved mapping");
+    expect(result.structuredContent.mapping_status).toBe("unlinked");
+  });
+
+  it("requires confirmation to void and displays the preserved history", async () => {
+    const args = { job_number: "2701", report_date: "2026-10-21", expected_revision: 1, request_key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", reason: "incorrect entry", confirmed: false };
+    await expect(handle(dailyWorkVoid, args)).rejects.toThrow(/first/);
+    expect(state.rpcs).toEqual([]);
+    state.rpc.mcp_daily_work_void = { id: "d1", revision: 2, revision_id: "r2", replayed: false, is_current: true };
+    const result = await handle(dailyWorkVoid, { ...args, confirmed: true });
+    expect(result.content[0].text).toContain("Prior work, rates and photo associations remain");
+    expect(dailyPageHtml({ job_number: "2701", found: true, work_voided: true, lines: [] })).toContain("Work voided; prior revisions are retained.");
   });
 });
 

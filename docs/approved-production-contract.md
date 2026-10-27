@@ -44,14 +44,16 @@ references and production information their role may see.
    or change a credit change order or an invoice credit. Each new version retains
    the previously mapped SOV lines, and never updates allocations referenced by old facts.
 3. **Daily revisions:** the existing report remains the current projection. Before
-   any destructive replacement, transactionally capture the complete previous
-   report and its work/rate facts with original IDs; create a new immutable revision
-   with base revision, idempotency key, canonical payload hash, actor, recorded date,
-   and correction reason. Require a reason for a changed existing report. An exact
+   replacing its current projection, transactionally capture the complete previous
+   report and its work/rate facts with original IDs. Retire the current work/rate rows
+   without deleting or changing their recorded values, and append an immutable revision
+   with request payload, actor, recorded date and correction reason. Updated clients
+   provide a reason for a changed report; legacy saves record an unknown reason rather
+   than inventing one. An exact
    replay of the same key and payload returns the existing result; a reused key with
    different payload fails. Concurrent stale base revisions fail. Each new work line
-   pins an approved allocation and version valid for its report date; never silently
-   map existing historical facts. Rates remain the existing production-rate rows,
+   either pins an approved allocation and version valid for its report date, or is
+   explicitly unlinked; never silently map existing historical facts. Rates remain the existing production-rate rows,
    tied to the work revision; do not create a parallel rate ledger. A correction
    supersedes only its prior revision and keeps both available for audit.
 4. **Photo association:** associate an existing `mcp_progress_photos.id` with an
@@ -76,9 +78,13 @@ references and production information their role may see.
   effective_date, allocations, reason, idempotency_key)` atomically rechecks the
   sources and authority, records the approver, and returns the immutable version.
 - Extend the existing confirmed `daily_report_save` with expected revision,
-  idempotency key, correction reason and explicit allocation IDs. Existing reports
-  must remain readable; migration and compatibility need careful rollout. No caller
-  may bypass the mapping checks through the old signature.
+  idempotency key, correction reason and explicit allocation IDs for approved work.
+  Existing callers can save unlinked work through the original signature; they cannot
+  replace approved or voided work. Unlinked work is excluded from approved totals.
+- `daily_work_void` requires a reviewed revision, reason and confirmation. It voids
+  all work on the daily while retaining the report's other sections, history and photo
+  links. A later restore needs an explicit new revision and reason. Voiding the entire
+  report, including its other sections and reminder implications, is not implemented.
 - `production_photo_associate(project, photo_id, work_revision_line_id, idempotency_key)`
   records an explicit project-scoped association.
 - `weekly_production(project, from, to)` reads current revisions and approved
@@ -89,6 +95,35 @@ All mutation RPCs must be transactional, enforce the job guard themselves, and
 use consistent locking and unique constraints rather than relying only on the
 TypeScript preview. Test cross-project references and role access at the database
 boundary. Reconcile an uncertain result by idempotency key before retrying.
+
+## Compatibility and rollout
+
+1. After billing is accepted, reconcile the release branch and managed migration
+   history, confirm that `20261101120002` follows the accepted billing migration,
+   and rerun the checks against that exact combined head. Keep the PR in draft until
+   this succeeds and the parent coordinates the release.
+2. Apply the reviewed migration through the supported managed flow before the updated
+   MCP service. The original daily-save RPC remains available during that interval:
+   confirmed old-client saves are recorded as unlinked and history is retained. Existing
+   saved dailies and rates are not backfilled or changed by the migration. The updated
+   service explicitly explains unlinked work and offers approved references when they exist.
+3. Old clients may continue to save an unlinked daily, even on a project with an
+   approved mapping. They receive a clear refusal if they try to replace a daily that
+   already has approved references or to restore voided work; the updated workflow is
+   required for those intentional actions. Old callers do not supply an idempotency key
+   or correction reason: the compatibility path serializes saves, deduplicates identical
+   payloads, rejects a known older payload after a newer revision, and records its origin.
+   It cannot supply a reason or detect every stale old-client overwrite of an unlinked
+   daily. Updated callers use version checks and keys.
+4. Verify the existing Cedar Grove reports and 3.75/4 LF per person-hour rates by
+   read only, before and after rollout; never save or modify those fixtures. Use a
+   separate QA project for writes. Test an old-client unlinked save, an unmapped job,
+   an approved mapped correction, void/replay and existing field-board views, as well as
+   actual billing/cash non-mutation. Capture real app screenshots.
+5. If service rollback is necessary after mapped or voided work exists, retain the
+   migration and history. An older service cannot safely edit mapped or voided work
+   and may not label a void on its daily page; prefer a forward-compatible service fix.
+   Do not roll back or delete recorded history to restore the old write path.
 
 ## Required verification before release
 

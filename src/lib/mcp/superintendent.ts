@@ -322,7 +322,7 @@ export function assembleDaily(input: {
   return { ...draft, follow_ups, ready: follow_ups.length === 0 };
 }
 
-export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: boolean): string {
+export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: boolean, workVoided = false): string {
   const row = (label: string, value: string | null, alert = false) =>
     `${alert ? "DELAY — " : ""}${label}: ${value?.trim() || "Needed"}`;
   const lines = d.work.length
@@ -334,7 +334,7 @@ export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: 
         if (w.pct_complete != null) bits.push(`${w.pct_complete}% complete`);
         return `- ${bits.join(" · ")}`;
       })
-    : ["- Needed"];
+    : [workVoided ? "- Work voided; prior revisions are retained." : "- Needed"];
   const who = jobLabel.replace(/[\s·–—-]+$/g, "").trim();
   return [
     "REQUIRED: Show this daily as one phone-width card. Navy, blue and gray only. Red only on the delay line, and only when there is a delay.",
@@ -932,6 +932,7 @@ export function dailyPageHtml(p: {
   job_number?: string;
   job_name?: string;
   found?: boolean;
+  work_voided?: boolean;
   report_date?: string | null;
   weather?: string | null;
   manpower?: string | null;
@@ -962,7 +963,7 @@ export function dailyPageHtml(p: {
     block("Weather", p.weather),
     block("Manpower", p.manpower),
     block("Subs on site", p.subs_on_site),
-    work || card(`${label("Work performed")}${value("Needed")}`),
+    work || card(`${label("Work performed")}${value(p.work_voided ? "Work voided; prior revisions are retained." : "Needed")}`),
     block("Deliveries", p.deliveries),
     block("Issues", p.issues),
     block("Delays", p.delays, delay),

@@ -49,6 +49,10 @@ beforeAll(async () => {
     "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name) VALUES ($1,$2,$3,'TEST-P','TEST production')",
     [job, user("owner").id, company],
   );
+  await db.query(
+    "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name) VALUES ($1,$2,$3,'TEST-U','TEST unlinked')",
+    ["20000000-0000-4000-8000-000000000006", user("owner").id, company],
+  );
   await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES ($1,$2,$3)", [
     job,
     user("super").id,
@@ -70,6 +74,42 @@ beforeAll(async () => {
   ]);
 });
 describe("approved production MCP workflow", () => {
+  it("lets a project without any mapping save an explicitly unlinked daily", async () => {
+    const fields = {
+      job_number: "TEST-U",
+      report_date: "2026-10-26",
+      weather: "clear",
+      manpower: "crew",
+      subs_on_site: "none",
+      deliveries: "none",
+      issues: "none",
+      delays: "none",
+      safety: "none",
+      work: [
+        {
+          work: "TEST work",
+          sov_item: "26.04",
+          activity_id: "E090",
+          qty: 20,
+          unit: "LF",
+          crew: 2,
+          hours: 4,
+        },
+      ],
+    };
+    const draft = await call("owner", "daily_report_draft", fields);
+    expect(draft.isError, draft.text).toBe(false);
+    expect(draft.structured).toMatchObject({ ready: true, capture_mode: "legacy" });
+    const saved = await call("owner", "daily_report_save", {
+      ...fields,
+      confirmed: true,
+      capture_mode: "legacy",
+      expected_revision: draft.structured!.expected_revision,
+      request_key: draft.structured!.request_key,
+    });
+    expect(saved.isError, saved.text).toBe(false);
+    expect(saved.structured?.mapping_status).toBe("unlinked");
+  });
   it("reviews, approves and records work through the authenticated tools", async () => {
     const sources = await call("owner", "production_mapping_sources", { job_number: "TEST-P" });
     expect(sources.isError, sources.text).toBe(false);
@@ -194,7 +234,10 @@ describe("approved production MCP workflow", () => {
       report_date: "2026-10-26",
     });
     expect(got.isError, got.text).toBe(false);
-    const revision = got.structured!.revision as { lines: { revision_line_id: string }[] };
+    const revision = got.structured!.revision as {
+      revision: number;
+      lines: { revision_line_id: string }[];
+    };
     const photo = "20000000-0000-4000-8000-000000000005";
     await state.db!.query(
       "INSERT INTO mcp_progress_photos(id,job_id,company_id,taken_on,area,storage_path,mime_type,size_bytes) VALUES ($1,$2,$3,'2026-10-26','TEST','test/path','image/jpeg',1)",
@@ -207,5 +250,40 @@ describe("approved production MCP workflow", () => {
       request_key: got.structured!.photo_association_request_key,
     });
     expect(link.isError, link.text).toBe(false);
+    const voidArgs = {
+      job_number: "TEST-P",
+      report_date: "2026-10-26",
+      expected_revision: revision.revision,
+      request_key: got.structured!.void_request_key,
+      reason: "TEST wrong work",
+      confirmed: false,
+    };
+    expect((await call("super", "daily_work_void", voidArgs)).isError).toBe(true);
+    const voided = await call("super", "daily_work_void", { ...voidArgs, confirmed: true });
+    expect(voided.isError, voided.text).toBe(false);
+    const after = await call("super", "daily_report_get", {
+      job_number: "TEST-P",
+      report_date: "2026-10-26",
+    });
+    expect(after.isError, after.text).toBe(false);
+    expect(after.text).toContain("Work voided; prior revisions are retained.");
+    expect(
+      (
+        await state.db!.query(
+          "SELECT * FROM mcp_production_photo_links WHERE revision_line_id=$1",
+          [revision.lines[0].revision_line_id],
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect((await call("super", "daily_report_save", { ...fields, confirmed: true })).isError).toBe(
+      true,
+    );
+    const oldFields = { ...fields, report_date: "2026-11-03", confirmed: true };
+    const oldSave = await call("super", "daily_report_save", oldFields);
+    expect(oldSave.isError, oldSave.text).toBe(false);
+    expect(oldSave.structured?.mapping_status).toBe("unlinked");
+    const oldRepeat = await call("super", "daily_report_save", oldFields);
+    expect(oldRepeat.isError, oldRepeat.text).toBe(false);
+    expect(oldRepeat.structured?.revision).toBe(oldSave.structured?.revision);
   });
 });
