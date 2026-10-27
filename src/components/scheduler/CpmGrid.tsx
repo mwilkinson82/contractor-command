@@ -3,8 +3,10 @@ import type {
   Annotation,
   ProjectCalendar,
   ScheduleResult,
-  ScheduledTask,
 } from "@/lib/scheduler/types";
+
+import type { WbsNode } from "@/lib/scheduler/structure.functions";
+import { buildCpmRows, cpmProgress, CPM_ACTUAL, CPM_REMAINING, CPM_CRITICAL } from "./cpm-presentation";
 
 export type GroupByMode = "wbs" | "critical" | "none";
 
@@ -20,7 +22,9 @@ interface Props {
   calendar?: ProjectCalendar;
   annotations?: Annotation[];
   groupBy?: GroupByMode;
-  /** Tasks with totalFloat in (0, nearCriticalFloat] render in amber. 0 disables. */
+  wbsNodes?: WbsNode[];
+  showLogicLines?: boolean;
+  /** Highlight total float in amber up to this threshold. */
   nearCriticalFloat?: number;
   onTaskReschedule?: (
     taskId: string,
@@ -36,7 +40,6 @@ interface Props {
 const ROW_H = 19;
 const GROUP_H = 17;
 const HEADER_H = 30; // year band + month band
-const UNASSIGNED = "Unassigned";
 /** Fixed sticky-table widths (sum of <colgroup> col widths other than the name column). */
 const STICKY_FIXED_WIDTH = 72 + 36 + 36 + 36 + 44 + 80 + 80 + 44;
 const DEFAULT_NAME_COL_WIDTH = 240;
@@ -101,6 +104,8 @@ export function CpmGrid({
   calendar,
   annotations,
   groupBy = "wbs",
+  wbsNodes,
+  showLogicLines = true,
   nearCriticalFloat = 0,
   onTaskReschedule,
   onCreateDependency,
@@ -130,62 +135,11 @@ export function CpmGrid({
     hoverTargetId: string | null;
   } | null>(null);
 
-  // Group tasks by WBS, ordered by ES
-  const { rows, baselineMap } = useMemo(() => {
-    const map = new Map<string, ScheduledTask[]>();
-    const keyFor = (t: ScheduledTask): string => {
-      if (groupBy === "none") return "All activities";
-      if (groupBy === "critical") return t.isCritical ? "Critical path" : "Non-critical";
-      return t.wbs?.trim() || UNASSIGNED;
-    };
-    for (const t of result.tasks) {
-      const key = keyFor(t);
-      const arr = map.get(key) ?? [];
-      arr.push(t);
-
-      map.set(key, arr);
-    }
-    const groups = Array.from(map.entries())
-      .map(([key, tasks]) => ({
-        key,
-        tasks: tasks.slice().sort((a, b) => a.earlyStart - b.earlyStart),
-        minES: Math.min(...tasks.map((t) => t.earlyStart)),
-        maxEF: Math.max(...tasks.map((t) => t.earlyFinish)),
-        anyCritical: tasks.some((t) => t.isCritical),
-        collapsed: collapsedGroups?.has(key) ?? false,
-      }))
-      .sort((a, b) => a.minES - b.minES || a.key.localeCompare(b.key));
-
-    type Row =
-      | {
-          kind: "group";
-          key: string;
-          minES: number;
-          maxEF: number;
-          anyCritical: boolean;
-          collapsed: boolean;
-          taskCount: number;
-        }
-      | { kind: "task"; task: ScheduledTask };
-    const rows: Row[] = [];
-    for (const g of groups) {
-      rows.push({
-        kind: "group",
-        key: g.key,
-        minES: g.minES,
-        maxEF: g.maxEF,
-        anyCritical: g.anyCritical,
-        collapsed: g.collapsed,
-        taskCount: g.tasks.length,
-      });
-      if (!g.collapsed) for (const t of g.tasks) rows.push({ kind: "task", task: t });
-    }
-
-    const baselineMap = new Map<string, ScheduledTask>();
-    if (baseline) for (const b of baseline.tasks) baselineMap.set(b.id, b);
-
-    return { rows, baselineMap };
-  }, [result.tasks, collapsedGroups, baseline, groupBy]);
+  const rows = useMemo(
+    () => buildCpmRows(result.tasks, groupBy, wbsNodes ?? [], collapsedGroups),
+    [result.tasks, groupBy, wbsNodes, collapsedGroups],
+  );
+  const baselineMap = useMemo(() => new Map((baseline?.tasks ?? []).map(t => [t.id, t])), [baseline]);
 
   // Build header bands from working-day → calendar mapping
   const workingDates = useMemo(
@@ -416,11 +370,11 @@ export function CpmGrid({
                       style={{ height: GROUP_H }}
                       onClick={() => onToggleGroup?.(row.key)}
                     >
-                      <td colSpan={9} className="border-b border-[var(--sched-surface-rule)] px-2">
+                      <td colSpan={9} className="border-b border-[var(--sched-surface-rule)] px-2" style={{ paddingLeft: 8 + row.depth * 16 }}>
                         <span className="mr-1.5 inline-block w-3 text-center text-[10px] text-[var(--sched-graphite)]">
                           {row.collapsed ? "▸" : "▾"}
                         </span>
-                        <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--sched-graphite)]">{row.key}</span>
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--sched-graphite)]">{row.label}</span>
                         <span className="ml-2 text-[10px] font-normal text-[var(--sched-graphite)]">
                           · {row.taskCount}
                         </span>
@@ -431,7 +385,7 @@ export function CpmGrid({
                 const t = row.task;
                 const isSelected = selectedId === t.id;
                 const isMilestone = t.duration === 0;
-                const pct = Math.max(0, Math.min(100, t.percentComplete ?? 0));
+                const pct = cpmProgress(t.percentComplete);
                 const remaining = Math.max(0, Math.ceil(t.duration * (1 - pct / 100)));
                 const actual = Math.max(0, t.duration - remaining);
                 return (
@@ -450,7 +404,7 @@ export function CpmGrid({
                       className={`truncate border-r border-[var(--sched-surface-rule-soft)] px-2 pl-3 text-[var(--sched-graphite-strong)] ${
                         t.isCritical ? "font-semibold" : ""
                       }`}
-                      style={{ maxWidth: 240 }}
+                      style={{ maxWidth: nameColWidth, paddingLeft: 12 + Math.max(0, row.depth - 1) * 16 }}
                       title={t.name}
                     >
                       {isMilestone ? <span className="mr-1 text-[var(--sched-brass-deep)]">◆</span> : null}
@@ -611,7 +565,7 @@ export function CpmGrid({
                       y={y + rowH / 2 - 1}
                       width={w}
                       height={2}
-                      fill={row.anyCritical ? "var(--sched-critical)" : "var(--sched-graphite)"}
+                      fill="var(--sched-graphite)"
                       opacity={0.6}
                     />
                   </g>
@@ -624,13 +578,8 @@ export function CpmGrid({
               const isMilestone = t.duration === 0;
               const x = t.earlyStart * dayPx;
               const w = Math.max(t.duration * dayPx, 2);
-              const isNearCritical =
-                !t.isCritical && nearCriticalFloat > 0 && t.totalFloat > 0 && t.totalFloat <= nearCriticalFloat;
-              const fill = t.isCritical
-                ? "var(--sched-critical)"
-                : isNearCritical
-                  ? "var(--sched-near-critical)"
-                  : "var(--sched-graphite-strong)";
+              const pct = cpmProgress(t.percentComplete);
+              const fill = pct >= 100 ? CPM_ACTUAL : t.isCritical ? CPM_CRITICAL : CPM_REMAINING;
               const baselineT = baselineMap.get(t.id);
               const slipped = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
 
@@ -717,23 +666,15 @@ export function CpmGrid({
                         height={rowH - 7}
                         rx={0}
                         fill={fill}
-                        stroke={isSelected ? "var(--sched-graphite-strong)" : t.isCritical ? "var(--sched-critical)" : "rgba(31,36,31,0.22)"}
+                        stroke={isSelected ? "var(--sched-graphite-strong)" : "rgba(31,36,31,0.22)"}
                         strokeWidth={isSelected ? 1.5 : 0.5}
                         style={{ cursor: onTaskReschedule ? "grab" : "pointer" }}
                         onPointerDown={(e) => beginDrag(e, t.id, "move")}
                       />
-                      {/* progress overlay (darker fill from left) */}
-                      {t.percentComplete && t.percentComplete > 0 ? (
-                        <rect
-                          x={x}
-                          y={y + 3}
-                          width={Math.max((w * (t.percentComplete ?? 0)) / 100, 1)}
-                          height={rowH - 7}
-                          rx={0}
-                          fill="var(--sched-graphite-strong)"
-                          opacity={0.55}
-                          pointerEvents="none"
-                        />
+                      {/* Progress is the recorded percentage, independent of the data-date marker. */}
+                      {pct > 0 && pct < 100 ? (
+                        <rect x={x} y={y + 3} width={w * pct / 100} height={rowH - 7}
+                          fill={CPM_ACTUAL} pointerEvents="none" />
                       ) : null}
                       {/* resize handle */}
                       {onTaskReschedule ? (
@@ -840,7 +781,7 @@ export function CpmGrid({
             })}
 
             {/* ============ Relationship lines (FS/SS/FF/SF) ============ */}
-            {(() => {
+            {showLogicLines && (() => {
               const taskRowIdx = new Map<string, number>();
               rows.forEach((r, i) => {
                 if (r.kind === "task") taskRowIdx.set(r.task.id, i);
@@ -1087,7 +1028,7 @@ export function CpmGrid({
         if (!t) return null;
         const baselineT = baselineMap.get(t.id);
         const slip = baselineT ? t.earlyFinish - baselineT.earlyFinish : 0;
-        const pct = Math.max(0, Math.min(100, t.percentComplete ?? 0));
+        const pct = cpmProgress(t.percentComplete);
         const remaining = Math.max(0, Math.ceil(t.duration * (1 - pct / 100)));
         const isMs = t.duration === 0;
         const flipLeft = scrollRef.current
@@ -1103,17 +1044,7 @@ export function CpmGrid({
             }}
           >
             <div className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-2 w-2 rounded-full ${
-                  pct >= 100
-                    ? "bg-[var(--sched-validated)]"
-                    : t.isCritical
-                      ? "bg-[var(--sched-critical)]"
-                      : pct > 0
-                        ? "bg-[var(--sched-graphite-strong)]"
-                        : "bg-[var(--sched-graphite-soft)]"
-                }`}
-              />
+              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: pct > 0 ? CPM_ACTUAL : t.isCritical ? CPM_CRITICAL : CPM_REMAINING }} />
               <span className="font-mono text-[10px] text-[var(--sched-graphite)]">{t.id}</span>
               {isMs ? (
                 <span className="rounded bg-[var(--sched-surface-rule-soft)] px-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--sched-graphite)]">
@@ -1152,14 +1083,8 @@ export function CpmGrid({
 
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[var(--sched-surface-rule-soft)]">
               <div
-                className={`h-full ${
-                  pct >= 100
-                    ? "bg-[var(--sched-validated)]"
-                    : t.isCritical
-                      ? "bg-[var(--sched-critical)]"
-                      : "bg-[var(--sched-graphite-strong)]"
-                }`}
-                style={{ width: `${pct}%` }}
+                className="h-full"
+                style={{ width: `${pct}%`, backgroundColor: CPM_ACTUAL }}
               />
             </div>
 
