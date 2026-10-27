@@ -3,6 +3,7 @@ import "./widget-bridge";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_VERSION } from "./server-info-branding";
 import { ATHENA_ROUTE_LINE, GREETING_RULE } from "./greeting";
+import { PROJECT_HOME_ROUTE_RULE } from "./board-url";
 import { EMAIL_DRAFT_ONLY_RULE } from "./email-safety";
 import { REFUSAL_RULE, secureTool } from "./security";
 import { emailConfirmSend, emailDraft } from "./tools/email-tools";
@@ -86,6 +87,7 @@ export default defineMcp({
   instructions:
     REFUSAL_RULE +
     PRIVATE_CHAT_SHARE_RULE +
+    PROJECT_HOME_ROUTE_RULE +
     " Athena powered by ALP, construction agents. " +
     GREETING_RULE +
     " " +

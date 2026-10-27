@@ -53,10 +53,45 @@ describe("published Athena entry routing contract", () => {
     expect(result.instructions).not.toContain("Athena at the start or mid-sentence");
     expect(result.instructions).not.toContain("call athena_hello or morning_brief");
   });
+  it("publishes project-home routing before greeting rules and keeps explicit items distinct", async () => {
+    const initialized = await rpc("initialize", 3, {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "project-board-test", version: "1" },
+    });
+    expect(initialized.instructions).toContain(
+      'For "open the project board", "open the job board", project home, or a job dashboard, call report_page_link with page "home"',
+    );
+    expect(initialized.instructions).toContain(
+      'Use page "items" or list_open_items only for an explicit open-items request',
+    );
+    expect(initialized.instructions.indexOf('For "open the project board"')).toBeLessThan(
+      initialized.instructions.indexOf("Welcome back. Athena is ready."),
+    );
+    const discovered = await rpc("tools/list", 4);
+    const board = discovered.tools.find(
+      (tool: { name: string }) => tool.name === "report_page_link",
+    );
+    expect(board.description).toContain(
+      'project board, job board, project home, or job dashboard with page "home"',
+    );
+    expect(board.inputSchema.properties.page.default).toBe("home");
+    expect(board.inputSchema.required ?? []).not.toContain("page");
+    const items = discovered.tools.find(
+      (tool: { name: string }) => tool.name === "list_open_items",
+    );
+    expect(items.description).toContain('use report_page_link with page "home" instead');
+  });
   it("keeps discovery descriptions identical to the committed manifest", async () => {
     const result = await rpc("tools/list", 2);
     const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8"));
-    for (const name of ["getting_started", "athena_hello", "morning_brief"]) {
+    for (const name of [
+      "getting_started",
+      "athena_hello",
+      "morning_brief",
+      "report_page_link",
+      "list_open_items",
+    ]) {
       const live = result.tools.find((tool: { name: string }) => tool.name === name);
       expect(live.annotations.readOnlyHint).toBe(true);
       expect(

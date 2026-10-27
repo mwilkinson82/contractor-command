@@ -49,6 +49,47 @@ const sched = { page: "schedule" as const, job_number: "2701", job_name: "Harbor
 beforeEach(() => { state.scope = "full"; state.leader = true; state.rpcs = []; state.revoke = null; });
 
 describe("0.8.14 report_page_link", () => {
+  it.each([
+    undefined,
+    "board",
+    "job board",
+    "project board",
+    "home",
+    "project home",
+    "dashboard",
+    "job dashboard",
+    "project_dashboard",
+  ])("opens a signed project home for generic navigation: %s", async (page) => {
+    const result = await call(reportPageLink, {
+      ...(page ? { page } : {}),
+      job_number: "2701",
+    });
+    expect(result.structuredContent.page).toBe("home");
+    expect(String(result.structuredContent.url)).toMatch(/\/home\?t=/);
+    expect(result.structuredContent.card).toMatchObject({
+      title: "Project home",
+    });
+    expect(result.content[0].text).not.toContain("Open items");
+    expect(jobLinksMissingToken(result)).toEqual([]);
+  });
+  it.each(["items", "open items", "items board", "open items board"])(
+    "preserves explicit open-items navigation: %s",
+    async (page) => {
+      const result = await call(reportPageLink, { page, job_number: "2701" });
+      expect(result.structuredContent.page).toBe("items");
+      expect(String(result.structuredContent.url)).toMatch(/\/items\?t=/);
+      expect(result.structuredContent.card).toMatchObject({
+        title: "Open items",
+      });
+    },
+  );
+  it("requires a job for default-home navigation and still rejects an unknown page", async () => {
+    await expect(call(reportPageLink, {})).rejects.toThrow("Which job?");
+    await expect(
+      call(reportPageLink, { page: "unknown page", job_number: "2701" }),
+    ).rejects.toThrow("Which page? home");
+    expect(state.rpcs).toEqual([]);
+  });
   it("returns the private meetathena page for the job, and says it's private", async () => {
     const r = await call(reportPageLink, { page: "schedule", job_number: "2701" });
     expect(String(r.structuredContent.url)).toMatch(new RegExp(`^https://app\\.meetathena\\.io/r/job/${JOB}/schedule\\?t=`));
