@@ -6,6 +6,8 @@ import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 
 const owner = "00000000-0000-4000-8000-000000000091";
 const outsider = "00000000-0000-4000-8000-000000000092";
+const superintendent = "00000000-0000-4000-8000-000000000096";
+const estimator = "00000000-0000-4000-8000-000000000097";
 const company = "00000000-0000-4000-8000-000000000093";
 const job = "00000000-0000-4000-8000-000000000094";
 const otherJob = "00000000-0000-4000-8000-000000000095";
@@ -50,7 +52,7 @@ const invoice = (extra: Record<string, unknown> = {}) => ({
 });
 beforeAll(async () => {
   db = await makeDb();
-  for (const user of [owner, outsider]) {
+  for (const user of [owner, outsider, superintendent, estimator]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
       `${user.slice(-2)}@example.com`,
@@ -65,6 +67,15 @@ beforeAll(async () => {
     "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'owner','QA Owner')",
     [company, owner],
   );
+  for (const [user, role] of [
+    [superintendent, "super"],
+    [estimator, "estimating"],
+  ]) {
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,$3,'QA Member')",
+      [company, user, role],
+    );
+  }
   await db.query(
     "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone) VALUES($1,$2,$3,'2701','Synthetic Job','America/Chicago')",
     [job, owner, company],
@@ -73,8 +84,13 @@ beforeAll(async () => {
     "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone) VALUES($1,$2,$3,'2702','Other synthetic job','America/Chicago')",
     [otherJob, owner, company],
   );
+  await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES($1,$2,$3)", [
+    job,
+    superintendent,
+    owner,
+  ]);
   await db.exec(
-    readFileSync("supabase/migrations/20261027215632_athena_project_billing_evidence.sql", "utf8"),
+    readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"),
   );
 });
 afterAll(async () => {
@@ -256,5 +272,83 @@ describe("project billing evidence", () => {
         reason: "Downgrade",
       }),
     ).rejects.toThrow(/transition/);
+  });
+  it("rolls back failed operations and permits a corrected retry without partial records", async () => {
+    const p = invoice({ gross_cents: 1.5 });
+    await expect(record("invoice", p)).rejects.toThrow(/integer USD cents/);
+    const rows = await db.query("SELECT id FROM mcp_billing_invoices WHERE id=$1", [p.id]);
+    expect(rows.rows).toHaveLength(0);
+    const operation = await db.query(
+      "SELECT request_id FROM mcp_billing_operations WHERE job_id=$1 AND request_id=$2",
+      [job, p.request_id],
+    );
+    expect(operation.rows).toHaveLength(0);
+    expect((await record("invoice", { ...p, gross_cents: 100000 })).version).toBe(1);
+  });
+  it("denies assigned superintendents, estimating, and inactive owners for reads and writes", async () => {
+    for (const user of [superintendent, estimator]) {
+      await expect(get(user)).rejects.toThrow();
+      await expect(record("invoice", invoice(), user)).rejects.toThrow();
+    }
+    await db.query("DELETE FROM test_active_members WHERE user_id=$1", [owner]);
+    await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    try {
+      await expect(get(owner)).rejects.toThrow();
+      await expect(record("invoice", invoice(), owner)).rejects.toThrow();
+    } finally {
+      await db.query("INSERT INTO test_active_members VALUES($1)", [owner]);
+      await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    }
+  });
+  it("marks the gated reader volatile so PostgREST uses a writable transaction", async () => {
+    const r = await db.query(
+      "SELECT provolatile FROM pg_proc WHERE oid='public.mcp_billing_evidence_get(uuid)'::regprocedure",
+    );
+    expect(r.rows[0].provolatile).toBe("v");
+  });
+  it("rejects duplicate document identities, missing amounts, and cross-project credit references", async () => {
+    const p = invoice({ document_number: "Pay App Unique" });
+    await record("invoice", p);
+    await expect(
+      record("invoice", invoice({ document_number: " PAY APP UNIQUE " })),
+    ).rejects.toThrow();
+    await expect(record("invoice", invoice({ gross_cents: null }))).rejects.toThrow(
+      /integer USD cents/,
+    );
+    const foreign = invoice();
+    await query("SELECT public.mcp_billing_evidence_record($1,$2,$3::jsonb)", [
+      otherJob,
+      "invoice",
+      JSON.stringify(foreign),
+    ]);
+    await expect(
+      record("invoice", invoice({ kind: "credit", credit_for: foreign.id })),
+    ).rejects.toThrow(/invoice this credit references/);
+  });
+  it("does not grant direct member access to evidence tables or operations", async () => {
+    for (const table of [
+      "mcp_billing_invoices",
+      "mcp_billing_invoice_versions",
+      "mcp_billing_receipts",
+      "mcp_billing_allocations",
+      "mcp_billing_operations",
+    ]) {
+      await expect(query(`SELECT * FROM public.${table}`)).rejects.toThrow(/permission denied/);
+      await expect(query(`DELETE FROM public.${table}`)).rejects.toThrow(/permission denied/);
+    }
+  });
+  it("prevents request ID reuse by a different authorized actor", async () => {
+    const otherOwner = crypto.randomUUID();
+    await db.query("INSERT INTO auth.users(id,email) VALUES($1,'other-owner@example.com')", [
+      otherOwner,
+    ]);
+    await db.query("INSERT INTO test_active_members VALUES($1)", [otherOwner]);
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'owner','Other owner')",
+      [company, otherOwner],
+    );
+    const p = invoice();
+    await record("invoice", p);
+    await expect(record("invoice", p, otherOwner)).rejects.toThrow(/different content/);
   });
 });

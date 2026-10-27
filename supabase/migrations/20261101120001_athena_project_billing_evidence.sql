@@ -59,7 +59,8 @@ REVOKE ALL ON public.mcp_billing_invoices, public.mcp_billing_invoice_versions, 
 GRANT ALL ON public.mcp_billing_invoices, public.mcp_billing_invoice_versions, public.mcp_billing_receipts, public.mcp_billing_allocations, public.mcp_billing_operations TO service_role;
 
 CREATE FUNCTION public.mcp_billing_evidence_get(_job uuid) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
+-- The active-member gate can write its cache/sync; PostgREST must use a writable transaction.
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE invoices jsonb; receipts jsonb; allocations jsonb;
 BEGIN
  PERFORM public.mcp_assert_active();
