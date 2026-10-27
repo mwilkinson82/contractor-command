@@ -128,6 +128,7 @@ export const RENDER_SILENT =
 /** How every result is drawn. Render instructions only; no internal-guidance label. */
 export const HOST_DISPLAY_BLOCK = [
   RENDER_SILENT,
+  "- Chat text: use plain headings and status words, without decorative colored-circle emoji. Keep Overdue, Risk, Delay and Unknown labels, counts, links and numeric progress. Preserve meaningful chart colors, CPM diamonds and UI controls; do not change quoted source text.",
   "- Athena supplies the data; you do all the formatting. Never say Athena built, drew or rendered anything.",
   "- Contract and notice terms: show only the Athena card, with no prose before or after it. One card per clause: section number and heading, days, and who it goes to, then the exact clause text word for word. Section numbers first, wording unchanged. Ordinary clauses are white cards. A risk clause, including liquidated damages, a delay notice, a claim notice, and any other risk, is a red card with a full red border and a red header, not only an icon. Incomplete terms sit in the Incomplete terms section of that card. The summary question is already the card action. Do not add it again and do not add an Incomplete terms line after the card. Summarize only if they say yes.",
   "- Nothing before or after the clause card: no preview, no summary, no \"tightest clock\" or \"key deadline\" line, and no trailing question. The offer wording is exact; don't reword, shorten or add to it.",

@@ -66,14 +66,15 @@ describe("palette", () => {
     expect(renderMarkdown(quiet)).toContain("What I have so far");
   });
 
-  it("puts red only on delay, risk, or overdue", () => {
+  it("keeps HTML alert red and uses status words in chat text", () => {
     const html = renderHtml(loud);
     const md = renderMarkdown(loud);
     expect(paletteViolations(html, true)).toEqual([]);
     expect(paletteViolations(md, true)).toEqual([]);
     expect(html).toContain('data-alert="risk"');
     expect(html).toContain(ALERT);
-    expect(md).toContain("🔴");
+    expect(md).toContain("Risk: Liquidated damages");
+    expect(md).not.toMatch(/[🔵🔴⚪]/u);
   });
 
   it("keeps the card sources on the palette", () => {

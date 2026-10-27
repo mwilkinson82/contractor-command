@@ -214,20 +214,23 @@ describe("delay notices render red", () => {
     for (const shown of [delay, linked]) {
       expect(shown.html).toContain('data-alert="delay"');
       expect(shown.html).toContain("#DC2626");
-      expect(shown.markdown).toContain("🔴");
+      expect(shown.markdown).toContain("Delay:");
+      expect(shown.markdown).not.toMatch(/[🔵🔴⚪]/u);
       expect(shown.widget).toContain('data-alert="delay"');
       expect(paletteViolations(shown.html, true)).toEqual([]);
     }
     expect(ordinary.html).toContain("#1E5FED");
     expect(ordinary.html).not.toContain("#DC2626");
     expect(ordinary.html).not.toContain("data-alert=");
-    expect(ordinary.markdown).toContain("🔵");
+    expect(ordinary.markdown).toContain("Confirm the conduit");
+    expect(ordinary.markdown).not.toMatch(/[🔵🔴⚪]/u);
     expect(ordinary.markdown).not.toContain("🔴");
     expect(ordinary.widget).not.toContain("data-alert=");
     expect(paletteViolations(ordinary.html, false)).toEqual([]);
     expect(overdue.html).toContain('data-alert="overdue"');
     expect(overdue.html).toContain("#DC2626");
-    expect(overdue.markdown).toContain("🔴");
+    expect(overdue.markdown).toContain("Overdue:");
+    expect(overdue.markdown).not.toMatch(/[🔵🔴⚪]/u);
     expect(overdue.widget).toContain('data-alert="overdue"');
     expect(paletteViolations(overdue.html, true)).toEqual([]);
 

@@ -24,6 +24,10 @@ describe("host-display block", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/one plain-English caveat/);
     expect(HOST_DISPLAY_BLOCK).toMatch(/Never publish, share or create a public link/);
     expect(HOST_DISPLAY_BLOCK).not.toMatch(/lovable/i);
+    expect(HOST_DISPLAY_BLOCK).toContain("without decorative colored-circle emoji");
+    expect(HOST_DISPLAY_BLOCK).toContain(
+      "Preserve meaningful chart colors, CPM diamonds and UI controls",
+    );
   });
   it("one blue accent for charts, KPIs and the action item; no orange, red or amber", () => {
     expect(HOST_DISPLAY_BLOCK).toMatch(/Charts, bars and KPI numbers use blue #2563EB/);

@@ -156,15 +156,15 @@ describe("normal lookahead read", () => {
         expect(body).toContain(`Fictional construction item ${i}`);
       }
       for (let i = 1; i <= 3; i++) expect(body).toContain(`Job obligation ${i}`);
-      expect(body).toContain("## 🔵 14-day lookahead");
+      expect(body).toContain("## 14-day lookahead");
       expect(body).toContain("**2701 – Fictional Job**");
       expect(body).toContain("Window: Oct 26 to Nov 6, Rev 2. Data date is Oct 19 (CPM v3).");
-      expect(body).toContain("**6 saved items · 4 open · 🔴 3 overdue on the job**");
+      expect(body).toContain("**6 saved items · 4 open · 3 overdue on the job**");
       expect(body).toContain("due Oct 14");
       expect(body).toContain("due Oct 16");
       expect(body).toContain("due Oct 21");
       expect(body).toContain("✅ Resolved:");
-      const headings = ["### 🔴 Overdue", "### Coming up", "### 🔴 Delay / risk notices", "### Schedule in this window"];
+      const headings = ["### Overdue", "### Coming up", "### Delay / risk notices", "### Schedule in this window"];
       let at = -1;
       for (const heading of headings) {
         const next = body.indexOf(heading);
@@ -172,7 +172,7 @@ describe("normal lookahead read", () => {
         at = next;
       }
       expect(body.indexOf("### Due within 7 days")).toBe(-1);
-      expect(body.slice(body.indexOf("### Coming up"), body.indexOf("### 🔴 Delay / risk notices"))).not.toContain("🔴");
+      expect(body.slice(body.indexOf("### Coming up"), body.indexOf("### Delay / risk notices"))).not.toContain("🔴");
       expect(body).not.toMatch(/^\s*\|/m);
       expect(returned.structuredContent.activities).toHaveLength(6);
       expect(returned.structuredContent.items).toHaveLength(6);
