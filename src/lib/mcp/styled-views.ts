@@ -107,6 +107,20 @@ export type DelayInfo = {
   line: string;
 };
 
+/** Only a saved delay result that names an existing activity identifies a delay bar. */
+export function identifiedDelayActivityId(data: Record<string, unknown> | null | undefined): string | null {
+  if (!data) return null;
+  const analysis = data.delay_analysis && typeof data.delay_analysis === "object" ? data.delay_analysis as Record<string, unknown> : null;
+  const tia = data.tia && typeof data.tia === "object" ? data.tia as Record<string, unknown> : null;
+  const ids = [analysis?.fragnet, tia?.fragnet, tia?.fragment]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+  const unique = [...new Set(ids)];
+  if (unique.length !== 1) return null;
+  const activities = Array.isArray(data.activities) ? data.activities : [];
+  return activities.some((a) => a && typeof a === "object" && (a as { id?: unknown }).id === unique[0]) ? unique[0] : null;
+}
+
 /**
  * Reads the delay result however it was saved. v3 of job 2701 saved it as data.delay_analysis
  * ({fragnet, delay_workdays, completion_impact_workdays, ...}); cpm_activities only read data.tia, so no delay line showed.

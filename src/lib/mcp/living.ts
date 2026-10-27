@@ -493,7 +493,7 @@ export function activityLine(a: Activity, showMoney: boolean, holidays?: string[
     ganttBarNote(a, holidays),
     `after ${logicText(a.predecessors)}`,
     `float ${a.total_float ?? "Needed"}${a.critical ? " (critical)" : ""}`,
-    `${a.pct_complete ?? 0}% complete`,
+    a.pct_complete == null ? "Progress Needed" : `${a.pct_complete}% complete`,
   ];
   if (showMoney)
     parts.push(
@@ -516,18 +516,18 @@ export const CPM_REQUIRED_TOP = [
 /** Delay callout color: the shared alert color (alert-color.ts), so the Gantt and the server instructions never conflict. */
 export const DELAY_CALLOUT_COLOR = ALERT_COLOR;
 
-/** v0.8.10: full Gantt spec, sent right after the Tie line so every host draws the same view. Blue and gray only, except the delay callout (DELAY_CALLOUT_COLOR). */
+/** Presentation instructions for the host-rendered schedule, using only saved values. */
 export const CPM_GANTT_SPEC: string[] = [
   "REQUIRED VIEW: When the user asks to see, show, draw or update the schedule, build ONE styled Gantt as an artifact or canvas, never a plain list or a default chart. Spec:",
   "1. Header: the job name and version, the data date, then the Count check line and the Tie line word for word, then \"Contract completion: <date>\".",
-  "2. Layout: a white background, the activity table on the left (ID, Name, Dur WD, Start, Finish, Float, $), and a timeline on the right with month columns and week ticks.",
-  "3. Bars: each bar starts at the activity's Start date and ends at its Finish date, both inclusive. Never stretch a bar to the chart edge or the contract completion line. Critical activities (float 0) are solid blue #1E5FED with no tail. Use #1E5FED, the Athena mark; don't use #2563EB. Non-critical activities are gray #9CA3AF, followed by a light-gray float tail that starts the day after Finish and is exactly Float working days long. Milestones (0 WD) are diamonds with no bar. Owner-furnished activities are outlined gray bars from Start to Finish.",
-  "4. Logic: thin predecessor connector lines, and the critical path highlighted end to end.",
-  "5. Today line: a dashed vertical line at the data date (or today if the data date is Needed), labeled.",
+  "2. Layout: a white background, readable activity table on the left (ID, Name, Dur WD, Start, Finish, Float, $), and timeline on the right with month columns and week ticks. Display only existing WBS parent/child structure when supplied in saved data; otherwise keep the activities flat and do not invent groups.",
+  "3. Bars: each bar starts at the activity's Start date and ends at its Finish date, both inclusive. Never stretch a bar to the chart edge or the contract completion line. Show the saved percent complete in blue #2563EB as the actual portion, and the remaining portion in green #16834A for noncritical or red #C12D2D for critical activities. At 0% the whole bar is remaining; at 100% it is blue. Split by the reported percentage, never by the data date. If progress or criticality is unknown, label it Needed and do not invent a color classification. Milestones (0 WD) are diamonds; preserve owner-furnished identification and float tails.",
+  "4. Logic: thin predecessor connector lines, and the critical path highlighted end to end. Provide an on/off control for logic lines, initially on.",
+  "5. Data date: a dashed vertical line at the saved data date; if Needed, show today and label it Today. The line does not determine reported progress.",
   "6. Contract completion: a dashed vertical line labeled with the saved date.",
-  `7. Delay fragnets (only when a delay result exists): a hatched bar labeled \"Fragnet\", plus a ${DELAY_CALLOUT_COLOR} callout reading \"Delay: +X WD (Y CD)\", always both units: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = \"Delay: +15 WD (21 CD)\"), taken from the saved activities and delay result. Draw baseline ghost bars only for activities whose saved baseline Start/Finish appears in the data; if no baseline dates are given, draw none.`,
-  "8. Legend under the chart: Critical, Non-critical, Float, Milestone, Owner-furnished, Fragnet, Today.",
-  `9. Order rows by start date, keep IDs exactly as given and show all activities. All other colors are blue and gray only; ordinary callouts use navy text with a blue #1E5FED line; red callouts are only for delays, risks and overdue items. No technical notes; one caveat line at most.`,
+  `7. Delay fragnets (only for an activity explicitly identified by a saved delay result): use red hatching on its remaining portion and label it with its saved activity name and duration. Include a ${DELAY_CALLOUT_COLOR} callout reading "Delay: +X WD (Y CD)", always both units when known: X = the fragnet duration in working days on the job calendar, Y = calendar days from the fragnet start to its finish, counting both days (e.g. 15 WD Nov 27 to Dec 17 = "Delay: +15 WD (21 CD)"). Do not infer hatching from activity names or IDs. Draw baseline ghost bars only for activities whose saved baseline Start/Finish appears in the data; if no baseline dates are given, draw none.`,
+  "8. Legend under the chart: Actual progress, Remaining noncritical, Remaining critical, Float, Milestone, Owner-furnished, Delay fragnet, Data date or Today.",
+  "9. Show all activities, preserve IDs and saved order within any existing WBS, and keep typography, labels and spacing readable. No technical notes; one caveat line at most.",
 ];
 
 
