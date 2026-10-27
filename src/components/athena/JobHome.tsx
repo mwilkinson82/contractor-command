@@ -178,7 +178,12 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       ? [
           { title: "Change orders", detail: "View saved log", page: "cos" },
           {
-            title: "Payment and billing",
+            title: "Billing and payment records",
+            detail: "View recorded invoices and receipts",
+            page: "billing-records",
+          },
+          {
+            title: "Billing forecast",
             detail: state(
               billing,
               billing.data?.page === "payapp" && billing.data.report?.found
