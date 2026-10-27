@@ -106,6 +106,9 @@ export function dedupeKey(it: { id: string; action: string; check_key?: string |
   if (it.check_key && /^pm:/.test(it.check_key)) return it.check_key;
   const meeting = meetingItem(it.action);
   if (meeting) return meeting.key;
+  // Manual records have distinct identities even when their short action is
+  // identical. Their owners, deadlines and evidence can be different.
+  if (it.check_key?.startsWith("manual:")) return `manual:${it.id}`;
   const norm = actionKey(it.action);
   return norm ? `action:${norm}` : `id:${it.id}`;
 }

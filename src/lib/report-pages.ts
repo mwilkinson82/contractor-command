@@ -92,7 +92,7 @@ export type BriefingPayload = { page: "briefing"; company?: string; job_number?:
 export type FieldPagePayload = { page: "field"; company?: string; job_number?: string; job_name?: string; scope?: string; data_date?: string | null; lookahead?: { start_date?: string | null; end_date?: string | null } | null; activities?: unknown; assignments?: unknown; materials?: unknown; rates?: unknown; installed?: unknown; items?: { id?: string | null; action?: string; owner?: string | null; due?: string | null; type?: string | null; item_type?: string | null; kind?: string | null; category?: string | null; check_key?: string | null }[]; today?: string };
 export type DailyPagePayload = { page: "daily"; company?: string; job_number?: string; job_name?: string; found?: boolean; report_date?: string | null; weather?: string | null; manpower?: string | null; subs_on_site?: string | null; deliveries?: string | null; issues?: string | null; delays?: string | null; safety?: string | null; lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[] };
 export type PhotoPagePayload = { page: "photos"; company?: string; job_number?: string; job_name?: string; photos?: { id?: string; taken_on?: string; area?: string; work?: string | null; sov_item?: string | null; activity_id?: string | null; client_safe?: boolean; url?: string | null; storage_path?: string }[] };
-export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null; type?: string | null; item_type?: string | null; kind?: string | null; category?: string | null; check_key?: string | null }[] };
+export type ItemsPagePayload = { page: "items"; company?: string; job_number?: string; job_name?: string; items?: { id?: string | null; action?: string | null; owner?: string | null; due?: string | null; type?: string | null; item_type?: string | null; kind?: string | null; category?: string | null; check_key?: string | null; next_action?: string | null }[] };
 export type SubmittalsPagePayload = {
   page: "submittals";
   company?: string;
@@ -273,6 +273,7 @@ function itemsPageHtml(p: ItemsPagePayload): string {
     kind: item.kind,
     category: item.category,
     check_key: item.check_key,
+    next_action: item.next_action,
   })));
   if (!items.length) return card(`<p style="margin:0;color:${G1}">No open items on this job.</p>`);
   return items.map((item, n) => {
@@ -281,7 +282,9 @@ function itemsPageHtml(p: ItemsPagePayload): string {
     const notice = isDelayNoticeTask(item);
     const color = notice ? RED : NAVY;
     const border = notice ? `border-left:4px solid ${RED};` : "";
-    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""} style="${border}">${card(`<div style="font-weight:700;color:${color}">${esc(itemName(item.action || "Item"))}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`)}</section>`;
+    const generic = /^(?:add|item)$/i.test(itemName(item.action || "Item"));
+    const detail = item.check_key?.startsWith("manual:") && item.next_action?.trim() ? `<div style="font-size:13px;color:${NAVY};margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.next_action)}</div>` : "";
+    return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""} style="${border}">${card(`<div style="font-weight:700;color:${color}">${esc(generic && detail ? "Follow-up" : itemName(item.action || "Item"))}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>${detail}`)}</section>`;
   }).join("");
 }
 
