@@ -122,6 +122,22 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 /** Schedule float is working days. A raw float is rounded; it is never currency. */
 const shownFloat = (value: unknown) => (isNum(value) ? formatReportNumber("total_float", value) : String(value ?? ""));
 const day = (s: string) => Date.parse(`${s.slice(0, 10)}T00:00:00Z`);
+const DAY_MS = 86_400_000;
+/** Accept only real saved calendar dates; do not derive a missing schedule date. */
+const scheduleDay = (value: string | null | undefined): number | null => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(value)) return null;
+  const date = value.slice(0, 10);
+  const n = day(value);
+  return Number.isFinite(n) && new Date(n).toISOString().slice(0, 10) === date ? n : null;
+};
+const scheduleMonth = (time: number) => {
+  const d = new Date(time);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+};
+const addScheduleMonths = (time: number, months: number) => {
+  const d = new Date(time);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1);
+};
 const NAVY = "#1E3A5F", BLUE = "#2563EB", G1 = "#6B7280", G2 = "#9CA3AF", G3 = "#D1D5DB", G4 = "#F3F4F6", RED = ALERT_HEX;
 
 /** Same counting as the chart callout and the TIA line: day after the prior completion through the updated one, both units. */
@@ -140,7 +156,11 @@ const stamp = (r: { version?: number; updated_at?: string | null; updated_by_nam
 // ---------- views ----------
 function scheduleView(p: JobPayload): string {
   const r = p.report, d = r.data ?? {};
-  const acts = (d.activities ?? []).filter((a) => a.start && a.finish);
+  const acts = d.activities ?? [];
+  const dated = acts.filter((a) => {
+    const start = scheduleDay(a.start), finish = scheduleDay(a.finish);
+    return start !== null && finish !== null && finish >= start;
+  });
   const tia = d.tia ?? null;
   const delayId = identifiedDelayActivityId(d);
   const out: string[] = [];
@@ -149,17 +169,46 @@ function scheduleView(p: JobPayload): string {
     const frag = (d.activities ?? []).find((a) => a.id === fragId);
     out.push(`<div style="border:2px solid ${RED};border-radius:10px;padding:12px;margin:0 0 16px;background:repeating-linear-gradient(45deg,#fff,#fff 8px,#FEF2F2 8px,#FEF2F2 16px)"><strong style="color:${RED}">${esc(delayLabel(tia.prior_completion, tia.updated_completion, tia.holidays))}</strong><span style="color:${G1}"> · Delay fragnet ${esc(fragId)}${frag ? ` · ${esc(activityTitle(frag))}` : ""}: completion ${esc(tia.prior_completion)} → ${esc(tia.updated_completion)}</span></div>`);
   }
-  const crit = acts.filter((a) => a.critical).length;
+  const crit = dated.filter((a) => a.critical).length;
   out.push(tiles([tile("Activities", String((d.activities ?? []).length)), tile("Critical", String(crit)), tile("Contract completion", r.contract_completion_date ?? "Needed"), ...(isNum(r.contract_total) ? [tile("Contract", money(r.contract_total))] : [])]));
   if (acts.length) {
-    const lo = Math.min(...acts.map((a) => day(a.start!))), hi = Math.max(...acts.map((a) => day(a.finish!)));
-    const span = Math.max(hi - lo, 86_400_000);
-    const dd = r.data_date ? day(r.data_date) : NaN;
+    // Calendar positions are presentation only; working durations and float remain saved values.
+    const first = dated.length ? Math.min(...dated.map((a) => scheduleDay(a.start)!)) : null;
+    const last = dated.length ? Math.max(...dated.map((a) => scheduleDay(a.finish)!)) : null;
+    const lo = first === null ? null : scheduleMonth(first);
+    const hi = last === null ? null : addScheduleMonths(scheduleMonth(last), 1);
+    const span = lo === null || hi === null ? null : hi - lo;
+    const months = lo === null || hi === null ? 0 :
+      (new Date(hi).getUTCFullYear() - new Date(lo).getUTCFullYear()) * 12 +
+      new Date(hi).getUTCMonth() - new Date(lo).getUTCMonth();
+    // Bound width and label count for unusual long spans without changing their date scale.
+    const timelineWidth = Math.max(420, Math.min(18000, months * 96));
+    const monthStep = Math.max(1, Math.ceil(months / 180));
+    const percentAt = (time: number) => lo === null || span === null ? 0 : ((time - lo) / span) * 100;
+    const headings: string[] = [];
+    for (let i = 0; lo !== null && i < months; i += monthStep) {
+      const at = addScheduleMonths(lo, i), next = addScheduleMonths(lo, Math.min(i + monthStep, months));
+      const left = percentAt(at), width = percentAt(next) - left;
+      const label = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(at));
+      headings.push(`<div data-month="${new Date(at).toISOString().slice(0, 7)}" style="position:absolute;left:${left.toFixed(4)}%;width:${width.toFixed(4)}%;top:0;height:23px;border-left:1px solid ${G3};padding:2px 5px;white-space:nowrap;overflow:hidden">${esc(label)}</div>`);
+      if (monthStep === 1 && timelineWidth / months >= 70) {
+        for (const dayOfMonth of [1, 8, 15, 22]) {
+          const tick = at + (dayOfMonth - 1) * DAY_MS;
+          if (tick >= next) continue;
+          headings.push(`<span data-tick="${new Date(tick).toISOString().slice(0, 10)}" style="position:absolute;left:${percentAt(tick).toFixed(4)}%;top:23px;border-left:1px solid ${G3};padding-left:3px;font-size:10px;color:${G1}">${dayOfMonth}</span>`);
+        }
+      }
+    }
+    const dd = scheduleDay(r.data_date);
     const today = Date.parse(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
-    const mark = Number.isFinite(dd) ? dd : today;
-    const markPct = ((mark - lo) / span) * 100;
+    const mark = dd ?? today;
+    const markPct = lo === null || span === null ? -1 : percentAt(mark);
+    const dateText = (value: string | null | undefined) => value == null || value === "" ? "Needed" : scheduleDay(value) === null ? "Invalid date" : value.slice(0, 10);
     const rows = acts.map((a) => {
-      const l = ((day(a.start!) - lo) / span) * 100, w = Math.max(((day(a.finish!) - day(a.start!)) / span) * 100, 0.6);
+      const start = scheduleDay(a.start), finish = scheduleDay(a.finish);
+      const plottable = start !== null && finish !== null && finish >= start && lo !== null && span !== null;
+      const l = plottable ? percentAt(start) : 0;
+      const w = plottable ? ((finish - start) / span) * 100 : 0;
       const frag = delayId === a.id;
       const pct = isNum(a.pct_complete) ? Math.min(100, Math.max(0, a.pct_complete)) : null;
       const remaining = a.critical === true ? "#C12D2D" : a.critical === false ? "#16834A" : G2;
@@ -167,16 +216,20 @@ function scheduleView(p: JobPayload): string {
       const progress = pct === null ? "" : `<div data-progress="${pct}" style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:${BLUE}"></div>`;
       const status = (pct === null ? "Progress Needed" : `${pct}% complete`) + (pct !== 100 && a.critical == null ? " · Criticality Needed" : "");
       const delay = frag ? ` · Delay: ${esc(activityTitle(a))}${isNum(a.duration) ? ` · ${esc(a.duration)} WD` : " · Duration Needed"}` : "";
-      // Zero duration is the schedule's milestone designation; matching dates alone are not.
       const milestone = a.duration === 0;
       const milestoneColor = pct === null ? G2 : pct >= 100 ? BLUE : remaining;
-      const shape = milestone
-        ? `<div data-milestone="true" role="img" aria-label="Milestone" style="position:absolute;left:clamp(6px,${l.toFixed(2)}%,calc(100% - 6px));top:50%;width:12px;height:12px;transform:translate(-50%,-50%);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);background:${milestoneColor};z-index:1"></div>`
-        : `<div style="position:absolute;left:${l.toFixed(2)}%;width:${w.toFixed(2)}%;top:0;bottom:0;border-radius:3px;overflow:hidden;background:${pct === null && !frag ? G2 : background}">${progress}</div>`;
-      return `<tr id="activity-${esc(a.id)}"><td style="padding:4px 8px;font-size:12px;color:${NAVY};font-weight:600" data-id="${esc(a.id)}">${esc(activityTitle(a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(a.id)} · ${esc(status)}${delay}</div></td><td style="padding:4px 8px;font-size:12px;color:${G1};white-space:nowrap">${esc(a.start)} – ${esc(a.finish)}</td><td style="padding:4px 8px;font-size:12px;color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : ""}</td><td style="position:relative;min-width:320px;width:50%"><div style="position:relative;height:14px">${shape}${markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(2)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : ""}</div></td></tr>`;
+      const shape = !plottable ? "" : milestone
+        ? `<div data-milestone="true" role="img" aria-label="Milestone" style="position:absolute;left:clamp(6px,${l.toFixed(4)}%,calc(100% - 6px));top:50%;width:12px;height:12px;transform:translate(-50%,-50%);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);background:${milestoneColor};z-index:1"></div>`
+        : `<div data-bar-start="${esc(a.start)}" data-bar-finish="${esc(a.finish)}" style="position:absolute;left:${l.toFixed(4)}%;width:max(2px,${w.toFixed(4)}%);top:0;bottom:0;border-radius:3px;overflow:hidden;background:${pct === null && !frag ? G2 : background}">${progress}</div>`;
+      const marker = markPct >= 0 && markPct <= 100 ? `<div style="position:absolute;left:${markPct.toFixed(4)}%;top:-2px;bottom:-2px;width:2px;background:${NAVY}"></div>` : "";
+      const unplotted = !plottable ? `<span style="font-size:11px;color:${G1}">${start !== null && finish !== null && finish < start ? "Check dates" : "Dates needed"}</span>` : "";
+      return `<tr id="activity-${esc(a.id)}"><td class="cpm-id" data-id="${esc(a.id)}">${esc(a.id)}</td><td class="cpm-name"><strong>${esc(activityTitle(a))}</strong><div style="font-size:11px;font-weight:400;color:${G1}">${esc(status)}${delay}</div></td><td class="cpm-number">${isNum(a.duration) ? esc(a.duration) : "Needed"}</td><td class="cpm-date">${esc(dateText(a.start))}</td><td class="cpm-date">${esc(dateText(a.finish))}</td><td class="cpm-number" style="color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : "Needed"}</td><td class="cpm-chart"><div style="position:relative;height:14px">${shape}${marker}${unplotted}</div></td></tr>`;
     }).join("");
-    out.push(card(`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Dates</th><th style="padding:4px 8px">Float</th><th style="padding:4px 8px">Gantt</th></tr></thead><tbody>${rows}</tbody></table></div>` +
-      `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Actual progress &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#16834A"></span> Remaining noncritical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#C12D2D"></span> Remaining critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:9px;height:9px;background:${G1};transform:rotate(45deg)"></span> Milestone &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${Number.isFinite(dd) ? "Data date" : "Today"}</p>`));
+    const css = `<style>.ath-cpm-scroll{overflow-x:auto;overscroll-behavior-x:contain}.ath-cpm{border-collapse:separate;border-spacing:0;table-layout:fixed;width:${612 + timelineWidth}px;font-size:12px;color:${NAVY}}.ath-cpm th,.ath-cpm td{box-sizing:border-box;padding:5px 6px;vertical-align:middle;border-bottom:1px solid ${G4};text-align:left}.ath-cpm th{color:${G1};background:#fff;font-weight:600;white-space:nowrap}.ath-cpm .cpm-id,.ath-cpm .cpm-name{position:sticky;background:#fff;z-index:2}.ath-cpm .cpm-id{left:0;width:82px}.ath-cpm .cpm-name{left:82px;width:200px;box-shadow:1px 0 0 ${G3}}.ath-cpm th.cpm-id,.ath-cpm th.cpm-name{z-index:3}.ath-cpm .cpm-number{white-space:nowrap;color:${G1}}.ath-cpm .cpm-date{white-space:nowrap;color:${G1}}.ath-cpm .cpm-chart{padding:5px 0}.ath-cpm .cpm-axis{position:relative;height:44px;padding:0;background:#fff;font-weight:400;overflow:hidden}@media(max-width:600px){.ath-cpm .cpm-name{position:static;box-shadow:none}}</style>`;
+    const cols = `<colgroup><col style="width:82px"><col style="width:200px"><col style="width:70px"><col style="width:100px"><col style="width:100px"><col style="width:60px"><col style="width:${timelineWidth}px"></colgroup>`;
+    const axis = months ? headings.join("") : `<span style="padding:5px">Timeline needs saved dates</span>`;
+    out.push(card(`${css}<p style="margin:0 0 8px;font-size:12px;color:${G1}">Scroll horizontally for schedule columns and timeline.</p><div class="ath-cpm-scroll" tabindex="0" role="region" aria-label="Schedule table and timeline"><table class="ath-cpm">${cols}<thead><tr><th class="cpm-id" scope="col">Activity ID</th><th class="cpm-name" scope="col">Activity</th><th scope="col">Duration<br>WD</th><th scope="col">Start</th><th scope="col">Finish</th><th scope="col">Float<br>WD</th><th class="cpm-axis" scope="col" aria-label="Gantt calendar timeline">${axis}</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+      `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Actual progress &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#16834A"></span> Remaining noncritical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#C12D2D"></span> Remaining critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:9px;height:9px;background:${G1};transform:rotate(45deg)"></span> Milestone &nbsp; <span style="display:inline-block;width:2px;height:10px;background:${NAVY}"></span> ${dd !== null ? "Data date" : "Today"}</p>`));
   }
   return out.join("");
 }
