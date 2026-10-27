@@ -175,6 +175,59 @@ describe("board link page without a session", () => {
     expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
   });
 
+  it("keeps compact project navigation without mounting the morning subscription controls", () => {
+    state.session = { user: { id: "member-1" } };
+    for (const page of [
+      "schedule",
+      "lookahead",
+      "items",
+      "submittals",
+      "ior",
+      "payapp",
+      "daily",
+      "photos",
+      "field",
+    ] as const) {
+      const payload =
+        page === "items"
+          ? items
+          : page === "submittals"
+            ? { page, submittals: [] }
+            : page === "daily"
+              ? { page, found: false }
+              : page === "photos"
+                ? { page, photos: [] }
+                : page === "field"
+                  ? { page, items: [] }
+                  : { page, report: { found: false } };
+      state.pageQuery = { data: { payload }, isLoading: false, error: null };
+      const html = renderToStaticMarkup(
+        createElement(ReportPageView, { page, jobId: JOB, token: "fixture-key" }),
+      );
+      expect(html).toContain('aria-label="Project navigation"');
+      expect(html).toContain(`href="/r/job/${JOB}/home?t=fixture-key"`);
+      expect(html).toContain('href="/today"');
+      expect(html).toContain("Morning brief");
+      expect(html).not.toContain('data-screen="morning-brief-push"');
+      expect(html).not.toContain("Turn on morning briefing");
+    }
+  });
+
+  it("retains the existing subscription controls outside job report pages", () => {
+    state.session = { user: { id: "member-1" } };
+    state.pageQuery = {
+      data: { payload: { page: "portfolio", jobs: [] } },
+      isLoading: false,
+      error: null,
+    };
+    const html = renderToStaticMarkup(
+      createElement(ReportPageView, { page: "portfolio", companyId: JOB }),
+    );
+    expect(html).toContain('data-screen="morning-brief-push"');
+    expect(html).toContain("Turn on morning briefing");
+    expect(html).toContain('href="/today"');
+  });
+
   it("shows a signed-in member the live board even when the token in the url is expired", () => {
     state.session = { user: { id: "member-1" } };
     state.pageQuery = { data: { payload: items }, isLoading: false, error: null };

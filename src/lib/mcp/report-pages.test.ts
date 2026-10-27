@@ -80,6 +80,10 @@ describe("0.8.14 report_page_link", () => {
       );
       expect(jobLinksMissingToken(result)).toEqual([]);
       expect(result.content[0].text).toContain("Project home");
+      expect(result.content[0].text).toContain("Temporary access from this chat lasts 24 hours");
+      expect(result.content[0].text).toContain("The project home address stays the same");
+      expect(result.content[0].text).toContain("sign in to keep opening your saved home");
+      expect(result.content[0].text).not.toContain("This link works until");
     }
     state.scope = "contract";
     await expect(call(reportPageLink, { page: "home", job_number: "2701" })).rejects.toThrow(
