@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { BoardSignIn } from "./BoardSignIn";
+import { invoiceBalance, receiptBalance } from "@/lib/billing-evidence-balances";
 
 type InvoiceVersion = {
   version: number;
@@ -14,13 +15,19 @@ type InvoiceVersion = {
   certified_cents: number | null;
   certified_date: string | null;
   source: string;
-  gross_cents: number;
-  withheld_cents: number;
-  released_cents: number;
+  gross_cents: number | null;
+  withheld_cents: number | null;
+  released_cents: number | null;
   net_due_cents: number;
   reason: string | null;
 };
-type Invoice = { id: string; document_number: string; kind: string; versions: InvoiceVersion[] };
+type Invoice = {
+  id: string;
+  document_number: string;
+  kind: string;
+  credit_for: string | null;
+  versions: InvoiceVersion[];
+};
 type Receipt = { id: string; receipt_date: string; source: string; amount_cents: number };
 type Allocation = {
   id: string;
@@ -29,7 +36,19 @@ type Allocation = {
   amount_cents: number;
   reversal_of: string | null;
 };
-type Payload = { invoices: Invoice[]; receipts: Receipt[]; allocations: Allocation[] };
+type ReceiptReversal = {
+  id: string;
+  receipt_id: string;
+  amount_cents: number;
+  effective_date: string;
+  source: string;
+};
+type Payload = {
+  invoices: Invoice[];
+  receipts: Receipt[];
+  allocations: Allocation[];
+  receipt_reversals: ReceiptReversal[];
+};
 const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
   args: Record<string, unknown>,
@@ -146,6 +165,30 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
       setError((err as Error).message);
     }
   }
+  function saveCredit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    try {
+      void send("invoice", {
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        expected_version: 0,
+        kind: "credit",
+        credit_for: field(f, "credit_for"),
+        document_number: field(f, "number"),
+        status: field(f, "status"),
+        invoice_date: field(f, "date"),
+        effective_date: field(f, "date"),
+        source: field(f, "source"),
+        gross_cents: null,
+        withheld_cents: null,
+        released_cents: null,
+        net_due_cents: cents(f.get("amount")),
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
   function saveRevision(e: FormEvent<HTMLFormElement>, invoice: Invoice) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -161,9 +204,9 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
         period_start: current.period_start,
         period_end: current.period_end,
         source: field(f, "source"),
-        gross_cents: cents(f.get("gross")),
-        withheld_cents: cents(f.get("withheld")),
-        released_cents: cents(f.get("released")),
+        gross_cents: invoice.kind === "credit" ? null : cents(f.get("gross")),
+        withheld_cents: invoice.kind === "credit" ? null : cents(f.get("withheld")),
+        released_cents: invoice.kind === "credit" ? null : cents(f.get("released")),
         net_due_cents: cents(f.get("net")),
         certified_cents: field(f, "certified") ? cents(f.get("certified")) : null,
         certified_date: field(f, "certified_date") || null,
@@ -181,6 +224,22 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
         request_id: crypto.randomUUID(),
         id: crypto.randomUUID(),
         receipt_date: field(f, "date"),
+        source: field(f, "source"),
+        amount_cents: cents(f.get("amount")),
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+  function reverseReceipt(e: FormEvent<HTMLFormElement>, receipt: Receipt) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    try {
+      void send("reverse_receipt", {
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        receipt_id: receipt.id,
+        effective_date: field(f, "date"),
         source: field(f, "source"),
         amount_cents: cents(f.get("amount")),
       });
@@ -235,7 +294,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
         <button onClick={() => void data.refetch()}>Retry</button>
       </main>
     );
-  const { invoices, receipts, allocations } = data.data;
+  const { invoices, receipts, allocations, receipt_reversals } = data.data;
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-6 text-[#1E3A5F]">
       <a className="text-sm underline" href={`/r/job/${jobId}/home`}>
@@ -244,8 +303,8 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
       <header>
         <h1 className="text-2xl font-semibold">Billing and payment records</h1>
         <p className="mt-2 text-sm text-gray-600">
-          Record source documents and cash received. These records do not update the billing
-          forecast or earned progress.
+          Record source documents and cash received. Balances use recorded entries and may be
+          incomplete. These records do not update the billing forecast or earned progress.
         </p>
       </header>
       {error && (
@@ -277,9 +336,11 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
           <div className="mt-3 space-y-3">
             {invoices.map((i) => {
               const v = i.versions[0];
-              const allocated = allocations
-                .filter((a) => a.invoice_id === i.id)
-                .reduce((n, a) => n + (a.reversal_of ? -a.amount_cents : a.amount_cents), 0);
+              const {
+                cash: allocated,
+                credits,
+                remaining,
+              } = invoiceBalance(i, invoices, allocations);
               return (
                 <article className="rounded border border-gray-300 p-4" key={i.id}>
                   <h3 className="font-semibold">
@@ -288,10 +349,22 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                   <p className="text-sm">
                     {v.status} · {v.invoice_date} · source: {v.source}
                   </p>
-                  <p className="mt-2 text-sm">
-                    Gross {money(v.gross_cents)} · withheld {money(v.withheld_cents)} · released{" "}
-                    {money(v.released_cents)} · source net due {money(v.net_due_cents)}
-                  </p>
+                  {i.kind === "credit" ? (
+                    <p className="text-sm">
+                      Credit amount {money(v.net_due_cents)} · invoice{" "}
+                      {invoices.find((x) => x.id === i.credit_for)?.document_number ??
+                        "Unavailable"}{" "}
+                      ·{" "}
+                      {v.status === "posted"
+                        ? "Reduces invoice balance"
+                        : "Does not reduce invoice balance"}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm">
+                      Gross {money(v.gross_cents!)} · withheld {money(v.withheld_cents!)} · released{" "}
+                      {money(v.released_cents!)} · source net due {money(v.net_due_cents)}
+                    </p>
+                  )}
                   {v.certified_cents !== null && (
                     <p className="text-sm">
                       Certified {money(v.certified_cents)} on {v.certified_date}
@@ -299,14 +372,8 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                   )}
                   {i.kind !== "credit" && ["submitted", "certified"].includes(v.status) && (
                     <p className="text-sm">
-                      Allocated cash {money(allocated)} · net due less allocated cash{" "}
-                      {money(v.net_due_cents - allocated)} (before credits)
-                    </p>
-                  )}
-                  {i.kind === "credit" && (
-                    <p className="text-sm">
-                      Credit evidence is recorded separately; it is not automatically applied to
-                      balances.
+                      Recorded allocated cash {money(allocated)} · recorded posted credits{" "}
+                      {money(credits)} · remaining from recorded entries {money(remaining)}
                     </p>
                   )}
                   <details className="mt-2 text-sm">
@@ -314,8 +381,10 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                     {i.versions.map((h) => (
                       <p key={h.version}>
                         Version {h.version}: {h.status} · effective {h.effective_date} · {h.source}{" "}
-                        · gross {money(h.gross_cents)} · withheld {money(h.withheld_cents)} ·
-                        released {money(h.released_cents)} · source net due {money(h.net_due_cents)}
+                        ·{" "}
+                        {i.kind === "credit"
+                          ? `credit ${money(h.net_due_cents)}`
+                          : `gross ${money(h.gross_cents!)} · withheld ${money(h.withheld_cents!)} · released ${money(h.released_cents!)} · source net due ${money(h.net_due_cents)}`}
                         {h.certified_cents !== null
                           ? ` · certified ${money(h.certified_cents)} on ${h.certified_date}`
                           : ""}
@@ -334,8 +403,14 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                           Status
                           <select name="status" defaultValue={v.status} className={input}>
                             <option value="draft">Draft</option>
-                            <option value="submitted">Submitted</option>
-                            <option value="certified">Certified</option>
+                            {i.kind === "credit" ? (
+                              <option value="posted">Posted</option>
+                            ) : (
+                              <>
+                                <option value="submitted">Submitted</option>
+                                <option value="certified">Certified</option>
+                              </>
+                            )}
                             <option value="void">Void</option>
                           </select>
                         </label>
@@ -349,35 +424,39 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                             className={input}
                           />
                         </label>
+                        {i.kind !== "credit" && (
+                          <>
+                            <label>
+                              Gross for period (USD)
+                              <input
+                                required
+                                name="gross"
+                                defaultValue={(v.gross_cents! / 100).toFixed(2)}
+                                className={input}
+                              />
+                            </label>
+                            <label>
+                              Retainage withheld (USD)
+                              <input
+                                required
+                                name="withheld"
+                                defaultValue={(v.withheld_cents! / 100).toFixed(2)}
+                                className={input}
+                              />
+                            </label>
+                            <label>
+                              Retainage released (USD)
+                              <input
+                                required
+                                name="released"
+                                defaultValue={(v.released_cents! / 100).toFixed(2)}
+                                className={input}
+                              />
+                            </label>
+                          </>
+                        )}
                         <label>
-                          Gross for period (USD)
-                          <input
-                            required
-                            name="gross"
-                            defaultValue={(v.gross_cents / 100).toFixed(2)}
-                            className={input}
-                          />
-                        </label>
-                        <label>
-                          Retainage withheld (USD)
-                          <input
-                            required
-                            name="withheld"
-                            defaultValue={(v.withheld_cents / 100).toFixed(2)}
-                            className={input}
-                          />
-                        </label>
-                        <label>
-                          Retainage released (USD)
-                          <input
-                            required
-                            name="released"
-                            defaultValue={(v.released_cents / 100).toFixed(2)}
-                            className={input}
-                          />
-                        </label>
-                        <label>
-                          Source net due (USD)
+                          {i.kind === "credit" ? "Credit amount (USD)" : "Source net due (USD)"}
                           <input
                             required
                             name="net"
@@ -385,25 +464,31 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                             className={input}
                           />
                         </label>
-                        <label>
-                          Certified amount (USD), if certified
-                          <input
-                            name="certified"
-                            defaultValue={
-                              v.certified_cents == null ? "" : (v.certified_cents / 100).toFixed(2)
-                            }
-                            className={input}
-                          />
-                        </label>
-                        <label>
-                          Certification date
-                          <input
-                            type="date"
-                            name="certified_date"
-                            defaultValue={v.certified_date ?? ""}
-                            className={input}
-                          />
-                        </label>
+                        {i.kind !== "credit" && (
+                          <>
+                            <label>
+                              Certified amount (USD), if certified
+                              <input
+                                name="certified"
+                                defaultValue={
+                                  v.certified_cents == null
+                                    ? ""
+                                    : (v.certified_cents / 100).toFixed(2)
+                                }
+                                className={input}
+                              />
+                            </label>
+                            <label>
+                              Certification date
+                              <input
+                                type="date"
+                                name="certified_date"
+                                defaultValue={v.certified_date ?? ""}
+                                className={input}
+                              />
+                            </label>
+                          </>
+                        )}
                         <label>
                           Source
                           <input required name="source" defaultValue={v.source} className={input} />
@@ -437,20 +522,6 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
               <select name="kind" className={input}>
                 <option value="invoice">Invoice</option>
                 <option value="pay_application">Pay application</option>
-                <option value="credit">Credit</option>
-              </select>
-            </label>
-            <label>
-              Credit applies to (only for credits)
-              <select name="credit_for" className={input}>
-                <option value="">None</option>
-                {invoices
-                  .filter((i) => i.kind !== "credit")
-                  .map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.document_number}
-                    </option>
-                  ))}
               </select>
             </label>
             <label>
@@ -495,6 +566,56 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
             <div>
               <button disabled={saving || !!pending} className={button}>
                 Save record
+              </button>
+            </div>
+          </form>
+        </details>
+        <details className="mt-4 rounded border border-gray-300 p-4">
+          <summary className="font-semibold">Record an invoice credit</summary>
+          <form onSubmit={saveCredit} className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label>
+              Credit number
+              <input required name="number" className={input} />
+            </label>
+            <label>
+              Invoice
+              <select required name="credit_for" className={input}>
+                <option value="">Choose invoice</option>
+                {invoices
+                  .filter(
+                    (i) =>
+                      i.kind !== "credit" &&
+                      ["submitted", "certified"].includes(i.versions[0].status),
+                  )
+                  .map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.document_number}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Status
+              <select name="status" className={input}>
+                <option value="draft">Draft</option>
+                <option value="posted">Posted</option>
+              </select>
+            </label>
+            <label>
+              Credit date
+              <input required type="date" name="date" className={input} />
+            </label>
+            <label>
+              Credit amount (USD)
+              <input required name="amount" className={input} />
+            </label>
+            <label>
+              Source
+              <input required name="source" className={input} />
+            </label>
+            <div>
+              <button disabled={saving || !!pending} className={button}>
+                Save credit
               </button>
             </div>
           </form>
@@ -556,18 +677,56 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
         ) : (
           <div className="mt-3 space-y-2">
             {receipts.map((r) => {
-              const applied = allocations
-                .filter((a) => a.receipt_id === r.id)
-                .reduce((n, a) => n + (a.reversal_of ? -a.amount_cents : a.amount_cents), 0);
+              const {
+                allocated: applied,
+                reversed,
+                unapplied,
+              } = receiptBalance(r, allocations, receipt_reversals);
+              const reversals = receipt_reversals.filter((x) => x.receipt_id === r.id);
               return (
                 <article className="rounded border border-gray-300 p-4" key={r.id}>
                   <p className="font-semibold">
                     {money(r.amount_cents)} received {r.receipt_date}
                   </p>
                   <p className="text-sm">
-                    {r.source} · allocated {money(applied)} · unapplied{" "}
-                    {money(r.amount_cents - applied)}
+                    {r.source} · corrected {money(reversed)} · allocated {money(applied)} ·
+                    unapplied {money(unapplied)}
                   </p>
+                  {reversals.map((x) => (
+                    <p className="text-sm" key={x.id}>
+                      Correction {money(x.amount_cents)} effective {x.effective_date} · {x.source}
+                    </p>
+                  ))}
+                  {unapplied > 0 && (
+                    <details>
+                      <summary>Correct receipt</summary>
+                      <p className="text-sm">
+                        Reverse unapplied recorded cash. This does not issue a refund.
+                      </p>
+                      <form
+                        onSubmit={(e) => reverseReceipt(e, r)}
+                        className="mt-3 grid gap-3 sm:grid-cols-2"
+                      >
+                        <label>
+                          Amount (USD)
+                          <input required name="amount" className={input} />
+                        </label>
+                        <label>
+                          Effective date
+                          <input required type="date" name="date" className={input} />
+                        </label>
+                        <label>
+                          Correction source
+                          <input required name="source" className={input} />
+                        </label>
+                        <div>
+                          <button disabled={saving || !!pending} className={button}>
+                            Save correction
+                          </button>
+                        </div>
+                      </form>
+                    </details>
+                  )}
                 </article>
               );
             })}

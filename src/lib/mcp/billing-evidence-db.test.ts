@@ -194,7 +194,15 @@ describe("project billing evidence", () => {
       status: "void",
       reason: "Duplicate source document",
     });
-    const credit = invoice({ kind: "credit", credit_for: p.id, document_number: "Credit 1" });
+    const credit = invoice({
+      kind: "credit",
+      credit_for: p.id,
+      document_number: "Credit 1",
+      status: "draft",
+      gross_cents: null,
+      withheld_cents: null,
+      released_cents: null,
+    });
     await record("invoice", credit);
     const data = await get();
     expect(
@@ -301,7 +309,7 @@ describe("project billing evidence", () => {
     }
   });
   it("marks the gated reader volatile so PostgREST uses a writable transaction", async () => {
-    const r = await db.query(
+    const r = await db.query<{ provolatile: string }>(
       "SELECT provolatile FROM pg_proc WHERE oid='public.mcp_billing_evidence_get(uuid)'::regprocedure",
     );
     expect(r.rows[0].provolatile).toBe("v");
@@ -330,6 +338,7 @@ describe("project billing evidence", () => {
       "mcp_billing_invoices",
       "mcp_billing_invoice_versions",
       "mcp_billing_receipts",
+      "mcp_billing_receipt_reversals",
       "mcp_billing_allocations",
       "mcp_billing_operations",
     ]) {
@@ -350,5 +359,141 @@ describe("project billing evidence", () => {
     const p = invoice();
     await record("invoice", p);
     await expect(record("invoice", p, otherOwner)).rejects.toThrow(/different content/);
+  });
+  it("counts only the latest posted invoice credit and prevents excess credit or cash", async () => {
+    const p = invoice({ net_due_cents: 90000 });
+    await record("invoice", p);
+    const receipt = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_date: "2026-10-10",
+      source: crypto.randomUUID(),
+      amount_cents: 40000,
+    };
+    await record("receipt", receipt);
+    const allocation = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      invoice_id: p.id,
+      effective_date: "2026-10-10",
+      source: "Remittance",
+      amount_cents: 40000,
+    };
+    await record("allocation", allocation);
+    const credit = invoice({
+      kind: "credit",
+      credit_for: p.id,
+      status: "draft",
+      gross_cents: null,
+      withheld_cents: null,
+      released_cents: null,
+      net_due_cents: 10000,
+    });
+    await record("invoice", credit);
+    const credited = async () =>
+      Number(
+        (
+          await db.query<{ value: string }>(
+            "SELECT public.mcp_billing_posted_credits($1,$2,NULL) AS value",
+            [job, p.id],
+          )
+        ).rows[0].value,
+      );
+    expect(await credited()).toBe(0);
+    const post = {
+      ...credit,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "posted",
+      reason: "Credit posted",
+    };
+    await record("invoice", post);
+    expect(await credited()).toBe(10000);
+    expect(90000 - 40000 - (await credited())).toBe(40000);
+    expect((await record("invoice", post)).already_applied).toBe(true);
+    expect(await credited()).toBe(10000);
+    await expect(
+      record(
+        "invoice",
+        invoice({
+          kind: "credit",
+          credit_for: p.id,
+          status: "posted",
+          net_due_cents: 40001,
+          gross_cents: null,
+          withheld_cents: null,
+          released_cents: null,
+        }),
+      ),
+    ).rejects.toThrow(/exceeds the remaining/);
+    await expect(
+      record("invoice", {
+        ...p,
+        request_id: crypto.randomUUID(),
+        expected_version: 1,
+        status: "void",
+        reason: "void",
+      }),
+    ).rejects.toThrow(/posted credits/);
+    await record("invoice", {
+      ...post,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      status: "void",
+      reason: "Credit void",
+    });
+    expect(await credited()).toBe(0);
+  });
+  it("reverses recorded cash immutably and cannot reverse allocated cash", async () => {
+    const p = invoice();
+    await record("invoice", p);
+    const receipt = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_date: "2026-10-10",
+      source: crypto.randomUUID(),
+      amount_cents: 40000,
+    };
+    await record("receipt", receipt);
+    const allocation = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      invoice_id: p.id,
+      effective_date: "2026-10-10",
+      source: "Remittance",
+      amount_cents: 30000,
+    };
+    await record("allocation", allocation);
+    const correction = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      effective_date: "2026-10-11",
+      source: "Receipt correction",
+      amount_cents: 10000,
+    };
+    await record("reverse_receipt", correction);
+    expect((await record("reverse_receipt", correction)).already_applied).toBe(true);
+    await expect(
+      record("reverse_receipt", {
+        ...correction,
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        amount_cents: 1,
+      }),
+    ).rejects.toThrow(/reverse allocations first/);
+    const saved = await db.query<{ amount_cents: string }>(
+      "SELECT amount_cents FROM mcp_billing_receipts WHERE id=$1",
+      [receipt.id],
+    );
+    expect(Number(saved.rows[0].amount_cents)).toBe(40000);
+    const reversals = await db.query<{ amount_cents: string }>(
+      "SELECT amount_cents FROM mcp_billing_receipt_reversals WHERE receipt_id=$1",
+      [receipt.id],
+    );
+    expect(reversals.rows).toHaveLength(1);
+    expect(Number(reversals.rows[0].amount_cents)).toBe(10000);
   });
 });
