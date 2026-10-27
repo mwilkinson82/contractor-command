@@ -296,8 +296,10 @@ export function renderIorLayout(input: {
   if (title) out.push(`<h2 style="margin:0 0 12px;font-size:18px;color:${NAVY}">${esc(title)}</h2>`);
   if (figures.length || notes.length) out.push(card("Job health", `${figures.length ? `<div style="display:flex;flex-wrap:wrap;gap:12px">${figures.join("")}</div>` : ""}${notes.join("")}`));
   if (holds) {
-    const c = holds.contingencyCents == null ? "" : tile("C-holds", esc(money(holds.contingencyCents / 100)));
+    const c = tile("C-holds", holds.contingencyCents == null ? "Not available" : esc(money(holds.contingencyCents / 100)));
     out.push(card("Holds", `<div style="display:flex;flex-wrap:wrap;gap:12px">${tile("Listed E-holds", `${esc(money(holds.exposureCents / 100))} · ${holds.count} listed`)}${c}</div>${renderTable(holds.rows, moneyOk, names)}`));
+  } else if (moneyOk) {
+    out.push(card("Holds", `<p style="margin:0;font-size:13px;color:${GRAY}">Hold summary: Not available</p>`));
   }
   out.push(...lists, ...sections);
   const risks = Array.isArray(data.risks) ? data.risks : [];

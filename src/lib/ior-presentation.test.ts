@@ -84,7 +84,17 @@ describe("IOR presentation", () => {
     expect(iorHoldSummary({ ...data, e_hold_total: 10000 })).toBeNull();
     const onlyE = iorHoldSummary({ e_holds: [{ amount: 10000 }] });
     expect(onlyE?.contingencyCents).toBeNull();
-    expect(renderIorLayout({ report: { scope: "full", data: {} } })).not.toContain("$0.00");
+    const unknown = renderIorLayout({ report: { scope: "full", data: {} } });
+    expect(unknown).toContain("Hold summary: Not available");
+    expect(unknown).not.toContain("$0.00");
+    const partial = { e_holds: [{ amount: 10000 }] };
+    expect(renderIorLayout({ report: { scope: "full", data: partial } })).toContain(
+      "Not available",
+    );
+    expect(iorSectionsText(partial).join("\n")).toContain("C-holds: Not available");
+    expect(iorSectionsText({ unknown_hold_register: [] }).join("\n")).toContain(
+      "Hold summary: Not available",
+    );
   });
   it("does not expose financial summaries to restricted views", () => {
     const html = renderIorLayout({

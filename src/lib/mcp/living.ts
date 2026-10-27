@@ -641,8 +641,8 @@ export function iorSectionsText(data: Record<string, unknown> | null | undefined
   }
   if (holds) {
     lines.push(`Listed E-holds: ${money(holds.exposureCents / 100)} · ${holds.count} listed`);
-    if (holds.contingencyCents != null) lines.push(`C-holds: ${money(holds.contingencyCents / 100)}`);
-  }
+    lines.push(`C-holds: ${holds.contingencyCents == null ? "Not available" : money(holds.contingencyCents / 100)}`);
+  } else lines.push("Hold summary: Not available");
   for (const [key, value] of Object.entries(data)) {
     if (key === "title" || key === "kpis" || IOR_HIDDEN.has(key) || IOR_SKIP.has(key) || summarized(key)) continue;
     if (Array.isArray(value)) {
