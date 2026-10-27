@@ -470,13 +470,13 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
   }).join("") + historyHtml;
 }
 
-export function renderReportBody(p: PagePayload): string {
+export function renderReportBody(p: PagePayload, context?: { jobId?: string }): string {
   if (p.page === "submittals") {
     const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Submittal log`;
     return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
   }
   if (p.page === "field") return fieldPageHtml(p);
-  if (p.page === "daily") return dailyPageHtml(p);
+  if (p.page === "daily") return dailyPageHtml(p, context);
   if (p.page === "photos") return photoPageHtml(p);
   if (p.page === "items") {
     const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Open items`;

@@ -114,9 +114,9 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
   // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
-    const body = payload ? renderReportBody(payload) : "";
+    const body = payload ? renderReportBody(payload, { jobId }) : "";
     return token && body ? signSiblingLinks(body, token) : body;
-  }, [payload, token]);
+  }, [payload, token, jobId]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <div style={{ background: "#F3F4F6", minHeight: "100%" }}>

@@ -912,6 +912,22 @@ export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name
   return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}${allItems}`);
 }
 
+// Owner-approved display cleanup for two saved training reports only. The native
+// payload uses the unique (job_id, report_date) key; retain the saved IDs here for
+// traceability. Stored text, transcripts, audit and production rows stay intact.
+const CEDAR_DAILY_PRESENTATION_JOB = "289ca2cd-b585-419a-8c09-3501d1be48c3";
+const CEDAR_DAILY_PRESENTATION_REPORTS: Readonly<Record<string, string>> = {
+  "2026-10-26": "05b33d1c-9cf4-4af4-a9b1-4bc7b01474e6",
+  "2026-10-27": "b15d97e1-afea-4622-a040-1278825e0dda",
+};
+
+function dailyReportHeading(day?: string | null): string {
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return "Daily Report";
+  const date = new Date(`${day}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day) return "Daily Report";
+  return `Daily Report for ${new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date)}`;
+}
+
 export function dailyPageHtml(p: {
   job_number?: string;
   job_name?: string;
@@ -926,17 +942,23 @@ export function dailyPageHtml(p: {
   delays?: string | null;
   safety?: string | null;
   lines?: { work?: string; sov_item?: string | null; activity_id?: string | null; qty?: number | null; unit?: string | null; crew?: number | null; hours?: number | null }[];
-}): string {
+}, context?: { jobId?: string }): string {
   const title = pageJobTitle(p.job_number, p.job_name, "Daily");
   if (!p.found) return shell(`${title} · Daily`, card(`${value("No daily is saved for this job yet.")}`));
+  const cleanTrainingPrefix = context?.jobId === CEDAR_DAILY_PRESENTATION_JOB
+    && !!p.report_date && Object.hasOwn(CEDAR_DAILY_PRESENTATION_REPORTS, p.report_date);
+  const displayText = (text: string | null | undefined) => cleanTrainingPrefix
+    ? text?.replace(/^FICTIONAL DEMO:\s*/, "")
+    : text;
   const delay = isRecordedDelay(p.delays);
-  const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(v?.trim() || "Needed", alert)}`, alert);
+  const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(displayText(v)?.trim() || "Needed", alert)}`, alert);
   const work = (p.work ?? p.lines ?? []).map((w, n) => {
     const anchor = detailAnchor("line", w.activity_id || String(n + 1));
     const facts = [w.qty != null ? `${w.qty} ${w.unit ?? ""}` : "", w.crew != null ? `crew ${w.crew}` : "", w.hours != null ? `${w.hours} hours` : ""].filter(Boolean).join(" · ");
-    return `<section id="${esc(anchor)}"${w.activity_id ? ` data-id="${esc(w.activity_id)}"` : ""}>${card(`${value(w.work || "Work")}${facts ? `<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc(facts)}</div>` : ""}${w.activity_id ? `<div style="font-size:11px;color:${FIELD_GRAY}">${esc(w.activity_id)}</div>` : ""}`)}</section>`;
+    return `<section id="${esc(anchor)}"${w.activity_id ? ` data-id="${esc(w.activity_id)}"` : ""}>${card(`${value(displayText(w.work) || "Work")}${facts ? `<div style="font-size:13px;color:${FIELD_GRAY};margin-top:4px">${esc(facts)}</div>` : ""}${w.activity_id ? `<div style="font-size:11px;color:${FIELD_GRAY}">${esc(w.activity_id)}</div>` : ""}`)}</section>`;
   }).join("");
-  return shell(`${title} · Daily ${p.report_date ? shortDate(p.report_date) : ""}`, [
+  return shell(title, [
+    `<h2 style="margin:0 0 16px;font-size:20px;line-height:1.3;font-weight:700;color:${FIELD_NAVY}">${esc(dailyReportHeading(p.report_date))}</h2>`,
     block("Weather", p.weather),
     block("Manpower", p.manpower),
     block("Subs on site", p.subs_on_site),
