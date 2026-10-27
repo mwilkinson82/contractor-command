@@ -14,6 +14,7 @@ import { dedupeOpenRows, itemName } from "./mcp/open-feed";
 import { BALL_LABEL, currentSubmittals, labelOf, packageLine, packageDelivery, submittalDisplayStatus, postureSentence, resolvePosture, sourceLine, submittalOverdue, transmittalLabel, type SubmittalRecord } from "./mcp/submittals";
 import { jobHeading } from "./mcp/job-label";
 import { SUBMITTAL_UPLOAD_QUERY } from "./mcp/submittal-record-url";
+import { gmailThreadUrls } from "./open-item-source-links";
 
 function jobPageTitle(number?: string | null, name?: string | null): string {
   return jobHeading({ job_number: number ?? "", name: name ?? "" }, " ");
@@ -402,6 +403,21 @@ function briefingPageView(p: BriefingPayload): string {
   return out.join("");
 }
 
+function openItemDetailHtml(item: {
+  check_key?: string | null;
+  next_action?: string | null;
+  owner?: string | null;
+}): string {
+  if (!item.check_key?.startsWith("manual:") || !item.next_action?.trim()) return "";
+  const emails = gmailThreadUrls(item.next_action);
+  const links = emails.map((url, index) => {
+    const label = `Open email${emails.length > 1 ? ` ${index + 1}` : ""}`;
+    const accessibleLabel = `${label} for ${item.owner || "this follow-up"}`;
+    return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" aria-label="${esc(accessibleLabel)}" style="display:inline-flex;align-items:center;box-sizing:border-box;min-height:44px;padding:10px 12px;color:${BLUE};font-weight:600;text-decoration:underline">${label}</a>`;
+  });
+  return `<div style="font-size:13px;color:${NAVY};margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.next_action)}</div>${links.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${links.join("")}</div>` : ""}`;
+}
+
 /** Page body (no <html>). Used inside the signed-in page and the share page. */
 function itemsPageHtml(p: ItemsPagePayload): string {
   const items = dedupeOpenRows((p.items ?? []).map((item, n) => ({
@@ -424,7 +440,7 @@ function itemsPageHtml(p: ItemsPagePayload): string {
     const color = notice ? RED : NAVY;
     const border = notice ? `border-left:4px solid ${RED};` : "";
     const generic = /^(?:add|item)$/i.test(itemName(item.action || "Item"));
-    const detail = item.check_key?.startsWith("manual:") && item.next_action?.trim() ? `<div style="font-size:13px;color:${NAVY};margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(item.next_action)}</div>` : "";
+    const detail = openItemDetailHtml(item);
     return `<section id="item-${esc(id)}"${item.id ? ` data-id="${esc(item.id)}"` : ""} style="${border}">${card(`<div style="font-weight:700;color:${color}">${esc(generic && detail ? "Follow-up" : itemName(item.action || "Item"))}</div><div style="font-size:12px;color:${G1};margin-top:4px">${esc(item.owner || "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>${detail}`)}</section>`;
   }).join("");
 }
