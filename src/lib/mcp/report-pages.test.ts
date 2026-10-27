@@ -75,12 +75,16 @@ describe("0.8.14 report_page_link", () => {
     for (const scope of ["full", "super"] as const) {
       state.scope = scope;
       const result = await call(reportPageLink, { page: "project board", job_number: "2701" });
-      expect(String(result.structuredContent.url)).toMatch(new RegExp(`^https://app\\.meetathena\\.io/r/job/${JOB}/home\\?t=`));
+      expect(String(result.structuredContent.url)).toMatch(
+        new RegExp(`^https://app\\.meetathena\\.io/r/job/${JOB}/home\\?t=`),
+      );
       expect(jobLinksMissingToken(result)).toEqual([]);
       expect(result.content[0].text).toContain("Project home");
     }
     state.scope = "contract";
-    await expect(call(reportPageLink, { page: "home", job_number: "2701" })).rejects.toThrow(/full access/);
+    await expect(call(reportPageLink, { page: "home", job_number: "2701" })).rejects.toThrow(
+      /full access/,
+    );
   });
   it("supers get the schedule page, never the IOR; contract scope gets neither", async () => {
     state.scope = "super";

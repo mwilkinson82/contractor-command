@@ -1,5 +1,6 @@
 // Context-aware guidance on the existing first-use surface. Entry reads saved work;
 // only the existing first-run flag is claimed. It never creates or resets a job.
+import { isUuid, jobHomePath, PAGE_ORIGIN } from "../report-pages";
 import { htmlBlock } from "./cards/markdown";
 import { renderHtml } from "./cards/html";
 import type { CardModel, CardSection } from "./cards/model";
@@ -211,8 +212,8 @@ export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
         framed: true,
         rows: shown.map((line, index) => ({
           cells: [line],
-          ...(index < 5 && jobs[index]?.id
-            ? { href: `https://app.meetathena.io/r/job/${jobs[index].id}/home` }
+          ...(index < 5 && isUuid(jobs[index]?.id)
+            ? { href: `${PAGE_ORIGIN}${jobHomePath(jobs[index].id!)}` }
             : {}),
         })),
       },

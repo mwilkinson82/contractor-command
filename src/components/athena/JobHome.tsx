@@ -9,6 +9,7 @@ import { dedupeOpenRows } from "@/lib/mcp/open-feed";
 import { lookaheadModel, lookaheadWindow, type SAct } from "@/lib/mcp/styled-views";
 import { currentSubmittals } from "@/lib/mcp/submittals";
 import type { BoardPage } from "@/lib/mcp/board-link";
+import { jobHomePath } from "@/lib/report-pages";
 import type {
   PagePayload,
   FieldPagePayload,
@@ -217,8 +218,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
               <select
                 value={jobId}
                 onChange={(e) => {
-                  if (e.target.value !== jobId)
-                    window.location.assign(`/r/job/${e.target.value}/home`);
+                  if (e.target.value !== jobId) window.location.assign(jobHomePath(e.target.value));
                 }}
               >
                 {jobs.data.map((j) => (

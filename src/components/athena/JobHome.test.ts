@@ -26,6 +26,7 @@ vi.mock("./BoardSignIn", () => ({
     React.createElement("div", null, `Sign in: ${returnTo}`),
 }));
 import { JobHome } from "./JobHome";
+import { ProjectHomeLinks } from "./ProjectHomeLinks";
 const job = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";
 const ok = (data: unknown) => ({ data, isLoading: false, error: null });
@@ -61,6 +62,17 @@ beforeEach(() => {
 });
 
 describe("persistent job home", () => {
+  it("opens account saved jobs at the same home while preserving the field destination", () => {
+    const list = renderToStaticMarkup(
+      React.createElement(ProjectHomeLinks, {
+        jobs: [{ id: job, job_number: "QA-1", name: "Fixture" }],
+      }),
+    );
+    expect(list).toContain(`href="/r/job/${job}/home"`);
+    expect(list).not.toContain(`/r/job/${job}/field`);
+    const home = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(home).toContain(`href="/r/job/${job}/field"`);
+  });
   it("links saved entry and sign-in back to the same stable home", () => {
     const html = renderHtml(
       startedWithJobsCard([{ id: job, job_number: "QA-1", name: "Fixture" }]),

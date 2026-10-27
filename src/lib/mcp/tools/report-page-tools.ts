@@ -94,7 +94,12 @@ export const reportPageLink = defineTool({
       const t = await target(sb, { ...args, page: asked });
       const expires = t.p === "portfolio" ? null : boardLinkExpiry();
       const board = t.job ? await signedJobPages((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope) : {};
-      const signed = t.p === "portfolio" ? null : t.p === "home" ? (board.field?.replace(/\/field(?=\?)/, "/home") ?? null) : board[t.p as keyof typeof board] ?? null;
+      const signed =
+        t.p === "portfolio"
+          ? null
+          : t.p === "home"
+            ? (board.field?.replace(/\/field(?=\?)/, "/home") ?? null)
+            : (board[t.p as keyof typeof board] ?? null);
       if (t.p !== "portfolio" && !signed) throw new ToolError("The board link could not be signed. Ask again in a moment.");
       const url = signed ?? pageUrl(t.p === "home" ? "field" : t.p, t.id);
       if (jobLinksMissingToken(url).length) throw new ToolError("The board link could not be signed. Ask again in a moment.");
