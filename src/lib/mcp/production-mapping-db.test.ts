@@ -424,17 +424,19 @@ describe("USD contract credit allocation", () => {
       { sov_fact_id: credit, activity_id: "E100", allocated_cents: -400000 },
     ];
     await expect(
-      preview([{ ...parts[0], allocated_cents: 600000 }, parts[1]], job, owner, 2),
+      preview([...allocations, { ...parts[0], allocated_cents: 600000 }, parts[1]], job, owner, 2),
     ).rejects.toThrow(/sign/);
-    const reviewed = await preview(parts, job, owner, 2);
+    await expect(preview(parts, job, owner, 2)).rejects.toThrow(/previously mapped/);
+    const complete = [...allocations, ...parts];
+    const reviewed = await preview(complete, job, owner, 2);
     expect(reviewed.currency).toBe("USD");
-    const next = (await approve(reviewed, "10000000-0000-4000-8000-000000000031", 2, parts)).rows[0]
-      .result;
+    const next = (await approve(reviewed, "10000000-0000-4000-8000-000000000031", 2, complete))
+      .rows[0].result;
     expect(next.version).toBe(3);
     const record = (
       await db.query<{ currency: string; sum: string }>(
-        "SELECT m.currency,sum(a.allocated_cents)::text AS sum FROM mcp_production_mapping_versions m JOIN mcp_production_allocations a ON a.mapping_id=m.id WHERE m.id=$1 GROUP BY m.currency",
-        [next.id],
+        "SELECT m.currency,sum(a.allocated_cents)::text AS sum FROM mcp_production_mapping_versions m JOIN mcp_production_allocations a ON a.mapping_id=m.id WHERE m.id=$1 AND a.sov_fact_id=$2 GROUP BY m.currency",
+        [next.id, credit],
       )
     ).rows[0];
     expect(record).toEqual({ currency: "USD", sum: "-1000000" });

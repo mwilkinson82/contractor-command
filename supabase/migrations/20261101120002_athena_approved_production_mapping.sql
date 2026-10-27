@@ -51,6 +51,12 @@ BEGIN
    IF x->>'planned_man_hours' IS NOT NULL AND (jsonb_typeof(x->'planned_man_hours') IS DISTINCT FROM 'number' OR (x->>'planned_man_hours')::numeric <= 0 OR (x->>'planned_man_hours')::numeric > 1000000000000) THEN RAISE EXCEPTION 'MCP_BAD:Planned man-hours must be positive.'; END IF;
    IF (x->>'planned_quantity' IS NOT NULL OR x->>'planned_man_hours' IS NOT NULL) AND (nullif(btrim(x->>'unit'),'') IS NULL OR nullif(btrim(x->>'planned_source'),'') IS NULL OR length(btrim(x->>'unit'))>20 OR length(btrim(x->>'planned_source'))>1000) THEN RAISE EXCEPTION 'MCP_BAD:Planned inputs require a unit and source.'; END IF;
  END LOOP;
+ -- A new version is a complete successor for already mapped SOV lines, so an
+ -- unrelated revision cannot silently remove previously approved references.
+ IF current_version > 0 AND EXISTS (
+   SELECT 1 FROM public.mcp_production_allocations a JOIN public.mcp_production_mapping_versions m ON m.id=a.mapping_id AND m.job_id=a.job_id
+   WHERE m.job_id=_job AND m.version=current_version AND NOT (a.sov_fact_id=ANY(ids))
+ ) THEN RAISE EXCEPTION 'MCP_BAD:Keep each previously mapped SOV line in the new version.'; END IF;
  FOR totals IN SELECT (a->>'sov_fact_id')::uuid id, sum((a->>'allocated_cents')::numeric) amount FROM jsonb_array_elements(_allocations) a GROUP BY 1 LOOP
    SELECT * INTO f FROM public.mcp_job_facts WHERE id=totals.id;
    IF totals.amount <> (f.value->>'billable_value')::numeric * 100 THEN RAISE EXCEPTION 'MCP_BAD:Allocations must reconcile to each included SOV line.'; END IF;

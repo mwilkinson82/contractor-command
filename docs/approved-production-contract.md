@@ -40,8 +40,8 @@ references and production information their role may see.
    for each included SOV line must sum exactly to its captured value. Unincluded
    lines remain unallocated/unknown. A recorded negative SOV credit is allocated
    with the same negative sign and reconciles to that source; this does not create
-   or change a credit change order or an invoice credit. A new mapping is a new version, not an
-   update of allocations referenced by old facts.
+   or change a credit change order or an invoice credit. Each new version retains
+   the previously mapped SOV lines, and never updates allocations referenced by old facts.
 3. **Daily revisions:** the existing report remains the current projection. Before
    any destructive replacement, transactionally capture the complete previous
    report and its work/rate facts with original IDs; create a new immutable revision
