@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { renderReportBody, type JobPayload } from "./report-pages";
 import { identifiedDelayActivityId } from "./mcp/styled-views";
@@ -100,6 +101,16 @@ describe("Athena CPM presentation", () => {
       expect(h).toContain("Data date");
     }
     expect(JSON.stringify(source)).toBe(original);
+  });
+  it("keeps the CPM handoff's financial guidance consistent with the released evidence rules", () => {
+    const source = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
+    expect(source).toContain(
+      "Treat schedule allocations as planned, and earned progress, issued billing and payments received as distinct.",
+    );
+    expect(source).toContain(
+      "Never infer billed or paid amounts from earned progress or planned work",
+    );
+    expect(source).not.toContain("contract − the higher of billed and earned to date");
   });
   it("identifies only an existing activity explicitly named by a saved delay result", () => {
     expect(identifiedDelayActivityId(source.report.data)).toBe("D1");

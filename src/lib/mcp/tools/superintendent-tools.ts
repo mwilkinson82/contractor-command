@@ -346,8 +346,8 @@ export const fieldPayApp = defineTool({
         const url = boardHref(await boardPages(sb, job), "payapp");
         const presented = presentPayApp(fieldPayAppCardModel(named(job), period, app, url));
         return guide(
-          { ...presented, structuredContent: { ...presented.structuredContent, period_to: period, pay_app: app, ties: true } },
-          "Show the G702 summary and the G703 lines exactly. Do not recompute them.",
+          { ...presented, structuredContent: { ...presented.structuredContent, period_to: period, pay_app: { ...app, previous_certificates: null, current_payment_due: null, prior_reported_progress: app.previous_certificates, calculated_progress_difference: app.current_payment_due, checks: app.checks.map((check) => check.replace(/Current payment/g, "Calculated progress difference").replace(/previous certificates/gi, "prior reported progress")), evidence_note: "Daily progress is not an issued invoice, certificate, or payment receipt." }, ties: true } },
+          "Show reported progress as a calculation, not issued billing, a certificate, or payment received.",
         );
       } catch (e) {
         if (e instanceof PayAppMismatch) throw new ToolError(`${prefix(job)}The pay app does not tie, so it is not shown.\n${e.message}`);

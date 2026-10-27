@@ -1,3 +1,4 @@
+import { safeBillingView } from "../billing-semantics";
 import {loadJobSourceClauses} from "../source-clauses";
 import {clauseKinds} from "../literal-clauses";
 import { billingForecastCardModel, presentPayApp } from "../pay-app-card";
@@ -95,8 +96,8 @@ export async function contractTotal(sb: Sb, job: Job): Promise<number | null> {
 
 const ITEM_NO = /^\d{2}\.\d{2,3}$/;
 
-/** Latest pay-app gross, when dailies and the SOV can build one. Null when they cannot. */
-async function latestPayAppBilled(sb: Sb, job: Job, retainageTerm: string | null): Promise<number | null> {
+/** Reported earned work from dailies; this is not an issued invoice or payment. */
+async function reportedDailyEarned(sb: Sb, job: Job, retainageTerm: string | null): Promise<number | null> {
   const [jobRes, factsRes, daysRes, linesRes] = await Promise.all([
     sb.from("mcp_jobs").select("sov_fee_pct").eq("id", job.job_id).maybeSingle(),
     sb.from("mcp_job_facts").select("key, value, module").eq("job_id", job.job_id),
@@ -126,7 +127,9 @@ async function latestPayAppBilled(sb: Sb, job: Job, retainageTerm: string | null
   const feeRaw = (jobRes.data as { sov_fee_pct?: number | null } | null)?.sov_fee_pct;
   const fee = feeRaw == null ? null : Number(feeRaw);
   try {
-    return buildFieldPayApp(lines, fee != null && Number.isFinite(fee) ? fee : null, retainagePct(retainageTerm), progressByItem(saved, [], period), []).completed_and_stored;
+    const progress = progressByItem(saved, [], period);
+    if (!lines.every((line) => progress.some((item) => item.item_no === line.item_no && item.pct != null))) return null;
+    return buildFieldPayApp(lines, fee != null && Number.isFinite(fee) ? fee : null, retainagePct(retainageTerm), progress, []).completed_and_stored;
   } catch (e) {
     if (e instanceof PayAppMismatch) return null;
     throw e;
@@ -148,10 +151,11 @@ async function unsavedBillingDraft(
   const retainageFact = facts.find((f) => f.key === "retainage" && (f.module == null || f.module === "contract"));
   const retainageTerm = typeof retainageFact?.value === "string" ? retainageFact.value : null;
   const acts = (cpm.found ? (cpm.data?.activities ?? []) : []) as Activity[];
-  const payApp = await latestPayAppBilled(sb, job, retainageTerm);
-  const recognized = payApp == null ? earnedToDate(acts) : Math.max(payApp, earnedToDate(acts));
-  const billing = draftBillingFromSchedule(acts, contract, recognized, reportCalendarHolidays(cpm.found ? cpm.data ?? null : null));
-  return billing ? { billing, retainageTerm } : null;
+  const dailyEarned = await reportedDailyEarned(sb, job, retainageTerm);
+  const valued = acts.filter((a) => !isOwnerFurnished(a) && (a.value ?? 0) > 0);
+  const scheduleEarned = valued.length && valued.every((a) => a.pct_complete != null) ? earnedToDate(acts) : null;
+  const billing = draftBillingFromSchedule(acts, contract, null, reportCalendarHolidays(cpm.found ? cpm.data ?? null : null));
+  return billing ? { billing: { ...billing, earned_from_dailies: dailyEarned, earned_from_schedule: scheduleEarned, payments_received: null }, retainageTerm } : null;
 }
 
 async function whoAmI(sb: Sb, job: Job, userId: string | undefined): Promise<string | null> {
@@ -235,7 +239,7 @@ export const cpmActivities = defineTool({
             activities: acts.map((a) => ({ ...a, owner_furnished: isOwnerFurnished(a), billable_value: showMoney ? (isOwnerFurnished(a) ? 0 : a.value) : null })),
           },
         },
-        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia and identified_delay_activity_id exactly. Hatch only the explicitly identified delay activity. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
+        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia and identified_delay_activity_id exactly. Hatch only the explicitly identified delay activity. Treat schedule allocations as planned, and earned progress, issued billing and payments received as distinct. Never infer billed or paid amounts from earned progress or planned work; where authoritative billing or payment evidence is unavailable, say Unknown. Never invent a date, duration, float or dollar figure.",
         showMoney ? "" : "Super view: no dollars. Never show or estimate any $ value, billing or forecast.",
       );
     }),
@@ -304,7 +308,10 @@ export const livingReportGet = defineTool({
           `Nothing saved: build the ${label} from Athena's data, mark it "Draft: not saved", and after the PM says yes call living_report_save with base_version 0.`,
         );
       }
-      const data = job.scope === "full" ? g.data ?? {} : stripMoney(g.data ?? {});
+      const rawData = job.scope === "full" ? g.data ?? {} : stripMoney(g.data ?? {});
+      const data = type === "billing_forecast" && rawData.billing
+        ? { ...rawData, billing: safeBillingView(rawData.billing as Record<string, unknown>) }
+        : rawData;
       const contract = job.scope === "full" && TIED_TYPES.includes(type) ? await contractTotal(sb, job) : null;
       const ft = g.forecast_total ?? null;
       const tie = job.scope === "full" && TIED_TYPES.includes(type) && ft !== null ? tieCheck(Number(ft), contract) : null;
@@ -355,7 +362,7 @@ export const livingReportSave = defineTool({
     what_changed: z.string().trim().min(1).max(500),
     why: z.string().trim().max(500).optional(),
     activities: z.array(activity).max(400).optional(),
-    billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast"]) })).max(120) }).optional(),
+    billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), unverified_billed_to_date: z.number().min(0).nullable().optional(), unverified_payments_received: z.number().min(0).nullable().optional(), earned_from_dailies: z.number().min(0).nullable().optional(), earned_from_schedule: z.number().min(0).nullable().optional(), payments_received: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast", "unverified"]) })).max(120) }).optional(),
     tia: z.object({ fragnet: z.string().trim().min(1).max(40), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional() }).optional(),
     details: z.record(z.string(), z.unknown()).optional(),
     contract_completion_date: date.optional(),
