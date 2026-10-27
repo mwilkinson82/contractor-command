@@ -1,0 +1,114 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { boardSignInReturn } from "@/lib/board-sign-in";
+import { boardPageFor } from "@/lib/mcp/board-url";
+import { startedWithJobsCard } from "@/lib/mcp/getting-started";
+import { renderHtml } from "@/lib/mcp/cards/html";
+
+const fixture = vi.hoisted(() => ({ rows: {} as Record<string, unknown>, signedIn: true }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (opts: { queryKey: string[] }) =>
+    fixture.rows[opts.queryKey[2] ?? "jobs"] ?? { data: undefined, isLoading: false, error: null },
+}));
+vi.mock("@/lib/board-link.functions", () => ({ openBoardPage: vi.fn() }));
+vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({
+    session: fixture.signedIn ? { user: { id: "member" } } : null,
+    loading: false,
+  }),
+}));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
+vi.mock("./ReportPage", () => ({ usePageVisible: () => true }));
+vi.mock("./BoardSignIn", () => ({
+  BoardSignIn: ({ returnTo }: { returnTo: string }) =>
+    React.createElement("div", null, `Sign in: ${returnTo}`),
+}));
+import { JobHome } from "./JobHome";
+const job = "22222222-2222-4222-8222-222222222222";
+const other = "33333333-3333-4333-8333-333333333333";
+const ok = (data: unknown) => ({ data, isLoading: false, error: null });
+
+beforeEach(() => {
+  fixture.signedIn = true;
+  fixture.rows = {
+    field: ok({
+      page: "field",
+      scope: "full",
+      job_number: "QA-1",
+      job_name: "Fixture",
+      company: "Builder",
+      items: [
+        { id: "1", action: "Follow up AJ", check_key: "manual:1" },
+        { id: "2", action: "Follow up supplier", check_key: "manual:2" },
+      ],
+    }),
+    schedule: ok({
+      page: "schedule",
+      report: { found: true, data: { activities: [{ id: "A" }, { id: "B" }] } },
+    }),
+    lookahead: ok({ page: "lookahead", report: { found: false }, lookahead: null }),
+    submittals: ok({ page: "submittals", submittals: [] }),
+    daily: ok({ page: "daily", found: false }),
+    payapp: { data: undefined, isLoading: false, error: new Error("unavailable") },
+    ior: ok({ page: "ior", report: { found: false } }),
+    jobs: ok([
+      { id: job, job_number: "QA-1", name: "Fixture" },
+      { id: other, job_number: "QA-2", name: "Other" },
+    ]),
+  };
+});
+
+describe("persistent job home", () => {
+  it("links saved entry and sign-in back to the same stable home", () => {
+    const html = renderHtml(
+      startedWithJobsCard([{ id: job, job_number: "QA-1", name: "Fixture" }]),
+    );
+    expect(html).toContain(`/r/job/${job}/home`);
+    expect(boardPageFor("Open project board".replace(/^Open /, ""))).toBe("home");
+    expect(boardSignInReturn(`/r/job/${job}/home?t=secret&utm_source=chat`)).toBe(
+      `/r/job/${job}/home`,
+    );
+  });
+  it("renders real counts, destinations, empty and unavailable states", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(JobHome, { jobId: job, token: "test-token" }),
+    );
+    expect(html).toContain("2 saved activities");
+    expect(html).toContain("2 open items");
+    expect(html).toContain("0 current submittals");
+    expect(html).toContain("No report recorded yet");
+    expect(html).toContain("Currently unavailable");
+    for (const page of [
+      "schedule",
+      "lookahead",
+      "items",
+      "submittals",
+      "rfis",
+      "rfcs",
+      "cos",
+      "daily",
+      "payapp",
+      "ior",
+    ])
+      expect(html).toContain(`/r/job/${job}/${page}?t=test-token`);
+    expect(html).toContain("Saved jobs");
+    expect(html).not.toContain("From your inbox and calendar");
+  });
+  it("does not expose commercial destinations for field scope or cached data after denial", () => {
+    fixture.rows.field = ok({ page: "field", scope: "super", job_number: "QA-1", items: [] });
+    let html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html).not.toContain("Payment and billing");
+    expect(html).not.toContain("Change orders");
+    expect(html).not.toContain("Items of record");
+    fixture.rows.field = {
+      data: { page: "field", job_name: "Secret" },
+      isLoading: false,
+      error: new Error("denied"),
+    };
+    html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html).toContain("Sign in");
+    expect(html).not.toContain("Secret");
+  });
+});

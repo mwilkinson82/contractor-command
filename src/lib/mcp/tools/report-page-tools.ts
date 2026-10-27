@@ -44,7 +44,7 @@ async function target(sb: Sb, args: { page: string; job_number?: string; company
   }
   if (!args.job_number) throw new ToolError("Which job? Give the job number.");
   const job = await resolveJob(sb, args.job_number, args.company_id);
-  if (!pageAllowed(p, job.scope, false)) throw new ToolError(job.scope === "super" ? READ_ONLY_MESSAGE : FULL_ACCESS_MESSAGE);
+  if (!pageAllowed(p === "home" ? "field" : p, job.scope, false)) throw new ToolError(job.scope === "super" ? READ_ONLY_MESSAGE : FULL_ACCESS_MESSAGE);
   return { p, id: job.job_id, job, company: job.company_id, head: prefix(job) };
 }
 
@@ -66,7 +66,7 @@ export function jobBoardCard(job: string | null, links: { label: string; href: s
 }
 
 function boardLinkCard(page: string, job: string | null, url: string, expiresAt: string | null): CardModel {
-  const label = PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board";
+  const label = page === "home" ? "Project home" : PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board";
   return {
     state: "result",
     show_state: false,
@@ -94,9 +94,9 @@ export const reportPageLink = defineTool({
       const t = await target(sb, { ...args, page: asked });
       const expires = t.p === "portfolio" ? null : boardLinkExpiry();
       const board = t.job ? await signedJobPages((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope) : {};
-      const signed = t.p === "portfolio" ? null : board[t.p as keyof typeof board] ?? null;
+      const signed = t.p === "portfolio" ? null : t.p === "home" ? (board.field?.replace(/\/field(?=\?)/, "/home") ?? null) : board[t.p as keyof typeof board] ?? null;
       if (t.p !== "portfolio" && !signed) throw new ToolError("The board link could not be signed. Ask again in a moment.");
-      const url = signed ?? pageUrl(t.p, t.id);
+      const url = signed ?? pageUrl(t.p === "home" ? "field" : t.p, t.id);
       if (jobLinksMissingToken(url).length) throw new ToolError("The board link could not be signed. Ask again in a moment.");
       await audit(sb, t.job, "report_page_link", `page_link_${t.p}`, null, t.company);
       const card = boardLinkCard(t.p, t.job ? named(t.job) : null, url, expires ? expires.toISOString() : null);
@@ -134,7 +134,7 @@ export const reportPageShare = defineTool({
       const link = shareUrl(token);
       return guide(
         {
-          ...text([`${t.head}${PAGE_LABEL[t.p]} share link: ${link}`, `Anyone with this link can view the latest version until ${exp.toISOString().slice(0, 10)}${r.show_money ? "" : " (no dollar figures)"}. You can turn it off any time.`].join("\n")),
+          ...text([`${t.head}${PAGE_LABEL[t.p as ReportPage]} share link: ${link}`, `Anyone with this link can view the latest version until ${exp.toISOString().slice(0, 10)}${r.show_money ? "" : " (no dollar figures)"}. You can turn it off any time.`].join("\n")),
           structuredContent: { link, page: t.p, expires_at: exp.toISOString(), show_money: r.show_money },
         },
         "Give the link on its own line. Never send it yourself. To turn it off later, call report_page_share_revoke with this link after the member asks.",

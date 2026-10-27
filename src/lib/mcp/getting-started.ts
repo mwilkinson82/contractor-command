@@ -29,7 +29,7 @@ export const GETTING_STARTED_GUIDANCE = [
   "Use only routes actually available in this host. Attachments must be readable here; another service needs a working connected tool or authorized signed-in browser. Never promise universal login or access. If access fails, say what was not read and offer a user-provided export or pasted text. Do not retry a denied download.",
   "For supplied documents, inspect the accessible file and name it before claiming review. Continue the requested extraction without an extra approval step. For requested contract/spec uploads, use file_upload begin for the existing private browser file picker, or from_url only for a genuinely fetchable allowed file; never send large base64 in one tool call. Use project_documents list/read/search to reuse saved sources before requesting another upload; keep physical-page/offset continuation and source identity. Existing file_upload prepare_readable can prepare an already stored source when needed, without reupload. Use the existing contract extraction/verification path and intake contract_clauses/contract_terms for exact cited clauses, submittals_import for requested specification requirements, and drawing_set_import only for requested drawings. List existing drawings with drawing_sets_list first. Keep unread, absent and already supplied distinct; never say missing merely because onboarding has not checked.",
   "For supplied cost codes, preserve the member's codes and descriptions. Review the provided list with them; use the existing intake budget path only for an explicitly requested job budget/SOV save with the required data. Do not invent a company code import, parsing pipeline, account mapping or a new integration.",
-  "Route a selected choice through current tools: show job list -> jobs_list; job dashboard/boards -> report_page_link using an existing page such as items, ior or field (never a made-up dashboard page); what needs attention -> list_open_items; PM meeting -> pm_meeting; lookahead -> lookahead_get; field board -> field_board. Carry the selected job and company; ask if ambiguous. Do not call them merely because they appear on this card.",
+  "Route a selected choice through current tools: show job list -> jobs_list; project board or job dashboard -> report_page_link with page home; what needs attention -> list_open_items; PM meeting -> pm_meeting; lookahead -> lookahead_get; field board -> field_board. Carry the selected job and company; ask if ambiguous. Do not call them merely because they appear on this card.",
   `${START_HABIT} ${START_BACKUP} Do not claim a wake word, guaranteed host routing, mandatory manual selection, or control over host composer predictions.`,
   "Host memory is optional and never the primary onboarding task. Save nothing in that reply. Only after the member explicitly requests it and the host supports it, offer the preference below. If the member says no, save nothing.",
 ].join(" ");
@@ -142,6 +142,7 @@ export function firstJobGuidance(company: boolean): string {
 
 type Company = { id: string; name?: string | null };
 export type StartedJob = {
+  id?: string;
   job_number: string;
   name: string | null;
   company_id?: string;
@@ -162,7 +163,7 @@ export async function memberJobs(sb: MemberDb): Promise<{ company: boolean; jobs
   if (!rows.length) return { company: false, jobs: [] };
   const jobs = await sb
     .from("mcp_jobs")
-    .select("job_number, name, company_id")
+    .select("id, job_number, name, company_id")
     .in(
       "company_id",
       rows.map((c) => c.id),
@@ -204,7 +205,17 @@ export function startedWithJobsCard(jobs: StartedJob[]): CardModel {
       ? "Your saved job is ready. Choose what to open."
       : `${jobs.length} saved jobs. Choose the job and the task.`,
     sections: [
-      list(one ? "Your saved job" : "Your saved jobs", shown, true),
+      {
+        heading: one ? "Your saved job" : "Your saved jobs",
+        kind: "list",
+        framed: true,
+        rows: shown.map((line, index) => ({
+          cells: [line],
+          ...(jobs[index]?.id
+            ? { href: `https://app.meetathena.io/r/job/${jobs[index].id}/home` }
+            : {}),
+        })),
+      },
       choices(["See what needs attention", "Open a job dashboard", "Bring in project documents"]),
       list("Open a live view when you need it", [
         "Ask for the PM meeting, lookahead or field board. Athena uses the selected job's saved records; missing information stays unknown.",
