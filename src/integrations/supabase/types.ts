@@ -1691,27 +1691,51 @@ export type Database = {
           body_sha256: string
           company_id: string
           created_by: string | null
+          file_sha256: string | null
+          id: string
           job_id: string
+          kind: string
+          mime_type: string | null
           name: string
+          size_bytes: number | null
+          storage_bucket: string | null
+          storage_path: string | null
           updated_at: string
+          upload_id: string | null
         }
         Insert: {
           body: string
           body_sha256: string
           company_id: string
           created_by?: string | null
+          file_sha256?: string | null
+          id?: string
           job_id: string
+          kind?: string
+          mime_type?: string | null
           name: string
+          size_bytes?: number | null
+          storage_bucket?: string | null
+          storage_path?: string | null
           updated_at?: string
+          upload_id?: string | null
         }
         Update: {
           body?: string
           body_sha256?: string
           company_id?: string
           created_by?: string | null
+          file_sha256?: string | null
+          id?: string
           job_id?: string
+          kind?: string
+          mime_type?: string | null
           name?: string
+          size_bytes?: number | null
+          storage_bucket?: string | null
+          storage_path?: string | null
           updated_at?: string
+          upload_id?: string | null
         }
         Relationships: [
           {
@@ -1992,6 +2016,7 @@ export type Database = {
           job_id: string
           kind: string
           page: number | null
+          page_count: number | null
           parent_id: string | null
           path: string
           sheet: string | null
@@ -2012,6 +2037,7 @@ export type Database = {
           job_id: string
           kind: string
           page?: number | null
+          page_count?: number | null
           parent_id?: string | null
           path: string
           sheet?: string | null
@@ -2032,6 +2058,7 @@ export type Database = {
           job_id?: string
           kind?: string
           page?: number | null
+          page_count?: number | null
           parent_id?: string | null
           path?: string
           sheet?: string | null
@@ -2770,6 +2797,77 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "mcp_file_shares_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_file_uploads: {
+        Row: {
+          bucket: string
+          chunks: number[]
+          company_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          new_piece: Json | null
+          piece_id: string | null
+          purpose: string
+          result: Json | null
+          status: string
+          storage_path: string
+          submittal_id: string | null
+          token_hash: string
+        }
+        Insert: {
+          bucket: string
+          chunks?: number[]
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          filename: string
+          id?: string
+          job_id: string
+          mime_type: string
+          new_piece?: Json | null
+          piece_id?: string | null
+          purpose: string
+          result?: Json | null
+          status?: string
+          storage_path: string
+          submittal_id?: string | null
+          token_hash: string
+        }
+        Update: {
+          bucket?: string
+          chunks?: number[]
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          mime_type?: string
+          new_piece?: Json | null
+          piece_id?: string | null
+          purpose?: string
+          result?: Json | null
+          status?: string
+          storage_path?: string
+          submittal_id?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_file_uploads_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
@@ -4212,6 +4310,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mcp_spec_documents: {
+        Row: {
+          body: string
+          body_sha256: string
+          company_id: string
+          created_by: string | null
+          file_sha256: string | null
+          id: string
+          job_id: string
+          mime_type: string | null
+          name: string
+          size_bytes: number | null
+          storage_bucket: string
+          storage_path: string
+          updated_at: string
+          upload_id: string | null
+        }
+        Insert: {
+          body: string
+          body_sha256: string
+          company_id: string
+          created_by?: string | null
+          file_sha256?: string | null
+          id?: string
+          job_id: string
+          mime_type?: string | null
+          name: string
+          size_bytes?: number | null
+          storage_bucket: string
+          storage_path: string
+          updated_at?: string
+          upload_id?: string | null
+        }
+        Update: {
+          body?: string
+          body_sha256?: string
+          company_id?: string
+          created_by?: string | null
+          file_sha256?: string | null
+          id?: string
+          job_id?: string
+          mime_type?: string | null
+          name?: string
+          size_bytes?: number | null
+          storage_bucket?: string
+          storage_path?: string
+          updated_at?: string
+          upload_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_spec_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mcp_submittal_mail: {
         Row: {
@@ -6444,6 +6601,10 @@ export type Database = {
       }
       mcp_company_tier: { Args: { _company: string }; Returns: string }
       mcp_contract_check_key: { Args: { _key: string }; Returns: boolean }
+      mcp_contract_document_save: {
+        Args: { _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_daily_reminder_mark_shown: {
         Args: { _day: string; _job: string }
         Returns: Json
@@ -6489,6 +6650,7 @@ export type Database = {
         Args: { _claim: Json; _d: Json; _job: string; _notice: Json }
         Returns: Json
       }
+      mcp_document_path_scope: { Args: { _name: string }; Returns: string }
       mcp_drawing_markup_save: {
         Args: { _job: string; _record: Json; _source: string }
         Returns: Json
@@ -6610,6 +6772,31 @@ export type Database = {
       }
       mcp_file_share_revoke: {
         Args: { _job: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_file_upload_begin: {
+        Args: {
+          _filename: string
+          _job: string
+          _mime: string
+          _new_piece: Json
+          _piece: string
+          _purpose: string
+          _submittal: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_file_upload_chunk: {
+        Args: { _id: string; _index: number; _job: string }
+        Returns: Json
+      }
+      mcp_file_upload_complete: {
+        Args: { _id: string; _job: string; _result: Json }
+        Returns: Json
+      }
+      mcp_file_upload_get: {
+        Args: { _id: string; _job: string }
         Returns: Json
       }
       mcp_flags_unknown: {
