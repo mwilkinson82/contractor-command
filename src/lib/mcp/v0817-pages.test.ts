@@ -116,7 +116,7 @@ describe("chat views: link first, then the finished view", () => {
     expect(v).toContain(`href="${pageUrl("payapp", JOB)}"`);
     expect(v).toContain("<!doctype html>");
     expect(v).toContain("Forecast total $1,400,000.00 = contract $1,400,000.00");
-    expect(v).toMatch(/\| Nov 2026 \| Forecast \| \$400,000.00 \| \$400,000.00 \|/);
+    expect(v).toMatch(/\| Nov 2026 \| Planned \| \$400,000.00 \| \$400,000.00 \|/);
   });
   it("empty pay app card leads with the link and ends with a Next move", () => {
     const v = emptyCard(

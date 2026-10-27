@@ -32,7 +32,7 @@ export type Activity = {
   cost_code: string | null;
   owner_furnished?: boolean;
 };
-export type BillingMonth = { month: string; amount: number; kind: "actual" | "forecast" };
+export type BillingMonth = { month: string; amount: number; kind: "actual" | "forecast" | "unverified" };
 // 0.8.10: the scheduling term is "fragnet" (delay fragnet), never "fragment". Legacy saved keys are still read.
 export type Tia = {
   fragnet?: string;
@@ -45,7 +45,7 @@ export type Tia = {
 };
 export type LivingData = {
   activities?: Activity[];
-  billing?: { billed_to_date?: number | null; months?: BillingMonth[] };
+  billing?: { billed_to_date?: number | null; unverified_billed_to_date?: number | null; unverified_payments_received?: number | null; earned_from_dailies?: number | null; earned_from_schedule?: number | null; payments_received?: number | null; months?: BillingMonth[] };
   tia?: Tia | null;
   [k: string]: unknown;
 };
@@ -224,24 +224,23 @@ function workingDays(start: string, finish: string, holidays: Set<string>): stri
 
 /**
  * Spread cost-loaded activities over their working months so the months sum to the contract.
- * Dollars up to `billed` are actual; the rest is forecast. Returns null when the activities
+ * All rows are planned; a total does not establish actual monthly invoices. Returns null when the activities
  * do not tie, or a dated value cannot be placed.
  */
 export function draftBillingFromSchedule(
   activities: Activity[],
   contract: number,
-  billed: number,
+  billed: number | null,
   holidays?: string[] | null,
-): { billed_to_date: number; months: BillingMonth[] } | null {
+): { billed_to_date: null; months: BillingMonth[] } | null {
   if (
     !activities.length ||
     !Number.isFinite(contract) ||
     contract < 0 ||
-    !Number.isFinite(billed) ||
-    billed < 0
+    (billed !== null && (!Number.isFinite(billed) || billed < 0))
   )
     return null;
-  if (cents(billed) > cents(contract)) return null;
+  if (billed !== null && cents(billed) > cents(contract)) return null;
   if (cents(costLoadTotal(activities)) !== cents(contract)) return null;
   const off = holidaySet(activities, holidays);
   const monthCents = new Map<string, number>();
@@ -265,24 +264,12 @@ export function draftBillingFromSchedule(
   let placed = 0;
   for (const amount of monthCents.values()) placed += amount;
   if (placed !== cents(contract)) return null;
-  const billedCents = cents(billed);
-  let leftActual = billedCents;
-  const months: BillingMonth[] = [];
-  for (const [month, amount] of [...monthCents.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    if (leftActual <= 0) {
-      months.push({ month, amount: fromCents(amount), kind: "forecast" });
-      continue;
-    }
-    if (amount <= leftActual) {
-      months.push({ month, amount: fromCents(amount), kind: "actual" });
-      leftActual -= amount;
-      continue;
-    }
-    months.push({ month, amount: fromCents(leftActual), kind: "actual" });
-    months.push({ month, amount: fromCents(amount - leftActual), kind: "forecast" });
-    leftActual = 0;
-  }
-  return { billed_to_date: fromCents(billedCents), months };
+  // Schedule allocations cannot establish when any invoice was issued or paid.
+  // Even a supplied total is not a dated billing record and must not be spread as actual.
+  const months: BillingMonth[] = [...monthCents.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, amount]) => ({ month, amount: fromCents(amount), kind: "forecast" }));
+  return { billed_to_date: null, months };
 }
 
 // ---------- TIA ----------

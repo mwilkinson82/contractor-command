@@ -25,8 +25,8 @@ export function fieldPayAppCardModel(
       { label: "Completed and stored · Reported", value: money(app.completed_and_stored) },
       { label: "Retainage", value: amount(app.retainage) },
       { label: "Earned less retainage", value: money(app.earned_less_retainage) },
-      { label: "Previous certificates", value: money(app.previous_certificates) },
-      { label: "Current payment due · Calculated", value: money(app.current_payment_due) },
+      { label: "Prior reported progress, not certified", value: money(app.previous_certificates) },
+      { label: "Calculated progress difference, not an invoice", value: money(app.current_payment_due) },
       { label: "Balance to finish", value: money(app.balance_to_finish) },
     ],
     sections: [
@@ -72,7 +72,7 @@ export function fieldPayAppCardModel(
       {
         heading: "G702 tie checks",
         kind: "list",
-        rows: app.checks.map((check) => ({ cells: [check] })),
+        rows: app.checks.map((check) => ({ cells: [check.replace(/Current payment/g, "Calculated progress difference").replace(/previous certificates/gi, "prior reported progress")] })),
       },
       ...(app.retainage_note
         ? [
@@ -111,13 +111,18 @@ export function billingForecastCardModel(
     title: "Pay App & Billing Forecast",
     job,
     kpis: [
-      { label: "Billed to date", value: money(model.billed) },
-      { label: "Forecast remaining", value: money(model.forecast) },
+      { label: "Billed to date", value: model.billed === null ? "Unknown" : money(model.billed) },
+      { label: "Payments received", value: model.payments === null ? "Unknown" : money(model.payments) },
+      { label: "Earned progress from dailies", value: model.earnedDaily === null ? "Unknown" : money(model.earnedDaily) },
+      { label: "Earned progress from schedule", value: model.earnedSchedule === null ? "Unknown" : money(model.earnedSchedule) },
+      { label: "Planned schedule allocation", value: model.forecast === null ? "Unknown" : money(model.forecast) },
       { label: "Contract", value: model.contract === null ? "Needed" : money(model.contract) },
       { label: "Left to bill", value: model.left === null ? "Needed" : money(model.left) },
     ],
     sections: [
-      { heading: "Reported vs verified", kind: "list", rows: [{ cells: ["Billed amounts and contract: reported. Forecast: calculated from the saved schedule. Verified: arithmetic tie checks only; receipts and future billings are not independently verified."] }] },
+      { heading: "Reported vs verified", kind: "list", rows: [{ cells: ["Schedule allocations are planned, not invoices. Issued billing and payments received are unavailable without authoritative records. Previously saved billed values and actual rows have unverified provenance."] }] },
+      ...(model.legacyBilled === null ? [] : [{ heading: "Previously recorded amount", kind: "list" as const, rows: [{ cells: [`${money(model.legacyBilled)} — billing provenance unverified; not treated as issued billing.`] }] }]),
+      ...(model.legacyPayments === null ? [] : [{ heading: "Previously recorded payment", kind: "list" as const, rows: [{ cells: [`${money(model.legacyPayments)} — payment provenance unverified; not treated as received funds.`] }] }]),
       ...(draft
         ? [
             {
@@ -172,7 +177,7 @@ export function billingForecastCardModel(
                       year: "numeric",
                       timeZone: "UTC",
                     }),
-                    row.kind === "actual" ? "Billed" : "Forecast",
+                    row.kind === "unverified" ? "Recorded; source unverified" : "Planned",
                     money(row.amount),
                     money(row.cum),
                   ],

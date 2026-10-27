@@ -194,7 +194,7 @@ describe("PM meeting readiness uses evidence, not absence of issues", () => {
           : { found: true, contract_total: 1000, data: { billing: { billed_to_date: 200, months: [{ amount: 300, kind: "forecast" }] } } }, error: null }));
     const data = await loadFlowData(sb, job, false);
     expect(data.percentComplete).toBe(50);
-    expect(data.money).toMatchObject({ plan: 300, billed: 200, contract: 1000, remaining: 800 });
+    expect(data.money).toMatchObject({ plan: 300, billed: null, contract: 1000, remaining: null });
     expect(data.iorNow).toEqual(current);
     expect(data.iorPrevious).toEqual(previous);
     expect(data.hasSnapshot).toBe(true);

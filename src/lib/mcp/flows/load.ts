@@ -174,7 +174,8 @@ export async function loadFlowData(sb: Query, job: { job_id: string; job_number:
     const months = billing.data?.billing?.months ?? [];
     const forecast = months.filter((m) => m.kind === "forecast").reduce((s, m) => s + (m.amount ?? 0), 0);
     data.money.plan = forecast || null;
-    data.money.billed = billing.data?.billing?.billed_to_date ?? null;
+    // Legacy forecast totals may be earned progress, not issued billing.
+    data.money.billed = null;
     data.money.contract = billing.contract_total ?? null;
     if (data.money.contract !== null && data.money.billed !== null) data.money.remaining = Math.round((data.money.contract - data.money.billed) * 100) / 100;
   }

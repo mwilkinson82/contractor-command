@@ -143,9 +143,9 @@ describe("pay application cards", () => {
       1_000,
       400,
     );
+    expect(split?.billed_to_date).toBeNull();
     expect(split?.months).toEqual([
-      { month: "2026-10", amount: 400, kind: "actual" },
-      { month: "2026-10", amount: 600, kind: "forecast" },
+      { month: "2026-10", amount: 1_000, kind: "forecast" },
     ]);
     expect(
       draftBillingFromSchedule([forecastActivity(100, "2026-10-01", "2026-10-15")], contract, 0),
