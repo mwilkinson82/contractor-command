@@ -41,3 +41,43 @@ export function receiptBalance(
     .reduce((n, r) => n + r.amount_cents, 0);
   return { allocated, reversed, unapplied: receipt.amount_cents - allocated - reversed };
 }
+
+/** Totals describe the evidence entered here; null means no relevant records or unsafe precision. */
+export function recordedTotals(
+  invoices: Array<
+    BillingInvoice & {
+      versions: Array<{
+        status: string;
+        net_due_cents: number;
+        gross_cents: number | null;
+        certified_cents: number | null;
+      }>;
+    }
+  >,
+  receipts: Array<{ amount_cents: number }>,
+  reversals: BillingReceiptReversal[],
+) {
+  const sum = (values: number[]) => {
+    if (!values.length) return null;
+    if (values.some((v) => !Number.isSafeInteger(v))) return null;
+    const total = values.reduce((n, v) => n + BigInt(v), 0n);
+    return total <= BigInt(Number.MAX_SAFE_INTEGER) && total >= BigInt(Number.MIN_SAFE_INTEGER)
+      ? Number(total)
+      : null;
+  };
+  const submitted = invoices.filter(
+    (i) => i.kind !== "credit" && ["submitted", "certified"].includes(i.versions[0]?.status),
+  );
+  const certified = invoices.filter(
+    (i) => i.kind !== "credit" && i.versions[0]?.status === "certified",
+  );
+  const posted = invoices.filter((i) => i.kind === "credit" && i.versions[0]?.status === "posted");
+  return {
+    submittedGross: sum(submitted.map((i) => i.versions[0].gross_cents!)),
+    certified: sum(certified.map((i) => i.versions[0].certified_cents!)),
+    postedCredits: sum(posted.map((i) => i.versions[0].net_due_cents)),
+    received: receipts.length
+      ? sum([...receipts.map((r) => r.amount_cents), ...reversals.map((r) => -r.amount_cents)])
+      : null,
+  };
+}

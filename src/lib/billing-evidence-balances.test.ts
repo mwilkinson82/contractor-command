@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { invoiceBalance, receiptBalance, type BillingInvoice } from "./billing-evidence-balances";
+import {
+  invoiceBalance,
+  receiptBalance,
+  recordedTotals,
+  type BillingInvoice,
+} from "./billing-evidence-balances";
 const invoice: BillingInvoice = {
   id: "invoice",
   kind: "invoice",
@@ -42,5 +47,31 @@ describe("billing evidence balances", () => {
         [{ receipt_id: "receipt", amount_cents: 5000 }],
       ),
     ).toEqual({ allocated: 30000, reversed: 5000, unapplied: 5000 });
+  });
+  it("keeps submitted, certified, posted credits and cash separate and missing as unknown", () => {
+    expect(recordedTotals([], [], [])).toEqual({
+      submittedGross: null,
+      certified: null,
+      postedCredits: null,
+      received: null,
+    });
+    const record = {
+      ...invoice,
+      versions: [
+        { status: "submitted", net_due_cents: 90000, gross_cents: 100000, certified_cents: null },
+      ],
+    };
+    const posted = {
+      ...credit("c", "posted", 10000),
+      versions: [
+        { status: "posted", net_due_cents: 10000, gross_cents: null, certified_cents: null },
+      ],
+    };
+    expect(recordedTotals([record, posted], [{ amount_cents: 40000 }], [])).toEqual({
+      submittedGross: 100000,
+      certified: null,
+      postedCredits: 10000,
+      received: 40000,
+    });
   });
 });

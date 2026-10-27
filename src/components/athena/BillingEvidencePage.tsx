@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { BoardSignIn } from "./BoardSignIn";
-import { invoiceBalance, receiptBalance } from "@/lib/billing-evidence-balances";
+import { invoiceBalance, receiptBalance, recordedTotals } from "@/lib/billing-evidence-balances";
 
 type InvoiceVersion = {
   version: number;
@@ -295,6 +295,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
       </main>
     );
   const { invoices, receipts, allocations, receipt_reversals } = data.data;
+  const totals = recordedTotals(invoices, receipts, receipt_reversals);
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-6 text-[#1E3A5F]">
       <a className="text-sm underline" href={`/r/job/${jobId}/home`}>
@@ -307,6 +308,24 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
           incomplete. These records do not update the billing forecast or earned progress.
         </p>
       </header>
+      <section
+        aria-label="Recorded project amounts"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        {[
+          ["Submitted gross", totals.submittedGross],
+          ["Certified", totals.certified],
+          ["Posted invoice credits", totals.postedCredits],
+          ["Cash received", totals.received],
+        ].map(([label, value]) => (
+          <div key={label as string} className="rounded border border-gray-300 p-4">
+            <p className="text-sm text-gray-600">Recorded {label}</p>
+            <p className="mt-1 font-semibold">
+              {typeof value === "number" ? money(value) : "Unknown"}
+            </p>
+          </div>
+        ))}
+      </section>
       {error && (
         <p role="alert" className="text-red-700">
           {error}
