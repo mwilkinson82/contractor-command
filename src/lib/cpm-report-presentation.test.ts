@@ -102,6 +102,56 @@ describe("Athena CPM presentation", () => {
     }
     expect(JSON.stringify(source)).toBe(original);
   });
+  it("renders only zero-duration activities as colored diamonds and removes the full-width track", () => {
+    const activities = [
+      { id: "MG", name: "Noncritical milestone", duration: 0, critical: false, pct_complete: 0 },
+      { id: "MR", name: "Critical milestone", duration: 0, critical: true, pct_complete: 0 },
+      {
+        id: "MB",
+        name: "Completed critical milestone",
+        duration: 0,
+        critical: true,
+        pct_complete: 100,
+      },
+      {
+        id: "MU",
+        name: "Unknown progress milestone",
+        duration: 0,
+        critical: true,
+        pct_complete: null,
+      },
+      { id: "DAY", name: "One-day task", duration: 1, critical: false, pct_complete: 0 },
+      {
+        id: "NULL",
+        name: "Unspecified duration",
+        duration: null,
+        critical: false,
+        pct_complete: 0,
+      },
+    ].map((a) => ({ ...a, start: "2026-01-05", finish: "2026-01-05", total_float: 0 }));
+    const fixture: JobPayload = { page: "schedule", report: { found: true, data: { activities } } };
+    const before = JSON.stringify(fixture);
+    const h = renderReportBody(fixture);
+    for (const [id, color] of [
+      ["MG", "#16834A"],
+      ["MR", "#C12D2D"],
+      ["MB", "#2563EB"],
+      ["MU", "#9CA3AF"],
+    ]) {
+      const html = row(h, id);
+      expect(html).toContain('data-milestone="true"');
+      expect(html).toContain("left:clamp(6px,");
+      expect(html).toContain(`background:${color}`);
+      expect(html).not.toContain("data-progress=");
+    }
+    for (const id of ["DAY", "NULL"]) {
+      expect(row(h, id)).not.toContain('data-milestone="true"');
+      expect(row(h, id)).toContain('data-progress="0"');
+    }
+    expect(h).not.toContain("height:14px;background:#F3F4F6");
+    expect(h).toContain("Milestone");
+    expect(JSON.stringify(fixture)).toBe(before);
+  });
   it("keeps the CPM handoff's financial guidance consistent with the released evidence rules", () => {
     const source = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
     expect(source).toContain(
@@ -133,6 +183,8 @@ describe("Athena CPM presentation", () => {
       "on/off control",
       "explicitly identified",
       "Do not infer hatching",
+      "Do not draw full-width gray background tracks",
+      "completion takes precedence",
     ])
       expect(spec).toContain(text);
     expect(

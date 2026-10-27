@@ -100,6 +100,27 @@ describe("CPM presentation", () => {
     expect(html).toContain(`fill="${CPM_ACTUAL}"`);
     expect(html).toContain(`fill="${CPM_REMAINING}"`);
   });
+  it("retains a saved baseline ghost while coloring milestones by status", () => {
+    const milestones = [
+      task("done", 100, true),
+      task("critical", 0, true),
+      task("noncritical", 0, false),
+    ].map((t) => ({ ...t, duration: 0 }));
+    const schedule = result(milestones);
+    const baseline = result([
+      { ...task("done", 0, true), earlyStart: 2, duration: 3 },
+      task("baseline-other", 0, true),
+    ]);
+    const html = renderToStaticMarkup(
+      createElement(CpmGrid, { result: schedule, baseline, selectedId: null, onSelect: () => {} }),
+    );
+    expect(html).toMatch(
+      /<rect x="16"[^>]*width="24"[^>]*height="3"[^>]*fill="var\(--sched-graphite-soft\)"/,
+    );
+    expect(html).toMatch(new RegExp(`<polygon[^>]*fill="${CPM_ACTUAL}"`));
+    expect(html).toMatch(new RegExp(`<polygon[^>]*fill="${CPM_CRITICAL}"`));
+    expect(html).toMatch(new RegExp(`<polygon[^>]*fill="${CPM_REMAINING}"`));
+  });
   it("uses existing parent links, includes ancestors and collapses descendants", () => {
     const tasks = [task("a", 0, false, "1.1.1 · Footings"), task("b", 0, true, "1 · Building")];
     const rows = buildCpmRows(tasks, "wbs", nodes);
