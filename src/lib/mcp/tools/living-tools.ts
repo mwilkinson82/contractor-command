@@ -3,7 +3,7 @@ import {loadJobSourceClauses} from "../source-clauses";
 import {clauseKinds} from "../literal-clauses";
 import { billingForecastCardModel, presentPayApp } from "../pay-app-card";
 // 0.8.9: cpm_activities (full activity handoff), living_report_get and living_report_save (master copy per job).
-import { readDelay, ganttPins, noteDateConflicts, pageLine, payModel, type Billing } from "../styled-views";
+import { readDelay, identifiedDelayActivityId, ganttPins, noteDateConflicts, pageLine, payModel, type Billing } from "../styled-views";
 import { PayAppMismatch, buildFieldPayApp, progressByItem } from "../superintendent";
 import { signedJobPages } from "../board-url";
 import { pageUrl } from "../../report-pages";
@@ -233,12 +233,13 @@ export const cpmActivities = defineTool({
             earned_to_date: showMoney ? earnedToDate(acts) : null,
             tia,
             delay,
+            identified_delay_activity_id: identifiedDelayActivityId(data as Record<string, unknown>),
             owner_furnished: of.map((a) => a.id),
             no_financials: !showMoney,
             activities: acts.map((a) => ({ ...a, owner_furnished: isOwnerFurnished(a), billable_value: showMoney ? (isOwnerFurnished(a) ? 0 : a.value) : null })),
           },
         },
-        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia exactly. Split billing by each activity's working days from these dates; never invent a date, duration, float or dollar figure. Remaining forecast after a % complete or pay app update = contract − the higher of billed and earned to date, spread over open activities; never add earned dollars on top of the old remaining spread.",
+        "View-only asks (e.g. \"pull up the schedule\"): build a NEW private view or artifact; never update or replace the saved shared master or an existing shared artifact unless the user explicitly asks to update or save it, and confirm first. Use structuredContent.activities, count_check, tie, contract_completion_date and tia and identified_delay_activity_id exactly. Hatch only the explicitly identified delay activity. Treat schedule allocations as planned, and earned progress, issued billing and payments received as distinct. Never infer billed or paid amounts from earned progress or planned work; where authoritative billing or payment evidence is unavailable, say Unknown. Never invent a date, duration, float or dollar figure.",
         showMoney ? "" : "Super view: no dollars. Never show or estimate any $ value, billing or forecast.",
       );
     }),

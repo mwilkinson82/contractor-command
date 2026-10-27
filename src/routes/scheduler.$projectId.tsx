@@ -137,6 +137,7 @@ function SchedulerPage() {
   const setDayPxUser = (n: number) => { setZoomUserSet(true); setDayPx(n); };
   const [nearCriticalFloat, setNearCriticalFloat] = useState(5);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [showLogicLines, setShowLogicLines] = useState(true);
   const [groupBy, setGroupBy] = useState<"wbs" | "critical" | "none">("wbs");
   const [calendarFilter, setCalendarFilter] = useState<string>("");
   const [resourceFilter, setResourceFilter] = useState<string>("");
@@ -973,6 +974,15 @@ function SchedulerPage() {
 
               <button
                 type="button"
+                aria-pressed={showLogicLines}
+                onClick={() => setShowLogicLines((v) => !v)}
+                className="rounded-md border border-[var(--sched-surface-rule)] bg-white px-2.5 py-1 text-[11px] text-[var(--sched-graphite)] hover:bg-[var(--sched-ivory)]"
+              >
+                Logic lines {showLogicLines ? "on" : "off"}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setShowCompleted((v) => !v)}
                 className={`rounded-md border border-[var(--sched-surface-rule)] px-2.5 py-1 text-[11px] ${
                   showCompleted ? "bg-white text-[var(--sched-graphite)]" : "bg-[var(--sched-graphite-strong)] text-white"
@@ -1232,6 +1242,8 @@ function SchedulerPage() {
                           calendar={{ workDays: draft.workDays, holidays: draft.holidays }}
                           annotations={draft.annotations}
                           groupBy={groupBy}
+                          wbsNodes={structure?.wbs}
+                          showLogicLines={showLogicLines}
                           nearCriticalFloat={nearCriticalFloat}
                           onTaskReschedule={rescheduleTask}
                           onCreateDependency={(fromId, toId, type) => {
@@ -1277,14 +1289,9 @@ function SchedulerPage() {
                     </div>
                     {/* Legend — slim inline strip */}
                     <div className="flex shrink-0 items-center justify-center gap-4 border-t border-[var(--sched-surface-rule-soft)] bg-[var(--sched-ivory)] px-4 py-1 text-[10px] text-[var(--sched-graphite)]">
-                      <LegendDot color="var(--sched-graphite-strong)" label="Planned" />
-                      <LegendDot color="var(--sched-critical)" label="Critical" />
-                      {nearCriticalFloat > 0 ? (
-                        <LegendDot
-                          color="var(--sched-near-critical)"
-                          label={`Near-critical (≤${nearCriticalFloat}d)`}
-                        />
-                      ) : null}
+                      <LegendDot color="#2563eb" label="Actual progress" />
+                      <LegendDot color="#16834a" label="Remaining noncritical" />
+                      <LegendDot color="#c12d2d" label="Remaining critical" />
                       <LegendDot color="var(--sched-graphite)" label="Float / baseline" />
                       <span className="inline-flex items-center gap-1">
                         <span className="inline-block h-2 w-2 rotate-45 bg-[var(--sched-brass-deep)]" /> Milestone
