@@ -63,6 +63,9 @@ async function markShown(sb: Rpc, day: string): Promise<boolean> {
 export async function attachMorningCard<R>(sb: Rpc, result: R, opts: { fresh: boolean; explicit: boolean }): Promise<R> {
   if (!opts.fresh && !opts.explicit) return result;
   const res = result as unknown as TextRes;
+  // Explicit entry guidance stays first, even when a proactive briefing is due.
+  // Do not mark the briefing shown: it remains available on a later eligible reply.
+  if (!opts.explicit && (res.structuredContent?.card as { presentation?: string } | undefined)?.presentation === "onboarding") return result;
   const first = res?.content?.find((block) => block.type === "text" && typeof block.text === "string");
   if (!first?.text) return result;
   if (res.structuredContent && "morning_card" in res.structuredContent) return result;

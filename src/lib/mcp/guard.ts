@@ -88,6 +88,7 @@ export async function logWorkflow(
  * report never carries it, so it is never prepended to an SOV or any other deliverable. */
 const NEVER_SWEEP = new Set(["jobs_list", "drawing_sets_list", "report", "pm_meeting", "pm_morning", "pm_evening", "athena_morning_hitlist", "athena_hello", "morning_brief", "morning_brief_settings", "list_open_items", "lookahead_get"]);
 NEVER_SWEEP.add("project_documents");
+NEVER_SWEEP.add("getting_started");
 for (const tool of ["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record"]) NEVER_SWEEP.add(tool);
 
 /** opts: a lookahead id, or { lookaheadId, jobNumber, client }. With a job number the date sweep shows that job only. */
@@ -125,7 +126,7 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     const cardFirst = isCardFirstTool(tool, finalized);
     const visible = cardFirst ? finalized : withStyleLine(finalized);
     const carded = attachAthenaCard(tool, visible);
-    const reminded = cardFirst ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
+    const reminded = cardFirst || tool === "getting_started" ? carded : await attachDailyReminder(sb as never, o.jobNumber ?? sig?.jobNumber ?? null, carded);
     const started = await attachGettingStarted(sb as never, reminded, { prepend: !cardFirst });
     const sealed = sealCardReply(tool, started);
     const morning = await attachMorningCard(sb as never, sealed, { fresh: freshSession, explicit: tool === "morning_brief" });

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { cardHasAlert } from "./cards/model";
 import { renderHtml } from "./cards/html";
 import { paletteViolations } from "./cards/palette";
@@ -47,6 +47,13 @@ describe("morning card due once per local day", () => {
     expect(morningCardIsDue(dueRow({ already_shown: true }))).toBe(false);
     expect(morningCardIsDue(dueRow({ enabled: false }))).toBe(false);
     expect(morningCardIsDue(dueRow({ local_minutes: 389 }))).toBe(false);
+  });
+
+  it("leaves an explicit onboarding card intact without consuming a due briefing", async () => {
+    const rpc = vi.fn(async () => ({ data: dueRow(), error: null }));
+    const result = { content: [{ type: "text", text: "Saved jobs and next choices" }], structuredContent: { card: { presentation: "onboarding" } } };
+    expect(await attachMorningCard({ rpc }, result, { fresh: true, explicit: false })).toBe(result);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("prepends the card on the first reply and not again the same day", async () => {

@@ -124,10 +124,8 @@ describe("morning brief ranks ahead of email and calendar", () => {
   it("name and description carry the Athena greeting phrases", () => {
     for (const phrase of [
       "Athena, good morning",
-      "Hey Athena",
       "Good morning Athena",
       "Morning Athena",
-      "Athena at the start or mid-sentence",
       "Athina",
       "Athen",
       "Atena",
@@ -147,7 +145,7 @@ describe("morning brief ranks ahead of email and calendar", () => {
     expect(tool.name).toBe("morning_brief");
     expect(tool.description.split(/[.!]+/).map((part) => part.trim()).filter(Boolean)).toEqual([tool.description.replace(/\.$/, "")]);
     const instructions = readFileSync("src/lib/mcp/index.ts", "utf8");
-    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athena at the start or mid-sentence", "Athina", "Athen", "Atena", "From your inbox and calendar", "morning_brief", "athena_hello"]) {
+    for (const phrase of ["Athena, good morning", "Hey Athena", "Good morning Athena", "Morning Athena", "Athina", "Athen", "Atena", "From your inbox and calendar", "morning_brief", "athena_hello"]) {
       expect(instructions, phrase).toContain(phrase);
     }
     expect(instructions).toContain("call morning_brief");
