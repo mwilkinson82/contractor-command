@@ -71,6 +71,21 @@ describe("0.8.14 report_page_link", () => {
     expect(jobLinksMissingToken(ior)).toEqual([]);
     expect(jobLinksMissingToken(field)).toEqual([]);
   });
+  it("opens the project home with a scoped board token and enforces job scope", async () => {
+    for (const scope of ["full", "super"] as const) {
+      state.scope = scope;
+      const result = await call(reportPageLink, { page: "project board", job_number: "2701" });
+      expect(String(result.structuredContent.url)).toMatch(
+        new RegExp(`^https://app\\.meetathena\\.io/r/job/${JOB}/home\\?t=`),
+      );
+      expect(jobLinksMissingToken(result)).toEqual([]);
+      expect(result.content[0].text).toContain("Project home");
+    }
+    state.scope = "contract";
+    await expect(call(reportPageLink, { page: "home", job_number: "2701" })).rejects.toThrow(
+      /full access/,
+    );
+  });
   it("supers get the schedule page, never the IOR; contract scope gets neither", async () => {
     state.scope = "super";
     await expect(call(reportPageLink, { page: "schedule", job_number: "2701" })).resolves.toBeTruthy();

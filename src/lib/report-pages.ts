@@ -35,6 +35,12 @@ export const SHARE_MAX_DAYS = 90;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (s: unknown): s is string => typeof s === "string" && UUID_RE.test(s);
 
+/** Stable authenticated entry for a saved job, without a separate dashboard record. */
+export function jobHomePath(jobId: string): string {
+  if (!isUuid(jobId)) throw new Error("bad id");
+  return `/r/job/${jobId}/home`;
+}
+
 /** Private page path. Job pages: /r/job/<job_id>/<ior|schedule>. Portfolio: /r/portfolio/<company_id>. */
 export function pagePath(page: AnyPage, id: string): string {
   if (!isUuid(id)) throw new Error("bad id");

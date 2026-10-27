@@ -3,9 +3,14 @@
 import { isUuid, pageUrl, type AnyPage } from "../report-pages";
 import { mintJobBoardLinks, withBoardToken, type BoardPage, type BoardScope } from "./board-link";
 
-export type BoardLinkPage = AnyPage | "portfolio";
+export type BoardLinkPage = AnyPage | "home";
 
 const ALIASES: Record<string, BoardLinkPage> = {
+  home: "home",
+  "job home": "home",
+  "project home": "home",
+  "project board": "home",
+  "job dashboard": "home",
   items: "items",
   item: "items",
   "open items": "items",
@@ -47,7 +52,9 @@ export function signedJobUrl(page: AnyPage, jobId: string, token: string, anchor
   return url.toString();
 }
 
-export function readBoardToken(search: Record<string, unknown> | URLSearchParams): string | undefined {
+export function readBoardToken(
+  search: Record<string, unknown> | URLSearchParams,
+): string | undefined {
   const raw = search instanceof URLSearchParams ? search.get("t") : search.t;
   const value = Array.isArray(raw) ? raw.find((v) => typeof v === "string") : raw;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -68,7 +75,8 @@ export async function signedJobPages(
 export { submittalRecordUrl } from "./submittal-record-url";
 
 // A record address (/submittal/<number>) is one more path segment after the page name.
-const JOB_LINK = /https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/[a-z]+(?:\/[^)\s"'<>?#]+)?(?:\?[^)\s"'<>]*)?(?:#[^)\s"'<>]*)?/gi;
+const JOB_LINK =
+  /https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/[a-z]+(?:\/[^)\s"'<>?#]+)?(?:\?[^)\s"'<>]*)?(?:#[^)\s"'<>]*)?/gi;
 
 /** /r/job links whose query has no signed token. utm params do not count as a token. */
 export function jobLinksMissingToken(value: unknown): string[] {

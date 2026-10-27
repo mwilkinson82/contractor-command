@@ -14,7 +14,7 @@ import { planLabel, planRate, seatSummary } from "@/lib/account-team";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
 import { HUB_ACCOUNT_TITLE, pageTitle } from "@/lib/host-document";
-import { pageUrl } from "@/lib/report-pages";
+import { ProjectHomeLinks, type ProjectHomeJob } from "@/components/athena/ProjectHomeLinks";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 
@@ -33,8 +33,8 @@ type AosLink = {
   last_sync_at: string | null;
 };
 
-function FieldBoards() {
-  const [jobs, setJobs] = useState<{ id: string; job_number: string | null; name: string }[]>([]);
+function ProjectHomes() {
+  const [jobs, setJobs] = useState<ProjectHomeJob[]>([]);
   useEffect(() => {
     let alive = true;
     void supabase
@@ -48,23 +48,7 @@ function FieldBoards() {
       alive = false;
     };
   }, []);
-  if (!jobs.length) return null;
-  return (
-    <section className="mt-8 rounded-2xl border border-[#D1D5DB] bg-white p-7">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6B7280]">Dashboards</p>
-      <ul className="mt-4 space-y-3">
-        {jobs.map((job) => (
-          <li key={job.id}>
-            <a className="text-[15px] font-semibold text-[#1E3A5F] hover:text-[#2563EB]" href={pageUrl("field", job.id)}>
-              {job.job_number ? `${job.job_number} – ` : ""}
-              {job.name}
-            </a>
-            <div className="text-[12px] text-[#6B7280]">Field board</div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
+  return <ProjectHomeLinks jobs={jobs} />;
 }
 
 function AccountPage() {
@@ -234,7 +218,7 @@ function AccountPage() {
           <MorningBriefPushBar />
         </div>
       ) : null}
-      {athenaHost ? <FieldBoards /> : null}
+      {athenaHost ? <ProjectHomes /> : null}
       <PageHeader
         eyebrow="Account"
         title="Profile, AOS link & billing."

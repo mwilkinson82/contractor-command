@@ -39,7 +39,8 @@ export function boardSignInReturn(value: unknown): string | undefined {
   const jobId = parts[2];
   if (!isUuid(jobId)) return undefined;
   const isRecord = parts.length === 5 && parts[3] === "submittal";
-  const isRequestLog = parts.length === 4 && (parts[3] === "rfis" || parts[3] === "rfcs" || parts[3] === "cos");
+  const isRequestLog =
+    parts.length === 4 && (parts[3] === "rfis" || parts[3] === "rfcs" || parts[3] === "cos");
   dropBoardNoise(url.searchParams, isRecord || isRequestLog);
   const search = url.searchParams.toString();
   const hash = url.hash && url.hash !== "#" ? url.hash : "";
@@ -51,7 +52,8 @@ export function boardSignInReturn(value: unknown): string | undefined {
   }
   if (parts.length !== 4) return undefined;
   const page = hostedPageName(parts[3]);
-  if (!(JOB_PAGES as readonly string[]).includes(page) && !isRequestLog) return undefined;
+  if (page !== "home" && !(JOB_PAGES as readonly string[]).includes(page) && !isRequestLog)
+    return undefined;
   return `/r/job/${jobId}/${page}${search ? `?${search}` : ""}${hash}`;
 }
 
