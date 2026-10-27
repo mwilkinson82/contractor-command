@@ -190,7 +190,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             page: "payapp",
           },
           {
-            title: "Items of record",
+            title: "Indicated Outcome Report",
             detail: state(
               ior,
               ior.data?.page === "ior" && ior.data.report?.found

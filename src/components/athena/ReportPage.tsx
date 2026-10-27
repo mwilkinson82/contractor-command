@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { renderReportBody, reportPageQuery, type PagePayload, type AnyPage, type FieldPagePayload, type ItemsPagePayload } from "@/lib/report-pages";
+import {
+  jobHomePath,
+  renderReportBody,
+  reportPageQuery,
+  type PagePayload,
+  type AnyPage,
+  type FieldPagePayload,
+  type ItemsPagePayload,
+} from "@/lib/report-pages";
 import { FieldPushBar } from "@/components/athena/FieldPushBar";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 import { useAuth } from "@/hooks/use-auth";
@@ -112,7 +120,30 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
-      {memberPayload ? <MorningBriefPushBar /> : null}
+      {page === "portfolio" && memberPayload ? <MorningBriefPushBar /> : null}
+      {jobId ? (
+        <nav
+          aria-label="Project navigation"
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            padding: "16px 16px 0",
+            display: "flex",
+            gap: 20,
+            font: "13px system-ui, sans-serif",
+          }}
+        >
+          <a
+            href={`${jobHomePath(jobId)}${token ? `?t=${encodeURIComponent(token)}` : ""}`}
+            style={{ color: "#1E5FED" }}
+          >
+            Project home
+          </a>
+          <a href="/today" style={{ color: "#1E5FED" }}>
+            Morning brief
+          </a>
+        </nav>
+      ) : null}
       {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
