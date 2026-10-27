@@ -52,7 +52,12 @@ export function boardSignInReturn(value: unknown): string | undefined {
   }
   if (parts.length !== 4) return undefined;
   const page = hostedPageName(parts[3]);
-  if (page !== "home" && !(JOB_PAGES as readonly string[]).includes(page) && !isRequestLog)
+  if (
+    page !== "home" &&
+    page !== "billing-records" &&
+    !(JOB_PAGES as readonly string[]).includes(page) &&
+    !isRequestLog
+  )
     return undefined;
   return `/r/job/${jobId}/${page}${search ? `?${search}` : ""}${hash}`;
 }

@@ -45,6 +45,14 @@ describe("job board sign-in return", () => {
     );
   });
 
+  it("allows a private billing page after sign-in without carrying a board token", () => {
+    const billing = `/r/job/${JOB}/billing-records`;
+    expect(boardSignInReturn(`${billing}?t=expired&utm_source=test#invoice`)).toBe(
+      `${billing}#invoice`,
+    );
+    expect(boardSignInReturn(`https://evil.example${billing}`)).toBeUndefined();
+  });
+
   it("rejects open redirects and anything that is not this origin's job board", () => {
     const rejected = [
       "https://evil.example/r/job/" + JOB + "/items",
