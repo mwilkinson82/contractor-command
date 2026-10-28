@@ -76,11 +76,46 @@ describe("handleResendInboundPost", () => {
       await signedRequest({ type: "email.sent" }),
       {
         env: { RESEND_API_KEY: "re_test" },
+        fetchImpl: vi.fn(async () => new Response(null, { status: 503 })),
         forward,
         processSupport,
       },
     );
     expect(missingSecret.status).toBe(500);
+    expect(await missingSecret.json()).toEqual({
+      ok: false, error: "Webhook not configured", reason: "resend_http_503",
+    });
+  });
+
+  it("fetches and caches the signing secret, refreshes it once, and rejects tampering", async () => {
+    const handlers = deps();
+    const rotatedSecret = `whsec_${btoa("rotated-test-secret-for-vitest!")}`;
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ signing_secret: SECRET }))
+      .mockResolvedValueOnce(Response.json({ secret: rotatedSecret }))
+      .mockResolvedValueOnce(Response.json({ signing_secret: rotatedSecret }));
+    const overrides = { env: { RESEND_API_KEY: "re_test" }, fetchImpl, ...handlers };
+    const body = { type: "email.received", data: { email_id: "em_fetched" } };
+    const valid = await handleResendInboundPost(await signedRequest(body), overrides);
+    expect(valid.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(
+      "https://api.resend.com/webhooks/035b0a5b-a721-48c3-92d6-1bc0304e2c6f",
+      { method: "GET", headers: { Authorization: "Bearer re_test" } },
+    );
+    const cached = await handleResendInboundPost(await signedRequest(body), overrides);
+    expect(cached.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const rotated = await handleResendInboundPost(await signedRequest(body, rotatedSecret), overrides);
+    expect(rotated.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const tampered = await handleResendInboundPost(
+      await signedRequest(body, rotatedSecret, true), overrides,
+    );
+    expect(tampered.status).toBe(401);
+    expect(await tampered.json()).toEqual({ ok: false, error: "Invalid webhook signature" });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(handlers.forward).toHaveBeenCalledTimes(3);
+    expect(handlers.processSupport).not.toHaveBeenCalled();
   });
 
   it("opens a support ticket for support inboxes and forwards everything else", async () => {
