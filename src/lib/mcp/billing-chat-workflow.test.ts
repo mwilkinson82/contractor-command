@@ -24,6 +24,50 @@ vi.mock("./guard", () => ({
 }));
 vi.mock("./jobs", () => ({ resolveJob: async () => state.job }));
 vi.mock("./billing-document-attestation.server", () => ({
+  recordWithVerifiedBillingOriginal: async (
+    _sb: unknown,
+    _ctx: unknown,
+    job: string,
+    action: string,
+    payload: unknown,
+  ) =>
+    asUser(
+      db,
+      { sub: owner, email: "synthetic@example.test", role: "service_role" },
+      async (tx) =>
+        (
+          await tx.query("SELECT public.mcp_billing_record_document($1,$2,$3,$4) AS value", [
+            job,
+            action,
+            JSON.stringify(payload),
+            owner,
+          ])
+        ).rows[0].value,
+    ),
+  linkVerifiedBillingOriginal: async (
+    _sb: unknown,
+    _ctx: unknown,
+    job: string,
+    doc: string,
+    invoice: string | null,
+    version: number | null,
+    receipt: string | null,
+  ) =>
+    asUser(
+      db,
+      { sub: owner, email: "synthetic@example.test", role: "service_role" },
+      async (tx) =>
+        (
+          await tx.query("SELECT public.mcp_billing_document_link($1,$2,$3,$4,$5,$6) AS value", [
+            job,
+            doc,
+            invoice,
+            version,
+            receipt,
+            owner,
+          ])
+        ).rows[0].value,
+    ),
   registerVerifiedBillingOriginal: async (
     _sb: unknown,
     _ctx: unknown,
@@ -47,7 +91,11 @@ vi.mock("./billing-document-attestation.server", () => ({
         ).rows[0].value,
     ),
 }));
-import { billingDocumentUpload, billingDocuments } from "./tools/billing-document-tools";
+import {
+  billingDocumentUpload,
+  billingDocuments,
+  billingDocumentLink,
+} from "./tools/billing-document-tools";
 import { billingEvidenceRecord, billingEvidenceRead } from "./tools/billing-evidence-tools";
 import { handleFileUpload } from "../file-upload-route.server";
 import { sha256Hex } from "./file-share";
@@ -383,6 +431,43 @@ describe("guided billing workflow with a synthetic original", () => {
       await query("SELECT public.mcp_billing_documents_get($1) AS value", [state.job.job_id])
     )[0].value as { links: unknown[] };
     expect(docs.links).toHaveLength(1);
+    const linkArgs = { ...context, document_id: uploadId, receipt_id: receipt.p.id };
+    const linkReview = await call(billingDocumentLink, { ...linkArgs, step: "review" });
+    expect(linkReview.structuredContent.linked).toBe(false);
+    expect(linkReview.content[0].text).toContain("Nothing has been linked yet");
+    const linkKey = linkReview.structuredContent.review_key;
+    await expect(
+      call(billingDocumentLink, { ...linkArgs, step: "save", review_key: linkKey }),
+    ).rejects.toThrow(/confirm/i);
+    await expect(
+      call(billingDocumentLink, {
+        ...linkArgs,
+        receipt_id: crypto.randomUUID(),
+        step: "save",
+        review_key: linkKey,
+        confirmed: true,
+      }),
+    ).rejects.toThrow(/not available/i);
+    const linked = await call(billingDocumentLink, {
+      ...linkArgs,
+      step: "save",
+      review_key: linkKey,
+      confirmed: true,
+    });
+    expect(linked.structuredContent).toMatchObject({ linked: true, already_linked: false });
+    expect(
+      (
+        await call(billingDocumentLink, {
+          ...linkArgs,
+          step: "save",
+          review_key: linkKey,
+          confirmed: true,
+        })
+      ).structuredContent.already_linked,
+    ).toBe(true);
+    expect((await call(billingEvidenceRead, context)).structuredContent.balances).toEqual(
+      read.structuredContent.balances,
+    );
     const reread = await call(billingDocuments, {
       ...context,
       action: "read",
@@ -395,6 +480,17 @@ describe("guided billing workflow with a synthetic original", () => {
     objects.set(key, new Uint8Array([1, 2, 3]));
     await expect(
       call(billingDocuments, { ...context, action: "read", document_id: uploadId, text_offset: 0 }),
+    ).rejects.toThrow(/fingerprint/);
+    await expect(call(billingDocumentLink, { ...linkArgs, step: "review" })).rejects.toThrow(
+      /fingerprint/,
+    );
+    await expect(
+      call(billingDocumentLink, {
+        ...linkArgs,
+        step: "save",
+        review_key: linkKey,
+        confirmed: true,
+      }),
     ).rejects.toThrow(/fingerprint/);
     await expect(
       call(billingEvidenceRecord, {

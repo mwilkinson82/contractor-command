@@ -40,6 +40,30 @@ const register = (actor: string, project: string, id: unknown, size: number, has
         ])
       ).rows[0].value as Record<string, unknown>,
   );
+const link = (actor: string, args: unknown[]) =>
+  asUser(
+    db,
+    { sub: owner, email: "synthetic@example.test", role: "service_role" },
+    async (tx) =>
+      (
+        await tx.query("SELECT public.mcp_billing_document_link($1,$2,$3,$4,$5,$6) AS value", [
+          ...args,
+          actor,
+        ])
+      ).rows[0].value as Record<string, unknown>,
+  );
+const recordDocument = (actor: string, args: unknown[]) =>
+  asUser(
+    db,
+    { sub: owner, email: "synthetic@example.test", role: "service_role" },
+    async (tx) =>
+      (
+        await tx.query("SELECT public.mcp_billing_record_document($1,$2,$3,$4) AS value", [
+          ...args,
+          actor,
+        ])
+      ).rows[0].value as Record<string, unknown>,
+  );
 beforeAll(async () => {
   db = await makeDb();
   await db.exec(
@@ -98,11 +122,7 @@ describe("billing original and ledger association", () => {
       call(owner, "mcp_billing_document_register", [job, u.id, 123, "cd".repeat(32), owner]),
     ).rejects.toThrow(/permission denied/);
     await expect(
-      call(owner, "mcp_billing_record_document", [
-        job,
-        "invoice",
-        JSON.stringify({ document_id: u.id }),
-      ]),
+      recordDocument(owner, [job, "invoice", JSON.stringify({ document_id: u.id })]),
     ).rejects.toThrow(/document/);
     await expect(register(other, job, u.id, 123, "cd".repeat(32))).rejects.toThrow(
       /full project access/,
@@ -119,6 +139,14 @@ describe("billing original and ledger association", () => {
     await expect(register(owner, job, u.id, 123, "ee".repeat(32))).rejects.toThrow(
       /does not match/,
     );
+    await expect(
+      call(owner, "mcp_billing_record_document", [
+        job,
+        "invoice",
+        JSON.stringify({ document_id: u.id }),
+        owner,
+      ]),
+    ).rejects.toThrow(/permission denied/);
     const p = {
       id: crypto.randomUUID(),
       request_id: crypto.randomUUID(),
@@ -135,27 +163,23 @@ describe("billing original and ledger association", () => {
       net_due_cents: 90000,
       document_id: u.id,
     };
-    expect(
-      (await call(owner, "mcp_billing_record_document", [job, "invoice", JSON.stringify(p)]))
-        .version,
-    ).toBe(1);
-    expect(
-      (await call(owner, "mcp_billing_record_document", [job, "invoice", JSON.stringify(p)]))
-        .already_applied,
-    ).toBe(true);
+    expect((await recordDocument(owner, [job, "invoice", JSON.stringify(p)])).version).toBe(1);
+    expect((await recordDocument(owner, [job, "invoice", JSON.stringify(p)])).already_applied).toBe(
+      true,
+    );
     const state = await call(owner, "mcp_billing_documents_get", [job]);
     expect(state.links).toMatchObject([
       { document_id: u.id, invoice_id: p.id, invoice_version: 1, receipt_id: null },
     ]);
     await expect(
-      call(owner, "mcp_billing_record_document", [
+      recordDocument(owner, [
         job,
         "invoice",
         JSON.stringify({ ...p, document_id: crypto.randomUUID() }),
       ]),
     ).rejects.toThrow(/document/);
     await expect(
-      call(owner, "mcp_billing_record_document", [
+      recordDocument(owner, [
         otherJob,
         "invoice",
         JSON.stringify({
@@ -217,14 +241,123 @@ describe("billing original and ledger association", () => {
       amount_cents: 40000,
       document_id: u.id,
     };
-    await call(owner, "mcp_billing_record_document", [job, "receipt", JSON.stringify(p)]);
-    expect(
-      (await call(owner, "mcp_billing_record_document", [job, "receipt", JSON.stringify(p)]))
-        .already_applied,
-    ).toBe(true);
+    await recordDocument(owner, [job, "receipt", JSON.stringify(p)]);
+    expect((await recordDocument(owner, [job, "receipt", JSON.stringify(p)])).already_applied).toBe(
+      true,
+    );
     const state = await call(owner, "mcp_billing_documents_get", [job]);
     expect(state.links).toContainEqual(
       expect.objectContaining({ document_id: u.id, receipt_id: p.id, invoice_id: null }),
     );
+  });
+  it("links verified originals to existing records without a financial revision and denies cross-project targets", async () => {
+    const u = await call(owner, "mcp_billing_upload_begin", [
+      job,
+      "later.pdf",
+      "application/pdf",
+      "33".repeat(32),
+    ]);
+    await q(
+      owner,
+      "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
+      [u.storage_path],
+    );
+    await register(owner, job, u.id, 42, "44".repeat(32));
+    const invoice = {
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      expected_version: 0,
+      kind: "invoice",
+      document_number: "EXISTING-LINK",
+      status: "submitted",
+      invoice_date: "2026-10-01",
+      effective_date: "2026-10-01",
+      source: "existing synthetic invoice",
+      gross_cents: 10000,
+      withheld_cents: 0,
+      released_cents: 0,
+      net_due_cents: 10000,
+    };
+    const receipt = {
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      receipt_date: "2026-10-02",
+      source: "existing synthetic receipt",
+      amount_cents: 1000,
+    };
+    await call(owner, "mcp_billing_evidence_record", [job, "invoice", JSON.stringify(invoice)]);
+    await call(owner, "mcp_billing_evidence_record", [job, "receipt", JSON.stringify(receipt)]);
+    const foreignInvoice = {
+      ...invoice,
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      document_number: "FOREIGN-LINK",
+    };
+    const foreignReceipt = {
+      ...receipt,
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      source: "foreign synthetic receipt",
+    };
+    await call(owner, "mcp_billing_evidence_record", [
+      otherJob,
+      "invoice",
+      JSON.stringify(foreignInvoice),
+    ]);
+    await call(owner, "mcp_billing_evidence_record", [
+      otherJob,
+      "receipt",
+      JSON.stringify(foreignReceipt),
+    ]);
+    const foreignUpload = await call(owner, "mcp_billing_upload_begin", [
+      otherJob,
+      "foreign.pdf",
+      "application/pdf",
+      "55".repeat(32),
+    ]);
+    await q(
+      owner,
+      "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
+      [foreignUpload.storage_path],
+    );
+    await register(owner, otherJob, foreignUpload.id, 42, "66".repeat(32));
+    await expect(link(owner, [job, u.id, foreignInvoice.id, 1, null])).rejects.toThrow(
+      /invoice version/,
+    );
+    await expect(link(owner, [job, u.id, null, null, foreignReceipt.id])).rejects.toThrow(
+      /receipt/,
+    );
+    await expect(link(owner, [job, foreignUpload.id, invoice.id, 1, null])).rejects.toThrow(
+      /document/,
+    );
+    const before = await call(owner, "mcp_billing_evidence_get", [job]);
+    const invArgs = [job, u.id, invoice.id, 1, null];
+    await expect(call(owner, "mcp_billing_document_link", [...invArgs, owner])).rejects.toThrow(
+      /permission denied/,
+    );
+    expect((await link(owner, invArgs)).already_linked).toBe(false);
+    expect((await link(owner, invArgs)).already_linked).toBe(true);
+    expect((await link(owner, [job, u.id, null, null, receipt.id])).already_linked).toBe(false);
+    expect(await call(owner, "mcp_billing_evidence_get", [job])).toEqual(before);
+    const docs = await call(owner, "mcp_billing_documents_get", [job]);
+    expect(docs.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ document_id: u.id, invoice_id: invoice.id, invoice_version: 1 }),
+        expect.objectContaining({ document_id: u.id, receipt_id: receipt.id }),
+      ]),
+    );
+    await expect(link(owner, [job, u.id, invoice.id, 2, null])).rejects.toThrow(/invoice version/);
+    await expect(link(owner, [job, u.id, invoice.id, 1, receipt.id])).rejects.toThrow(
+      /exactly one/,
+    );
+    await expect(link(owner, [otherJob, u.id, invoice.id, 1, null])).rejects.toThrow(/document/);
+    await expect(link(owner, [job, u.id, crypto.randomUUID(), 1, null])).rejects.toThrow(
+      /invoice version/,
+    );
+    await expect(link(owner, [job, u.id, null, null, crypto.randomUUID()])).rejects.toThrow(
+      /receipt/,
+    );
+    for (const user of [contract, other])
+      await expect(link(user, invArgs)).rejects.toThrow(/full project access/);
   });
 });

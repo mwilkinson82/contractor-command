@@ -13,7 +13,10 @@ import {
   uploadMaxBytes,
 } from "../file-upload";
 import { drawingFile } from "../drawing-file-input";
-import { registerVerifiedBillingOriginal } from "../billing-document-attestation.server";
+import {
+  linkVerifiedBillingOriginal,
+  registerVerifiedBillingOriginal,
+} from "../billing-document-attestation.server";
 
 const bucket = "athena-financial-documents";
 type Upload = {
@@ -306,6 +309,147 @@ export const billingDocuments = defineTool({
             records_url: `https://app.meetathena.io/r/job/${job.job_id}/billing-records`,
           } as never,
         };
+      },
+    ),
+});
+
+export const billingDocumentLink = defineTool({
+  name: "billing_document_link",
+  title: "Link an original to an existing billing record",
+  description:
+    "Reviews and, after confirmation, links a verified original to an existing invoice version or receipt without changing financial facts.",
+  inputSchema: {
+    job_number: z.string().trim().min(1).max(40),
+    company_id: z.string().trim().min(1).max(200).optional(),
+    step: z.enum(["review", "save"]),
+    document_id: z.string().uuid(),
+    invoice_id: z.string().uuid().optional(),
+    invoice_version: z.number().int().positive().optional(),
+    receipt_id: z.string().uuid().optional(),
+    review_key: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
+    confirmed: z.boolean().optional(),
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  handler: (args, ctx) =>
+    run(
+      "billing_document_link",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+        const invoiceTarget = !!args.invoice_id && !!args.invoice_version && !args.receipt_id;
+        const receiptTarget = !!args.receipt_id && !args.invoice_id && !args.invoice_version;
+        if (!invoiceTarget && !receiptTarget)
+          throw new ToolError(
+            "Choose exactly one invoice version or one receipt. Nothing was linked.",
+          );
+        const original = await verifiedBillingDocument(sb, job.job_id, args.document_id);
+        const ledger = await rpc<{
+          invoices: Array<{
+            id: string;
+            document_number: string;
+            versions: Array<{ version: number }>;
+          }>;
+          receipts: Array<{
+            id: string;
+            source: string;
+            receipt_date: string;
+            amount_cents: number;
+          }>;
+        }>(sb, "mcp_billing_evidence_get", { _job: job.job_id });
+        const invoice = invoiceTarget
+          ? ledger.invoices.find(
+              (i) =>
+                i.id === args.invoice_id &&
+                i.versions.some((v) => v.version === args.invoice_version),
+            )
+          : undefined;
+        const receipt = receiptTarget
+          ? ledger.receipts.find((r) => r.id === args.receipt_id)
+          : undefined;
+        if (!invoice && !receipt)
+          throw new ToolError(
+            "That invoice version or receipt is not available on this project. Nothing was linked.",
+          );
+        const key = await sha256Hex(
+          new TextEncoder().encode(
+            JSON.stringify([
+              job.job_id,
+              args.document_id,
+              original.sha256,
+              args.invoice_id ?? null,
+              args.invoice_version ?? null,
+              args.receipt_id ?? null,
+            ]),
+          ),
+        );
+        const target = invoice
+          ? `invoice ${invoice.document_number}, version ${args.invoice_version}`
+          : `receipt ${receipt!.source}, ${receipt!.receipt_date}, ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(receipt!.amount_cents / 100)}`;
+        const url = `https://app.meetathena.io/r/job/${job.job_id}/billing-records`;
+        if (args.step === "review")
+          return guide(
+            {
+              ...text(
+                `Link ${original.filename} to ${target} on ${job.job_number}? Nothing has been linked yet.`,
+              ),
+              structuredContent: {
+                linked: false,
+                review_key: key,
+                document_id: args.document_id,
+                invoice_id: args.invoice_id ?? null,
+                invoice_version: args.invoice_version ?? null,
+                receipt_id: args.receipt_id ?? null,
+                records_url: url,
+              },
+            },
+            "Show the exact document, project and target. Ask for explicit confirmation; only then save the same target and review key. An attachment does not change financial facts.",
+          );
+        if (!args.confirmed || args.review_key !== key)
+          throw new ToolError(
+            "Review the exact document and target and confirm before linking. Nothing was linked.",
+          );
+        try {
+          const result = await linkVerifiedBillingOriginal(
+            sb,
+            ctx,
+            job.job_id,
+            args.document_id,
+            args.invoice_id ?? null,
+            args.invoice_version ?? null,
+            args.receipt_id ?? null,
+          );
+          return guide(
+            {
+              ...text(`${original.filename} is linked to ${target}.\nBilling records: ${url}`),
+              structuredContent: {
+                linked: true,
+                already_linked: result.already_linked,
+                records_url: url,
+              },
+            },
+            "Report the linked original and persistent billing records link. No invoice, receipt, payment or financial amount was changed.",
+          );
+        } catch (error) {
+          if (error instanceof ToolError) throw error;
+          return guide(
+            {
+              ...text(
+                "The link could not be confirmed. Check the billing records before retrying the same confirmed link.",
+              ),
+              structuredContent: { linked: null, outcome: "unknown", records_url: url },
+            },
+            "Do not claim failure or create a different link. Check records and retry only the same confirmed document and target if needed.",
+          );
+        }
       },
     ),
 });

@@ -33,3 +33,67 @@ export async function registerVerifiedBillingOriginal(
   if (error) dbError(error);
   return data as { id: string; already_stored: boolean };
 }
+
+/** Called only after re-reading and fingerprint-checking the original; rechecks the actor in SQL. */
+export async function linkVerifiedBillingOriginal(
+  sb: Sb,
+  ctx: ToolContext,
+  job: string,
+  document: string,
+  invoice: string | null,
+  version: number | null,
+  receipt: string | null,
+): Promise<{ already_linked: boolean }> {
+  const token = ctx.getToken();
+  if (!token) throw new ToolError("Verified member required.");
+  const identity = await sb.auth.getUser(token);
+  if (identity.error || !identity.data.user?.id) throw new ToolError("Verified member required.");
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  const url = env?.SUPABASE_URL ?? env?.VITE_SUPABASE_URL;
+  const key = env?.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new ToolError("Document verification is temporarily unavailable.");
+  const admin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.rpc("mcp_billing_document_link", {
+    _job: job,
+    _document: document,
+    _invoice: invoice,
+    _version: version,
+    _receipt: receipt,
+    _actor: identity.data.user.id,
+  });
+  if (error) dbError(error);
+  return data as { already_linked: boolean };
+}
+
+/** Atomically records facts and attaches an original, only after byte verification. */
+export async function recordWithVerifiedBillingOriginal(
+  sb: Sb,
+  ctx: ToolContext,
+  job: string,
+  action: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const token = ctx.getToken();
+  if (!token) throw new ToolError("Verified member required.");
+  const identity = await sb.auth.getUser(token);
+  if (identity.error || !identity.data.user?.id) throw new ToolError("Verified member required.");
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  const url = env?.SUPABASE_URL ?? env?.VITE_SUPABASE_URL;
+  const key = env?.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new ToolError("Document verification is temporarily unavailable.");
+  const admin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.rpc("mcp_billing_record_document", {
+    _job: job,
+    _action: action,
+    _p: payload,
+    _actor: identity.data.user.id,
+  });
+  if (error) dbError(error);
+  return data as Record<string, unknown>;
+}

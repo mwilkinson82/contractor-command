@@ -114,10 +114,12 @@ BEGIN
     'links',coalesce((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.recorded_at) FROM public.mcp_billing_document_links l WHERE l.job_id=_job),'[]'::jsonb));
 END $$;
 
-CREATE FUNCTION public.mcp_billing_record_document(_job uuid, _action text, _p jsonb) RETURNS jsonb
+CREATE FUNCTION public.mcp_billing_record_document(_job uuid, _action text, _p jsonb, _actor uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE doc uuid; result jsonb; rid uuid; ver integer;
+DECLARE doc uuid; result jsonb; rid uuid; ver integer; previous_claims text := current_setting('request.jwt.claims', true);
 BEGIN
+  IF _actor IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Verified member required.'; END IF;
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',_actor,'role','authenticated')::text,true);
   PERFORM public.mcp_assert_active();
   IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
   doc:=nullif(_p->>'document_id','')::uuid;
@@ -135,10 +137,39 @@ BEGIN
       PERFORM public.mcp_audit_job(_job,'billing_document','associate_original',doc::text);
     END IF;
   END IF;
+  PERFORM set_config('request.jwt.claims',coalesce(previous_claims,''),true);
   RETURN result;
 END $$;
 
-REVOKE ALL ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_document_register(uuid,uuid,bigint,text,uuid), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.mcp_billing_document_register(uuid,uuid,bigint,text,uuid) TO service_role;
+-- Attach a verified original to an existing record without changing financial facts.
+-- The verified-document table can only be populated by the server attestation function.
+CREATE FUNCTION public.mcp_billing_document_link(_job uuid, _document uuid, _invoice uuid, _version integer, _receipt uuid, _actor uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE added integer; previous_claims text := current_setting('request.jwt.claims', true); result jsonb;
+BEGIN
+  IF _actor IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Verified member required.'; END IF;
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',_actor,'role','authenticated')::text,true);
+  PERFORM public.mcp_assert_active();
+  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.mcp_billing_documents WHERE id=_document AND job_id=_job) THEN RAISE EXCEPTION 'MCP_BAD:That verified document is not available for this project.'; END IF;
+  IF _invoice IS NOT NULL AND _version IS NOT NULL AND _receipt IS NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM public.mcp_billing_invoice_versions v JOIN public.mcp_billing_invoices i ON i.id=v.invoice_id AND i.job_id=v.job_id WHERE v.job_id=_job AND v.invoice_id=_invoice AND v.version=_version) THEN RAISE EXCEPTION 'MCP_BAD:That invoice version is not available for this project.'; END IF;
+    INSERT INTO public.mcp_billing_document_links(document_id,job_id,invoice_id,invoice_version,recorded_by) VALUES(_document,_job,_invoice,_version,auth.uid()) ON CONFLICT DO NOTHING;
+  ELSIF _invoice IS NULL AND _version IS NULL AND _receipt IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM public.mcp_billing_receipts WHERE id=_receipt AND job_id=_job) THEN RAISE EXCEPTION 'MCP_BAD:That receipt is not available for this project.'; END IF;
+    INSERT INTO public.mcp_billing_document_links(document_id,job_id,receipt_id,recorded_by) VALUES(_document,_job,_receipt,auth.uid()) ON CONFLICT DO NOTHING;
+  ELSE RAISE EXCEPTION 'MCP_BAD:Choose exactly one invoice version or receipt.';
+  END IF;
+  GET DIAGNOSTICS added = ROW_COUNT;
+  IF added=1 THEN PERFORM public.mcp_audit_job(_job,'billing_document','associate_original',_document::text); END IF;
+  result := jsonb_build_object('document_id',_document,'invoice_id',_invoice,'invoice_version',_version,'receipt_id',_receipt,'already_linked',added=0);
+  PERFORM set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_billing_document_link(uuid,uuid,uuid,integer,uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_document_link(uuid,uuid,uuid,integer,uuid,uuid) TO service_role;
+
+REVOKE ALL ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_document_register(uuid,uuid,bigint,text,uuid), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_documents_get(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_document_register(uuid,uuid,bigint,text,uuid), public.mcp_billing_record_document(uuid,text,jsonb,uuid) TO service_role;
 NOTIFY pgrst, 'reload schema';

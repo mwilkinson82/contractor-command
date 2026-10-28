@@ -5,6 +5,7 @@ import { resolveJob } from "../jobs";
 import { guide } from "../visible";
 import { sha256Hex } from "../file-share";
 import { verifiedBillingDocument } from "./billing-document-tools";
+import { recordWithVerifiedBillingOriginal } from "../billing-document-attestation.server";
 import {
   invoiceBalance,
   recordedTotals,
@@ -279,6 +280,26 @@ export const billingEvidenceRecord = defineTool({
           : null;
         if (args.step === "review") {
           const state = await rpc<Ledger>(sb, "mcp_billing_evidence_get", { _job: job.job_id });
+          const normalized = (s: string) => s.trim().toLowerCase();
+          if (
+            args.action === "invoice" &&
+            !args.facts.expected_version &&
+            args.facts.document_number &&
+            state.invoices.some(
+              (i) => normalized(i.document_number) === normalized(args.facts.document_number!),
+            )
+          )
+            throw new ToolError(
+              "An invoice or credit with that number already exists. Review the existing record before creating another.",
+            );
+          if (
+            args.action === "receipt" &&
+            args.facts.source &&
+            state.receipts.some((r) => normalized(r.source) === normalized(args.facts.source!))
+          )
+            throw new ToolError(
+              "A receipt with that source already exists. Review the existing record before creating another.",
+            );
           const targetInvoiceId =
             args.facts.credit_for ??
             args.facts.invoice_id ??
@@ -354,11 +375,33 @@ export const billingEvidenceRecord = defineTool({
           throw new ToolError(
             "Please review the exact record and confirm it before saving. Nothing was recorded.",
           );
-        const result = await rpc<Record<string, unknown>>(sb, "mcp_billing_record_document", {
-          _job: job.job_id,
-          _action: args.action,
-          _p: args.facts,
-        });
+        let result: Record<string, unknown>;
+        try {
+          result = args.facts.document_id
+            ? await recordWithVerifiedBillingOriginal(sb, ctx, job.job_id, args.action, args.facts)
+            : await rpc<Record<string, unknown>>(sb, "mcp_billing_evidence_record", {
+                _job: job.job_id,
+                _action: args.action,
+                _p: args.facts,
+              });
+        } catch (error) {
+          if (error instanceof ToolError) throw error;
+          return guide(
+            {
+              ...text(
+                "The save could not be confirmed. Check the billing records before retrying; if needed, retry the same reviewed facts and request ID.",
+              ),
+              structuredContent: {
+                saved: null,
+                outcome: "unknown",
+                facts: args.facts,
+                review_key: args.review_key,
+                records_url: recordsUrl(job.job_id),
+              } as never,
+            },
+            "The write outcome is unknown. Do not say it failed or create a new request ID. Read the billing records to reconcile, then retry only the exact same confirmed facts and request ID if necessary.",
+          );
+        }
         let balances: ReturnType<typeof recordedBalances> | null = null;
         try {
           const current = await rpc<Ledger>(sb, "mcp_billing_evidence_get", { _job: job.job_id });

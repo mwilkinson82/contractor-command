@@ -1563,8 +1563,8 @@
               "type": "string",
               "enum": [
                 "<$250k",
-                "$250k\u2013$2M",
-                "$2M\u2013$10M",
+                "$250k–$2M",
+                "$2M–$10M",
                 "$10M+"
               ]
             },
@@ -3377,6 +3377,74 @@
         "outputSchema": null
       },
       {
+        "name": "billing_document_link",
+        "title": "Link an original to an existing billing record",
+        "description": "Reviews and, after confirmation, links a verified original to an existing invoice version or receipt without changing financial facts.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save"
+              ]
+            },
+            "document_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "invoice_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "invoice_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "receipt_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "review_key": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "step",
+            "document_id"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "file_share",
         "title": "Share a file as a link",
         "description": "Stores a file for a job and returns a download link.",
@@ -4387,7 +4455,7 @@
       {
         "name": "takeoff_geometry",
         "title": "Measure and review a drawing takeoff",
-        "description": "Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Scope with line_nos confirms the same complete named area for several count lines in one call; it never accepts quantities. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. Propose with no line_no (or with line_nos) is a sheet read: the one target tile is returned with every open line that may appear on it, and the connected AI returns sheet_observations with that cursor and one entry per listed line, empty findings where nothing is visible; each line keeps its own pass and checkpoint, and lines not ready are listed with the reason. The connected AI returns observations on that TARGET TILE using x/y 0\u20131000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0\u20131000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
+        "description": "Reconcile drawings, notes, specifications and contract using the returned project context and estimate_gap_analysis, distinguishing supported measurements, uncertain interpretations, missing scope and conflicts with citations and specific questions. Locates and measures takeoff lines on an exact stored drawing. List opens Athena's measurement viewer. Scope confirms a named complete plan or room boundary for a count line without saving a quantity; counts need no scale. Confirm that area before Propose. Scope with line_nos confirms the same complete named area for several count lines in one call; it never accepts quantities. Propose without observations returns a target tile and reference images for the connected AI to inspect, with a pass_id and cursor. Propose with no line_no (or with line_nos) is a sheet read: the one target tile is returned with every open line that may appear on it, and the connected AI returns sheet_observations with that cursor and one entry per listed line, empty findings where nothing is visible; each line keeps its own pass and checkpoint, and lines not ready are listed with the reason. The connected AI returns observations on that TARGET TILE using x/y 0–1000, confidence and visible evidence, then calls Propose with the same pass_id/cursor and observations. Athena verifies physical locations, scope, kind and topology, computes quantities and advances the checkpoint; reported confidence is retained for review and never used as a rejection threshold. Project context is supplied at cursor 0; later targets return a bound context reference. Use reload_context true in a prepare call without observations if the context is missing or needs refreshing. No server-side AI service is used. For a dense target, split_region true returns four smaller images of only that pending region. Submit all four distinct observations.parts with part 0 to 3 and local image x/y 0–1000; Athena maps them to the original target and advances only after all four are returned. Review objects crossing split boundaries for repeated instances; coordinates alone cannot distinguish two nearby objects from two views of one object. Earlier checkpoints are retained. Only the target image is counted; reference images are orientation only. Empty findings means the AI inspected this target and found no instances, never that a tile can be skipped. Save records estimator-located pins, runs or areas as a review proposal; quantities are computed from geometry. Accept requires the estimator's explicit approval of the displayed revision. Reject keeps its reason and history. Tile returns a legible 200-dpi region; crop inspects a source-backed location. History reads immutable revisions; revise compares a corresponding newer source without accepting it. Accept_all confirms only the exact displayed revision list. Export creates a private dated geometry-derived PDF; download reopens a saved version. Never use an unlocated typed quantity as a measured takeoff.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
