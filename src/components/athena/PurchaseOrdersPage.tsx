@@ -82,7 +82,8 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
         <h1 className="text-3xl font-bold">Suppliers and purchase orders</h1>
         <p className="mt-2">
           Purchase orders are commitments. They are not posted costs or payments. Create or revise
-          drafts with Athena.
+          drafts with Athena. Company terms are controlled by the owner; negotiated terms are scoped
+          to this job. A recorded variant does not establish supplier acceptance.
         </p>
       </header>
       <section>

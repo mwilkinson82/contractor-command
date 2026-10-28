@@ -20,14 +20,35 @@ const query = (sql: string, values: unknown[] = [], user = owner) =>
     { sub: user, role: "authenticated", email: "synthetic@example.test" },
     (tx) => tx.query(sql, values) as Promise<{ rows: Record<string, unknown>[] }>,
   );
-const rec = async (action: string, p: Record<string, unknown>, j = job, user = owner) =>
+const reviewed = new Map<string, string>();
+const prepare = async (action: string, p: Record<string, unknown>, j = job, user = owner) => {
+  const key = `${j}:${user}:${p.request_id}`;
+  const id = reviewed.get(key) ?? crypto.randomUUID();
+  await query(
+    "select public.mcp_project_purchase_orders_review($1,$2,$3::jsonb,$4)",
+    [j, action, JSON.stringify(p), id],
+    user,
+  );
+  reviewed.set(key, id);
+  return id;
+};
+const save = async (
+  action: string,
+  p: Record<string, unknown>,
+  review: string,
+  j = job,
+  user = owner,
+  confirmed = true,
+) =>
   (
     await query(
-      "select public.mcp_project_purchase_orders_record($1,$2,$3::jsonb) data",
-      [j, action, JSON.stringify(p)],
+      "select public.mcp_project_purchase_orders_record($1,$2,$3::jsonb,$4,$5) data",
+      [j, action, JSON.stringify(p), review, confirmed],
       user,
     )
   ).rows[0].data as Record<string, unknown>;
+const rec = async (action: string, p: Record<string, unknown>, j = job, user = owner) =>
+  save(action, p, await prepare(action, p, j, user), j, user);
 const read = async (j = job, user = owner) =>
   (await query("select public.mcp_project_purchase_orders_get($1) data", [j], user)).rows[0]
     .data as {
@@ -121,9 +142,7 @@ describe("project purchase order persistence", () => {
     };
     await rec("party", party);
     expect(await rec("party", party)).toMatchObject({ id: party.id, already_applied: true });
-    await expect(rec("party", { ...party, name: "Different" })).rejects.toThrow(
-      /different content/,
-    );
+    await expect(rec("party", { ...party, name: "Different" })).rejects.toThrow(/different facts/);
     await expect(
       rec("party", { ...request(), name: "synthetic supply", kind: "supplier" }),
     ).rejects.toThrow(/already exists/);
@@ -135,7 +154,11 @@ describe("project purchase order persistence", () => {
       source: "Approved synthetic policy",
     };
     await rec("terms", companyTerms);
-    await rec("default_terms", { id: companyTerms.id, request_id: crypto.randomUUID() });
+    await rec("default_terms", {
+      id: companyTerms.id,
+      request_id: crypto.randomUUID(),
+      expected_default_version: 0,
+    });
     const foreignTerms = {
       ...request(),
       scope: "company",
@@ -187,7 +210,7 @@ describe("project purchase order persistence", () => {
         number: "ISSUE",
         status: "issued",
       }),
-    ).rejects.toThrow(/drafts/);
+    ).rejects.toThrow(/Invalid order status|drafts/);
     await rec("order", order);
     expect(await rec("order", order)).toMatchObject({ already_applied: true });
     await rec("order", {

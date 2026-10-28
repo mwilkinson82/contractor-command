@@ -169,9 +169,9 @@ describe("conversational draft workflow", () => {
     expect((await save("order", draft.p, draft.key)).structuredContent.saved).toBeNull();
     const existing = await call(purchaseOrdersRead, { job_number: "SYN-A" });
     expect(existing.structuredContent.orders as unknown[]).toHaveLength(1);
-    expect((await save("order", draft.p, draft.key)).structuredContent.result).toMatchObject({
-      already_applied: true,
-    });
+    const retry = await save("order", draft.p, draft.key);
+    expect(retry.structuredContent.result).toMatchObject({ already_applied: true });
+    expect(retry.content[0].text).toContain("previously recorded");
     const partyRevision = await review("party", {
       id: party.p.id,
       expected_version: 1,

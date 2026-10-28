@@ -3,7 +3,6 @@ import { z } from "zod";
 import { run, dbError, text, type Sb } from "../guard";
 import { memberCompanies, resolveJob } from "../jobs";
 import { guide } from "../visible";
-import { sha256Hex } from "../file-share";
 
 const line = z
   .object({
@@ -17,7 +16,8 @@ const facts = z
   .object({
     id: z.string().uuid().optional(),
     request_id: z.string().uuid().optional(),
-    expected_version: z.number().int().min(0).optional(),
+    expected_version: z.number().int().min(0).max(2147483646).optional(),
+    expected_default_version: z.number().int().min(0).max(2147483646).optional(),
     name: z.string().trim().min(1).max(200).optional(),
     kind: z.enum(["supplier", "subcontractor", "both"]).optional(),
     trade: z.string().trim().min(1).max(200).nullable().optional(),
@@ -34,7 +34,7 @@ const facts = z
     parent_id: z.string().uuid().optional(),
     po_id: z.string().uuid().optional(),
     party_id: z.string().uuid().optional(),
-    party_version: z.number().int().positive().optional(),
+    party_version: z.number().int().positive().max(2147483646).optional(),
     supplier_name: z.string().trim().min(1).max(200).optional(),
     number: z.string().trim().min(1).max(120).optional(),
     terms_id: z.string().uuid().optional(),
@@ -77,6 +77,7 @@ type Ledger = {
     approved_by: string | null;
   }>;
   default_terms_id: string | null;
+  default_version: number | null;
   orders: Array<{
     id: string;
     number: string;
@@ -93,19 +94,6 @@ async function rpc<T>(sb: Sb, name: string, args: Record<string, unknown>): Prom
   )(name, args);
   if (error) dbError(error);
   return data;
-}
-function canonical(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
-  if (v && typeof v === "object")
-    return `{${Object.entries(v as Record<string, unknown>)
-      .filter(([, x]) => x !== undefined)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, x]) => `${JSON.stringify(k)}:${canonical(x)}`)
-      .join(",")}}`;
-  return JSON.stringify(v);
-}
-async function key(job: string, action: Action, p: Facts) {
-  return sha256Hex(new TextEncoder().encode(canonical({ job, action, p })));
 }
 function missing(action: Action, p: Facts): string[] {
   const out: string[] = [];
@@ -222,16 +210,13 @@ export const purchaseOrdersRecord = defineTool({
     step: z.enum(["review", "save"]),
     action: z.enum(["party", "terms", "default_terms", "order"]),
     facts,
-    review_key: z
-      .string()
-      .regex(/^[0-9a-f]{64}$/)
-      .optional(),
+    review_key: z.string().uuid().optional(),
     confirmed: z.boolean().optional(),
   },
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
-    idempotentHint: true,
+    idempotentHint: false,
     openWorldHint: false,
   },
   handler: (args, ctx) =>
@@ -303,6 +288,8 @@ export const purchaseOrdersRecord = defineTool({
             const party = state.parties.find((x) => x.id === p.party_id);
             if (party) p.party_version = party.version;
           }
+          if (args.action === "default_terms" && state.default_version !== null)
+            p.expected_default_version = state.default_version;
           if (args.action === "order" && !p.terms_id && state.default_terms_id)
             p.terms_id = state.default_terms_id;
           const absent = missing(args.action, p);
@@ -312,7 +299,7 @@ export const purchaseOrdersRecord = defineTool({
                 ...text(`Before review I need: ${absent.join(", ")}. Nothing was saved.`),
                 structuredContent: { saved: false, missing: absent },
               },
-              "Ask only for the missing facts; never invent them.",
+              "Ask only for the missing facts; never invent them. If standard company terms are unavailable to this project member, ask the company owner to select terms for this project; do not disclose terms from another job.",
             );
           if (
             args.action === "party" &&
@@ -375,7 +362,6 @@ export const purchaseOrdersRecord = defineTool({
           }
           p.id = p.id ?? crypto.randomUUID();
           p.request_id = p.request_id ?? crypto.randomUUID();
-          const reviewKey = await key(job.job_id, args.action, p);
           const selected = state.terms.find(
             (x) => x.id === (args.action === "default_terms" ? p.id : p.terms_id),
           );
@@ -387,16 +373,24 @@ export const purchaseOrdersRecord = defineTool({
           const party = state.parties.find((x) => x.id === p.party_id);
           const company = (await memberCompanies(sb)).find((x) => x.id === job.company_id);
           const parent = state.terms.find((x) => x.id === p.parent_id);
+          const currentDefault = state.terms.find((x) => x.id === state.default_terms_id);
+          const reviewKey = crypto.randomUUID();
+          const review = await rpc<{ expires_at: string }>(
+            sb,
+            "mcp_project_purchase_orders_review",
+            { _job: job.job_id, _action: args.action, _p: p, _review: reviewKey },
+          );
           return guide(
             {
               ...text(
-                `Review ${args.action.replaceAll("_", " ")} for ${company?.name ?? "your company"} · ${job.job_number} · ${job.name}${party ? ` · ${party.name}` : ""}:\n${JSON.stringify(p, null, 2)}${p.lines ? `\nLines: ${p.lines.map((l) => `${l.description}: ${l.quantity} ${l.unit} at ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(l.unit_price_cents / 100)} per ${l.unit}`).join("; ")}` : ""}${selected ? `\nSelected terms (${selected.title}, ${selected.scope}):\n${selected.body}` : ""}${parent ? `\nBase terms (${parent.title}):\n${parent.body}` : ""}\n${args.action === "terms" && p.scope === "company" ? "Save and record these as company-approved terms?" : args.action === "default_terms" ? "Set the displayed approved company terms as the default?" : "Is this correct?"} Nothing has been saved.`,
+                `Review ${args.action.replaceAll("_", " ")} for ${company?.name ?? "your company"} · ${job.job_number} · ${job.name}${party ? ` · ${party.name}` : ""}:\n${JSON.stringify(p, null, 2)}${p.lines ? `\nLines: ${p.lines.map((l) => `${l.description}: ${l.quantity} ${l.unit} at ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(l.unit_price_cents / 100)} per ${l.unit}`).join("; ")}` : ""}${selected ? `\nSelected terms (${selected.title}, ${selected.scope}):\n${selected.body}` : ""}${parent ? `\nBase terms (${parent.title}):\n${parent.body}` : ""}${args.action === "default_terms" ? `\nCurrent default: ${currentDefault?.title ?? "none"} (version ${p.expected_default_version}).` : ""}\n${args.action === "terms" && p.scope === "company" ? "Save and record these as company-approved terms?" : args.action === "default_terms" ? "Set the displayed approved company terms as the default?" : "Is this correct?"} No party, terms version or order has been saved; the review is held temporarily.`,
               ),
               structuredContent: {
                 saved: false,
                 action: args.action,
                 facts: p,
                 review_key: reviewKey,
+                review_expires_at: review.expires_at,
                 selected_terms: selected ?? null,
                 parent_terms: parent ?? null,
                 comparison: parent && p.body ? compareTerms(parent.body, p.body) : null,
@@ -405,13 +399,7 @@ export const purchaseOrdersRecord = defineTool({
             "Show the facts, supplier name, prices in dollars and selected terms. For a terms variant compare the supplied text with its base and retain the source and change note. Ask for explicit confirmation. Save exactly these facts and review key only after yes. A draft or review is not issuance, acceptance, a cost or payment.",
           );
         }
-        if (
-          !args.confirmed ||
-          !args.review_key ||
-          !p.id ||
-          !p.request_id ||
-          (await key(job.job_id, args.action, p)) !== args.review_key
-        )
+        if (!args.confirmed || !args.review_key || !p.id || !p.request_id)
           throw new ToolError(
             "Review the exact facts and confirm before saving. Nothing was recorded.",
           );
@@ -419,16 +407,22 @@ export const purchaseOrdersRecord = defineTool({
           const result = await rpc<Record<string, unknown>>(
             sb,
             "mcp_project_purchase_orders_record",
-            { _job: job.job_id, _action: args.action, _p: p },
+            {
+              _job: job.job_id,
+              _action: args.action,
+              _p: p,
+              _review: args.review_key,
+              _confirmed: args.confirmed,
+            },
           );
           return guide(
             {
               ...text(
-                `Saved for ${job.job_number}. No purchase order was issued or accepted.\nProject records: ${pageUrl(job.job_id)}`,
+                `${result.already_applied ? "This request was previously recorded; current records may have changed. Read the project records before taking another action." : `Saved for ${job.job_number}.`} No purchase order was issued or accepted.\nProject records: ${pageUrl(job.job_id)}`,
               ),
               structuredContent: { saved: true, result } as never,
             },
-            "Report the saved record and its status. A PO is a commitment, not a posted cost or payment.",
+            "If already_applied is true, explain that this was previously recorded and read the current state before claiming it is still current. A PO is a commitment, not a posted cost or payment.",
           );
         } catch (e) {
           if (e instanceof ToolError) throw e;

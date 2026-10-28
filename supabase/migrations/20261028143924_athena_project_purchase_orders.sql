@@ -22,7 +22,7 @@ CREATE TABLE public.mcp_po_terms_versions (
 CREATE INDEX mcp_po_terms_company_idx ON public.mcp_po_terms_versions(company_id,scope,created_at DESC);
 CREATE TABLE public.mcp_po_company_defaults (
  company_id uuid PRIMARY KEY REFERENCES public.mcp_companies(id), terms_id uuid NOT NULL REFERENCES public.mcp_po_terms_versions(id),
- updated_by uuid NOT NULL, updated_at timestamptz NOT NULL DEFAULT now()
+ version integer NOT NULL CHECK(version>0), updated_by uuid NOT NULL, updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.mcp_purchase_orders (
  id uuid PRIMARY KEY, job_id uuid NOT NULL REFERENCES public.mcp_jobs(id), company_id uuid NOT NULL REFERENCES public.mcp_companies(id),
@@ -31,7 +31,7 @@ CREATE TABLE public.mcp_purchase_orders (
 CREATE UNIQUE INDEX mcp_po_number_idx ON public.mcp_purchase_orders(job_id,lower(btrim(number)));
 ALTER TABLE public.mcp_po_terms_versions ADD COLUMN po_id uuid REFERENCES public.mcp_purchase_orders(id);
 ALTER TABLE public.mcp_po_terms_versions ADD CONSTRAINT mcp_po_terms_po_scope CHECK ((scope='po') = (po_id IS NOT NULL));
-CREATE TABLE public.mcp_po_default_events (company_id uuid NOT NULL REFERENCES public.mcp_companies(id), terms_id uuid NOT NULL REFERENCES public.mcp_po_terms_versions(id), actor_id uuid NOT NULL, recorded_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.mcp_po_default_events (company_id uuid NOT NULL REFERENCES public.mcp_companies(id), terms_id uuid NOT NULL REFERENCES public.mcp_po_terms_versions(id), version integer NOT NULL CHECK(version>0), actor_id uuid NOT NULL, recorded_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(company_id,version));
 CREATE TABLE public.mcp_purchase_order_versions (
  po_id uuid NOT NULL REFERENCES public.mcp_purchase_orders(id), version integer NOT NULL CHECK(version>0),
  status text NOT NULL CHECK(status IN ('draft','reviewed','issued','accepted')),
@@ -40,8 +40,15 @@ CREATE TABLE public.mcp_purchase_order_versions (
 );
 CREATE TABLE public.mcp_po_operations (
  job_id uuid NOT NULL REFERENCES public.mcp_jobs(id), request_id uuid NOT NULL, actor_id uuid NOT NULL,
- signature text NOT NULL, result jsonb NOT NULL, PRIMARY KEY(job_id,request_id)
+ action text NOT NULL, payload_hash bytea NOT NULL, review_id uuid NOT NULL, result jsonb NOT NULL, PRIMARY KEY(job_id,request_id)
 );
+CREATE TABLE public.mcp_po_reviews (
+ id uuid PRIMARY KEY, job_id uuid NOT NULL REFERENCES public.mcp_jobs(id), actor_id uuid NOT NULL,
+ request_id uuid NOT NULL, action text NOT NULL, payload_hash bytea NOT NULL,
+ expires_at timestamptz NOT NULL DEFAULT (now() + interval '30 minutes'), created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX mcp_po_reviews_expiry_idx ON public.mcp_po_reviews(job_id, expires_at);
+ALTER TABLE public.mcp_po_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_project_parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_project_party_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_po_default_events ENABLE ROW LEVEL SECURITY;
@@ -50,8 +57,8 @@ ALTER TABLE public.mcp_po_company_defaults ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_purchase_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_purchase_order_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mcp_po_operations ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.mcp_project_parties,public.mcp_project_party_versions,public.mcp_po_default_events,public.mcp_po_terms_versions,public.mcp_po_company_defaults,public.mcp_purchase_orders,public.mcp_purchase_order_versions,public.mcp_po_operations FROM PUBLIC,anon,authenticated;
-GRANT ALL ON public.mcp_project_parties,public.mcp_project_party_versions,public.mcp_po_default_events,public.mcp_po_terms_versions,public.mcp_po_company_defaults,public.mcp_purchase_orders,public.mcp_purchase_order_versions,public.mcp_po_operations TO service_role;
+REVOKE ALL ON public.mcp_project_parties,public.mcp_project_party_versions,public.mcp_po_default_events,public.mcp_po_terms_versions,public.mcp_po_company_defaults,public.mcp_purchase_orders,public.mcp_purchase_order_versions,public.mcp_po_operations,public.mcp_po_reviews FROM PUBLIC,anon,authenticated;
+GRANT ALL ON public.mcp_project_parties,public.mcp_project_party_versions,public.mcp_po_default_events,public.mcp_po_terms_versions,public.mcp_po_company_defaults,public.mcp_purchase_orders,public.mcp_purchase_order_versions,public.mcp_po_operations,public.mcp_po_reviews TO service_role;
 -- Immutable history, including issued/accepted snapshots. The API exposes no issue or acceptance operation.
 CREATE TRIGGER mcp_party_versions_immutable BEFORE UPDATE OR DELETE ON public.mcp_project_party_versions FOR EACH ROW EXECUTE FUNCTION public.mcp_block_change();
 CREATE TRIGGER mcp_po_default_events_immutable BEFORE UPDATE OR DELETE ON public.mcp_po_default_events FOR EACH ROW EXECUTE FUNCTION public.mcp_block_change();
@@ -60,39 +67,106 @@ CREATE TRIGGER mcp_purchase_orders_immutable BEFORE UPDATE OR DELETE ON public.m
 CREATE TRIGGER mcp_po_versions_immutable BEFORE UPDATE OR DELETE ON public.mcp_purchase_order_versions FOR EACH ROW EXECUTE FUNCTION public.mcp_block_change();
 
 CREATE FUNCTION public.mcp_project_purchase_orders_get(_job uuid) RETURNS jsonb
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
-DECLARE company uuid;
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
+DECLARE company uuid; is_owner boolean;
 BEGIN
  PERFORM public.mcp_assert_active();
  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Purchase orders require full project access.'; END IF;
  SELECT company_id INTO company FROM public.mcp_jobs WHERE id=_job;
+ is_owner:=public.mcp_member_role(company)='owner';
  RETURN jsonb_build_object(
   'parties',coalesce((SELECT jsonb_agg(to_jsonb(p)||jsonb_build_object('versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.version DESC) FROM public.mcp_project_party_versions v WHERE v.party_id=p.id)) ORDER BY p.name) FROM public.mcp_project_parties p WHERE p.job_id=_job),'[]'::jsonb),
-  'default_history',coalesce((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.recorded_at DESC) FROM public.mcp_po_default_events e WHERE e.company_id=company),'[]'::jsonb),
-  'terms',coalesce((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.created_at) FROM public.mcp_po_terms_versions t WHERE t.company_id=company AND (t.scope='company' OR t.job_id=_job)),'[]'::jsonb),
-  'default_terms_id',(SELECT d.terms_id FROM public.mcp_po_company_defaults d WHERE d.company_id=company),
+  'default_history',CASE WHEN is_owner THEN coalesce((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.version DESC) FROM public.mcp_po_default_events e WHERE e.company_id=company),'[]'::jsonb) ELSE '[]'::jsonb END,
+  'terms',coalesce((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.created_at) FROM public.mcp_po_terms_versions t WHERE t.company_id=company AND ((t.scope='company' AND (is_owner OR EXISTS (SELECT 1 FROM public.mcp_purchase_orders known_order JOIN public.mcp_purchase_order_versions v ON v.po_id=known_order.id WHERE known_order.job_id=_job AND v.terms_id=t.id))) OR (t.scope<>'company' AND t.job_id=_job))),'[]'::jsonb),
+  'default_terms_id',CASE WHEN is_owner THEN (SELECT d.terms_id FROM public.mcp_po_company_defaults d WHERE d.company_id=company) END,
+  'default_version',CASE WHEN is_owner THEN coalesce((SELECT d.version FROM public.mcp_po_company_defaults d WHERE d.company_id=company),0) END,
   'orders',coalesce((SELECT jsonb_agg(to_jsonb(o)||jsonb_build_object('versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.version DESC) FROM public.mcp_purchase_order_versions v WHERE v.po_id=o.id)) ORDER BY o.created_at DESC) FROM public.mcp_purchase_orders o WHERE o.job_id=_job),'[]'::jsonb));
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_project_purchase_orders_get(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_project_purchase_orders_get(uuid) TO authenticated;
 
-CREATE FUNCTION public.mcp_project_purchase_orders_record(_job uuid,_action text,_p jsonb) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE j public.mcp_jobs; op public.mcp_po_operations; rid uuid; ident uuid; ref uuid; terms public.mcp_po_terms_versions; parent public.mcp_po_terms_versions;
- po public.mcp_purchase_orders; prev public.mcp_purchase_order_versions; party public.mcp_project_parties; n integer; sig text; result jsonb; line jsonb; amount numeric;
+-- The review binds actor, project, action and exact payload; the separate confirmation flag is a protocol signal, not proof of a human decision.
+CREATE FUNCTION public.mcp_project_purchase_orders_review(_job uuid,_action text,_p jsonb,_review uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE j public.mcp_jobs; old public.mcp_po_reviews; h bytea; rid uuid;
 BEGIN
  PERFORM public.mcp_assert_active();
  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Purchase orders require full project access.'; END IF;
+ IF coalesce(_action,'') NOT IN ('party','terms','default_terms','order') OR jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>100000 OR _review IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Invalid review request.'; END IF;
+ rid:=nullif(_p->>'request_id','')::uuid;
+ IF rid IS NULL OR nullif(_p->>'id','')::uuid IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Record and request IDs are required.'; END IF;
+ SELECT * INTO j FROM public.mcp_jobs WHERE id=_job FOR UPDATE;
+ IF (_action='default_terms' OR (_action='terms' AND _p->>'scope'='company')) AND public.mcp_member_role(j.company_id) IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'MCP_BAD:Only a company owner can approve or select company terms.'; END IF;
+ h:=pg_catalog.sha256(pg_catalog.convert_to(_p::text,'UTF8'));
+ DELETE FROM public.mcp_po_reviews WHERE job_id=_job AND expires_at < clock_timestamp() AND id<>_review;
+ SELECT * INTO old FROM public.mcp_po_reviews WHERE id=_review;
+ IF old.id IS NOT NULL THEN
+  IF old.job_id IS DISTINCT FROM _job OR old.actor_id IS DISTINCT FROM auth.uid() OR old.action IS DISTINCT FROM _action OR old.request_id IS DISTINCT FROM rid OR old.payload_hash IS DISTINCT FROM h OR old.expires_at<clock_timestamp() THEN RAISE EXCEPTION 'MCP_BAD:Review is unavailable or belongs to different facts.'; END IF;
+  RETURN jsonb_build_object('review_id',old.id,'expires_at',old.expires_at);
+ END IF;
+ IF (SELECT count(*) FROM public.mcp_po_reviews WHERE job_id=_job AND actor_id=auth.uid() AND expires_at>=clock_timestamp())>=25 THEN RAISE EXCEPTION 'MCP_BAD:Too many pending reviews; try again after they expire.'; END IF;
+ INSERT INTO public.mcp_po_reviews(id,job_id,actor_id,request_id,action,payload_hash) VALUES(_review,_job,auth.uid(),rid,_action,h) RETURNING * INTO old;
+ RETURN jsonb_build_object('review_id',old.id,'expires_at',old.expires_at);
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_project_purchase_orders_review(uuid,text,jsonb,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_project_purchase_orders_review(uuid,text,jsonb,uuid) TO authenticated;
+
+CREATE FUNCTION public.mcp_project_purchase_orders_record(_job uuid,_action text,_p jsonb,_review uuid,_confirmed boolean) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE j public.mcp_jobs; op public.mcp_po_operations; rid uuid; ident uuid; ref uuid; terms public.mcp_po_terms_versions; parent public.mcp_po_terms_versions;
+ po public.mcp_purchase_orders; prev public.mcp_purchase_order_versions; party public.mcp_project_parties; n integer; current_default integer; h bytea; rev public.mcp_po_reviews; result jsonb; line jsonb; amount numeric; field text; cap integer;
+BEGIN
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Purchase orders require full project access.'; END IF;
+ IF _confirmed IS DISTINCT FROM true OR _review IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Review and confirm the exact facts first.'; END IF;
  IF coalesce(_action,'') NOT IN ('party','terms','default_terms','order') OR jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>100000 THEN RAISE EXCEPTION 'MCP_BAD:Invalid request.'; END IF;
  rid:=nullif(_p->>'request_id','')::uuid; ident:=nullif(_p->>'id','')::uuid;
  IF rid IS NULL OR ident IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Record and request IDs are required.'; END IF;
+ IF (_action='default_terms' OR (_action='terms' AND _p->>'scope'='company')) AND public.mcp_member_role((SELECT company_id FROM public.mcp_jobs WHERE id=_job)) IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'MCP_BAD:Only a company owner can approve or select company terms.'; END IF;
+ -- Lock company before job for company-wide defaults, including the initial absent row.
+ IF _action='default_terms' THEN
+  PERFORM 1 FROM public.mcp_companies WHERE id=(SELECT company_id FROM public.mcp_jobs WHERE id=_job) FOR UPDATE;
+ END IF;
  SELECT * INTO j FROM public.mcp_jobs WHERE id=_job FOR UPDATE;
- sig:=md5(jsonb_build_object('action',_action,'payload',_p)::text);
+ h:=pg_catalog.sha256(pg_catalog.convert_to(_p::text,'UTF8'));
  SELECT * INTO op FROM public.mcp_po_operations WHERE job_id=_job AND request_id=rid;
  IF op.request_id IS NOT NULL THEN
-  IF op.actor_id IS DISTINCT FROM auth.uid() OR op.signature IS DISTINCT FROM sig THEN RAISE EXCEPTION 'MCP_BAD:Request ID belongs to different content.'; END IF;
+  IF op.actor_id IS DISTINCT FROM auth.uid() OR op.action IS DISTINCT FROM _action OR op.payload_hash IS DISTINCT FROM h OR op.review_id IS DISTINCT FROM _review THEN RAISE EXCEPTION 'MCP_BAD:Request ID belongs to different content.'; END IF;
   RETURN op.result||jsonb_build_object('already_applied',true);
  END IF;
+ SELECT * INTO rev FROM public.mcp_po_reviews WHERE id=_review AND job_id=_job AND actor_id=auth.uid() AND action=_action AND request_id=rid AND payload_hash=h AND expires_at>=clock_timestamp();
+ IF rev.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Review expired or does not match these facts and actor.'; END IF;
+ -- Enforce the same accepted field set and bounded optional text at the exposed RPC boundary.
+ IF EXISTS(SELECT 1 FROM jsonb_object_keys(_p) k WHERE k NOT IN ('id','request_id','expected_version','expected_default_version','name','kind','trade','contact_name','contact_email','contact_phone','insurance_reference','contract_reference','scope','title','body','source','change_note','parent_id','po_id','party_id','party_version','number','terms_id','status','lines','order_date','needed_by','reason')) THEN RAISE EXCEPTION 'MCP_BAD:Unexpected field.'; END IF;
+ IF EXISTS(SELECT 1 FROM jsonb_object_keys(_p) k WHERE NOT (k=ANY(CASE _action
+  WHEN 'party' THEN ARRAY['id','request_id','expected_version','name','kind','trade','contact_name','contact_email','contact_phone','insurance_reference','contract_reference','reason']
+  WHEN 'terms' THEN ARRAY['id','request_id','scope','title','body','source','change_note','parent_id','po_id','party_id','party_version']
+  WHEN 'default_terms' THEN ARRAY['id','request_id','expected_default_version']
+  ELSE ARRAY['id','request_id','expected_version','party_id','party_version','number','terms_id','status','lines','order_date','needed_by','reason'] END))) THEN RAISE EXCEPTION 'MCP_BAD:Field does not apply to this action.'; END IF;
+ FOREACH field IN ARRAY ARRAY['id','request_id','name','kind','scope','title','body','source','change_note','parent_id','po_id','party_id','number','terms_id','status','order_date','needed_by','reason'] LOOP
+  IF _p ? field AND jsonb_typeof(_p->field) IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'MCP_BAD:Invalid text field.'; END IF;
+ END LOOP;
+ FOR field,cap IN SELECT * FROM (VALUES ('name',200),('title',200),('body',50000),('source',2000),('change_note',2000),('number',120),('reason',2000)) AS v(f,c) LOOP
+  IF _p ? field AND (length(btrim(_p->>field))<1 OR length(_p->>field)>cap) THEN RAISE EXCEPTION 'MCP_BAD:Invalid text length.'; END IF;
+ END LOOP;
+ FOREACH field IN ARRAY ARRAY['id','request_id','parent_id','po_id','party_id','terms_id'] LOOP
+  IF _p ? field THEN
+   IF (_p->>field) !~* '^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$' THEN RAISE EXCEPTION 'MCP_BAD:Invalid record reference.'; END IF;
+   BEGIN PERFORM (_p->>field)::uuid; EXCEPTION WHEN invalid_text_representation THEN RAISE EXCEPTION 'MCP_BAD:Invalid record reference.'; END;
+  END IF;
+ END LOOP;
+ IF _p ? 'kind' AND _p->>'kind' NOT IN ('supplier','subcontractor','both') THEN RAISE EXCEPTION 'MCP_BAD:Invalid party type.'; END IF;
+ IF _p ? 'scope' AND _p->>'scope' NOT IN ('company','supplier','po') THEN RAISE EXCEPTION 'MCP_BAD:Invalid terms scope.'; END IF;
+ IF _p ? 'status' AND _p->>'status' NOT IN ('draft','reviewed') THEN RAISE EXCEPTION 'MCP_BAD:Invalid order status.'; END IF;
+ FOREACH field IN ARRAY ARRAY['expected_version','expected_default_version','party_version'] LOOP
+  IF _p ? field THEN
+   IF jsonb_typeof(_p->field) IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Invalid version.'; END IF;
+   IF (_p->>field)::numeric <> trunc((_p->>field)::numeric) OR (_p->>field)::numeric NOT BETWEEN 0 AND 2147483646 OR (field='party_version' AND (_p->>field)::numeric=0) THEN RAISE EXCEPTION 'MCP_BAD:Invalid version.'; END IF;
+  END IF;
+ END LOOP;
+ FOR field,cap IN SELECT * FROM (VALUES ('trade',200),('contact_name',200),('contact_email',320),('contact_phone',100),('insurance_reference',2000),('contract_reference',2000)) AS v(f,c) LOOP
+  IF _p ? field AND _p->field<>'null'::jsonb AND (jsonb_typeof(_p->field) IS DISTINCT FROM 'string' OR length(btrim(_p->>field)) NOT BETWEEN 1 AND cap) THEN RAISE EXCEPTION 'MCP_BAD:Invalid party detail.'; END IF;
+ END LOOP;
  IF _action='party' THEN
   IF length(btrim(coalesce(_p->>'name',''))) NOT BETWEEN 1 AND 200 OR coalesce(_p->>'kind','') NOT IN ('supplier','subcontractor','both') THEN RAISE EXCEPTION 'MCP_BAD:Provide a name and type.'; END IF;
   IF EXISTS(SELECT 1 FROM public.mcp_project_parties WHERE job_id=_job AND id<>ident AND lower(btrim(name))=lower(btrim(_p->>'name'))) THEN RAISE EXCEPTION 'MCP_BAD:A project party with that name already exists.'; END IF;
@@ -122,7 +196,7 @@ BEGIN
   ELSE
    ref:=nullif(_p->>'party_id','')::uuid;
    IF NOT EXISTS(SELECT 1 FROM public.mcp_project_parties WHERE id=ref AND job_id=_job AND company_id=j.company_id AND version=nullif(_p->>'party_version','')::integer) THEN RAISE EXCEPTION 'MCP_BAD:Select the current party on this project and review again.'; END IF;
-   SELECT * INTO parent FROM public.mcp_po_terms_versions WHERE id=nullif(_p->>'parent_id','')::uuid AND company_id=j.company_id AND (scope='company' OR (job_id=_job AND party_id=ref));
+   SELECT * INTO parent FROM public.mcp_po_terms_versions t WHERE id=nullif(_p->>'parent_id','')::uuid AND company_id=j.company_id AND ((scope='company' AND (public.mcp_member_role(j.company_id)='owner' OR EXISTS(SELECT 1 FROM public.mcp_purchase_orders known_order JOIN public.mcp_purchase_order_versions v ON v.po_id=known_order.id WHERE known_order.job_id=_job AND v.terms_id=t.id))) OR (job_id=_job AND party_id=ref));
    IF parent.id IS NULL OR (parent.scope='company' AND parent.approved_by IS NULL) OR length(btrim(coalesce(_p->>'change_note',''))) NOT BETWEEN 1 AND 2000 THEN RAISE EXCEPTION 'MCP_BAD:Select applicable base terms and describe the changes.'; END IF;
    IF _p->>'scope'='po' THEN
     IF NOT EXISTS(SELECT 1 FROM public.mcp_purchase_orders WHERE id=nullif(_p->>'po_id','')::uuid AND job_id=_job AND party_id=ref) THEN RAISE EXCEPTION 'MCP_BAD:Select the purchase order for these terms.'; END IF;
@@ -136,9 +210,13 @@ BEGIN
   IF public.mcp_member_role(j.company_id) IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'MCP_BAD:Only a company owner can select default terms.'; END IF;
   SELECT * INTO terms FROM public.mcp_po_terms_versions WHERE id=ident AND company_id=j.company_id AND scope='company' AND approved_by IS NOT NULL;
   IF terms.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Select approved company terms.'; END IF;
-  INSERT INTO public.mcp_po_company_defaults(company_id,terms_id,updated_by) VALUES(j.company_id,ident,auth.uid()) ON CONFLICT(company_id) DO UPDATE SET terms_id=EXCLUDED.terms_id,updated_by=EXCLUDED.updated_by,updated_at=now();
-  INSERT INTO public.mcp_po_default_events(company_id,terms_id,actor_id) VALUES(j.company_id,ident,auth.uid());
-  result:=jsonb_build_object('id',ident);
+  IF jsonb_typeof(_p->'expected_default_version') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Review the current company default first.'; END IF;
+  IF (_p->>'expected_default_version')::numeric <> trunc((_p->>'expected_default_version')::numeric) OR (_p->>'expected_default_version')::numeric NOT BETWEEN 0 AND 2147483646 THEN RAISE EXCEPTION 'MCP_BAD:Review the current company default first.'; END IF;
+  SELECT coalesce((SELECT version FROM public.mcp_po_company_defaults WHERE company_id=j.company_id),0) INTO current_default;
+  IF current_default IS DISTINCT FROM (_p->>'expected_default_version')::integer THEN RAISE EXCEPTION 'MCP_BAD:Company default changed; review again.'; END IF;
+  INSERT INTO public.mcp_po_company_defaults(company_id,terms_id,version,updated_by) VALUES(j.company_id,ident,current_default+1,auth.uid()) ON CONFLICT(company_id) DO UPDATE SET terms_id=EXCLUDED.terms_id,version=EXCLUDED.version,updated_by=EXCLUDED.updated_by,updated_at=now();
+  INSERT INTO public.mcp_po_default_events(company_id,terms_id,version,actor_id) VALUES(j.company_id,ident,current_default+1,auth.uid());
+  result:=jsonb_build_object('id',ident,'version',current_default+1);
  ELSE
   n:=coalesce(nullif(_p->>'expected_version','')::integer,-1);
   SELECT * INTO po FROM public.mcp_purchase_orders WHERE id=ident AND job_id=_job;
@@ -159,21 +237,22 @@ BEGIN
   SELECT * INTO party FROM public.mcp_project_parties WHERE id=po.party_id AND job_id=_job AND version=nullif(_p->>'party_version','')::integer;
   IF party.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Party details changed; review again.'; END IF;
   IF coalesce(_p->>'status','') NOT IN ('draft','reviewed') THEN RAISE EXCEPTION 'MCP_BAD:This workflow cannot issue or accept orders.'; END IF;
-  SELECT * INTO terms FROM public.mcp_po_terms_versions WHERE id=nullif(_p->>'terms_id','')::uuid AND company_id=j.company_id AND (scope<>'company' OR approved_by IS NOT NULL) AND (scope='company' OR (job_id=_job AND party_id=po.party_id AND (scope='supplier' OR (scope='po' AND po_id=po.id))));
+  SELECT * INTO terms FROM public.mcp_po_terms_versions t WHERE t.id=nullif(_p->>'terms_id','')::uuid AND t.company_id=j.company_id AND (t.scope<>'company' OR t.approved_by IS NOT NULL) AND ((t.scope='company' AND (public.mcp_member_role(j.company_id)='owner' OR EXISTS (SELECT 1 FROM public.mcp_purchase_orders known JOIN public.mcp_purchase_order_versions kv ON kv.po_id=known.id WHERE known.job_id=_job AND kv.terms_id=t.id))) OR (t.job_id=_job AND t.party_id=po.party_id AND (t.scope='supplier' OR (t.scope='po' AND t.po_id=po.id))));
   IF terms.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Select applicable terms.'; END IF;
   IF jsonb_typeof(_p->'lines') IS DISTINCT FROM 'array' OR jsonb_array_length(_p->'lines') NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'MCP_BAD:Provide one or more order lines.'; END IF;
   FOR line IN SELECT value FROM jsonb_array_elements(_p->'lines') LOOP
-   IF jsonb_typeof(line) IS DISTINCT FROM 'object' OR length(btrim(coalesce(line->>'description',''))) NOT BETWEEN 1 AND 2000 OR length(btrim(coalesce(line->>'unit',''))) NOT BETWEEN 1 AND 100 OR jsonb_typeof(line->'quantity') IS DISTINCT FROM 'number' OR jsonb_typeof(line->'unit_price_cents') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Each line needs description, unit, quantity and price.'; END IF;
+   IF jsonb_typeof(line) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(line) k WHERE k NOT IN ('description','quantity','unit','unit_price_cents')) OR length(btrim(coalesce(line->>'description',''))) NOT BETWEEN 1 AND 2000 OR length(btrim(coalesce(line->>'unit',''))) NOT BETWEEN 1 AND 100 OR jsonb_typeof(line->'quantity') IS DISTINCT FROM 'number' OR jsonb_typeof(line->'unit_price_cents') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Each line needs description, unit, quantity and price.'; END IF;
    amount:=(line->>'quantity')::numeric; IF amount<=0 OR amount>1000000000 THEN RAISE EXCEPTION 'MCP_BAD:Invalid quantity.'; END IF;
    amount:=(line->>'unit_price_cents')::numeric; IF amount<0 OR amount<>trunc(amount) OR amount>9000000000000 THEN RAISE EXCEPTION 'MCP_BAD:Invalid unit price.'; END IF;
   END LOOP;
   IF coalesce(_p->>'needed_by','') !~ '^\d{4}-\d{2}-\d{2}$' OR coalesce(_p->>'order_date','') !~ '^\d{4}-\d{2}-\d{2}$' THEN RAISE EXCEPTION 'MCP_BAD:Provide the order and needed-by dates.'; END IF;
+  BEGIN PERFORM (_p->>'order_date')::date, (_p->>'needed_by')::date; EXCEPTION WHEN datetime_field_overflow OR invalid_datetime_format THEN RAISE EXCEPTION 'MCP_BAD:Provide valid order and needed-by dates.'; END;
   INSERT INTO public.mcp_purchase_order_versions(po_id,version,status,terms_id,party_snapshot,lines,order_date,needed_by,reason,created_by)
    VALUES(ident,n+1,_p->>'status',terms.id,to_jsonb(party),_p->'lines',(_p->>'order_date')::date,(_p->>'needed_by')::date,nullif(btrim(_p->>'reason'),''),auth.uid());
   result:=jsonb_build_object('id',ident,'version',n+1);
  END IF;
- INSERT INTO public.mcp_po_operations(job_id,request_id,actor_id,signature,result) VALUES(_job,rid,auth.uid(),sig,result);
+ INSERT INTO public.mcp_po_operations(job_id,request_id,actor_id,action,payload_hash,review_id,result) VALUES(_job,rid,auth.uid(),_action,h,_review,result);
  RETURN result;
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_project_purchase_orders_record(uuid,text,jsonb) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.mcp_project_purchase_orders_record(uuid,text,jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.mcp_project_purchase_orders_record(uuid,text,jsonb,uuid,boolean) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_project_purchase_orders_record(uuid,text,jsonb,uuid,boolean) TO authenticated;
