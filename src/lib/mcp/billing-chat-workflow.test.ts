@@ -585,4 +585,61 @@ describe("guided billing workflow with a synthetic original", () => {
     ).rejects.toThrow(/fingerprint/);
     objects.set(key, bytes);
   }, 30000);
+  it("retains and links a synthetic XLSX original without importing formulas or changing the ledger", async () => {
+    const bytes = new Uint8Array(readFileSync("tests/fixtures/synthetic-estimate.xlsx"));
+    const started = await call(billingDocumentUpload, {
+      ...context,
+      action: "begin",
+      filename: "synthetic-estimate.xlsx",
+    });
+    const uploadId = started.structuredContent.upload_id as string;
+    const session = (
+      await query("SELECT public.mcp_billing_upload_get($1,$2) AS value", [
+        state.job.job_id,
+        uploadId,
+      ])
+    )[0].value as { storage_path: string };
+    await (
+      state.sb as {
+        storage: {
+          from: (bucket: string) => {
+            upload: (path: string, bytes: Uint8Array) => Promise<unknown>;
+          };
+        };
+      }
+    ).storage
+      .from("athena-financial-documents")
+      .upload(session.storage_path, bytes);
+    const uploaded = await call(billingDocumentUpload, {
+      ...context,
+      action: "finish",
+      upload_id: uploadId,
+    });
+    expect(uploaded.structuredContent.readable_text).toBeNull();
+    expect(uploaded.structuredContent.sha256).toBe(await sha256Hex(bytes));
+    expect(uploaded.content[0].text).toContain("not extracted or imported");
+    const before = await call(billingEvidenceRead, context);
+    const receipts = before.structuredContent.receipts as Array<{ id: string; source: string }>;
+    const receipt = receipts.find((r) => r.source === "synthetic receipt");
+    expect(receipt).toBeDefined();
+    const args = { ...context, document_id: uploadId, receipt_id: receipt!.id };
+    const review = await call(billingDocumentLink, { ...args, step: "review" });
+    const linked = await call(billingDocumentLink, {
+      ...args,
+      step: "save",
+      confirmed: true,
+      review_key: review.structuredContent.review_key,
+    });
+    expect(linked.structuredContent.linked).toBe(true);
+    const verified = await call(billingDocuments, {
+      ...context,
+      action: "read",
+      document_id: uploadId,
+    });
+    expect(verified.structuredContent.sha256).toBe(await sha256Hex(bytes));
+    expect(verified.structuredContent.readable_text).toBeNull();
+    const after = await call(billingEvidenceRead, context);
+    expect(after.structuredContent.balances).toEqual(before.structuredContent.balances);
+    expect(after.structuredContent.receipts).toEqual(before.structuredContent.receipts);
+  }, 30000);
 });

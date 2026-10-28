@@ -36,7 +36,12 @@ export async function readBoundedFinancialStoragePath(path: string): Promise<Uin
     .from("athena-financial-documents")
     .createSignedUrl(path, 60);
   if (error || !data?.signedUrl) throw new ToolError("The original is unavailable.");
-  const signed = new URL(data.signedUrl);
+  let signed: URL;
+  try {
+    signed = new URL(data.signedUrl);
+  } catch {
+    throw new ToolError("The original is unavailable.");
+  }
   if (
     signed.origin !== new URL(url).origin ||
     !signed.pathname.startsWith("/storage/v1/object/sign/athena-financial-documents/") ||
@@ -45,7 +50,12 @@ export async function readBoundedFinancialStoragePath(path: string): Promise<Uin
     ) !== path
   )
     throw new ToolError("The original is unavailable.");
-  const response = await fetch(signed, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+  let response: Response;
+  try {
+    response = await fetch(signed, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+  } catch {
+    throw new ToolError("The original is unavailable.");
+  }
   if (!response.ok || response.status >= 300) throw new ToolError("The original is unavailable.");
   const bytes = await readBounded(response, uploadMaxBytes("financial_document"));
   return bytes;

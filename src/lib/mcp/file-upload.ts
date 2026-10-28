@@ -3,6 +3,7 @@
 import { inflateRawSync } from "node:zlib";
 import { allowedDrawingDownloadUrl } from "./drawing-set";
 import { FileRejected } from "./file-share";
+import { isSafeFinancialXlsx } from "./financial-xlsx";
 
 export const FILE_UPLOAD_CHUNK_CHARS = 12_000;
 export const FILE_UPLOAD_CALL_CHARS = 20_000;
@@ -24,6 +25,7 @@ const MIME = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 } as const;
 export type UploadExt = keyof typeof MIME;
 export type UploadPurpose = "contract" | "spec" | "submittal_piece" | "financial_document";
@@ -53,11 +55,14 @@ export function uploadFilename(
     ext !== "pdf" &&
     ext !== "docx" &&
     ext !== "txt" &&
-    !(purpose === "financial_document" && (ext === "jpg" || ext === "jpeg" || ext === "png"))
+    !(
+      purpose === "financial_document" &&
+      (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "xlsx")
+    )
   )
     throw new FileRejected(
       purpose === "financial_document"
-        ? "Use a PDF, Word, text, JPEG, or PNG file. Nothing was stored."
+        ? "Use a PDF, Word, text, JPEG, PNG, or macro-free XLSX file. XLS and XLSM are not supported. Nothing was stored."
         : "Use a PDF, Word (.docx), or text (.txt) file. Nothing was stored.",
     );
   const stem =
@@ -75,6 +80,7 @@ export function sniffUpload(bytes: Uint8Array, ext: UploadExt, purpose?: UploadP
   if (ext === "pdf") return starts(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
   if (ext === "jpg" || ext === "jpeg") return starts(bytes, [0xff, 0xd8, 0xff]);
   if (ext === "png") return starts(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (ext === "xlsx") return purpose === "financial_document" && isSafeFinancialXlsx(bytes);
   if (ext === "docx")
     return (
       starts(bytes, [0x50, 0x4b, 0x03, 0x04]) &&
@@ -103,7 +109,11 @@ export function assertUploadBytes(bytes: Uint8Array, filename: string, purpose: 
       `That file is over ${Math.round(max / 1024 / 1024)} MB. Nothing was stored.`,
     );
   if (!sniffUpload(bytes, file.ext, purpose))
-    throw new FileRejected(`That file isn't a real .${file.ext} file. Nothing was stored.`);
+    throw new FileRejected(
+      file.ext === "xlsx"
+        ? "That XLSX is invalid, encrypted, macro-enabled, unsupported or exceeds archive limits. Nothing was stored."
+        : `That file isn't a real .${file.ext} file. Nothing was stored.`,
+    );
   return file;
 }
 
@@ -168,7 +178,7 @@ export async function extractUploadDocument(
   ext: UploadExt,
   purpose?: UploadPurpose,
 ): Promise<Extracted> {
-  if (ext === "jpg" || ext === "jpeg" || ext === "png")
+  if (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "xlsx")
     return { text: "", chars: 0, truncated: false };
   if (ext === "docx" && purpose === "financial_document") {
     try {

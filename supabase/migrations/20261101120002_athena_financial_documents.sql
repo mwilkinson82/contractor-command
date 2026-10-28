@@ -51,7 +51,7 @@ DECLARE j public.mcp_jobs; u public.mcp_billing_uploads; ident uuid := gen_rando
 BEGIN
   PERFORM public.mcp_assert_active();
   IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
-  IF length(coalesce(_filename,'')) NOT BETWEEN 1 AND 120 OR _filename LIKE '%/%' OR _filename LIKE '%\\%' OR _token_hash !~ '^[0-9a-f]{64}$' OR _mime NOT IN ('application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','image/jpeg','image/png') THEN RAISE EXCEPTION 'MCP_BAD:Invalid financial document.'; END IF;
+  IF length(coalesce(_filename,'')) NOT BETWEEN 1 AND 120 OR _filename LIKE '%/%' OR _filename LIKE '%\\%' OR _token_hash !~ '^[0-9a-f]{64}$' OR _mime NOT IN ('application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') THEN RAISE EXCEPTION 'MCP_BAD:Invalid financial document.'; END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('billing-upload:' || auth.uid()::text, 0));
   IF (SELECT count(*) FROM public.mcp_billing_uploads WHERE created_by=auth.uid() AND created_at > now()-interval '1 hour') >= 12 THEN RAISE EXCEPTION 'MCP_BAD:Too many billing uploads. Please try again later.'; END IF;
   SELECT * INTO j FROM public.mcp_jobs WHERE id=_job;

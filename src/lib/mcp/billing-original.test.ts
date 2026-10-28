@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import type { Sb } from "./guard";
 import { sha256Hex } from "./file-share";
 
@@ -56,6 +57,32 @@ describe("server-controlled original retrieval", () => {
     expect(mock.signed).toHaveBeenCalledWith(base.storage_path, 60);
     expect(await readUploadedFinancialOriginal(sb, "member-token", "job", "doc")).toEqual(bytes);
   });
+  it("returns an actual synthetic XLSX only after verifying its stored hash", async () => {
+    const workbook = new Uint8Array(readFileSync("tests/fixtures/synthetic-estimate.xlsx"));
+    document = {
+      ...document,
+      filename: "file.xlsx",
+      mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      storage_path: "company/job/doc/file.xlsx",
+      size_bytes: workbook.length,
+      sha256: await sha256Hex(workbook),
+    };
+    mock.signed.mockResolvedValue({
+      data: { signedUrl: signedUrl.replace("file.pdf", "file.xlsx") },
+      error: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(workbook as BodyInit)),
+    );
+    expect((await readVerifiedFinancialOriginal(sb, "member-token", "job", "doc")).bytes).toEqual(
+      workbook,
+    );
+    document = { ...document, sha256: "0".repeat(64) };
+    await expect(readVerifiedFinancialOriginal(sb, "member-token", "job", "doc")).rejects.toThrow(
+      /fingerprint/,
+    );
+  });
   it("fails closed for invalid identity, restricted access, foreign job and changed bytes", async () => {
     getUser.mockResolvedValueOnce({ data: { user: null }, error: { message: "invalid" } });
     await expect(readVerifiedFinancialOriginal(sb, "bad", "job", "doc")).rejects.toThrow(/member/);
@@ -96,6 +123,15 @@ describe("server-controlled original retrieval", () => {
     );
     await expect(readVerifiedFinancialOriginal(sb, "member-token", "job", "doc")).rejects.toThrow(
       /unavailable/,
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error(signedUrl);
+      }),
+    );
+    await expect(readVerifiedFinancialOriginal(sb, "member-token", "job", "doc")).rejects.toThrow(
+      /^The original is unavailable/,
     );
     vi.stubGlobal(
       "fetch",

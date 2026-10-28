@@ -81,7 +81,7 @@ export const billingDocumentUpload = defineTool({
   name: "billing_document_upload",
   title: "Upload a billing document",
   description:
-    "Stores a PDF, DOCX, TXT, JPEG or PNG financial original for a full-access project and returns readable text for review; it does not record an invoice or payment.",
+    "Stores a PDF, DOCX, TXT, JPEG, PNG or macro-free XLSX financial original for a full-access project. Spreadsheet values are not extracted or imported; no invoice or payment is recorded by upload.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -193,7 +193,9 @@ export const billingDocumentUpload = defineTool({
             ...text(
               excerpt
                 ? `Original stored: ${checked.name}. Readable text is available for review; no billing record has been saved.`
-                : `Original stored: ${checked.name}. I couldn't read its contents; please provide the details. No billing record has been saved.`,
+                : checked.ext === "xlsx"
+                  ? `Original stored: ${checked.name}. Spreadsheet values are not extracted or imported; please provide the details. No billing record has been saved.`
+                  : `Original stored: ${checked.name}. I couldn't read its contents; please provide the details. No billing record has been saved.`,
             ),
             structuredContent: {
               document_id: doc.id,
@@ -255,7 +257,9 @@ export const billingDocuments = defineTool({
               ...text(
                 part
                   ? `Verified original: ${doc.filename}. Readable text is available.`
-                  : `Verified original: ${doc.filename}. I couldn't read text from this file.`,
+                  : doc.ext === "xlsx"
+                    ? `Verified original: ${doc.filename}. Spreadsheet values are not extracted or imported.`
+                    : `Verified original: ${doc.filename}. I couldn't read text from this file.`,
               ),
               structuredContent: {
                 document_id: args.document_id,
