@@ -95,7 +95,7 @@ export function jobLinksMissingToken(value: unknown): string[] {
       const url = new URL(href);
       // These records require an authenticated, full-scope session;
       // a board token cannot grant ledger access. Its address is persistent.
-      if (/^\/r\/job\/[0-9a-f-]{36}\/(?:billing-records|purchase-orders)$/i.test(url.pathname))
+      if (/^\/r\/job\/[0-9a-f-]{36}\/(?:billing-records|purchase-orders|accounting)$/i.test(url.pathname))
         continue;
       if (!url.searchParams.get("t")) bad.push(href);
     } catch {

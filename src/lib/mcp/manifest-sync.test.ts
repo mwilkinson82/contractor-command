@@ -12,6 +12,7 @@ import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import { billingDocumentUpload, billingDocuments, billingDocumentLink } from "./tools/billing-document-tools";
 import { accountingReconciliation } from "./tools/reconciliation-tools";
+import { accountingReport } from "./tools/accounting-report-tools";
 import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
 import { purchaseOrdersRead, purchaseOrderTermsRead, purchaseOrdersRecord } from "./tools/purchase-order-tools";
 import { jobCostReceipt } from "./tools/job-cost-receipt-tools";
@@ -77,6 +78,7 @@ async function liveTools(): Promise<Tool[]> {
       L.livingReportGet,
       L.livingReportSave,
       accountingReconciliation,
+      accountingReport,
       billingEvidenceRead,
       billingEvidenceRecord,
       billingDocumentUpload,
