@@ -10,6 +10,7 @@ import * as L from "./tools/living-tools";
 import * as F from "./tools/file-tools";
 import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
+import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
@@ -65,6 +66,8 @@ async function liveTools(): Promise<Tool[]> {
       L.cpmActivities,
       L.livingReportGet,
       L.livingReportSave,
+      billingEvidenceRead,
+      billingEvidenceRecord,
       F.fileShare,
       F.fileShareRevoke,
       F.lookaheadPdfTool,
