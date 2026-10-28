@@ -108,7 +108,7 @@ describe("0.8.14 report_page_link", () => {
     expect(r.content[0].text).toContain("#1E5FED");
     expect(r.content[0].text).not.toMatch(/lovable|supabase/i);
     expect(jobLinksMissingToken(r)).toEqual([]);
-    const card = r.structuredContent.card;
+    const card = r.structuredContent.card as { presentation: string; sections: { rows: { href: string }[] }[] };
     expect(card.presentation).toBe("report-link");
     expect(card.sections[0].rows[0].href).toBe(r.structuredContent.url);
     expect(card.sections[0].rows[1].href).toMatch(/\/home\?t=/);
