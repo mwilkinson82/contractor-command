@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { apMoney } from "@/lib/accounting-ap-versioned";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,8 +28,8 @@ export function AccountingReportView({
   return (
     <>
       <p className="mt-3 text-sm">
-        USD · {report.from ?? "Inception"} through {report.asOf}, inclusive · Captured{" "}
-        {report.capturedAt}
+        {report.ap ? "AR/budget/PO: USD; AP by currency" : "USD"} · {report.from ?? "Inception"}{" "}
+        through {report.asOf}, inclusive · Captured {report.capturedAt}
       </p>
       <p className="mt-3 text-sm">{report.basis}</p>
       <div className="mt-5 flex flex-wrap gap-4 text-sm">
@@ -65,6 +66,100 @@ export function AccountingReportView({
           </tbody>
         </table>
       </div>
+      {report.ap ? (
+        <section aria-label="AP reviewed currency evidence">
+          <h2 className="mt-8 text-lg font-semibold">Posted AP by reviewed currency</h2>
+          <p className="mt-2 text-sm">{report.ap.basis}</p>
+          {!report.ap.rows.length ? (
+            <p className="mt-2 text-sm">
+              No posted AP allocation evidence is dated through this cutoff. Monetary totals remain
+              Unknown.
+            </p>
+          ) : null}
+          <div className="overflow-x-auto">
+            <table className="mt-3 w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="p-2">Currency</th>
+                  <th className="p-2">Posted as-of</th>
+                  <th className="p-2">Known subset</th>
+                  <th className="p-2">Selected range amounts</th>
+                  <th className="p-2">Net AP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.ap.groups.map((g) => (
+                  <tr className="border-b" key={g.currency ?? "unknown"}>
+                    <th className="p-2">{g.currency ?? "Unknown"}</th>
+                    <td className="p-2">{apMoney(g.postedCents, g.currency)}</td>
+                    <td className="p-2">
+                      {apMoney(g.knownSubtotalCents, g.currency)}
+                      {g.unknownRows ? ` · ${g.unknownRows} unknown rows` : ""}
+                    </td>
+                    <td className="p-2">{apMoney(g.selectedPeriodCents, g.currency)}</td>
+                    <td className="p-2">Unknown</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3 className="mt-5 font-semibold">AP cost codes by currency</h3>
+          <div className="overflow-x-auto">
+            <table className="mt-3 w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="p-2">Currency</th>
+                  <th className="p-2">Cost code</th>
+                  <th className="p-2">Posted as-of</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.ap.costCodes.slice((page - 1) * 50, page * 50).map((c) => (
+                  <tr className="border-b" key={`${c.currency}:${c.code}`}>
+                    <td className="p-2">{c.currency ?? "Unknown"}</td>
+                    <td className="p-2">{c.code}</td>
+                    <td className="p-2">{apMoney(c.postedCents, c.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3 className="mt-5 font-semibold">AP source evidence · page {page}</h3>
+          <p className="mt-2 text-sm">
+            {report.ap.rows.length} total AP allocation rows. The page controls below apply to both
+            source tables.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="mt-3 w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className="p-2">Accounting effective</th>
+                  <th className="p-2">Record/version/code</th>
+                  <th className="p-2">Reviewed currency amount</th>
+                  <th className="p-2">Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.ap.rows.slice((page - 1) * 50, page * 50).map((r) => (
+                  <tr className="border-b align-top" key={r.id} id={r.id}>
+                    <td className="p-2">{r.effectiveOn ?? "Unknown"}</td>
+                    <th className="p-2 font-normal">
+                      {r.recordId} · v{r.version} · {r.costCode}
+                    </th>
+                    <td className="p-2 whitespace-nowrap">{apMoney(r.amountCents, r.currency)}</td>
+                    <td className="p-2">
+                      <details>
+                        <summary className="cursor-pointer underline">Read AP source</summary>
+                        <p>{r.source}</p>
+                      </details>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
       <h2 className="mt-8 text-lg font-semibold">Coverage and limitations</h2>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
         {report.limitations.map((l) => (
@@ -171,8 +266,10 @@ export function AccountingReportView({
         <button
           type="button"
           className="underline disabled:opacity-40"
-          disabled={!ledger.nextPage || !setPage}
-          onClick={() => ledger.nextPage && setPage?.(ledger.nextPage)}
+          disabled={
+            (!ledger.nextPage && !(report.ap && page * 50 < report.ap.rows.length)) || !setPage
+          }
+          onClick={() => setPage?.(page + 1)}
         >
           Next
         </button>
@@ -209,6 +306,21 @@ export function AccountingReportPage({
         asOf: dates.asOf,
       }),
   });
+  useEffect(() => {
+    if (!query.data || query.error || !window.location.hash) return;
+    let id: string;
+    try {
+      id = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return;
+    }
+    if (!query.data.rows.some((r) => r.id === id) && !query.data.ap?.rows.some((r) => r.id === id))
+      return;
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.querySelector("details")?.setAttribute("open", "");
+    element.scrollIntoView({ block: "center" });
+  }, [query.data, query.error, page]);
   if (loading) return <main className="p-8">Checking access…</main>;
   if (!session)
     return (

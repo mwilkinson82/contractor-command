@@ -1,3 +1,4 @@
+import { attachVersionedAp, buildVersionedApReport } from "./accounting-ap-versioned";
 import { apReportingCapability } from "./accounting-ap-snapshot";
 import {
   accountingDate,
@@ -109,6 +110,9 @@ export async function readAccountingReport(
     throw new Error(
       "AP snapshot could not be read. Access or source availability must be resolved before reporting.",
     );
+  const versioned = !ap.error
+    ? buildVersionedApReport(ap.data, jobId, options.asOf, options.from || null, companyId)
+    : null;
   const costs = ap.error
     ? {
         available: false as const,
@@ -123,10 +127,11 @@ export async function readAccountingReport(
     (v) => poReportSchema.parse(v),
     "PO commitments",
   );
-  return buildAccountingReport(
+  const report = buildAccountingReport(
     { jobId, companyId, capturedAt, billing: billingData, budgets, costs, orders },
     options,
   );
+  return versioned ? attachVersionedAp(report, versioned) : report;
 }
 /** Bridge for the existing Supabase query builder, always the signed-in user's client; never an admin. */
 export function accountingIO(client: unknown): AccountingIO {

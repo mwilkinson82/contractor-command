@@ -1,3 +1,4 @@
+import { apMoney } from "../../accounting-ap-versioned";
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text } from "../guard";
@@ -53,13 +54,30 @@ export const accountingReport = defineTool({
         });
         const url = `https://app.meetathena.io/r/job/${job.job_id}/accounting?${query}`;
         const ledger = accountingPage(report, args.page);
+        const ap = report.ap
+          ? {
+              ...report.ap,
+              costCodes: report.ap.costCodes.slice(
+                ((args.page ?? 1) - 1) * 50,
+                (args.page ?? 1) * 50,
+              ),
+              cost_code_pagination: { totalRows: report.ap.costCodes.length },
+              rows: report.ap.rows.slice(((args.page ?? 1) - 1) * 50, (args.page ?? 1) * 50),
+              pagination: {
+                totalRows: report.ap.rows.length,
+                nextPage:
+                  (args.page ?? 1) * 50 < report.ap.rows.length ? (args.page ?? 1) + 1 : null,
+              },
+            }
+          : undefined;
         return guide(
           {
             ...text(
-              `${job.job_number} · Accounting evidence · USD\n${report.from ?? "Inception"} through ${report.asOf} (inclusive)\n${report.metrics.map((m) => `${m.label}: ${accountingMoney(m.cents)}`).join("\n")}\n\n${report.basis}\n${report.limitations.join("\n")}\n\nPrivate report and accountant CSV: ${url}\nLedger page ${ledger.page}: ${ledger.rows.length} of ${ledger.totalRows} rows; totals include all source rows.`,
+              `${job.job_number} · Accounting evidence · ${report.ap ? "AR/budget/PO USD; AP by reviewed currency" : "USD"}\n${report.from ?? "Inception"} through ${report.asOf} (inclusive)\n${report.metrics.map((m) => `${m.label}: ${accountingMoney(m.cents)}`).join("\n")}\n\n${report.basis}\n${report.limitations.join("\n")}\n\nAP currency groups: ${report.ap?.groups.map((g) => `${g.currency ?? "Unknown"}: ${apMoney(g.postedCents, g.currency)} posted as-of; net AP Unknown`).join("; ") ?? "Unavailable"}\nPrivate report and accountant CSV: ${url}\nLedger page ${ledger.page}: ${ledger.rows.length} of ${ledger.totalRows} rows; totals include all source rows.`,
             ),
             structuredContent: {
               ...report,
+              ap,
               rows: ledger.rows,
               costCodes: report.costCodes.slice(((args.page ?? 1) - 1) * 50, (args.page ?? 1) * 50),
               cost_code_pagination: {
@@ -72,7 +90,7 @@ export const accountingReport = defineTool({
               report_url: url,
             } as never,
           },
-          "Present the report in the light project report style with a functional text fallback and the private CSV download link. Preserve Unknown, currency, date basis and completeness limitations. Billed revenue is not earned revenue. Settlements and PO commitments are never extra actual costs. The provisional billed less recorded costs is not a complete P&L. Source IDs and versions support drill-down. Do not combine currencies or invent missing costs. Follow nextPage for more ledger rows; summary totals always cover all read sources.",
+          "Present the report in the light project report style with a functional text fallback and the private CSV download link. Preserve Unknown, currency, date basis and completeness limitations. Billed revenue is not earned revenue. Settlements and PO commitments are never extra actual costs. The provisional billed less recorded costs is not a complete P&L. Source IDs and versions support drill-down. Do not combine currencies or invent missing costs. AP currency provenance is reviewed submission, not independent document verification. AP range values select effective current versions and are not journal movements. Keep unsupported net AP and settlement allocation Unknown. Follow nextPage for more ledger rows; summary totals always cover all read sources.",
         );
       },
     ),

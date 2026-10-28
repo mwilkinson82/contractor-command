@@ -1,3 +1,4 @@
+import type { ApVersionReport } from "./accounting-ap-versioned";
 import { z } from "zod";
 
 export const accountingDate = z
@@ -161,6 +162,7 @@ export type AccountingRow = {
 };
 export type Metric = { key: string; label: string; cents: number | null; basis: string };
 export type AccountingReport = {
+  ap?: ApVersionReport;
   jobId: string;
   companyId?: string;
   capturedAt: string;
@@ -629,10 +631,12 @@ export function accountingSourceUrl(report: AccountingReport, rowId: string): st
   });
   return `https://app.meetathena.io/r/job/${report.jobId}/accounting?${query}#${encodeURIComponent(rowId)}`;
 }
-export const accountingMoney = (n: number | null) =>
-  n === null
-    ? "Unknown"
-    : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
+export const accountingMoney = (n: number | null) => {
+  if (n === null) return "Unknown";
+  const value = BigInt(n),
+    abs = value < 0n ? -value : value;
+  return `${value < 0n ? "-" : ""}$${(abs / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${(abs % 100n).toString().padStart(2, "0")}`;
+};
 /** Quote every cell and neutralize spreadsheet formula prefixes, including whitespace/control-prefixed ones. */
 export function accountingCsv(report: AccountingReport): string {
   const cell = (v: unknown) => {
@@ -704,6 +708,61 @@ export function accountingCsv(report: AccountingReport): string {
       r.source,
       accountingSourceUrl(report, r.id),
     ]);
+  if (report.ap) {
+    const exact = (v: string | null) => (v === null ? null : "'" + v);
+    for (const g of report.ap.groups)
+      out.push([
+        "ap_currency_summary",
+        g.currency ?? "unknown",
+        report.asOf,
+        "",
+        "Selected posted AP amounts; reviewed currency",
+        "",
+        "Unclassified",
+        g.currency ?? "Unknown",
+        exact(g.postedCents),
+        null,
+        report.ap.basis +
+          ` Known subtotal cents ${g.knownSubtotalCents ?? "Unknown"}; selected range cents ${g.selectedPeriodCents ?? "Unknown"}; unknown rows ${g.unknownRows}; settlement unsupported`,
+        "",
+      ]);
+    for (const c of report.ap.costCodes)
+      out.push([
+        "ap_cost_code",
+        c.code,
+        report.asOf,
+        "",
+        "Posted AP by currency and cost code",
+        c.code,
+        "Unclassified",
+        c.currency ?? "Unknown",
+        exact(c.postedCents),
+        null,
+        report.ap.basis,
+        "",
+      ]);
+    report.ap.rows.forEach((r, index) => {
+      const q = new URLSearchParams({
+        as_of: report.asOf,
+        ledger_page: String(Math.floor(index / 50) + 1),
+        ...(report.from ? { from: report.from } : {}),
+      });
+      out.push([
+        "ap_posted_cost",
+        r.id,
+        r.effectiveOn,
+        r.version,
+        r.recordId,
+        r.costCode,
+        "Unclassified",
+        r.currency ?? "Unknown",
+        exact(r.amountCents),
+        null,
+        r.source,
+        `https://app.meetathena.io/r/job/${report.jobId}/accounting?${q}#${encodeURIComponent(r.id)}`,
+      ]);
+    });
+  }
   return (
     "\uFEFF" +
     out

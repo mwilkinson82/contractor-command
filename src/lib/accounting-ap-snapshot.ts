@@ -30,7 +30,7 @@ const envelope = z.discriminatedUnion("complete", [
   }),
 ]);
 
-/** PR351 owns this RPC. Snapshot v1 is an evidence contract, not a verified monetary reporting source. */
+/** PR351 owns this RPC. Legacy snapshot v1 without per-version currency/effective-date provenance remains evidence-only. */
 export function apReportingCapability(
   raw: unknown,
   jobId: string,
