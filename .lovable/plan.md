@@ -1,26 +1,11 @@
-# Storage bucket capability findings (read-only, nothing executed)
+Read-only findings (no changes made)
 
-## Create action: `supabase--storage_create_bucket`
-Schema (exact):
-```text
-{ name: string (required), public: boolean (required),
-  file_size_limit?: string  // "Largest single file the bucket accepts, as a size
-                            //  with a unit ("500KB", "50MB", "2GB"). Omit to
-                            //  inherit the project-wide limit." }
-additionalProperties: false
-```
-Doc quote: "public: false (default) = private, RLS-gated." / "file_size_limit: largest single file the bucket accepts, written with a unit ... A value above the project-wide limit is rejected."
+Secrets configured (23 names): AOS_BASE_URL, AOS_SHARED_SECRET, ATHENA_VAPID_PRIVATE_KEY, ATHENA_VAPID_PUBLIC_KEY, CONTRACTOR_CIRCLE_SHARED_SECRET, LOVABLE_API_KEY (managed), OAUTH_CONTINUATION_SECRET, STRIPE_PRICE_ID_AOS_SEAT_MONTH, STRIPE_PRICE_ID_AOS_WORKSPACE_MONTH, STRIPE_PRICE_ID_BOOK, STRIPE_PRICE_ID_CALL_1, STRIPE_PRICE_ID_CALL_3, STRIPE_PRICE_ID_CALL_6, STRIPE_PRICE_ID_CIRCLE, STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_MONTH, STRIPE_PRICE_ID_CONTRACTOR_SCHOOL_QUARTER, STRIPE_PRICE_ID_INTENSIVE, STRIPE_PRICE_ID_POWER_HOUR_MONTH, STRIPE_PRICE_ID_POWER_HOUR_QUARTER, STRIPE_PRICE_ID_SM_SCHOOL_MONTH, STRIPE_PRICE_ID_SM_SCHOOL_QUARTER, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET.
 
-## Update action: `supabase--storage_update_bucket`
-Schema: `name` (required), `public?`, `file_size_limit?` (string with unit), `remove_file_size_limit?` (boolean). additionalProperties: false.
+1. RESEND_WEBHOOK_SECRET: does not exist.
+2. SUPPORT_AUTOREPLY_LIVE: does not exist.
+3. RESEND_API_KEY: does not exist.
 
-## Field support for your request
-- Private bucket: supported (`public: false`).
-- Per-bucket limit of exactly 104857600 bytes: likely expressible as `"100MB"`, but the docs do not state whether MB means 10^6 or 2^20 bytes, and no raw byte form is documented. Exact 104857600 is NOT verifiable from documentation. It must also not exceed the project-wide limit (current value not checked).
-- MIME allowlist (pdf, docx, text/plain, jpeg, png): NOT supported. Neither schema has an allowed-MIME-types field, and additionalProperties is false.
+Git: there is no `main` branch in this workspace. The current HEAD is `1fc1bec4f60b2080743cb81e399d7c016f6981dc`. `src/lib/support/process.ts` is not in the working tree.
 
-## Approval at action time
-The tool descriptions mention no approval step. The approvals tool lists only `tool.connector.call`, `tool.mcp.call`, `tool.workspace_settings.update` as approvable, so no human approval card is documented for these actions. Whether a workspace policy (e.g. public-bucket blocking) applies is noted only for public buckets.
-
-## Conclusion
-No supported action is verifiable that creates this bucket with all requested fields. The MIME allowlist cannot be set, and the exact byte limit is unconfirmed.
+No action proposed.
