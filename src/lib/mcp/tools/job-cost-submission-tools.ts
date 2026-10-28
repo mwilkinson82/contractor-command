@@ -5,7 +5,7 @@ import { resolveJob } from "../jobs";
 import { guide } from "../visible";
 import { sha256Hex } from "../file-share";
 
-// This draft is deliberately not registered in ATHENA_TOOLS until the staged schema is coordinated.
+// Registration and the staged schema must be released together after coordination.
 const allocation = z
   .object({
     job_number: z.string().trim().min(1).max(40).optional(),
@@ -299,7 +299,7 @@ const accountingPayload = z
   })
   .strict();
 type AccountingPayload = z.infer<typeof accountingPayload>;
-/** Unregistered until an accounting authority policy and schema are reviewed. */
+/** The staged database denies accounting authority until a policy is reviewed. */
 export const jobCostAccountingRecord = defineTool({
   name: "job_cost_accounting_record",
   title: "Review a job cost accounting action",
