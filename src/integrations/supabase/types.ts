@@ -1063,6 +1063,119 @@ export type Database = {
           },
         ]
       }
+      mcp_billing_document_links: {
+        Row: {
+          document_id: string
+          invoice_id: string | null
+          invoice_version: number | null
+          job_id: string
+          receipt_id: string | null
+          recorded_at: string
+          recorded_by: string
+        }
+        Insert: {
+          document_id: string
+          invoice_id?: string | null
+          invoice_version?: number | null
+          job_id: string
+          receipt_id?: string | null
+          recorded_at?: string
+          recorded_by: string
+        }
+        Update: {
+          document_id?: string
+          invoice_id?: string | null
+          invoice_version?: number | null
+          job_id?: string
+          receipt_id?: string | null
+          recorded_at?: string
+          recorded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_document_links_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_document_links_invoice_id_invoice_version_fkey"
+            columns: ["invoice_id", "invoice_version"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoice_versions"
+            referencedColumns: ["invoice_id", "version"]
+          },
+          {
+            foreignKeyName: "mcp_billing_document_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_document_links_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_documents: {
+        Row: {
+          company_id: string
+          created_by: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          recorded_at: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Insert: {
+          company_id: string
+          created_by: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          recorded_at?: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Update: {
+          company_id?: string
+          created_by?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          mime_type?: string
+          recorded_at?: string
+          sha256?: string
+          size_bytes?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_documents_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "mcp_billing_uploads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_billing_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_billing_invoice_versions: {
         Row: {
           certified_cents: number | null
@@ -1306,6 +1419,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "mcp_billing_receipts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_billing_uploads: {
+        Row: {
+          attempts: number
+          company_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          status: string
+          storage_path: string
+          token_hash: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          created_at?: string
+          created_by: string
+          expires_at: string
+          filename: string
+          id?: string
+          job_id: string
+          mime_type: string
+          status?: string
+          storage_path: string
+          token_hash: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          mime_type?: string
+          status?: string
+          storage_path?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_billing_uploads_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
@@ -6874,6 +7040,28 @@ export type Database = {
         Args: { _action: string; _job: string; _object: string; _tool: string }
         Returns: undefined
       }
+      mcp_billing_document_link: {
+        Args: {
+          _actor: string
+          _document: string
+          _invoice: string
+          _job: string
+          _receipt: string
+          _version: number
+        }
+        Returns: Json
+      }
+      mcp_billing_document_register: {
+        Args: {
+          _actor: string
+          _id: string
+          _job: string
+          _sha256: string
+          _size: number
+        }
+        Returns: Json
+      }
+      mcp_billing_documents_get: { Args: { _job: string }; Returns: Json }
       mcp_billing_evidence_get: { Args: { _job: string }; Returns: Json }
       mcp_billing_evidence_record: {
         Args: { _action: string; _job: string; _p: Json }
@@ -6882,6 +7070,27 @@ export type Database = {
       mcp_billing_posted_credits: {
         Args: { _exclude?: string; _invoice: string; _job: string }
         Returns: number
+      }
+      mcp_billing_record_document: {
+        Args: { _action: string; _actor: string; _job: string; _p: Json }
+        Returns: Json
+      }
+      mcp_billing_upload_begin: {
+        Args: {
+          _filename: string
+          _job: string
+          _mime: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_billing_upload_claim: {
+        Args: { _actor: string; _id: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_billing_upload_get: {
+        Args: { _id: string; _job: string }
+        Returns: Json
       }
       mcp_board_link_create: {
         Args: { _expires_at: string; _job: string; _token_hash: string }
