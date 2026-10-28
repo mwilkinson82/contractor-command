@@ -98,9 +98,9 @@ const money = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
 export const jobCostSubmissionRead = defineTool({
   name: "job_cost_submissions_read",
-  title: "Read submitted job costs",
+  title: "Read job cost records",
   description:
-    "Reads submitted supplier bill and field expense metadata for a job, subject to full access to every job in each record. Posting and attachments are unavailable.",
+    "Reads supplier bill and field expense versions and accounting evidence, subject to full access to every job in each record. Attachments are unavailable.",
   inputSchema: jobFields,
   annotations: {
     readOnlyHint: true,
@@ -126,11 +126,11 @@ export const jobCostSubmissionRead = defineTool({
         return guide(
           {
             ...text(
-              `${job.job_number}: submitted cost records. Originals are not stored here; accounting posting is not available.`,
+              `${job.job_number}: cost records and accounting evidence. Originals are not stored here.${data.posting_available ? "" : " Accounting posting is not available."}`,
             ),
             structuredContent: data as never,
           },
-          "Show records and their current submitted version. Never claim these are posted, paid or complete financial history.",
+          "Show the latest version, approved versions, posted version and recorded payments separately. A pending correction does not replace the posted version. Never treat missing records as complete history or payment evidence as another cost.",
         );
       },
     ),
