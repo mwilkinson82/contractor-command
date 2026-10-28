@@ -7,6 +7,7 @@ import { ToolError } from "@lovable.dev/mcp-js";
 const state = vi.hoisted(() => ({
   sb: null as unknown,
   lost: false,
+  actor: "00000000-0000-4000-8000-000000000111",
   job: {
     job_id: "00000000-0000-4000-8000-000000000115",
     company_id: "00000000-0000-4000-8000-000000000114",
@@ -27,13 +28,18 @@ vi.mock("./jobs", () => ({
   resolveJob: async () => state.job,
   memberCompanies: async () => [{ id: state.job.company_id, name: "Synthetic Company" }],
 }));
-import { purchaseOrdersRead, purchaseOrdersRecord } from "./tools/purchase-order-tools";
+import {
+  purchaseOrdersRead,
+  purchaseOrderTermsRead,
+  purchaseOrdersRecord,
+} from "./tools/purchase-order-tools";
 const owner = "00000000-0000-4000-8000-000000000111";
+const contracts = "00000000-0000-4000-8000-000000000112";
 let db: PGlite;
 const query = (sql: string, values: unknown[] = []) =>
   asUser(
     db,
-    { sub: owner, email: "synthetic@example.test", role: "authenticated" },
+    { sub: state.actor, email: "synthetic@example.test", role: "authenticated" },
     async (tx) => (await tx.query(sql, values)).rows as Record<string, unknown>[],
   );
 type Reply = { content: Array<{ text: string }>; structuredContent: Record<string, unknown> };
@@ -49,6 +55,10 @@ beforeAll(async () => {
   );
   await db.query("insert into auth.users(id,email) values($1,'synthetic@example.test')", [owner]);
   await db.query("insert into test_active_members values($1)", [owner]);
+  await db.query("insert into auth.users(id,email) values($1,'contracts@example.test')", [
+    contracts,
+  ]);
+  await db.query("insert into test_active_members values($1)", [contracts]);
   await db.query("insert into mcp_companies(id,name,created_by) values($1,'Synthetic',$2)", [
     state.job.company_id,
     owner,
@@ -56,6 +66,10 @@ beforeAll(async () => {
   await db.query(
     "insert into mcp_company_members(company_id,user_id,role,display_name) values($1,$2,'owner','Owner')",
     [state.job.company_id, owner],
+  );
+  await db.query(
+    "insert into mcp_company_members(company_id,user_id,role,display_name) values($1,$2,'contracts','Contracts')",
+    [state.job.company_id, contracts],
   );
   await db.query(
     "insert into mcp_jobs(id,user_id,company_id,job_number,name) values($1,$2,$3,'SYN-A','Synthetic')",
@@ -192,6 +206,96 @@ describe("conversational draft workflow", () => {
       needed_by: "2026-12-01",
     }).catch((e) => e);
     expect(duplicate).toBeInstanceOf(ToolError);
+  });
+});
+
+describe("contracts terms workflow", () => {
+  it("proposes through a terms-only view and requires separate owner approval", async () => {
+    state.actor = owner;
+    const review = async (action: string, facts: Record<string, unknown>) => {
+      const r = await call(purchaseOrdersRecord, {
+        job_number: "SYN-A",
+        step: "review",
+        action,
+        facts,
+      });
+      return {
+        r,
+        p: r.structuredContent.facts as Record<string, unknown>,
+        key: r.structuredContent.review_key,
+      };
+    };
+    const save = (action: string, p: Record<string, unknown>, key: unknown) =>
+      call(purchaseOrdersRecord, {
+        job_number: "SYN-A",
+        step: "save",
+        action,
+        facts: p,
+        review_key: key,
+        confirmed: true,
+      });
+    const d = await review("order", {
+      supplier_name: "Synthetic Supply Renamed",
+      number: "CONTRACT-PO",
+      lines: [{ description: "Material", quantity: 1, unit: "lot", unit_price_cents: 1200 }],
+      order_date: "2026-11-01",
+      needed_by: "2026-12-01",
+    });
+    await save("order", d.p, d.key);
+    const rv = await review("order", {
+      ...d.p,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "reviewed",
+      reason: "Reviewed",
+    });
+    await save("order", rv.p, rv.key);
+    const ap = await review("order", {
+      ...d.p,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      status: "approved",
+      reason: "Internal approval",
+    });
+    await save("order", ap.p, ap.key);
+    state.actor = contracts;
+    try {
+      const narrow = await call(purchaseOrderTermsRead, { job_number: "SYN-A" });
+      const data = narrow.structuredContent as {
+        terms: Array<{ id: string; scope: string }>;
+        orders: Array<Record<string, unknown>>;
+        parties: Array<Record<string, unknown>>;
+      };
+      const base = data.terms.find((x) => x.scope === "company");
+      expect(base).toBeDefined();
+      expect(JSON.stringify(data.orders)).not.toContain("unit_price_cents");
+      expect(JSON.stringify(data.parties)).not.toContain("contact_email");
+      await expect(call(purchaseOrdersRead, { job_number: "SYN-A" })).rejects.toThrow(
+        /full project access/,
+      );
+      const proposal = await review("terms", {
+        scope: "supplier",
+        party_id: d.p.party_id,
+        parent_id: base!.id,
+        title: "Contractor redline",
+        body: "Synthetic revised terms",
+        source: "Synthetic redline",
+        change_note: "Payment timing",
+      });
+      expect(
+        (await save("terms", proposal.p, proposal.key)).structuredContent.result,
+      ).toMatchObject({ state: "proposed" });
+      await expect(review("approve_terms", { proposal_id: proposal.p.id })).rejects.toThrow();
+      state.actor = owner;
+      const approval = await review("approve_terms", { proposal_id: proposal.p.id });
+      expect(approval.r.content[0].text).toContain("required buy-in");
+      expect(approval.r.content[0].text).toContain("Synthetic revised terms");
+      expect(
+        (await save("approve_terms", approval.p, approval.key)).structuredContent.result,
+      ).toMatchObject({ state: "approved", proposal_id: proposal.p.id });
+    } finally {
+      state.actor = owner;
+    }
   });
 });
 

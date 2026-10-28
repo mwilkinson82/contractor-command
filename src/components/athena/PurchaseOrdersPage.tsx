@@ -19,6 +19,7 @@ type Terms = {
   title: string;
   body: string;
   scope: string;
+  state: "proposed" | "approved";
   parent_id: string | null;
   source: string;
   change_note: string | null;
@@ -82,8 +83,10 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
         <h1 className="text-3xl font-bold">Suppliers and purchase orders</h1>
         <p className="mt-2">
           Purchase orders are commitments. They are not posted costs or payments. Create or revise
-          drafts with Athena. Company terms are controlled by the owner; negotiated terms are scoped
-          to this job. A recorded variant does not establish supplier acceptance.
+          drafts with Athena. Owners approve company and job terms. Project members can read
+          approved terms on an internally approved PO; contracts staff may propose redlines. A
+          proposal is not effective until owner approval, which does not establish supplier
+          acceptance.
         </p>
       </header>
       <section>
@@ -126,8 +129,9 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
                   return (
                     <details key={v.version} className="mt-3" open={v === o.versions[0]}>
                       <summary>
-                        Version {v.version} · {v.status} · dated {v.order_date} · needed by{" "}
-                        {v.needed_by}
+                        Version {v.version} ·{" "}
+                        {v.status === "approved" ? "internally approved" : v.status} · dated{" "}
+                        {v.order_date} · needed by {v.needed_by}
                       </summary>
                       <ul className="ml-5 list-disc">
                         {v.lines.map((line, i) => (
@@ -159,7 +163,7 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
           terms.map((t) => (
             <details key={t.id} className="mt-3 rounded border p-4">
               <summary>
-                {t.title} · {t.scope}
+                {t.title} · {t.scope} · {t.state}
                 {t.id === default_terms_id ? " · company default" : ""}
               </summary>
               <p>Source: {t.source}</p>

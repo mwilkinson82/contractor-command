@@ -32,13 +32,14 @@ const facts = z
     source: z.string().trim().min(1).max(2000).optional(),
     change_note: z.string().trim().min(1).max(2000).optional(),
     parent_id: z.string().uuid().optional(),
+    proposal_id: z.string().uuid().optional(),
     po_id: z.string().uuid().optional(),
     party_id: z.string().uuid().optional(),
     party_version: z.number().int().positive().max(2147483646).optional(),
     supplier_name: z.string().trim().min(1).max(200).optional(),
     number: z.string().trim().min(1).max(120).optional(),
     terms_id: z.string().uuid().optional(),
-    status: z.enum(["draft", "reviewed"]).optional(),
+    status: z.enum(["draft", "reviewed", "approved"]).optional(),
     lines: z.array(line).min(1).max(100).optional(),
     order_date: z
       .string()
@@ -52,7 +53,7 @@ const facts = z
   })
   .strict();
 type Facts = z.infer<typeof facts>;
-type Action = "party" | "terms" | "default_terms" | "order";
+type Action = "party" | "terms" | "approve_terms" | "default_terms" | "order";
 type Ledger = {
   parties: Array<{
     id: string;
@@ -71,6 +72,10 @@ type Ledger = {
     title: string;
     body: string;
     scope: string;
+    state: "proposed" | "approved";
+    proposal_id: string | null;
+    source: string;
+    change_note: string | null;
     party_id: string | null;
     parent_id: string | null;
     po_id: string | null;
@@ -121,6 +126,7 @@ function missing(action: Action, p: Facts): string[] {
       if (p.scope === "po") need(p.po_id, "purchase order");
     }
   }
+  if (action === "approve_terms") need(p.proposal_id, "proposed terms version");
   if (action === "default_terms") need(p.id, "approved company terms version");
   if (action === "order") {
     need(p.party_id, "project supplier");
@@ -200,6 +206,40 @@ export const purchaseOrdersRead = defineTool({
       },
     ),
 });
+export const purchaseOrderTermsRead = defineTool({
+  name: "purchase_order_terms_read",
+  title: "Read project purchase-order terms",
+  description:
+    "Reads terms and limited project party and order identifiers for the owner or contracts role without the financial ledger.",
+  inputSchema: { ...jobFields },
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  handler: (args, ctx) =>
+    run(
+      "purchase_order_terms_read",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        if (!args.job_number) return askJob();
+        const job = await resolveJob(sb, args.job_number, args.company_id);
+        const data = await rpc<Ledger>(sb, "mcp_project_po_terms_get", { _job: job.job_id });
+        return guide(
+          {
+            ...text(
+              `Project terms for ${job.job_number}. Proposals are not effective until the owner approves a separate version.`,
+            ),
+            structuredContent: data as never,
+          },
+          "Use only the returned project identifiers and terms. Contracts may propose, not approve; the owner reviews and approves separately. Additional buy-in is not established. Do not infer issuance or expose financial ledger details.",
+        );
+      },
+    ),
+});
+
 export const purchaseOrdersRecord = defineTool({
   name: "purchase_orders_record",
   title: "Review or save project party, terms or purchase order",
@@ -208,7 +248,7 @@ export const purchaseOrdersRecord = defineTool({
   inputSchema: {
     ...jobFields,
     step: z.enum(["review", "save"]),
-    action: z.enum(["party", "terms", "default_terms", "order"]),
+    action: z.enum(["party", "terms", "approve_terms", "default_terms", "order"]),
     facts,
     review_key: z.string().uuid().optional(),
     confirmed: z.boolean().optional(),
@@ -226,12 +266,22 @@ export const purchaseOrdersRecord = defineTool({
       { jobNumber: args.job_number, companyId: args.company_id },
       async (sb) => {
         if (!args.job_number) return askJob();
-        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+        const termsOnly = args.action === "terms" || args.action === "approve_terms";
+        const job = await resolveJob(
+          sb,
+          args.job_number,
+          args.company_id,
+          termsOnly ? undefined : "full",
+        );
         const p: Facts = { ...args.facts };
         if (args.step === "review") {
-          const state = await rpc<Ledger>(sb, "mcp_project_purchase_orders_get", {
-            _job: job.job_id,
-          });
+          const state = await rpc<Ledger>(
+            sb,
+            termsOnly ? "mcp_project_po_terms_get" : "mcp_project_purchase_orders_get",
+            {
+              _job: job.job_id,
+            },
+          );
           if (args.action === "party" && p.expected_version && p.id) {
             const prior = state.parties.find((x) => x.id === p.id);
             if (!prior || prior.version !== p.expected_version)
@@ -299,7 +349,7 @@ export const purchaseOrdersRecord = defineTool({
                 ...text(`Before review I need: ${absent.join(", ")}. Nothing was saved.`),
                 structuredContent: { saved: false, missing: absent },
               },
-              "Ask only for the missing facts; never invent them. If standard company terms are unavailable to this project member, ask the company owner to select terms for this project; do not disclose terms from another job.",
+              "Ask only for the missing facts; never invent them. If company terms are unavailable to this project member, ask the company owner to prepare a job-scoped variant; do not disclose company-wide or another job’s terms.",
             );
           if (
             args.action === "party" &&
@@ -327,7 +377,8 @@ export const purchaseOrdersRecord = defineTool({
             const terms = state.terms.find(
               (x) =>
                 x.id === p.terms_id &&
-                (x.scope !== "company" || x.approved_by) &&
+                x.state === "approved" &&
+                x.approved_by &&
                 (x.scope === "company" ||
                   (x.party_id === p.party_id && (x.scope === "supplier" || x.po_id === p.id))),
             );
@@ -363,16 +414,31 @@ export const purchaseOrdersRecord = defineTool({
           p.id = p.id ?? crypto.randomUUID();
           p.request_id = p.request_id ?? crypto.randomUUID();
           const selected = state.terms.find(
-            (x) => x.id === (args.action === "default_terms" ? p.id : p.terms_id),
+            (x) =>
+              x.id ===
+              (args.action === "default_terms"
+                ? p.id
+                : args.action === "approve_terms"
+                  ? p.proposal_id
+                  : p.terms_id),
           );
           if (
             args.action === "default_terms" &&
             (!selected || selected.scope !== "company" || !selected.approved_by)
           )
             throw new ToolError("Select an approved company terms version.");
-          const party = state.parties.find((x) => x.id === p.party_id);
+          if (
+            args.action === "approve_terms" &&
+            (!selected || selected.state !== "proposed" || selected.scope === "company")
+          )
+            throw new ToolError("Select a proposed project terms version for owner review.");
+          const party = state.parties.find((x) => x.id === (p.party_id ?? selected?.party_id));
           const company = (await memberCompanies(sb)).find((x) => x.id === job.company_id);
-          const parent = state.terms.find((x) => x.id === p.parent_id);
+          const parent = state.terms.find(
+            (x) =>
+              x.id ===
+              (p.parent_id ?? (args.action === "approve_terms" ? selected?.parent_id : undefined)),
+          );
           const currentDefault = state.terms.find((x) => x.id === state.default_terms_id);
           const reviewKey = crypto.randomUUID();
           const review = await rpc<{ expires_at: string }>(
@@ -383,7 +449,7 @@ export const purchaseOrdersRecord = defineTool({
           return guide(
             {
               ...text(
-                `Review ${args.action.replaceAll("_", " ")} for ${company?.name ?? "your company"} · ${job.job_number} · ${job.name}${party ? ` · ${party.name}` : ""}:\n${JSON.stringify(p, null, 2)}${p.lines ? `\nLines: ${p.lines.map((l) => `${l.description}: ${l.quantity} ${l.unit} at ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(l.unit_price_cents / 100)} per ${l.unit}`).join("; ")}` : ""}${selected ? `\nSelected terms (${selected.title}, ${selected.scope}):\n${selected.body}` : ""}${parent ? `\nBase terms (${parent.title}):\n${parent.body}` : ""}${args.action === "default_terms" ? `\nCurrent default: ${currentDefault?.title ?? "none"} (version ${p.expected_default_version}).` : ""}\n${args.action === "terms" && p.scope === "company" ? "Save and record these as company-approved terms?" : args.action === "default_terms" ? "Set the displayed approved company terms as the default?" : "Is this correct?"} No party, terms version or order has been saved; the review is held temporarily.`,
+                `Review ${args.action.replaceAll("_", " ")} for ${company?.name ?? "your company"} · ${job.job_number} · ${job.name}${party ? ` · ${party.name}` : ""}:\n${JSON.stringify(p, null, 2)}${p.lines ? `\nLines: ${p.lines.map((l) => `${l.description}: ${l.quantity} ${l.unit} at ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(l.unit_price_cents / 100)} per ${l.unit}`).join("; ")}` : ""}${selected ? `\nSelected terms (${selected.title}, ${selected.scope}):\n${selected.body}` : ""}${parent ? `\nBase terms (${parent.title}):\n${parent.body}` : ""}${args.action === "default_terms" ? `\nCurrent default: ${currentDefault?.title ?? "none"} (version ${p.expected_default_version}).` : ""}\n${args.action === "terms" && p.scope === "company" ? "Save and record these as company-approved terms?" : args.action === "approve_terms" ? "Approve this exact proposal for internal use? Confirm any other required buy-in separately." : args.action === "default_terms" ? "Set the displayed approved company terms as the default?" : args.action === "order" && p.status === "approved" ? "Internally approve this exact reviewed PO? This does not issue it." : "Is this correct?"} No party, terms version or order has been saved; the review is held temporarily.`,
               ),
               structuredContent: {
                 saved: false,
@@ -393,10 +459,13 @@ export const purchaseOrdersRecord = defineTool({
                 review_expires_at: review.expires_at,
                 selected_terms: selected ?? null,
                 parent_terms: parent ?? null,
-                comparison: parent && p.body ? compareTerms(parent.body, p.body) : null,
+                comparison:
+                  parent && (p.body ?? selected?.body)
+                    ? compareTerms(parent.body, p.body ?? selected!.body)
+                    : null,
               } as never,
             },
-            "Show the facts, supplier name, prices in dollars and selected terms. For a terms variant compare the supplied text with its base and retain the source and change note. Ask for explicit confirmation. Save exactly these facts and review key only after yes. A draft or review is not issuance, acceptance, a cost or payment.",
+            "Show the facts, supplier name, prices in dollars and selected terms. Contracts or an owner can save a proposal, but only the owner can approve a separate effective version; never infer additional buy-in. Ask for explicit confirmation, then save exactly these facts and review key. Internal approval is not issuance, acceptance, a cost or payment.",
           );
         }
         if (!args.confirmed || !args.review_key || !p.id || !p.request_id)
@@ -422,7 +491,7 @@ export const purchaseOrdersRecord = defineTool({
               ),
               structuredContent: { saved: true, result } as never,
             },
-            "If already_applied is true, explain that this was previously recorded and read the current state before claiming it is still current. A PO is a commitment, not a posted cost or payment.",
+            "If already_applied is true, explain that this was previously recorded and read the current state before claiming it is still current. Proposed terms are not effective until separately approved by an owner; approval does not establish other buy-in. Internal PO approval does not issue it, and a PO is not a posted cost or payment.",
           );
         } catch (e) {
           if (e instanceof ToolError) throw e;

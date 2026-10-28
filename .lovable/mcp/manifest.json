@@ -3277,6 +3277,34 @@
         }
       },
       {
+        "name": "purchase_order_terms_read",
+        "title": "Read project purchase-order terms",
+        "description": "Reads terms and limited project party and order identifiers for the owner or contracts role without the financial ledger.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
         "name": "purchase_orders_record",
         "title": "Review or save project party, terms or purchase order",
         "description": "Reviews and after explicit confirmation saves a project party, terms version, company default or purchase order draft.",
@@ -3306,6 +3334,7 @@
               "enum": [
                 "party",
                 "terms",
+                "approve_terms",
                 "default_terms",
                 "order"
               ]
@@ -3451,6 +3480,11 @@
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
+                "proposal_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
                 "po_id": {
                   "type": "string",
                   "format": "uuid",
@@ -3485,7 +3519,8 @@
                   "type": "string",
                   "enum": [
                     "draft",
-                    "reviewed"
+                    "reviewed",
+                    "approved"
                   ]
                 },
                 "lines": {

@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-const state = vi.hoisted(() => ({ signedIn: true, error: false }));
+const state = vi.hoisted(() => ({ signedIn: true, error: false, companyTerms: true }));
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({ session: state.signedIn ? { user: { id: "member" } } : null, loading: false }),
 }));
@@ -28,18 +28,20 @@ vi.mock("@tanstack/react-query", () => ({
           contract_reference: null,
         },
       ],
-      terms: [
-        {
-          id: "t",
-          title: "Standard",
-          body: "Payment terms",
-          scope: "company",
-          parent_id: null,
-          source: "Policy",
-          change_note: null,
-        },
-      ],
-      default_terms_id: "t",
+      terms: state.companyTerms
+        ? [
+            {
+              id: "t",
+              title: "Standard",
+              body: "Payment terms",
+              scope: "company",
+              parent_id: null,
+              source: "Policy",
+              change_note: null,
+            },
+          ]
+        : [],
+      default_terms_id: state.companyTerms ? "t" : null,
       orders: [
         {
           id: "o",
@@ -68,12 +70,22 @@ describe("private purchase order view", () => {
   it("renders saved records and the supplier snapshot", () => {
     state.signedIn = true;
     state.error = false;
+    state.companyTerms = true;
     const html = renderToStaticMarkup(React.createElement(PurchaseOrdersPage, { jobId: job }));
     expect(html).toContain("Supplier at review");
     expect(html).toContain("PO-1");
     expect(html).toContain("$25.00");
     expect(html).toContain("Payment terms");
     expect(html).toContain("Policy QA");
+  });
+  it("does not render company boilerplate absent from the authorized response", () => {
+    state.signedIn = true;
+    state.error = false;
+    state.companyTerms = false;
+    const html = renderToStaticMarkup(React.createElement(PurchaseOrdersPage, { jobId: job }));
+    expect(html).toContain("PO-1");
+    expect(html).toContain("Unavailable");
+    expect(html).not.toContain("Payment terms");
   });
   it("hides cached data when denied and requests sign-in", () => {
     state.error = true;

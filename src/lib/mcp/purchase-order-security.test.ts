@@ -5,6 +5,9 @@ import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 const owner = "00000000-0000-4000-8000-000000000201",
   pm = "00000000-0000-4000-8000-000000000202",
+  ap = "00000000-0000-4000-8000-000000000206",
+  contracts = "00000000-0000-4000-8000-000000000207",
+  outsider = "00000000-0000-4000-8000-000000000208",
   company = "00000000-0000-4000-8000-000000000203",
   job = "00000000-0000-4000-8000-000000000204",
   otherJob = "00000000-0000-4000-8000-000000000205";
@@ -63,7 +66,20 @@ const read = async (j = job, user = owner) =>
 let companyA: Record<string, unknown>, companyB: Record<string, unknown>;
 beforeAll(async () => {
   db = await makeDb();
-  for (const id of [owner, pm]) {
+  // Load the repository's current job-scope definition with a synthetic allow-all plan gate.
+  await db.exec(
+    "ALTER TABLE public.mcp_company_members DROP CONSTRAINT mcp_company_members_role_check; ALTER TABLE public.mcp_company_members ADD CONSTRAINT mcp_company_members_role_check CHECK(role IN ('owner','pm','all_access','ap','estimating','contracts','super')); CREATE FUNCTION public.mcp_role_allowed(uuid,text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;",
+  );
+  const scopeSource = readFileSync(
+    "supabase/migrations/20261022120000_athena_account_team_privacy_terms.sql",
+    "utf8",
+  );
+  const scopeDefinition = scopeSource.match(
+    /CREATE OR REPLACE FUNCTION public\.mcp_job_scope\(_job uuid\) RETURNS text[\s\S]*?\$\$;/,
+  )?.[0];
+  if (!scopeDefinition) throw new Error("missing scope fixture");
+  await db.exec(scopeDefinition);
+  for (const id of [owner, pm, ap, contracts, outsider]) {
     await db.query("insert into auth.users(id,email) values($1,$2)", [
       id,
       `${id.slice(-3)}@example.test`,
@@ -77,6 +93,8 @@ beforeAll(async () => {
   for (const [id, role] of [
     [owner, "owner"],
     [pm, "pm"],
+    [ap, "ap"],
+    [contracts, "contracts"],
   ])
     await db.query(
       "insert into mcp_company_members(company_id,user_id,role,display_name) values($1,$2,$3,'Synthetic')",
@@ -90,11 +108,12 @@ beforeAll(async () => {
       "insert into mcp_jobs(id,user_id,company_id,job_number,name) values($1,$2,$3,$4,'Synthetic')",
       [id, owner, company, num],
     );
-    await db.query("insert into mcp_job_access(job_id,user_id,granted_by) values($1,$2,$3)", [
-      id,
-      pm,
-      owner,
-    ]);
+    for (const user of [pm, contracts])
+      await db.query("insert into mcp_job_access(job_id,user_id,granted_by) values($1,$2,$3)", [
+        id,
+        user,
+        owner,
+      ]);
   }
   await db.exec(
     readFileSync("supabase/migrations/20261028143924_athena_project_purchase_orders.sql", "utf8"),
@@ -204,27 +223,32 @@ describe("review, defaults and fail-closed terms", () => {
       ),
     ).rejects.toThrow(/Only a company owner/);
   });
-  it("hides unrelated company and other-job terms until an owner binds a company version to this job", async () => {
-    const initial = await read(job, pm);
-    expect(initial.default_terms_id).toBeNull();
-    expect(initial.default_version).toBeNull();
-    expect(initial.default_history).toEqual([]);
-    expect(initial.terms).toEqual([]);
-    const party = request({ name: "Job A supplier", kind: "supplier" });
-    await rec("party", party);
-    const variant = request({
-      scope: "supplier",
-      party_id: party.id,
-      party_version: 1,
-      parent_id: companyA.id,
-      title: "Project variant",
-      body: "Terms for A",
-      source: "Synthetic",
-      change_note: "Change",
+  it("permits only owner-approved PO terms to PM/AP, and contracts proposals do not open the financial ledger", async () => {
+    const readTerms = async (j = job, user = contracts) =>
+      (await query("select public.mcp_project_po_terms_get($1) data", [j], user)).rows[0].data as {
+        terms: Array<{ id: string; state: string; body: string; proposal_id: string | null }>;
+        parties: Array<Record<string, unknown>>;
+        orders: Array<Record<string, unknown>>;
+      };
+    for (const user of [pm, ap]) {
+      const state = await read(job, user);
+      expect(state.terms).toEqual([]);
+      expect(state.default_terms_id).toBeNull();
+    }
+    await expect(read(job, contracts)).rejects.toThrow(/full project access/);
+    await expect(query("select public.mcp_project_po_terms_get($1)", [job], pm)).rejects.toThrow(
+      /owner or contracts/,
+    );
+    await expect(
+      query("select public.mcp_project_po_terms_get($1)", [job], outsider),
+    ).rejects.toThrow(/owner or contracts/);
+    const party = request({
+      name: "Job A supplier",
+      kind: "supplier",
+      contact_email: "private@example.test",
     });
-    const token = await prepare("terms", variant, job, pm);
-    await expect(save("terms", variant, token, job, pm)).rejects.toThrow(/base terms/);
-    const p = request({
+    await rec("party", party);
+    const po = request({
       expected_version: 0,
       number: "A-1",
       party_id: party.id,
@@ -235,12 +259,124 @@ describe("review, defaults and fail-closed terms", () => {
       order_date: "2026-11-01",
       needed_by: "2026-12-01",
     });
-    await rec("order", p);
-    const visible = await read(job, pm);
-    expect(visible.terms.map((x) => x.id)).toContain(companyA.id);
-    expect(visible.terms.map((x) => x.id)).not.toContain(companyB.id);
-    expect(visible.default_terms_id).toBeNull();
-    await rec("terms", { ...variant, request_id: crypto.randomUUID() }, job, pm);
+    await rec("order", po);
+    const variant = request({
+      scope: "supplier",
+      party_id: party.id,
+      party_version: 1,
+      parent_id: companyA.id,
+      title: "Project redline",
+      body: "Revised terms",
+      source: "Synthetic redline",
+      change_note: "Change",
+    });
+    await expect(prepare("terms", variant, job, pm)).rejects.toThrow(/owner or contracts/);
+    await expect(rec("terms", variant, job, contracts)).rejects.toThrow(/base terms/);
+    const reviewed = {
+      ...po,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "reviewed",
+      reason: "Reviewed",
+    };
+    await rec("order", reviewed);
+    const proposedApproval = {
+      ...po,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      status: "approved",
+      reason: "Internal approval",
+    };
+    await expect(rec("order", proposedApproval, job, pm)).rejects.toThrow(/Only the owner/);
+    const changed = {
+      ...proposedApproval,
+      request_id: crypto.randomUUID(),
+      lines: [{ description: "Changed", quantity: 1, unit: "lot", unit_price_cents: 100 }],
+    };
+    await expect(rec("order", changed)).rejects.toThrow(/reviewed order changed/);
+    await rec("order", proposedApproval);
+    for (const user of [pm, ap]) {
+      const state = await read(job, user);
+      expect(state.terms.map((x) => x.id)).toContain(companyA.id);
+      expect(state.terms.map((x) => x.id)).not.toContain(companyB.id);
+      expect(state.default_terms_id).toBeNull();
+    }
+    const narrow = await readTerms();
+    expect(narrow.terms.map((x) => x.id)).toContain(companyA.id);
+    expect(narrow.terms.map((x) => x.id)).not.toContain(companyB.id);
+    expect(JSON.stringify(narrow.orders)).not.toMatch(/lines|unit_price|100/);
+    expect(JSON.stringify(narrow.parties)).not.toContain("private@example.test");
+    expect(await rec("terms", variant, job, contracts)).toMatchObject({ state: "proposed" });
+    expect((await readTerms()).terms.find((x) => x.id === variant.id)?.state).toBe("proposed");
+    expect((await read(job, pm)).terms.map((x) => x.id)).not.toContain(variant.id);
+    const proposedOrder = {
+      ...po,
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      number: "A-PROPOSED",
+      terms_id: variant.id,
+    };
+    await expect(rec("order", proposedOrder)).rejects.toThrow(/applicable terms/);
+    const approval = request({ proposal_id: variant.id });
+    await expect(prepare("approve_terms", approval, job, contracts)).rejects.toThrow(
+      /project access/,
+    );
+    await expect(prepare("approve_terms", approval, job, pm)).rejects.toThrow(/company owner/);
+    await expect(rec("approve_terms", { ...approval, body: "Altered" })).rejects.toThrow(
+      /Field does not apply/,
+    );
+    expect(await rec("approve_terms", approval)).toMatchObject({
+      state: "approved",
+      proposal_id: variant.id,
+    });
+    const approved = (await readTerms(job, owner)).terms.find((x) => x.id === approval.id);
+    expect(approved).toMatchObject({
+      state: "approved",
+      body: "Revised terms",
+      proposal_id: variant.id,
+    });
+    await expect(
+      db.query("update public.mcp_po_terms_versions set body='changed' where id=$1", [approval.id]),
+    ).rejects.toThrow(/append-only/);
+    const revision = {
+      ...po,
+      request_id: crypto.randomUUID(),
+      expected_version: 3,
+      terms_id: approval.id,
+      status: "draft",
+      reason: "New terms proposal approved",
+    };
+    await rec("order", revision);
+    await rec("order", {
+      ...revision,
+      request_id: crypto.randomUUID(),
+      expected_version: 4,
+      status: "reviewed",
+      reason: "Reviewed",
+    });
+    await rec("order", {
+      ...revision,
+      request_id: crypto.randomUUID(),
+      expected_version: 5,
+      status: "approved",
+      reason: "Internal approval",
+    });
+    for (const user of [pm, ap]) {
+      const state = await read(job, user);
+      expect(state.terms.map((x) => x.id)).toContain(approval.id);
+      expect(state.terms.map((x) => x.id)).not.toContain(variant.id);
+    }
+    const oldVersion = (
+      await query("select public.mcp_project_purchase_orders_get($1) data", [job])
+    ).rows[0].data as {
+      orders: Array<{
+        id: string;
+        versions: Array<{ version: number; status: string; terms_id: string }>;
+      }>;
+    };
+    expect(
+      oldVersion.orders.find((x) => x.id === po.id)?.versions.find((x) => x.version === 3),
+    ).toMatchObject({ status: "approved", terms_id: companyA.id });
     const otherParty = request({ name: "Job B supplier", kind: "supplier" });
     await rec("party", otherParty, otherJob);
     const otherVariant = request({
@@ -254,22 +390,11 @@ describe("review, defaults and fail-closed terms", () => {
       change_note: "B change",
     });
     await rec("terms", otherVariant, otherJob);
-    expect((await read(job, pm)).terms.map((x) => x.id)).not.toContain(otherVariant.id);
-    const b = await read(otherJob, pm);
-    expect(b.terms.map((x) => x.id)).toContain(otherVariant.id);
-    expect(b.terms.map((x) => x.id)).not.toContain(companyB.id);
-    const guessed = request({
-      ...p,
-      id: crypto.randomUUID(),
-      request_id: crypto.randomUUID(),
-      number: "B-1",
-      party_id: otherParty.id,
-      terms_id: companyB.id,
-    });
-    const guessToken = await prepare("order", guessed, otherJob, pm);
-    await expect(save("order", guessed, guessToken, otherJob, pm)).rejects.toThrow(
-      /applicable terms/,
+    expect((await readTerms(job, contracts)).terms.map((x) => x.id)).not.toContain(otherVariant.id);
+    expect((await readTerms(otherJob, contracts)).terms.map((x) => x.id)).toContain(
+      otherVariant.id,
     );
+    expect((await read(otherJob, pm)).terms.map((x) => x.id)).not.toContain(otherVariant.id);
   });
   it("keeps review and ledger tables private to ordinary roles", async () => {
     const tables = [
@@ -296,6 +421,7 @@ describe("review, defaults and fail-closed terms", () => {
       });
     }
     for (const fn of [
+      "public.mcp_project_po_terms_get(uuid)",
       "public.mcp_project_purchase_orders_review(uuid,text,jsonb,uuid)",
       "public.mcp_project_purchase_orders_record(uuid,text,jsonb,uuid,boolean)",
     ]) {

@@ -129,7 +129,7 @@ describe("project purchase order persistence", () => {
         job,
         pm,
       ),
-    ).rejects.toThrow(/Only a company owner/);
+    ).rejects.toThrow(/Only an owner or contracts role/);
     expect((await read(job, pm)).orders).toEqual([]);
   });
   it("keeps terms history, applies idempotency, protects references and issued versions", async () => {
@@ -179,13 +179,15 @@ describe("project purchase order persistence", () => {
       change_note: "Payment term changed",
     };
     await rec("terms", variant);
+    const effectiveVariant = { ...request(), proposal_id: variant.id };
+    await rec("approve_terms", effectiveVariant);
     const order = {
       ...request(),
       expected_version: 0,
       number: "PO-1",
       party_id: party.id,
       party_version: 1,
-      terms_id: variant.id,
+      terms_id: effectiveVariant.id,
       status: "draft",
       lines: [
         { description: "Fictional material", quantity: 2, unit: "each", unit_price_cents: 1200 },
@@ -226,26 +228,28 @@ describe("project purchase order persistence", () => {
       party_id: party.id,
       party_version: 1,
       po_id: order.id,
-      parent_id: variant.id,
+      parent_id: effectiveVariant.id,
       title: "PO exception",
       body: "Payment 60 days",
       source: "Synthetic redline",
       change_note: "Payment term changed",
     };
     await rec("terms", poTerms);
+    const effectivePoTerms = { ...request(), proposal_id: poTerms.id };
+    await rec("approve_terms", effectivePoTerms);
     const otherOrder = {
       ...order,
       id: crypto.randomUUID(),
       request_id: crypto.randomUUID(),
       number: "PO-2",
-      terms_id: poTerms.id,
+      terms_id: effectivePoTerms.id,
     };
     await expect(rec("order", otherOrder)).rejects.toThrow(/applicable terms/);
     await rec("order", {
       ...order,
       request_id: crypto.randomUUID(),
       expected_version: 2,
-      terms_id: poTerms.id,
+      terms_id: effectivePoTerms.id,
       status: "draft",
       reason: "Negotiated revision",
     });
@@ -289,7 +293,7 @@ describe("project purchase order persistence", () => {
     await expect(query("select * from public.mcp_purchase_orders", [], owner)).rejects.toThrow();
     await db.query(
       "insert into public.mcp_purchase_order_versions(po_id,version,status,terms_id,party_snapshot,lines,order_date,needed_by,created_by) values($1,4,'issued',$2,'{}'::jsonb,$3::jsonb,'2026-11-01','2026-12-01',$4)",
-      [order.id, variant.id, JSON.stringify(order.lines), owner],
+      [order.id, effectiveVariant.id, JSON.stringify(order.lines), owner],
     );
     await expect(
       rec("order", {
