@@ -3,6 +3,7 @@ import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, isAlertLevel } from "./palett
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 import { responsiveCardCss } from "./responsive";
 import { onboardingCss } from "./onboarding-style";
+import { reportLinkHtml } from "./report-link-card";
 
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -46,6 +47,7 @@ function rowClass(row: CardRow): string {
 
 /** Finished HTML document. Claude shows it as-is. Colors come only from the palette. */
 export function renderHtml(card: CardModel): string {
+  if (card.presentation === "report-link") return reportLinkHtml(card);
   const alert = cardHasAlert(card);
   const navy = cssColor(NAVY, "#1E3A5F");
   const blue = cssColor(BLUE, "#1E5FED");
