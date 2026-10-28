@@ -1,0 +1,43 @@
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { productionPeriod, summarizeProduction } from "./production-summary";
+vi.mock("./supabase", async () => ({ supabaseForUser: (await import("../../../tests/mcp-roles/harness")).mockedSupabaseForUser }));
+vi.mock("./allowlist", async () => { const h = await import("../../../tests/mcp-roles/harness"); return { MCP_ALLOWED_EMAILS: new Set([h.user("owner").email, h.user("super").email, h.user("estimating").email, h.user("pm2").email]) }; });
+import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
+import { setLogLevel } from "@lovable.dev/mcp-js";
+import mcp from "./index";
+import { bootDb, callTool, setupKeysAndFetch, user } from "../../../tests/mcp-roles/harness";
+setLogLevel("error");
+const handler = createTanStackMcpHandler(mcp, { resourcePath: "/mcp" });
+let token: Awaited<ReturnType<typeof setupKeysAndFetch>>;
+let db: Awaited<ReturnType<typeof bootDb>>;
+const company = "31000000-0000-4000-8000-000000000001", job = "31000000-0000-4000-8000-000000000002", otherCompany = "31000000-0000-4000-8000-000000000003", otherJob = "31000000-0000-4000-8000-000000000004";
+const d1="31000000-0000-4000-8000-000000000005", d2="31000000-0000-4000-8000-000000000006", d3="31000000-0000-4000-8000-000000000007", d4="31000000-0000-4000-8000-000000000008", d5="31000000-0000-4000-8000-000000000009";
+const call = async (role: "owner" | "super" | "estimating" | "pm2", args: Record<string, unknown>) => callTool(handler, await token(role), "field_production_summary", args);
+beforeAll(async () => {
+  token=await setupKeysAndFetch(); db=await bootDb();
+  await db.exec(`CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; CREATE FUNCTION public.mcp_file_path_scope(text) RETURNS text LANGUAGE sql AS $$ SELECT 'full'::text $$;`);
+  await db.exec(readFileSync("supabase/migrations/20261023020000_athena_superintendent.sql", "utf8"));
+  await db.query("INSERT INTO mcp_companies(id,name,created_by) VALUES ($1,'TEST',$3),($2,'OTHER',$4)",[company,otherCompany,user("owner").id,user("pm2").id]);
+  await db.query("INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES ($1,$2,'owner','owner'),($1,$3,'super','super'),($1,$4,'estimating','estimating'),($5,$6,'owner','other')",[company,user("owner").id,user("super").id,user("estimating").id,otherCompany,user("pm2").id]);
+  await db.query("INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name) VALUES ($1,$3,$4,'TEST-P','TEST'),($2,$5,$6,'OTHER','OTHER')",[job,otherJob,user("owner").id,company,user("pm2").id,otherCompany]);
+  await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES ($1,$2,$3)",[job,user("super").id,user("owner").id]);
+  for (const [id,day] of [[d1,"2026-10-26"],[d2,"2026-10-27"],[d3,"2026-10-28"],[d4,"2026-10-24"],[d5,"2026-10-25"]]) await db.query("INSERT INTO mcp_daily_reports(id,job_id,company_id,report_date,weather,manpower,subs_on_site,deliveries,issues,delays,safety) VALUES ($1,$2,$3,$4,'clear','crew','none','none','none','none','none')",[id,job,company,day]);
+  for (const [daily,qty,crew,hours,unit] of [[d1,400,4,8,"LF"],[d2,600,5,8,"LF"],[d2,30,3,8,"EA"]] as const) await db.query("INSERT INTO mcp_production_rates(job_id,company_id,daily_id,work,sov_item,activity_id,qty,unit,crew,hours,man_hours,qty_per_man_hour) VALUES ($1,$2,$3,'TEST work','26.04','E090',$4,$5,$6,$7,$6::numeric*$7::numeric,$4::numeric/($6::numeric*$7::numeric))",[job,company,daily,qty,unit,crew,hours]);
+  await db.query("INSERT INTO mcp_production_rates(job_id,company_id,daily_id,work,sov_item,activity_id,qty,unit,crew,hours,man_hours,qty_per_man_hour) SELECT $1,$2,$3,'TEST bulk','26.04','E090',1,'LF',1,1,1,1 FROM generate_series(1,81)",[job,company,d3]);
+  for (const daily of [d4,d5]) await db.query("INSERT INTO mcp_production_rates(job_id,company_id,daily_id,work,sov_item,activity_id,qty,unit,crew,hours,man_hours,qty_per_man_hour) SELECT $1,$2,$3,'TEST bulk','26.04','E090',1,'LF',1,1,1,1 FROM generate_series(1,60)",[job,company,daily]);
+});
+const period={job_number:"TEST-P",from_date:"2026-10-26",to_date:"2026-10-27"};
+describe("production summary from saved daily rows", () => {
+  it("calculates weighted rate with separate units and source dates", async () => {
+    const before=await db.query("SELECT (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM mcp_production_rates r) rates, (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM mcp_daily_reports d) reports"); const out=await call("owner",period);
+    expect(out.isError,out.text).toBe(false); expect(out.structured).toMatchObject({complete:true,reports_count:2,planned_rate:null,earned_value:null,references:"reported_unverified"});
+    expect(out.structured!.groups).toEqual(expect.arrayContaining([expect.objectContaining({quantity:1000,reported_person_hours:72,actual_rate:1000/72,unit:"LF"}),expect.objectContaining({quantity:30,reported_person_hours:24,unit:"EA"})]));
+    expect(out.structured!.rows).toEqual(expect.arrayContaining([expect.objectContaining({daily_id:d1,report_date:"2026-10-26"}),expect.objectContaining({daily_id:d2,report_date:"2026-10-27"})]));
+    expect(await db.query("SELECT (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM mcp_production_rates r) rates, (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM mcp_daily_reports d) reports")).toEqual(before);
+  });
+  it("reads over 100 saved rows across dates without truncating", async () => { const out=await call("owner",{...period,from_date:"2026-10-24",to_date:"2026-10-25"}); expect(out.isError,out.text).toBe(false); expect(out.structured).toMatchObject({complete:true,reports_count:2}); expect((out.structured!.rows as unknown[])).toHaveLength(120); expect(out.structured!.groups).toEqual([expect.objectContaining({quantity:120,reported_person_hours:120})]); });
+  it("limits oversized report results and explicitly marks coverage incomplete", async () => {const out=await call("owner",{...period,from_date:"2026-10-28",to_date:"2026-10-28"}); expect(out.isError,out.text).toBe(false); expect(out.structured).toMatchObject({complete:false}); expect((out.structured!.rows as unknown[])).toHaveLength(80); expect(out.text).toContain("incomplete");});
+  it("respects daily source scopes and cross-company access", async () => { expect((await call("super",period)).isError).toBe(false); expect((await call("estimating",period)).isError).toBe(true); expect((await call("pm2",period)).isError).toBe(true); });
+  it("rejects invalid or excessive periods and does not silently mix units", () => {expect(()=>productionPeriod("2026-02-30","2026-03-02","2026-03-02")).toThrow(); expect(()=>productionPeriod("2026-01-01","2026-03-02","2026-03-02")).toThrow(); expect(()=>productionPeriod("2026-01-01",undefined,"2026-03-02")).toThrow(); expect(productionPeriod(undefined,undefined,"2026-10-28","this_week")).toEqual({from:"2026-10-26",to:"2026-11-01"}); expect(()=>productionPeriod("2026-10-26","2026-10-28","2026-10-28","this_week")).toThrow(); expect(summarizeProduction([])).toEqual([]);});
+});

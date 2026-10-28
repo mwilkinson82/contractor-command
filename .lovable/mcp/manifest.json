@@ -7878,6 +7878,49 @@
         "outputSchema": null
       },
       {
+        "name": "field_production_summary",
+        "title": "Production from saved daily reports",
+        "description": "Shows a period of reported quantities, person-hours and actual production rates from saved daily work. Defaults to the last seven days in the job time zone or standard default; use this_week for the calendar week or provide both dates for a period up to 31 days.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "from_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "to_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "range": {
+              "type": "string",
+              "enum": [
+                "last_7_days",
+                "this_week"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "progress_photo_save",
         "title": "Save a progress photo",
         "description": "Stores a progress photo after its date and place on site are confirmed.",
