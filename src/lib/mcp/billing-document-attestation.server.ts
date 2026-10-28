@@ -1,0 +1,35 @@
+import { createClient } from "@supabase/supabase-js";
+import { ToolError, type ToolContext } from "@lovable.dev/mcp-js";
+import { dbError, type Sb } from "./guard";
+
+/** Called only after the original has been downloaded and its type, size and hash checked. */
+export async function registerVerifiedBillingOriginal(
+  sb: Sb,
+  ctx: ToolContext,
+  job: string,
+  upload: string,
+  size: number,
+  sha256: string,
+): Promise<{ id: string; already_stored: boolean }> {
+  const token = ctx.getToken();
+  if (!token) throw new ToolError("Verified member required.");
+  const identity = await sb.auth.getUser(token);
+  if (identity.error || !identity.data.user?.id) throw new ToolError("Verified member required.");
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  const url = env?.SUPABASE_URL ?? env?.VITE_SUPABASE_URL;
+  const key = env?.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new ToolError("Document verification is temporarily unavailable.");
+  const admin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.rpc("mcp_billing_document_register", {
+    _job: job,
+    _id: upload,
+    _size: size,
+    _sha256: sha256,
+    _actor: identity.data.user.id,
+  });
+  if (error) dbError(error);
+  return data as { id: string; already_stored: boolean };
+}

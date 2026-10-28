@@ -25,6 +25,21 @@ const call = async (user: string, fn: string, args: unknown[]) =>
       args,
     )
   )[0].value as Record<string, unknown>;
+const register = (actor: string, project: string, id: unknown, size: number, hash: string) =>
+  asUser(
+    db,
+    { sub: owner, email: "synthetic@example.test", role: "service_role" },
+    async (tx) =>
+      (
+        await tx.query("SELECT public.mcp_billing_document_register($1,$2,$3,$4,$5) AS value", [
+          project,
+          id,
+          size,
+          hash,
+          actor,
+        ])
+      ).rows[0].value as Record<string, unknown>,
+  );
 beforeAll(async () => {
   db = await makeDb();
   await db.exec(
@@ -79,20 +94,31 @@ describe("billing original and ledger association", () => {
       "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
       [u.storage_path],
     );
-    const doc = await call(owner, "mcp_billing_document_register", [
-      job,
-      u.id,
-      123,
-      "cd".repeat(32),
-    ]);
-    expect(doc.id).toBe(u.id);
-    expect(
-      (await call(owner, "mcp_billing_document_register", [job, u.id, 123, "cd".repeat(32)]))
-        .already_stored,
-    ).toBe(true);
     await expect(
-      call(owner, "mcp_billing_document_register", [job, u.id, 123, "ee".repeat(32)]),
-    ).rejects.toThrow(/does not match/);
+      call(owner, "mcp_billing_document_register", [job, u.id, 123, "cd".repeat(32), owner]),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      call(owner, "mcp_billing_record_document", [
+        job,
+        "invoice",
+        JSON.stringify({ document_id: u.id }),
+      ]),
+    ).rejects.toThrow(/document/);
+    await expect(register(other, job, u.id, 123, "cd".repeat(32))).rejects.toThrow(
+      /full project access/,
+    );
+    await expect(register(contract, job, u.id, 123, "cd".repeat(32))).rejects.toThrow(
+      /full project access/,
+    );
+    await expect(register(owner, otherJob, u.id, 123, "cd".repeat(32))).rejects.toThrow(
+      /not available/,
+    );
+    const doc = await register(owner, job, u.id, 123, "cd".repeat(32));
+    expect(doc.id).toBe(u.id);
+    expect((await register(owner, job, u.id, 123, "cd".repeat(32))).already_stored).toBe(true);
+    await expect(register(owner, job, u.id, 123, "ee".repeat(32))).rejects.toThrow(
+      /does not match/,
+    );
     const p = {
       id: crypto.randomUUID(),
       request_id: crypto.randomUUID(),
@@ -182,7 +208,7 @@ describe("billing original and ledger association", () => {
       "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
       [u.storage_path],
     );
-    await call(owner, "mcp_billing_document_register", [job, u.id, 50, "22".repeat(32)]);
+    await register(owner, job, u.id, 50, "22".repeat(32));
     const p = {
       id: crypto.randomUUID(),
       request_id: crypto.randomUUID(),

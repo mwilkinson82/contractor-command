@@ -23,6 +23,30 @@ vi.mock("./guard", () => ({
   },
 }));
 vi.mock("./jobs", () => ({ resolveJob: async () => state.job }));
+vi.mock("./billing-document-attestation.server", () => ({
+  registerVerifiedBillingOriginal: async (
+    _sb: unknown,
+    _ctx: unknown,
+    job: string,
+    id: string,
+    size: number,
+    hash: string,
+  ) =>
+    asUser(
+      db,
+      { sub: owner, email: "synthetic@example.test", role: "service_role" },
+      async (tx) =>
+        (
+          await tx.query("SELECT public.mcp_billing_document_register($1,$2,$3,$4,$5) AS value", [
+            job,
+            id,
+            size,
+            hash,
+            owner,
+          ])
+        ).rows[0].value,
+    ),
+}));
 import { billingDocumentUpload, billingDocuments } from "./tools/billing-document-tools";
 import { billingEvidenceRecord, billingEvidenceRead } from "./tools/billing-evidence-tools";
 import { handleFileUpload } from "../file-upload-route.server";

@@ -13,6 +13,7 @@ import {
   uploadMaxBytes,
 } from "../file-upload";
 import { drawingFile } from "../drawing-file-input";
+import { registerVerifiedBillingOriginal } from "../billing-document-attestation.server";
 
 const bucket = "athena-financial-documents";
 type Upload = {
@@ -202,10 +203,13 @@ export const billingDocumentUpload = defineTool({
           throw new ToolError(
             "The original file type does not match this upload. No billing record was saved.",
           );
-        const doc = await rpc<{ id: string; already_stored: boolean }>(
+        const doc = await registerVerifiedBillingOriginal(
           sb,
-          "mcp_billing_document_register",
-          { _job: job.job_id, _id: upload.id, _size: bytes.length, _sha256: hash },
+          ctx,
+          job.job_id,
+          upload.id,
+          bytes.length,
+          hash,
         );
         const extracted = await extractUploadDocument(bytes, checked.ext);
         const excerpt = extracted.text.slice(0, 16000);

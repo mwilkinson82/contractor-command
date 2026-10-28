@@ -74,10 +74,15 @@ BEGIN
   RETURN jsonb_build_object('id',u.id,'job_id',u.job_id,'company_id',u.company_id,'filename',u.filename,'mime_type',u.mime_type,'storage_path',u.storage_path,'expires_at',u.expires_at,'status',u.status);
 END $$;
 
-CREATE FUNCTION public.mcp_billing_document_register(_job uuid, _id uuid, _size bigint, _sha256 text) RETURNS jsonb
+-- Only the server may attest a fingerprint, after reading and validating the stored bytes.
+-- It resolves the actor from a verified user token; repeat the normal membership and scope
+-- checks here under that actor, and never expose this function to authenticated clients.
+CREATE FUNCTION public.mcp_billing_document_register(_job uuid, _id uuid, _size bigint, _sha256 text, _actor uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE u public.mcp_billing_uploads; d public.mcp_billing_documents;
+DECLARE u public.mcp_billing_uploads; d public.mcp_billing_documents; previous_claims text := current_setting('request.jwt.claims', true); result jsonb;
 BEGIN
+  IF _actor IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Verified member required.'; END IF;
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',_actor,'role','authenticated')::text,true);
   PERFORM public.mcp_assert_active();
   IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
   SELECT * INTO u FROM public.mcp_billing_uploads WHERE id=_id AND job_id=_job AND created_by=auth.uid() FOR UPDATE;
@@ -85,7 +90,9 @@ BEGIN
   SELECT * INTO d FROM public.mcp_billing_documents WHERE id=_id;
   IF d.id IS NOT NULL THEN
     IF d.sha256 IS DISTINCT FROM _sha256 OR d.size_bytes IS DISTINCT FROM _size THEN RAISE EXCEPTION 'MCP_BAD:Upload does not match the stored document.'; END IF;
-    RETURN jsonb_build_object('id',d.id,'sha256',d.sha256,'size_bytes',d.size_bytes,'already_stored',true);
+    result := jsonb_build_object('id',d.id,'sha256',d.sha256,'size_bytes',d.size_bytes,'already_stored',true);
+    PERFORM set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+    RETURN result;
   END IF;
   IF u.status <> 'open' OR u.expires_at <= now() OR _size NOT BETWEEN 1 AND 104857600 OR _sha256 !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'MCP_BAD:Upload is expired or invalid.'; END IF;
   IF NOT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id='athena-financial-documents' AND name=u.storage_path) THEN RAISE EXCEPTION 'MCP_BAD:Original file is not stored.'; END IF;
@@ -93,7 +100,9 @@ BEGIN
     VALUES(u.id,u.company_id,u.job_id,u.filename,u.mime_type,_size,_sha256,u.storage_path,auth.uid());
   UPDATE public.mcp_billing_uploads SET status='finished' WHERE id=u.id;
   PERFORM public.mcp_audit_job(_job,'billing_document','store_original',u.id::text);
-  RETURN jsonb_build_object('id',u.id,'sha256',_sha256,'size_bytes',_size,'already_stored',false);
+  result := jsonb_build_object('id',u.id,'sha256',_sha256,'size_bytes',_size,'already_stored',false);
+  PERFORM set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+  RETURN result;
 END $$;
 
 CREATE FUNCTION public.mcp_billing_documents_get(_job uuid) RETURNS jsonb
@@ -129,6 +138,7 @@ BEGIN
   RETURN result;
 END $$;
 
-REVOKE ALL ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_document_register(uuid,uuid,bigint,text), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_document_register(uuid,uuid,bigint,text), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_document_register(uuid,uuid,bigint,text,uuid), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_upload_begin(uuid,text,text,text), public.mcp_billing_upload_get(uuid,uuid), public.mcp_billing_documents_get(uuid), public.mcp_billing_record_document(uuid,text,jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_document_register(uuid,uuid,bigint,text,uuid) TO service_role;
 NOTIFY pgrst, 'reload schema';
