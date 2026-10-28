@@ -17,6 +17,7 @@ export const reportLinkCss = `
 .card[data-presentation="report-link"] .report-kpi strong{color:#1E3A5F;font-size:17px;overflow-wrap:anywhere}
 .card[data-presentation="report-link"] .report-actions{border-top:1px solid color-mix(in srgb,#6B7280 30%,#FFFFFF);padding:4px 22px 8px;display:flex;flex-wrap:wrap;gap:4px 20px}
 .card[data-presentation="report-link"] .report-actions a{display:inline-flex;align-items:center;min-height:44px;color:#1E5FED;text-decoration:none;font-weight:650;overflow-wrap:anywhere}
+.card[data-presentation="report-link"] .report-actions a:not(:first-child){color:#6B7280;font-weight:500}
 .card[data-presentation="report-link"] .report-actions a:focus-visible{outline:2px solid #1E5FED;outline-offset:3px;border-radius:3px}
 .card[data-presentation="report-link"] .report-actions a:first-child::after{content:"↗";margin-left:7px}
 @media(max-width:520px){.card[data-presentation="report-link"] header{padding:18px 16px 0}.card[data-presentation="report-link"] .report-body{padding:14px 16px}.card[data-presentation="report-link"] .report-actions{padding:4px 16px 8px}}
