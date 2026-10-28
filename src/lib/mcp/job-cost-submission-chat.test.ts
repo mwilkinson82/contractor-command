@@ -32,7 +32,11 @@ vi.mock("./jobs", () => ({
     return state.job;
   },
 }));
-import { jobCostSubmissionRead, jobCostSubmissionRecord } from "./tools/job-cost-submission-tools";
+import {
+  jobCostSubmissionRead,
+  jobCostSubmissionRecord,
+  jobCostAccountingRecord,
+} from "./tools/job-cost-submission-tools";
 const owner = "00000000-0000-4000-8000-000000000203";
 let db: PGlite;
 type Reply = { content: Array<{ text: string }>; structuredContent: Record<string, unknown> };
@@ -150,5 +154,89 @@ describe("staged conversational submission", () => {
       already_applied: true,
       status: "submitted",
     });
+  });
+  it("stages accounting review only under a synthetic authority and does not move funds", async () => {
+    const entry = await call(jobCostSubmissionRecord, {
+      step: "review",
+      job_number: "SYN-A",
+      facts: {
+        kind: "reimbursable_expense",
+        description: "Receipt",
+        counterparty_name: "Synthetic employee",
+        incurred_on: "2026-10-28",
+        amount_cents: 2000,
+        allocations: [{ cost_code: "FUEL", amount_cents: 2000 }],
+      },
+    });
+    const payload = entry.structuredContent.payload as { id: string };
+    await call(jobCostSubmissionRecord, {
+      step: "save",
+      job_number: "SYN-A",
+      payload,
+      review_key: entry.structuredContent.review_key,
+      confirmed: true,
+    });
+    await expect(
+      call(jobCostAccountingRecord, {
+        step: "review",
+        job_number: "SYN-A",
+        action: "approve",
+        id: payload.id,
+        expected_version: 1,
+      }),
+    ).rejects.toThrow(/not available/);
+    await db.exec(
+      "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT true $$;",
+    );
+    try {
+      async function reviewAction(action: string, extra: Record<string, unknown> = {}) {
+        return call(jobCostAccountingRecord, {
+          step: "review",
+          job_number: "SYN-A",
+          action,
+          id: payload.id,
+          expected_version: 1,
+          ...extra,
+        });
+      }
+      async function saveAction(review: Reply) {
+        return call(jobCostAccountingRecord, {
+          step: "save",
+          job_number: "SYN-A",
+          payload: review.structuredContent.payload,
+          review_key: review.structuredContent.review_key,
+          confirmed: true,
+        });
+      }
+      await expect(reviewAction("post")).rejects.toThrow(/Approval/);
+      const approval = await reviewAction("approve");
+      await expect(
+        call(jobCostAccountingRecord, {
+          step: "save",
+          job_number: "SYN-A",
+          payload: approval.structuredContent.payload,
+          review_key: approval.structuredContent.review_key,
+        }),
+      ).rejects.toThrow(/confirm/);
+      expect((await saveAction(approval)).structuredContent.result).toMatchObject({
+        status: "approved",
+      });
+      expect((await saveAction(await reviewAction("post"))).structuredContent.result).toMatchObject(
+        { status: "posted" },
+      );
+      const payment = await reviewAction("payment", {
+        amount_cents: 1000,
+        paid_on: "2026-10-29",
+        reference: "check",
+      });
+      expect(payment.content[0].text).toContain("No funds will be transferred");
+      expect((await saveAction(payment)).structuredContent.result).toMatchObject({
+        status: "payment_recorded",
+      });
+    } finally {
+      await db.exec(
+        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT false $$;",
+      );
+    }
   });
 });
