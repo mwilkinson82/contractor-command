@@ -1,6 +1,7 @@
 // Opt-in synthetic lab. Always creates its own socket-only temporary cluster.
 // Does not accept a database URL, existing data directory or live credentials.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -109,28 +110,49 @@ try {
   await db.unsafe(
     "CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$; CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated,service_role; GRANT SELECT,INSERT ON storage.objects TO authenticated,service_role; CREATE TABLE mcp_submittals(id uuid PRIMARY KEY,job_id uuid,number text,revision integer); CREATE TABLE mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb); INSERT INTO storage.buckets(id,name,public) VALUES('athena-financial-documents','athena-financial-documents',false)",
   );
-  const sources = [
+  const prerequisites = [
     "supabase/migrations/20261021190000_athena_team_invites.sql",
     "supabase/migrations/20261022120000_athena_account_team_privacy_terms.sql",
     "supabase/migrations/20261031120000_athena_file_upload.sql",
     "supabase/migrations/20261101120001_athena_project_billing_evidence.sql",
     "supabase/migrations/20261101120002_athena_financial_documents.sql",
-    "supabase/migrations/20261028143924_athena_project_purchase_orders.sql",
-    "docs/athena/job-cost-submission.schema-draft.sql",
-    "docs/athena/job-cost-project-refs.schema-draft.sql",
-    "docs/athena/job-cost-originals.schema-draft.sql",
-    "docs/athena/ap-reconciliation-snapshot.schema-draft.sql",
-    "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
   ];
   await db.begin(async (tx) => {
-    for (const f of sources)
+    for (const path of prerequisites)
       await tx.unsafe(
-        readFileSync(f, "utf8")
+        readFileSync(path, "utf8")
           .replace(/^BEGIN;$/gm, "")
           .replace(/^COMMIT;$/gm, ""),
       );
   });
-  results.cases.orderedDdl = "all producers and integration constraints installed together";
+  const proposal = JSON.parse(
+    readFileSync("docs/athena/managed-accounting-proposal/manifest.json", "utf8"),
+  );
+  for (const step of proposal.steps) {
+    const body = readFileSync(step.path, "utf8");
+    assert.equal(createHash("sha256").update(body).digest("hex"), step.sha256);
+    if (step.execution === "transactional") await db.begin((tx) => tx.unsafe(body));
+    else {
+      assert.equal(step.execution, "nontransactional_single_statement");
+      await db.unsafe("SET lock_timeout='5s'");
+      await db.unsafe("SET statement_timeout='60s'");
+      try {
+        await db.unsafe(body);
+      } finally {
+        await db.unsafe("RESET lock_timeout");
+        await db.unsafe("RESET statement_timeout");
+      }
+    }
+  }
+  const indexes = await db.unsafe(
+    "SELECT c.relname,i.indisvalid,i.indisready FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE c.relname IN ('mcp_billing_allocations_job_reconciliation_idx','mcp_billing_receipt_reversals_job_reconciliation_idx','mcp_billing_documents_job_reconciliation_idx')",
+  );
+  assert.equal(indexes.length, 3);
+  assert.ok(indexes.every((i) => i.indisvalid && i.indisready));
+  results.cases.orderedDdl =
+    "all nine exact hashed proposals installed using declared transaction boundaries";
+  results.cases.concurrentIndexBuilds =
+    "three separate nontransactional CREATE INDEX CONCURRENTLY commands; all valid and ready";
   for (const u of [owner, pm]) {
     await db.unsafe("INSERT INTO auth.users(id,email) VALUES($1,'synthetic@example.test')", [u]);
     await db.unsafe("INSERT INTO test_active_members VALUES($1)", [u]);
@@ -289,6 +311,87 @@ try {
     rpc(tx, "mcp_billing_reconciliation_snapshot", [job]),
   );
   assert.equal(billing.complete, true);
+  for (const table of [
+    "mcp_cost_approvals",
+    "mcp_cost_payment_evidence",
+    "mcp_cost_shared_payments",
+    "mcp_cost_shared_allocations",
+    "mcp_cost_payment_corrections",
+    "mcp_cost_business_approvals",
+    "mcp_cost_business_withdrawals",
+    "mcp_cost_submission_operations",
+  ]) {
+    const [acl] = await db.unsafe(
+      "SELECT has_table_privilege('authenticated',$1,'INSERT,UPDATE,DELETE') member,has_table_privilege('anon',$1,'INSERT,UPDATE,DELETE') anonymous,has_table_privilege('public',$1,'INSERT,UPDATE,DELETE') inherited_public,has_table_privilege('service_role',$1,'UPDATE') backend",
+      [table],
+    );
+    assert.deepEqual(acl, {
+      member: false,
+      anonymous: false,
+      inherited_public: false,
+      backend: true,
+    });
+  }
+  await assert.rejects(
+    actor(reader, owner, (tx) =>
+      tx.unsafe(
+        "UPDATE public.mcp_cost_payment_evidence SET reference=reference WHERE record_id=$1",
+        [exact.id],
+      ),
+    ),
+    (error) => error.code === "42501",
+  );
+  await b.begin(async (tx) => {
+    await tx.unsafe("SET LOCAL ROLE service_role");
+    assert.equal(
+      (
+        await tx.unsafe(
+          "UPDATE public.mcp_cost_payment_evidence SET reference=reference WHERE record_id=$1 RETURNING id",
+          [exact.id],
+        )
+      ).length,
+      1,
+    );
+  });
+  results.cases.serviceCredentialBoundary =
+    "authenticated/anon/PUBLIC event writes denied; service_role backend credential has direct mutation authority; no permission changed";
+  let unlock, locked;
+  const held = new Promise((resolve) => {
+    locked = resolve;
+  });
+  const release = new Promise((resolve) => {
+    unlock = resolve;
+  });
+  const holder = a.begin(async (tx) => {
+    await tx.unsafe("LOCK TABLE public.mcp_billing_invoices IN ACCESS EXCLUSIVE MODE");
+    locked();
+    await release;
+  });
+  await Promise.race([
+    held,
+    holder.then(() => {
+      throw new Error("Lock holder finished before barrier");
+    }),
+  ]);
+  try {
+    await assert.rejects(
+      actor(reader, owner, async (tx) => {
+        await tx.unsafe("SET LOCAL statement_timeout='100ms'");
+        return rpc(tx, "mcp_billing_reconciliation_snapshot", [job]);
+      }),
+      (error) => error.code === "57014",
+    );
+  } finally {
+    unlock();
+    await holder;
+  }
+  assert.equal(
+    (await actor(reader, owner, (tx) => rpc(tx, "mcp_billing_reconciliation_snapshot", [job])))
+      .complete,
+    true,
+  );
+  results.cases.databaseCancellation =
+    "pre-query session statement timeout cancels a blocked snapshot with 57014; next read succeeds";
   await db.unsafe("DELETE FROM mcp_company_members WHERE company_id=$1 AND user_id=$2", [
     company,
     owner,

@@ -27,7 +27,13 @@ BEGIN
   bounded AS (SELECT (SELECT count(*) FROM inv) <= 5000 AND (SELECT count(*) FROM ver) <= 5000
     AND (SELECT count(*) FROM rec) <= 5000 AND (SELECT count(*) FROM alloc) <= 5000
     AND (SELECT count(*) FROM rev) <= 5000 AND (SELECT count(*) FROM docs) <= 5000
-    AND (SELECT count(*) FROM links) <= 5000 AS complete)
+    AND (SELECT count(*) FROM links) <= 5000
+    -- Count UTF-8 source bytes before JSON aggregation. Never truncate evidence.
+    AND (SELECT coalesce(sum(octet_length(document_number)),0) FROM inv)
+      + (SELECT coalesce(sum(coalesce(octet_length(source),0)+coalesce(octet_length(reason),0)),0) FROM ver)
+      + (SELECT coalesce(sum(octet_length(source)),0) FROM rec)
+      + (SELECT coalesce(sum(octet_length(source)),0) FROM alloc)
+      + (SELECT coalesce(sum(octet_length(source)),0) FROM rev) <= 1048576 AS complete)
   SELECT jsonb_build_object('snapshot_version',1,'job_id',j.id,'company_id',j.company_id,
     'complete',bounded.complete,
     'billing', CASE WHEN bounded.complete THEN jsonb_build_object('currency','USD',
@@ -41,6 +47,11 @@ BEGIN
       'links',coalesce((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.document_id,l.invoice_id,l.invoice_version,l.receipt_id) FROM links l),'[]'::jsonb)) END)
   INTO result FROM j CROSS JOIN bounded;
   IF result IS NULL THEN RAISE EXCEPTION 'MCP_NO_JOB'; END IF;
+  -- A separate final envelope cap includes fixed metadata/JSON escaping overhead.
+  IF octet_length(result::text)>2097152 THEN
+    RETURN jsonb_build_object('snapshot_version',1,'job_id',result->'job_id','company_id',result->'company_id',
+      'complete',false,'billing',NULL,'originals',NULL);
+  END IF;
   RETURN result;
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_billing_reconciliation_snapshot(uuid) FROM PUBLIC,anon,authenticated;

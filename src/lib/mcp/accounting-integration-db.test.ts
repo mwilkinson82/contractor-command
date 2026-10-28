@@ -267,3 +267,124 @@ it("retains durable supplier and exact PO revision references under privileged m
     db.query("UPDATE mcp_cost_submission_versions SET facts='{}' WHERE record_id=$1", [id(7120)]),
   ).rejects.toThrow();
 });
+
+it("denies direct event mutation to every application member while identifying service credential authority", async () => {
+  const tables = [
+    "mcp_cost_approvals",
+    "mcp_cost_payment_evidence",
+    "mcp_cost_shared_payments",
+    "mcp_cost_shared_allocations",
+    "mcp_cost_payment_corrections",
+    "mcp_cost_business_approvals",
+    "mcp_cost_business_withdrawals",
+    "mcp_cost_submission_operations",
+  ];
+  for (const table of tables) {
+    const privileges = (
+      await db.query<{
+        member: boolean;
+        anonymous: boolean;
+        inherited_public: boolean;
+        backend: boolean;
+      }>(
+        "SELECT has_table_privilege('authenticated',$1,'INSERT,UPDATE,DELETE') member,has_table_privilege('anon',$1,'INSERT,UPDATE,DELETE') anonymous,has_table_privilege('public',$1,'INSERT,UPDATE,DELETE') inherited_public,has_table_privilege('service_role',$1,'UPDATE') backend",
+        [table],
+      )
+    ).rows[0];
+    expect(privileges, table).toEqual({
+      member: false,
+      anonymous: false,
+      inherited_public: false,
+      backend: true,
+    });
+    for (const user of [owner, pm, superUser, outsider])
+      await expect(
+        asUser(db, { sub: user, email: "synthetic@example.test", role: "authenticated" }, (tx) =>
+          tx.query(`DELETE FROM public.${table} WHERE false`),
+        ),
+      ).rejects.toThrow(/permission denied/);
+  }
+  // Deliberately prove the distinction, then roll back the synthetic backend mutation.
+  await expect(
+    asUser(
+      db,
+      { sub: owner, email: "synthetic@example.test", role: "service_role" },
+      async (tx) => {
+        const updated = await tx.query(
+          "UPDATE public.mcp_cost_payment_evidence SET reference='SYN-PRIVILEGED' WHERE id=$1 RETURNING id",
+          [id(7121)],
+        );
+        expect(updated.rows).toHaveLength(1);
+        throw new Error("ROLL_BACK_SYNTHETIC_SERVICE_WRITE");
+      },
+    ),
+  ).rejects.toThrow("ROLL_BACK_SYNTHETIC_SERVICE_WRITE");
+  expect(
+    (
+      await db.query<{ reference: string }>(
+        "SELECT reference FROM mcp_cost_payment_evidence WHERE id=$1",
+        [id(7121)],
+      )
+    ).rows[0].reference,
+  ).toBe("SYN-EVIDENCE");
+  await expect(
+    asUser(db, { sub: owner, email: "synthetic@example.test", role: "service_role" }, (tx) =>
+      tx.query("UPDATE mcp_cost_posting_events SET posted_at=posted_at WHERE record_id=$1", [
+        id(7120),
+      ]),
+    ),
+  ).rejects.toThrow();
+  for (const signature of [
+    "mcp_cost_receipt_upload_claim(uuid,uuid,text)",
+    "mcp_cost_receipt_register(uuid,uuid,uuid,bigint,text,uuid)",
+    "mcp_cost_review_consume(uuid,text,jsonb,uuid)",
+  ])
+    expect(
+      (
+        await db.query<{ allowed: boolean }>(
+          "SELECT has_function_privilege('authenticated',$1,'EXECUTE') allowed",
+          [signature],
+        )
+      ).rows[0].allowed,
+    ).toBe(false);
+});
+
+it("retains optional party-only links and old PO revision identity after later revisions", async () => {
+  const partyOnly = id(7130),
+    record = id(7131);
+  await db.query(
+    "INSERT INTO mcp_project_parties(id,company_id,job_id,name,kind,created_by) VALUES($1,$2,$3,'Synthetic party only','supplier',$4)",
+    [partyOnly, company, job, owner],
+  );
+  await write(owner, "submission", "mcp_cost_submission_save", {
+    id: record,
+    request_id: crypto.randomUUID(),
+    expected_version: 0,
+    facts: {
+      kind: "supplier_bill",
+      description: "Optional PO",
+      counterparty_name: "Synthetic party only",
+      incurred_on: "2026-10-01",
+      currency_code: "USD",
+      amount_cents: 10,
+      original: "missing",
+      party_id: partyOnly,
+      allocations: [{ job_id: job, cost_code: "X", amount_cents: 10 }],
+    },
+  });
+  await expect(
+    db.query("DELETE FROM mcp_project_parties WHERE id=$1", [partyOnly]),
+  ).rejects.toThrow(/mcp_cost_version_party_ref/);
+  await db.query(
+    "INSERT INTO mcp_purchase_order_versions(po_id,version,status,terms_id,party_snapshot,lines,order_date,needed_by,created_by) SELECT po_id,2,'draft',terms_id,party_snapshot,lines,order_date,needed_by,created_by FROM mcp_purchase_order_versions WHERE po_id=$1 AND version=1",
+    [po],
+  );
+  const links = (
+    await db.query<{ purchase_order_version_ref: number }>(
+      "SELECT purchase_order_version_ref FROM mcp_cost_submission_versions WHERE record_id=$1 ORDER BY version",
+      [id(7120)],
+    )
+  ).rows;
+  expect(links.map((r) => r.purchase_order_version_ref)).toEqual([1, 1]);
+  expect((await call(superUser, "mcp_cost_field_own_read", [job])).submissions).toEqual([]);
+});

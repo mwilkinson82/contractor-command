@@ -13,18 +13,69 @@ const envelope = z.object({
   originals: z.record(z.string(), z.unknown()).nullable(),
 });
 const unavailable = (reason: string): Coverage => ({ state: "unavailable", reason });
+export const SNAPSHOT_RESPONSE_BUDGET_MS = 5000;
+const SNAPSHOT_MAX_BYTES = 2097152;
+type SnapshotResult = {
+  data: unknown;
+  error: { code?: string; message: string } | null;
+};
+// Abort the HTTP read when supported, and bound waiting even for a stuck transport.
+// This is a caller deadline; database cancellation must be verified in managed staging.
+async function boundedSnapshot(sb: Sb, name: string, jobId: string): Promise<SnapshotResult> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const request = (
+      sb.rpc as unknown as (
+        name: string,
+        args: object,
+      ) => PromiseLike<SnapshotResult> & {
+        abortSignal?: (signal: AbortSignal) => PromiseLike<SnapshotResult>;
+      }
+    )(name, { _job: jobId });
+    const read = request.abortSignal ? request.abortSignal(controller.signal) : request;
+    const outcome = await Promise.race([
+      Promise.resolve(read),
+      new Promise<SnapshotResult>((resolve) => {
+        timer = setTimeout(() => {
+          resolve({
+            data: null,
+            error: {
+              code: "ATHENA_SNAPSHOT_TIMEOUT",
+              message: "Snapshot response budget exceeded.",
+            },
+          });
+          controller.abort();
+        }, SNAPSHOT_RESPONSE_BUDGET_MS);
+      }),
+    ]);
+    if (
+      !outcome.error &&
+      new TextEncoder().encode(JSON.stringify(outcome.data)).byteLength > SNAPSHOT_MAX_BYTES
+    )
+      return {
+        data: null,
+        error: { code: "ATHENA_SNAPSHOT_SIZE", message: "Snapshot response size exceeded." },
+      };
+    return outcome;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 /** The versioned database RPC captures all billing relations in one SQL statement. */
 export async function readReconciliation(sb: Sb, scope: Scope) {
   const observed = new Date().toISOString();
   const name = "mcp_billing_reconciliation_snapshot";
-  const { data, error } = await (
-    sb.rpc as unknown as (
-      name: string,
-      args: object,
-    ) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>
-  )(name, { _job: scope.job_id });
-  if (error && !(["PGRST202", "42883"].includes(error.code ?? "") && error.message.includes(name)))
+  const { data, error } = await boundedSnapshot(sb, name, scope.job_id);
+  const budgetExceeded = ["ATHENA_SNAPSHOT_TIMEOUT", "ATHENA_SNAPSHOT_SIZE", "57014"].includes(
+    error?.code ?? "",
+  );
+  if (
+    error &&
+    !budgetExceeded &&
+    !(["PGRST202", "42883"].includes(error.code ?? "") && error.message.includes(name))
+  )
     dbError(error);
   const parsed = envelope.safeParse(error ? null : data);
   const validScope =
@@ -39,8 +90,9 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
   const outcome = valid
     ? reconcileBilling(parsed.data.billing, parsed.data.originals, scope)
     : null;
-  const reason =
-    !validScope || (parsed.success && parsed.data.complete)
+  const reason = budgetExceeded
+    ? "Billing snapshot exceeded its response or size budget; findings are withheld."
+    : !validScope || (parsed.success && parsed.data.complete)
       ? "Billing snapshot is unavailable or has an unsupported scope, version or payload."
       : "Billing snapshot exceeds its completeness limit; findings are withheld.";
   const source = `https://app.meetathena.io/r/job/${scope.job_id}/billing-records`;
@@ -48,12 +100,7 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
   const originals = outcome?.originals ?? unavailable(reason);
   let apData: unknown = null;
   try {
-    const apResult = await (
-      sb.rpc as unknown as (
-        name: string,
-        args: object,
-      ) => Promise<{ data: unknown; error: unknown }>
-    )("mcp_cost_reconciliation_snapshot", { _job: scope.job_id });
+    const apResult = await boundedSnapshot(sb, "mcp_cost_reconciliation_snapshot", scope.job_id);
     if (!apResult.error) apData = apResult.data;
   } catch {
     /* Unavailable AP must not prevent an independent billing review. */

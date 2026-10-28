@@ -11,7 +11,7 @@ vi.mock("./guard", () => ({
   },
 }));
 vi.mock("./jobs", () => ({ resolveJob: (...args: unknown[]) => state.resolve(...args) }));
-import { readReconciliation } from "./reconciliation-read";
+import { readReconciliation, SNAPSHOT_RESPONSE_BUDGET_MS } from "./reconciliation-read";
 import { accountingReconciliation } from "./tools/reconciliation-tools";
 import type { Sb } from "./guard";
 const scope = {
@@ -33,6 +33,71 @@ beforeEach(() => {
   state.rpc.mockResolvedValue({ data: snapshot(), error: null });
 });
 const read = () => readReconciliation({ rpc: state.rpc } as unknown as Sb, scope);
+it("aborts an overdue billing read and returns no partial findings or evidence key", async () => {
+  vi.useFakeTimers();
+  let signal: AbortSignal | undefined;
+  let finish: (v: unknown) => void = () => {};
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  state.rpc.mockImplementation((name: string) =>
+    name === "mcp_billing_reconciliation_snapshot"
+      ? Object.assign(pending, {
+          abortSignal: (s: AbortSignal) => {
+            signal = s;
+            return pending;
+          },
+        })
+      : Promise.resolve({ data: null, error: null }),
+  );
+  try {
+    const reading = read();
+    await vi.advanceTimersByTimeAsync(SNAPSHOT_RESPONSE_BUDGET_MS);
+    const r = await reading;
+    expect(signal?.aborted).toBe(true);
+    expect(r.coverage.billing.state).toBe("unavailable");
+    expect(r.coverage.billing.reason).toContain("budget");
+    expect(r.findings).toEqual([]);
+    expect(r.evidence_key).toBeNull();
+    finish({ data: snapshot(), error: null });
+    await Promise.resolve();
+    expect(r.coverage.billing.state).toBe("unavailable");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it("preserves independent billing coverage when AP times out", async () => {
+  vi.useFakeTimers();
+  state.rpc.mockImplementation((name: string) =>
+    name === "mcp_billing_reconciliation_snapshot"
+      ? Promise.resolve({ data: snapshot(), error: null })
+      : new Promise(() => {}),
+  );
+  try {
+    const reading = read();
+    await vi.advanceTimersByTimeAsync(SNAPSHOT_RESPONSE_BUDGET_MS);
+    const r = await reading;
+    expect(r.coverage.billing.state).toBe("checked");
+    expect(r.coverage.ap.state).toBe("unavailable");
+    expect(r.ap_evidence_key).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it("withholds oversized UTF-8 envelopes and cancelled database statements", async () => {
+  for (const result of [
+    { data: { ...snapshot(), billing: { ...b, note: "é".repeat(1100000) } }, error: null },
+    { data: null, error: { code: "57014", message: "statement timeout" } },
+  ]) {
+    state.rpc.mockImplementation(async (name: string) =>
+      name === "mcp_billing_reconciliation_snapshot" ? result : { data: null, error: null },
+    );
+    const r = await read();
+    expect(r.coverage.billing.state).toBe("unavailable");
+    expect(r.evidence_key).toBeNull();
+    expect(r.findings).toEqual([]);
+  }
+});
 it("uses one scoped snapshot and explicitly leaves AP unavailable", async () => {
   const r = await read();
   expect(r.coverage.billing.state).toBe("checked");

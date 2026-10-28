@@ -68,11 +68,14 @@
     {
       "order": 6,
       "path": "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
-      "sha256": "fdaba5220ef955e50137e4c47df9e1492368590481f3cd590868622819bc3be6",
-      "managed_identity": null
+      "sha256": "98dc34e24fdcca3984db78871de5630863a4b747221e75d0b6fe110280c9daf9",
+      "managed_identity": null,
+      "upstream_source_sha256": "fdaba5220ef955e50137e4c47df9e1492368590481f3cd590868622819bc3be6",
+      "local_revision": "Add UTF-8 text and full-envelope byte budgets without partial output."
     }
   ],
-  "index_strategy": "billing snapshot indexes require approved locking or separate online runner; final SQL/hash may differ",
-  "final_managed_sql_hashes": "not assigned; freeze after managed-lane review",
-  "outbound_actions": "no push, merge, deploy, migration application, PR approval, email or customer write authorized by this task"
+  "index_strategy": "Frozen proposed SQL splits the three billing indexes into separate CREATE INDEX CONCURRENTLY commands; supported nontransactional runner and validity verification required.",
+  "final_managed_sql_hashes": "Exact proposed SQL hashes in docs/athena/managed-accounting-proposal/manifest.json; actual managed identities/runner compatibility and applied hashes remain unverified.",
+  "outbound_actions": "no push, merge, deploy, migration application, PR approval, email or customer write authorized by this task",
+  "review_revision": 2
 }

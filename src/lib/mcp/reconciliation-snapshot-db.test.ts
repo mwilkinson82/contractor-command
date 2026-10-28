@@ -242,6 +242,49 @@ it("captures a linked original for the exact invoice version in the same envelop
   expect(result.findings.map((f) => f.code)).not.toContain("invoice_original_gap");
   expect(result.findings.find((f) => f.code === "invoice_unmatched")?.amount_cents).toBe("10000");
 });
+it("rejects oversized UTF-8 source text before aggregation without partial financial data", async () => {
+  const invoice = "00000000-0000-4000-8000-000000000110";
+  await db.query(
+    "UPDATE mcp_billing_invoice_versions SET reason=repeat('é',524289) WHERE invoice_id=$1 AND version=1",
+    [invoice],
+  );
+  try {
+    const r = await snap();
+    expect(r.complete).toBe(false);
+    expect(r.billing).toBeNull();
+    expect(r.originals).toBeNull();
+    expect(new TextEncoder().encode(JSON.stringify(r)).byteLength).toBeLessThan(512);
+  } finally {
+    await db.query(
+      "UPDATE mcp_billing_invoice_versions SET reason=NULL WHERE invoice_id=$1 AND version=1",
+      [invoice],
+    );
+  }
+});
+it("caps final JSON bytes when every relation remains under the row and source-text budgets", async () => {
+  const receipt = crypto.randomUUID();
+  await db.query(
+    "INSERT INTO mcp_billing_receipts(id,job_id,company_id,receipt_date,source,amount_cents,recorded_by) VALUES($1,$2,$3,'2026-10-01','META-BASE',1,$4)",
+    [receipt, job, company, owner],
+  );
+  await db.query(
+    "INSERT INTO mcp_billing_receipts(id,job_id,company_id,receipt_date,source,amount_cents,recorded_by) SELECT gen_random_uuid(),$1,$2,'2026-10-01','META-'||g,1,$3 FROM generate_series(1,4999) g",
+    [job, company, owner],
+  );
+  await db.query(
+    "INSERT INTO mcp_billing_allocations(id,job_id,receipt_id,invoice_id,amount_cents,effective_date,source,recorded_by) SELECT gen_random_uuid(),$1,$2,$3,1,'2026-10-01','META-'||g,$4 FROM generate_series(1,5000) g",
+    [job, receipt, "00000000-0000-4000-8000-000000000110", owner],
+  );
+  try {
+    const r = await snap();
+    expect(r.complete).toBe(false);
+    expect(r.billing).toBeNull();
+    expect(r.originals).toBeNull();
+  } finally {
+    await db.query("DELETE FROM mcp_billing_allocations WHERE source LIKE 'META-%'");
+    await db.query("DELETE FROM mcp_billing_receipts WHERE source LIKE 'META-%'");
+  }
+});
 it("fails closed without a partial payload when a relation exceeds its bound", async () => {
   await db.query(
     "INSERT INTO mcp_billing_receipts(id,job_id,company_id,receipt_date,source,amount_cents,recorded_by) SELECT gen_random_uuid(),$1,$2,'2026-10-01','SYN-'||g,1,$3 FROM generate_series(1,5000) g",

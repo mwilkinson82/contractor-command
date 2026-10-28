@@ -1,0 +1,148 @@
+{
+  "status": "unregistered_local_proposal_not_authorized_for_application",
+  "baseline_repository_tag": "0034_athena_financial_documents",
+  "baseline_live_state": "unverified; actual next managed identities must be allocated through supported Lovable lane",
+  "prerequisites": [
+    {
+      "path": "drizzle/migrations/0033_athena_project_billing_evidence.sql",
+      "sha256": "14966fb5f2997ce8c8ad3768267210391f3451b62fd5358579fc6a22ac6f12d9"
+    },
+    {
+      "path": "drizzle/migrations/0034_athena_financial_documents.sql",
+      "sha256": "90f42b58c5bea96f0366821c1dd7f4cad63c2775e066276eaad408f5811a6506"
+    },
+    {
+      "path": "supabase/migrations/20261101120001_athena_project_billing_evidence.sql",
+      "sha256": "14966fb5f2997ce8c8ad3768267210391f3451b62fd5358579fc6a22ac6f12d9"
+    },
+    {
+      "path": "supabase/migrations/20261101120002_athena_financial_documents.sql",
+      "sha256": "90f42b58c5bea96f0366821c1dd7f4cad63c2775e066276eaad408f5811a6506"
+    },
+    {
+      "path": "drizzle/migrations/meta/_journal.json",
+      "sha256": "f6cce8704b9c0bc1ba49170574227951e8089ef1e469b02c95b0e6ec130d8365"
+    }
+  ],
+  "index_runner_contract": "Each concurrent index is a single command outside a transaction. Set 5s lock and 60s statement timeouts separately on the disposable/approved runner session; inspect validity after any uncertain result. No fallback to blocking builds is approved.",
+  "function_runner_contract": "Each transactional proposal requires one transaction supplied by the runner; SQL has no outer BEGIN/COMMIT. Do not strip/rewrite source without rehash/review.",
+  "steps": [
+    {
+      "order": 1,
+      "key": "purchase_orders",
+      "path": "docs/athena/managed-accounting-proposal/01-purchase-orders.proposed.sql",
+      "sha256": "6625d8f5f1606a585ac0fbaf3955c089504fce68fecdf96fa637e990a1fec5a9",
+      "source": "supabase/migrations/20261028143924_athena_project_purchase_orders.sql",
+      "source_sha256": "9dfa532b2e330fcee3596d0e1ca7dc5bb0b1c0f8908fd4809a6e8b92c7b84bf2",
+      "execution": "transactional",
+      "managed_identity": null,
+      "depends_on": [
+        "verified_prerequisites"
+      ]
+    },
+    {
+      "order": 2,
+      "key": "ap",
+      "path": "docs/athena/managed-accounting-proposal/02-ap.proposed.sql",
+      "sha256": "8eb78744a8a5ee685cc124749e7dc915af4f41f6787ec4d1d80948f67f8aff7b",
+      "source": "docs/athena/job-cost-submission.schema-draft.sql",
+      "source_sha256": "ba37b300a41e8e4f44e0a16c672faa1875389bb6cd4d91659ca9c43070f876ea",
+      "execution": "transactional",
+      "managed_identity": null,
+      "depends_on": [
+        "purchase_orders"
+      ]
+    },
+    {
+      "order": 3,
+      "key": "ap_references",
+      "path": "docs/athena/managed-accounting-proposal/03-ap-references.proposed.sql",
+      "sha256": "97b4692dd0a3fcfba19d3a01180d5b4ea252a1c12ca8b5ca8f25f54e4e889dff",
+      "source": "docs/athena/job-cost-project-refs.schema-draft.sql",
+      "source_sha256": "77535a8762e31a963708ad29acb27f05c71a6bf5bc1062aa6871a6fdb9cef327",
+      "execution": "transactional",
+      "managed_identity": null,
+      "depends_on": [
+        "ap"
+      ]
+    },
+    {
+      "order": 4,
+      "key": "receipts",
+      "path": "docs/athena/managed-accounting-proposal/04-receipts.proposed.sql",
+      "sha256": "72601894c0b3b7946421f711fe71b76820ec0d8ac7911865933ec70b1e2e64a5",
+      "source": "docs/athena/job-cost-originals.schema-draft.sql",
+      "source_sha256": "e16ed33f8d72ec819fb9f43161f040f91a137b15610b48230d4fbab7f614701a",
+      "execution": "transactional",
+      "managed_identity": null,
+      "depends_on": [
+        "ap_references"
+      ]
+    },
+    {
+      "order": 5,
+      "key": "ap_snapshot",
+      "path": "docs/athena/managed-accounting-proposal/05-ap-snapshot.proposed.sql",
+      "sha256": "6d5b30f60be11a30d5390a979ff949c50af6bb0c36797c67d8b7dd8aedae4ede",
+      "source": "docs/athena/ap-reconciliation-snapshot.schema-draft.sql",
+      "source_sha256": "a25517349efbc2f301341af41e54adcc4ee71fd7df061a20e6c1e9b50dc76f33",
+      "execution": "transactional",
+      "managed_identity": null,
+      "depends_on": [
+        "receipts"
+      ]
+    },
+    {
+      "order": 6,
+      "key": "billing_allocation_index",
+      "path": "docs/athena/managed-accounting-proposal/06a-billing-index.proposed.sql",
+      "sha256": "a1517e61ebaba5539b1a51137f323426dab3a0fbe0ada8e8195cfcdd54471f0b",
+      "source": "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
+      "source_sha256": "98dc34e24fdcca3984db78871de5630863a4b747221e75d0b6fe110280c9daf9",
+      "execution": "nontransactional_single_statement",
+      "managed_identity": null,
+      "depends_on": [
+        "ap_snapshot"
+      ]
+    },
+    {
+      "order": 7,
+      "key": "billing_reversal_index",
+      "path": "docs/athena/managed-accounting-proposal/06b-billing-index.proposed.sql",
+      "sha256": "bb0b525bedddbf3553879c7c6a98361ee07a874daaed921a6f74d66d65f02f2f",
+      "source": "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
+      "source_sha256": "98dc34e24fdcca3984db78871de5630863a4b747221e75d0b6fe110280c9daf9",
+      "execution": "nontransactional_single_statement",
+      "managed_identity": null,
+      "depends_on": [
+        "billing_allocation_index"
+      ]
+    },
+    {
+      "order": 8,
+      "key": "billing_document_index",
+      "path": "docs/athena/managed-accounting-proposal/06c-billing-index.proposed.sql",
+      "sha256": "636b181f5755a1913ca5cdfe97259492f49598716f49937abc165c6e65646538",
+      "source": "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
+      "source_sha256": "98dc34e24fdcca3984db78871de5630863a4b747221e75d0b6fe110280c9daf9",
+      "execution": "nontransactional_single_statement",
+      "managed_identity": null,
+      "depends_on": [
+        "billing_reversal_index"
+      ]
+    },
+    {
+      "order": 9,
+      "key": "billing_snapshot",
+      "path": "docs/athena/managed-accounting-proposal/07-billing-snapshot.proposed.sql",
+      "sha256": "eba644b16272c22e6f86d9f183800bcb1909b1e589cee2e47ce699d61b6d3a7b",
+      "source": "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
+      "source_sha256": "98dc34e24fdcca3984db78871de5630863a4b747221e75d0b6fe110280c9daf9",
+      "execution": "transactional",
+      "managed_identity": null,
+      "depends_on": [
+        "billing_document_index"
+      ]
+    }
+  ]
+}

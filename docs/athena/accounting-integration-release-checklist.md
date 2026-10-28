@@ -1,6 +1,6 @@
 # Athena accounting — local integration and release review
 
-Review date: 2026-10-28. This is a private local candidate, not a release approval. No push, merge, deployment, managed migration, customer write, payment, external email or PR approval was performed. All new test data was synthetic. Other workers' checkouts were read only.
+Review date: 2026-10-28. **Follow-up disposition and exact proposed SQL: [accounting-release-decision.md](accounting-release-decision.md). That decision supersedes the initial unresolved byte/time and privileged-mutation classifications below.** This is a private local candidate, not a release approval. No push, merge, deployment, managed migration, customer write, payment, external email or PR approval was performed. All new test data was synthetic. Other workers' checkouts were read only.
 
 ## Source freeze and concrete integration
 
@@ -27,7 +27,7 @@ A local-only `job-cost-project-refs.schema-draft.sql` adds generated identity co
 
 `drizzle/migrations/meta/_journal.json` ends at repository artifact `0034_athena_financial_documents`. This says nothing about what is applied live. Existing Supabase timestamp files mirror some managed artifacts; do not run the timestamp directory as a backlog. In particular, the PO timestamp sorts before the published financial prerequisites.
 
-The machine-readable [source manifest](accounting-integration-sources.json) records full SHA-256 hashes for all six ordered drafts, both billing prerequisite representations and the journal. Run `node scripts/verify-accounting-release-sources.mjs` before review/application. No managed identity or final applied-SQL hash has been allocated locally.
+The machine-readable [source manifest](accounting-integration-sources.json) records full SHA-256 hashes for all six ordered drafts, both billing prerequisite representations and the journal. Run `node scripts/verify-accounting-release-sources.mjs` before review/application. Nine exact proposed payload hashes are now frozen in `managed-accounting-proposal/manifest.json`. No actual managed identity or applied-SQL hash has been allocated/verified locally.
 
 | Dependency order | Source draft | SHA-256 |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ The machine-readable [source manifest](accounting-integration-sources.json) reco
 | 3 | `job-cost-project-refs.schema-draft.sql` | `77535a8762e31a963708ad29acb27f05c71a6bf5bc1062aa6871a6fdb9cef327` |
 | 4 | `job-cost-originals.schema-draft.sql` | `e16ed33f8d72ec819fb9f43161f040f91a137b15610b48230d4fbab7f614701a` |
 | 5 | `ap-reconciliation-snapshot.schema-draft.sql` | `a25517349efbc2f301341af41e54adcc4ee71fd7df061a20e6c1e9b50dc76f33` |
-| 6 | `billing-reconciliation-snapshot.schema-draft.sql` | `fdaba5220ef955e50137e4c47df9e1492368590481f3cd590868622819bc3be6` |
+| 6 | `billing-reconciliation-snapshot.schema-draft.sql` | `98dc34e24fdcca3984db78871de5630863a4b747221e75d0b6fe110280c9daf9` |
 
 AP snapshot depends on AP; receipt schema depends on AP and private original storage; the bridge depends on PO and AP. Billing snapshot independently depends on billing/originals. Reporting has no migration and deliberately retains the existing AR reader because the reconciliation snapshot lacks its dated reporting projection. AR, AP, PO and budget report reads remain separate observations, not an atomic close.
 
@@ -71,14 +71,14 @@ No production index duration or managed plan has been measured here. There is no
 | Review/idempotency | Actor/job/purpose/payload-bound expiring review tickets plus explicit confirmation; stale versions, changed facts, reused identities and overpayment fail. Native independent-connection races pass. | Confirmation is a client assertion, not independent proof that the person saw/approved the draft. Host must show exact final content, then wait for a separate explicit okay. Unknown outcomes require readback with original request ID/payload. |
 | Originals | Server authenticates actor, obtains scoped metadata, validates company/job/upload path, bounds bytes/type and checks stored hash/size. Service-only claim/register rechecks scope. | Supplier-bill original attachment and AP original completeness are unsupported. Synthetic storage is not a live bucket audit. Orphan retention/cleanup policy needs review; rollback must retain originals. |
 | Money/dates | Exact integer cents and BigInt aggregate strings; reviewed per-version two-decimal currencies remain separate; missing legacy date/currency stays Unknown. Accounting-effective date is distinct from incurred, posted and recorded timestamps. | No currency conversion, inferred historical currency/date, earned revenue, complete P&L, tax or payroll. CSV uses formula neutralization and exact string cents. |
-| Snapshots | AP and billing each use one bounded statement; AP read-only transaction and native pre/post-commit observation pass. Over-limit evidence withholds partial results. | AP caps response at 2 MiB; billing limits rows but lacks equivalent byte/time guarantees. Measure realistic source-text sizes and execution budget before enabling the snapshot. Existing reporting AR reader is not the new atomic snapshot. |
+| Snapshots | AP and billing each use one bounded statement; AP read-only transaction and native pre/post-commit observation pass. Over-limit evidence withholds partial results. | AP caps response at 2 MiB. Billing now caps source text at 1 MiB and final envelope at 2 MiB; reconciliation callers have a 5-second per-RPC response deadline. Actual managed database cancellation/performance remains unverified. Existing reporting AR reader is not the new atomic snapshot. |
 | Duplicate/settlement | Normalized refs, immutable revisions and request IDs are checked; conservation/overpayment/withdrawal tests pass; settlement never adds another expense. | Supplier aliases/missing refs can evade detection and same-name parties can collide. Shared settlements remain hard-disabled by the false identity hook. Per-job payment allocation, shared conservation, bank transfers/refunds and external accounting coverage remain unavailable. |
 
 Review of definer functions included fully qualified relations, role gates, RLS and function/table revocations. Managed effective grants and schema-creation rights remain a release check; definer privileges require careful control, as described in [Supabase's functions guidance](https://supabase.com/docs/guides/database/functions) and [RLS guidance](https://supabase.com/docs/guides/database/postgres/row-level-security).
 
 ## Exact local verification matrix
 
-Final local result: **323 test files passed; 3,041 tests passed, 4 existing skips and 2 todos; no failures or unhandled errors**. TypeScript, scoped semantic ESLint, production build and all four built route/auth smoke checks passed. The independent PostgreSQL 18.4 lab passed all six cases. Evidence files are in this checkout's ignored `artifacts/` directory; the handoff records the final commit. The added composed suite uses every actual proposed producer, not copied mock producer SQL.
+Final local result: **323 test files passed; 3,048 tests passed, 4 existing skips and 2 todos; no failures or unhandled errors**. TypeScript, scoped semantic ESLint, production build and all four built route/auth smoke checks passed. The initial PostgreSQL lab passed six cases; the follow-up verifies nine exact proposed artifacts, concurrent indexes, credential boundaries and database cancellation. Evidence files are in this checkout's ignored `artifacts/` directory; the handoff records the final commit. The added composed suite uses every actual proposed producer, not copied mock producer SQL.
 
 | Check | Command / evidence | Coverage |
 | --- | --- | --- |
