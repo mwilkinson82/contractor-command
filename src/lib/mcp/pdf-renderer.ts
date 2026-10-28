@@ -99,16 +99,26 @@ export function withPdfiumPage<T>(
 }
 
 /** Text-only document reading shares the existing native queue; no raster or network. */
-export function extractPdfiumDocumentText(bytes: Uint8Array): Promise<string[]> {
+export function extractPdfiumDocumentText(
+  bytes: Uint8Array,
+  limits?: { maxPages: number; maxChars: number },
+): Promise<string[]> {
   const result = queue.then(async () => {
     const engine = await getLibrary();
     const document = await engine.loadDocument(bytes);
     try {
       const pages: string[] = [];
+      if (limits && document.getPageCount() > limits.maxPages)
+        throw new Error("PDF exceeds extraction page limit.");
+      let chars = 0;
       for (let index = 0; index < document.getPageCount(); index++) {
         const page = document.getPage(index);
         try {
-          pages.push(page.getText());
+          const value = page.getText();
+          chars += value.length;
+          if (limits && chars > limits.maxChars)
+            throw new Error("PDF exceeds extraction text limit.");
+          pages.push(value);
         } finally {
           page.close();
         }

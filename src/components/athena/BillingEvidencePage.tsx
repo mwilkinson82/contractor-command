@@ -54,6 +54,23 @@ type Payload = {
     approved_cents: number | null;
   };
 };
+type BillingDocument = {
+  id: string;
+  job_id: string;
+  company_id: string;
+  filename: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+};
+type DocumentLink = {
+  document_id: string;
+  invoice_id: string | null;
+  invoice_version: number | null;
+  receipt_id: string | null;
+};
+type DocumentPayload = { documents: BillingDocument[]; links: DocumentLink[] };
 const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
   args: Record<string, unknown>,
@@ -108,6 +125,55 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
       return r.data as Payload;
     },
   });
+  const documents = useQuery({
+    queryKey: ["billing-documents", jobId, session?.user.id],
+    enabled: !loading && !!session,
+    retry: false,
+    queryFn: async () => {
+      const r = await rpc("mcp_billing_documents_get", { _job: jobId });
+      if (r.error) throw new Error(r.error.message);
+      return r.data as DocumentPayload;
+    },
+  });
+  async function downloadOriginal(doc: BillingDocument) {
+    setError("");
+    try {
+      if (doc.job_id !== jobId || !session?.access_token)
+        throw new Error("The document is not available for this project.");
+      const params = new URLSearchParams({ job: jobId, document: doc.id });
+      const response = await fetch(`/api/billing-original?${params}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (response.status === 413)
+        throw new Error("The original exceeds the 10 MiB limit and cannot be opened.");
+      if (!response.ok) throw new Error("The original is unavailable or could not be verified.");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = doc.filename;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The original is unavailable.");
+    }
+  }
+  function originalLinks(matches: (link: DocumentLink) => boolean) {
+    if (!documents.data) return null;
+    return documents.data.links.filter(matches).map((link) => {
+      const doc = documents.data!.documents.find((d) => d.id === link.document_id);
+      return doc ? (
+        <button
+          key={`${doc.id}-${link.invoice_version ?? "receipt"}`}
+          type="button"
+          className="mr-3 mt-2 text-sm underline"
+          onClick={() => void downloadOriginal(doc)}
+        >
+          Download original: {doc.filename}
+          {link.invoice_version ? ` · version ${link.invoice_version}` : ""}
+        </button>
+      ) : null;
+    });
+  }
   async function send(action: string, payload: Record<string, unknown>) {
     setSaving(true);
     setError("");
@@ -340,6 +406,9 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
           {error}
         </p>
       )}
+      {documents.error && (
+        <p className="text-sm text-gray-600">Financial originals are currently unavailable.</p>
+      )}
       {pending && (
         <div className="rounded border border-amber-300 p-3">
           <p>
@@ -377,6 +446,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                   <p className="text-sm">
                     {v.status} · {v.invoice_date} · source: {v.source}
                   </p>
+                  {originalLinks((link) => link.invoice_id === i.id)}
                   {i.kind === "credit" ? (
                     <p className="text-sm">
                       Credit amount {money(v.net_due_cents)} · invoice{" "}
@@ -720,6 +790,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
                     {r.source} · corrected {money(reversed)} · allocated {money(applied)} ·
                     unapplied {money(unapplied)}
                   </p>
+                  {originalLinks((link) => link.receipt_id === r.id)}
                   {reversals.map((x) => (
                     <p className="text-sm" key={x.id}>
                       Correction {money(x.amount_cents)} effective {x.effective_date} · {x.source}
