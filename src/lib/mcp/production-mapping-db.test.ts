@@ -67,7 +67,7 @@ beforeAll(async () => {
   );
   await db.exec(
     readFileSync(
-      "supabase/migrations/20261101120002_athena_approved_production_mapping.sql",
+      "supabase/migrations/20261101120003_athena_approved_production_mapping.sql",
       "utf8",
     ),
   );
@@ -853,7 +853,7 @@ describe("additive migration on existing dailies", () => {
       const before = (await read()).rows;
       await priorDb.exec(
         readFileSync(
-          "supabase/migrations/20261101120002_athena_approved_production_mapping.sql",
+          "supabase/migrations/20261101120003_athena_approved_production_mapping.sql",
           "utf8",
         ),
       );

@@ -133,7 +133,7 @@ do not infer a host pass from these routing instructions or local fixtures.
 ## Compatibility and rollout
 
 1. After billing is accepted, reconcile the release branch and managed migration
-   history, confirm that `20261101120002` follows the accepted billing migration,
+   history, confirm that `20261101120003` follows the accepted billing migrations,
    account for the applied managed billing migration `0033` as well as the existing
    timestamped migration files, and rerun the checks against that exact combined head.
    Do not rewrite migration history or assume the next managed number. Keep the PR in draft until
