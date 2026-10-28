@@ -2983,7 +2983,7 @@
       {
         "name": "accounting_reconciliation",
         "title": "Review project accounting exceptions",
-        "description": "Reviews available accounting evidence and reports when exception findings are unavailable because a complete, consistent snapshot cannot be established. Does not repair records or move money.",
+        "description": "Reviews recorded billing exceptions from a complete scoped snapshot and reports unavailable coverage. Does not repair records or move money.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

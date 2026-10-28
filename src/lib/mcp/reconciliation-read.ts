@@ -1,101 +1,74 @@
+import { z } from "zod";
 import { dbError, type Sb } from "./guard";
 import { sha256Hex } from "./file-share";
-import {
-  reconcileBilling,
-  reconcileCosts,
-  type Scope,
-  type Reconciliation,
-  type Coverage,
-} from "./reconciliation";
+import { reconcileBilling, type Scope, type Coverage, type Finding } from "./reconciliation";
 
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object")
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
-      .join(",")}}`;
-  return JSON.stringify(value) ?? "null";
-}
-async function read(sb: Sb, name: string, job: string, optional = false): Promise<unknown> {
+const envelope = z.object({
+  snapshot_version: z.literal(1),
+  job_id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  complete: z.boolean(),
+  billing: z.record(z.string(), z.unknown()).nullable(),
+  originals: z.record(z.string(), z.unknown()).nullable(),
+});
+const unavailable = (reason: string): Coverage => ({ state: "unavailable", reason });
+
+/** The versioned database RPC captures all billing relations in one SQL statement. */
+export async function readReconciliation(sb: Sb, scope: Scope) {
+  const observed = new Date().toISOString();
+  const name = "mcp_billing_reconciliation_snapshot";
   const { data, error } = await (
     sb.rpc as unknown as (
       name: string,
       args: object,
     ) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>
-  )(name, { _job: job });
-  if (error) {
-    // Only a known missing optional RPC is unavailable coverage. Never hide a denied read.
-    if (
-      optional &&
-      ["PGRST202", "42883"].includes(error.code ?? "") &&
-      error.message.includes(name)
-    )
-      return null;
+  )(name, { _job: scope.job_id });
+  if (error && !(["PGRST202", "42883"].includes(error.code ?? "") && error.message.includes(name)))
     dbError(error);
-  }
-  return data;
-}
-const changed = (): Reconciliation => ({
-  coverage: {
-    state: "unavailable",
-    reason:
-      "Evidence changed during this check. Run reconciliation again before reviewing a correction.",
-  },
-  findings: [],
-});
-
-/** Two observations detect intervening evidence changes. They are NOT an atomic database snapshot. */
-export async function readReconciliation(sb: Sb, scope: Scope) {
-  const start = new Date().toISOString();
-  const collect = async () => ({
-    billing: await read(sb, "mcp_billing_evidence_get", scope.job_id),
-    originals: await read(sb, "mcp_billing_documents_get", scope.job_id, true),
-    costs: await read(sb, "mcp_cost_submission_read", scope.job_id, true),
-  });
-  const first = await collect();
-  const second = await collect();
-  const billingStable = canonical(first.billing) === canonical(second.billing);
-  const originalsStable = canonical(first.originals) === canonical(second.originals);
-  const costsStable = canonical(first.costs) === canonical(second.costs);
-  const billing = billingStable
-    ? reconcileBilling(second.billing, originalsStable ? second.originals : null, scope)
-    : { ...changed(), originals: changed().coverage };
-  if (!originalsStable) billing.originals = changed().coverage;
-  const costs = costsStable ? reconcileCosts(second.costs, scope) : changed();
-  // Matching non-atomic observations do not prove that related rows coexisted.
-  // The current RPCs also cannot attest to omitted AP records. Do not expose
-  // calculated discrepancies until an authorized, complete snapshot contract exists.
-  const withheld = (coverage: Coverage): Coverage =>
-    coverage.state === "unavailable"
-      ? coverage
-      : {
-          state: "unavailable",
-          reason: "A complete, consistent evidence snapshot is unavailable; findings are withheld.",
-        };
+  const parsed = envelope.safeParse(error ? null : data);
+  const validScope =
+    parsed.success &&
+    parsed.data.job_id === scope.job_id &&
+    parsed.data.company_id === scope.company_id;
+  const valid =
+    validScope &&
+    parsed.data.complete &&
+    parsed.data.billing !== null &&
+    parsed.data.originals !== null;
+  const outcome = valid
+    ? reconcileBilling(parsed.data.billing, parsed.data.originals, scope)
+    : null;
+  const reason =
+    !validScope || (parsed.success && parsed.data.complete)
+      ? "Billing snapshot is unavailable or has an unsupported scope, version or payload."
+      : "Billing snapshot exceeds its completeness limit; findings are withheld.";
   const source = `https://app.meetathena.io/r/job/${scope.job_id}/billing-records`;
+  const billing = outcome?.coverage ?? unavailable(reason);
+  const originals = outcome?.originals ?? unavailable(reason);
+  const findings: Array<Finding & { source_tool: string }> = (outcome?.findings ?? []).map((f) => ({
+    ...f,
+    source_url: source,
+    source_tool: "billing_evidence_read",
+  }));
   return {
-    observed_from: start,
-    observed_to: new Date().toISOString(),
-    evidence_key: await sha256Hex(new TextEncoder().encode(canonical({ scope, ...second }))),
-    consistency:
-      "Two matching observations are not an atomic snapshot. Exception findings are withheld until a complete, consistent evidence snapshot is available.",
-    observations_match: billingStable && originalsStable && costsStable,
-    consistent_snapshot: false,
+    observed_at: observed,
+    evidence_key: valid ? await sha256Hex(new TextEncoder().encode(JSON.stringify(data))) : null,
+    consistency: valid
+      ? "Billing evidence and document associations were captured by one scoped database statement. Missing history remains unknown."
+      : "No complete, supported billing snapshot is available; billing findings are withheld.",
+    consistent_snapshot: valid,
     coverage: {
-      billing: withheld(billing.coverage),
-      originals: withheld(billing.originals),
-      ap: withheld(costs.coverage),
-      bank_transfers: {
-        state: "unavailable",
-        reason: "No bank connector or transfer verification.",
-      } as Coverage,
-      refunds: {
-        state: "unavailable",
-        reason: "Receipt reversals and payment evidence corrections do not prove actual refunds.",
-      } as Coverage,
+      billing,
+      originals,
+      ap: unavailable(
+        "AP reconciliation requires a separate versioned, complete scoped snapshot; the provisional read can omit records.",
+      ),
+      bank_transfers: unavailable("No bank connector or transfer verification."),
+      refunds: unavailable(
+        "Receipt reversals and payment evidence corrections do not prove actual refunds.",
+      ),
     },
-    findings: [] as Array<import("./reconciliation").Finding & { source_tool: string }>,
+    findings,
     records_url: source,
     correction_review: {
       automatic_repairs: false,

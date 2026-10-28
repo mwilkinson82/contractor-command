@@ -1,0 +1,41 @@
+-- STAGED PROPOSAL ONLY. Coordinator must create an ordered migration after
+-- billing evidence and financial originals, review permissions and run advisors.
+-- No data changes. One SELECT observes all included relations in one MVCC snapshot.
+CREATE FUNCTION public.mcp_billing_reconciliation_snapshot(_job uuid) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE result jsonb;
+BEGIN
+  PERFORM public.mcp_assert_active();
+  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN
+    RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.';
+  END IF;
+  WITH
+  j AS MATERIALIZED (SELECT id, company_id FROM public.mcp_jobs WHERE id = _job AND public.mcp_job_scope(_job) = 'full'),
+  inv AS MATERIALIZED (SELECT id,job_id,company_id,document_number,kind,credit_for FROM public.mcp_billing_invoices WHERE job_id = _job LIMIT 5001),
+  ver AS MATERIALIZED (SELECT invoice_id,job_id,version,status,net_due_cents,source,reason FROM public.mcp_billing_invoice_versions WHERE job_id = _job LIMIT 5001),
+  rec AS MATERIALIZED (SELECT id,job_id,company_id,amount_cents,source FROM public.mcp_billing_receipts WHERE job_id = _job LIMIT 5001),
+  alloc AS MATERIALIZED (SELECT id,job_id,receipt_id,invoice_id,amount_cents,reversal_of,source FROM public.mcp_billing_allocations WHERE job_id = _job LIMIT 5001),
+  rev AS MATERIALIZED (SELECT id,job_id,receipt_id,amount_cents,source FROM public.mcp_billing_receipt_reversals WHERE job_id = _job LIMIT 5001),
+  docs AS MATERIALIZED (SELECT id,job_id,company_id FROM public.mcp_billing_documents WHERE job_id = _job LIMIT 5001),
+  links AS MATERIALIZED (SELECT document_id,job_id,invoice_id,invoice_version,receipt_id FROM public.mcp_billing_document_links WHERE job_id = _job LIMIT 5001),
+  bounded AS (SELECT (SELECT count(*) FROM inv) <= 5000 AND (SELECT count(*) FROM ver) <= 5000
+    AND (SELECT count(*) FROM rec) <= 5000 AND (SELECT count(*) FROM alloc) <= 5000
+    AND (SELECT count(*) FROM rev) <= 5000 AND (SELECT count(*) FROM docs) <= 5000
+    AND (SELECT count(*) FROM links) <= 5000 AS complete)
+  SELECT jsonb_build_object('snapshot_version',1,'job_id',j.id,'company_id',j.company_id,
+    'complete',bounded.complete,
+    'billing', CASE WHEN bounded.complete THEN jsonb_build_object('currency','USD',
+      'invoices',coalesce((SELECT jsonb_agg(to_jsonb(i) || jsonb_build_object('versions',
+        coalesce((SELECT jsonb_agg(to_jsonb(v) ORDER BY v.version DESC) FROM ver v WHERE v.invoice_id=i.id),'[]'::jsonb)) ORDER BY i.id) FROM inv i),'[]'::jsonb),
+      'receipts',coalesce((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM rec r),'[]'::jsonb),
+      'allocations',coalesce((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM alloc a),'[]'::jsonb),
+      'receipt_reversals',coalesce((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM rev r),'[]'::jsonb)) END,
+    'originals', CASE WHEN bounded.complete THEN jsonb_build_object(
+      'documents',coalesce((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM docs d),'[]'::jsonb),
+      'links',coalesce((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.document_id,l.invoice_id,l.invoice_version,l.receipt_id) FROM links l),'[]'::jsonb)) END)
+  INTO result FROM j CROSS JOIN bounded;
+  IF result IS NULL THEN RAISE EXCEPTION 'MCP_NO_JOB'; END IF;
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_billing_reconciliation_snapshot(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_reconciliation_snapshot(uuid) TO authenticated;

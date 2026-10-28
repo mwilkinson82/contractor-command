@@ -4,8 +4,6 @@ import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 import { reconcileBilling } from "./reconciliation";
-import { readReconciliation } from "./reconciliation-read";
-import type { Sb } from "./guard";
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
 const owner = id(71),
@@ -145,36 +143,4 @@ it("enforces assigned full scope and excludes foreign companies and jobs at the 
   await db.query("DELETE FROM test_active_members WHERE user_id=$1", [pm]);
   await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [pm]);
   await expect(get(pm)).rejects.toThrow(/MCP_INACTIVE/);
-});
-it("detects an interleaved financial write without changing existing evidence during the check", async () => {
-  let reads = 0;
-  const sb = {
-    rpc: async (name: string) => {
-      if (name !== "mcp_billing_evidence_get")
-        return { data: null, error: { code: "PGRST202", message: `Could not find ${name}` } };
-      if (++reads === 2)
-        await record("receipt", {
-          id: id(84),
-          receipt_date: "2026-10-04",
-          source: "Synthetic intervening receipt",
-          amount_cents: 1,
-        });
-      return { data: await get(), error: null };
-    },
-  } as unknown as Sb;
-  const r = await readReconciliation(sb, { job_id: job, company_id: company });
-  expect(r.observations_match).toBe(false);
-  expect(r.coverage.billing.state).toBe("unavailable");
-  expect(r.findings).toEqual([]);
-  const before = JSON.stringify(await get());
-  await readReconciliation(
-    {
-      rpc: async (name: string) =>
-        name === "mcp_billing_evidence_get"
-          ? { data: await get(), error: null }
-          : { data: null, error: { code: "PGRST202", message: `Could not find ${name}` } },
-    } as unknown as Sb,
-    { job_id: job, company_id: company },
-  );
-  expect(JSON.stringify(await get())).toBe(before);
 });
