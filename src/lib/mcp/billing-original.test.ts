@@ -7,6 +7,8 @@ const mock = vi.hoisted(() => ({ signed: vi.fn(), create: vi.fn() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mock.create }));
 import {
   readUploadedFinancialOriginal,
+  readUploadedCostReceipt,
+  readVerifiedCostReceipt,
   readVerifiedFinancialOriginal,
 } from "./billing-original.server";
 
@@ -49,6 +51,41 @@ afterEach(() => {
 });
 
 describe("server-controlled original retrieval", () => {
+  it("uses only the exact scoped cost receipt RPC and verifies the returned record and fingerprint", async () => {
+    rpc.mockResolvedValueOnce({ data: { ...base, record_id: "record" }, error: null });
+    expect(await readUploadedCostReceipt(sb, "member-token", "job", "record", "doc")).toEqual(
+      bytes,
+    );
+    expect(rpc).toHaveBeenCalledWith("mcp_cost_receipt_upload_get", {
+      _job: "job",
+      _record: "record",
+      _id: "doc",
+    });
+    rpc.mockResolvedValueOnce({ data: { ...document, record_id: "record" }, error: null });
+    expect(
+      (await readVerifiedCostReceipt(sb, "member-token", "job", "record", "doc")).bytes,
+    ).toEqual(bytes);
+    expect(rpc).toHaveBeenCalledWith("mcp_cost_receipt_get", {
+      _job: "job",
+      _record: "record",
+      _id: "doc",
+    });
+    rpc.mockResolvedValueOnce({ data: { ...document, record_id: "someone-else" }, error: null });
+    await expect(
+      readVerifiedCostReceipt(sb, "member-token", "job", "record", "doc"),
+    ).rejects.toThrow(/not available/);
+    rpc.mockResolvedValueOnce({
+      data: { ...document, record_id: "record", sha256: "0".repeat(64) },
+      error: null,
+    });
+    await expect(
+      readVerifiedCostReceipt(sb, "member-token", "job", "record", "doc"),
+    ).rejects.toThrow(/fingerprint/);
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "denied" } });
+    await expect(
+      readVerifiedCostReceipt(sb, "member-token", "job", "record", "doc"),
+    ).rejects.toThrow(/not available/);
+  });
   it("verifies member, job, path, size, type and hash before returning original bytes", async () => {
     const result = await readVerifiedFinancialOriginal(sb, "member-token", "job", "doc");
     expect(result.bytes).toEqual(bytes);

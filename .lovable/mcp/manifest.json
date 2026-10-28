@@ -9952,6 +9952,1017 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "job_cost_submissions_read",
+        "title": "Read job cost records",
+        "description": "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Receipts are retrieved separately.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_submission_record",
+        "title": "Review or submit job cost metadata",
+        "description": "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. Receipts are attached separately. It does not move funds or post to accounting.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save"
+              ]
+            },
+            "facts": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "supplier_bill",
+                    "company_paid_expense",
+                    "reimbursable_expense"
+                  ]
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "counterparty_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "incurred_on": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "amount_cents": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9000000000000
+                },
+                "allocations": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "job_number": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      "cost_code": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      "amount_cents": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9000000000000
+                      }
+                    },
+                    "required": [
+                      "cost_code",
+                      "amount_cents"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "document_reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "original": {
+                  "type": "string",
+                  "const": "missing"
+                },
+                "party_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "purchase_order_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "purchase_order_version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 999999999
+                },
+                "currency_code": {
+                  "type": "string",
+                  "enum": [
+                    "AED",
+                    "AMD",
+                    "ANG",
+                    "AOA",
+                    "ARS",
+                    "AUD",
+                    "AWG",
+                    "AZN",
+                    "BAM",
+                    "BBD",
+                    "BDT",
+                    "BGN",
+                    "BMD",
+                    "BND",
+                    "BOB",
+                    "BRL",
+                    "BSD",
+                    "BTN",
+                    "BWP",
+                    "BYN",
+                    "BZD",
+                    "CAD",
+                    "CDF",
+                    "CHF",
+                    "CNY",
+                    "COP",
+                    "CRC",
+                    "CUC",
+                    "CUP",
+                    "CVE",
+                    "CZK",
+                    "DKK",
+                    "DOP",
+                    "DZD",
+                    "EGP",
+                    "ERN",
+                    "ETB",
+                    "EUR",
+                    "FJD",
+                    "FKP",
+                    "GBP",
+                    "GEL",
+                    "GHS",
+                    "GIP",
+                    "GMD",
+                    "GTQ",
+                    "GYD",
+                    "HKD",
+                    "HNL",
+                    "HRK",
+                    "HTG",
+                    "HUF",
+                    "IDR",
+                    "ILS",
+                    "INR",
+                    "JMD",
+                    "KES",
+                    "KGS",
+                    "KHR",
+                    "KYD",
+                    "KZT",
+                    "LKR",
+                    "LRD",
+                    "LSL",
+                    "MAD",
+                    "MDL",
+                    "MKD",
+                    "MNT",
+                    "MOP",
+                    "MRU",
+                    "MUR",
+                    "MVR",
+                    "MWK",
+                    "MXN",
+                    "MYR",
+                    "MZN",
+                    "NAD",
+                    "NGN",
+                    "NIO",
+                    "NOK",
+                    "NPR",
+                    "NZD",
+                    "PAB",
+                    "PEN",
+                    "PGK",
+                    "PHP",
+                    "PKR",
+                    "PLN",
+                    "QAR",
+                    "RON",
+                    "RUB",
+                    "SAR",
+                    "SBD",
+                    "SCR",
+                    "SDG",
+                    "SEK",
+                    "SGD",
+                    "SHP",
+                    "SLE",
+                    "SRD",
+                    "SSP",
+                    "STN",
+                    "SVC",
+                    "SZL",
+                    "THB",
+                    "TJS",
+                    "TMT",
+                    "TOP",
+                    "TRY",
+                    "TTD",
+                    "TWD",
+                    "TZS",
+                    "UAH",
+                    "USD",
+                    "UYU",
+                    "UZS",
+                    "VES",
+                    "WST",
+                    "XCD",
+                    "XCG",
+                    "XDR",
+                    "XSU",
+                    "ZAR",
+                    "ZMW",
+                    "ZWG",
+                    "ZWL"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "request_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "expected_version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "facts": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "supplier_bill",
+                        "company_paid_expense",
+                        "reimbursable_expense"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "counterparty_name": {
+                      "type": "string"
+                    },
+                    "incurred_on": {
+                      "type": "string"
+                    },
+                    "amount_cents": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "original": {
+                      "type": "string",
+                      "const": "missing"
+                    },
+                    "document_reference": {
+                      "type": "string"
+                    },
+                    "allocations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "job_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "cost_code": {
+                            "type": "string"
+                          },
+                          "amount_cents": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "job_id",
+                          "cost_code",
+                          "amount_cents"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "party_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "purchase_order_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "purchase_order_version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 999999999
+                    },
+                    "currency_code": {
+                      "type": "string",
+                      "enum": [
+                        "AED",
+                        "AMD",
+                        "ANG",
+                        "AOA",
+                        "ARS",
+                        "AUD",
+                        "AWG",
+                        "AZN",
+                        "BAM",
+                        "BBD",
+                        "BDT",
+                        "BGN",
+                        "BMD",
+                        "BND",
+                        "BOB",
+                        "BRL",
+                        "BSD",
+                        "BTN",
+                        "BWP",
+                        "BYN",
+                        "BZD",
+                        "CAD",
+                        "CDF",
+                        "CHF",
+                        "CNY",
+                        "COP",
+                        "CRC",
+                        "CUC",
+                        "CUP",
+                        "CVE",
+                        "CZK",
+                        "DKK",
+                        "DOP",
+                        "DZD",
+                        "EGP",
+                        "ERN",
+                        "ETB",
+                        "EUR",
+                        "FJD",
+                        "FKP",
+                        "GBP",
+                        "GEL",
+                        "GHS",
+                        "GIP",
+                        "GMD",
+                        "GTQ",
+                        "GYD",
+                        "HKD",
+                        "HNL",
+                        "HRK",
+                        "HTG",
+                        "HUF",
+                        "IDR",
+                        "ILS",
+                        "INR",
+                        "JMD",
+                        "KES",
+                        "KGS",
+                        "KHR",
+                        "KYD",
+                        "KZT",
+                        "LKR",
+                        "LRD",
+                        "LSL",
+                        "MAD",
+                        "MDL",
+                        "MKD",
+                        "MNT",
+                        "MOP",
+                        "MRU",
+                        "MUR",
+                        "MVR",
+                        "MWK",
+                        "MXN",
+                        "MYR",
+                        "MZN",
+                        "NAD",
+                        "NGN",
+                        "NIO",
+                        "NOK",
+                        "NPR",
+                        "NZD",
+                        "PAB",
+                        "PEN",
+                        "PGK",
+                        "PHP",
+                        "PKR",
+                        "PLN",
+                        "QAR",
+                        "RON",
+                        "RUB",
+                        "SAR",
+                        "SBD",
+                        "SCR",
+                        "SDG",
+                        "SEK",
+                        "SGD",
+                        "SHP",
+                        "SLE",
+                        "SRD",
+                        "SSP",
+                        "STN",
+                        "SVC",
+                        "SZL",
+                        "THB",
+                        "TJS",
+                        "TMT",
+                        "TOP",
+                        "TRY",
+                        "TTD",
+                        "TWD",
+                        "TZS",
+                        "UAH",
+                        "USD",
+                        "UYU",
+                        "UZS",
+                        "VES",
+                        "WST",
+                        "XCD",
+                        "XCG",
+                        "XDR",
+                        "XSU",
+                        "ZAR",
+                        "ZMW",
+                        "ZWG",
+                        "ZWL"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "description",
+                    "counterparty_name",
+                    "incurred_on",
+                    "currency_code",
+                    "amount_cents",
+                    "original",
+                    "allocations"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "request_id",
+                "expected_version",
+                "facts"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_accounting_record",
+        "title": "Review a job cost accounting action",
+        "description": "Stages approval, accounting posting or recorded settlement evidence after explicit review; it never makes a payment. Accounting authority is disabled pending policy.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save"
+              ]
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "post",
+                "payment"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "amount_cents": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9000000000000
+            },
+            "paid_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "reference": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "approve",
+                    "post",
+                    "payment"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "request_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "expected_version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "payment_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "amount_cents": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9000000000000
+                },
+                "paid_on": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "accounting_effective_on": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                }
+              },
+              "required": [
+                "action",
+                "id",
+                "request_id",
+                "expected_version"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "accounting_effective_on": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_pm_payment_approval",
+        "title": "Review and approve payment for a job",
+        "description": "Shows only the job's share of supplier bills and reimbursements, and records a PM payment approval for the exact version and job allocation. It does not post accounting or pay anyone.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "list",
+                "review",
+                "save"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "basis": {
+              "type": "string",
+              "enum": [
+                "work_verified",
+                "delivery_needed",
+                "advance",
+                "deposit",
+                "owner_exception"
+              ]
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "request_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "expected_version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "allocated_cents": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9000000000000
+                },
+                "basis": {
+                  "type": "string",
+                  "enum": [
+                    "work_verified",
+                    "delivery_needed",
+                    "advance",
+                    "deposit",
+                    "owner_exception"
+                  ]
+                },
+                "notes": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "id",
+                "request_id",
+                "expected_version",
+                "allocated_cents",
+                "basis"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_pm_payment_withdraw",
+        "title": "Withdraw a job payment approval",
+        "description": "Reviews and withdraws an active job-specific PM payment approval. Previously recorded payments are preserved and no bank reversal or refund occurs.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "approval_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "request_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "expected_version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "id",
+                "request_id",
+                "expected_version",
+                "approval_id",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_receipt",
+        "title": "Store or read a field expense receipt",
+        "description": "Stores or reads an original for an existing assigned superintendent's own field-expense submission, with a separate receipt access check. Accounting and owners can read linked receipts. It does not post or pay a cost.",
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "record_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "begin",
+                "attached_file",
+                "finish",
+                "list",
+                "read"
+              ]
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "upload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "receipt_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            }
+          },
+          "required": [
+            "job_number",
+            "record_id",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "outputSchema": null
       }
     ]
   }
