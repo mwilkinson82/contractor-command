@@ -39,6 +39,7 @@ describe("board pages and signed urls", () => {
     const signed = signedJobUrl("field", JOB, "abc");
     expect(jobLinksMissingToken({ content: [{ text: bare }], structuredContent: { card: { href: signed } } })).toEqual([bare]);
     expect(jobLinksMissingToken({ url: signed })).toEqual([]);
+    expect(jobLinksMissingToken(`https://app.meetathena.io/r/job/${JOB}/billing-records`)).toEqual([]);
   });
 });
 
@@ -177,8 +178,17 @@ describe("tool outputs do not emit a tokenless job link", () => {
     ];
     for (const file of files) {
       const hits = readFileSync(file, "utf8").match(/https:\/\/app\.meetathena\.io\/r\/job\/[^"'`\s)]+/g) ?? [];
-      for (const hit of hits) expect(hit, file).toMatch(/[?&]t=/);
+      for (const hit of hits) {
+        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/billing-records$/.test(hit)) continue;
+        expect(hit, file).toMatch(/[?&]t=/);
+      }
     }
+  });
+  it("limits the tokenless exception to session-gated billing records", () => {
+    const page = readFileSync("src/components/athena/BillingEvidencePage.tsx", "utf8");
+    const sql = readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8");
+    expect(page).toMatch(/if \(!session\) return <BoardSignIn/);
+    expect(sql).toMatch(/mcp_billing_evidence_get[\s\S]*?mcp_job_scope\(_job\) IS DISTINCT FROM 'full'/);
   });
 });
 

@@ -83,7 +83,7 @@ export { submittalRecordUrl } from "./submittal-record-url";
 
 // A record address (/submittal/<number>) is one more path segment after the page name.
 const JOB_LINK =
-  /https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/[a-z]+(?:\/[^)\s"'<>?#]+)?(?:\?[^)\s"'<>]*)?(?:#[^)\s"'<>]*)?/gi;
+  /https:\/\/app\.meetathena\.io\/r\/job\/[0-9a-f-]{36}\/[a-z-]+(?:\/[^)\s"'<>?#]+)?(?:\?[^)\s"'<>]*)?(?:#[^)\s"'<>]*)?/gi;
 
 /** /r/job links whose query has no signed token. utm params do not count as a token. */
 export function jobLinksMissingToken(value: unknown): string[] {
@@ -92,7 +92,11 @@ export function jobLinksMissingToken(value: unknown): string[] {
   for (const match of text.matchAll(JOB_LINK)) {
     const href = match[0];
     try {
-      if (!new URL(href).searchParams.get("t")) bad.push(href);
+      const url = new URL(href);
+      // Billing records always require an authenticated, full-scope session;
+      // a board token cannot grant ledger access. Its address is persistent.
+      if (/^\/r\/job\/[0-9a-f-]{36}\/billing-records$/i.test(url.pathname)) continue;
+      if (!url.searchParams.get("t")) bad.push(href);
     } catch {
       bad.push(href);
     }

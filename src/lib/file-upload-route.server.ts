@@ -1,6 +1,6 @@
 // Short-lived upload link. The token is the capability; only its hash is stored.
 import { createClient } from "@supabase/supabase-js";
-import { FileRejected, TOKEN_RE, tokenHash } from "./mcp/file-share";
+import { FileRejected, TOKEN_RE, tokenHash, sha256Hex } from "./mcp/file-share";
 import {
   assertUploadBytes,
   readBounded,
@@ -29,6 +29,7 @@ const LABEL: Record<UploadPurpose, string> = {
   contract: "Contract",
   spec: "Specification",
   submittal_piece: "Submittal piece",
+  financial_document: "Financial document",
 };
 
 function page(status: number, body: string) {
@@ -67,7 +68,20 @@ export function uploadDepsFromEnv(): UploadDeps {
         .eq("token_hash", hash)
         .maybeSingle();
       if (error) throw new Error("Upload lookup unavailable");
-      return (data ?? null) as Session | null;
+      if (data) return data as Session;
+      const financial = await admin
+        .from("mcp_billing_uploads")
+        .select("id,filename,mime_type,storage_path,status,expires_at")
+        .eq("token_hash", hash)
+        .maybeSingle();
+      if (financial.error) throw new Error("Upload lookup unavailable");
+      return financial.data
+        ? ({
+            ...financial.data,
+            purpose: "financial_document",
+            bucket: "athena-financial-documents",
+          } as Session)
+        : null;
     },
     async put(bucket, path, bytes, mime) {
       const up = await admin.storage
@@ -75,6 +89,19 @@ export function uploadDepsFromEnv(): UploadDeps {
         .upload(path, bytes, { contentType: mime, upsert: false });
       if (up.error && !/already exists|duplicate/i.test(up.error.message))
         throw new Error(up.error.message);
+      if (up.error && bucket === "athena-financial-documents") {
+        const existing = await admin.storage.from(bucket).download(path);
+        if (existing.error || !existing.data)
+          throw new Error("The existing original could not be checked.");
+        const previous = new Uint8Array(await existing.data.arrayBuffer());
+        if (
+          previous.length !== bytes.length ||
+          (await sha256Hex(previous)) !== (await sha256Hex(bytes))
+        )
+          throw new FileRejected(
+            "A different file is already stored for this upload. Start a new upload.",
+          );
+      }
     },
   };
 }
@@ -166,7 +193,9 @@ export async function handleFileUpload(
       req.method === "PUT"
         ? await readBounded(req, uploadMaxBytes(session.purpose))
         : await formBytes(req, uploadMaxBytes(session.purpose));
-    assertUploadBytes(bytes, session.filename, session.purpose);
+    const checked = assertUploadBytes(bytes, session.filename, session.purpose);
+    if (session.purpose === "financial_document" && checked.mime !== session.mime_type)
+      throw new FileRejected("The file type does not match this upload. Nothing was stored.");
     await deps.put(session.bucket, session.storage_path, bytes, session.mime_type);
   } catch (e) {
     const message =

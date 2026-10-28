@@ -20,15 +20,21 @@ const MIME = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   txt: "text/plain",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
 } as const;
 export type UploadExt = keyof typeof MIME;
-export type UploadPurpose = "contract" | "spec" | "submittal_piece";
+export type UploadPurpose = "contract" | "spec" | "submittal_piece" | "financial_document";
 
 export function uploadMaxBytes(purpose: UploadPurpose): number {
   return purpose === "submittal_piece" ? PIECE_MAX_BYTES : DOC_MAX_BYTES;
 }
 
-export function uploadFilename(name: string): { name: string; ext: UploadExt; mime: string } {
+export function uploadFilename(
+  name: string,
+  purpose: UploadPurpose = "contract",
+): { name: string; ext: UploadExt; mime: string } {
   const base = name
     .split(/[\\/]/)
     .pop()!
@@ -38,8 +44,17 @@ export function uploadFilename(name: string): { name: string; ext: UploadExt; mi
     .trim()
     .slice(-120);
   const ext = base.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
-  if (ext !== "pdf" && ext !== "docx" && ext !== "txt")
-    throw new FileRejected("Use a PDF, Word (.docx), or text (.txt) file. Nothing was stored.");
+  if (
+    ext !== "pdf" &&
+    ext !== "docx" &&
+    ext !== "txt" &&
+    !(purpose === "financial_document" && (ext === "jpg" || ext === "jpeg" || ext === "png"))
+  )
+    throw new FileRejected(
+      purpose === "financial_document"
+        ? "Use a PDF, Word, text, JPEG, or PNG file. Nothing was stored."
+        : "Use a PDF, Word (.docx), or text (.txt) file. Nothing was stored.",
+    );
   const stem =
     base
       .slice(0, -(ext.length + 1))
@@ -53,6 +68,8 @@ const starts = (b: Uint8Array, sig: number[]) => sig.every((v, i) => b[i] === v)
 export function sniffUpload(bytes: Uint8Array, ext: UploadExt): boolean {
   if (!bytes.length) return false;
   if (ext === "pdf") return starts(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
+  if (ext === "jpg" || ext === "jpeg") return starts(bytes, [0xff, 0xd8, 0xff]);
+  if (ext === "png") return starts(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   if (ext === "docx")
     return (
       starts(bytes, [0x50, 0x4b, 0x03, 0x04]) && unzipEntry(bytes, "word/document.xml") != null
@@ -68,7 +85,7 @@ export function sniffUpload(bytes: Uint8Array, ext: UploadExt): boolean {
 }
 
 export function assertUploadBytes(bytes: Uint8Array, filename: string, purpose: UploadPurpose) {
-  const file = uploadFilename(filename);
+  const file = uploadFilename(filename, purpose);
   const max = uploadMaxBytes(purpose);
   if (!bytes.length) throw new FileRejected("The file is empty. Nothing was stored.");
   if (bytes.length > max) throw new FileRejected(`That file is over 100 MB. Nothing was stored.`);
@@ -134,6 +151,8 @@ export function extractUploadText(bytes: Uint8Array, ext: UploadExt): Extracted 
 
 /** Use the existing bundled PDF engine for font mappings and page provenance. */
 export async function extractUploadDocument(bytes: Uint8Array, ext: UploadExt): Promise<Extracted> {
+  if (ext === "jpg" || ext === "jpeg" || ext === "png")
+    return { text: "", chars: 0, truncated: false };
   if (ext !== "pdf") return extractUploadText(bytes, ext);
   try {
     const { extractPdfiumDocumentText } = await import("./pdf-renderer");
