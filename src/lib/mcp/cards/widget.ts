@@ -3,6 +3,7 @@
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
 import { responsiveCardCss } from "./responsive";
 import { onboardingCss } from "./onboarding-style";
+import { reportLinkCss } from "./report-link-card";
 
 export const CARD_WIDGET_URI = "ui://athena/card.html";
 export const CARD_WIDGET_MIME = "text/html+skybridge";
@@ -37,6 +38,15 @@ function linked(v){
   return '<span'+id+'>'+body+(v.secondary?'<span class="ref">'+esc(v.secondary)+'</span>':"")+'</span>';
 }
 function paint(card){
+if(card.presentation==="report-link"){
+ var head='<article class="card" data-presentation="report-link"><header><h1>'+esc(card.title||"Athena")+'</h1>'+(card.job?'<p class="job">'+esc(card.job)+'</p>':'')+'</header><div class="report-body">';
+ var kpis=(card.kpis||[]).map(function(k){return '<div class="report-kpi"><span>'+esc(k.label)+'</span><strong>'+esc(k.value)+'</strong></div>'}).join('');
+ if(kpis)head+='<div class="report-kpis">'+kpis+'</div>';
+ var actions=[];
+ (card.sections||[]).forEach(function(s){(s.rows||[]).forEach(function(r){if(s.heading==="Link")head+='<p>'+esc((r.cells||[]).join(' '))+'</p>';else if(s.heading==="Open"){var v=view(r);if(v.href)actions.push('<a href="'+esc(v.href)+'">'+esc(v.label)+'</a>')}})});
+ head+='</div>';if(actions.length)head+='<div class="report-actions">'+actions.join('')+'</div>';
+ return head+'</article>';
+}
 var labels={intake:"Intake",progress:"What I have so far",ask:"Needed",result:"Result"};
 var state=card.state||"result";
 var h='<article class="card"'+(card.presentation==="onboarding"?' data-presentation="onboarding"':'')+' data-state="'+esc(state)+'"><header><p class="mark">Athena</p><h1>'+esc(card.title||"Athena")+'</h1>';
@@ -167,6 +177,7 @@ tr.alert td{border:2px solid ${alert}}
 .framed.alert h2{background:${alert};color:${white};border-bottom:0}
 ${responsiveCardCss(true)}
 ${onboardingCss}
+${reportLinkCss}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 

@@ -1,5 +1,5 @@
 -- STAGED DESIGN ONLY: not a migration. Generate a later migration after coordination.
--- Submit/read only. Approval, posting and payment are deliberately unavailable pending authority policy.
+-- Staged submission, approval, posting and payment-evidence model; not enabled or deployed.
 CREATE TABLE public.mcp_cost_submissions (
   id uuid PRIMARY KEY,
   company_id uuid NOT NULL REFERENCES public.mcp_companies(id),
@@ -60,7 +60,7 @@ BEGIN
  ELSE
    IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Full project access required.'; END IF;
  END IF;
- IF coalesce(_purpose,'') NOT IN ('submission','accounting','settlement','pm_approval','field') OR jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>30000 OR nullif(_p->>'request_id','') IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Invalid review.'; END IF;
+ IF coalesce(_purpose,'') NOT IN ('submission','accounting','settlement','pm_approval','pm_withdraw','field') OR jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>30000 OR nullif(_p->>'request_id','') IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Invalid review.'; END IF;
  IF (_purpose IN ('submission','field') AND (EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','facts','reason')) OR jsonb_typeof(_p->'facts') IS DISTINCT FROM 'object'
     OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p->'facts') x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','amount_cents','allocations','document_reference','original','party_id','purchase_order_id','purchase_order_version'))
     OR length(coalesce(_p->'facts'->>'description',''))>200 OR length(coalesce(_p->'facts'->>'counterparty_name',''))>200 OR length(coalesce(_p->'facts'->>'document_reference',''))>200 OR length(coalesce(_p->>'reason',''))>2000
@@ -68,6 +68,7 @@ BEGIN
     OR EXISTS(SELECT 1 FROM jsonb_array_elements(_p->'facts'->'allocations') a WHERE jsonb_typeof(a) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(a) x WHERE x NOT IN ('job_id','cost_code','amount_cents')) OR length(coalesce(a->>'cost_code',''))>40)))
  OR (_purpose='accounting' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','expected_version','payment_id','amount_cents','paid_on','reference')))
  OR (_purpose='pm_approval' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','allocated_cents','basis','notes')))
+ OR (_purpose='pm_withdraw' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','approval_id','reason')))
  OR (_purpose='settlement' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','payment_id','correction_id','amount_cents','paid_on','reference','allocations','reason')))
  OR length(coalesce(_p->>'reference',''))>200 OR length(coalesce(_p->>'notes',''))>2000 OR length(coalesce(_p->>'reason',''))>2000 THEN RAISE EXCEPTION 'MCP_BAD:Invalid review metadata.'; END IF;
  IF EXISTS(SELECT 1 FROM jsonb_each(_p) x WHERE (x.key NOT IN ('facts','allocations') AND jsonb_typeof(x.value) NOT IN ('string','number','null')) OR (jsonb_typeof(x.value)='string' AND length(x.value#>>'{}')>2000)) THEN RAISE EXCEPTION 'MCP_BAD:Invalid review metadata.'; END IF;
@@ -313,19 +314,27 @@ $$;
 REVOKE ALL ON FUNCTION public.mcp_cost_reference_in_use(uuid,text) FROM PUBLIC,anon,authenticated;
 -- PM approval is job-specific and separate from accounting posting or cash evidence.
 CREATE TABLE public.mcp_cost_business_approvals (
- record_id uuid NOT NULL, version integer NOT NULL, job_id uuid NOT NULL REFERENCES public.mcp_jobs(id),
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(), record_id uuid NOT NULL, version integer NOT NULL, job_id uuid NOT NULL REFERENCES public.mcp_jobs(id),
  allocated_cents bigint NOT NULL CHECK(allocated_cents>0), bill_total_cents bigint NOT NULL CHECK(bill_total_cents>0),
  basis text NOT NULL CHECK(basis IN ('work_verified','delivery_needed','advance','deposit','owner_exception')),
  notes text, approved_by uuid NOT NULL, approved_at timestamptz NOT NULL DEFAULT now(),
- PRIMARY KEY(record_id,version,job_id), FOREIGN KEY(record_id,version) REFERENCES public.mcp_cost_submission_versions(record_id,version)
+ FOREIGN KEY(record_id,version) REFERENCES public.mcp_cost_submission_versions(record_id,version)
 );
+CREATE INDEX mcp_cost_business_approval_lookup ON public.mcp_cost_business_approvals(record_id,version,job_id);
+CREATE TABLE public.mcp_cost_business_withdrawals (
+ approval_id uuid PRIMARY KEY REFERENCES public.mcp_cost_business_approvals(id), reason text NOT NULL,
+ withdrawn_by uuid NOT NULL, withdrawn_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.mcp_cost_business_withdrawals ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.mcp_cost_business_withdrawals FROM PUBLIC,anon,authenticated;
+GRANT ALL ON public.mcp_cost_business_withdrawals TO service_role;
 ALTER TABLE public.mcp_cost_business_approvals ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.mcp_cost_business_approvals FROM PUBLIC,anon,authenticated;
 GRANT ALL ON public.mcp_cost_business_approvals TO service_role;
 CREATE FUNCTION public.mcp_cost_pm_payment_ready(_record uuid,_version integer) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
  SELECT NOT EXISTS(SELECT 1 FROM public.mcp_cost_submission_versions v CROSS JOIN LATERAL jsonb_array_elements(v.facts->'allocations') a
-   WHERE v.record_id=_record AND v.version=_version AND NOT EXISTS(SELECT 1 FROM public.mcp_cost_business_approvals b WHERE b.record_id=v.record_id AND b.version=v.version AND b.job_id=(a->>'job_id')::uuid))
+   WHERE v.record_id=_record AND v.version=_version AND NOT EXISTS(SELECT 1 FROM public.mcp_cost_business_approvals b WHERE b.record_id=v.record_id AND b.version=v.version AND b.job_id=(a->>'job_id')::uuid AND NOT EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)))
 $$;
 REVOKE ALL ON FUNCTION public.mcp_cost_pm_payment_ready(uuid,integer) FROM PUBLIC,anon,authenticated;
 CREATE FUNCTION public.mcp_cost_pm_review(_job uuid) RETURNS jsonb
@@ -340,7 +349,8 @@ BEGIN
  SELECT coalesce(jsonb_agg(jsonb_build_object('id',r.id,'version',v.version,'kind',r.kind,'description',v.facts->>'description','counterparty_name',v.facts->>'counterparty_name',
  'incurred_on',v.facts->>'incurred_on','document_reference',v.facts->>'document_reference',
  'allocations',(SELECT jsonb_agg(a) FROM jsonb_array_elements(v.facts->'allocations') a WHERE (a->>'job_id')::uuid=_job),
- 'approval',(SELECT jsonb_build_object('basis',b.basis,'approved_by',b.approved_by,'approved_at',b.approved_at,'notes',b.notes) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id AND b.version=v.version AND b.job_id=_job)) ORDER BY r.created_at DESC),'[]'::jsonb)
+ 'approval',(SELECT jsonb_build_object('id',b.id,'basis',b.basis,'approved_by',b.approved_by,'approved_at',b.approved_at,'notes',b.notes) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id AND b.version=v.version AND b.job_id=_job AND NOT EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id) ORDER BY b.approved_at DESC,b.id LIMIT 1),
+ 'approval_history',(SELECT coalesce(jsonb_agg(to_jsonb(b)||jsonb_build_object('withdrawal',(SELECT to_jsonb(w) FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)) ORDER BY b.approved_at),'[]'::jsonb) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id AND b.job_id=_job)) ORDER BY r.created_at DESC),'[]'::jsonb)
  INTO result FROM public.mcp_cost_submissions r JOIN LATERAL (SELECT * FROM public.mcp_cost_submission_versions WHERE record_id=r.id ORDER BY version DESC LIMIT 1) v ON true
  WHERE r.company_id=j.company_id AND r.kind IN ('supplier_bill','reimbursable_expense') AND EXISTS(SELECT 1 FROM jsonb_array_elements(v.facts->'allocations') a WHERE (a->>'job_id')::uuid=_job);
  RETURN jsonb_build_object('records',result,'job_id',_job);
@@ -378,7 +388,7 @@ BEGIN
  IF (role_name='pm' AND coalesce(basis,'') NOT IN ('work_verified','delivery_needed','advance','deposit')) OR (role_name='owner' AND basis IS DISTINCT FROM 'owner_exception') THEN RAISE EXCEPTION 'MCP_BAD:Choose a valid approval basis.'; END IF;
  IF basis IN ('advance','deposit','owner_exception') AND length(btrim(coalesce(_p->>'notes',''))) NOT BETWEEN 1 AND 2000 THEN RAISE EXCEPTION 'MCP_BAD:Explain the advance, deposit or owner exception.'; END IF;
  IF length(coalesce(_p->>'notes',''))>2000 THEN RAISE EXCEPTION 'MCP_BAD:Approval note is too long.'; END IF;
- IF EXISTS(SELECT 1 FROM public.mcp_cost_business_approvals WHERE record_id=ident AND version=ver AND job_id=_job) THEN RAISE EXCEPTION 'MCP_BAD:This job already approved this version.'; END IF;
+ IF EXISTS(SELECT 1 FROM public.mcp_cost_business_approvals b WHERE b.record_id=ident AND b.version=ver AND b.job_id=_job AND NOT EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)) THEN RAISE EXCEPTION 'MCP_BAD:This job already approved this version.'; END IF;
  INSERT INTO public.mcp_cost_business_approvals(record_id,version,job_id,allocated_cents,bill_total_cents,basis,notes,approved_by) VALUES(ident,ver,_job,allocated::bigint,(v.facts->>'amount_cents')::bigint,basis,nullif(btrim(coalesce(_p->>'notes','')),''),auth.uid());
  result:=jsonb_build_object('id',ident,'version',ver,'job_id',_job,'approved_cents',allocated,'status','pm_approved_for_payment');
  INSERT INTO public.mcp_cost_submission_operations VALUES(j.company_id,rid,auth.uid(),sig,result);
@@ -386,6 +396,43 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_cost_pm_approve(uuid,jsonb,uuid,boolean) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_cost_pm_approve(uuid,jsonb,uuid,boolean) TO authenticated;
+-- Withdrawal stops future payment evidence; it cannot delete prior payment events or imply a refund.
+CREATE FUNCTION public.mcp_cost_pm_withdraw(_job uuid,_p jsonb,_review uuid,_confirmed boolean) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
+DECLARE j public.mcp_jobs; r public.mcp_cost_submissions; v public.mcp_cost_submission_versions; approval public.mcp_cost_business_approvals; op public.mcp_cost_submission_operations; role_name text; rid uuid; ident uuid; approval_id uuid; sig text; result jsonb;
+BEGIN
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Full project access required.'; END IF;
+ SELECT * INTO j FROM public.mcp_jobs WHERE id=_job;
+ SELECT role INTO role_name FROM public.mcp_company_members WHERE company_id=j.company_id AND user_id=auth.uid();
+ IF role_name NOT IN ('pm','owner') THEN RAISE EXCEPTION 'MCP_BAD:PM or owner approval is required.'; END IF;
+ IF jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>10000 OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','approval_id','reason')) THEN RAISE EXCEPTION 'MCP_BAD:Invalid withdrawal.'; END IF;
+ rid:=nullif(_p->>'request_id','')::uuid; ident:=nullif(_p->>'id','')::uuid; approval_id:=nullif(_p->>'approval_id','')::uuid;
+ IF rid IS NULL OR ident IS NULL OR approval_id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Withdrawal IDs required.'; END IF;
+ PERFORM 1 FROM public.mcp_companies WHERE id=j.company_id FOR UPDATE;
+ SELECT * INTO r FROM public.mcp_cost_submissions WHERE id=ident AND company_id=j.company_id;
+ SELECT * INTO approval FROM public.mcp_cost_business_approvals b WHERE b.id=approval_id AND b.record_id=ident AND b.job_id=_job;
+ IF r.id IS NULL OR approval.id IS NULL OR (role_name='pm' AND approval.approved_by IS DISTINCT FROM auth.uid()) THEN RAISE EXCEPTION 'MCP_BAD:Approval unavailable.'; END IF;
+ sig:=jsonb_build_object('job',_job,'action','withdraw','payload',_p)::text;
+ SELECT * INTO op FROM public.mcp_cost_submission_operations WHERE company_id=j.company_id AND request_id=rid;
+ IF op.request_id IS NOT NULL THEN
+   IF op.actor_id IS DISTINCT FROM auth.uid() OR op.signature IS DISTINCT FROM sig THEN RAISE EXCEPTION 'MCP_BAD:Request ID belongs to different content.'; END IF;
+   RETURN op.result || jsonb_build_object('already_applied',true);
+ END IF;
+ IF _confirmed IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Confirm the reviewed action first.'; END IF;
+ PERFORM public.mcp_cost_review_consume(_job,'pm_withdraw',_p,_review);
+ IF jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'number' OR coalesce(_p->>'expected_version','') !~ '^[0-9]{1,9}$' OR length(btrim(coalesce(_p->>'reason',''))) NOT BETWEEN 1 AND 2000 THEN RAISE EXCEPTION 'MCP_BAD:Version and withdrawal reason are required.'; END IF;
+ SELECT * INTO v FROM public.mcp_cost_submission_versions WHERE record_id=ident ORDER BY version DESC LIMIT 1;
+ IF v.version<>approval.version OR v.version<>(_p->>'expected_version')::integer THEN RAISE EXCEPTION 'MCP_BAD:Cost version changed; review again.'; END IF;
+ IF EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals WHERE mcp_cost_business_withdrawals.approval_id=approval.id) THEN RAISE EXCEPTION 'MCP_BAD:Approval already withdrawn.'; END IF;
+ INSERT INTO public.mcp_cost_business_withdrawals(approval_id,reason,withdrawn_by) VALUES(approval.id,btrim(_p->>'reason'),auth.uid());
+ result:=jsonb_build_object('id',ident,'version',v.version,'job_id',_job,'approval_id',approval.id,'status','payment_approval_withdrawn');
+ INSERT INTO public.mcp_cost_submission_operations VALUES(j.company_id,rid,auth.uid(),sig,result);
+ RETURN result || jsonb_build_object('already_applied',false);
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_cost_pm_withdraw(uuid,jsonb,uuid,boolean) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_cost_pm_withdraw(uuid,jsonb,uuid,boolean) TO authenticated;
+
 CREATE FUNCTION public.mcp_cost_accounting_action(_job uuid,_p jsonb,_review uuid,_confirmed boolean) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE j public.mcp_jobs; rec public.mcp_cost_submissions; v public.mcp_cost_submission_versions; posted public.mcp_cost_submission_versions;
@@ -543,7 +590,7 @@ BEGIN
    (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.version DESC) FROM public.mcp_cost_submission_versions v WHERE v.record_id=r.id),
    'approved_versions',(SELECT coalesce(jsonb_agg(a.version ORDER BY a.version),'[]'::jsonb) FROM public.mcp_cost_approvals a WHERE a.record_id=r.id),
    'posted_version',(SELECT max(p.version) FROM public.mcp_cost_posting_events p WHERE p.record_id=r.id),
-   'business_approvals',(SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.version,b.job_id),'[]'::jsonb) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id),
+   'business_approvals',(SELECT coalesce(jsonb_agg(to_jsonb(b)||jsonb_build_object('withdrawn',EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)) ORDER BY b.version,b.job_id,b.approved_at),'[]'::jsonb) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id),
    'payments',(SELECT coalesce(jsonb_agg(q.entry ORDER BY q.recorded_at),'[]'::jsonb) FROM (
       SELECT e.recorded_at,to_jsonb(e)||jsonb_build_object('corrected',EXISTS(SELECT 1 FROM public.mcp_cost_payment_corrections c WHERE c.payment_id=e.id),'correction',(SELECT jsonb_build_object('reason',c.reason,'corrected_by',c.corrected_by,'corrected_at',c.corrected_at) FROM public.mcp_cost_payment_corrections c WHERE c.payment_id=e.id),'shared',false) entry FROM public.mcp_cost_payment_evidence e WHERE e.record_id=r.id
       UNION ALL SELECT p.recorded_at,jsonb_build_object('id',p.id,'record_id',a.record_id,'amount_cents',a.amount_cents,'paid_on',p.paid_on,'reference',p.reference,'recorded_by',p.recorded_by,'recorded_at',p.recorded_at,'shared',true,'corrected',EXISTS(SELECT 1 FROM public.mcp_cost_payment_corrections c WHERE c.shared_payment_id=p.id),'correction',(SELECT jsonb_build_object('reason',c.reason,'corrected_by',c.corrected_by,'corrected_at',c.corrected_at) FROM public.mcp_cost_payment_corrections c WHERE c.shared_payment_id=p.id)) FROM public.mcp_cost_shared_allocations a JOIN public.mcp_cost_shared_payments p ON p.id=a.payment_id WHERE a.record_id=r.id) q),

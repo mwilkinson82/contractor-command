@@ -10,12 +10,14 @@ import * as L from "./tools/living-tools";
 import * as F from "./tools/file-tools";
 import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
+import { billingDocumentUpload, billingDocuments, billingDocumentLink } from "./tools/billing-document-tools";
 import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
 import {
   jobCostSubmissionRead,
   jobCostSubmissionRecord,
   jobCostAccountingRecord,
   jobCostPmPaymentApproval,
+  jobCostPmPaymentWithdraw,
 } from "./tools/job-cost-submission-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
@@ -73,6 +75,9 @@ async function liveTools(): Promise<Tool[]> {
       L.livingReportSave,
       billingEvidenceRead,
       billingEvidenceRecord,
+      billingDocumentUpload,
+      billingDocuments,
+      billingDocumentLink,
       F.fileShare,
       F.fileShareRevoke,
       F.lookaheadPdfTool,
@@ -115,6 +120,7 @@ async function liveTools(): Promise<Tool[]> {
       Field.fieldPayApp,
       Field.fieldScheduleFeed,
       Field.fieldProductionRates,
+      Field.fieldProductionSummary,
       Field.progressPhotoSave,
       Field.progressPhotos,
       Field.dailyReminder,
@@ -145,6 +151,7 @@ async function liveTools(): Promise<Tool[]> {
       jobCostSubmissionRecord,
       jobCostAccountingRecord,
       jobCostPmPaymentApproval,
+      jobCostPmPaymentWithdraw,
     ],
     metrics: false,
   } as never);

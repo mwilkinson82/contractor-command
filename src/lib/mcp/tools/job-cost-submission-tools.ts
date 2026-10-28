@@ -396,7 +396,7 @@ export const jobCostAccountingRecord = defineTool({
                 };
               }>;
               approved_versions: number[];
-              business_approvals: Array<{ version: number; job_id: string }>;
+              business_approvals: Array<{ version: number; job_id: string; withdrawn: boolean }>;
               posted_version: number | null;
             }>;
             posting_available: boolean;
@@ -416,7 +416,7 @@ export const jobCostAccountingRecord = defineTool({
             current.facts.allocations.some(
               (a) =>
                 !record.business_approvals.some(
-                  (b) => b.version === current.version && b.job_id === a.job_id,
+                  (b) => b.version === current.version && b.job_id === a.job_id && !b.withdrawn,
                 ),
             )
           )
@@ -658,6 +658,148 @@ export const jobCostPmPaymentApproval = defineTool({
               } as never,
             },
             "Reconcile first; keep the same request ID.",
+          );
+        }
+      },
+    ),
+});
+
+const pmWithdrawalPayload = z
+  .object({
+    id: z.string().uuid(),
+    request_id: z.string().uuid(),
+    expected_version: z.number().int().positive(),
+    approval_id: z.string().uuid(),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+export const jobCostPmPaymentWithdraw = defineTool({
+  name: "job_cost_pm_payment_withdraw",
+  title: "Withdraw a job payment approval",
+  description:
+    "Reviews and withdraws an active job-specific PM payment approval. Previously recorded payments are preserved and no bank reversal or refund occurs.",
+  inputSchema: {
+    ...jobFields,
+    step: z.enum(["review", "save"]),
+    id: z.string().uuid().optional(),
+    expected_version: z.number().int().positive().optional(),
+    approval_id: z.string().uuid().optional(),
+    reason: z.string().trim().min(1).max(2000).optional(),
+    payload: pmWithdrawalPayload.optional(),
+    review_key: z.string().uuid().optional(),
+    confirmed: z.boolean().optional(),
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  handler: (args, ctx) =>
+    run(
+      "job_cost_pm_payment_withdraw",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        if (!args.job_number)
+          return guide(
+            {
+              ...text("Which job is this for? Nothing was withdrawn."),
+              structuredContent: { missing: ["job"], saved: false },
+            },
+            "Ask which job.",
+          );
+        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+        if (args.step === "review") {
+          const missing: string[] = [];
+          if (!args.id) missing.push("cost record");
+          if (!args.expected_version) missing.push("current version");
+          if (!args.approval_id) missing.push("approval to withdraw");
+          if (!args.reason) missing.push("withdrawal reason");
+          if (missing.length)
+            return guide(
+              {
+                ...text(`Before withdrawal I need: ${missing.join(", ")}. Nothing was withdrawn.`),
+                structuredContent: { saved: false, missing },
+              },
+              "Ask for the missing facts; list job approvals if needed.",
+            );
+          const data = await rpc<{
+            records: Array<{
+              id: string;
+              version: number;
+              description: string;
+              counterparty_name: string;
+              approval: { id: string; basis: string } | null;
+            }>;
+          }>(sb, "mcp_cost_pm_review", { _job: job.job_id });
+          const record = data.records.find((r) => r.id === args.id);
+          if (
+            !record ||
+            record.version !== args.expected_version ||
+            !record.approval ||
+            record.approval.id !== args.approval_id
+          )
+            throw new ToolError(
+              "Approval unavailable or version changed; list the job's approvals again.",
+            );
+          const payload = {
+            id: args.id!,
+            request_id: crypto.randomUUID(),
+            expected_version: args.expected_version!,
+            approval_id: args.approval_id!,
+            reason: args.reason!,
+          };
+          const { review_id } = await rpc<{ review_id: string }>(sb, "mcp_cost_review_prepare", {
+            _job: job.job_id,
+            _purpose: "pm_withdraw",
+            _p: payload,
+          });
+          return guide(
+            {
+              ...text(
+                `Withdraw the payment approval for ${job.job_number}: ${record.description}; ${record.counterparty_name}; version ${record.version}; basis ${record.approval.basis.replaceAll("_", " ")}. Reason: ${payload.reason}. Prior recorded payments remain in history; this does not reverse funds or issue a refund. Is this correct?`,
+              ),
+              structuredContent: { saved: false, payload, review_key: review_id } as never,
+            },
+            "Ask for confirmation. Withdrawal prevents further settlement without renewed coverage; prior payments remain recorded.",
+          );
+        }
+        if (!args.confirmed || !args.payload || !args.review_key)
+          throw new ToolError(
+            "Review and confirm the exact withdrawal first. Nothing was withdrawn.",
+          );
+        try {
+          const result = await rpc<Record<string, unknown>>(sb, "mcp_cost_pm_withdraw", {
+            _job: job.job_id,
+            _p: args.payload,
+            _review: args.review_key,
+            _confirmed: true,
+          });
+          return guide(
+            {
+              ...text(
+                "Payment approval withdrawn for this job. Prior recorded payments remain; no funds were reversed.",
+              ),
+              structuredContent: { saved: true, result } as never,
+            },
+            "Do not claim a refund or a reversal of funds.",
+          );
+        } catch (e) {
+          if (e instanceof ToolError) throw e;
+          return guide(
+            {
+              ...text(
+                "The withdrawal outcome is unknown. List the job's approvals, then retry the same reviewed request if needed.",
+              ),
+              structuredContent: {
+                saved: null,
+                outcome: "unknown",
+                payload: args.payload,
+                review_key: args.review_key,
+              } as never,
+            },
+            "Reconcile first and keep the same request ID.",
           );
         }
       },

@@ -41,6 +41,7 @@ import {
   jobCostSubmissionRecord,
   jobCostAccountingRecord,
   jobCostPmPaymentApproval,
+  jobCostPmPaymentWithdraw,
 } from "./tools/job-cost-submission-tools";
 const owner = "00000000-0000-4000-8000-000000000203";
 let db: PGlite;
@@ -270,6 +271,34 @@ describe("staged conversational submission", () => {
       expect((await saveAction(payment)).structuredContent.result).toMatchObject({
         status: "payment_recorded",
       });
+      const listed = await call(jobCostPmPaymentApproval, { step: "list", job_number: "SYN-A" });
+      const records = listed.structuredContent.records as Array<{
+        id: string;
+        approval: { id: string } | null;
+      }>;
+      const approvalId = records.find((r) => r.id === payload.id)!.approval!.id;
+      const withdrawal = await call(jobCostPmPaymentWithdraw, {
+        step: "review",
+        job_number: "SYN-A",
+        id: payload.id,
+        expected_version: 1,
+        approval_id: approvalId,
+        reason: "Recheck work",
+      });
+      expect(withdrawal.content[0].text).toContain("Prior recorded payments remain");
+      const withdrew = await call(jobCostPmPaymentWithdraw, {
+        step: "save",
+        job_number: "SYN-A",
+        payload: withdrawal.structuredContent.payload,
+        review_key: withdrawal.structuredContent.review_key,
+        confirmed: true,
+      });
+      expect(withdrew.structuredContent.result).toMatchObject({
+        status: "payment_approval_withdrawn",
+      });
+      await expect(
+        reviewAction("payment", { amount_cents: 1, paid_on: "2026-10-29", reference: "later" }),
+      ).rejects.toThrow(/PM payment approval/);
     }
   });
   it("routes assigned superintendent field submission and own read through narrow tools", async () => {

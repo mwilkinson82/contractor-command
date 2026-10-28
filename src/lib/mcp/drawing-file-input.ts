@@ -18,6 +18,7 @@ const FILE_TOOLS = new Set([
   "estimate_intake",
   "estimate_takeoff_save",
   "submittal_package",
+  "billing_document_upload",
 ]);
 export function drawingFileMeta(name: string): Record<string, unknown> {
   return FILE_TOOLS.has(name) ? { "openai/fileParams": ["file"] } : {};

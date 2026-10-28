@@ -47,6 +47,7 @@ it("advertises real read-only portfolio and drawing-library tools with the exist
     ["job_cost_submission_record", false],
     ["job_cost_accounting_record", false],
     ["job_cost_pm_payment_approval", false],
+    ["job_cost_pm_payment_withdraw", false],
   ] as const) {
     const tool = listed.result.tools.find((row: { name: string }) => row.name === name);
     expect(tool).toBeDefined();

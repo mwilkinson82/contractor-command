@@ -10,7 +10,8 @@ const owner = "00000000-0000-4000-8000-000000000111",
   outsider = "00000000-0000-4000-8000-000000000115",
   ap = "00000000-0000-4000-8000-000000000116",
   allAccess = "00000000-0000-4000-8000-000000000117",
-  super2 = "00000000-0000-4000-8000-000000000118";
+  super2 = "00000000-0000-4000-8000-000000000118",
+  pm2 = "00000000-0000-4000-8000-000000000119";
 const company = "00000000-0000-4000-8000-000000000121",
   otherCompany = "00000000-0000-4000-8000-000000000122",
   jobA = "00000000-0000-4000-8000-000000000131",
@@ -26,7 +27,7 @@ const rawQuery = (user: string, sql: string, args: unknown[] = []) =>
 // Normal test commands explicitly create a review ticket, then call the guarded write.
 const query = async (user: string, sql: string, args: unknown[] = []) => {
   const m = sql.match(
-    /public\.mcp_cost_(submission_save|accounting_action|settlement_action|pm_approve|field_submit)\(\$1,\$2::jsonb\)/,
+    /public\.mcp_cost_(submission_save|accounting_action|settlement_action|pm_approve|pm_withdraw|field_submit)\(\$1,\$2::jsonb\)/,
   );
   if (!m) return rawQuery(user, sql, args);
   const purpose =
@@ -38,7 +39,9 @@ const query = async (user: string, sql: string, args: unknown[] = []) => {
           ? "accounting"
           : m[1] === "pm_approve"
             ? "pm_approval"
-            : "settlement";
+            : m[1] === "pm_withdraw"
+              ? "pm_withdraw"
+              : "settlement";
   const prep = await rawQuery(
     user,
     "SELECT public.mcp_cost_review_prepare($1,$2,$3::jsonb) AS value",
@@ -99,7 +102,7 @@ beforeAll(async () => {
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(readFileSync("docs/athena/job-cost-submission.schema-draft.sql", "utf8"));
-  for (const u of [owner, pm, estimator, superUser, outsider, ap, allAccess, super2]) {
+  for (const u of [owner, pm, estimator, superUser, outsider, ap, allAccess, super2, pm2]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'synthetic@example.test')", [u]);
     await db.query("INSERT INTO test_active_members VALUES ($1)", [u]);
   }
@@ -118,6 +121,7 @@ beforeAll(async () => {
   }
   for (const [u, role] of [
     [pm, "pm"],
+    [pm2, "pm"],
     [ap, "ap"],
     [allAccess, "all_access"],
     [estimator, "estimating"],
@@ -137,7 +141,7 @@ beforeAll(async () => {
       "INSERT INTO mcp_jobs(id,company_id,user_id,job_number,name) VALUES ($1,$2,$3,$4,'Synthetic')",
       [id, c, u, n],
     );
-  for (const u of [pm, superUser, super2])
+  for (const u of [pm, pm2, superUser, super2])
     await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES ($1,$2,$3)", [
       jobA,
       u,
@@ -674,6 +678,103 @@ describe("staged job cost submission SQL", () => {
         payment_id: crypto.randomUUID(),
         reference: "PM split new",
         expected_version: 2,
+      }),
+    ).rejects.toThrow(/PM approval/);
+  });
+  it("withdraws a PM approval without erasing prior payments and requires renewed coverage", async () => {
+    const p = makePayload();
+    p.facts.kind = "supplier_bill";
+    p.facts.document_reference = "Withdrawal fixture";
+    p.facts.allocations = [{ job_id: jobA, cost_code: "FUEL", amount_cents: 10000 }];
+    await save(owner, p);
+    const accounting = async (action: string, extra: Record<string, unknown> = {}) =>
+      (
+        await query(ap, "SELECT public.mcp_cost_accounting_action($1,$2::jsonb) AS value", [
+          jobA,
+          JSON.stringify({
+            action,
+            id: p.id,
+            request_id: crypto.randomUUID(),
+            expected_version: 1,
+            ...extra,
+          }),
+        ])
+      ).rows[0].value;
+    const approve = async () =>
+      query(pm, "SELECT public.mcp_cost_pm_approve($1,$2::jsonb) AS value", [
+        jobA,
+        JSON.stringify({
+          id: p.id,
+          request_id: crypto.randomUUID(),
+          expected_version: 1,
+          allocated_cents: 10000,
+          basis: "work_verified",
+        }),
+      ]);
+    const active = async () =>
+      (
+        (await rawQuery(pm, "SELECT public.mcp_cost_pm_review($1) AS value", [jobA])).rows[0]
+          .value as {
+          records: Array<{
+            id: string;
+            approval: { id: string } | null;
+            approval_history: unknown[];
+          }>;
+        }
+      ).records.find((r) => r.id === p.id)!;
+    const withdraw = async (user: string, approvalId: string, requestId = crypto.randomUUID()) =>
+      (
+        await query(user, "SELECT public.mcp_cost_pm_withdraw($1,$2::jsonb) AS value", [
+          jobA,
+          JSON.stringify({
+            id: p.id,
+            request_id: requestId,
+            expected_version: 1,
+            approval_id: approvalId,
+            reason: "Work needs another review",
+          }),
+        ])
+      ).rows[0].value as Record<string, unknown>;
+    await accounting("approve");
+    await accounting("post");
+    await approve();
+    const first = (await active()).approval!.id;
+    await expect(withdraw(pm2, first)).rejects.toThrow(/Approval unavailable/);
+    const request = crypto.randomUUID();
+    expect((await withdraw(pm, first, request)).status).toBe("payment_approval_withdrawn");
+    expect((await withdraw(pm, first, request)).already_applied).toBe(true);
+    await expect(
+      accounting("payment", {
+        payment_id: crypto.randomUUID(),
+        amount_cents: 1000,
+        paid_on: "2026-10-29",
+        reference: "withdrawal check",
+      }),
+    ).rejects.toThrow(/PM approval/);
+    await approve();
+    const second = (await active()).approval!.id;
+    expect(second).not.toBe(first);
+    await accounting("payment", {
+      payment_id: crypto.randomUUID(),
+      amount_cents: 1000,
+      paid_on: "2026-10-29",
+      reference: "withdrawal check",
+    });
+    await withdraw(pm, second);
+    const row = (await read(owner)).records.find((r) => r.id === p.id) as unknown as {
+      active_settlement_cents: number;
+      payments: unknown[];
+    };
+    expect(row.active_settlement_cents).toBe(1000);
+    expect(row.payments).toHaveLength(1);
+    expect((await active()).approval).toBeNull();
+    expect((await active()).approval_history).toHaveLength(2);
+    await expect(
+      accounting("payment", {
+        payment_id: crypto.randomUUID(),
+        amount_cents: 1,
+        paid_on: "2026-10-29",
+        reference: "later check",
       }),
     ).rejects.toThrow(/PM approval/);
   });

@@ -1,6 +1,6 @@
 # Job cost foundation — staged review and role model
 
-This is **not a released Athena feature**. The SQL is a non-migration draft and is exercised only against synthetic PGlite fixtures. The local source registers four guarded conversational tools, but code and its eventual coordinated migration must be released together. No live database, real customer data, payment transfer, or attachment storage has been used.
+This is **not a released Athena feature**. The SQL is a non-migration draft and is exercised only against synthetic PGlite and isolated PostgreSQL fixtures. The local source registers five guarded conversational tools, but code and its eventual coordinated migration must be released together. No live database, real customer data, payment transfer, or attachment storage has been used.
 
 ## Owner-approved role boundary
 
@@ -11,7 +11,7 @@ The owner approved the following model for this workflow. It is implemented only
 - Owner and AP, with full access to all affected jobs, may record accounting approval, posting, settlement evidence and evidence corrections. Accounting posting is distinct from PM payment approval. No settlement is recorded on a supplier bill or reimbursement without job-specific PM/owner coverage. Company-paid expenses create no reimbursement payable. No funds are moved. Existing full-scope access for all-access and assigned PM is unchanged, but it does not grant them accounting actions.
 - Owner approval of company-wide PO terms belongs to the separately staged supplier/PO workflow; this cost slice does not modify it.
 
-The same authorized actor can perform more than one permitted step; separation of duties is not currently required. The draft does not yet implement withdrawal of a mistaken PM approval or a direct superintendent correction workflow; these require review before release.
+The same authorized actor can perform more than one permitted step; separation of duties is not currently required. The approving PM or an owner can withdraw an active approval with a reason. Withdrawal blocks future recorded payments until the job is approved again, but preserves prior payment evidence and does not imply a refund. A direct superintendent correction workflow is not yet implemented.
 
 ## Integrity and integration boundaries
 
@@ -25,6 +25,6 @@ The duplicate check uses normalized counterparty name and document reference. Al
 
 ## Verification and release gates
 
-Synthetic tests cover membership, assigned superintendent isolation, PM job-specific approval and stale-version rejection, owner/AP accounting authority, approval before recorded payment, review-ticket binding, retry, conservation, and provisional project/PO references. PGlite tests do not prove multi-connection PostgreSQL concurrency. No local PostgreSQL or Docker executable was available for that test; a local dependency installation attempt did not complete in the network-restricted environment. Real PostgreSQL concurrent retry, cross-role security and database-advisor checks remain required.
+Synthetic tests cover membership, assigned superintendent isolation, PM job-specific approval and stale-version rejection, owner/AP accounting authority, approval before recorded payment, review-ticket binding, retry, conservation, and provisional project/PO references. An isolated PostgreSQL 18.4 cluster using synthetic fixtures and separate connections verified concurrent duplicate submissions, same-request retry, overpayment races, PM withdrawal versus payment, superintendent isolation, accounting role denial and review-ticket enforcement. This is not managed-production performance evidence. More adversarial multi-connection tests and database-advisor checks remain required. The sandbox-blocked drawing worker also passed separately with local loopback permission.
 
-Coordinate this work with the supplier/PO and private-original tracks. Proposed migration timestamp **20261102170000** remains tentative and must be checked and assigned by the coordinator. Generate the final migration with the Supabase CLI after ordering and review. Keep the shared-payee identity hook denied until integration is validated. Resolve review-ticket host trust, PM approval withdrawal, scoped superintendent original access, and production confirmation UX before live use. Tax, W-9, P&L and money transfers are out of scope.
+Coordinate this work with the supplier/PO and private-original tracks. Proposed migration timestamp **20261102170000** remains tentative and must be checked and assigned by the coordinator. Generate the final migration with the Supabase CLI after ordering and review. Keep the shared-payee identity hook denied until integration is validated. Resolve review-ticket host trust, scoped superintendent original access, and production confirmation UX before live use. Tax, W-9, P&L and money transfers are out of scope.

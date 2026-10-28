@@ -121,7 +121,7 @@ describe("staged chat billing on the live ledger contract", () => {
     async function review(action: string, facts: Record<string, unknown>) {
       const r = await call(billingEvidenceRecord, { ...context, step: "review", action, facts });
       expect(r.structuredContent.saved).toBe(false);
-      expect(r.content[0].text).toContain("attachments are not available");
+      expect(r.content[0].text).toContain("Nothing has been recorded yet");
       return {
         p: r.structuredContent.facts as Record<string, unknown>,
         key: r.structuredContent.review_key,
