@@ -14,7 +14,7 @@ function reader() {
       data:
         name === "mcp_billing_evidence_get"
           ? s.billing
-          : name === "mcp_cost_submission_read" && s.costs.available
+          : name === "mcp_cost_reconciliation_snapshot" && s.costs.available
             ? s.costs.data
             : s.orders.available
               ? s.orders.data
@@ -79,7 +79,7 @@ describe("user-scoped accounting source adapter", () => {
     Object.assign(s.costs.data.records[0].versions[0].facts, { currency: "EUR" });
     const report = await readAccountingReport(io, job, options, company, now);
     expect(report.metrics.find((m) => m.key === "actual_costs")?.cents).toBeNull();
-    expect(report.limitations.join(" ")).toContain("currency is unsupported");
+    expect(report.limitations.join(" ")).toContain("unsupported version or malformed contract");
   });
   it("budget failures and cross-job data never return partial totals", async () => {
     const { io, s } = reader();

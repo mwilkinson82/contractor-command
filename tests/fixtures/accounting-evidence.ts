@@ -57,6 +57,8 @@ export function sources(): AccountingSources {
     costs: {
       available: true,
       data: {
+        currency: "USD",
+        currency_verified: true,
         records: [
           {
             id: "bill",

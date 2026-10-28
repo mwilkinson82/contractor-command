@@ -1,8 +1,8 @@
+import { apReportingCapability } from "./accounting-ap-snapshot";
 import {
   accountingDate,
   billingReportSchema,
   buildAccountingReport,
-  costReportSchema,
   poReportSchema,
   type AccountingOptions,
   type BudgetFact,
@@ -104,13 +104,18 @@ export async function readAccountingReport(
     }
     if (r.data.length < BUDGET_PAGE_SIZE) break;
   }
-  const costs = await dependency(
-    io,
-    "mcp_cost_submission_read",
-    jobId,
-    (v) => costReportSchema.parse(v),
-    "Posted costs and AP",
-  );
+  const ap = await io.rpc("mcp_cost_reconciliation_snapshot", { _job: jobId });
+  if (ap.error && !missing(ap.error))
+    throw new Error(
+      "AP snapshot could not be read. Access or source availability must be resolved before reporting.",
+    );
+  const costs = ap.error
+    ? {
+        available: false as const,
+        reason:
+          "AP snapshot unavailable: source integration is not installed. No zero or partial-reader fallback is inferred.",
+      }
+    : apReportingCapability(ap.data, jobId, companyId);
   const orders = await dependency(
     io,
     "mcp_project_purchase_orders_get",

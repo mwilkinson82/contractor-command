@@ -67,6 +67,8 @@ export type BillingReportSource = z.infer<typeof billingReportSchema>;
 export type BudgetFact = { job_id: string; key: string; status: string; value: unknown };
 export type Dependency<T> = { available: true; data: T } | { available: false; reason: string };
 export const costReportSchema = z.object({
+  currency: z.literal("USD"),
+  currency_verified: z.literal(true),
   records: z.array(
     z.object({
       id: z.string(),
@@ -349,7 +351,7 @@ export function buildAccountingReport(
   if (!s.costs.available) limitations.push(s.costs.reason);
   else if (!costAvailable)
     limitations.push(
-      "Historical posted costs and AP balances unavailable: AP read contract omits posting timestamps. No historical cost or settlement total is inferred.",
+      "Historical posted costs and AP balances unavailable: validated accounting effective-date and currency support is required. Recording timestamps alone do not establish effective dates.",
     );
   else {
     const costs = costReportSchema.parse(s.costs.data);

@@ -118,7 +118,7 @@ describe("accounting evidence read model", () => {
     const historical = buildAccountingReport(sources(), { asOf: "2026-10-09" });
     expect(historical.metrics.find((m) => m.key === "unpaid_invoices")?.cents).toBe(9000);
     expect(historical.metrics.find((m) => m.key === "actual_costs")?.cents).toBeNull();
-    expect(historical.limitations.join(" ")).toContain("omits posting timestamps");
+    expect(historical.limitations.join(" ")).toContain("Recording timestamps alone");
   });
   it("rejects invalid dates, future cutoffs and reversed ranges", () => {
     for (const date of ["2026-02-30", "2026-10-29", "bad"])
