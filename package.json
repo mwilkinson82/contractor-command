@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "sync:handbook": "node scripts/sync-alp-handbook.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "support:preview": "node --experimental-strip-types scripts/support-autoreply-preview.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3",
