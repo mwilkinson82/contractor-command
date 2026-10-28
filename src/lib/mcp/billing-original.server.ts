@@ -95,6 +95,51 @@ export async function readUploadedFinancialOriginal(
   return boundedOriginal(upload);
 }
 
+/** An assigned superintendent can read only their own exact cost upload. */
+export async function readUploadedCostReceipt(
+  sb: Sb,
+  token: string,
+  job: string,
+  record: string,
+  id: string,
+): Promise<Uint8Array> {
+  await requireMember(sb, token);
+  const { data, error } = await sb.rpc("mcp_cost_receipt_upload_get", {
+    _job: job,
+    _record: record,
+    _id: id,
+  });
+  if (error || !data) throw new ToolError("That upload is not available for this submission.");
+  const upload = data as unknown as Original & { record_id: string };
+  if (upload.id !== id || upload.job_id !== job || upload.record_id !== record)
+    throw new ToolError("That upload is not available for this submission.");
+  return boundedOriginal(upload);
+}
+
+/** A scoped RPC authorizes one linked cost receipt before bytes are retrieved. */
+export async function readVerifiedCostReceipt(
+  sb: Sb,
+  token: string,
+  job: string,
+  record: string,
+  id: string,
+): Promise<{ document: Verified; bytes: Uint8Array }> {
+  await requireMember(sb, token);
+  const { data, error } = await sb.rpc("mcp_cost_receipt_get", {
+    _job: job,
+    _record: record,
+    _id: id,
+  });
+  if (error || !data) throw new ToolError("That receipt is not available for this submission.");
+  const document = data as unknown as Verified & { record_id: string };
+  if (document.id !== id || document.job_id !== job || document.record_id !== record)
+    throw new ToolError("That receipt is not available for this submission.");
+  const bytes = await boundedOriginal(document);
+  if (bytes.length !== document.size_bytes || (await sha256Hex(bytes)) !== document.sha256)
+    throw new ToolError("The receipt does not match its recorded fingerprint.");
+  return { document, bytes };
+}
+
 /** Rechecks full project access and verifies type, size and SHA-256 before returning bytes. */
 export async function readVerifiedFinancialOriginal(
   sb: Sb,

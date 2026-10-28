@@ -19,6 +19,7 @@ type Session = {
   storage_path: string;
   status: "open" | "finished";
   expires_at: string;
+  cost_receipt?: boolean;
 };
 
 export type UploadDeps = {
@@ -77,20 +78,36 @@ export function uploadDepsFromEnv(): UploadDeps {
         .eq("token_hash", hash)
         .maybeSingle();
       if (financial.error) throw new Error("Upload lookup unavailable");
-      return financial.data
+      if (financial.data)
+        return {
+          ...financial.data,
+          purpose: "financial_document",
+          bucket: "athena-financial-documents",
+        } as Session;
+      const receipt = await admin
+        .from("mcp_cost_receipt_uploads")
+        .select("id,filename,mime_type,storage_path,status,expires_at")
+        .eq("token_hash", hash)
+        .maybeSingle();
+      if (receipt.error) throw new Error("Upload lookup unavailable");
+      return receipt.data
         ? ({
-            ...financial.data,
+            ...receipt.data,
             purpose: "financial_document",
             bucket: "athena-financial-documents",
+            cost_receipt: true,
           } as Session)
         : null;
     },
     async claimFinancial(session, hash) {
-      const { data, error } = await admin.rpc("mcp_billing_upload_claim", {
-        _id: session.id,
-        _actor: null,
-        _token_hash: hash,
-      });
+      const { data, error } = await admin.rpc(
+        session.cost_receipt ? "mcp_cost_receipt_upload_claim" : "mcp_billing_upload_claim",
+        {
+          _id: session.id,
+          _actor: null,
+          _token_hash: hash,
+        },
+      );
       if (
         error ||
         !data ||
