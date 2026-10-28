@@ -63,18 +63,29 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
     : { ...changed(), originals: changed().coverage };
   if (!originalsStable) billing.originals = changed().coverage;
   const costs = costsStable ? reconcileCosts(second.costs, scope) : changed();
+  // Matching non-atomic observations do not prove that related rows coexisted.
+  // The current RPCs also cannot attest to omitted AP records. Do not expose
+  // calculated discrepancies until an authorized, complete snapshot contract exists.
+  const withheld = (coverage: Coverage): Coverage =>
+    coverage.state === "unavailable"
+      ? coverage
+      : {
+          state: "unavailable",
+          reason: "A complete, consistent evidence snapshot is unavailable; findings are withheld.",
+        };
   const source = `https://app.meetathena.io/r/job/${scope.job_id}/billing-records`;
   return {
     observed_from: start,
     observed_to: new Date().toISOString(),
     evidence_key: await sha256Hex(new TextEncoder().encode(canonical({ scope, ...second }))),
     consistency:
-      "Two matching observations detect changes only; this is not an atomic snapshot or bank reconciliation. Re-read exact records before correction review.",
+      "Two matching observations are not an atomic snapshot. Exception findings are withheld until a complete, consistent evidence snapshot is available.",
     observations_match: billingStable && originalsStable && costsStable,
+    consistent_snapshot: false,
     coverage: {
-      billing: billing.coverage,
-      originals: billing.originals,
-      ap: costs.coverage,
+      billing: withheld(billing.coverage),
+      originals: withheld(billing.originals),
+      ap: withheld(costs.coverage),
       bank_transfers: {
         state: "unavailable",
         reason: "No bank connector or transfer verification.",
@@ -84,15 +95,7 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
         reason: "Receipt reversals and payment evidence corrections do not prove actual refunds.",
       } as Coverage,
     },
-    findings: [
-      ...billing.findings.map((f) => ({
-        ...f,
-        source_url: source,
-        source_tool: "billing_evidence_read",
-      })),
-      // PR351 has no persisted AP page. Do not invent a source URL.
-      ...costs.findings.map((f) => ({ ...f, source_tool: "job_cost_submissions_read" })),
-    ],
+    findings: [] as Array<import("./reconciliation").Finding & { source_tool: string }>,
     records_url: source,
     correction_review: {
       automatic_repairs: false,

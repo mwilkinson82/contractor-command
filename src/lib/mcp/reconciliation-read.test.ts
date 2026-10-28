@@ -37,10 +37,12 @@ beforeEach(() => {
 const read = () => readReconciliation({ rpc: state.rpc } as unknown as Sb, scope);
 it("uses only gated read RPCs, passes exact job and reports missing AP coverage", async () => {
   const r = await read();
-  expect(r.coverage.billing.state).toBe("checked");
+  expect(r.coverage.billing.state).toBe("unavailable");
   expect(r.coverage.ap.state).toBe("unavailable");
   expect(r.evidence_key).toMatch(/^[0-9a-f]{64}$/);
   expect(r.consistency).toMatch(/not an atomic/);
+  expect(r.consistent_snapshot).toBe(false);
+  expect(r.findings).toEqual([]);
   expect(state.rpc.mock.calls.map((c) => c[0])).toEqual([
     "mcp_billing_evidence_get",
     "mcp_billing_documents_get",
@@ -65,6 +67,41 @@ it("suppresses discrepancy claims if billing changes between observations", asyn
   expect(r.findings).toEqual([]);
   expect(r.coverage.originals.state).toBe("unavailable");
 });
+it("withholds even matching observations when a real discrepancy would otherwise be calculated", async () => {
+  const invoiceId = "00000000-0000-4000-8000-000000000003";
+  const evidence = {
+    ...b,
+    invoices: [
+      {
+        id: invoiceId,
+        ...scope,
+        document_number: "SYN-1",
+        kind: "invoice",
+        credit_for: null,
+        versions: [
+          {
+            invoice_id: invoiceId,
+            job_id: scope.job_id,
+            version: 1,
+            status: "submitted",
+            net_due_cents: 10000,
+            source: "Synthetic",
+            reason: null,
+          },
+        ],
+      },
+    ],
+  };
+  const impl = state.rpc.getMockImplementation()!;
+  state.rpc.mockImplementation(async (name: string, ...args: unknown[]) =>
+    name === "mcp_billing_evidence_get" ? { data: evidence, error: null } : impl(name, ...args),
+  );
+  const r = await read();
+  expect(r.observations_match).toBe(true);
+  expect(r.consistent_snapshot).toBe(false);
+  expect(r.coverage.billing.state).toBe("unavailable");
+  expect(r.findings).toEqual([]);
+});
 it("does not use changing document linkage as evidence of a missing original", async () => {
   let count = 0;
   const impl = state.rpc.getMockImplementation()!;
@@ -74,7 +111,7 @@ it("does not use changing document linkage as evidence of a missing original", a
       : impl(name, ...args),
   );
   const r = await read();
-  expect(r.coverage.billing.state).toBe("checked");
+  expect(r.coverage.billing.state).toBe("unavailable");
   expect(r.coverage.originals.state).toBe("unavailable");
 });
 it("never treats a denied AP read or missing helper as an unavailable optional function", async () => {

@@ -2983,7 +2983,7 @@
       {
         "name": "accounting_reconciliation",
         "title": "Review project accounting exceptions",
-        "description": "Reads invoice/receipt allocations, credits, reversals and original links; checks AP settlement evidence when its provisional read contract is available. Reports exceptions and unavailable coverage without repairing records or moving money.",
+        "description": "Reviews available accounting evidence and reports when exception findings are unavailable because a complete, consistent snapshot cannot be established. Does not repair records or move money.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

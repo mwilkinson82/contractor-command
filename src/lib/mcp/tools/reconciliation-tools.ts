@@ -10,7 +10,7 @@ export const accountingReconciliation = defineTool({
   name: "accounting_reconciliation",
   title: "Review project accounting exceptions",
   description:
-    "Reads invoice/receipt allocations, credits, reversals and original links; checks AP settlement evidence when its provisional read contract is available. Reports exceptions and unavailable coverage without repairing records or moving money.",
+    "Reviews available accounting evidence and reports when exception findings are unavailable because a complete, consistent snapshot cannot be established. Does not repair records or move money.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -35,7 +35,7 @@ export const accountingReconciliation = defineTool({
         );
         const shown = ordered.slice(0, args.limit ?? 12);
         const lines = [
-          `${job.job_number}: ${ordered.length} accounting exception${ordered.length === 1 ? "" : "s"} to review in available evidence.`,
+          `${job.job_number}: exception findings are unavailable because a complete, consistent evidence snapshot is not established.`,
           "This check changes no financial records. Recorded payment does not prove money transferred.",
           ...shown.map(
             (f) =>
@@ -56,7 +56,7 @@ export const accountingReconciliation = defineTool({
                 "AP source: read job cost records for this company and job; no AP record page is available.",
               ]
             : []),
-          "A clear result covers only entered evidence. Missing history remains unknown. Review an exact source record before proposing a correction.",
+          "Missing history remains unknown. Review an exact source record before proposing a correction.",
         ];
         return guide(
           {
@@ -64,7 +64,7 @@ export const accountingReconciliation = defineTool({
             structuredContent: {
               ...result,
               findings: shown,
-              total_findings: ordered.length,
+              total_findings: null,
               truncated: ordered.length > shown.length,
               job_id: job.job_id,
               company_id: job.company_id,
