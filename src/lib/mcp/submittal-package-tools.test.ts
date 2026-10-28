@@ -1013,6 +1013,7 @@ describe("RFI package uses the working submittal workflow end to end", () => {
 
 describe("change-order shared package and deterministic execution",()=>{
  it("prices, builds and submits once, separates approval from execution, and preserves prior billing",async()=>{
+   await db.exec(readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"));
    const beforeMissing=(await query("SELECT count(*)::int n FROM mcp_transmittals WHERE job_id=$1",[job]))[0].n;
    const missing=await call(changeOrderRecord,{action:"create",job_number:"2701",request_id:crypto.randomUUID()});expect(missing.structuredContent.saved).toBe(false);
    expect((await query("SELECT count(*)::int n FROM mcp_transmittals WHERE job_id=$1",[job]))[0].n).toBe(beforeMissing);
@@ -1045,6 +1046,8 @@ describe("change-order shared package and deterministic execution",()=>{
    await query("UPDATE mcp_jobs SET sov_fee_pct=10 WHERE id=$1",[job]);
    await db.query("INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','05.01',$2::jsonb,'known','member_answer',$3),($1,'contract','contract_value','1000','known','member_answer',$3)",[job,JSON.stringify({description:"Original steel",billable_value:900}),owner]);
    await call(changeOrderRecord,{action:"approve",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:2,confirmed:true,evidence});
+   const billingAtApproval=(await query("SELECT mcp_billing_evidence_get($1) data",[job]))[0].data;
+   expect(billingAtApproval.recorded_contract.approved_cents).toBe(110000);
    expect((await query("SELECT * FROM mcp_job_facts WHERE job_id=$1 AND module='sov'",[job])).length).toBe(1);
    const execution={action:"execute",job_number:"2701",request_id:crypto.randomUUID(),submittal_id:sid,expected_version:3,confirmed:true,evidence,sov_division:"05"};
    await db.query("UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='05.01'",[job,JSON.stringify({description:"Base steel",billable_value:null})]);
@@ -1060,6 +1063,8 @@ describe("change-order shared package and deterministic execution",()=>{
    const lines=facts.filter((f:{module:string})=>f.module==="sov").map((f:{key:string;value:{billable_value:number;description:string;executed_change_order?:string;fee_included?:boolean}})=>({item_no:f.key,description:f.value.description,scheduled_value:f.value.billable_value,executed_change_order:f.value.executed_change_order,fee_included:f.value.fee_included}));
    const sov=buildSov(lines,10,10,{"05.01":{d:450,e:0}});expect(sov.summary.contract_total).toBe(1100);expect(sov.summary.fee).toBe(100);expect(sov.divisions.flatMap(d=>d.lines).find(l=>l.item_no==="05.01")!.d).toBe(450);expect(lines).toHaveLength(2);
    expect(setupContractValue(facts)).toBe(1100);
+   const billingAtExecution=(await query("SELECT mcp_billing_evidence_get($1) data",[job]))[0].data;
+   expect(billingAtExecution.recorded_contract.approved_cents).toBe(110000);
    await call(changeOrderLog,{job_number:"2701"});expect((await saved(sid)).change_order_details.state).toBe("executed");
    await expect(call(changeOrderRecord,{...execution,request_id:crypto.randomUUID(),expected_version:4})).rejects.toThrow("Execution requires");
    const historical=(await query("SELECT path FROM mcp_submittal_packages WHERE id=$1",[artifact.id]))[0];

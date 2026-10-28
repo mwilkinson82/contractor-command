@@ -1,0 +1,558 @@
+import { readFileSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { PGlite } from "@electric-sql/pglite";
+import { makeDb } from "../../../tests/mcp-roles/db";
+import { asUser } from "../../../tests/mcp-roles/fake-supabase";
+
+const owner = "00000000-0000-4000-8000-000000000091";
+const outsider = "00000000-0000-4000-8000-000000000092";
+const superintendent = "00000000-0000-4000-8000-000000000096";
+const estimator = "00000000-0000-4000-8000-000000000097";
+const company = "00000000-0000-4000-8000-000000000093";
+const job = "00000000-0000-4000-8000-000000000094";
+const otherJob = "00000000-0000-4000-8000-000000000095";
+let db: PGlite;
+const query = (sql: string, values: unknown[] = [], user = owner) =>
+  asUser(
+    db,
+    { sub: user, role: "authenticated", email: `${user.slice(-2)}@example.com` },
+    (tx) => tx.query(sql, values) as Promise<{ rows: Record<string, unknown>[] }>,
+  );
+const record = async (action: string, p: Record<string, unknown>, user = owner) =>
+  (
+    await query(
+      "SELECT public.mcp_billing_evidence_record($1,$2,$3::jsonb) AS data",
+      [job, action, JSON.stringify(p)],
+      user,
+    )
+  ).rows[0].data as Record<string, unknown>;
+const get = async (user = owner) =>
+  (await query("SELECT public.mcp_billing_evidence_get($1) AS data", [job], user)).rows[0].data as {
+    invoices: Array<{ versions: Array<{ status: string }> }>;
+    receipts: unknown[];
+    allocations: unknown[];
+  };
+const invoice = (extra: Record<string, unknown> = {}) => ({
+  request_id: crypto.randomUUID(),
+  id: crypto.randomUUID(),
+  expected_version: 0,
+  kind: "pay_application",
+  document_number: crypto.randomUUID(),
+  status: "submitted",
+  invoice_date: "2026-10-01",
+  period_start: "2026-09-01",
+  period_end: "2026-09-30",
+  effective_date: "2026-10-01",
+  source: "Signed pay application 1",
+  gross_cents: 100000,
+  withheld_cents: 10000,
+  released_cents: 0,
+  net_due_cents: 90000,
+  ...extra,
+});
+beforeAll(async () => {
+  db = await makeDb();
+  for (const user of [owner, outsider, superintendent, estimator]) {
+    await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
+      user,
+      `${user.slice(-2)}@example.com`,
+    ]);
+    await db.query("INSERT INTO test_active_members VALUES ($1)", [user]);
+  }
+  await db.query(
+    "INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'Fictional Construction',$2)",
+    [company, owner],
+  );
+  await db.query(
+    "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'owner','QA Owner')",
+    [company, owner],
+  );
+  for (const [user, role] of [
+    [superintendent, "super"],
+    [estimator, "estimating"],
+  ]) {
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,$3,'QA Member')",
+      [company, user, role],
+    );
+  }
+  await db.query(
+    "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone) VALUES($1,$2,$3,'2701','Synthetic Job','America/Chicago')",
+    [job, owner, company],
+  );
+  await db.query(
+    "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone) VALUES($1,$2,$3,'2702','Other synthetic job','America/Chicago')",
+    [otherJob, owner, company],
+  );
+  await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES($1,$2,$3)", [
+    job,
+    superintendent,
+    owner,
+  ]);
+  // Minimal rows to exercise the billing reader's contract snapshot; change-order behavior is tested separately with its real migration.
+  await db.exec(
+    "CREATE TABLE mcp_submittals(id uuid PRIMARY KEY,job_id uuid,number text,revision integer); CREATE TABLE mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb);",
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"),
+  );
+});
+afterAll(async () => {
+  await db?.close();
+});
+describe("project billing evidence", () => {
+  it("records invoice and independent partial cash with safe retries", async () => {
+    const p = invoice();
+    const first = await record("invoice", p);
+    expect(first.version).toBe(1);
+    expect((await record("invoice", p)).already_applied).toBe(true);
+    await expect(record("invoice", { ...p, gross_cents: 1 })).rejects.toThrow(/different content/);
+    const receipt = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_date: "2026-10-10",
+      source: "check 1",
+      amount_cents: 40000,
+    };
+    await record("receipt", receipt);
+    await expect(
+      record("receipt", {
+        ...receipt,
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        source: " CHECK 1 ",
+      }),
+    ).rejects.toThrow();
+    const allocation = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      invoice_id: p.id,
+      effective_date: "2026-10-10",
+      source: "remittance",
+      amount_cents: 30000,
+    };
+    await record("allocation", allocation);
+    expect((await record("allocation", allocation)).already_applied).toBe(true);
+    await expect(
+      record("allocation", {
+        ...allocation,
+        id: crypto.randomUUID(),
+        request_id: crypto.randomUUID(),
+        amount_cents: 10001,
+      }),
+    ).rejects.toThrow(/unapplied cash/);
+    const result = await get();
+    expect(result.invoices).toHaveLength(1);
+    expect(result.receipts).toHaveLength(1);
+    expect(result.allocations).toHaveLength(1);
+    await expect(
+      record("invoice", {
+        ...p,
+        request_id: crypto.randomUUID(),
+        expected_version: 1,
+        status: "void",
+        reason: "void",
+      }),
+    ).rejects.toThrow(/allocated cash/);
+    const reversal = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      allocation_id: allocation.id,
+      effective_date: "2026-10-11",
+      source: "Correction",
+      amount_cents: 30000,
+    };
+    await record("reverse_allocation", reversal);
+    await expect(
+      record("reverse_allocation", {
+        ...reversal,
+        id: crypto.randomUUID(),
+        request_id: crypto.randomUUID(),
+        amount_cents: 1,
+      }),
+    ).rejects.toThrow(/reversal exceeds/);
+    await record("invoice", {
+      ...p,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "void",
+      reason: "Source void",
+    });
+    await expect(
+      record("invoice", {
+        ...p,
+        request_id: crypto.randomUUID(),
+        expected_version: 0,
+        reason: "stale",
+      }),
+    ).rejects.toThrow(/version changed/);
+  });
+  it("preserves revisions and credit evidence, and denies other projects", async () => {
+    const p = invoice();
+    await record("invoice", p);
+    await record("invoice", {
+      ...p,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "void",
+      reason: "Duplicate source document",
+    });
+    const credit = invoice({
+      kind: "credit",
+      credit_for: p.id,
+      document_number: "Credit 1",
+      status: "draft",
+      gross_cents: null,
+      withheld_cents: null,
+      released_cents: null,
+    });
+    await record("invoice", credit);
+    const data = await get();
+    expect(
+      data.invoices.find((i) => i.versions.length === 2)?.versions.map((v) => v.status),
+    ).toEqual(["void", "submitted"]);
+    await expect(get(outsider)).rejects.toThrow();
+    await expect(
+      record(
+        "receipt",
+        {
+          request_id: crypto.randomUUID(),
+          id: crypto.randomUUID(),
+          receipt_date: "2026-10-01",
+          source: "test",
+          amount_cents: 1,
+        },
+        outsider,
+      ),
+    ).rejects.toThrow();
+  });
+  it("rejects cross-project references and malformed monetary facts", async () => {
+    const p = invoice();
+    await record("invoice", p);
+    const receipt = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_date: "2026-10-10",
+      source: "Other project check",
+      amount_cents: 100,
+    };
+    await query("SELECT public.mcp_billing_evidence_record($1,$2,$3::jsonb)", [
+      otherJob,
+      "receipt",
+      JSON.stringify(receipt),
+    ]);
+    await expect(
+      record("allocation", {
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        receipt_id: receipt.id,
+        invoice_id: p.id,
+        effective_date: "2026-10-10",
+        source: "Cross-project test",
+        amount_cents: 100,
+      }),
+    ).rejects.toThrow(/Receipt unavailable/);
+    await expect(record("invoice", invoice({ gross_cents: 1.5 }))).rejects.toThrow(
+      /integer USD cents/,
+    );
+    await expect(query("SELECT * FROM public.mcp_billing_invoices")).rejects.toThrow();
+  });
+  it("keeps submission, certification, release and cash as separate evidence", async () => {
+    const p = invoice({ released_cents: 5000 });
+    await record("invoice", p);
+    let state = await get();
+    const current = state.invoices.find((i) => i.versions.some((v) => v.status === "submitted"));
+    expect(current).toBeDefined();
+    await record("invoice", {
+      ...p,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "certified",
+      certified_cents: 95000,
+      certified_date: "2026-10-03",
+      reason: "Certification received",
+    });
+    state = await get();
+    expect(state.invoices.some((i) => i.versions.some((v) => v.status === "certified"))).toBe(true);
+    await expect(
+      record("invoice", {
+        ...p,
+        request_id: crypto.randomUUID(),
+        expected_version: 2,
+        status: "submitted",
+        reason: "Downgrade",
+      }),
+    ).rejects.toThrow(/transition/);
+  });
+  it("rolls back failed operations and permits a corrected retry without partial records", async () => {
+    const p = invoice({ gross_cents: 1.5 });
+    await expect(record("invoice", p)).rejects.toThrow(/integer USD cents/);
+    const rows = await db.query("SELECT id FROM mcp_billing_invoices WHERE id=$1", [p.id]);
+    expect(rows.rows).toHaveLength(0);
+    const operation = await db.query(
+      "SELECT request_id FROM mcp_billing_operations WHERE job_id=$1 AND request_id=$2",
+      [job, p.request_id],
+    );
+    expect(operation.rows).toHaveLength(0);
+    expect((await record("invoice", { ...p, gross_cents: 100000 })).version).toBe(1);
+  });
+  it("denies assigned superintendents, estimating, and inactive owners for reads and writes", async () => {
+    for (const user of [superintendent, estimator]) {
+      await expect(get(user)).rejects.toThrow();
+      await expect(record("invoice", invoice(), user)).rejects.toThrow();
+    }
+    await db.query("DELETE FROM test_active_members WHERE user_id=$1", [owner]);
+    await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    try {
+      await expect(get(owner)).rejects.toThrow();
+      await expect(record("invoice", invoice(), owner)).rejects.toThrow();
+    } finally {
+      await db.query("INSERT INTO test_active_members VALUES($1)", [owner]);
+      await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    }
+  });
+  it("marks the gated reader volatile so PostgREST uses a writable transaction", async () => {
+    const r = await db.query<{ provolatile: string }>(
+      "SELECT provolatile FROM pg_proc WHERE oid='public.mcp_billing_evidence_get(uuid)'::regprocedure",
+    );
+    expect(r.rows[0].provolatile).toBe("v");
+  });
+  it("rejects duplicate document identities, missing amounts, and cross-project credit references", async () => {
+    const p = invoice({ document_number: "Pay App Unique" });
+    await record("invoice", p);
+    await expect(
+      record("invoice", invoice({ document_number: " PAY APP UNIQUE " })),
+    ).rejects.toThrow();
+    await expect(record("invoice", invoice({ gross_cents: null }))).rejects.toThrow(
+      /integer USD cents/,
+    );
+    const foreign = invoice();
+    await query("SELECT public.mcp_billing_evidence_record($1,$2,$3::jsonb)", [
+      otherJob,
+      "invoice",
+      JSON.stringify(foreign),
+    ]);
+    await expect(
+      record("invoice", invoice({ kind: "credit", credit_for: foreign.id })),
+    ).rejects.toThrow(/invoice this credit references/);
+  });
+  it("does not grant direct member access to evidence tables or operations", async () => {
+    for (const table of [
+      "mcp_billing_invoices",
+      "mcp_billing_invoice_versions",
+      "mcp_billing_receipts",
+      "mcp_billing_receipt_reversals",
+      "mcp_billing_allocations",
+      "mcp_billing_operations",
+    ]) {
+      await expect(query(`SELECT * FROM public.${table}`)).rejects.toThrow(/permission denied/);
+      await expect(query(`DELETE FROM public.${table}`)).rejects.toThrow(/permission denied/);
+    }
+  });
+  it("prevents request ID reuse by a different authorized actor", async () => {
+    const otherOwner = crypto.randomUUID();
+    await db.query("INSERT INTO auth.users(id,email) VALUES($1,'other-owner@example.com')", [
+      otherOwner,
+    ]);
+    await db.query("INSERT INTO test_active_members VALUES($1)", [otherOwner]);
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'owner','Other owner')",
+      [company, otherOwner],
+    );
+    const p = invoice();
+    await record("invoice", p);
+    await expect(record("invoice", p, otherOwner)).rejects.toThrow(/different content/);
+  });
+  it("counts only the latest posted invoice credit and prevents excess credit or cash", async () => {
+    const p = invoice({ net_due_cents: 90000 });
+    await record("invoice", p);
+    const receipt = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_date: "2026-10-10",
+      source: crypto.randomUUID(),
+      amount_cents: 40000,
+    };
+    await record("receipt", receipt);
+    const allocation = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      invoice_id: p.id,
+      effective_date: "2026-10-10",
+      source: "Remittance",
+      amount_cents: 40000,
+    };
+    await record("allocation", allocation);
+    const credit = invoice({
+      kind: "credit",
+      credit_for: p.id,
+      status: "draft",
+      gross_cents: null,
+      withheld_cents: null,
+      released_cents: null,
+      net_due_cents: 10000,
+    });
+    await record("invoice", credit);
+    const credited = async () =>
+      Number(
+        (
+          await db.query<{ value: string }>(
+            "SELECT public.mcp_billing_posted_credits($1,$2,NULL) AS value",
+            [job, p.id],
+          )
+        ).rows[0].value,
+      );
+    expect(await credited()).toBe(0);
+    const post = {
+      ...credit,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      status: "posted",
+      reason: "Credit posted",
+    };
+    await record("invoice", post);
+    expect(await credited()).toBe(10000);
+    expect(90000 - 40000 - (await credited())).toBe(40000);
+    expect((await record("invoice", post)).already_applied).toBe(true);
+    expect(await credited()).toBe(10000);
+    await expect(
+      record(
+        "invoice",
+        invoice({
+          kind: "credit",
+          credit_for: p.id,
+          status: "posted",
+          net_due_cents: 40001,
+          gross_cents: null,
+          withheld_cents: null,
+          released_cents: null,
+        }),
+      ),
+    ).rejects.toThrow(/exceeds the remaining/);
+    await expect(
+      record("invoice", {
+        ...p,
+        request_id: crypto.randomUUID(),
+        expected_version: 1,
+        status: "void",
+        reason: "void",
+      }),
+    ).rejects.toThrow(/posted credits/);
+    await record("invoice", {
+      ...post,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      status: "void",
+      reason: "Credit void",
+    });
+    expect(await credited()).toBe(0);
+  });
+  it("reverses recorded cash immutably and cannot reverse allocated cash", async () => {
+    const p = invoice();
+    await record("invoice", p);
+    const receipt = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_date: "2026-10-10",
+      source: crypto.randomUUID(),
+      amount_cents: 40000,
+    };
+    await record("receipt", receipt);
+    const allocation = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      invoice_id: p.id,
+      effective_date: "2026-10-10",
+      source: "Remittance",
+      amount_cents: 30000,
+    };
+    await record("allocation", allocation);
+    const correction = {
+      request_id: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      receipt_id: receipt.id,
+      effective_date: "2026-10-11",
+      source: "Receipt correction",
+      amount_cents: 10000,
+    };
+    await record("reverse_receipt", correction);
+    expect((await record("reverse_receipt", correction)).already_applied).toBe(true);
+    await expect(
+      record("reverse_receipt", {
+        ...correction,
+        request_id: crypto.randomUUID(),
+        id: crypto.randomUUID(),
+        amount_cents: 1,
+      }),
+    ).rejects.toThrow(/reverse allocations first/);
+    const saved = await db.query<{ amount_cents: string }>(
+      "SELECT amount_cents FROM mcp_billing_receipts WHERE id=$1",
+      [receipt.id],
+    );
+    expect(Number(saved.rows[0].amount_cents)).toBe(40000);
+    const reversals = await db.query<{ amount_cents: string }>(
+      "SELECT amount_cents FROM mcp_billing_receipt_reversals WHERE receipt_id=$1",
+      [receipt.id],
+    );
+    expect(reversals.rows).toHaveLength(1);
+    expect(Number(reversals.rows[0].amount_cents)).toBe(10000);
+  });
+  it("shows original plus current approved or executed signed changes once and excludes pending", async () => {
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'contract','contract_value','1000','known','member_answer',$2)",
+      [job, owner],
+    );
+    const changes = [
+      { id: crypto.randomUUID(), number: "CO-A", revision: 0, state: "approved", cents: -10000 },
+      { id: crypto.randomUUID(), number: "CO-B", revision: 0, state: "executed", cents: 20000 },
+      { id: crypto.randomUUID(), number: "CO-C", revision: 0, state: "priced", cents: 30000 },
+    ];
+    for (const c of changes) {
+      await db.query("INSERT INTO mcp_submittals(id,job_id,number,revision) VALUES($1,$2,$3,$4)", [
+        c.id,
+        job,
+        c.number,
+        c.revision,
+      ]);
+      await db.query(
+        "INSERT INTO mcp_change_orders(submittal_id,job_id,details) VALUES($1,$2,$3::jsonb)",
+        [c.id, job, JSON.stringify({ state: c.state, total_cents: c.cents })],
+      );
+    }
+    const result = (await query("SELECT public.mcp_billing_evidence_get($1) AS data", [job]))
+      .rows[0].data as {
+      recorded_contract: {
+        original_cents: number;
+        recorded_change_cents: number;
+        approved_cents: number;
+      };
+    };
+    expect(result.recorded_contract).toEqual({
+      original_cents: 100000,
+      recorded_change_cents: 10000,
+      approved_cents: 110000,
+    });
+    const old = crypto.randomUUID(),
+      newer = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO mcp_submittals(id,job_id,number,revision) VALUES($1,$3,'CO-D',0),($2,$3,'CO-D',1)",
+      [old, newer, job],
+    );
+    await db.query(
+      "INSERT INTO mcp_change_orders(submittal_id,job_id,details) VALUES($1,$3,$4::jsonb),($2,$3,$5::jsonb)",
+      [
+        old,
+        newer,
+        job,
+        JSON.stringify({ state: "approved", total_cents: 5000 }),
+        JSON.stringify({ state: "draft", total_cents: 5000 }),
+      ],
+    );
+    const uncertain = (await query("SELECT public.mcp_billing_evidence_get($1) AS data", [job]))
+      .rows[0].data as { recorded_contract: { approved_cents: number | null } };
+    expect(uncertain.recorded_contract.approved_cents).toBeNull();
+  });
+});

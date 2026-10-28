@@ -15,9 +15,19 @@ vi.mock("@tanstack/react-start", () => ({
     }),
   }),
 }));
-const req = vi.hoisted(() => ({ url: "https://app.alpcontractorcircle.com/login" }));
+const req = vi.hoisted(() => ({
+  url: "https://app.alpcontractorcircle.com/login",
+  origin: "",
+  referer: "",
+}));
 vi.mock("@tanstack/react-start/server", () => ({
-  getRequest: () => new Request(req.url),
+  getRequest: () =>
+    new Request(req.url, {
+      headers: {
+        ...(req.origin ? { origin: req.origin } : {}),
+        ...(req.referer ? { referer: req.referer } : {}),
+      },
+    }),
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
@@ -57,6 +67,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   req.url = "https://app.alpcontractorcircle.com/login";
+  req.origin = "";
+  req.referer = "";
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.clearAllMocks();
@@ -164,7 +176,9 @@ it.each(["/hub", "https://evil.example/oauth/consent?authorization_id=x", "/oaut
   "invalid continuation %s sends nothing",
   async (continuation) => {
     vi.stubEnv("OAUTH_CONTINUATION_SECRET", "synthetic-test-secret-at-least-32-characters");
-    const promise = requestMemberMagicLink({ data: { email: "member@example.test", continuation } });
+    const promise = requestMemberMagicLink({
+      data: { email: "member@example.test", continuation },
+    });
     await vi.advanceTimersByTimeAsync(600);
     expect(await promise).toEqual({ ok: true, action: "accepted" });
     expect(m.send).not.toHaveBeenCalled();
@@ -180,24 +194,153 @@ it("a sign-in started on app.meetathena.io gets the Athena email and lands on th
   expect(args.variant).toBe("athena");
   expect(args.connecting).toBeUndefined();
   expect(new URL(args.confirmationUrl).origin).toBe("https://app.meetathena.io");
-  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe("https://app.meetathena.io/auth/callback");
+  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe(
+    "https://app.meetathena.io/auth/callback",
+  );
+});
+
+const BILLING_BOARD = "/r/job/11111111-1111-4111-8111-111111111111/billing-records";
+const PREVIEW_HOSTS = [
+  "https://preview--contractor-command.lovable.app",
+  "https://id-preview--362c776b-68ab-4871-bedb-c42cb9843c1b.lovable.app",
+];
+
+it.each(PREVIEW_HOSTS)("sends only an Athena code for a validated board on %s", async (origin) => {
+  req.url = `${origin}/_serverFn/preview`;
+  req.origin = origin;
+  m.generateLink.mockResolvedValue({
+    data: {
+      user: { id: "test-user" },
+      properties: { hashed_token: "inert-hash", email_otp: "482913" },
+    },
+    error: null,
+  });
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: BILLING_BOARD },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  expect(await promise).toEqual({ ok: true, action: "accepted" });
+  expect(m.send).toHaveBeenCalledOnce();
+  expect(m.send.mock.calls[0][0]).toMatchObject({ variant: "athena-code", otpCode: "482913" });
+  expect(m.createUser).not.toHaveBeenCalled();
+});
+
+it("does not create an account for a preview board request", async () => {
+  req.origin = PREVIEW_HOSTS[0];
+  m.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
+  const promise = requestMemberMagicLink({
+    data: { email: "new@example.test", return_to: BILLING_BOARD },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.createUser).not.toHaveBeenCalled();
+  expect(m.generateLink).not.toHaveBeenCalled();
+  expect(m.send).not.toHaveBeenCalled();
+});
+
+it("does not send a link-only email when the preview code is missing", async () => {
+  req.origin = PREVIEW_HOSTS[0];
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: BILLING_BOARD },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  expect(await promise).toEqual({ ok: true, action: "accepted" });
+  expect(m.send).not.toHaveBeenCalled();
+  expect(console.error).toHaveBeenCalledWith(
+    "[magic-link] generateLink failed",
+    expect.objectContaining({ reason: "preview_code_missing" }),
+  );
+});
+
+it("rejects an unusable preview code without emailing it", async () => {
+  req.origin = PREVIEW_HOSTS[0];
+  m.generateLink.mockResolvedValue({
+    data: {
+      user: { id: "test-user" },
+      properties: { hashed_token: "inert-hash", email_otp: "abc" },
+    },
+    error: null,
+  });
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: BILLING_BOARD },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.send).not.toHaveBeenCalled();
+  expect(console.error).toHaveBeenCalledWith(
+    "[magic-link] generateLink failed",
+    expect.objectContaining({ reason: "preview_code_missing" }),
+  );
+});
+
+it("uses the exact preview referer when the origin header is absent", async () => {
+  req.referer = `${PREVIEW_HOSTS[1]}${BILLING_BOARD}`;
+  m.generateLink.mockResolvedValue({
+    data: {
+      user: { id: "test-user" },
+      properties: { hashed_token: "inert-hash", email_otp: "482913" },
+    },
+    error: null,
+  });
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: BILLING_BOARD },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.send.mock.calls[0][0]).toMatchObject({ variant: "athena-code", otpCode: "482913" });
+});
+
+it.each([
+  ["https://preview--contractor-command.lovable.app.evil.example", BILLING_BOARD],
+  ["https://preview--contractor-command.lovable.app:8443", BILLING_BOARD],
+  ["https://app.alpcontractorcircle.com", BILLING_BOARD],
+  [
+    PREVIEW_HOSTS[0],
+    "https://evil.example/r/job/11111111-1111-4111-8111-111111111111/billing-records",
+  ],
+  [PREVIEW_HOSTS[0], "/account"],
+])("does not select preview code for untrusted origin or path %s %s", async (origin, returnTo) => {
+  req.origin = origin;
+  req.url = "https://app.alpcontractorcircle.com/login";
+  req.referer = `${PREVIEW_HOSTS[0]}${BILLING_BOARD}`;
+  m.generateLink.mockResolvedValue({
+    data: {
+      user: { id: "test-user" },
+      properties: { hashed_token: "inert-hash", email_otp: "482913" },
+    },
+    error: null,
+  });
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: returnTo },
+  });
+  await vi.advanceTimersByTimeAsync(600);
+  await promise;
+  expect(m.send.mock.calls[0][0].variant).not.toBe("athena-code");
 });
 
 it("a job board return drops the token and utm params", async () => {
   req.url = "https://app.meetathena.io/r/job/11111111-1111-4111-8111-111111111111/items";
   const back = "/r/job/11111111-1111-4111-8111-111111111111/items";
   const promise = requestMemberMagicLink({
-    data: { email: "member@example.test", return_to: `${back}?t=expired&utm_source=chatgpt.com&utm_medium=email#item-3` },
+    data: {
+      email: "member@example.test",
+      return_to: `${back}?t=expired&utm_source=chatgpt.com&utm_medium=email#item-3`,
+    },
   });
   await vi.advanceTimersByTimeAsync(600);
   await promise;
-  expect(new URL(m.send.mock.calls[0][0].confirmationUrl).searchParams.get("redirect")).toBe(`${back}#item-3`);
+  expect(new URL(m.send.mock.calls[0][0].confirmationUrl).searchParams.get("redirect")).toBe(
+    `${back}#item-3`,
+  );
 });
 
 it("an off-site return is not attached to the sign-in link", async () => {
   req.url = "https://app.meetathena.io/login";
   const promise = requestMemberMagicLink({
-    data: { email: "member@example.test", return_to: "https://evil.example/r/job/11111111-1111-4111-8111-111111111111/items" },
+    data: {
+      email: "member@example.test",
+      return_to: "https://evil.example/r/job/11111111-1111-4111-8111-111111111111/items",
+    },
   });
   await vi.advanceTimersByTimeAsync(600);
   await promise;
@@ -208,10 +351,15 @@ it("an off-site return is not attached to the sign-in link", async () => {
 
 it("a submittal record return retains its existing key and upload target in the fallback email link", async () => {
   m.listUsers.mockResolvedValue({ data: { users: [{ email: "pm@example.com" }] }, error: null });
-  req.url = "https://app.meetathena.io/r/job/11111111-1111-4111-8111-111111111111/submittal/05%2012%2000-001";
-  const back = "/r/job/11111111-1111-4111-8111-111111111111/submittal/05%2012%2000-001?t=fictional-key&upload=1#upload";
+  req.url =
+    "https://app.meetathena.io/r/job/11111111-1111-4111-8111-111111111111/submittal/05%2012%2000-001";
+  const back =
+    "/r/job/11111111-1111-4111-8111-111111111111/submittal/05%2012%2000-001?t=fictional-key&upload=1#upload";
   const promise = requestMemberMagicLink({
-    data: { email: "pm@example.com", return_to: back.replace("#upload", "&utm_source=chatgpt.com#upload") },
+    data: {
+      email: "pm@example.com",
+      return_to: back.replace("#upload", "&utm_source=chatgpt.com#upload"),
+    },
   });
   await vi.advanceTimersByTimeAsync(600);
   await promise;
@@ -221,19 +369,26 @@ it("a submittal record return retains its existing key and upload target in the 
 it("an Athena report return rides on the callback and stays off the account page", async () => {
   req.url = "https://app.meetathena.io/login?redirect=%2Fr%2Fjob%2F1";
   const back = "/r/job/11111111-1111-4111-8111-111111111111/field#activity-A2000";
-  const promise = requestMemberMagicLink({ data: { email: "member@example.test", return_to: back } });
+  const promise = requestMemberMagicLink({
+    data: { email: "member@example.test", return_to: back },
+  });
   await vi.advanceTimersByTimeAsync(600);
   await promise;
   const url = new URL(m.send.mock.calls[0][0].confirmationUrl);
   expect(url.searchParams.get("redirect")).toBe(back);
   expect(url.searchParams.get("redirect")).not.toBe("/account");
-  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe("https://app.meetathena.io/auth/callback");
+  expect(m.generateLink.mock.calls[0][0].options.redirectTo).toBe(
+    "https://app.meetathena.io/auth/callback",
+  );
 });
 
 it("a consent continuation marks the Athena email as connecting", async () => {
   vi.stubEnv("OAUTH_CONTINUATION_SECRET", "synthetic-test-secret-at-least-32-characters");
   const promise = requestMemberMagicLink({
-    data: { email: "member@example.test", continuation: "/oauth/consent?authorization_id=test-request" },
+    data: {
+      email: "member@example.test",
+      continuation: "/oauth/consent?authorization_id=test-request",
+    },
   });
   await vi.advanceTimersByTimeAsync(600);
   await promise;

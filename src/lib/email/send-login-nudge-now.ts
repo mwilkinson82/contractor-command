@@ -4,6 +4,7 @@ import { sendLovableEmail } from "@lovable.dev/email-js";
 import { TEMPLATES } from "@/lib/email-templates/registry";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { template as athenaMagicLinkTemplate } from "@/lib/email-templates/athena-magic-link";
+import { AthenaAuthEmail, athenaAuthSubject } from "@/lib/email-templates/athena-auth-email";
 import { hubOrigin } from "@/lib/auth-origins";
 import { ATHENA_FROM, ATHENA_SENDER_DOMAIN } from "@/lib/email/athena-sender";
 
@@ -13,7 +14,7 @@ const SITE_NAME = "Contractor Circle";
 const VERIFIED_SENDER_DOMAIN = "notify.mail.alpcontractorcircle.com";
 
 /** Presentation-only variant. "circle" is the default for every caller. */
-export type LoginEmailVariant = "circle" | "athena";
+export type LoginEmailVariant = "circle" | "athena" | "athena-code";
 
 export type DirectLoginNudgeResult =
   | { status: "sent"; messageId: string }
@@ -39,7 +40,8 @@ function generateToken(): string {
 }
 
 function loginEmailSender(variant: LoginEmailVariant): { from: string; senderDomain: string } {
-  if (variant === "athena") return { from: ATHENA_FROM, senderDomain: ATHENA_SENDER_DOMAIN };
+  if (variant === "athena" || variant === "athena-code")
+    return { from: ATHENA_FROM, senderDomain: ATHENA_SENDER_DOMAIN };
   const senderDomain = VERIFIED_SENDER_DOMAIN;
   const displayName = SITE_NAME;
 
@@ -117,7 +119,13 @@ export async function sendLoginNudgeNow({
   /** Athena only: the sign-in was started from an AI app connect. */
   connecting?: boolean;
 }): Promise<DirectLoginNudgeResult> {
-  const TEMPLATE_NAME = variant === "athena" ? "athena-magic-link" : "magic-link";
+  if (variant === "athena-code" && !otpCode) throw new Error("Preview sign-in code is missing");
+  const TEMPLATE_NAME =
+    variant === "athena-code"
+      ? "athena-code"
+      : variant === "athena"
+        ? "athena-magic-link"
+        : "magic-link";
   const apiKey = process.env.LOVABLE_API_KEY;
   const emailLower = email.toLowerCase();
   const messageId = crypto.randomUUID();
@@ -165,7 +173,7 @@ export async function sendLoginNudgeNow({
     return { status: "suppressed", messageId, reason };
   }
 
-  const entry = variant === "athena" ? athenaMagicLinkTemplate : TEMPLATES[TEMPLATE_NAME];
+  const entry = variant === "circle" ? TEMPLATES[TEMPLATE_NAME] : athenaMagicLinkTemplate;
   if (!entry || !apiKey) {
     const reason = !entry ? "template_missing" : "lovable_api_key_missing";
     await supabaseAdmin.from("email_send_log").insert({
@@ -192,10 +200,18 @@ export async function sendLoginNudgeNow({
     ...(variant === "athena" && otpCode ? { otpCode } : {}),
     ...(variant === "athena" && connecting ? { connecting } : {}),
   };
-  const element = React.createElement(entry.component, props);
+  const element =
+    variant === "athena-code"
+      ? React.createElement(AthenaAuthEmail, { kind: "code", code: otpCode })
+      : React.createElement(entry.component, props);
   const html = await render(element);
   const plainText = await render(element, { plainText: true });
-  const subject = typeof entry.subject === "function" ? entry.subject(props) : entry.subject;
+  const subject =
+    variant === "athena-code"
+      ? athenaAuthSubject("code")
+      : typeof entry.subject === "function"
+        ? entry.subject(props)
+        : entry.subject;
   const sender = loginEmailSender(variant);
 
   await supabaseAdmin.from("email_send_log").insert({
