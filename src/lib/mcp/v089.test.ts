@@ -260,7 +260,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
   it("server wires the three tools and the instructions lead with the CPM rule; palette unchanged (no red)", () => {
     const idx = src("./index.ts");
     expect(idx).toContain(
-      "cpmActivities, livingReportGet, livingReportSave, billingEvidenceRead, billingEvidenceRecord, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink",
+      "cpmActivities, livingReportGet, livingReportSave, billingEvidenceRead, billingEvidenceRecord, purchaseOrdersRead, purchaseOrdersRecord, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink",
     );
     expect(idx).toContain("instructions:\n    REFUSAL_RULE +");
     expect(idx).toContain("GREETING_RULE +");
