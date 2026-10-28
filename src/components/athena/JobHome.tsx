@@ -176,6 +176,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
     { title: "Progress photos", detail: "View saved photos", page: "photos" },
     ...(full
       ? [
+          { title: "Accounting evidence", detail: "Job ledger, budget comparison and accountant export", page: "accounting" },
           { title: "Change orders", detail: "View saved log", page: "cos" },
           {
             title: "Billing and payment records",

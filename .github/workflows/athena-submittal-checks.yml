@@ -21,6 +21,8 @@ jobs:
         run: npm test -- --reporter=default --reporter=junit --outputFile.junit=verification-results.xml
       - name: Production build (no deploy)
         run: npm run build
+      - name: Routed Workers preview and authentication smoke check
+        run: npm run verify:preview
       - name: Save test evidence
         if: always()
         uses: actions/upload-artifact@v4

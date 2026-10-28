@@ -181,7 +181,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(88);
+    expect(seen).toBe(89);
     expect(src("./index.ts").match(/import \{ billingEvidenceRead, billingEvidenceRecord \} from/g)).toHaveLength(1);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
