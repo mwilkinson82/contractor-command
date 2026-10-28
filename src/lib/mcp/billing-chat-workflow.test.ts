@@ -362,7 +362,7 @@ describe("guided billing workflow with a synthetic original", () => {
       },
     ]);
     const beforeForecast = (
-      await db.query(
+      await db.query<{ data: unknown }>(
         "SELECT data FROM mcp_living_reports WHERE job_id=$1 AND report_type='billing_forecast'",
         [state.job.job_id],
       )
