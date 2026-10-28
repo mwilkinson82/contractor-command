@@ -4,6 +4,8 @@ import { run, dbError, text, type Sb } from "../guard";
 import { resolveJob } from "../jobs";
 import { guide } from "../visible";
 import { sha256Hex } from "../file-share";
+import { verifiedBillingDocument } from "./billing-document-tools";
+import { recordWithVerifiedBillingOriginal } from "../billing-document-attestation.server";
 import {
   invoiceBalance,
   recordedTotals,
@@ -44,6 +46,7 @@ const facts = z
     receipt_id: z.string().uuid().optional(),
     invoice_id: z.string().uuid().optional(),
     allocation_id: z.string().uuid().optional(),
+    document_id: z.string().uuid().optional(),
   })
   .strict();
 type Facts = z.infer<typeof facts>;
@@ -158,7 +161,7 @@ function displayedTotals(data: Ledger) {
     ]),
   );
 }
-function reviewLines(p: Facts): string[] {
+function reviewLines(p: Facts, original: { filename: string } | null): string[] {
   const lines: string[] = [];
   const add = (label: string, value: unknown) => {
     if (value !== undefined && value !== null) lines.push(`${label}: ${value}`);
@@ -185,6 +188,7 @@ function reviewLines(p: Facts): string[] {
   add("Certification date", p.certified_date);
   add("Source", p.source);
   add("Correction reason", p.reason);
+  if (original) add("Original", original.filename);
   return lines;
 }
 
@@ -271,6 +275,14 @@ export const billingEvidenceRecord = defineTool({
           throw new ToolError(
             "The recorded amount must be greater than zero. Nothing was recorded.",
           );
+        const original = args.facts.document_id
+          ? await verifiedBillingDocument(
+              sb,
+              ctx.getToken() ?? "",
+              job.job_id,
+              args.facts.document_id,
+            )
+          : null;
         if (args.step === "review") {
           const state = await rpc<Ledger>(sb, "mcp_billing_evidence_get", { _job: job.job_id });
           const normalized = (s: string) => s.trim().toLowerCase();
@@ -323,7 +335,7 @@ export const billingEvidenceRecord = defineTool({
               : {}),
           };
           const key = await reviewKey(job.job_id, args.action, payload);
-          const lines = reviewLines(payload);
+          const lines = reviewLines(payload, original);
           if (targetInvoice) lines.push(`Invoice: ${targetInvoice.document_number}`);
           if (targetReceipt)
             lines.push(
@@ -343,7 +355,7 @@ export const billingEvidenceRecord = defineTool({
           return guide(
             {
               ...text(
-                `Let’s check this ${args.action.replaceAll("_", " ")} for ${job.job_number}:\n${lines.map((line) => `- ${line}`).join("\n")}\n\nFinancial document attachments are not available yet. Is this right? Nothing has been recorded yet.`,
+                `Let’s check this ${args.action.replaceAll("_", " ")} for ${job.job_number}:\n${lines.map((line) => `- ${line}`).join("\n")}\n\nIs this right? Nothing has been recorded yet.`,
               ),
               structuredContent: {
                 saved: false,
@@ -351,10 +363,11 @@ export const billingEvidenceRecord = defineTool({
                 facts: payload,
                 review_key: key,
                 currency: "USD",
+                original,
                 records_url: recordsUrl(job.job_id),
               } as never,
             },
-            "Show a concise review of the supplied facts in dollars, including source, status and retainage. Ask for explicit confirmation. Save only after yes, using these exact facts and review key; if facts change, review again. Financial document uploads and attachments are not yet available.",
+            "Show a concise review of the supplied facts in dollars, including source, status, retainage and any attached original. Ask for explicit confirmation. Save only after yes, using these exact facts and review key; if facts change, review again.",
           );
         }
         if (
@@ -369,11 +382,13 @@ export const billingEvidenceRecord = defineTool({
           );
         let result: Record<string, unknown>;
         try {
-          result = await rpc<Record<string, unknown>>(sb, "mcp_billing_evidence_record", {
-            _job: job.job_id,
-            _action: args.action,
-            _p: args.facts,
-          });
+          result = args.facts.document_id
+            ? await recordWithVerifiedBillingOriginal(sb, ctx, job.job_id, args.action, args.facts)
+            : await rpc<Record<string, unknown>>(sb, "mcp_billing_evidence_record", {
+                _job: job.job_id,
+                _action: args.action,
+                _p: args.facts,
+              });
         } catch (error) {
           if (error instanceof ToolError) throw error;
           return guide(

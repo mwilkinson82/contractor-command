@@ -1,6 +1,7 @@
 // Short-lived upload link. The token is the capability; only its hash is stored.
 import { createClient } from "@supabase/supabase-js";
-import { FileRejected, TOKEN_RE, tokenHash } from "./mcp/file-share";
+import { FileRejected, TOKEN_RE, tokenHash, sha256Hex } from "./mcp/file-share";
+import { readBoundedFinancialStoragePath } from "./mcp/billing-original.server";
 import {
   assertUploadBytes,
   readBounded,
@@ -23,12 +24,14 @@ type Session = {
 export type UploadDeps = {
   lookup(hash: string): Promise<Session | null>;
   put(bucket: string, path: string, bytes: Uint8Array, mime: string): Promise<void>;
+  claimFinancial?(session: Session, tokenHash: string): Promise<void>;
 };
 
 const LABEL: Record<UploadPurpose, string> = {
   contract: "Contract",
   spec: "Specification",
   submittal_piece: "Submittal piece",
+  financial_document: "Financial document",
 };
 
 function page(status: number, body: string) {
@@ -67,7 +70,36 @@ export function uploadDepsFromEnv(): UploadDeps {
         .eq("token_hash", hash)
         .maybeSingle();
       if (error) throw new Error("Upload lookup unavailable");
-      return (data ?? null) as Session | null;
+      if (data) return data as Session;
+      const financial = await admin
+        .from("mcp_billing_uploads")
+        .select("id,filename,mime_type,storage_path,status,expires_at")
+        .eq("token_hash", hash)
+        .maybeSingle();
+      if (financial.error) throw new Error("Upload lookup unavailable");
+      return financial.data
+        ? ({
+            ...financial.data,
+            purpose: "financial_document",
+            bucket: "athena-financial-documents",
+          } as Session)
+        : null;
+    },
+    async claimFinancial(session, hash) {
+      const { data, error } = await admin.rpc("mcp_billing_upload_claim", {
+        _id: session.id,
+        _actor: null,
+        _token_hash: hash,
+      });
+      if (
+        error ||
+        !data ||
+        data.id !== session.id ||
+        data.storage_path !== session.storage_path ||
+        data.filename !== session.filename ||
+        data.mime_type !== session.mime_type
+      )
+        throw new Error("Upload authorization unavailable");
     },
     async put(bucket, path, bytes, mime) {
       const up = await admin.storage
@@ -75,6 +107,16 @@ export function uploadDepsFromEnv(): UploadDeps {
         .upload(path, bytes, { contentType: mime, upsert: false });
       if (up.error && !/already exists|duplicate/i.test(up.error.message))
         throw new Error(up.error.message);
+      if (up.error && bucket === "athena-financial-documents") {
+        const previous = await readBoundedFinancialStoragePath(path);
+        if (
+          previous.length !== bytes.length ||
+          (await sha256Hex(previous)) !== (await sha256Hex(bytes))
+        )
+          throw new FileRejected(
+            "A different file is already stored for this upload. Start a new upload.",
+          );
+      }
     },
   };
 }
@@ -102,9 +144,10 @@ export async function handleFileUpload(
       404,
       uploadPage({ filename: "", purpose: "", until: "", error: "This upload link is not valid." }),
     );
+  const hash = await tokenHash(token);
   let session: Session | null;
   try {
-    session = await deps.lookup(await tokenHash(token));
+    session = await deps.lookup(hash);
   } catch {
     return page(
       503,
@@ -162,11 +205,21 @@ export async function handleFileUpload(
       }),
     );
   try {
+    if (session.purpose === "financial_document") {
+      if (!deps.claimFinancial) throw new Error("Upload authorization unavailable");
+      await deps.claimFinancial(session, hash);
+    }
     const bytes =
       req.method === "PUT"
         ? await readBounded(req, uploadMaxBytes(session.purpose))
-        : await formBytes(req, uploadMaxBytes(session.purpose));
-    assertUploadBytes(bytes, session.filename, session.purpose);
+        : await formBytes(
+            req,
+            uploadMaxBytes(session.purpose),
+            session.purpose === "financial_document",
+          );
+    const checked = assertUploadBytes(bytes, session.filename, session.purpose);
+    if (session.purpose === "financial_document" && checked.mime !== session.mime_type)
+      throw new FileRejected("The file type does not match this upload. Nothing was stored.");
     await deps.put(session.bucket, session.storage_path, bytes, session.mime_type);
   } catch (e) {
     const message =
@@ -196,8 +249,16 @@ export async function handleFileUpload(
       );
 }
 
-async function formBytes(req: Request, max: number): Promise<Uint8Array> {
-  const form = await req.formData();
+async function formBytes(req: Request, max: number, bounded: boolean): Promise<Uint8Array> {
+  // Limit the entire multipart body before the parser can allocate it. The small allowance
+  // covers multipart headers and boundaries; file.size is checked against the exact max below.
+  const form = bounded
+    ? await new Request(req.url, {
+        method: "POST",
+        headers: { "content-type": req.headers.get("content-type") ?? "" },
+        body: (await readBounded(req, max + 64 * 1024)) as BodyInit,
+      }).formData()
+    : await req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) throw new FileRejected("Choose a file. Nothing was stored.");
   if (file.size > max)
