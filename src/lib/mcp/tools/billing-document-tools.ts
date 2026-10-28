@@ -98,7 +98,7 @@ export const billingDocumentUpload = defineTool({
   name: "billing_document_upload",
   title: "Upload a billing document",
   description:
-    "Stores a financial original for a full-access project and returns grounded readable text for review; it does not record an invoice or payment.",
+    "Stores a PDF, DOCX, TXT, JPEG or PNG financial original for a full-access project and returns readable text for review; it does not record an invoice or payment.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),

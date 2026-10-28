@@ -3256,7 +3256,7 @@
       {
         "name": "billing_document_upload",
         "title": "Upload a billing document",
-        "description": "Stores a financial original for a full-access project and returns grounded readable text for review; it does not record an invoice or payment.",
+        "description": "Stores a PDF, DOCX, TXT, JPEG or PNG financial original for a full-access project and returns readable text for review; it does not record an invoice or payment.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
