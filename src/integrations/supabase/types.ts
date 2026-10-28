@@ -6555,6 +6555,69 @@ export type Database = {
         }
         Relationships: []
       }
+      support_ticket_counters: {
+        Row: {
+          brand: string
+          last_number: number
+        }
+        Insert: {
+          brand: string
+          last_number?: number
+        }
+        Update: {
+          brand?: string
+          last_number?: number
+        }
+        Relationships: []
+      }
+      support_tickets: {
+        Row: {
+          autoreply_sent_at: string | null
+          autoreply_suppressed_reason: string | null
+          brand: string
+          from_email: string
+          id: string
+          message_id: string | null
+          notify_sent_at: string | null
+          raw_summary: string | null
+          received_at: string
+          resend_email_id: string
+          status: string
+          subject: string | null
+          ticket_number: string
+        }
+        Insert: {
+          autoreply_sent_at?: string | null
+          autoreply_suppressed_reason?: string | null
+          brand: string
+          from_email: string
+          id?: string
+          message_id?: string | null
+          notify_sent_at?: string | null
+          raw_summary?: string | null
+          received_at?: string
+          resend_email_id: string
+          status?: string
+          subject?: string | null
+          ticket_number: string
+        }
+        Update: {
+          autoreply_sent_at?: string | null
+          autoreply_suppressed_reason?: string | null
+          brand?: string
+          from_email?: string
+          id?: string
+          message_id?: string | null
+          notify_sent_at?: string | null
+          raw_summary?: string | null
+          received_at?: string
+          resend_email_id?: string
+          status?: string
+          subject?: string | null
+          ticket_number?: string
+        }
+        Relationships: []
+      }
       suppressed_emails: {
         Row: {
           created_at: string
@@ -7908,6 +7971,33 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      open_support_ticket: {
+        Args: {
+          _brand: string
+          _from_email: string
+          _message_id: string
+          _raw_summary: string
+          _received_at: string
+          _resend_email_id: string
+          _subject: string
+        }
+        Returns: {
+          autoreply_sent_at: string
+          autoreply_suppressed_reason: string
+          brand: string
+          from_email: string
+          id: string
+          inserted: boolean
+          message_id: string
+          notify_sent_at: string
+          raw_summary: string
+          received_at: string
+          resend_email_id: string
+          status: string
+          subject: string
+          ticket_number: string
+        }[]
       }
       publish_circle_calendar_session: {
         Args: {
