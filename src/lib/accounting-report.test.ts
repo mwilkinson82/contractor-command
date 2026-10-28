@@ -143,6 +143,17 @@ describe("accounting evidence read model", () => {
     expect(metric(s, "actual_costs")).toBe(3000);
     expect(metric(s, "unpaid_costs")).toBe(2000);
   });
+  it("accepts a source-recorded missing AP document reference without losing cost coverage", () => {
+    const s = sources();
+    if (!s.costs.available) throw new Error();
+    s.costs.data.records[0].versions.forEach((v) => {
+      v.facts.document_reference = null;
+    });
+    expect(metric(s, "actual_costs")).toBe(3000);
+    expect(
+      buildAccountingReport(s, options).rows.find((r) => r.kind === "posted_cost")?.source,
+    ).toContain("reference missing");
+  });
   it("uses explicit job cost allocations but refuses to prorate split-job settlement", () => {
     const s = sources();
     if (!s.costs.available) throw new Error();

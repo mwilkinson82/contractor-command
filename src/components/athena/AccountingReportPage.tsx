@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -194,7 +194,7 @@ export function AccountingReportPage({
 }) {
   const { session, loading } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
-  const [dates, setDates] = useState({ from: initialFrom ?? "", asOf: initialAsOf ?? today });
+  const dates = { from: initialFrom ?? "", asOf: initialAsOf ?? today };
   const [page, setPage] = useState(
     initialPage && /^[1-9]\d{0,5}$/.test(initialPage) ? Number(initialPage) : 1,
   );
@@ -216,12 +216,6 @@ export function AccountingReportPage({
         returnTo={`/r/job/${jobId}/accounting?${new URLSearchParams({ as_of: dates.asOf, ...(dates.from ? { from: dates.from } : {}), ledger_page: String(page) })}`}
       />
     );
-  function filter(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    setDates({ from: String(data.get("from") ?? ""), asOf: String(data.get("asOf") ?? today) });
-    setPage(1);
-  }
   function download() {
     if (!query.data || query.error) return;
     const blob = new Blob([accountingCsv(query.data)], { type: "text/csv;charset=utf-8" });
@@ -236,7 +230,11 @@ export function AccountingReportPage({
     <main className="mx-auto max-w-6xl bg-white px-5 py-8 text-[#1E3A5F]">
       <h1 className="text-2xl font-semibold">Job accounting evidence</h1>
       <p className="mt-2 text-sm">Project {jobId}</p>
-      <form onSubmit={filter} className="mt-5 flex flex-wrap items-end gap-4 text-sm">
+      <form
+        action={`/r/job/${jobId}/accounting`}
+        method="get"
+        className="mt-5 flex flex-wrap items-end gap-4 text-sm"
+      >
         <label>
           From (optional)
           <input
@@ -251,7 +249,7 @@ export function AccountingReportPage({
           As of
           <input
             className="mt-1 block rounded border p-2"
-            name="asOf"
+            name="as_of"
             type="date"
             required
             defaultValue={dates.asOf}

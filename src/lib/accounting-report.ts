@@ -83,7 +83,7 @@ export const costReportSchema = z.object({
                 incurred_on: accountingDate,
                 counterparty_name: z.string(),
                 amount_cents: cents,
-                document_reference: z.string().optional(),
+                document_reference: z.string().nullable().optional(),
                 allocations: z
                   .array(
                     z.object({ job_id: z.string(), cost_code: z.string(), amount_cents: cents }),
