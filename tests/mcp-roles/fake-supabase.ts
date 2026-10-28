@@ -43,6 +43,8 @@ class Query implements PromiseLike<Res> {
   private p(v: unknown) { this.params.push(v !== null && typeof v === "object" && !Array.isArray(v) ? JSON.stringify(v) : Array.isArray(v) ? JSON.stringify(v) : v); return `$${this.params.length}`; }
   select(cols = "*") { if (this.mode === "select") this.cols = cols; else { this.returning = true; this.cols = cols; } return this; }
   eq(c: string, v: unknown) { this.where.push(`${q(c)} = ${this.p(v)}`); return this; }
+  gte(c: string, v: unknown) { this.where.push(`${q(c)} >= ${this.p(v)}`); return this; }
+  lte(c: string, v: unknown) { this.where.push(`${q(c)} <= ${this.p(v)}`); return this; }
   like(c: string, v: string) { this.where.push(`${q(c)} LIKE ${this.p(v)}`); return this; }
   in(c: string, vs: unknown[]) { if (!vs.length) this.where.push("false"); else this.where.push(`${q(c)}::text IN (${vs.map((v) => this.p(String(v))).join(",")})`); return this; }
   not(c: string, op: string, v: unknown) { if (op === "is" && v === null) this.where.push(`${q(c)} IS NOT NULL`); else this.where.push(`NOT (${q(c)} = ${this.p(v)})`); return this; }
