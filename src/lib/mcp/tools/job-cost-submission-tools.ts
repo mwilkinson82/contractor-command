@@ -368,7 +368,16 @@ export const jobCostAccountingRecord = defineTool({
               id: string;
               versions: Array<{
                 version: number;
-                facts: { description: string; counterparty_name: string; amount_cents: number };
+                reason: string | null;
+                facts: {
+                  kind: string;
+                  description: string;
+                  counterparty_name: string;
+                  incurred_on: string;
+                  amount_cents: number;
+                  document_reference?: string;
+                  allocations: Array<{ job_id: string; cost_code: string; amount_cents: number }>;
+                };
               }>;
               approved_versions: number[];
               posted_version: number | null;
@@ -400,10 +409,16 @@ export const jobCostAccountingRecord = defineTool({
               : {}),
           };
           const reviewKey = await key(job.job_id, payload);
+          const allocations = current.facts.allocations
+            .map(
+              (a) =>
+                `${a.job_id === job.job_id ? job.job_number : `job ID ${a.job_id}`} / ${a.cost_code}: ${money(a.amount_cents)}`,
+            )
+            .join("\n");
           return guide(
             {
               ...text(
-                `Review ${payload.action} for ${current.facts.description}, ${current.facts.counterparty_name}, ${money(current.facts.amount_cents)}, version ${current.version}.${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
+                `Review ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; ${current.facts.incurred_on}; ${money(current.facts.amount_cents)}; version ${current.version}.\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment: missing.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
               ),
               structuredContent: { saved: false, payload, review_key: reviewKey } as never,
             },
