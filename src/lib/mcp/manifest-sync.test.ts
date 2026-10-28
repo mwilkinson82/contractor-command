@@ -12,6 +12,7 @@ import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import { billingDocumentUpload, billingDocuments, billingDocumentLink } from "./tools/billing-document-tools";
 import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
+import { jobCostReceipt } from "./tools/job-cost-receipt-tools";
 import {
   jobCostSubmissionRead,
   jobCostSubmissionRecord,
@@ -152,6 +153,7 @@ async function liveTools(): Promise<Tool[]> {
       jobCostAccountingRecord,
       jobCostPmPaymentApproval,
       jobCostPmPaymentWithdraw,
+      jobCostReceipt,
     ],
     metrics: false,
   } as never);

@@ -24,6 +24,9 @@ const facts = z
     amount_cents: z.number().int().positive().max(9000000000000).optional(),
     allocations: z.array(allocation).min(1).max(100).optional(),
     document_reference: z.string().trim().min(1).max(200).optional(),
+    party_id: z.string().uuid().optional(),
+    purchase_order_id: z.string().uuid().optional(),
+    purchase_order_version: z.number().int().positive().max(999999999).optional(),
     original: z.literal("missing").optional(),
   })
   .strict();
@@ -43,6 +46,9 @@ const payloadSchema = z
         amount_cents: z.number().int(),
         original: z.literal("missing"),
         document_reference: z.string().optional(),
+        party_id: z.string().uuid().optional(),
+        purchase_order_id: z.string().uuid().optional(),
+        purchase_order_version: z.number().int().positive().max(999999999).optional(),
         allocations: z.array(
           z
             .object({
@@ -87,7 +93,7 @@ export const jobCostSubmissionRead = defineTool({
   name: "job_cost_submissions_read",
   title: "Read job cost records",
   description:
-    "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Attachments are unavailable.",
+    "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Receipts are retrieved separately.",
   inputSchema: jobFields,
   annotations: {
     readOnlyHint: true,
@@ -114,7 +120,7 @@ export const jobCostSubmissionRead = defineTool({
           return guide(
             {
               ...text(
-                `${job.job_number}: your own field-expense submissions. Original attachments are unavailable.`,
+                `${job.job_number}: your own field-expense submissions. Use the receipt tool to check for attachments.`,
               ),
               structuredContent: data as never,
             },
@@ -128,7 +134,7 @@ export const jobCostSubmissionRead = defineTool({
         return guide(
           {
             ...text(
-              `${job.job_number}: cost records and accounting evidence. Originals are not stored here.${data.posting_available ? "" : " Accounting posting is not available."}`,
+              `${job.job_number}: cost records and accounting evidence. Field receipts are retrieved separately.${data.posting_available ? "" : " Accounting posting is not available."}`,
             ),
             structuredContent: data as never,
           },
@@ -141,7 +147,7 @@ export const jobCostSubmissionRecord = defineTool({
   name: "job_cost_submission_record",
   title: "Review or submit job cost metadata",
   description:
-    "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. It does not move funds, retain originals, or post to accounting.",
+    "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. Receipts are attached separately. It does not move funds or post to accounting.",
   inputSchema: {
     ...jobFields,
     step: z.enum(["review", "save"]),
@@ -180,6 +186,10 @@ export const jobCostSubmissionRecord = defineTool({
         if (args.step === "review") {
           const f = args.facts ?? {};
           const missing = missingSubmissionFacts(f);
+          if (f.purchase_order_id && !f.party_id) missing.push("supplier for the purchase order");
+          if (f.purchase_order_id && !f.purchase_order_version)
+            missing.push("purchase order revision");
+          if (f.purchase_order_version && !f.purchase_order_id) missing.push("purchase order");
           if (args.expected_version && !args.id) missing.push("record to correct");
           if (args.expected_version && !args.reason) missing.push("correction reason");
           if (missing.length)
@@ -188,17 +198,27 @@ export const jobCostSubmissionRecord = defineTool({
                 ...text(`Before review I need: ${missing.join(", ")}. Nothing was recorded.`),
                 structuredContent: { saved: false, missing },
               },
-              "Ask only for missing facts. No PO or subcontract is required for a field expense. Originals cannot be uploaded yet.",
+              "Ask only for missing facts. No PO or subcontract is required for a field expense. The submitter may attach a receipt separately after saving.",
             );
           if (
             isField &&
             (f.kind === "supplier_bill" ||
+              f.party_id ||
+              f.purchase_order_id ||
+              f.purchase_order_version ||
               args.id ||
               args.expected_version ||
               f.allocations!.length !== 1)
           )
             throw new ToolError(
               "Assigned superintendents can submit only a new field expense for this job.",
+            );
+          if (
+            (f.party_id || f.purchase_order_id || f.purchase_order_version) &&
+            f.kind !== "supplier_bill"
+          )
+            throw new ToolError(
+              "Supplier and purchase order links are only available for supplier bills.",
             );
           const allocations = [];
           for (const a of f.allocations!) {
@@ -236,6 +256,11 @@ export const jobCostSubmissionRecord = defineTool({
               allocations,
               original: "missing",
               ...(f.document_reference ? { document_reference: f.document_reference } : {}),
+              ...(f.party_id ? { party_id: f.party_id } : {}),
+              ...(f.purchase_order_id ? { purchase_order_id: f.purchase_order_id } : {}),
+              ...(f.purchase_order_version
+                ? { purchase_order_version: f.purchase_order_version }
+                : {}),
             },
           };
           const { review_id: reviewKey } = await rpc<{ review_id: string }>(
@@ -250,11 +275,11 @@ export const jobCostSubmissionRecord = defineTool({
           return guide(
             {
               ...text(
-                `Review this ${p.facts.kind.replaceAll("_", " ")}: ${p.facts.description}; ${p.facts.counterparty_name}; ${p.facts.incurred_on}; ${money(p.facts.amount_cents)}.\n${lines.join("\n")}\nReference: ${p.facts.document_reference ?? "not supplied"}.${p.reason ? ` Correction reason: ${p.reason}.` : ""} Original attachment: missing; Athena cannot retain it yet. This will be submitted only, not posted or paid. Is this correct?`,
+                `Review this ${p.facts.kind.replaceAll("_", " ")}: ${p.facts.description}; ${p.facts.counterparty_name}; ${p.facts.incurred_on}; ${money(p.facts.amount_cents)}.\n${lines.join("\n")}\nReference: ${p.facts.document_reference ?? "not supplied"}.${p.facts.party_id ? ` Supplier ID: ${p.facts.party_id}.` : ""}${p.facts.purchase_order_id ? ` PO ID: ${p.facts.purchase_order_id}, revision ${p.facts.purchase_order_version}.` : ""}${p.reason ? ` Correction reason: ${p.reason}.` : ""} Original attachment: missing from this submission; an eligible field submitter can attach it separately after saving. This will be submitted only, not posted or paid. Is this correct?`,
               ),
               structuredContent: { saved: false, payload: p, review_key: reviewKey } as never,
             },
-            "Ask for explicit confirmation. Save the exact returned payload and review key only after confirmation. Attachments are unavailable; do not claim they were saved.",
+            "Ask for explicit confirmation. Save the exact returned payload and review key only after confirmation. Do not claim a receipt was saved until its separate upload succeeds.",
           );
         }
         if (!args.confirmed || !args.payload || !args.review_key)
@@ -275,7 +300,7 @@ export const jobCostSubmissionRecord = defineTool({
           return guide(
             {
               ...text(
-                "Submitted cost metadata. The original is missing and this has not been posted to accounting or paid.",
+                "Submitted cost metadata without an attachment. This has not been posted to accounting or paid.",
               ),
               structuredContent: { saved: true, result } as never,
             },
@@ -451,7 +476,7 @@ export const jobCostAccountingRecord = defineTool({
           return guide(
             {
               ...text(
-                `Review accounting ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; ${current.facts.incurred_on}; ${money(current.facts.amount_cents)}; version ${current.version}.\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment: missing.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
+                `Review accounting ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; ${current.facts.incurred_on}; ${money(current.facts.amount_cents)}; version ${current.version}.\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment was missing at submission; check separate receipts.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
               ),
               structuredContent: { saved: false, payload, review_key: reviewKey } as never,
             },

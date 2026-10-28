@@ -42,6 +42,7 @@ import * as Chase from "./tools/submittal-chase-tool";
 import * as Void from "./tools/submittal-void-tool";
 import * as Package from "./tools/submittal-package-tools";
 import * as Cost from "./tools/job-cost-submission-tools";
+import { jobCostReceipt } from "./tools/job-cost-receipt-tools";
 import * as BillingDocuments from "./tools/billing-document-tools";
 
 const rpc = vi.fn();
@@ -130,6 +131,7 @@ const ALL = [
   Cost.jobCostAccountingRecord,
   Cost.jobCostPmPaymentApproval,
   Cost.jobCostPmPaymentWithdraw,
+  jobCostReceipt,
 ];
 const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
@@ -178,7 +180,7 @@ async function toolsList(tools: unknown[]) {
 
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
   it("every tool goes through run() and guard()", () => {
-    expect(ALL).toHaveLength(79);
+    expect(ALL).toHaveLength(80);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
@@ -192,7 +194,7 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         seen++;
       }
     }
-    expect(seen).toBe(93);
+    expect(seen).toBe(94);
     expect(src("./index.ts").match(/import \{ billingEvidenceRead, billingEvidenceRecord \} from/g)).toHaveLength(1);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(
@@ -210,7 +212,7 @@ describe("0.8.22 (3) refusal rule", () => {
       "That's how I'm built inside ALP; I can't share it. Want to get back to your job?",
     );
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(79);
+    expect(list).toHaveLength(80);
     for (const t of list) expect(t.description.includes(REFUSAL_DESC), t.name).toBe(false);
   });
   it("stays short (one sentence under 120 characters) and keeps schemas unchanged", async () => {

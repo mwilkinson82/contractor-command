@@ -66,6 +66,18 @@ async function asUser(c, user, sql, params = []) {
     throw e;
   }
 }
+async function asService(c, sql, params = []) {
+  await c.query("BEGIN");
+  try {
+    await c.query("SET LOCAL ROLE service_role");
+    const r = await c.query(sql, params);
+    await c.query("COMMIT");
+    return r.rows[0]?.value;
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  }
+}
 async function prepare(c, user, job, purpose, payload) {
   return (
     await asUser(c, user, "SELECT public.mcp_cost_review_prepare($1,$2,$3::jsonb) AS value", [
@@ -158,6 +170,15 @@ try {
     await admin.query(readFileSync(path.join(repo, "supabase/migrations", f), "utf8"));
   await admin.query(
     readFileSync(path.join(repo, "docs/athena/job-cost-submission.schema-draft.sql"), "utf8"),
+  );
+  await admin.query(
+    "CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text)",
+  );
+  await admin.query(
+    readFileSync(path.join(repo, "docs/athena/job-cost-originals.schema-draft.sql"), "utf8"),
+  );
+  await admin.query(
+    readFileSync(path.join(repo, "tests/fixtures/purchase-order-contract.sql"), "utf8"),
   );
   for (const id of [ids.owner, ids.ap, ids.pm, ids.super, ids.super2, ids.outside]) {
     await admin.query("INSERT INTO auth.users(id,email) VALUES($1,'synthetic@example.invalid')", [
@@ -263,6 +284,11 @@ try {
     await asUser(c, ids.owner, "SELECT public.mcp_cost_submission_read($1) AS value", [ids.job])
   ).records.find((z) => z.id === bill.id);
   assert.equal(Number(after.active_settlement_cents), 6000);
+  assert.equal(after.posted_version, 1);
+  assert.equal(after.posting_events[0].version, 1);
+  assert.ok(!Number.isNaN(Date.parse(after.posting_events[0].posted_at)));
+  assert.equal(after.accounting_effective_date_available, false);
+  assert.equal(after.settlement_allocation_available, false);
   // Concurrent withdrawal/payment yields a serial result and preserves a payment if it won first.
   const bill2 = submission("withdrawal-race");
   await postPayable(c, bill2);
@@ -319,6 +345,131 @@ try {
     asUser(c, ids.super, "SELECT * FROM public.mcp_cost_submissions"),
     /permission denied/,
   );
+  // Exact PO revision, company, job, supplier and party snapshot are all required.
+  const party = randomUUID(),
+    po = randomUUID(),
+    terms = randomUUID(),
+    otherParty = randomUUID();
+  await admin.query(
+    "INSERT INTO public.mcp_project_parties(id,company_id,job_id,name,kind,created_by) VALUES($1,$2,$3,'Synthetic supplier','supplier',$5),($4,$2,$3,'Other','supplier',$5)",
+    [party, ids.company, ids.job, otherParty, ids.owner],
+  );
+  await admin.query(
+    "INSERT INTO public.mcp_po_terms_versions(id,company_id,scope,state,title,body,source,approved_by,created_by) VALUES($1,$2,'company','approved','Terms','Synthetic','fixture',$3,$3)",
+    [terms, ids.company, ids.owner],
+  );
+  await admin.query(
+    "INSERT INTO public.mcp_purchase_orders(id,company_id,job_id,party_id,number,created_by) VALUES($1,$2,$3,$4,'PO-1',$5)",
+    [po, ids.company, ids.job, party, ids.owner],
+  );
+  await admin.query(
+    "INSERT INTO public.mcp_purchase_order_versions(po_id,version,status,terms_id,party_snapshot,lines,order_date,needed_by,created_by) VALUES($1,1,'draft',$2,jsonb_build_object('id',$3::text),'[]','2026-10-28','2026-11-01',$4)",
+    [po, terms, party, ids.owner],
+  );
+  const linked = submission("po-valid");
+  Object.assign(linked.facts, {
+    party_id: party,
+    purchase_order_id: po,
+    purchase_order_version: 1,
+  });
+  assert.equal((await submit(c, linked)).status, "submitted");
+  const mismatch = submission("po-wrong-party");
+  Object.assign(mismatch.facts, {
+    party_id: otherParty,
+    purchase_order_id: po,
+    purchase_order_version: 1,
+  });
+  await assert.rejects(submit(c, mismatch), /unavailable/);
+  // The file is bound to the original superintendent and cost record; no table access is granted.
+  const hash = "ab".repeat(32),
+    digest = "cd".repeat(32);
+  const receipt = await asUser(
+    c,
+    ids.super,
+    "SELECT public.mcp_cost_receipt_upload_begin($1,$2,$3,$4,$5) AS value",
+    [ids.job, field.id, "receipt.png", "image/png", hash],
+  );
+  await assert.rejects(
+    asUser(c, ids.super2, "SELECT public.mcp_cost_receipt_upload_get($1,$2,$3) AS value", [
+      ids.job,
+      field.id,
+      receipt.id,
+    ]),
+    /own assigned/,
+  );
+  await assert.rejects(
+    asUser(c, ids.super, "SELECT * FROM public.mcp_cost_receipts"),
+    /permission denied/,
+  );
+  await assert.rejects(
+    asService(c, "SELECT public.mcp_cost_receipt_upload_claim($1,$2,$3) AS value", [
+      receipt.id,
+      ids.super2,
+      null,
+    ]),
+    /unavailable/,
+  );
+  await asService(c, "SELECT public.mcp_cost_receipt_upload_claim($1,$2,$3) AS value", [
+    receipt.id,
+    null,
+    hash,
+  ]);
+  await admin.query(
+    "INSERT INTO storage.objects(bucket_id,name) VALUES('athena-financial-documents',$1)",
+    [receipt.storage_path],
+  );
+  await asService(c, "SELECT public.mcp_cost_receipt_register($1,$2,$3,$4,$5,$6) AS value", [
+    ids.job,
+    field.id,
+    receipt.id,
+    12,
+    digest,
+    ids.super,
+  ]);
+  const receiptAudit = await admin.query(
+    "SELECT actor,object_id FROM public.mcp_audit_log WHERE tool='cost_receipt' AND action='store_original'",
+  );
+  assert.equal(receiptAudit.rows.length, 1);
+  assert.equal(receiptAudit.rows[0].actor, ids.super);
+  assert.equal(receiptAudit.rows[0].object_id, receipt.id);
+  assert.equal(
+    (
+      await asUser(c, ids.super, "SELECT public.mcp_cost_receipt_get($1,$2,$3) AS value", [
+        ids.job,
+        field.id,
+        receipt.id,
+      ])
+    ).id,
+    receipt.id,
+  );
+  await assert.rejects(
+    asUser(c, ids.super2, "SELECT public.mcp_cost_receipt_get($1,$2,$3) AS value", [
+      ids.job,
+      field.id,
+      receipt.id,
+    ]),
+    /unavailable/,
+  );
+  await admin.query("DELETE FROM mcp_job_access WHERE job_id=$1 AND user_id=$2", [
+    ids.job,
+    ids.super,
+  ]);
+  await assert.rejects(
+    asService(c, "SELECT public.mcp_cost_receipt_upload_claim($1,$2,$3) AS value", [
+      receipt.id,
+      null,
+      hash,
+    ]),
+    /unavailable/,
+  );
+  await assert.rejects(
+    asUser(c, ids.super, "SELECT public.mcp_cost_receipt_get($1,$2,$3) AS value", [
+      ids.job,
+      field.id,
+      receipt.id,
+    ]),
+    /unavailable/,
+  );
   await assert.rejects(
     asUser(
       c,
@@ -348,6 +499,8 @@ try {
       withdrawalRace: race[1].status,
       fieldIsolation: "passed",
       roleAndReview: "passed",
+      exactPoRevision: "passed",
+      scopedReceipt: "passed",
     }),
   );
 } catch (e) {

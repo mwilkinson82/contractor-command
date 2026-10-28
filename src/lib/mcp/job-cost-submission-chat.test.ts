@@ -225,7 +225,9 @@ describe("staged conversational submission", () => {
       await expect(reviewAction("post")).rejects.toThrow(/Approval/);
       const approval = await reviewAction("approve");
       expect(approval.content[0].text).toContain("SYN-A / FUEL: $20.00");
-      expect(approval.content[0].text).toContain("Original attachment: missing");
+      expect(approval.content[0].text).toContain(
+        "Original attachment was missing at submission; check separate receipts.",
+      );
       await expect(
         call(jobCostAccountingRecord, {
           step: "save",
@@ -343,5 +345,64 @@ describe("staged conversational submission", () => {
     } finally {
       state.actor = owner;
     }
+  });
+  it("carries the selected supplier and exact PO revision through review and save", async () => {
+    await db.exec(readFileSync("tests/fixtures/purchase-order-contract.sql", "utf8"));
+    const party = crypto.randomUUID(),
+      po = crypto.randomUUID(),
+      terms = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO public.mcp_project_parties(id,company_id,job_id,name,kind,created_by) VALUES($1,$2,$3,'Supplier','supplier',$4)",
+      [party, state.job.company_id, state.job.job_id, owner],
+    );
+    await db.query(
+      "INSERT INTO public.mcp_po_terms_versions(id,company_id,scope,state,title,body,source,approved_by,created_by) VALUES($1,$2,'company','approved','Terms','Synthetic','fixture',$3,$3)",
+      [terms, state.job.company_id, owner],
+    );
+    await db.query(
+      "INSERT INTO public.mcp_purchase_orders(id,company_id,job_id,party_id,number,created_by) VALUES($1,$2,$3,$4,'PO-1',$5)",
+      [po, state.job.company_id, state.job.job_id, party, owner],
+    );
+    await db.query(
+      "INSERT INTO public.mcp_purchase_order_versions(po_id,version,status,terms_id,party_snapshot,lines,order_date,needed_by,created_by) VALUES($1,1,'draft',$2,jsonb_build_object('id',$3::text),'[]','2026-10-28','2026-11-01',$4)",
+      [po, terms, party, owner],
+    );
+    const facts = {
+      kind: "supplier_bill",
+      description: "Material",
+      counterparty_name: "Supplier",
+      incurred_on: "2026-10-28",
+      amount_cents: 2000,
+      allocations: [{ cost_code: "MAT", amount_cents: 2000 }],
+      party_id: party,
+      purchase_order_id: po,
+      purchase_order_version: 1,
+    };
+    const review = await call(jobCostSubmissionRecord, {
+      step: "review",
+      job_number: "SYN-A",
+      facts,
+    });
+    expect(review.content[0].text).toContain(`revision 1`);
+    const payload = review.structuredContent.payload as { facts: Record<string, unknown> };
+    expect(payload.facts).toMatchObject({
+      party_id: party,
+      purchase_order_id: po,
+      purchase_order_version: 1,
+    });
+    const saved = await call(jobCostSubmissionRecord, {
+      step: "save",
+      job_number: "SYN-A",
+      payload,
+      review_key: review.structuredContent.review_key,
+      confirmed: true,
+    });
+    expect(saved.structuredContent.result).toMatchObject({ status: "submitted" });
+    const missing = await call(jobCostSubmissionRecord, {
+      step: "review",
+      job_number: "SYN-A",
+      facts: { ...facts, party_id: undefined },
+    });
+    expect(missing.structuredContent.missing).toContain("supplier for the purchase order");
   });
 });

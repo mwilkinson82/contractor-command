@@ -109,6 +109,7 @@ export async function reserveBillingMemberUpload(
     filename: string;
     mime_type: string;
     storage_path: string;
+    record_id?: string;
   },
 ): Promise<(bytes: Uint8Array) => Promise<void>> {
   const token = ctx.getToken();
@@ -123,14 +124,18 @@ export async function reserveBillingMemberUpload(
   const admin = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await admin.rpc("mcp_billing_upload_claim", {
-    _id: upload.id,
-    _actor: identity.data.user.id,
-    _token_hash: null,
-  });
+  const { data, error } = await admin.rpc(
+    upload.record_id ? "mcp_cost_receipt_upload_claim" : "mcp_billing_upload_claim",
+    {
+      _id: upload.id,
+      _actor: identity.data.user.id,
+      _token_hash: null,
+    },
+  );
   if (error) dbError(error);
   if (
     !data ||
+    (upload.record_id && data.record_id !== upload.record_id) ||
     !["open", "finished"].includes(data.status) ||
     ["id", "job_id", "company_id", "filename", "mime_type", "storage_path"].some(
       (key) => data[key] !== upload[key as keyof typeof upload],
@@ -165,4 +170,39 @@ export async function reserveBillingMemberUpload(
         );
     }
   };
+}
+
+/** Only the server attests bytes already read and hashed for a cost receipt. */
+export async function registerVerifiedCostReceipt(
+  sb: Sb,
+  ctx: ToolContext,
+  job: string,
+  record: string,
+  upload: string,
+  size: number,
+  hash: string,
+): Promise<{ id: string; already_stored: boolean }> {
+  const token = ctx.getToken();
+  if (!token) throw new ToolError("Verified member required.");
+  const identity = await sb.auth.getUser(token);
+  if (identity.error || !identity.data.user?.id) throw new ToolError("Verified member required.");
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  const url = env?.SUPABASE_URL ?? env?.VITE_SUPABASE_URL;
+  const key = env?.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new ToolError("Document upload is temporarily unavailable.");
+  const admin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.rpc("mcp_cost_receipt_register", {
+    _job: job,
+    _record: record,
+    _id: upload,
+    _size: size,
+    _sha256: hash,
+    _actor: identity.data.user.id,
+  });
+  if (error) dbError(error);
+  if (!data || data.id !== upload) throw new ToolError("That receipt could not be verified.");
+  return data as { id: string; already_stored: boolean };
 }

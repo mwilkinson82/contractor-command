@@ -9956,7 +9956,7 @@
       {
         "name": "job_cost_submissions_read",
         "title": "Read job cost records",
-        "description": "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Attachments are unavailable.",
+        "description": "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Receipts are retrieved separately.",
         "inputSchema": {
           "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -9985,7 +9985,7 @@
       {
         "name": "job_cost_submission_record",
         "title": "Review or submit job cost metadata",
-        "description": "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. It does not move funds, retain originals, or post to accounting.",
+        "description": "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. Receipts are attached separately. It does not move funds or post to accounting.",
         "inputSchema": {
           "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -10075,6 +10075,21 @@
                 "original": {
                   "type": "string",
                   "const": "missing"
+                },
+                "party_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "purchase_order_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "purchase_order_version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 999999999
                 }
               },
               "additionalProperties": false
@@ -10175,6 +10190,21 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "party_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "purchase_order_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "purchase_order_version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 999999999
                     }
                   },
                   "required": [
@@ -10575,6 +10605,91 @@
           "destructiveHint": false,
           "idempotentHint": true,
           "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_receipt",
+        "title": "Store or read a field expense receipt",
+        "description": "Stores or reads an original for an existing assigned superintendent's own field-expense submission, with a separate receipt access check. Accounting and owners can read linked receipts. It does not post or pay a cost.",
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "record_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "begin",
+                "attached_file",
+                "finish",
+                "list",
+                "read"
+              ]
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "upload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "receipt_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            }
+          },
+          "required": [
+            "job_number",
+            "record_id",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
         },
         "outputSchema": null
       }

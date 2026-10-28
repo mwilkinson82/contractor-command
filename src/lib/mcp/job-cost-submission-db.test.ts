@@ -329,9 +329,15 @@ describe("staged job cost submission SQL", () => {
       const current = (await read(owner)).records.find((r) => r.id === p.id) as unknown as {
         posted_version: number;
         payments: unknown[];
+        posting_events: Array<{ version: number; posted_by: string; posted_at: string }>;
+        settlement_allocation_available: boolean;
       };
       expect(current.posted_version).toBe(1);
       expect(current.payments).toHaveLength(1);
+      expect(current.posting_events).toEqual([
+        expect.objectContaining({ version: 1, posted_by: owner, posted_at: expect.any(String) }),
+      ]);
+      expect(current.settlement_allocation_available).toBe(false);
       await expect(
         action(
           cmd("payment", {
@@ -374,8 +380,11 @@ describe("staged job cost submission SQL", () => {
       const after = (await read(owner)).records.find((r) => r.id === p.id) as unknown as {
         posted_version: number;
         payments: unknown[];
+        posting_events: Array<{ version: number; posted_at: string }>;
       };
       expect(after.posted_version).toBe(4);
+      expect(after.posting_events.map((e) => e.version)).toEqual([1, 4]);
+      expect(after.posting_events.every((e) => !Number.isNaN(Date.parse(e.posted_at)))).toBe(true);
       expect(after.payments).toHaveLength(1);
       const companyPaid = {
         ...makePayload(),
@@ -934,13 +943,18 @@ describe("staged job cost submission SQL", () => {
   it("rejects unverified PO or supplier IDs and attachment claims", async () => {
     for (const patch of [
       { party_id: crypto.randomUUID() },
-      { purchase_order_id: crypto.randomUUID(), purchase_order_version: 1 },
+      {
+        party_id: crypto.randomUUID(),
+        purchase_order_id: crypto.randomUUID(),
+        purchase_order_version: 1,
+      },
     ])
       await expect(
         save(owner, {
           ...makePayload(),
           facts: {
             ...makeFacts(),
+            kind: "supplier_bill",
             allocations: [{ job_id: jobA, cost_code: "FUEL", amount_cents: 10000 }],
             ...patch,
           },
@@ -950,26 +964,29 @@ describe("staged job cost submission SQL", () => {
       save(owner, { ...makePayload(), facts: { ...makeFacts(), original: "stored" } }),
     ).rejects.toThrow(/missing original/);
   });
-  it("validates proposed project-linked party and PO references against synthetic contract tables", async () => {
+  it("validates project-linked party and exact PO revisions against the staged PO schema", async () => {
     const party = crypto.randomUUID(),
       otherParty = crypto.randomUUID(),
       wrongJobParty = crypto.randomUUID(),
       po = crypto.randomUUID(),
-      foreignPo = crypto.randomUUID();
-    await db.exec(
-      "CREATE TABLE public.mcp_project_parties(id uuid PRIMARY KEY,company_id uuid,job_id uuid,name text,kind text); CREATE TABLE public.mcp_purchase_orders(id uuid PRIMARY KEY,company_id uuid,job_id uuid,party_id uuid,number text); CREATE TABLE public.mcp_purchase_order_versions(po_id uuid,version integer,party_snapshot jsonb,PRIMARY KEY(po_id,version));",
+      foreignPo = crypto.randomUUID(),
+      terms = crypto.randomUUID();
+    await db.exec(readFileSync("tests/fixtures/purchase-order-contract.sql", "utf8"));
+    await db.query(
+      "INSERT INTO public.mcp_project_parties(id,company_id,job_id,name,kind,created_by) VALUES ($1,$2,$3,'Synthetic Supplier','supplier',$7),($4,$2,$3,'Different Supplier','supplier',$7),($5,$2,$6,'Other Job Supplier','supplier',$7)",
+      [party, company, jobA, otherParty, wrongJobParty, jobB, owner],
     );
     await db.query(
-      "INSERT INTO public.mcp_project_parties VALUES ($1,$2,$3,'Synthetic Supplier','supplier'),($4,$2,$3,'Different Supplier','supplier'),($5,$2,$6,'Other Job Supplier','supplier')",
-      [party, company, jobA, otherParty, wrongJobParty, jobB],
+      "INSERT INTO public.mcp_po_terms_versions(id,company_id,scope,state,title,body,source,approved_by,created_by) VALUES ($1,$2,'company','approved','Terms','Synthetic terms','fixture',$3,$3)",
+      [terms, company, owner],
     );
     await db.query(
-      "INSERT INTO public.mcp_purchase_orders VALUES ($1,$2,$3,$4,'PO-1'),($5,$6,$7,$4,'Foreign')",
-      [po, company, jobA, party, foreignPo, otherCompany, otherJob],
+      "INSERT INTO public.mcp_purchase_orders(id,company_id,job_id,party_id,number,created_by) VALUES ($1,$2,$3,$4,'PO-1',$8),($5,$6,$7,$4,'Foreign',$8)",
+      [po, company, jobA, party, foreignPo, otherCompany, otherJob, owner],
     );
     await db.query(
-      "INSERT INTO public.mcp_purchase_order_versions VALUES ($1,1,jsonb_build_object('id',$2::text)),($3,1,jsonb_build_object('id',$2::text))",
-      [po, party, foreignPo],
+      "INSERT INTO public.mcp_purchase_order_versions(po_id,version,status,terms_id,party_snapshot,lines,order_date,needed_by,created_by) VALUES ($1,1,'draft',$4,jsonb_build_object('id',$2::text),'[]','2026-10-28','2026-11-01',$5),($3,1,'draft',$4,jsonb_build_object('id',$2::text),'[]','2026-10-28','2026-11-01',$5),($1,2,'draft',$4,jsonb_build_object('id',$6::text),'[]','2026-10-28','2026-11-01',$5)",
+      [po, party, foreignPo, terms, owner, otherParty],
     );
     const f = {
       ...makeFacts(),
@@ -987,9 +1004,10 @@ describe("staged job cost submission SQL", () => {
     ).toBe("submitted");
     for (const patch of [
       { party_id: wrongJobParty },
-      { purchase_order_id: foreignPo, purchase_order_version: 1 },
+      { party_id: party, purchase_order_id: foreignPo, purchase_order_version: 1 },
       { party_id: otherParty, purchase_order_id: po, purchase_order_version: 1 },
       { party_id: party, purchase_order_id: po, purchase_order_version: 9 },
+      { party_id: party, purchase_order_id: po, purchase_order_version: 2 },
     ])
       await expect(
         save(owner, {
@@ -1000,7 +1018,12 @@ describe("staged job cost submission SQL", () => {
     await expect(
       save(owner, {
         ...makePayload(),
-        facts: { ...makeFacts(), document_reference: "Split linked", party_id: party },
+        facts: {
+          ...makeFacts(),
+          kind: "supplier_bill",
+          document_reference: "Split linked",
+          party_id: party,
+        },
       }),
     ).rejects.toThrow(/cannot apply to other jobs/);
     await expect(
