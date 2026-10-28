@@ -12,6 +12,7 @@ import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import { billingDocumentUpload, billingDocuments, billingDocumentLink } from "./tools/billing-document-tools";
 import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
+import { purchaseOrdersRead, purchaseOrderTermsRead, purchaseOrdersRecord } from "./tools/purchase-order-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
@@ -71,6 +72,9 @@ async function liveTools(): Promise<Tool[]> {
       billingDocumentUpload,
       billingDocuments,
       billingDocumentLink,
+      purchaseOrdersRead,
+      purchaseOrderTermsRead,
+      purchaseOrdersRecord,
       F.fileShare,
       F.fileShareRevoke,
       F.lookaheadPdfTool,
