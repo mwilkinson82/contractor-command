@@ -415,8 +415,8 @@ export const fieldProductionRates = defineTool({
 export const fieldProductionSummary = defineTool({
   name: "field_production_summary",
   title: "Production from saved daily reports",
-  description: "Shows a period of reported quantities, person-hours and actual production rates from saved daily work. Defaults to the last seven days in the job time zone; provide both dates for another period, up to 31 days.",
-  inputSchema: { job_number: jobNumber.optional(), company_id: companyId, from_date: date.optional(), to_date: date.optional() },
+  description: "Shows a period of reported quantities, person-hours and actual production rates from saved daily work. Defaults to the last seven days in the job time zone or standard default; use this_week for the calendar week or provide both dates for a period up to 31 days.",
+  inputSchema: { job_number: jobNumber.optional(), company_id: companyId, from_date: date.optional(), to_date: date.optional(), range: z.enum(["last_7_days", "this_week"]).optional() },
   annotations: READ,
   handler: (args, ctx) =>
     run("field_production_summary", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -424,7 +424,7 @@ export const fieldProductionSummary = defineTool({
       if (!isJob(job)) return job;
       let period: { from: string; to: string };
       const timeZone = await jobTimeZone(sb, job.job_id);
-      try { period = productionPeriod(args.from_date, args.to_date, todayIn(timeZone)); }
+      try { period = productionPeriod(args.from_date, args.to_date, todayIn(timeZone), args.range); }
       catch (error) { throw new ToolError(error instanceof Error ? error.message : "Choose a valid production period."); }
       // Job/date is unique, so a 31-day period cannot have more than 31 daily reports.
       const { data: daily, error: dailyError } = await sb.from("mcp_daily_reports").select("id, report_date").eq("job_id", job.job_id).gte("report_date", period.from).lte("report_date", period.to).order("report_date", { ascending: true }).limit(32);

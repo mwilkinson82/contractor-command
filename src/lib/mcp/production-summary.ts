@@ -19,10 +19,17 @@ export function summarizeProduction(rows: DailyProductionRow[]) {
   return [...groups.values()].map((group) => ({ ...group, actual_rate: group.quantity / group.reported_person_hours }));
 }
 
-export function productionPeriod(from: string | undefined, to: string | undefined, today: string) {
+export function productionPeriod(from: string | undefined, to: string | undefined, today: string, range?: "last_7_days" | "this_week") {
+  if (range && (from || to)) throw new Error("Choose either a named period or two dates.");
   if (!!from !== !!to) throw new Error("Provide both dates for the production period.");
-  const end = to ?? today;
   const parse = (date: string) => { const ms = Date.parse(`${date}T00:00:00Z`); if (!Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== date) throw new Error("Use valid production dates."); return ms; };
+  const todayMs = parse(today);
+  if (range === "this_week") {
+    const weekday = new Date(todayMs).getUTCDay();
+    const monday = todayMs - ((weekday + 6) % 7) * 86400000;
+    return { from: new Date(monday).toISOString().slice(0, 10), to: new Date(monday + 6 * 86400000).toISOString().slice(0, 10) };
+  }
+  const end = to ?? today;
   const endMs = parse(end);
   const start = from ?? new Date(endMs - 6 * 86400000).toISOString().slice(0, 10);
   const startMs = parse(start);
