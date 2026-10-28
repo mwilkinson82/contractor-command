@@ -117,6 +117,8 @@ describe("persistent job home", () => {
       expect(html).toContain(`/r/job/${job}/${page}?t=test-token`);
     expect(html).toContain("Saved jobs");
     expect(html).toContain("Indicated Outcome Report");
+    expect(html).toContain(`/r/job/${job}/purchase-orders`);
+    expect(html).not.toContain(`/r/job/${job}/purchase-orders?t=`);
     expect(html).not.toContain("Items of record");
     expect(html).not.toContain("From your inbox and calendar");
   });
@@ -135,6 +137,7 @@ describe("persistent job home", () => {
     let html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
     expect(html).not.toContain("Payment and billing");
     expect(html).not.toContain("Change orders");
+    expect(html).not.toContain("Suppliers and purchase orders");
     expect(html).not.toContain("Indicated Outcome Report");
     fixture.rows.field = {
       data: { page: "field", job_name: "Secret" },
