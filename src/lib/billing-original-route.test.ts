@@ -1,11 +1,15 @@
 import { afterEach, expect, it, vi } from "vitest";
-const mock = vi.hoisted(() => ({ read: vi.fn(), user: vi.fn() }));
+const mock = vi.hoisted(() => ({ read: vi.fn(), readCost: vi.fn(), user: vi.fn() }));
 vi.mock("./mcp/supabase", () => ({ supabaseForToken: mock.user }));
-vi.mock("./mcp/billing-original.server", () => ({ readVerifiedFinancialOriginal: mock.read }));
+vi.mock("./mcp/billing-original.server", () => ({
+  readVerifiedFinancialOriginal: mock.read,
+  readVerifiedCostReceipt: mock.readCost,
+}));
 import { handleBillingOriginalDownload } from "./billing-original-route.server";
 import { FileRejected } from "./mcp/file-share";
 const job = "00000000-0000-4000-8000-000000000001";
 const doc = "00000000-0000-4000-8000-000000000002";
+const cost = "00000000-0000-4000-8000-000000000003";
 const url = `https://app.meetathena.io/api/billing-original?job=${job}&document=${doc}`;
 afterEach(() => vi.resetAllMocks());
 it("requires a member token and valid project and document IDs", async () => {
@@ -18,6 +22,28 @@ it("requires a member token and valid project and document IDs", async () => {
         }),
       )
     ).status,
+  ).toBe(404);
+  expect(mock.read).not.toHaveBeenCalled();
+});
+it("routes an exact cost receipt through its scoped check and never falls back to billing access", async () => {
+  const sb = {};
+  mock.user.mockReturnValue(sb);
+  mock.readCost.mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]) });
+  const headers = { authorization: "Bearer fake" };
+  expect(
+    (await handleBillingOriginalDownload(new Request(`${url}&cost_record=${cost}`, { headers })))
+      .status,
+  ).toBe(200);
+  expect(mock.readCost).toHaveBeenCalledWith(sb, "fake", job, cost, doc);
+  expect(mock.read).not.toHaveBeenCalled();
+  expect(
+    (await handleBillingOriginalDownload(new Request(`${url}&cost_record=invalid`, { headers })))
+      .status,
+  ).toBe(404);
+  mock.readCost.mockRejectedValueOnce(new Error("not own record"));
+  expect(
+    (await handleBillingOriginalDownload(new Request(`${url}&cost_record=${cost}`, { headers })))
+      .status,
   ).toBe(404);
   expect(mock.read).not.toHaveBeenCalled();
 });

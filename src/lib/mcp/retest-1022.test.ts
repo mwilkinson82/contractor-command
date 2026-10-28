@@ -40,6 +40,7 @@ describe("board pages and signed urls", () => {
     expect(jobLinksMissingToken({ content: [{ text: bare }], structuredContent: { card: { href: signed } } })).toEqual([bare]);
     expect(jobLinksMissingToken({ url: signed })).toEqual([]);
     expect(jobLinksMissingToken(`https://app.meetathena.io/r/job/${JOB}/billing-records`)).toEqual([]);
+    expect(jobLinksMissingToken(`https://app.meetathena.io/r/job/${JOB}/purchase-orders`)).toEqual([]);
   });
 });
 
@@ -179,16 +180,26 @@ describe("tool outputs do not emit a tokenless job link", () => {
     for (const file of files) {
       const hits = readFileSync(file, "utf8").match(/https:\/\/app\.meetathena\.io\/r\/job\/[^"'`\s)]+/g) ?? [];
       for (const hit of hits) {
-        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/billing-records$/.test(hit)) continue;
+        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/(?:billing-records|purchase-orders)$/.test(hit)) continue;
+        if (file.endsWith("/accounting-report-tools.ts") && hit === "https://app.meetathena.io/r/job/${job.job_id}/accounting?${query}") continue;
         expect(hit, file).toMatch(/[?&]t=/);
       }
     }
   });
-  it("limits the tokenless exception to session-gated billing records", () => {
+  it("limits tokenless exceptions to session-gated records", () => {
     const page = readFileSync("src/components/athena/BillingEvidencePage.tsx", "utf8");
+    const accounting = readFileSync("src/components/athena/AccountingReportPage.tsx", "utf8");
+    const adapter = readFileSync("src/lib/accounting-report-read.ts", "utf8");
+    expect(accounting).toMatch(/if \(!session\)/);
+    expect(accounting).toContain("<BoardSignIn");
+    expect(adapter).toContain('io.rpc("mcp_billing_evidence_get", { _job: jobId })');
     const sql = readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8");
     expect(page).toMatch(/if \(!session\) return <BoardSignIn/);
     expect(sql).toMatch(/mcp_billing_evidence_get[\s\S]*?mcp_job_scope\(_job\) IS DISTINCT FROM 'full'/);
+    const poPage = readFileSync("src/components/athena/PurchaseOrdersPage.tsx", "utf8");
+    const poSql = readFileSync("supabase/migrations/20261028143924_athena_project_purchase_orders.sql", "utf8");
+    expect(poPage).toMatch(/if \(!session\) return <BoardSignIn/);
+    expect(poSql).toMatch(/mcp_project_purchase_orders_get[\s\S]*?mcp_job_scope\(_job\) IS DISTINCT FROM 'full'/);
   });
 });
 

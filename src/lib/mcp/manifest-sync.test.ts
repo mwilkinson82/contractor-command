@@ -11,7 +11,18 @@ import * as F from "./tools/file-tools";
 import { projectDocuments } from "./tools/document-read-tools";
 import { fileUpload } from "./tools/file-upload-tool";
 import { billingDocumentUpload, billingDocuments, billingDocumentLink } from "./tools/billing-document-tools";
+import { accountingReconciliation } from "./tools/reconciliation-tools";
+import { accountingReport } from "./tools/accounting-report-tools";
 import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
+import { purchaseOrdersRead, purchaseOrderTermsRead, purchaseOrdersRecord } from "./tools/purchase-order-tools";
+import { jobCostReceipt } from "./tools/job-cost-receipt-tools";
+import {
+  jobCostSubmissionRead,
+  jobCostSubmissionRecord,
+  jobCostAccountingRecord,
+  jobCostPmPaymentApproval,
+  jobCostPmPaymentWithdraw,
+} from "./tools/job-cost-submission-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
 import * as E from "./tools/email-tools";
@@ -66,11 +77,16 @@ async function liveTools(): Promise<Tool[]> {
       L.cpmActivities,
       L.livingReportGet,
       L.livingReportSave,
+      accountingReconciliation,
+      accountingReport,
       billingEvidenceRead,
       billingEvidenceRecord,
       billingDocumentUpload,
       billingDocuments,
       billingDocumentLink,
+      purchaseOrdersRead,
+      purchaseOrderTermsRead,
+      purchaseOrdersRecord,
       F.fileShare,
       F.fileShareRevoke,
       F.lookaheadPdfTool,
@@ -140,6 +156,12 @@ async function liveTools(): Promise<Tool[]> {
       rfcLog,
       rfcRecord,
       Start.gettingStarted,
+      jobCostSubmissionRead,
+      jobCostSubmissionRecord,
+      jobCostAccountingRecord,
+      jobCostPmPaymentApproval,
+      jobCostPmPaymentWithdraw,
+      jobCostReceipt,
     ],
     metrics: false,
   } as never);

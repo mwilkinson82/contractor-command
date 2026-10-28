@@ -32,6 +32,7 @@ describe("drawing attachment handoff", () => {
     const drawing = { filename: "permit.pdf", content_base64: "legacy" };
     expect(drawingWithFile(drawing, undefined)).toBe(drawing);
     expect(drawingFileMeta("drawing_markup")).toEqual({});
+    expect(drawingFileMeta("job_cost_receipt")).toEqual({ "openai/fileParams": ["file"] });
   });
 
   it("repairs file metadata stripped by the SDK without changing templates or another tool", async () => {

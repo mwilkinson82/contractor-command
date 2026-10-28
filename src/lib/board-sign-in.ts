@@ -55,6 +55,8 @@ export function boardSignInReturn(value: unknown): string | undefined {
   if (
     page !== "home" &&
     page !== "billing-records" &&
+    page !== "purchase-orders" &&
+    page !== "accounting" &&
     !(JOB_PAGES as readonly string[]).includes(page) &&
     !isRequestLog
   )

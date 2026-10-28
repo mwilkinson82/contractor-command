@@ -17,10 +17,18 @@ jobs:
       # This does not change the app dependency range or any deployment configuration.
       - name: Install verification dependencies
         run: npm install --no-save --legacy-peer-deps @lovable.dev/mcp-js@3.0.5 zod@4.4.3
+      - name: Fetch pinned AP producer for synthetic consumer contract
+        run: node scripts/fetch-ap-reporting-contract.mjs
+        env:
+          ATHENA_AP_CONTRACT_DIR: ${{ runner.temp }}/athena-ap-contract
       - name: Unit and local database tests
         run: npm test -- --reporter=default --reporter=junit --outputFile.junit=verification-results.xml
+        env:
+          ATHENA_AP_CONTRACT_DIR: ${{ runner.temp }}/athena-ap-contract
       - name: Production build (no deploy)
         run: npm run build
+      - name: Routed Workers preview and authentication smoke check
+        run: npm run verify:preview
       - name: Save test evidence
         if: always()
         uses: actions/upload-artifact@v4

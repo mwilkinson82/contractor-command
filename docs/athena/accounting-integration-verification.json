@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-28",
+  "status": "local_candidate_verified_not_released",
+  "tests": {
+    "files_passed": 323,
+    "tests_passed": 3048,
+    "skipped": 4,
+    "todo": 2,
+    "failures": 0,
+    "unhandled_errors": 0,
+    "pinned_ap_producer_enabled": true
+  },
+  "typescript": "passed",
+  "scoped_semantic_eslint": "passed; inherited prettier rule disabled, not repository-wide default lint",
+  "production_build": "passed; upstream deprecation/chunk warnings",
+  "preview": {
+    "home": 200,
+    "accounting": 200,
+    "billing-records": 200,
+    "purchase-orders": 200,
+    "unauthenticated_mcp": 401
+  },
+  "native_postgres": {
+    "coverage": "isolated synthetic PostgreSQL only",
+    "cases": {
+      "orderedDdl": "all nine exact hashed proposals installed using declared transaction boundaries",
+      "concurrentIndexBuilds": "three separate nontransactional CREATE INDEX CONCURRENTLY commands; all valid and ready",
+      "concurrentDuplicate": "one commit, one duplicate rejection on independent connections",
+      "concurrentRetry": "one version and idempotent readback",
+      "concurrentOverpayment": "one 8000-cent evidence record, second rejected against 10000-cent payable",
+      "snapshotIsolation": "read-only snapshot observes complete pre-commit state and next read complete post-commit state",
+      "serviceCredentialBoundary": "authenticated/anon/PUBLIC event writes denied; service_role backend credential has direct mutation authority; no permission changed",
+      "databaseCancellation": "pre-query session statement timeout cancels a blocked snapshot with 57014; next read succeeds",
+      "revokedMembership": "next read denied without hidden rows or counts"
+    },
+    "postgres": "PostgreSQL 18.4 on x86_64-apple-darwin24.6.0, compiled by Apple clang version 17.0.0 (clang-1700.6.3.2), 64-bit"
+  },
+  "source_hashes": "verified by scripts/verify-accounting-release-sources.mjs",
+  "discovery": {
+    "tools": 103,
+    "guard_pattern_count": 99,
+    "schemas": "verified against actual SDK tools/list"
+  },
+  "evidence": [
+    "artifacts/integration-tests.xml",
+    "artifacts/tests.log",
+    "artifacts/build.log",
+    "artifacts/typecheck.log",
+    "artifacts/lint.log",
+    "artifacts/preview-smoke.log",
+    "artifacts/native-postgres-results.json",
+    "artifacts/source-hashes.log"
+  ],
+  "remaining_gates": [
+    "supported actual managed history/schema/ACL/bucket/helpers/credentials/advisor and effective timeout verification",
+    "supported nontransactional concurrent-index runner and actual identity/hash mapping",
+    "managed staging role/receipt-byte/host-approval UAT and representative performance",
+    "specific review publication/staging/production approvals and exact-head CI"
+  ],
+  "external_mutations_performed": false,
+  "review_revision": 2,
+  "new_regressions": [
+    "UTF-8 source-text and final-envelope byte caps",
+    "five-second stalled/late response and independent coverage handling",
+    "ordinary member versus privileged backend event mutation",
+    "optional party-only reference and later PO revision retention"
+  ],
+  "proposed_sql": {
+    "count": 9,
+    "manifest": "docs/athena/managed-accounting-proposal/manifest.json",
+    "verified_in_disposable_postgres": true,
+    "managed_application": false
+  },
+  "disposition": "GO for private review; NO-GO production pending supported managed verification, staging and exact release approval",
+  "follow_up_changed_file_default_eslint": "passed, including formatting"
+}

@@ -1,6 +1,8 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ReportPageView } from "@/components/athena/ReportPage";
 import { JOB_PAGES, hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
+import { PurchaseOrdersPage } from "@/components/athena/PurchaseOrdersPage";
+import { AccountingReportPage } from "@/components/athena/AccountingReportPage";
 import { BillingEvidencePage } from "@/components/athena/BillingEvidencePage";
 import { JobHome } from "@/components/athena/JobHome";
 import { readBoardToken } from "@/lib/mcp/board-url";
@@ -20,6 +22,8 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
       !isUuid(params.jobId) ||
       (page !== "home" &&
         page !== "billing-records" &&
+        page !== "purchase-orders" &&
+        page !== "accounting" &&
         !(JOB_PAGES as readonly string[]).includes(page))
     )
       throw notFound();
@@ -29,8 +33,19 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
 
 function JobReportPage() {
   const { jobId, page } = Route.useParams();
-  const token = readBoardToken(Route.useSearch());
+  const search = Route.useSearch();
+  const token = readBoardToken(search);
+  if (hostedPageName(page) === "accounting")
+    return (
+      <AccountingReportPage
+        jobId={jobId}
+        initialFrom={search.from}
+        initialAsOf={search.as_of}
+        initialPage={search.ledger_page}
+      />
+    );
   if (hostedPageName(page) === "home") return <JobHome jobId={jobId} token={token} />;
+  if (hostedPageName(page) === "purchase-orders") return <PurchaseOrdersPage jobId={jobId} />;
   if (hostedPageName(page) === "billing-records") return <BillingEvidencePage jobId={jobId} />;
   return <ReportPageView page={hostedPageName(page) as AnyPage} jobId={jobId} token={token} />;
 }

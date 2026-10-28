@@ -47,6 +47,9 @@ describe("job board sign-in return", () => {
 
   it("allows a private billing page after sign-in without carrying a board token", () => {
     const billing = `/r/job/${JOB}/billing-records`;
+    expect(boardSignInReturn(`/r/job/${JOB}/purchase-orders?t=old`)).toBe(
+      `/r/job/${JOB}/purchase-orders`,
+    );
     expect(boardSignInReturn(`${billing}?t=expired&utm_source=test#invoice`)).toBe(
       `${billing}#invoice`,
     );

@@ -96,7 +96,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
     );
   if (!base) return <BoardSignIn returnTo={`/r/job/${jobId}/home`} />;
   const href = (page: string) =>
-    `/r/job/${jobId}/${page}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
+    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
@@ -176,7 +176,17 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
     { title: "Progress photos", detail: "View saved photos", page: "photos" },
     ...(full
       ? [
+          {
+            title: "Accounting evidence",
+            detail: "Job ledger, budget comparison and accountant export",
+            page: "accounting",
+          },
           { title: "Change orders", detail: "View saved log", page: "cos" },
+          {
+            title: "Suppliers and purchase orders",
+            detail: "View project parties and PO drafts",
+            page: "purchase-orders",
+          },
           {
             title: "Billing and payment records",
             detail: "View recorded invoices and receipts",
