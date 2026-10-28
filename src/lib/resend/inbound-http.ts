@@ -34,6 +34,7 @@ type ReceivedEvent = {
 
 export type InboundHttpDeps = {
   env: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
   nowSeconds?: number;
   forward: (emailId: string, opts: ForwardOptions) => Promise<ForwardResult>;
   processSupport: (
@@ -46,10 +47,53 @@ export type InboundHttpDeps = {
   ) => Promise<SupportProcessResult>;
 };
 
+let cachedWebhookSecret: string | undefined;
+
+class WebhookConfigurationError extends Error {
+  constructor(readonly reason: string, status?: number) {
+    super("Webhook not configured");
+    console.error("[resend-inbound] webhook configuration", { reason, status });
+  }
+}
+
+async function resolveWebhookSecret(deps: InboundHttpDeps): Promise<string> {
+  const apiKey = deps.env.RESEND_API_KEY;
+  if (!apiKey) throw new WebhookConfigurationError("no_api_key");
+  if (cachedWebhookSecret) return cachedWebhookSecret;
+
+  let response: Response;
+  try {
+    response = await (deps.fetchImpl ?? fetch)(
+      "https://api.resend.com/webhooks/035b0a5b-a721-48c3-92d6-1bc0304e2c6f",
+      { method: "GET", headers: { Authorization: `Bearer ${apiKey}` } },
+    );
+  } catch {
+    throw new WebhookConfigurationError("resend_fetch_failed");
+  }
+  if (!response.ok) {
+    throw new WebhookConfigurationError(`resend_http_${response.status}`, response.status);
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new WebhookConfigurationError("no_secret_field", response.status);
+  }
+  const fields = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const secret = [fields.signing_secret, fields.secret].find(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  );
+  if (!secret) throw new WebhookConfigurationError("no_secret_field", response.status);
+  cachedWebhookSecret = secret;
+  return secret;
+}
+
 function defaultDeps(overrides?: Partial<InboundHttpDeps>): InboundHttpDeps {
   return {
     env: overrides?.env ?? process.env,
     nowSeconds: overrides?.nowSeconds,
+    fetchImpl: overrides?.fetchImpl,
     forward: overrides?.forward ?? ((emailId, opts) => forwardReceivedEmail(emailId, opts)),
     processSupport:
       overrides?.processSupport ??
@@ -79,18 +123,30 @@ export async function handleResendInboundPost(
     return json({ ok: false, error: "Missing webhook signature" }, 401);
   }
 
-  const secret = deps.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) {
-    console.error("[resend-inbound] RESEND_WEBHOOK_SECRET is not configured");
-    return json({ ok: false, error: "Webhook not configured" }, 500);
+  const usingCachedSecret = !deps.env.RESEND_WEBHOOK_SECRET && !!cachedWebhookSecret;
+  let verified: Awaited<ReturnType<typeof verifyResendWebhook>>;
+  try {
+    const secret = deps.env.RESEND_WEBHOOK_SECRET || await resolveWebhookSecret(deps);
+    verified = await verifyResendWebhook({
+      payload,
+      headers,
+      secret,
+      nowSeconds: deps.nowSeconds,
+    });
+    if (!verified.ok && usingCachedSecret) {
+      cachedWebhookSecret = undefined;
+      const refreshedSecret = await resolveWebhookSecret(deps);
+      verified = await verifyResendWebhook({
+        payload,
+        headers,
+        secret: refreshedSecret,
+        nowSeconds: deps.nowSeconds,
+      });
+    }
+  } catch (err) {
+    if (!(err instanceof WebhookConfigurationError)) throw err;
+    return json({ ok: false, error: "Webhook not configured", reason: err.reason }, 500);
   }
-
-  const verified = await verifyResendWebhook({
-    payload,
-    headers,
-    secret,
-    nowSeconds: deps.nowSeconds,
-  });
   if (!verified.ok) {
     console.warn("[resend-inbound] rejected webhook", {
       reason: verified.reason,
