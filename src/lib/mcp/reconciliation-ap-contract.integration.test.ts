@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
-import { reconcileCosts } from "./reconciliation";
+import { reconcileApSnapshot } from "./ap-reconciliation-snapshot";
 
 describe("PR351 provisional contract (synthetic external fixture)", () => {
   const owner = "00000000-0000-4000-8000-000000000111",
@@ -111,6 +111,8 @@ describe("PR351 provisional contract (synthetic external fixture)", () => {
     ])
       await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
     await db.exec(readFileSync("tests/fixtures/pr351-cost-read-contract.sql", "utf8"));
+    if (process.env.ATHENA_AP_SNAPSHOT_SQL)
+      await db.exec(readFileSync(process.env.ATHENA_AP_SNAPSHOT_SQL, "utf8"));
     for (const u of [owner, pm, estimator, superUser, outsider, ap, allAccess, super2, pm2]) {
       await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'synthetic@example.test')", [u]);
       await db.query("INSERT INTO test_active_members VALUES ($1)", [u]);
@@ -197,11 +199,8 @@ describe("PR351 provisional contract (synthetic external fixture)", () => {
       ],
     );
     const raw = await read(owner);
-    const result = reconcileCosts(raw, { company_id: company, job_id: jobA });
-    expect(result.coverage.state).toBe("checked");
-    expect(result.findings.find((f) => f.code === "ap_unmatched")?.amount_cents).toBe("6000");
-    expect(result.findings.map((f) => f.code)).toContain("ap_pending_correction");
-    expect(JSON.stringify(result)).not.toContain("Synthetic Employee");
+    expect(raw.records).toHaveLength(1);
+    expect(raw.records[0].versions).toHaveLength(2);
     expect((await read(pm)).records).toEqual([]);
     await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES($1,$2,$3)", [
       jobB,
@@ -212,12 +211,89 @@ describe("PR351 provisional contract (synthetic external fixture)", () => {
     for (const user of [estimator, superUser, outsider])
       await expect(read(user)).rejects.toThrow(/Full project access/);
     await expect(read(owner, otherJob)).rejects.toThrow(/Full project access/);
-    const bad = { ...raw, records: [{ ...raw.records[0], posted_version: "unsupported" }] };
-    expect(reconcileCosts(bad, { company_id: company, job_id: jobA }).coverage.state).toBe(
-      "unavailable",
-    );
-    expect(reconcileCosts(null, { company_id: company, job_id: jobA }).coverage.state).toBe(
-      "unavailable",
-    );
   });
+  it.skipIf(!process.env.ATHENA_AP_SNAPSHOT_SQL)(
+    "validates the actual staged snapshot, read-only entitlement and revocation",
+    async () => {
+      const snapshot = async (user: string) =>
+        (
+          await rawQuery(user, "SELECT public.mcp_cost_reconciliation_snapshot($1) AS value", [
+            jobA,
+          ])
+        ).rows[0].value;
+      const gate = async (user: string) =>
+        (await rawQuery(user, "SELECT public.mcp_gate() AS value")).rows[0].value;
+      const count = async () =>
+        (await db.query<{ n: number }>("SELECT count(*)::int n FROM mcp_gate_cache")).rows[0].n;
+      const before = await count();
+      const raw = await asUser(
+        db,
+        { sub: owner, email: "synthetic@example.test", role: "authenticated" },
+        async (tx) => {
+          await tx.exec("SET TRANSACTION READ ONLY");
+          return (
+            await tx.query("SELECT public.mcp_cost_reconciliation_snapshot($1) AS value", [jobA])
+          ).rows[0].value;
+        },
+      );
+      expect(await count()).toBe(before);
+      const result = reconcileApSnapshot(raw, { company_id: company, job_id: jobA });
+      expect(result.coverage.state).toBe("checked");
+      expect(result.findings.map((f) => f.code)).toContain("ap_pending_correction");
+      expect(result.findings.every((f) => f.amount_cents === undefined)).toBe(true);
+      expect(await gate(owner)).toBe(true);
+      expect(await gate(ap)).toBe(true);
+      expect(
+        reconcileApSnapshot(await snapshot(ap), { company_id: company, job_id: jobA }).coverage
+          .state,
+      ).toBe("checked");
+      await db.query("DELETE FROM test_active_members WHERE user_id=$1", [ap]);
+      await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [ap]);
+      expect(await gate(ap)).toBe(true); // Active company owner supplies the existing team entitlement.
+      expect(
+        reconcileApSnapshot(await snapshot(ap), { company_id: company, job_id: jobA }).coverage
+          .state,
+      ).toBe("checked");
+      await db.query("DELETE FROM test_active_members WHERE user_id=$1", [owner]);
+      await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+      await db.query(
+        "INSERT INTO mcp_company_entitlements(company_id,plan,status) VALUES($1,'athena_office','active')",
+        [company],
+      );
+      expect(await gate(ap)).toBe(true); // Active purchased company plan.
+      expect(
+        reconcileApSnapshot(await snapshot(ap), { company_id: company, job_id: jobA }).coverage
+          .state,
+      ).toBe("checked");
+      await db.query("UPDATE mcp_company_entitlements SET status='inactive' WHERE company_id=$1", [
+        company,
+      ]);
+      expect(await gate(ap)).toBe(false);
+      expect(
+        reconcileApSnapshot(await snapshot(ap), { company_id: company, job_id: jobA }).coverage
+          .state,
+      ).toBe("unavailable");
+      await db.query("UPDATE mcp_company_entitlements SET status='active' WHERE company_id=$1", [
+        company,
+      ]);
+      await db.query("DELETE FROM mcp_company_members WHERE user_id=$1 AND company_id=$2", [
+        ap,
+        company,
+      ]);
+      expect(await gate(ap)).toBe(false);
+      expect(
+        reconcileApSnapshot(await snapshot(ap), { company_id: company, job_id: jobA }).coverage
+          .state,
+      ).toBe("unavailable");
+      await db.query("UPDATE mcp_company_entitlements SET status='inactive' WHERE company_id=$1", [
+        company,
+      ]);
+      await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+      expect(await gate(owner)).toBe(false);
+      expect(
+        reconcileApSnapshot(await snapshot(owner), { company_id: company, job_id: jobA }).coverage
+          .state,
+      ).toBe("unavailable");
+    },
+  );
 });

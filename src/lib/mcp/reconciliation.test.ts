@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dollars, reconcileBilling, reconcileCosts } from "./reconciliation";
+import { dollars, reconcileBilling } from "./reconciliation";
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
 const scope = { company_id: id(1), job_id: id(2) };
@@ -63,46 +63,6 @@ const docs = () => ({
 });
 const check = (b = billing(), d: unknown = docs()) => reconcileBilling(b, d, scope);
 const codes = (r: { findings: { code: string }[] }) => r.findings.map((f) => f.code);
-const cost = () => ({
-  records: [
-    {
-      id: id(20),
-      kind: "supplier_bill",
-      versions: [
-        {
-          record_id: id(20),
-          version: 1,
-          reason: null as string | null,
-          facts: {
-            kind: "supplier_bill",
-            amount_cents: 10000,
-            counterparty_name: "Synthetic vendor",
-            document_reference: "B-1",
-            original: "missing",
-            allocations: [{ job_id: scope.job_id, cost_code: "0300", amount_cents: 10000 }],
-          },
-        },
-      ],
-      posted_version: 1 as number | null,
-      approved_versions: [1],
-      payments: [
-        {
-          id: id(21),
-          record_id: id(20),
-          amount_cents: 4000,
-          reference: "P-1",
-          shared: false,
-          corrected: false,
-          correction: null as { reason: string } | null,
-        },
-      ],
-      active_settlement_cents: 4000,
-    },
-  ],
-  originals_available: false,
-  posting_available: true,
-});
-
 describe("recorded billing reconciliation", () => {
   it("keeps partial payments and unpaid balance separate from missing originals", () => {
     const r = check();
@@ -236,76 +196,5 @@ describe("recorded billing reconciliation", () => {
     expect(codes(check(b, d))).toContain("unlinked_original");
     d.documents[0].company_id = id(99);
     expect(check(b, d).originals.state).toBe("unavailable");
-  });
-});
-describe("provisional AP settlement adapter", () => {
-  it("reconciles recorded partial settlement to the posted payable", () => {
-    const r = reconcileCosts(cost(), scope);
-    expect(r.coverage.state).toBe("checked");
-    expect(r.findings.find((f) => f.code === "ap_unmatched")?.amount_cents).toBe("6000");
-    expect(r.coverage.reason).toMatch(/not proof/);
-  });
-  it("keeps unposted corrections out of the effective payable", () => {
-    const c = cost();
-    c.records[0].versions.push({
-      ...c.records[0].versions[0],
-      version: 2,
-      reason: "Revised bill",
-      facts: {
-        ...c.records[0].versions[0].facts,
-        amount_cents: 20000,
-        allocations: [{ job_id: scope.job_id, cost_code: "0300", amount_cents: 20000 }],
-      },
-    });
-    const r = reconcileCosts(c, scope);
-    expect(codes(r)).toContain("ap_pending_correction");
-    expect(r.findings.find((f) => f.code === "ap_unmatched")?.amount_cents).toBe("6000");
-  });
-  it("retains corrected settlement history without asserting refund", () => {
-    const c = cost();
-    c.records[0].payments[0].corrected = true;
-    c.records[0].payments[0].correction = { reason: "Erroneous record" };
-    c.records[0].active_settlement_cents = 0;
-    expect(
-      reconcileCosts(c, scope).findings.find((f) => f.code === "ap_unmatched")?.amount_cents,
-    ).toBe("10000");
-    c.records[0].payments[0].correction = null;
-    expect(codes(reconcileCosts(c, scope))).toContain("ap_payment_lineage_gap");
-  });
-  it("detects over-settlement, missing approval and conservation failures", () => {
-    const c = cost();
-    c.records[0].payments[0].amount_cents = 12000;
-    c.records[0].active_settlement_cents = 12000;
-    expect(codes(reconcileCosts(c, scope))).toContain("ap_over_settled");
-    c.records[0].active_settlement_cents = 1;
-    expect(codes(reconcileCosts(c, scope))).toContain("ap_settlement_total_gap");
-    c.records[0].approved_versions = [];
-    expect(codes(reconcileCosts(c, scope))).toContain("ap_posting_lineage_gap");
-  });
-  it("does not confuse a shared payment allocation with duplicate payment evidence", () => {
-    const c = cost();
-    c.records[0].payments[0].shared = true;
-    const other = structuredClone(c.records[0]);
-    other.id = id(30);
-    other.versions[0].record_id = other.id;
-    other.versions[0].facts.document_reference = "B-2";
-    other.payments[0].record_id = other.id;
-    c.records.push(other);
-    expect(codes(reconcileCosts(c, scope))).not.toContain("duplicate_payment_reference");
-    other.payments[0].shared = false;
-    expect(codes(reconcileCosts(c, scope))).toContain("ap_payment_identity_gap");
-    expect(codes(reconcileCosts(c, scope))).not.toContain("ap_unmatched");
-    other.payments[0].shared = true;
-    other.payments[0].id = id(31);
-    expect(codes(reconcileCosts(c, scope))).toContain("duplicate_payment_reference");
-  });
-  it("rejects unrelated records and unavailable contracts without returning source payloads", () => {
-    const c = cost();
-    c.records[0].versions[0].facts.allocations[0].job_id = id(99);
-    const r = reconcileCosts(c, scope);
-    expect(r.coverage.state).toBe("unavailable");
-    expect(JSON.stringify(r)).not.toContain("Synthetic vendor");
-    expect(reconcileCosts(null, scope).coverage.state).toBe("unavailable");
-    expect(reconcileCosts({ records: [] }, scope).coverage.state).toBe("unavailable");
   });
 });

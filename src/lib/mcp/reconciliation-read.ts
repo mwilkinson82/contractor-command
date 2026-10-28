@@ -2,6 +2,7 @@ import { z } from "zod";
 import { dbError, type Sb } from "./guard";
 import { sha256Hex } from "./file-share";
 import { reconcileBilling, type Scope, type Coverage, type Finding } from "./reconciliation";
+import { reconcileApSnapshot } from "./ap-reconciliation-snapshot";
 
 const envelope = z.object({
   snapshot_version: z.literal(1),
@@ -45,24 +46,47 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
   const source = `https://app.meetathena.io/r/job/${scope.job_id}/billing-records`;
   const billing = outcome?.coverage ?? unavailable(reason);
   const originals = outcome?.originals ?? unavailable(reason);
+  let apData: unknown = null;
+  try {
+    const apResult = await (
+      sb.rpc as unknown as (
+        name: string,
+        args: object,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )("mcp_cost_reconciliation_snapshot", { _job: scope.job_id });
+    if (!apResult.error) apData = apResult.data;
+  } catch {
+    /* Unavailable AP must not prevent an independent billing review. */
+  }
+  const ap = reconcileApSnapshot(apData, scope);
   const findings: Array<Finding & { source_tool: string }> = (outcome?.findings ?? []).map((f) => ({
     ...f,
     source_url: source,
     source_tool: "billing_evidence_read",
   }));
+  findings.push(...ap.findings.map((f) => ({ ...f, source_tool: "job_cost_submissions_read" })));
   return {
     observed_at: observed,
     evidence_key: valid ? await sha256Hex(new TextEncoder().encode(JSON.stringify(data))) : null,
+    ap_evidence_key:
+      ap.coverage.state === "checked"
+        ? await sha256Hex(new TextEncoder().encode(JSON.stringify(apData)))
+        : null,
     consistency: valid
-      ? "Billing evidence and document associations were captured by one scoped database statement. Missing history remains unknown."
-      : "No complete, supported billing snapshot is available; billing findings are withheld.",
+      ? "Billing evidence and document associations were captured by one scoped database statement. AP is a separate snapshot; there is no cross-domain atomic snapshot. Missing history remains unknown."
+      : "No complete, supported billing snapshot is available; billing findings are withheld. AP is independently scoped.",
     consistent_snapshot: valid,
     coverage: {
       billing,
       originals,
-      ap: unavailable(
-        "AP reconciliation requires a separate versioned, complete scoped snapshot; the provisional read can omit records.",
+      ap: ap.coverage,
+      ap_currency: unavailable(
+        "AP currency is unverified; payable and settlement amounts are not reconciled.",
       ),
+      ap_originals: unavailable("AP original evidence coverage is unavailable."),
+      ap_job_settlement: unavailable("Recorded settlement is not allocated by job."),
+      ap_shared_payment: unavailable("Shared-payment header conservation is unavailable."),
+      ap_external_accounting: unavailable("The AP snapshot covers Athena cost records only."),
       bank_transfers: unavailable("No bank connector or transfer verification."),
       refunds: unavailable(
         "Receipt reversals and payment evidence corrections do not prove actual refunds.",

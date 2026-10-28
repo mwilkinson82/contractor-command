@@ -10,7 +10,7 @@ export const accountingReconciliation = defineTool({
   name: "accounting_reconciliation",
   title: "Review project accounting exceptions",
   description:
-    "Reviews recorded billing exceptions from a complete scoped snapshot and reports unavailable coverage. Does not repair records or move money.",
+    "Reviews billing exceptions and AP structural exceptions from complete scoped snapshots and reports unavailable coverage. Does not repair records or move money.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -35,9 +35,9 @@ export const accountingReconciliation = defineTool({
         );
         const shown = ordered.slice(0, args.limit ?? 12);
         const lines = [
-          result.consistent_snapshot && result.coverage.billing.state === "checked"
-            ? `${job.job_number}: ${ordered.length} billing exception${ordered.length === 1 ? "" : "s"} to review in recorded evidence.`
-            : `${job.job_number}: billing exceptions are unavailable because a complete, consistent snapshot was not established.`,
+          ordered.length > 0
+            ? `${job.job_number}: ${ordered.length} review item${ordered.length === 1 ? "" : "s"} in available billing and AP evidence.`
+            : `${job.job_number}: no review items in the checks available below; unavailable coverage remains unknown.`,
           "This check changes no financial records. Recorded payment does not prove money transferred.",
           ...shown.map(
             (f) =>
@@ -66,10 +66,8 @@ export const accountingReconciliation = defineTool({
             structuredContent: {
               ...result,
               findings: shown,
-              total_findings:
-                result.consistent_snapshot && result.coverage.billing.state === "checked"
-                  ? ordered.length
-                  : null,
+              reported_findings: ordered.length,
+              total_findings: null,
               truncated: ordered.length > shown.length,
               job_id: job.job_id,
               company_id: job.company_id,

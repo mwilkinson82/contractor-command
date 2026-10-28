@@ -41,6 +41,7 @@ it("uses one scoped snapshot and explicitly leaves AP unavailable", async () => 
   expect(r.evidence_key).toMatch(/^[0-9a-f]{64}$/);
   expect(state.rpc.mock.calls).toEqual([
     ["mcp_billing_reconciliation_snapshot", { _job: scope.job_id }],
+    ["mcp_cost_reconciliation_snapshot", { _job: scope.job_id }],
   ]);
 });
 it("withholds all findings for absent, incomplete, wrong-scope and unsupported snapshots", async () => {
@@ -92,6 +93,56 @@ it("returns billing findings independently from unavailable AP", async () => {
   const r = await read();
   expect(r.coverage.ap.state).toBe("unavailable");
   expect(r.findings.find((f) => f.code === "invoice_unmatched")?.amount_cents).toBe("10000");
+});
+it("keeps coverage independent when the AP snapshot is absent, denied or unsupported", async () => {
+  const ap = {
+    snapshot_version: 1,
+    complete: true,
+    status: "complete",
+    ...scope,
+    ap: {
+      currency: null,
+      currency_verified: false,
+      cents_encoding: "decimal_string",
+      coverage: "athena_cost_records_only",
+      external_accounting_coverage: false,
+      shared_payment_conservation_available: false,
+      settlement_allocation_by_job_available: false,
+      accounting_effective_date_available: false,
+      original_evidence_coverage: false,
+      records: [],
+    },
+  };
+  state.rpc.mockImplementation(async (name: string) =>
+    name === "mcp_billing_reconciliation_snapshot"
+      ? { data: snapshot(), error: null }
+      : { data: null, error: { code: "42501", message: "permission denied" } },
+  );
+  const denied = await read();
+  expect(denied.coverage.billing.state).toBe("checked");
+  expect(denied.coverage.ap.state).toBe("unavailable");
+  expect(JSON.stringify(denied)).not.toContain("permission denied");
+  state.rpc.mockImplementation(async (name: string) =>
+    name === "mcp_billing_reconciliation_snapshot"
+      ? {
+          data: null,
+          error: { code: "PGRST202", message: "mcp_billing_reconciliation_snapshot missing" },
+        }
+      : { data: ap, error: null },
+  );
+  const onlyAp = await read();
+  expect(onlyAp.coverage.billing.state).toBe("unavailable");
+  expect(onlyAp.coverage.ap.state).toBe("checked");
+  expect(onlyAp.coverage.ap_currency.state).toBe("unavailable");
+  state.rpc.mockImplementation(async (name: string) =>
+    name === "mcp_billing_reconciliation_snapshot"
+      ? { data: snapshot(), error: null }
+      : { data: { ...ap, snapshot_version: 2 }, error: null },
+  );
+  const unknown = await read();
+  expect(unknown.coverage.billing.state).toBe("checked");
+  expect(unknown.coverage.ap.state).toBe("unavailable");
+  expect(unknown.findings).toEqual([]);
 });
 it("never treats a denied snapshot read or missing helper as an unavailable optional function", async () => {
   state.rpc.mockResolvedValue({
