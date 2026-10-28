@@ -154,12 +154,8 @@ export async function reserveBillingMemberUpload(
             .from("athena-financial-documents")
             .upload(upload.storage_path, bytes, { contentType: upload.mime_type, upsert: false });
     if (stored.error) {
-      const existing = await admin.storage
-        .from("athena-financial-documents")
-        .download(upload.storage_path);
-      if (existing.error || !existing.data)
-        throw new ToolError("The existing original could not be checked.");
-      const previous = new Uint8Array(await existing.data.arrayBuffer());
+      const { readBoundedFinancialStoragePath } = await import("./billing-original.server");
+      const previous = await readBoundedFinancialStoragePath(upload.storage_path);
       if (
         previous.length !== bytes.length ||
         (await sha256Hex(previous)) !== (await sha256Hex(bytes))

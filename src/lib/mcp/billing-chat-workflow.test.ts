@@ -24,6 +24,27 @@ vi.mock("./guard", () => ({
   },
 }));
 vi.mock("./jobs", () => ({ resolveJob: async () => state.job }));
+vi.mock("./billing-original.server", () => ({
+  readUploadedFinancialOriginal: async (_sb: unknown, _token: string, job: string, id: string) => {
+    const item = (await query("SELECT public.mcp_billing_upload_get($1,$2) AS value", [job, id]))[0]
+      .value as { storage_path: string } | null;
+    const bytes = item && objects.get(`athena-financial-documents/${item.storage_path}`);
+    if (!bytes) throw new Error("The original is unavailable.");
+    return bytes;
+  },
+  readVerifiedFinancialOriginal: async (_sb: unknown, _token: string, job: string, id: string) => {
+    const data = (await query("SELECT public.mcp_billing_documents_get($1) AS value", [job]))[0]
+      .value as {
+      documents: Array<{ id: string; storage_path: string; sha256: string; size_bytes: number }>;
+    };
+    const document = data.documents.find((d) => d.id === id);
+    const bytes = document && objects.get(`athena-financial-documents/${document.storage_path}`);
+    if (!document || !bytes) throw new Error("The original is unavailable.");
+    if (bytes.length !== document.size_bytes || (await sha256Hex(bytes)) !== document.sha256)
+      throw new Error("The original does not match its recorded fingerprint.");
+    return { document, bytes };
+  },
+}));
 vi.mock("./billing-document-attestation.server", () => ({
   reserveBillingMemberUpload: async (
     _sb: unknown,
@@ -142,10 +163,9 @@ const query = (sql: string, args: unknown[] = []) =>
   );
 type Reply = { content: Array<{ text: string }>; structuredContent: Record<string, unknown> };
 const call = (tool: unknown, args: Record<string, unknown>) =>
-  (tool as { handler: (a: Record<string, unknown>, c: unknown) => Promise<Reply> }).handler(
-    args,
-    {},
-  );
+  (tool as { handler: (a: Record<string, unknown>, c: unknown) => Promise<Reply> }).handler(args, {
+    getToken: () => "synthetic-token",
+  });
 const context = { job_number: "SYN-A" };
 
 beforeAll(async () => {

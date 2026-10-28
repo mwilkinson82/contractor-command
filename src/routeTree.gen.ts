@@ -59,6 +59,7 @@ import { Route as AosIndexRouteImport } from './routes/aos.index'
 import { Route as AosAddCapacityRouteImport } from './routes/aos.add-capacity'
 import { Route as AosLinkRouteImport } from './routes/aos.link'
 import { Route as ApiAskRouteImport } from './routes/api/ask'
+import { Route as ApiBillingOriginalRouteImport } from './routes/api/billing-original'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
 import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
@@ -361,6 +362,11 @@ const ApiAskRoute = ApiAskRouteImport.update({
   path: '/api/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBillingOriginalRoute = ApiBillingOriginalRouteImport.update({
+  id: '/api/billing-original',
+  path: '/api/billing-original',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiContractScanRoute = ApiContractScanRouteImport.update({
   id: '/api/contract-scan',
   path: '/api/contract-scan',
@@ -661,6 +667,7 @@ export interface FileRoutesByFullPath {
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/billing-original': typeof ApiBillingOriginalRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
@@ -761,6 +768,7 @@ export interface FileRoutesByTo {
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/billing-original': typeof ApiBillingOriginalRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
@@ -862,6 +870,7 @@ export interface FileRoutesById {
   '/aos/add-capacity': typeof AosAddCapacityRoute
   '/aos/link': typeof AosLinkRoute
   '/api/ask': typeof ApiAskRoute
+  '/api/billing-original': typeof ApiBillingOriginalRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
@@ -964,6 +973,7 @@ export interface FileRouteTypes {
     | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
+    | '/api/billing-original'
     | '/api/contract-scan'
     | '/api/owner-plays'
     | '/api/sop-backlog'
@@ -1064,6 +1074,7 @@ export interface FileRouteTypes {
     | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
+    | '/api/billing-original'
     | '/api/contract-scan'
     | '/api/owner-plays'
     | '/api/sop-backlog'
@@ -1164,6 +1175,7 @@ export interface FileRouteTypes {
     | '/aos/add-capacity'
     | '/aos/link'
     | '/api/ask'
+    | '/api/billing-original'
     | '/api/contract-scan'
     | '/api/owner-plays'
     | '/api/sop-backlog'
@@ -1265,6 +1277,7 @@ export interface RootRouteChildren {
   AosAddCapacityRoute: typeof AosAddCapacityRoute
   AosLinkRoute: typeof AosLinkRoute
   ApiAskRoute: typeof ApiAskRoute
+  ApiBillingOriginalRoute: typeof ApiBillingOriginalRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
   ApiSopBacklogRoute: typeof ApiSopBacklogRoute
@@ -1662,6 +1675,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ask'
       fullPath: '/api/ask'
       preLoaderRoute: typeof ApiAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/billing-original': {
+      id: '/api/billing-original'
+      path: '/api/billing-original'
+      fullPath: '/api/billing-original'
+      preLoaderRoute: typeof ApiBillingOriginalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/contract-scan': {
@@ -2083,6 +2103,7 @@ const rootRouteChildren: RootRouteChildren = {
   AosAddCapacityRoute: AosAddCapacityRoute,
   AosLinkRoute: AosLinkRoute,
   ApiAskRoute: ApiAskRoute,
+  ApiBillingOriginalRoute: ApiBillingOriginalRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
   ApiSopBacklogRoute: ApiSopBacklogRoute,

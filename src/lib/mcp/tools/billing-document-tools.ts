@@ -14,6 +14,10 @@ import {
 } from "../file-upload";
 import { drawingFile } from "../drawing-file-input";
 import {
+  readUploadedFinancialOriginal,
+  readVerifiedFinancialOriginal,
+} from "../billing-original.server";
+import {
   linkVerifiedBillingOriginal,
   registerVerifiedBillingOriginal,
   reserveBillingMemberUpload,
@@ -40,20 +44,9 @@ async function rpc<T>(sb: Sb, name: string, args: Record<string, unknown>): Prom
   if (error) dbError(error);
   return data;
 }
-async function readOriginal(sb: Sb, u: Upload): Promise<Uint8Array> {
-  if (
-    !u.storage_path.startsWith(`${u.company_id}/${u.job_id}/${u.id}/`) ||
-    u.storage_path.includes("..") ||
-    u.storage_path.split("/").length !== 4
-  )
-    throw new ToolError("That financial document does not belong to this project.");
-  const result = await sb.storage.from(bucket).download(u.storage_path);
-  if (result.error || !result.data)
-    throw new ToolError("The original has not arrived or is unavailable with your project access.");
-  return new Uint8Array(await result.data.arrayBuffer());
-}
 async function loadVerifiedBillingDocument(
   sb: Sb,
+  token: string,
   jobId: string,
   documentId: string,
 ): Promise<{
@@ -62,36 +55,21 @@ async function loadVerifiedBillingDocument(
   bytes: Uint8Array;
   ext: ReturnType<typeof uploadFilename>["ext"];
 }> {
-  const result = await rpc<{ documents: Array<Upload & { sha256: string; size_bytes: number }> }>(
-    sb,
-    "mcp_billing_documents_get",
-    { _job: jobId },
-  );
-  const document = result.documents.find((d) => d.id === documentId && d.job_id === jobId);
-  if (!document) throw new ToolError("That original is not available for this project.");
-  const bytes = await readOriginal(sb, document);
-  if (bytes.length !== document.size_bytes || (await sha256Hex(bytes)) !== document.sha256)
-    throw new ToolError(
-      "The original does not match its recorded fingerprint. Nothing was recorded.",
-    );
-  let checked: ReturnType<typeof assertUploadBytes>;
-  try {
-    checked = assertUploadBytes(bytes, document.filename, "financial_document");
-    if (checked.mime !== document.mime_type)
-      throw new ToolError(
-        "The original file type does not match the record. Nothing was recorded.",
-      );
-  } catch (e) {
-    fileError(e);
-  }
-  return { filename: document.filename, sha256: document.sha256, bytes, ext: checked.ext };
+  const { document, bytes } = await readVerifiedFinancialOriginal(sb, token, jobId, documentId);
+  return {
+    filename: document.filename,
+    sha256: document.sha256,
+    bytes,
+    ext: uploadFilename(document.filename, "financial_document").ext,
+  };
 }
 export async function verifiedBillingDocument(
   sb: Sb,
+  token: string,
   jobId: string,
   documentId: string,
 ): Promise<{ filename: string; sha256: string }> {
-  const { filename, sha256 } = await loadVerifiedBillingDocument(sb, jobId, documentId);
+  const { filename, sha256 } = await loadVerifiedBillingDocument(sb, token, jobId, documentId);
   return { filename, sha256 };
 }
 function fileError(e: unknown): never {
@@ -183,7 +161,12 @@ export const billingDocumentUpload = defineTool({
             "If the member already attached the file, use attached_file with this same upload_id and attachment; otherwise the member can use the upload link, then finish. Retain the same upload_id for retries. Never claim a billing record was saved from an upload alone.",
           );
         }
-        const bytes = await readOriginal(sb, upload);
+        const bytes = await readUploadedFinancialOriginal(
+          sb,
+          ctx.getToken() ?? "",
+          job.job_id,
+          upload.id,
+        );
         let checked: ReturnType<typeof assertUploadBytes>;
         try {
           checked = assertUploadBytes(bytes, upload.filename, "financial_document");
@@ -255,7 +238,12 @@ export const billingDocuments = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "full");
         if (args.action === "read") {
           if (!args.document_id) throw new ToolError("Which original should I read?");
-          const doc = await loadVerifiedBillingDocument(sb, job.job_id, args.document_id);
+          const doc = await loadVerifiedBillingDocument(
+            sb,
+            ctx.getToken() ?? "",
+            job.job_id,
+            args.document_id,
+          );
           const extracted = await extractUploadDocument(doc.bytes, doc.ext, "financial_document");
           const part = extracted.text.slice(args.text_offset, args.text_offset + 16000);
           const next =
@@ -340,7 +328,12 @@ export const billingDocumentLink = defineTool({
           throw new ToolError(
             "Choose exactly one invoice version or one receipt. Nothing was linked.",
           );
-        const original = await verifiedBillingDocument(sb, job.job_id, args.document_id);
+        const original = await verifiedBillingDocument(
+          sb,
+          ctx.getToken() ?? "",
+          job.job_id,
+          args.document_id,
+        );
         const ledger = await rpc<{
           invoices: Array<{
             id: string;

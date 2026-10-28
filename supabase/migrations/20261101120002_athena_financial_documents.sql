@@ -3,15 +3,12 @@ SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
 -- The dedicated bucket is provisioned through Lovable's supported Storage UI, never SQL.
--- Fail closed unless it already exists and is private. There is no authenticated INSERT policy.
+-- Fail closed unless it already exists and is private. There are no authenticated object policies.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id='athena-financial-documents' AND public=false) THEN
     RAISE EXCEPTION 'Financial-document storage must be private.';
   END IF;
 END $$;
-
-CREATE POLICY "financial documents read" ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'athena-financial-documents' AND public.mcp_document_path_scope(name) = 'full');
 
 CREATE TABLE public.mcp_billing_uploads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

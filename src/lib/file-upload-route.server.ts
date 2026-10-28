@@ -1,6 +1,7 @@
 // Short-lived upload link. The token is the capability; only its hash is stored.
 import { createClient } from "@supabase/supabase-js";
 import { FileRejected, TOKEN_RE, tokenHash, sha256Hex } from "./mcp/file-share";
+import { readBoundedFinancialStoragePath } from "./mcp/billing-original.server";
 import {
   assertUploadBytes,
   readBounded,
@@ -107,10 +108,7 @@ export function uploadDepsFromEnv(): UploadDeps {
       if (up.error && !/already exists|duplicate/i.test(up.error.message))
         throw new Error(up.error.message);
       if (up.error && bucket === "athena-financial-documents") {
-        const existing = await admin.storage.from(bucket).download(path);
-        if (existing.error || !existing.data)
-          throw new Error("The existing original could not be checked.");
-        const previous = new Uint8Array(await existing.data.arrayBuffer());
+        const previous = await readBoundedFinancialStoragePath(path);
         if (
           previous.length !== bytes.length ||
           (await sha256Hex(previous)) !== (await sha256Hex(bytes))

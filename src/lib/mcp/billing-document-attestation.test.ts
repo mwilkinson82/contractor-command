@@ -4,6 +4,8 @@ import type { Sb } from "./guard";
 
 const mock = vi.hoisted(() => ({ rpc: vi.fn(), createClient: vi.fn() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mock.createClient }));
+const readMock = vi.hoisted(() => vi.fn());
+vi.mock("./billing-original.server", () => ({ readBoundedFinancialStoragePath: readMock }));
 import {
   registerVerifiedBillingOriginal,
   linkVerifiedBillingOriginal,
@@ -148,11 +150,8 @@ it("reserves the verified member's upload path and validates bytes before server
   });
   put.mockClear();
   const bytes = new TextEncoder().encode("%PDF-1.7 synthetic");
-  const download = vi.fn().mockResolvedValue({ data: new Blob([bytes]), error: null });
-  mock.createClient.mockReturnValue({
-    rpc: mock.rpc,
-    storage: { from: () => ({ upload: put, download }) },
-  });
+  readMock.mockResolvedValue(bytes);
+  mock.createClient.mockReturnValue({ rpc: mock.rpc, storage: { from: () => ({ upload: put }) } });
   mock.rpc.mockResolvedValue({ data: { ...upload, status: "finished" }, error: null });
   const completed = await reserveBillingMemberUpload(
     { auth: { getUser } } as unknown as Sb,
@@ -161,8 +160,8 @@ it("reserves the verified member's upload path and validates bytes before server
   );
   await completed(bytes);
   expect(put).not.toHaveBeenCalled();
-  download.mockResolvedValue({ data: null, error: { message: "missing" } });
-  await expect(completed(bytes)).rejects.toThrow(/could not be checked/);
+  readMock.mockRejectedValue(new Error("original unavailable"));
+  await expect(completed(bytes)).rejects.toThrow(/original unavailable/);
   expect(put).not.toHaveBeenCalled();
   mock.rpc.mockResolvedValue({ data: { ...upload, job_id: "other" }, error: null });
   await expect(

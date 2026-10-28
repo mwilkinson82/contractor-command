@@ -276,7 +276,12 @@ export const billingEvidenceRecord = defineTool({
             "The recorded amount must be greater than zero. Nothing was recorded.",
           );
         const original = args.facts.document_id
-          ? await verifiedBillingDocument(sb, job.job_id, args.facts.document_id)
+          ? await verifiedBillingDocument(
+              sb,
+              ctx.getToken() ?? "",
+              job.job_id,
+              args.facts.document_id,
+            )
           : null;
         if (args.step === "review") {
           const state = await rpc<Ledger>(sb, "mcp_billing_evidence_get", { _job: job.job_id });

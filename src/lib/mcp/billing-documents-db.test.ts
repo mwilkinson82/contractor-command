@@ -135,6 +135,13 @@ describe("billing original and ledger association", () => {
     await expect(register(owner, otherJob, u.id, 123, "cd".repeat(32))).rejects.toThrow(
       /not available/,
     );
+    expect(
+      await q(
+        owner,
+        "SELECT name FROM storage.objects WHERE bucket_id='athena-financial-documents' AND name=$1",
+        [u.storage_path],
+      ),
+    ).toEqual([]);
     const doc = await register(owner, job, u.id, 123, "cd".repeat(32));
     expect(doc.id).toBe(u.id);
     expect((await register(owner, job, u.id, 123, "cd".repeat(32))).already_stored).toBe(true);

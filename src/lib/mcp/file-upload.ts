@@ -356,7 +356,7 @@ export function uploadPage(input: {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${title} · Athena</title><style>body{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;background:#F4F7FB;color:#1E3A5F}main{max-width:32rem;margin:10vh auto;padding:24px}button{background:#1E5FED;color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit}p{color:#4B5563}.err{color:#B91C1C}input{display:block;margin:16px 0}</style></head><body><main>${body}</main></body></html>`;
 }
 
-export async function readBounded(req: Request, max: number): Promise<Uint8Array> {
+export async function readBounded(req: Request | Response, max: number): Promise<Uint8Array> {
   const claimed = Number(req.headers.get("content-length") ?? "0");
   if (claimed > max)
     throw new FileRejected(

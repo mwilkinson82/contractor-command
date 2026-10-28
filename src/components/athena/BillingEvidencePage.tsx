@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { BoardSignIn } from "./BoardSignIn";
 import { invoiceBalance, receiptBalance, recordedTotals } from "@/lib/billing-evidence-balances";
-import { sha256Hex } from "@/lib/mcp/file-share";
 
 type InvoiceVersion = {
   version: number;
@@ -139,21 +138,16 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
   async function downloadOriginal(doc: BillingDocument) {
     setError("");
     try {
-      if (
-        doc.job_id !== jobId ||
-        !doc.storage_path.startsWith(`${doc.company_id}/${jobId}/${doc.id}/`) ||
-        doc.storage_path.includes("..") ||
-        doc.storage_path.split("/").length !== 4
-      )
-        throw new Error("The document is not associated with this project.");
-      const r = await supabase.storage
-        .from("athena-financial-documents")
-        .download(doc.storage_path);
-      if (r.error || !r.data) throw new Error("The original is unavailable for this account.");
-      const bytes = new Uint8Array(await r.data.arrayBuffer());
-      if (bytes.length !== doc.size_bytes || (await sha256Hex(bytes)) !== doc.sha256)
-        throw new Error("The original does not match its recorded fingerprint.");
-      const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+      if (doc.job_id !== jobId || !session?.access_token)
+        throw new Error("The document is not available for this project.");
+      const params = new URLSearchParams({ job: jobId, document: doc.id });
+      const response = await fetch(`/api/billing-original?${params}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (response.status === 413)
+        throw new Error("The original exceeds the 10 MiB limit and cannot be opened.");
+      if (!response.ok) throw new Error("The original is unavailable or could not be verified.");
+      const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
       link.download = doc.filename;
