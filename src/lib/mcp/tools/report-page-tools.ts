@@ -65,15 +65,29 @@ export function jobBoardCard(job: string | null, links: { label: string; href: s
   };
 }
 
-function boardLinkCard(page: string, job: string | null, url: string, expiresAt: string | null): CardModel {
+function boardLinkCard(
+  page: string,
+  job: string | null,
+  url: string,
+  expiresAt: string | null,
+  homeUrl: string | null,
+): CardModel {
   const label = page === "home" ? "Project home" : PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board";
   return {
     state: "result",
     show_state: false,
+    presentation: "report-link",
     title: label,
     job,
     sections: [
-      { heading: "Open", kind: "chips", rows: [{ cells: [BOARD_BUTTON[page] ?? `Open ${label}`], href: url, tone: "action" }] },
+      {
+        heading: "Open",
+        kind: "chips",
+        rows: [
+          { cells: [BOARD_BUTTON[page] ?? `Open ${label}`], href: url, tone: "action" },
+          ...(homeUrl ? [{ cells: ["Project home"], href: homeUrl, tone: "action" as const }] : []),
+        ],
+      },
       ...(expiresAt
         ? [
             {
@@ -124,7 +138,15 @@ export const reportPageLink = defineTool({
       const url = signed ?? pageUrl(t.p === "home" ? "field" : t.p, t.id);
       if (jobLinksMissingToken(url).length) throw new ToolError("The board link could not be signed. Ask again in a moment.");
       await audit(sb, t.job, "report_page_link", `page_link_${t.p}`, null, t.company);
-      const card = boardLinkCard(t.p, t.job ? named(t.job) : null, url, expires ? expires.toISOString() : null);
+      const homeUrl =
+        t.p !== "home" && board.field ? board.field.replace(/\/field(?=\?)/, "/home") : null;
+      const card = boardLinkCard(
+        t.p,
+        t.job ? named(t.job) : null,
+        url,
+        expires ? expires.toISOString() : null,
+        homeUrl,
+      );
       const html = renderHtml(card);
       const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
       return guide(
