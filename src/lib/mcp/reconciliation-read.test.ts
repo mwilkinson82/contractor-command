@@ -103,12 +103,14 @@ it("keeps coverage independent when the AP snapshot is absent, denied or unsuppo
     ap: {
       currency: null,
       currency_verified: false,
+      currency_coverage: "per_version",
       cents_encoding: "decimal_string",
       coverage: "athena_cost_records_only",
       external_accounting_coverage: false,
       shared_payment_conservation_available: false,
       settlement_allocation_by_job_available: false,
       accounting_effective_date_available: false,
+      accounting_effective_date_coverage: "per_posting",
       original_evidence_coverage: false,
       records: [],
     },
@@ -182,4 +184,71 @@ it("returns chat-first unknown coverage with source link and correction boundary
   expect(json).toContain("Missing history remains unknown");
   expect(json).not.toContain("storage_path");
   expect(json).toContain('"automatic_repairs":false');
+});
+it("displays AP job totals and whole-payable findings in the actual recorded currency", async () => {
+  const ap = {
+    snapshot_version: 1,
+    complete: true,
+    status: "complete",
+    ...scope,
+    ap: {
+      currency: null,
+      currency_verified: false,
+      currency_coverage: "per_version",
+      cents_encoding: "decimal_string",
+      coverage: "athena_cost_records_only",
+      external_accounting_coverage: false,
+      shared_payment_conservation_available: false,
+      settlement_allocation_by_job_available: false,
+      accounting_effective_date_available: true,
+      accounting_effective_date_coverage: "per_posting",
+      original_evidence_coverage: false,
+      records: [
+        {
+          id: "00000000-0000-4000-8000-000000000003",
+          kind: "supplier_bill",
+          posted_version: 1,
+          versions: [
+            {
+              version: 1,
+              recorded_at: "2026-10-28T00:00:00Z",
+              reason: null,
+              incurred_on: "2026-10-28",
+              currency_code: "EUR",
+              currency_source: "reviewed_submission",
+              amount_cents: "5000",
+              document_reference: "SYN",
+              counterparty_name: "Synthetic",
+              allocations: [{ job_id: scope.job_id, cost_code: "X", amount_cents: "5000" }],
+            },
+          ],
+          accounting_approvals: [{ version: 1, approved_at: "2026-10-28T00:00:00Z" }],
+          posting_events: [
+            {
+              version: 1,
+              posted_at: "2026-10-28T00:00:00Z",
+              accounting_effective_on: "2026-10-28",
+            },
+          ],
+          business_approvals: [],
+          payments: [],
+          shared_allocations: [],
+        },
+      ],
+    },
+  };
+  state.rpc.mockImplementation(async (name: string) =>
+    name === "mcp_billing_reconciliation_snapshot"
+      ? { data: snapshot(), error: null }
+      : { data: ap, error: null },
+  );
+  const result = await (
+    accountingReconciliation.handler as unknown as (args: object, ctx: object) => Promise<unknown>
+  )({ job_number: "SYN", limit: 12 }, {});
+  const output = JSON.stringify(result);
+  expect(output).toContain("EUR 50.00");
+  expect(output).not.toContain("$50.00");
+  expect(output).toContain("Whole posted payable");
+  expect(output).toContain("AP posted job allocations (EUR)");
+  expect(output).toContain('total_findings":null');
 });

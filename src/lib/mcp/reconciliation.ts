@@ -63,6 +63,7 @@ export type Finding = {
   record_ids: string[];
   message: string;
   amount_cents?: string;
+  currency_code?: string;
   invoice_version?: number;
   source_url?: string;
 };

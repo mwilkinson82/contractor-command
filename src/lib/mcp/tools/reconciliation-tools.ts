@@ -10,7 +10,7 @@ export const accountingReconciliation = defineTool({
   name: "accounting_reconciliation",
   title: "Review project accounting exceptions",
   description:
-    "Reviews billing exceptions and AP structural exceptions from complete scoped snapshots and reports unavailable coverage. Does not repair records or move money.",
+    "Reviews recorded billing and AP exceptions from complete scoped snapshots and reports unavailable coverage. Does not repair records or move money.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -41,11 +41,30 @@ export const accountingReconciliation = defineTool({
           "This check changes no financial records. Recorded payment does not prove money transferred.",
           ...shown.map(
             (f) =>
-              `- ${f.code} · ${f.record_ids.map((id) => id.slice(0, 8)).join(", ") || "source records"}: ${f.message}${f.amount_cents === undefined ? "" : ` ${dollars(f.amount_cents)}`}`,
+              `- ${f.code} · ${f.record_ids.map((id) => id.slice(0, 8)).join(", ") || "source records"}: ${f.message}${f.amount_cents === undefined ? "" : f.currency_code ? ` ${f.currency_code} ${dollars(f.amount_cents).replace("$", "")}` : ` ${dollars(f.amount_cents)}`}`,
           ),
           ...(ordered.length > shown.length
             ? [
                 `Showing ${shown.length} of ${ordered.length}; ${shown.length < 50 ? "request a higher limit for more" : "inspect source records for the remaining items"}.`,
+              ]
+            : []),
+          ...result.ap_currency_totals.map(
+            (t) =>
+              `AP posted job allocations (${t.currency_code}): supplier bills ${t.currency_code} ${dollars(t.supplier_bill_cents).replace("$", "")}; reimbursements ${t.currency_code} ${dollars(t.reimbursable_expense_cents).replace("$", "")}; company-paid expenses ${t.currency_code} ${dollars(t.company_paid_expense_cents).replace("$", "")}.`,
+          ),
+          ...(result.ap_unknown_currency_records
+            ? [
+                `${result.ap_unknown_currency_records} posted job record(s) have unknown currency and are excluded from currency totals.`,
+              ]
+            : []),
+          ...(result.ap_unknown_effective_dates
+            ? [
+                `${result.ap_unknown_effective_dates} posted job record(s) have no known accounting effective date.`,
+              ]
+            : []),
+          ...(result.ap_settlement_unchecked_records
+            ? [
+                `${result.ap_settlement_unchecked_records} whole-record settlement comparison(s) were withheld.`,
               ]
             : []),
           ...Object.entries(result.coverage).map(

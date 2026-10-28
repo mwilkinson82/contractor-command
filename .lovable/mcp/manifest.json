@@ -2983,7 +2983,7 @@
       {
         "name": "accounting_reconciliation",
         "title": "Review project accounting exceptions",
-        "description": "Reviews billing exceptions and AP structural exceptions from complete scoped snapshots and reports unavailable coverage. Does not repair records or move money.",
+        "description": "Reviews recorded billing and AP exceptions from complete scoped snapshots and reports unavailable coverage. Does not repair records or move money.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
