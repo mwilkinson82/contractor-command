@@ -26,7 +26,8 @@ export const FIELD_MOBILE_PX = 420;
 
 /** Server instruction. No palette hex, so it cannot fight the shared color rule. */
 export const FIELD_SERVER_RULE =
-  " For the superintendent, show the field board on a phone-width card. When someone asks for the field board, the super board, the superintendent board, the super's plan, or what the crew is doing, call field_board or superintendent_view. Assemble the daily from the transcript or the typed notes, ask every missing item it lists, and save the daily only after the superintendent says yes. A progress photo keeps the upload date until they confirm it, and needs the place on site. Daily reminders stay off until that job turns them on. When they are on, the reminder is a card in the chat. Nothing is emailed.";
+  " For the superintendent, show the field board on a phone-width card. When someone asks for the field board, the super board, the superintendent board, the super's plan, or what the crew is doing, call field_board or superintendent_view. Assemble the daily from the transcript or the typed notes, ask every missing item it lists, and save the daily only after the superintendent says yes. A progress photo keeps the upload date until they confirm it, and needs the place on site. Daily reminders stay off until that job turns them on. When they are on, the reminder is a card in the chat. Nothing is emailed." +
+  " For requests like show this week’s production, how much did we install, or show our daily production rates for a period, call field_production_summary with the job and both dates when the member specifies a period. Otherwise the tool uses the last seven days in the job time zone. Preserve its coverage and source limitations. References are reported rather than approved mappings; planned rates, earnings and billing are not inferred.";
 
 export type JobScope = "full" | "contract" | "super";
 
