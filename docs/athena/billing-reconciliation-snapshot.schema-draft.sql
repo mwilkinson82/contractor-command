@@ -1,8 +1,13 @@
 -- STAGED PROPOSAL ONLY. Coordinator must create an ordered migration after
 -- billing evidence and financial originals, review permissions and run advisors.
 -- No data changes. One SELECT observes all included relations in one MVCC snapshot.
+-- Standard CREATE INDEX can block writes; coordinator must review size, locking,
+-- existing index names and deployment strategy before generating the migration.
+CREATE INDEX mcp_billing_allocations_job_reconciliation_idx ON public.mcp_billing_allocations(job_id);
+CREATE INDEX mcp_billing_receipt_reversals_job_reconciliation_idx ON public.mcp_billing_receipt_reversals(job_id);
+CREATE INDEX mcp_billing_documents_job_reconciliation_idx ON public.mcp_billing_documents(job_id);
 CREATE FUNCTION public.mcp_billing_reconciliation_snapshot(_job uuid) RETURNS jsonb
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE result jsonb;
 BEGIN
   PERFORM public.mcp_assert_active();
@@ -18,6 +23,7 @@ BEGIN
   rev AS MATERIALIZED (SELECT id,job_id,receipt_id,amount_cents,source FROM public.mcp_billing_receipt_reversals WHERE job_id = _job LIMIT 5001),
   docs AS MATERIALIZED (SELECT id,job_id,company_id FROM public.mcp_billing_documents WHERE job_id = _job LIMIT 5001),
   links AS MATERIALIZED (SELECT document_id,job_id,invoice_id,invoice_version,receipt_id FROM public.mcp_billing_document_links WHERE job_id = _job LIMIT 5001),
+  version_groups AS MATERIALIZED (SELECT invoice_id,jsonb_agg(to_jsonb(v) ORDER BY version DESC) AS versions FROM ver v GROUP BY invoice_id),
   bounded AS (SELECT (SELECT count(*) FROM inv) <= 5000 AND (SELECT count(*) FROM ver) <= 5000
     AND (SELECT count(*) FROM rec) <= 5000 AND (SELECT count(*) FROM alloc) <= 5000
     AND (SELECT count(*) FROM rev) <= 5000 AND (SELECT count(*) FROM docs) <= 5000
@@ -26,7 +32,7 @@ BEGIN
     'complete',bounded.complete,
     'billing', CASE WHEN bounded.complete THEN jsonb_build_object('currency','USD',
       'invoices',coalesce((SELECT jsonb_agg(to_jsonb(i) || jsonb_build_object('versions',
-        coalesce((SELECT jsonb_agg(to_jsonb(v) ORDER BY v.version DESC) FROM ver v WHERE v.invoice_id=i.id),'[]'::jsonb)) ORDER BY i.id) FROM inv i),'[]'::jsonb),
+        coalesce(g.versions,'[]'::jsonb)) ORDER BY i.id) FROM inv i LEFT JOIN version_groups g ON g.invoice_id=i.id),'[]'::jsonb),
       'receipts',coalesce((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM rec r),'[]'::jsonb),
       'allocations',coalesce((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM alloc a),'[]'::jsonb),
       'receipt_reversals',coalesce((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM rev r),'[]'::jsonb)) END,

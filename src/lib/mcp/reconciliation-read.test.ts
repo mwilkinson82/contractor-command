@@ -49,6 +49,7 @@ it("withholds all findings for absent, incomplete, wrong-scope and unsupported s
     { ...snapshot(), complete: false },
     { ...snapshot(), snapshot_version: 2 },
     { ...snapshot(), company_id: "00000000-0000-4000-8000-000000000099" },
+    { ...snapshot(), job_id: "00000000-0000-4000-8000-000000000099" },
   ]) {
     state.rpc.mockResolvedValue({ data, error: null });
     const r = await read();

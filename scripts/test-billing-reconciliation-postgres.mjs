@@ -118,7 +118,10 @@ try {
   assert.equal(first.complete, true);
   assert.equal(first.billing.receipts.length, 0);
   // Test-only delay occurs inside the same statement after PostgreSQL has chosen its MVCC snapshot.
-  const slow = sql
+  const functionSql = sql.slice(
+    sql.indexOf("CREATE FUNCTION public.mcp_billing_reconciliation_snapshot"),
+  );
+  const slow = functionSql
     .replace(
       "CREATE FUNCTION public.mcp_billing_reconciliation_snapshot",
       "CREATE OR REPLACE FUNCTION public.mcp_billing_reconciliation_snapshot",
@@ -127,7 +130,7 @@ try {
       "SELECT id, company_id FROM public.mcp_jobs WHERE id = _job AND public.mcp_job_scope(_job) = 'full'",
       "SELECT id, company_id FROM public.mcp_jobs CROSS JOIN (SELECT pg_sleep(2)) delayed WHERE id = _job AND public.mcp_job_scope(_job) = 'full'",
     );
-  assert.notEqual(slow, sql);
+  assert.notEqual(slow, functionSql);
   await db.unsafe(slow);
   const pending = get(reader);
   let sleeping = false;
@@ -156,7 +159,7 @@ try {
   assert.equal(before.billing.receipts.length, 0);
   assert.equal(before.billing.allocations.length, 0);
   await db.unsafe(
-    sql.replace(
+    functionSql.replace(
       "CREATE FUNCTION public.mcp_billing_reconciliation_snapshot",
       "CREATE OR REPLACE FUNCTION public.mcp_billing_reconciliation_snapshot",
     ),
@@ -165,6 +168,52 @@ try {
   assert.equal(after.billing.receipts.length, 1);
   assert.equal(after.billing.allocations.length, 1);
   assert.equal(after.billing.allocations[0].amount_cents, 4000);
+  await db.unsafe(slow);
+  const pendingCorrection = get(reader);
+  let correctionSleeping = false;
+  for (let n = 0; n < 100; n++) {
+    const rows = await db.unsafe(
+      "select 1 from pg_stat_activity where wait_event='PgSleep' and query like '%mcp_billing_reconciliation_snapshot%'",
+    );
+    if (rows.length) {
+      correctionSleeping = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.ok(correctionSleeping, "reader entered correction snapshot statement");
+  const reverseAllocation = "00000000-0000-4000-8000-000000000208";
+  const receiptReversal = "00000000-0000-4000-8000-000000000209";
+  await writer.begin(async (tx) => {
+    await tx.unsafe(
+      "INSERT INTO mcp_billing_invoice_versions(invoice_id,job_id,version,status,invoice_date,effective_date,source,net_due_cents,reason,recorded_by) VALUES($1,$2,2,'submitted','2026-10-01','2026-10-03','Synthetic correction',9000,'Correct amount',$3)",
+      [inv, job, owner],
+    );
+    await tx.unsafe(
+      "INSERT INTO mcp_billing_allocations(id,job_id,receipt_id,invoice_id,amount_cents,reversal_of,effective_date,source,recorded_by) VALUES($1,$2,$3,$4,1000,$5,'2026-10-03','Synthetic reversal',$6)",
+      [reverseAllocation, job, receipt, inv, allocation, owner],
+    );
+    await tx.unsafe(
+      "INSERT INTO mcp_billing_receipt_reversals(id,job_id,receipt_id,amount_cents,effective_date,source,recorded_by) VALUES($1,$2,$3,1000,'2026-10-03','Synthetic reversal',$4)",
+      [receiptReversal, job, receipt, owner],
+    );
+  });
+  const beforeCorrection = await pendingCorrection;
+  assert.equal(beforeCorrection.billing.invoices[0].versions.length, 1);
+  assert.equal(beforeCorrection.billing.allocations.length, 1);
+  assert.equal(beforeCorrection.billing.receipt_reversals.length, 0);
+  await db.unsafe(
+    functionSql.replace(
+      "CREATE FUNCTION public.mcp_billing_reconciliation_snapshot",
+      "CREATE OR REPLACE FUNCTION public.mcp_billing_reconciliation_snapshot",
+    ),
+  );
+  const afterCorrection = await get(reader);
+  assert.equal(afterCorrection.billing.invoices[0].versions.length, 2);
+  assert.equal(afterCorrection.billing.invoices[0].versions[0].net_due_cents, 9000);
+  assert.equal(afterCorrection.billing.allocations.length, 2);
+  assert.equal(afterCorrection.billing.receipt_reversals.length, 1);
+
   console.log(
     JSON.stringify({
       postgres: server.version,
@@ -172,6 +221,7 @@ try {
       concurrent_commit_during_snapshot: true,
       old_snapshot_consistent: true,
       new_snapshot_consistent: true,
+      concurrent_correction_reversal_consistent: true,
     }),
   );
 } finally {
