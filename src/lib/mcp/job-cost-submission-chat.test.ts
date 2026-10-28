@@ -210,6 +210,8 @@ describe("staged conversational submission", () => {
       }
       await expect(reviewAction("post")).rejects.toThrow(/Approval/);
       const approval = await reviewAction("approve");
+      expect(approval.content[0].text).toContain("SYN-A / FUEL: $20.00");
+      expect(approval.content[0].text).toContain("Original attachment: missing");
       await expect(
         call(jobCostAccountingRecord, {
           step: "save",
