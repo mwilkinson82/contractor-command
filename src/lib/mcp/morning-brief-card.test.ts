@@ -83,7 +83,7 @@ describe("morning card due once per local day", () => {
     const text = first.content?.[0]?.text ?? "";
     expect(text).not.toContain("Overnight emails");
     expect(text.indexOf("Why")).toBeLessThan(text.indexOf("Job body"));
-    const guidance = (first.structuredContent as { assistant_guidance?: string[] }).assistant_guidance ?? [];
+    const guidance = (("structuredContent" in first ? first.structuredContent : undefined) as { assistant_guidance?: string[] } | undefined)?.assistant_guidance ?? [];
     expect(guidance[guidance.length - 1]).toBe(MORNING_CARD_GUIDANCE);
     expect(text).toContain(todayBoardUrl());
     expect(text).toContain(TODAY_BOARD_LABEL);
