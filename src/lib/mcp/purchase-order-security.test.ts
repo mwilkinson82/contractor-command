@@ -121,6 +121,11 @@ describe("review, defaults and fail-closed terms", () => {
       "update public.mcp_po_reviews set expires_at=now()-interval '1 second' where id=$1",
       [token],
     );
+    // Another review opportunistically removes the expired review row. The applied
+    // operation must remain retryable using its original actor, payload and review ID.
+    await prepare("party", request({ name: "Cleanup trigger", kind: "supplier" }));
+    const cleaned = await db.query("select id from public.mcp_po_reviews where id=$1", [token]);
+    expect(cleaned.rows).toHaveLength(0);
     expect(await save("party", p, token)).toMatchObject({ already_applied: true });
     await expect(save("party", p, crypto.randomUUID())).rejects.toThrow(/different content/);
     const expired = request({ name: "Expired", kind: "supplier" });
