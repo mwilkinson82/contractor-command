@@ -127,6 +127,7 @@ describe("staged conversational submission", () => {
       facts: { description: "Fuel" },
     });
     expect(sparse.structuredContent.missing).toContain("amount");
+    expect(sparse.structuredContent.missing).toContain("currency");
     expect(sparse.structuredContent.missing).not.toContain("purchase order");
     const review = await call(jobCostSubmissionRecord, {
       step: "review",
@@ -136,6 +137,7 @@ describe("staged conversational submission", () => {
         description: "Fuel",
         counterparty_name: "Gas station",
         incurred_on: "2026-10-28",
+        currency_code: "USD",
         amount_cents: 4000,
         allocations: [{ cost_code: "FUEL", amount_cents: 4000 }],
       },
@@ -190,6 +192,7 @@ describe("staged conversational submission", () => {
         description: "Receipt",
         counterparty_name: "Synthetic employee",
         incurred_on: "2026-10-28",
+        currency_code: "USD",
         amount_cents: 2000,
         allocations: [{ cost_code: "FUEL", amount_cents: 2000 }],
       },
@@ -208,6 +211,7 @@ describe("staged conversational submission", () => {
           step: "review",
           job_number: "SYN-A",
           action,
+          ...(action === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
           id: payload.id,
           expected_version: 1,
           ...extra,
@@ -222,6 +226,17 @@ describe("staged conversational submission", () => {
           confirmed: true,
         });
       }
+      const needsDate = await call(jobCostAccountingRecord, {
+        step: "review",
+        job_number: "SYN-A",
+        action: "post",
+        id: payload.id,
+        expected_version: 1,
+      });
+      expect(needsDate.structuredContent.missing).toContain("accounting effective date");
+      await expect(reviewAction("post", { accounting_effective_on: "2023-02-29" })).rejects.toThrow(
+        /valid accounting effective date/,
+      );
       await expect(reviewAction("post")).rejects.toThrow(/Approval/);
       const approval = await reviewAction("approve");
       expect(approval.content[0].text).toContain("SYN-A / FUEL: $20.00");
@@ -241,9 +256,11 @@ describe("staged conversational submission", () => {
       expect(accountingApproval.structuredContent.result).toMatchObject({
         status: "approved",
       });
-      expect((await saveAction(await reviewAction("post"))).structuredContent.result).toMatchObject(
-        { status: "posted" },
-      );
+      const postReview = await reviewAction("post");
+      expect(postReview.content[0].text).toContain("Accounting effective date: 2026-10-28");
+      expect((await saveAction(postReview)).structuredContent.result).toMatchObject({
+        status: "posted",
+      });
       await expect(
         reviewAction("payment", { amount_cents: 1000, paid_on: "2026-10-29", reference: "check" }),
       ).rejects.toThrow(/PM payment approval/);
@@ -314,6 +331,7 @@ describe("staged conversational submission", () => {
           description: "Gas receipt",
           counterparty_name: "Field Member",
           incurred_on: "2026-10-28",
+          currency_code: "USD",
           amount_cents: 2500,
           allocations: [{ cost_code: "FUEL", amount_cents: 2500 }],
         },
@@ -337,6 +355,7 @@ describe("staged conversational submission", () => {
             description: "Bill",
             counterparty_name: "Supplier",
             incurred_on: "2026-10-28",
+            currency_code: "USD",
             amount_cents: 100,
             allocations: [{ cost_code: "FUEL", amount_cents: 100 }],
           },
@@ -345,6 +364,38 @@ describe("staged conversational submission", () => {
     } finally {
       state.actor = owner;
     }
+  });
+  it("shows the member's currency and rejects unsupported codes and invalid dates before review", async () => {
+    const f = {
+      kind: "company_paid_expense",
+      description: "Materials",
+      counterparty_name: "Store",
+      incurred_on: "2024-02-29",
+      currency_code: "CAD",
+      amount_cents: 2500,
+      allocations: [{ cost_code: "MAT", amount_cents: 2500 }],
+    };
+    const review = await call(jobCostSubmissionRecord, {
+      step: "review",
+      job_number: "SYN-A",
+      facts: f,
+    });
+    expect(review.content[0].text).toContain("CAD");
+    expect(review.content[0].text).toContain("2024-02-29");
+    await expect(
+      call(jobCostSubmissionRecord, {
+        step: "review",
+        job_number: "SYN-A",
+        facts: { ...f, currency_code: "JPY" },
+      }),
+    ).rejects.toThrow(/supported two-decimal currency/);
+    await expect(
+      call(jobCostSubmissionRecord, {
+        step: "review",
+        job_number: "SYN-A",
+        facts: { ...f, incurred_on: "2023-02-29" },
+      }),
+    ).rejects.toThrow(/valid date/);
   });
   it("carries the selected supplier and exact PO revision through review and save", async () => {
     await db.exec(readFileSync("tests/fixtures/purchase-order-contract.sql", "utf8"));
@@ -372,6 +423,7 @@ describe("staged conversational submission", () => {
       description: "Material",
       counterparty_name: "Supplier",
       incurred_on: "2026-10-28",
+      currency_code: "USD",
       amount_cents: 2000,
       allocations: [{ cost_code: "MAT", amount_cents: 2000 }],
       party_id: party,

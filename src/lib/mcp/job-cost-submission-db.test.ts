@@ -65,6 +65,7 @@ const makeFacts = () => ({
   description: "Fuel",
   counterparty_name: "Synthetic Employee",
   incurred_on: "2026-10-28",
+  currency_code: "USD",
   amount_cents: 10000,
   document_reference: "Receipt 1",
   original: "missing",
@@ -258,6 +259,7 @@ describe("staged job cost submission SQL", () => {
       ).rows[0].value as Record<string, unknown>;
     const cmd = (actionName: string, extra: Record<string, unknown> = {}) => ({
       action: actionName,
+      ...(actionName === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
       id: p.id,
       request_id: crypto.randomUUID(),
       expected_version: 1,
@@ -397,6 +399,7 @@ describe("staged job cost submission SQL", () => {
       await save(owner, companyPaid);
       const cp = (actionName: string, extra: Record<string, unknown> = {}) => ({
         action: actionName,
+        ...(actionName === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
         id: companyPaid.id,
         request_id: crypto.randomUUID(),
         expected_version: 1,
@@ -435,7 +438,13 @@ describe("staged job cost submission SQL", () => {
     const accounting = async (id: string, action: string) =>
       query(owner, "SELECT public.mcp_cost_accounting_action($1,$2::jsonb)", [
         jobA,
-        JSON.stringify({ id, action, request_id: crypto.randomUUID(), expected_version: 1 }),
+        JSON.stringify({
+          id,
+          action,
+          request_id: crypto.randomUUID(),
+          expected_version: 1,
+          ...(action === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
+        }),
       ]);
     const settlement = async (user: string, p: object) =>
       (
@@ -544,6 +553,7 @@ describe("staged job cost submission SQL", () => {
       ).rows[0].value as Record<string, unknown>;
     const cmd = (name: string, extra: Record<string, unknown> = {}) => ({
       action: name,
+      ...(name === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
       id: p.id,
       request_id: crypto.randomUUID(),
       expected_version: 1,
@@ -606,6 +616,7 @@ describe("staged job cost submission SQL", () => {
           jobA,
           JSON.stringify({
             action,
+            ...(action === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
             id: p.id,
             request_id: crypto.randomUUID(),
             expected_version: 1,
@@ -702,6 +713,7 @@ describe("staged job cost submission SQL", () => {
           jobA,
           JSON.stringify({
             action,
+            ...(action === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
             id: p.id,
             request_id: crypto.randomUUID(),
             expected_version: 1,

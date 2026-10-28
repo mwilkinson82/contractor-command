@@ -3,6 +3,7 @@ import { z } from "zod";
 import { run, dbError, text, type Sb } from "../guard";
 import { resolveJob } from "../jobs";
 import { guide } from "../visible";
+import { COST_CURRENCIES } from "../cost-currencies";
 
 // Registration and the staged schema must be released together after coordination.
 const allocation = z
@@ -21,6 +22,7 @@ const facts = z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
+    currency_code: z.enum(COST_CURRENCIES).optional(),
     amount_cents: z.number().int().positive().max(9000000000000).optional(),
     allocations: z.array(allocation).min(1).max(100).optional(),
     document_reference: z.string().trim().min(1).max(200).optional(),
@@ -43,6 +45,7 @@ const payloadSchema = z
         description: z.string(),
         counterparty_name: z.string(),
         incurred_on: z.string(),
+        currency_code: z.enum(COST_CURRENCIES),
         amount_cents: z.number().int(),
         original: z.literal("missing"),
         document_reference: z.string().optional(),
@@ -82,13 +85,21 @@ export function missingSubmissionFacts(f: Facts): string[] {
   if (!f.kind) missing.push("bill or expense type and who paid");
   if (!f.description) missing.push("description");
   if (!f.counterparty_name) missing.push("supplier or payee");
-  if (!f.incurred_on) missing.push("date");
+  if (!f.incurred_on) missing.push("date incurred");
+  if (!f.currency_code) missing.push("currency");
   if (f.amount_cents === undefined) missing.push("amount");
   if (!f.allocations?.length) missing.push("job and cost code allocation");
   return missing;
 }
-const money = (n: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
+const validDate = (s: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || s.startsWith("0000")) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
+const money = (n: number, currency?: string | null) =>
+  currency && (COST_CURRENCIES as readonly string[]).includes(currency)
+    ? `${new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n / 100)} ${currency}`
+    : `${(n / 100).toFixed(2)} (currency unknown)`;
 export const jobCostSubmissionRead = defineTool({
   name: "job_cost_submissions_read",
   title: "Read job cost records",
@@ -200,6 +211,10 @@ export const jobCostSubmissionRecord = defineTool({
               },
               "Ask only for missing facts. No PO or subcontract is required for a field expense. The submitter may attach a receipt separately after saving.",
             );
+          if (!validDate(f.incurred_on!))
+            throw new ToolError("Provide a valid date incurred in YYYY-MM-DD format.");
+          if (!(COST_CURRENCIES as readonly string[]).includes(f.currency_code!))
+            throw new ToolError("Provide a supported two-decimal currency code.");
           if (
             isField &&
             (f.kind === "supplier_bill" ||
@@ -252,6 +267,7 @@ export const jobCostSubmissionRecord = defineTool({
               description: f.description!,
               counterparty_name: f.counterparty_name!,
               incurred_on: f.incurred_on!,
+              currency_code: f.currency_code!,
               amount_cents: f.amount_cents!,
               allocations,
               original: "missing",
@@ -270,12 +286,12 @@ export const jobCostSubmissionRecord = defineTool({
           );
           const lines = allocations.map(
             (a, i) =>
-              `${f.allocations![i].job_number ?? args.job_number} / ${a.cost_code}: ${money(a.amount_cents)}`,
+              `${f.allocations![i].job_number ?? args.job_number} / ${a.cost_code}: ${money(a.amount_cents, p.facts.currency_code)}`,
           );
           return guide(
             {
               ...text(
-                `Review this ${p.facts.kind.replaceAll("_", " ")}: ${p.facts.description}; ${p.facts.counterparty_name}; ${p.facts.incurred_on}; ${money(p.facts.amount_cents)}.\n${lines.join("\n")}\nReference: ${p.facts.document_reference ?? "not supplied"}.${p.facts.party_id ? ` Supplier ID: ${p.facts.party_id}.` : ""}${p.facts.purchase_order_id ? ` PO ID: ${p.facts.purchase_order_id}, revision ${p.facts.purchase_order_version}.` : ""}${p.reason ? ` Correction reason: ${p.reason}.` : ""} Original attachment: missing from this submission; an eligible field submitter can attach it separately after saving. This will be submitted only, not posted or paid. Is this correct?`,
+                `Review this ${p.facts.kind.replaceAll("_", " ")}: ${p.facts.description}; ${p.facts.counterparty_name}; incurred ${p.facts.incurred_on}; ${money(p.facts.amount_cents, p.facts.currency_code)}.\n${lines.join("\n")}\nReference: ${p.facts.document_reference ?? "not supplied"}.${p.facts.party_id ? ` Supplier ID: ${p.facts.party_id}.` : ""}${p.facts.purchase_order_id ? ` PO ID: ${p.facts.purchase_order_id}, revision ${p.facts.purchase_order_version}.` : ""}${p.reason ? ` Correction reason: ${p.reason}.` : ""} Original attachment: missing from this submission; an eligible field submitter can attach it separately after saving. This will be submitted only, not posted or paid. Is this correct?`,
               ),
               structuredContent: { saved: false, payload: p, review_key: reviewKey } as never,
             },
@@ -340,6 +356,10 @@ const accountingPayload = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     reference: z.string().trim().min(1).max(200).optional(),
+    accounting_effective_on: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   })
   .strict();
 type AccountingPayload = z.infer<typeof accountingPayload>;
@@ -361,6 +381,10 @@ export const jobCostAccountingRecord = defineTool({
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     reference: z.string().trim().min(1).max(200).optional(),
+    accounting_effective_on: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
     payload: accountingPayload.optional(),
     review_key: z.string().uuid().optional(),
     confirmed: z.boolean().optional(),
@@ -391,6 +415,8 @@ export const jobCostAccountingRecord = defineTool({
           if (!args.action) missing.push("action");
           if (!args.id) missing.push("cost record");
           if (!args.expected_version) missing.push("current version");
+          if (args.action === "post" && !args.accounting_effective_on)
+            missing.push("accounting effective date");
           if (args.action === "payment") {
             if (!args.amount_cents) missing.push("recorded payment amount");
             if (!args.paid_on) missing.push("payment date");
@@ -404,6 +430,10 @@ export const jobCostAccountingRecord = defineTool({
               },
               "Ask only for missing facts. Payment is evidence only and does not transfer funds.",
             );
+          if (args.action === "post" && !validDate(args.accounting_effective_on!))
+            throw new ToolError("Provide a valid accounting effective date in YYYY-MM-DD format.");
+          if (args.action !== "post" && args.accounting_effective_on)
+            throw new ToolError("The accounting effective date is recorded only when posting.");
           const data = await rpc<{
             records: Array<{
               id: string;
@@ -415,6 +445,7 @@ export const jobCostAccountingRecord = defineTool({
                   description: string;
                   counterparty_name: string;
                   incurred_on: string;
+                  currency_code?: string;
                   amount_cents: number;
                   document_reference?: string;
                   allocations: Array<{ job_id: string; cost_code: string; amount_cents: number }>;
@@ -432,6 +463,13 @@ export const jobCostAccountingRecord = defineTool({
             current = record?.versions[0];
           if (!record || !current || current.version !== args.expected_version)
             throw new ToolError("Record unavailable or version changed; read it again.");
+          if (
+            (args.action === "post" || args.action === "payment") &&
+            !(COST_CURRENCIES as readonly string[]).includes(current.facts.currency_code ?? "")
+          )
+            throw new ToolError(
+              "Correct this cost version with its supported currency before posting or recording settlement.",
+            );
           if (args.action === "post" && !record.approved_versions.includes(current.version))
             throw new ToolError("Approval is required before posting.");
           if (args.action === "payment" && record.posted_version !== current.version)
@@ -453,6 +491,9 @@ export const jobCostAccountingRecord = defineTool({
             id: args.id!,
             request_id: crypto.randomUUID(),
             expected_version: args.expected_version!,
+            ...(args.action === "post"
+              ? { accounting_effective_on: args.accounting_effective_on! }
+              : {}),
             ...(args.action === "payment"
               ? {
                   payment_id: crypto.randomUUID(),
@@ -470,13 +511,13 @@ export const jobCostAccountingRecord = defineTool({
           const allocations = current.facts.allocations
             .map(
               (a) =>
-                `${a.job_id === job.job_id ? job.job_number : `job ID ${a.job_id}`} / ${a.cost_code}: ${money(a.amount_cents)}`,
+                `${a.job_id === job.job_id ? job.job_number : `job ID ${a.job_id}`} / ${a.cost_code}: ${money(a.amount_cents, current.facts.currency_code)}`,
             )
             .join("\n");
           return guide(
             {
               ...text(
-                `Review accounting ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; ${current.facts.incurred_on}; ${money(current.facts.amount_cents)}; version ${current.version}.\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment was missing at submission; check separate receipts.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
+                `Review accounting ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; incurred ${current.facts.incurred_on}; ${money(current.facts.amount_cents, current.facts.currency_code)}; version ${current.version}.${payload.action === "post" ? ` Accounting effective date: ${payload.accounting_effective_on}.` : ""}\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment was missing at submission; check separate receipts.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!, current.facts.currency_code)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
               ),
               structuredContent: { saved: false, payload, review_key: reviewKey } as never,
             },
@@ -615,6 +656,7 @@ export const jobCostPmPaymentApproval = defineTool({
               version: number;
               description: string;
               counterparty_name: string;
+              currency_code?: string;
               allocations: Array<{ cost_code: string; amount_cents: number }>;
             }>;
           }>(sb, "mcp_cost_pm_review", { _job: job.job_id });
@@ -622,6 +664,10 @@ export const jobCostPmPaymentApproval = defineTool({
           if (!record || record.version !== args.expected_version)
             throw new ToolError(
               "Record unavailable or version changed; list the job's approvals again.",
+            );
+          if (!(COST_CURRENCIES as readonly string[]).includes(record.currency_code ?? ""))
+            throw new ToolError(
+              "Correct this cost version with its supported currency before approving payment.",
             );
           const allocated = record.allocations.reduce((sum, a) => sum + a.amount_cents, 0);
           const payload = {
@@ -638,12 +684,12 @@ export const jobCostPmPaymentApproval = defineTool({
             _p: payload,
           });
           const lines = record.allocations
-            .map((a) => `${a.cost_code}: ${money(a.amount_cents)}`)
+            .map((a) => `${a.cost_code}: ${money(a.amount_cents, record.currency_code)}`)
             .join("; ");
           return guide(
             {
               ...text(
-                `Review payment approval for ${job.job_number}: ${record.description}; ${record.counterparty_name}; version ${record.version}; this job ${money(allocated)} (${lines}). Basis: ${payload.basis.replaceAll("_", " ")}.${payload.notes ? ` Note: ${payload.notes}.` : ""} This approval does not post or pay it. Is this correct?`,
+                `Review payment approval for ${job.job_number}: ${record.description}; ${record.counterparty_name}; version ${record.version}; this job ${money(allocated, record.currency_code)} (${lines}). Basis: ${payload.basis.replaceAll("_", " ")}.${payload.notes ? ` Note: ${payload.notes}.` : ""} This approval does not post or pay it. Is this correct?`,
               ),
               structuredContent: { saved: false, payload, review_key: review_id } as never,
             },

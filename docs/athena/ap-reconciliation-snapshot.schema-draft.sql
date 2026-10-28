@@ -26,7 +26,7 @@ BEGIN
    LIMIT 201
  ),
  ver AS MATERIALIZED (
-   SELECT v.record_id,v.version,v.facts,v.reason,v.recorded_at FROM public.mcp_cost_submission_versions v JOIN relevant r ON r.id=v.record_id LIMIT 1001
+   SELECT v.record_id,v.version,v.facts,v.reason,v.recorded_by,v.recorded_at FROM public.mcp_cost_submission_versions v JOIN relevant r ON r.id=v.record_id LIMIT 1001
  ),
  allocations AS MATERIALIZED (
    SELECT v.record_id,v.version,a.value AS a,
@@ -34,9 +34,9 @@ BEGIN
      CASE WHEN jsonb_typeof(a.value->'amount_cents')='number' AND coalesce(a.value->>'amount_cents','') ~ '^[1-9][0-9]{0,12}$' THEN (a.value->>'amount_cents')::numeric END AS cents
    FROM ver v CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(v.facts->'allocations')='array' THEN v.facts->'allocations' ELSE '[]'::jsonb END) a
  ),
- approvals AS MATERIALIZED (SELECT a.record_id,a.version,a.approved_at FROM public.mcp_cost_approvals a JOIN relevant r ON r.id=a.record_id LIMIT 1001),
+ approvals AS MATERIALIZED (SELECT a.record_id,a.version,a.approved_by,a.approved_at FROM public.mcp_cost_approvals a JOIN relevant r ON r.id=a.record_id LIMIT 1001),
  business AS MATERIALIZED (SELECT b.id,b.record_id,b.version,b.job_id,b.allocated_cents,b.bill_total_cents,b.basis,b.notes,b.approved_by,b.approved_at FROM public.mcp_cost_business_approvals b JOIN relevant r ON r.id=b.record_id LIMIT 1001),
- posts AS MATERIALIZED (SELECT p.record_id,p.version,p.posted_at FROM public.mcp_cost_posting_events p JOIN relevant r ON r.id=p.record_id LIMIT 1001),
+ posts AS MATERIALIZED (SELECT p.record_id,p.version,p.posted_by,p.posted_at,p.accounting_effective_on FROM public.mcp_cost_posting_events p JOIN relevant r ON r.id=p.record_id LIMIT 1001),
  payments AS MATERIALIZED (SELECT p.id,p.record_id,p.amount_cents,p.paid_on,p.reference,p.recorded_at FROM public.mcp_cost_payment_evidence p JOIN relevant r ON r.id=p.record_id LIMIT 1001),
  shared AS MATERIALIZED (SELECT a.payment_id,a.record_id,a.amount_cents,p.company_id,p.paid_on,p.reference,p.recorded_at FROM public.mcp_cost_shared_allocations a JOIN relevant r ON r.id=a.record_id JOIN public.mcp_cost_shared_payments p ON p.id=a.payment_id LIMIT 1001),
  corrections AS MATERIALIZED (SELECT c.id,c.payment_id,c.shared_payment_id,c.reason,c.corrected_at FROM public.mcp_cost_payment_corrections c WHERE EXISTS(SELECT 1 FROM payments p WHERE p.id=c.payment_id) OR EXISTS(SELECT 1 FROM shared s WHERE s.payment_id=c.shared_payment_id) LIMIT 1001),
@@ -56,14 +56,14 @@ BEGIN
    AS complete
  ),
  output AS MATERIALIZED (
-  SELECT CASE WHEN s.complete THEN jsonb_build_object('currency',NULL,'currency_verified',false,'cents_encoding','decimal_string','coverage','athena_cost_records_only','external_accounting_coverage',false,
-   'shared_payment_conservation_available',false,'settlement_allocation_by_job_available',false,'accounting_effective_date_available',false,'original_evidence_coverage',false,
+  SELECT CASE WHEN s.complete THEN jsonb_build_object('currency',NULL,'currency_verified',false,'currency_coverage','per_version','cents_encoding','decimal_string','coverage','athena_cost_records_only','external_accounting_coverage',false,
+   'shared_payment_conservation_available',false,'settlement_allocation_by_job_available',false,'accounting_effective_date_available',(EXISTS(SELECT 1 FROM posts) AND NOT EXISTS(SELECT 1 FROM posts WHERE accounting_effective_on IS NULL)),'accounting_effective_date_coverage','per_posting','original_evidence_coverage',false,
    'records',coalesce((SELECT jsonb_agg(jsonb_build_object(
      'id',r.id,'kind',r.kind,'posted_version',(SELECT max(p.version) FROM posts p WHERE p.record_id=r.id),
-     'versions',coalesce((SELECT jsonb_agg(jsonb_build_object('version',v.version,'recorded_at',v.recorded_at,'reason',v.reason,'amount_cents',v.facts->>'amount_cents','document_reference',v.facts->>'document_reference','counterparty_name',v.facts->>'counterparty_name','allocations',coalesce((SELECT jsonb_agg(jsonb_build_object('job_id',a.job_id,'cost_code',a.a->>'cost_code','amount_cents',a.a->>'amount_cents') ORDER BY a.job_id,a.a->>'cost_code') FROM allocations a WHERE a.record_id=v.record_id AND a.version=v.version),'[]'::jsonb)) ORDER BY v.version) FROM ver v WHERE v.record_id=r.id),'[]'::jsonb),
-     'accounting_approvals',coalesce((SELECT jsonb_agg(jsonb_build_object('version',a.version,'approved_at',a.approved_at) ORDER BY a.version) FROM approvals a WHERE a.record_id=r.id),'[]'::jsonb),
+     'versions',coalesce((SELECT jsonb_agg(jsonb_build_object('version',v.version,'recorded_by',v.recorded_by,'recorded_at',v.recorded_at,'reason',v.reason,'incurred_on',CASE WHEN public.mcp_cost_valid_date(v.facts->>'incurred_on') THEN v.facts->>'incurred_on' END,'currency_code',CASE WHEN public.mcp_cost_currency_supported(v.facts->>'currency_code') THEN v.facts->>'currency_code' END,'currency_source',CASE WHEN public.mcp_cost_currency_supported(v.facts->>'currency_code') THEN 'reviewed_submission' ELSE 'unknown' END,'amount_cents',v.facts->>'amount_cents','document_reference',v.facts->>'document_reference','counterparty_name',v.facts->>'counterparty_name','allocations',coalesce((SELECT jsonb_agg(jsonb_build_object('job_id',a.job_id,'cost_code',a.a->>'cost_code','amount_cents',a.a->>'amount_cents') ORDER BY a.job_id,a.a->>'cost_code') FROM allocations a WHERE a.record_id=v.record_id AND a.version=v.version),'[]'::jsonb)) ORDER BY v.version) FROM ver v WHERE v.record_id=r.id),'[]'::jsonb),
+     'accounting_approvals',coalesce((SELECT jsonb_agg(jsonb_build_object('version',a.version,'approved_by',a.approved_by,'approved_at',a.approved_at) ORDER BY a.version) FROM approvals a WHERE a.record_id=r.id),'[]'::jsonb),
      'business_approvals',coalesce((SELECT jsonb_agg(jsonb_build_object('id',b.id,'version',b.version,'job_id',b.job_id,'allocated_cents',b.allocated_cents::text,'bill_total_cents',b.bill_total_cents::text,'basis',b.basis,'notes',b.notes,'approved_by',b.approved_by,'approved_at',b.approved_at,'withdrawal',(SELECT jsonb_build_object('reason',w.reason,'withdrawn_by',w.withdrawn_by,'withdrawn_at',w.withdrawn_at) FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)) ORDER BY b.version,b.job_id,b.approved_at,b.id) FROM business b WHERE b.record_id=r.id),'[]'::jsonb),
-     'posting_events',coalesce((SELECT jsonb_agg(jsonb_build_object('version',p.version,'posted_at',p.posted_at) ORDER BY p.version) FROM posts p WHERE p.record_id=r.id),'[]'::jsonb),
+     'posting_events',coalesce((SELECT jsonb_agg(jsonb_build_object('version',p.version,'posted_by',p.posted_by,'posted_at',p.posted_at,'accounting_effective_on',p.accounting_effective_on) ORDER BY p.version) FROM posts p WHERE p.record_id=r.id),'[]'::jsonb),
      'payments',coalesce((SELECT jsonb_agg(jsonb_build_object('id',p.id,'amount_cents',p.amount_cents::text,'paid_on',p.paid_on,'reference',p.reference,'recorded_at',p.recorded_at,'correction',(SELECT jsonb_build_object('id',c.id,'reason',c.reason,'corrected_at',c.corrected_at) FROM corrections c WHERE c.payment_id=p.id),'shared',false) ORDER BY p.id) FROM payments p WHERE p.record_id=r.id),'[]'::jsonb),
      'shared_allocations',coalesce((SELECT jsonb_agg(jsonb_build_object('payment_id',x.payment_id,'amount_cents',x.amount_cents::text,'paid_on',x.paid_on,'reference',x.reference,'recorded_at',x.recorded_at,'correction',(SELECT jsonb_build_object('id',c.id,'reason',c.reason,'corrected_at',c.corrected_at) FROM corrections c WHERE c.shared_payment_id=x.payment_id)) ORDER BY x.payment_id) FROM shared x WHERE x.record_id=r.id),'[]'::jsonb)) ORDER BY r.id) FROM relevant r),'[]'::jsonb)) END AS data
   FROM safety s

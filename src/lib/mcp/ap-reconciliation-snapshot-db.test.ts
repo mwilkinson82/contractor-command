@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
+import { COST_CURRENCIES } from "./cost-currencies";
 const owner = "00000000-0000-4000-8000-000000000501",
   ap = "00000000-0000-4000-8000-000000000502",
   pm = "00000000-0000-4000-8000-000000000503",
@@ -26,6 +27,20 @@ const call = async (user: string, fn: string, args: unknown[]) =>
       ).rows[0].value as Record<string, unknown>,
   );
 const snapshot = (user: string, j = job) => call(user, "mcp_cost_reconciliation_snapshot", [j]);
+// Synthetic corruption fixtures are removed only inside this disposable test database.
+async function removeSyntheticRecord(id: string) {
+  await db.exec(
+    "ALTER TABLE public.mcp_cost_submission_versions DISABLE TRIGGER mcp_cost_versions_immutable",
+  );
+  try {
+    await db.query("DELETE FROM mcp_cost_submission_versions WHERE record_id=$1", [id]);
+  } finally {
+    await db.exec(
+      "ALTER TABLE public.mcp_cost_submission_versions ENABLE TRIGGER mcp_cost_versions_immutable",
+    );
+  }
+  await db.query("DELETE FROM mcp_cost_submissions WHERE id=$1", [id]);
+}
 async function write(
   user: string,
   purpose: string,
@@ -41,6 +56,7 @@ const facts = (ref: string, amount = 10000) => ({
   description: "Synthetic",
   counterparty_name: "Supplier",
   incurred_on: "2026-10-28",
+  currency_code: "USD",
   document_reference: ref,
   amount_cents: amount,
   original: "missing",
@@ -104,7 +120,8 @@ beforeAll(async () => {
 afterAll(async () => db.close());
 describe("bounded AP reconciliation snapshot", () => {
   it("returns complete empty coverage only for authorized owner/AP and never for other jobs or roles", async () => {
-    const before = (await db.query("SELECT count(*) AS n FROM mcp_gate_cache")).rows[0].n;
+    const before = (await db.query<{ n: string }>("SELECT count(*) AS n FROM mcp_gate_cache"))
+      .rows[0].n;
     expect(await snapshot(owner)).toMatchObject({
       snapshot_version: 1,
       complete: true,
@@ -125,7 +142,9 @@ describe("bounded AP reconciliation snapshot", () => {
         complete: false,
         status: "unavailable",
       });
-    expect((await db.query("SELECT count(*) AS n FROM mcp_gate_cache")).rows[0].n).toBe(before);
+    expect(
+      (await db.query<{ n: string }>("SELECT count(*) AS n FROM mcp_gate_cache")).rows[0].n,
+    ).toBe(before);
   });
   it("returns posted history and exact decimal cents without promoting an unposted correction", async () => {
     const p = {
@@ -149,6 +168,7 @@ describe("bounded AP reconciliation snapshot", () => {
         request_id: crypto.randomUUID(),
         expected_version: 1,
         action,
+        ...(action === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
       });
     for (const j of [job, job2])
       await write(
@@ -200,11 +220,20 @@ describe("bounded AP reconciliation snapshot", () => {
         posted_version: number;
         versions: Array<{
           version: number;
+          recorded_by: string;
           amount_cents: string;
+          currency_code: string | null;
+          incurred_on: string | null;
+          currency_source: string;
           reason: string | null;
           allocations: Array<{ amount_cents: string }>;
         }>;
-        posting_events: Array<{ version: number; posted_at: string }>;
+        posting_events: Array<{
+          version: number;
+          posted_by: string;
+          posted_at: string;
+          accounting_effective_on: string | null;
+        }>;
         business_approvals: Array<{ job_id: string; allocated_cents: string }>;
         payments: Array<{
           id: string;
@@ -217,9 +246,26 @@ describe("bounded AP reconciliation snapshot", () => {
     const r = data.records.find((r) => r.id === p.id)!;
     expect(r.posted_version).toBe(1);
     expect(r.versions.map((v) => v.amount_cents)).toEqual(["10000", "12000"]);
+    expect(r.versions.map((v) => v.currency_code)).toEqual(["USD", "USD"]);
+    expect(r.versions[0]).toMatchObject({
+      incurred_on: "2026-10-28",
+      currency_source: "reviewed_submission",
+      recorded_by: owner,
+    });
     expect(r.versions[1].reason).toBe("Correct the amount");
     expect(r.versions[1].allocations.map((a) => a.amount_cents)).toEqual(["6000", "6000"]);
     expect(Date.parse(r.posting_events[0].posted_at)).not.toBeNaN();
+    expect(r.posting_events[0].accounting_effective_on).toBe("2026-10-28");
+    expect(r.posting_events[0].posted_by).toBe(owner);
+    await expect(
+      db.query("UPDATE mcp_cost_submission_versions SET facts=facts WHERE record_id=$1", [p.id]),
+    ).rejects.toThrow(/append-only/);
+    await expect(
+      db.query(
+        "UPDATE mcp_cost_posting_events SET accounting_effective_on='2026-12-01' WHERE record_id=$1",
+        [p.id],
+      ),
+    ).rejects.toThrow(/append-only/);
     expect(r.business_approvals.map((a) => a.allocated_cents)).toEqual(["5000", "5000"]);
     expect(r.payments).toEqual([
       expect.objectContaining({
@@ -230,9 +276,252 @@ describe("bounded AP reconciliation snapshot", () => {
     ]);
     expect(data.settlement_allocation_by_job_available).toBe(false);
   });
+  it("leaves legacy currency and effective date unknown while preserving a reviewed correction", async () => {
+    const id = crypto.randomUUID(),
+      legacy = { ...facts("LEGACY"), currency_code: undefined };
+    await db.query(
+      "INSERT INTO mcp_cost_submissions(id,company_id,anchor_job_id,kind,created_by) VALUES($1,$2,$3,'supplier_bill',$4)",
+      [id, company, job, owner],
+    );
+    await db.query(
+      "INSERT INTO mcp_cost_submission_versions(record_id,version,facts,recorded_by) VALUES($1,1,$2::jsonb,$3)",
+      [id, JSON.stringify(legacy), owner],
+    );
+    await db.query(
+      "INSERT INTO mcp_cost_approvals(record_id,version,approved_by) VALUES($1,1,$2)",
+      [id, owner],
+    );
+    await db.query(
+      "INSERT INTO mcp_cost_posting_events(record_id,version,posted_by) VALUES($1,1,$2)",
+      [id, owner],
+    );
+    const before = (await snapshot(owner)).ap as {
+      records: Array<{
+        id: string;
+        versions: Array<{ currency_code: string | null; currency_source: string }>;
+        posting_events: Array<{ accounting_effective_on: string | null }>;
+      }>;
+    };
+    const old = before.records.find((r) => r.id === id)!;
+    expect(old.versions[0]).toMatchObject({ currency_code: null, currency_source: "unknown" });
+    expect(old.posting_events[0].accounting_effective_on).toBeNull();
+    await expect(
+      write(owner, "pm_approval", "mcp_cost_pm_approve", {
+        id,
+        request_id: crypto.randomUUID(),
+        expected_version: 1,
+        allocated_cents: 5000,
+        basis: "owner_exception",
+        notes: "Synthetic",
+      }),
+    ).rejects.toThrow(/supported currency/);
+    await write(owner, "submission", "mcp_cost_submission_save", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      reason: "Currency confirmed",
+      facts: { ...facts("LEGACY"), currency_code: "CAD", incurred_on: "2024-02-29" },
+    });
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      action: "approve",
+    });
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      action: "post",
+      accounting_effective_on: "2026-11-01",
+    });
+    const after = (await snapshot(owner)).ap as {
+      accounting_effective_date_available: boolean;
+      records: Array<{
+        id: string;
+        posted_version: number;
+        versions: Array<{
+          currency_code: string | null;
+          incurred_on: string | null;
+          currency_source: string;
+        }>;
+        posting_events: Array<{ accounting_effective_on: string | null }>;
+      }>;
+    };
+    const r = after.records.find((r) => r.id === id)!;
+    expect(r.posted_version).toBe(2);
+    expect(r.versions[0].currency_code).toBeNull();
+    expect(r.versions[1]).toMatchObject({
+      currency_code: "CAD",
+      currency_source: "reviewed_submission",
+      incurred_on: "2024-02-29",
+    });
+    expect(r.posting_events.map((p) => p.accounting_effective_on)).toEqual([null, "2026-11-01"]);
+    expect(after.accounting_effective_date_available).toBe(false);
+  });
+  it("requires valid supported currency, incurred date and a reviewed accounting effective date", async () => {
+    const currencies = await db.query<{ code: string; allowed: boolean }>(
+      "SELECT code,public.mcp_cost_currency_supported(code) AS allowed FROM unnest($1::text[]) AS code",
+      [COST_CURRENCIES],
+    );
+    expect(currencies.rows).toHaveLength(COST_CURRENCIES.length);
+    expect(currencies.rows.every((r) => r.allowed)).toBe(true);
+    const base = {
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      expected_version: 0,
+      facts: { ...facts("BOUNDARIES"), incurred_on: "2024-02-29" },
+    };
+    for (const bad of [
+      { currency_code: undefined },
+      { currency_code: "ZZZ" },
+      { currency_code: "JPY" },
+      { incurred_on: "2023-02-29" },
+      { incurred_on: "0000-01-01" },
+    ])
+      await expect(
+        write(owner, "submission", "mcp_cost_submission_save", {
+          ...base,
+          id: crypto.randomUUID(),
+          request_id: crypto.randomUUID(),
+          facts: { ...base.facts, ...bad },
+        }),
+      ).rejects.toThrow(/date|currency/i);
+    await write(owner, "submission", "mcp_cost_submission_save", base);
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id: base.id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      action: "approve",
+    });
+    for (const date of [undefined, "2023-02-29", "0000-01-01"])
+      await expect(
+        write(owner, "accounting", "mcp_cost_accounting_action", {
+          id: base.id,
+          request_id: crypto.randomUUID(),
+          expected_version: 1,
+          action: "post",
+          ...(date ? { accounting_effective_on: date } : {}),
+        }),
+      ).rejects.toThrow(/effective date/i);
+    const reviewedPost = {
+      id: base.id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      action: "post",
+      accounting_effective_on: "2024-02-29",
+    };
+    const ticket = await call(owner, "mcp_cost_review_prepare", [
+      job,
+      "accounting",
+      JSON.stringify(reviewedPost),
+    ]);
+    await expect(
+      call(owner, "mcp_cost_accounting_action", [
+        job,
+        JSON.stringify({ ...reviewedPost, accounting_effective_on: "2024-03-01" }),
+        ticket.review_id,
+        true,
+      ]),
+    ).rejects.toThrow(/Review the exact action/);
+    await call(owner, "mcp_cost_accounting_action", [
+      job,
+      JSON.stringify(reviewedPost),
+      ticket.review_id,
+      true,
+    ]);
+  });
+  it("does not carry recorded settlement into a corrected currency", async () => {
+    const id = crypto.randomUUID(),
+      f = {
+        ...facts("CURRENCY-CHANGE"),
+        allocations: [{ job_id: job, cost_code: "A", amount_cents: 10000 }],
+      };
+    await write(owner, "submission", "mcp_cost_submission_save", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 0,
+      facts: f,
+    });
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      action: "approve",
+    });
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      action: "post",
+      accounting_effective_on: "2026-10-28",
+    });
+    await write(owner, "pm_approval", "mcp_cost_pm_approve", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      allocated_cents: 10000,
+      basis: "owner_exception",
+      notes: "Synthetic",
+    });
+    const payment_id = crypto.randomUUID();
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      action: "payment",
+      payment_id,
+      amount_cents: 1000,
+      paid_on: "2026-10-29",
+      reference: "Currency check",
+    });
+    await write(owner, "submission", "mcp_cost_submission_save", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      reason: "Correct currency",
+      facts: { ...f, currency_code: "CAD" },
+    });
+    await write(owner, "accounting", "mcp_cost_accounting_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      action: "approve",
+    });
+    await expect(
+      write(owner, "accounting", "mcp_cost_accounting_action", {
+        id,
+        request_id: crypto.randomUUID(),
+        expected_version: 2,
+        action: "post",
+        accounting_effective_on: "2026-11-01",
+      }),
+    ).rejects.toThrow(/settlement before changing currency/);
+    await write(owner, "settlement", "mcp_cost_settlement_action", {
+      id,
+      request_id: crypto.randomUUID(),
+      action: "correct_payment",
+      payment_id,
+      correction_id: crypto.randomUUID(),
+      reason: "Incorrect evidence",
+    });
+    expect(
+      (
+        await write(owner, "accounting", "mcp_cost_accounting_action", {
+          id,
+          request_id: crypto.randomUUID(),
+          expected_version: 2,
+          action: "post",
+          accounting_effective_on: "2026-11-01",
+        })
+      ).status,
+    ).toBe("posted");
+  });
   it("returns no partial data when any affected job is unavailable in the same snapshot", async () => {
     const def = (
-      await db.query("SELECT pg_get_functiondef('public.mcp_job_scope(uuid)'::regprocedure) AS def")
+      await db.query<{ def: string }>(
+        "SELECT pg_get_functiondef('public.mcp_job_scope(uuid)'::regprocedure) AS def",
+      )
     ).rows[0].def as string;
     try {
       await db.exec(
@@ -262,8 +551,7 @@ describe("bounded AP reconciliation snapshot", () => {
       complete: false,
       status: "unavailable",
     });
-    await db.query("DELETE FROM mcp_cost_submission_versions WHERE record_id=$1", [id]);
-    await db.query("DELETE FROM mcp_cost_submissions WHERE id=$1", [id]);
+    await removeSyntheticRecord(id);
   });
   it("does not silently omit a record whose job ID uses a noncanonical UUID spelling", async () => {
     const id = crypto.randomUUID(),
@@ -282,8 +570,7 @@ describe("bounded AP reconciliation snapshot", () => {
       complete: false,
       status: "unavailable",
     });
-    await db.query("DELETE FROM mcp_cost_submission_versions WHERE record_id=$1", [id]);
-    await db.query("DELETE FROM mcp_cost_submissions WHERE id=$1", [id]);
+    await removeSyntheticRecord(id);
   });
   it("preserves the maximum supported integer exactly and fails closed above it", async () => {
     const id = crypto.randomUUID(),
@@ -327,8 +614,7 @@ describe("bounded AP reconciliation snapshot", () => {
       complete: false,
       status: "unavailable",
     });
-    await db.query("DELETE FROM mcp_cost_submission_versions WHERE record_id=$1", [bad]);
-    await db.query("DELETE FROM mcp_cost_submissions WHERE id=$1", [bad]);
+    await removeSyntheticRecord(bad);
   });
   it("stops returning data immediately when accounting membership is removed", async () => {
     await db.query("DELETE FROM mcp_company_members WHERE company_id=$1 AND user_id=$2", [
@@ -369,8 +655,7 @@ describe("bounded AP reconciliation snapshot", () => {
       complete: false,
       status: "unavailable",
     });
-    await db.query("DELETE FROM mcp_cost_submission_versions WHERE record_id=$1", [id]);
-    await db.query("DELETE FROM mcp_cost_submissions WHERE id=$1", [id]);
+    await removeSyntheticRecord(id);
   });
   it("fails closed when the bounded record limit is exceeded", async () => {
     await db.query(

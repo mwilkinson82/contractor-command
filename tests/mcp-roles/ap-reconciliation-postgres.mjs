@@ -66,6 +66,7 @@ const facts = (n) => ({
   description: "Synthetic",
   counterparty_name: "Supplier",
   incurred_on: "2026-10-28",
+  currency_code: "USD",
   amount_cents: n * 100,
   original: "missing",
   allocations: [{ job_id: id.job, cost_code: "MAT", amount_cents: n * 100 }],
@@ -130,9 +131,11 @@ try {
     "INSERT INTO mcp_cost_submissions(id,company_id,anchor_job_id,kind,created_by) VALUES($1,$2,$3,'supplier_bill',$4)",
     [id.record, id.company, id.job, id.owner],
   );
+  const legacyFacts = facts(1);
+  delete legacyFacts.currency_code;
   await admin.query(
     "INSERT INTO mcp_cost_submission_versions(record_id,version,facts,recorded_by) VALUES($1,1,$2::jsonb,$3)",
-    [id.record, JSON.stringify(facts(1)), id.owner],
+    [id.record, JSON.stringify(legacyFacts), id.owner],
   );
   await admin.query(
     "INSERT INTO mcp_cost_approvals(record_id,version,approved_by) VALUES($1,1,$2)",
@@ -153,7 +156,7 @@ try {
       [id.record, n, id.owner],
     );
     await writer.query(
-      "INSERT INTO mcp_cost_posting_events(record_id,version,posted_by) VALUES($1,$2,$3)",
+      "INSERT INTO mcp_cost_posting_events(record_id,version,posted_by,accounting_effective_on) VALUES($1,$2,$3,'2026-11-01')",
       [id.record, n, id.owner],
     );
     const [view] = await Promise.all([snapshot(), writer.query("SELECT pg_sleep(0.02); COMMIT")]);
@@ -164,6 +167,9 @@ try {
     assert.equal(r.posted_version, latest);
     assert.equal(r.posting_events.at(-1).version, latest);
     assert.equal(r.accounting_approvals.at(-1).version, latest);
+    assert.equal(r.versions[0].currency_code,null);
+    assert.equal(r.posting_events[0].accounting_effective_on,null);
+    if(latest>1){assert.equal(r.versions.at(-1).currency_code,"USD");assert.equal(r.posting_events.at(-1).accounting_effective_on,"2026-11-01");}
     const after = await snapshot();
     assert.equal(after.ap.records.find((x) => x.id === id.record).posted_version, n);
   }

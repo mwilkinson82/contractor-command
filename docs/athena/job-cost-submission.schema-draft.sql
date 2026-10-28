@@ -41,6 +41,19 @@ REVOKE ALL ON public.mcp_cost_submissions,public.mcp_cost_submission_versions,pu
 GRANT ALL ON public.mcp_cost_submissions,public.mcp_cost_submission_versions,public.mcp_cost_submission_references,public.mcp_cost_submission_operations TO service_role;
 
 -- Review tickets bind actor, project, purpose and exact canonical payload. Confirmation remains a user/host assertion.
+-- Monetary values use integer hundredths. Non-two-decimal currency units are unsupported.
+CREATE FUNCTION public.mcp_cost_currency_supported(_code text) RETURNS boolean
+LANGUAGE sql IMMUTABLE SET search_path=public AS $$ SELECT coalesce(_code=ANY(ARRAY['AED','AMD','ANG','AOA','ARS','AUD','AWG','AZN','BAM','BBD','BDT','BGN','BMD','BND','BOB','BRL','BSD','BTN','BWP','BYN','BZD','CAD','CDF','CHF','CNY','COP','CRC','CUC','CUP','CVE','CZK','DKK','DOP','DZD','EGP','ERN','ETB','EUR','FJD','FKP','GBP','GEL','GHS','GIP','GMD','GTQ','GYD','HKD','HNL','HRK','HTG','HUF','IDR','ILS','INR','JMD','KES','KGS','KHR','KYD','KZT','LKR','LRD','LSL','MAD','MDL','MKD','MNT','MOP','MRU','MUR','MVR','MWK','MXN','MYR','MZN','NAD','NGN','NIO','NOK','NPR','NZD','PAB','PEN','PGK','PHP','PKR','PLN','QAR','RON','RUB','SAR','SBD','SCR','SDG','SEK','SGD','SHP','SLE','SRD','SSP','STN','SVC','SZL','THB','TJS','TMT','TOP','TRY','TTD','TWD','TZS','UAH','USD','UYU','UZS','VES','WST','XCD','XCG','XDR','XSU','ZAR','ZMW','ZWG','ZWL']::text[]),false) $$;
+REVOKE ALL ON FUNCTION public.mcp_cost_currency_supported(text) FROM PUBLIC,anon,authenticated;
+CREATE FUNCTION public.mcp_cost_valid_date(_date text) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SET search_path=public AS $$
+BEGIN
+ IF coalesce(_date,'') !~ '^\d{4}-\d{2}-\d{2}$' OR left(_date,4)='0000' THEN RETURN false; END IF;
+ RETURN to_char(_date::date,'YYYY-MM-DD')=_date;
+EXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN RETURN false;
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_cost_valid_date(text) FROM PUBLIC,anon,authenticated;
+
 CREATE TABLE public.mcp_cost_review_tickets (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id uuid NOT NULL REFERENCES public.mcp_companies(id),
  job_id uuid NOT NULL REFERENCES public.mcp_jobs(id), actor_id uuid NOT NULL, purpose text NOT NULL,
@@ -62,11 +75,11 @@ BEGIN
  END IF;
  IF coalesce(_purpose,'') NOT IN ('submission','accounting','settlement','pm_approval','pm_withdraw','field') OR jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>30000 OR nullif(_p->>'request_id','') IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Invalid review.'; END IF;
  IF (_purpose IN ('submission','field') AND (EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','facts','reason')) OR jsonb_typeof(_p->'facts') IS DISTINCT FROM 'object'
-    OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p->'facts') x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','amount_cents','allocations','document_reference','original','party_id','purchase_order_id','purchase_order_version'))
+    OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p->'facts') x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','currency_code','amount_cents','allocations','document_reference','original','party_id','purchase_order_id','purchase_order_version'))
     OR length(coalesce(_p->'facts'->>'description',''))>200 OR length(coalesce(_p->'facts'->>'counterparty_name',''))>200 OR length(coalesce(_p->'facts'->>'document_reference',''))>200 OR length(coalesce(_p->>'reason',''))>2000
     OR jsonb_typeof(_p->'facts'->'allocations') IS DISTINCT FROM 'array' OR jsonb_array_length(_p->'facts'->'allocations') NOT BETWEEN 1 AND 100
     OR EXISTS(SELECT 1 FROM jsonb_array_elements(_p->'facts'->'allocations') a WHERE jsonb_typeof(a) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(a) x WHERE x NOT IN ('job_id','cost_code','amount_cents')) OR length(coalesce(a->>'cost_code',''))>40)))
- OR (_purpose='accounting' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','expected_version','payment_id','amount_cents','paid_on','reference')))
+ OR (_purpose='accounting' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','expected_version','payment_id','amount_cents','paid_on','reference','accounting_effective_on')))
  OR (_purpose='pm_approval' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','allocated_cents','basis','notes')))
  OR (_purpose='pm_withdraw' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('id','request_id','expected_version','approval_id','reason')))
  OR (_purpose='settlement' AND EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','payment_id','correction_id','amount_cents','paid_on','reference','allocations','reason')))
@@ -148,9 +161,9 @@ BEGIN
  END IF;
  IF _confirmed IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Confirm the reviewed action first.'; END IF;
  PERFORM public.mcp_cost_review_consume(_job,'field',_p,_review);
- IF jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'number' OR _p->>'expected_version'<>'0' OR jsonb_typeof(f) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(f) x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','amount_cents','allocations','document_reference','original')) THEN RAISE EXCEPTION 'MCP_BAD:Only new field expenses are available.'; END IF;
+ IF jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'number' OR _p->>'expected_version'<>'0' OR jsonb_typeof(f) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(f) x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','currency_code','amount_cents','allocations','document_reference','original')) THEN RAISE EXCEPTION 'MCP_BAD:Only new field expenses are available.'; END IF;
  IF coalesce(f->>'kind','') NOT IN ('company_paid_expense','reimbursable_expense') OR length(btrim(coalesce(f->>'description',''))) NOT BETWEEN 1 AND 200 OR length(btrim(coalesce(f->>'counterparty_name',''))) NOT BETWEEN 1 AND 200 OR f->>'original' IS DISTINCT FROM 'missing' THEN RAISE EXCEPTION 'MCP_BAD:Provide expense type, description, payee and missing original status.'; END IF;
- IF coalesce(f->>'incurred_on','') !~ '^\d{4}-\d{2}-\d{2}$' OR to_char((f->>'incurred_on')::date,'YYYY-MM-DD')<>f->>'incurred_on' OR jsonb_typeof(f->'amount_cents') IS DISTINCT FROM 'number' OR coalesce(f->>'amount_cents','') !~ '^[0-9]{1,13}$' THEN RAISE EXCEPTION 'MCP_BAD:Valid date and positive cents are required.'; END IF;
+ IF public.mcp_cost_valid_date(f->>'incurred_on') IS DISTINCT FROM true OR public.mcp_cost_currency_supported(f->>'currency_code') IS DISTINCT FROM true OR jsonb_typeof(f->'amount_cents') IS DISTINCT FROM 'number' OR coalesce(f->>'amount_cents','') !~ '^[0-9]{1,13}$' THEN RAISE EXCEPTION 'MCP_BAD:Valid incurred date, supported currency and positive cents are required.'; END IF;
  amount:=(f->>'amount_cents')::numeric;
  IF amount<=0 OR amount>9000000000000 OR jsonb_typeof(f->'allocations') IS DISTINCT FROM 'array' OR jsonb_array_length(f->'allocations')<>1 THEN RAISE EXCEPTION 'MCP_BAD:One assigned-job allocation is required.'; END IF;
  a:=f->'allocations'->0;
@@ -212,10 +225,10 @@ BEGIN
  PERFORM public.mcp_cost_review_consume(_job,'submission',_p,_review);
   IF jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'number' OR (_p->>'expected_version') !~ '^[0-9]{1,9}$' THEN RAISE EXCEPTION 'MCP_BAD:Expected version is required.'; END IF;
   expected:=(_p->>'expected_version')::integer; f:=_p->'facts';
-  IF jsonb_typeof(f) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(f) x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','amount_cents','allocations','document_reference','original','party_id','purchase_order_id','purchase_order_version')) THEN RAISE EXCEPTION 'MCP_BAD:Invalid cost facts.'; END IF;
+  IF jsonb_typeof(f) IS DISTINCT FROM 'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(f) x WHERE x NOT IN ('kind','description','counterparty_name','incurred_on','currency_code','amount_cents','allocations','document_reference','original','party_id','purchase_order_id','purchase_order_version')) THEN RAISE EXCEPTION 'MCP_BAD:Invalid cost facts.'; END IF;
   IF (f ? 'party_id' AND nullif(f->>'party_id','') IS NULL) OR (f ? 'purchase_order_id' AND (nullif(f->>'purchase_order_id','') IS NULL OR nullif(f->>'party_id','') IS NULL OR jsonb_typeof(f->'purchase_order_version') IS DISTINCT FROM 'number' OR coalesce(f->>'purchase_order_version','') !~ '^[1-9][0-9]{0,8}$')) OR (f ? 'purchase_order_version' AND NOT f ? 'purchase_order_id') OR ((f ? 'party_id' OR f ? 'purchase_order_id') AND f->>'kind' IS DISTINCT FROM 'supplier_bill') THEN RAISE EXCEPTION 'MCP_BAD:Invalid supplier or PO reference.'; END IF;
   IF coalesce(f->>'kind','') NOT IN ('supplier_bill','company_paid_expense','reimbursable_expense') OR length(btrim(coalesce(f->>'description',''))) NOT BETWEEN 1 AND 200 OR length(btrim(coalesce(f->>'counterparty_name',''))) NOT BETWEEN 1 AND 200 OR f->>'original' IS DISTINCT FROM 'missing' THEN RAISE EXCEPTION 'MCP_BAD:Provide the cost type, description, payee and missing original status.'; END IF;
-  IF coalesce(f->>'incurred_on','') !~ '^\d{4}-\d{2}-\d{2}$' OR to_char((f->>'incurred_on')::date,'YYYY-MM-DD') <> f->>'incurred_on' THEN RAISE EXCEPTION 'MCP_BAD:Valid date required.'; END IF;
+  IF public.mcp_cost_valid_date(f->>'incurred_on') IS DISTINCT FROM true OR public.mcp_cost_currency_supported(f->>'currency_code') IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Valid incurred date and supported currency are required.'; END IF;
   IF jsonb_typeof(f->'amount_cents') IS DISTINCT FROM 'number' OR (f->>'amount_cents') !~ '^[0-9]{1,13}$' THEN RAISE EXCEPTION 'MCP_BAD:Positive integer cents required.'; END IF;
   amount:=(f->>'amount_cents')::numeric;
   IF amount<=0 OR amount>9000000000000 OR jsonb_typeof(f->'allocations') IS DISTINCT FROM 'array' OR jsonb_array_length(f->'allocations') NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'MCP_BAD:Amount and allocations required.'; END IF;
@@ -265,7 +278,7 @@ CREATE TABLE public.mcp_cost_approvals (
 );
 CREATE TABLE public.mcp_cost_posting_events (
  record_id uuid NOT NULL REFERENCES public.mcp_cost_submissions(id), version integer NOT NULL,
- posted_by uuid NOT NULL, posted_at timestamptz NOT NULL DEFAULT clock_timestamp(), PRIMARY KEY(record_id,version),
+ posted_by uuid NOT NULL, posted_at timestamptz NOT NULL DEFAULT clock_timestamp(), accounting_effective_on date, PRIMARY KEY(record_id,version),
  FOREIGN KEY(record_id,version) REFERENCES public.mcp_cost_approvals(record_id,version)
 );
 CREATE TABLE public.mcp_cost_payment_evidence (
@@ -348,7 +361,7 @@ BEGIN
  SELECT role INTO role_name FROM public.mcp_company_members WHERE company_id=j.company_id AND user_id=auth.uid();
  IF role_name NOT IN ('pm','owner') THEN RAISE EXCEPTION 'MCP_BAD:PM or owner approval is required.'; END IF;
  SELECT coalesce(jsonb_agg(jsonb_build_object('id',r.id,'version',v.version,'kind',r.kind,'description',v.facts->>'description','counterparty_name',v.facts->>'counterparty_name',
- 'incurred_on',v.facts->>'incurred_on','document_reference',v.facts->>'document_reference',
+ 'incurred_on',v.facts->>'incurred_on','currency_code',v.facts->>'currency_code','document_reference',v.facts->>'document_reference',
  'allocations',(SELECT jsonb_agg(a) FROM jsonb_array_elements(v.facts->'allocations') a WHERE (a->>'job_id')::uuid=_job),
  'approval',(SELECT jsonb_build_object('id',b.id,'basis',b.basis,'approved_by',b.approved_by,'approved_at',b.approved_at,'notes',b.notes) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id AND b.version=v.version AND b.job_id=_job AND NOT EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id) ORDER BY b.approved_at DESC,b.id LIMIT 1),
  'approval_history',(SELECT coalesce(jsonb_agg(to_jsonb(b)||jsonb_build_object('withdrawal',(SELECT to_jsonb(w) FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)) ORDER BY b.approved_at),'[]'::jsonb) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id AND b.job_id=_job)) ORDER BY r.created_at DESC),'[]'::jsonb)
@@ -384,6 +397,7 @@ BEGIN
  IF jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'number' OR coalesce(_p->>'expected_version','') !~ '^[0-9]{1,9}$' OR jsonb_typeof(_p->'allocated_cents') IS DISTINCT FROM 'number' OR coalesce(_p->>'allocated_cents','') !~ '^[0-9]{1,13}$' THEN RAISE EXCEPTION 'MCP_BAD:Approval needs version and job amount.'; END IF;
  ver:=(_p->>'expected_version')::integer;
  SELECT * INTO v FROM public.mcp_cost_submission_versions WHERE record_id=ident ORDER BY version DESC LIMIT 1;
+ IF public.mcp_cost_currency_supported(v.facts->>'currency_code') IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Correct the version with a supported currency before payment approval.'; END IF;
  SELECT coalesce(sum((a->>'amount_cents')::numeric),0) INTO allocated FROM jsonb_array_elements(v.facts->'allocations') a WHERE (a->>'job_id')::uuid=_job;
  IF ver<>v.version OR allocated<=0 OR allocated<>(_p->>'allocated_cents')::numeric THEN RAISE EXCEPTION 'MCP_BAD:Version or job allocation changed; review again.'; END IF;
  IF (role_name='pm' AND coalesce(basis,'') NOT IN ('work_verified','delivery_needed','advance','deposit')) OR (role_name='owner' AND basis IS DISTINCT FROM 'owner_exception') THEN RAISE EXCEPTION 'MCP_BAD:Choose a valid approval basis.'; END IF;
@@ -443,7 +457,7 @@ BEGIN
  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Full project access required.'; END IF;
  SELECT * INTO j FROM public.mcp_jobs WHERE id=_job;
  IF public.mcp_cost_accounting_authorized(j.company_id) IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Accounting approval, posting and settlement are not available.'; END IF;
- IF jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>10000 OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','expected_version','payment_id','amount_cents','paid_on','reference')) THEN RAISE EXCEPTION 'MCP_BAD:Invalid accounting action.'; END IF;
+ IF jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>10000 OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p) x WHERE x NOT IN ('action','id','request_id','expected_version','payment_id','amount_cents','paid_on','reference','accounting_effective_on')) THEN RAISE EXCEPTION 'MCP_BAD:Invalid accounting action.'; END IF;
  ident:=nullif(_p->>'id','')::uuid; rid:=nullif(_p->>'request_id','')::uuid; action:=_p->>'action';
  IF ident IS NULL OR rid IS NULL OR coalesce(action,'') NOT IN ('approve','post','payment') THEN RAISE EXCEPTION 'MCP_BAD:Invalid accounting action.'; END IF;
  PERFORM 1 FROM public.mcp_companies WHERE id=j.company_id FOR UPDATE;
@@ -461,23 +475,28 @@ BEGIN
  ver:=(_p->>'expected_version')::integer;
  SELECT * INTO v FROM public.mcp_cost_submission_versions WHERE record_id=ident ORDER BY version DESC LIMIT 1;
  IF ver<>v.version THEN RAISE EXCEPTION 'MCP_BAD:Cost version changed.'; END IF;
+ IF action<>'post' AND _p ? 'accounting_effective_on' THEN RAISE EXCEPTION 'MCP_BAD:Accounting effective date is only recorded with posting.'; END IF;
  IF action='approve' THEN
    IF EXISTS(SELECT 1 FROM public.mcp_cost_approvals WHERE record_id=ident AND version=ver) THEN RAISE EXCEPTION 'MCP_BAD:Version is already approved.'; END IF;
    INSERT INTO public.mcp_cost_approvals(record_id,version,approved_by) VALUES(ident,ver,auth.uid());
    result:=jsonb_build_object('id',ident,'version',ver,'status','approved');
  ELSIF action='post' THEN
+   IF public.mcp_cost_valid_date(_p->>'accounting_effective_on') IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Valid accounting effective date required.'; END IF;
+   IF public.mcp_cost_currency_supported(v.facts->>'currency_code') IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Correct the version with a supported currency before posting.'; END IF;
    IF NOT EXISTS(SELECT 1 FROM public.mcp_cost_approvals WHERE record_id=ident AND version=ver) THEN RAISE EXCEPTION 'MCP_BAD:Approval is required before posting.'; END IF;
    IF EXISTS(SELECT 1 FROM public.mcp_cost_posting_events WHERE record_id=ident AND version=ver) THEN RAISE EXCEPTION 'MCP_BAD:Version is already posted.'; END IF;
    paid:=public.mcp_cost_active_paid(ident);
    SELECT cv.* INTO posted FROM public.mcp_cost_submission_versions cv JOIN public.mcp_cost_posting_events pe ON pe.record_id=cv.record_id AND pe.version=cv.version WHERE cv.record_id=ident ORDER BY pe.version DESC LIMIT 1;
    IF paid>(v.facts->>'amount_cents')::numeric THEN RAISE EXCEPTION 'MCP_BAD:Corrected amount is below recorded settlement.'; END IF;
    IF paid>0 AND (lower(btrim(v.facts->>'counterparty_name')) IS DISTINCT FROM lower(btrim(posted.facts->>'counterparty_name'))) THEN RAISE EXCEPTION 'MCP_BAD:Resolve recorded settlement before changing the payee.'; END IF;
-   INSERT INTO public.mcp_cost_posting_events(record_id,version,posted_by) VALUES(ident,ver,auth.uid());
+   IF paid>0 AND v.facts->>'currency_code' IS DISTINCT FROM posted.facts->>'currency_code' THEN RAISE EXCEPTION 'MCP_BAD:Resolve recorded settlement before changing currency.'; END IF;
+   INSERT INTO public.mcp_cost_posting_events(record_id,version,posted_by,accounting_effective_on) VALUES(ident,ver,auth.uid(),(_p->>'accounting_effective_on')::date);
    result:=jsonb_build_object('id',ident,'version',ver,'status','posted');
  ELSE
    IF rec.kind='company_paid_expense' THEN RAISE EXCEPTION 'MCP_BAD:Company-paid expense has no supplier payable or employee reimbursement.'; END IF;
    SELECT cv.* INTO posted FROM public.mcp_cost_submission_versions cv JOIN public.mcp_cost_posting_events pe ON pe.record_id=cv.record_id AND pe.version=cv.version WHERE cv.record_id=ident ORDER BY pe.version DESC LIMIT 1;
    IF posted.record_id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:No posted payable is available.'; END IF;
+   IF public.mcp_cost_currency_supported(posted.facts->>'currency_code') IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:Correct the posted currency before recording settlement.'; END IF;
    IF ver<>posted.version THEN RAISE EXCEPTION 'MCP_BAD:Resolve the pending correction before recording settlement.'; END IF;
    IF public.mcp_cost_pm_payment_ready(ident,posted.version) IS DISTINCT FROM true THEN RAISE EXCEPTION 'MCP_BAD:PM approval for every allocated job is required before recording payment.'; END IF;
    payment_id:=nullif(_p->>'payment_id','')::uuid;
@@ -579,6 +598,10 @@ END $$;
 REVOKE ALL ON FUNCTION public.mcp_cost_settlement_action(uuid,jsonb,uuid,boolean) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_cost_settlement_action(uuid,jsonb,uuid,boolean) TO authenticated;
 
+-- Even privileged accidental updates cannot rewrite the facts or posting provenance.
+CREATE TRIGGER mcp_cost_versions_immutable BEFORE UPDATE OR DELETE ON public.mcp_cost_submission_versions FOR EACH ROW EXECUTE FUNCTION public.mcp_block_change();
+CREATE TRIGGER mcp_cost_postings_immutable BEFORE UPDATE OR DELETE ON public.mcp_cost_posting_events FOR EACH ROW EXECUTE FUNCTION public.mcp_block_change();
+
 -- Return evidence separately; only the latest posted version is a cost effect.
 CREATE OR REPLACE FUNCTION public.mcp_cost_submission_read(_job uuid) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
@@ -591,13 +614,13 @@ BEGIN
    (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.version DESC) FROM public.mcp_cost_submission_versions v WHERE v.record_id=r.id),
    'approved_versions',(SELECT coalesce(jsonb_agg(a.version ORDER BY a.version),'[]'::jsonb) FROM public.mcp_cost_approvals a WHERE a.record_id=r.id),
    'posted_version',(SELECT max(p.version) FROM public.mcp_cost_posting_events p WHERE p.record_id=r.id),
-   'posting_events',(SELECT coalesce(jsonb_agg(jsonb_build_object('version',p.version,'posted_by',p.posted_by,'posted_at',p.posted_at) ORDER BY p.posted_at,p.version),'[]'::jsonb) FROM public.mcp_cost_posting_events p WHERE p.record_id=r.id),
+   'posting_events',(SELECT coalesce(jsonb_agg(jsonb_build_object('version',p.version,'posted_by',p.posted_by,'posted_at',p.posted_at,'accounting_effective_on',p.accounting_effective_on) ORDER BY p.posted_at,p.version),'[]'::jsonb) FROM public.mcp_cost_posting_events p WHERE p.record_id=r.id),
    'business_approvals',(SELECT coalesce(jsonb_agg(to_jsonb(b)||jsonb_build_object('withdrawn',EXISTS(SELECT 1 FROM public.mcp_cost_business_withdrawals w WHERE w.approval_id=b.id)) ORDER BY b.version,b.job_id,b.approved_at),'[]'::jsonb) FROM public.mcp_cost_business_approvals b WHERE b.record_id=r.id),
    'payments',(SELECT coalesce(jsonb_agg(q.entry ORDER BY q.recorded_at),'[]'::jsonb) FROM (
       SELECT e.recorded_at,to_jsonb(e)||jsonb_build_object('corrected',EXISTS(SELECT 1 FROM public.mcp_cost_payment_corrections c WHERE c.payment_id=e.id),'correction',(SELECT jsonb_build_object('reason',c.reason,'corrected_by',c.corrected_by,'corrected_at',c.corrected_at) FROM public.mcp_cost_payment_corrections c WHERE c.payment_id=e.id),'shared',false) entry FROM public.mcp_cost_payment_evidence e WHERE e.record_id=r.id
       UNION ALL SELECT p.recorded_at,jsonb_build_object('id',p.id,'record_id',a.record_id,'amount_cents',a.amount_cents,'paid_on',p.paid_on,'reference',p.reference,'recorded_by',p.recorded_by,'recorded_at',p.recorded_at,'shared',true,'corrected',EXISTS(SELECT 1 FROM public.mcp_cost_payment_corrections c WHERE c.shared_payment_id=p.id),'correction',(SELECT jsonb_build_object('reason',c.reason,'corrected_by',c.corrected_by,'corrected_at',c.corrected_at) FROM public.mcp_cost_payment_corrections c WHERE c.shared_payment_id=p.id)) FROM public.mcp_cost_shared_allocations a JOIN public.mcp_cost_shared_payments p ON p.id=a.payment_id WHERE a.record_id=r.id) q),
    'active_settlement_cents',public.mcp_cost_active_paid(r.id),
-   'settlement_allocation_available',false,'accounting_effective_date_available',false) ORDER BY r.created_at DESC),'[]'::jsonb)
+   'settlement_allocation_available',false,'accounting_effective_date_available',coalesce((SELECT p.accounting_effective_on IS NOT NULL FROM public.mcp_cost_posting_events p WHERE p.record_id=r.id ORDER BY p.version DESC LIMIT 1),false)) ORDER BY r.created_at DESC),'[]'::jsonb)
  INTO result FROM public.mcp_cost_submissions r
  WHERE (r.anchor_job_id=_job OR EXISTS(SELECT 1 FROM public.mcp_cost_submission_versions v CROSS JOIN LATERAL jsonb_array_elements(v.facts->'allocations') a WHERE v.record_id=r.id AND (a->>'job_id')::uuid=_job))
  AND public.mcp_job_scope(r.anchor_job_id)='full'

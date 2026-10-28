@@ -103,6 +103,7 @@ function facts(ref, kind = "supplier_bill") {
     description: "Synthetic material",
     counterparty_name: "Synthetic payee",
     incurred_on: "2026-10-28",
+    currency_code: "USD",
     amount_cents: 10000,
     document_reference: ref,
     original: "missing",
@@ -118,7 +119,14 @@ function submission(ref, kind) {
   };
 }
 function accounting(id, action, extra = {}) {
-  return { id, action, request_id: randomUUID(), expected_version: 1, ...extra };
+  return {
+    id,
+    action,
+    request_id: randomUUID(),
+    expected_version: 1,
+    ...(action === "post" ? { accounting_effective_on: "2026-10-28" } : {}),
+    ...extra,
+  };
 }
 async function submit(c, p) {
   return reviewed(c, ids.owner, ids.job, "submission", "mcp_cost_submission_save", p);
@@ -287,7 +295,22 @@ try {
   assert.equal(after.posted_version, 1);
   assert.equal(after.posting_events[0].version, 1);
   assert.ok(!Number.isNaN(Date.parse(after.posting_events[0].posted_at)));
-  assert.equal(after.accounting_effective_date_available, false);
+  assert.equal(after.versions[0].facts.currency_code, "USD");
+  assert.equal(after.posting_events[0].accounting_effective_on, "2026-10-28");
+  await assert.rejects(
+    admin.query("UPDATE mcp_cost_submission_versions SET facts=facts WHERE record_id=$1", [
+      bill.id,
+    ]),
+    /append-only/,
+  );
+  await assert.rejects(
+    admin.query(
+      "UPDATE mcp_cost_posting_events SET accounting_effective_on='2026-11-01' WHERE record_id=$1",
+      [bill.id],
+    ),
+    /append-only/,
+  );
+  assert.equal(after.accounting_effective_date_available, true);
   assert.equal(after.settlement_allocation_available, false);
   // Concurrent withdrawal/payment yields a serial result and preserves a payment if it won first.
   const bill2 = submission("withdrawal-race");
