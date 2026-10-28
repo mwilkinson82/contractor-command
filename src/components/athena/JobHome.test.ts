@@ -118,7 +118,10 @@ describe("persistent job home", () => {
     expect(html).toContain("Saved jobs");
     expect(html).toContain("Indicated Outcome Report");
     expect(html).toContain(`/r/job/${job}/purchase-orders`);
-    expect(html).not.toContain(`/r/job/${job}/purchase-orders?t=`);
+    for (const page of ["purchase-orders", "accounting", "billing-records"]) {
+      expect(html).toContain(`href="/r/job/${job}/${page}"`);
+      expect(html).not.toContain(`/r/job/${job}/${page}?t=`);
+    }
     expect(html).not.toContain("Items of record");
     expect(html).not.toContain("From your inbox and calendar");
   });

@@ -51,7 +51,7 @@ try {
   }
   assert.ok(ready, "Workers preview did not start");
   const job = "00000000-0000-4000-8000-000000000801";
-  for (const page of ["home", "accounting", "billing-records"]) {
+  for (const page of ["home", "accounting", "billing-records", "purchase-orders"]) {
     const response = await fetch(`${origin}/r/job/${job}/${page}`, {
       signal: AbortSignal.timeout(15000),
     });
@@ -63,7 +63,9 @@ try {
         ? /Loading project/
         : page === "billing-records"
           ? /Loading billing records/
-          : /Checking access/,
+          : page === "purchase-orders"
+            ? /Checking access|Loading purchase orders/
+            : /Checking access/,
     );
     assert.doesNotMatch(html, /This page didn.t load|unhandled.*HTTPError/);
   }
@@ -83,7 +85,9 @@ try {
     }),
   });
   assert.equal(denied.status, 401, "MCP must still require a bearer token");
-  console.log("Workers preview: home, accounting and billing SSR 200; unauthenticated MCP 401.");
+  console.log(
+    "Workers preview: home, accounting, billing and purchase orders SSR 200; unauthenticated MCP 401.",
+  );
 } catch (error) {
   console.error(output);
   throw error;

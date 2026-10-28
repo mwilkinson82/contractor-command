@@ -1,0 +1,78 @@
+{
+  "status": "local_review_candidate_only",
+  "observed_at": "2026-10-28",
+  "repository": "mwilkinson82/contractor-command",
+  "source_commits": {
+    "release": "1fc1bec4f60b2080743cb81e399d7c016f6981dc",
+    "purchase_orders": "9b5df5c54ebab9e41773321cd65a098f607c7ced",
+    "ap": "1318fa2a94d7710d8d521093269f099e4e76893a",
+    "reconciliation": "673ff295b0f7c3cf4067ab5942afc6d12a1cf8a9",
+    "reporting_local": "9de1254cd15a226074b7ee25b72e095053016f17",
+    "reporting_remote": "d00f2fe47890d9886bd1e1d69cd866512af3ecdb"
+  },
+  "managed_artifact_last_tag": "0034_athena_financial_documents",
+  "live_migration_state": "unverified; repository artifacts are not live history",
+  "prerequisite_artifacts": [
+    {
+      "path": "drizzle/migrations/0033_athena_project_billing_evidence.sql",
+      "sha256": "14966fb5f2997ce8c8ad3768267210391f3451b62fd5358579fc6a22ac6f12d9"
+    },
+    {
+      "path": "drizzle/migrations/0034_athena_financial_documents.sql",
+      "sha256": "90f42b58c5bea96f0366821c1dd7f4cad63c2775e066276eaad408f5811a6506"
+    },
+    {
+      "path": "supabase/migrations/20261101120001_athena_project_billing_evidence.sql",
+      "sha256": "14966fb5f2997ce8c8ad3768267210391f3451b62fd5358579fc6a22ac6f12d9"
+    },
+    {
+      "path": "supabase/migrations/20261101120002_athena_financial_documents.sql",
+      "sha256": "90f42b58c5bea96f0366821c1dd7f4cad63c2775e066276eaad408f5811a6506"
+    },
+    {
+      "path": "drizzle/migrations/meta/_journal.json",
+      "sha256": "f6cce8704b9c0bc1ba49170574227951e8089ef1e469b02c95b0e6ec130d8365"
+    }
+  ],
+  "ordered_source_drafts": [
+    {
+      "order": 1,
+      "path": "supabase/migrations/20261028143924_athena_project_purchase_orders.sql",
+      "sha256": "9dfa532b2e330fcee3596d0e1ca7dc5bb0b1c0f8908fd4809a6e8b92c7b84bf2",
+      "managed_identity": null
+    },
+    {
+      "order": 2,
+      "path": "docs/athena/job-cost-submission.schema-draft.sql",
+      "sha256": "ba37b300a41e8e4f44e0a16c672faa1875389bb6cd4d91659ca9c43070f876ea",
+      "managed_identity": null
+    },
+    {
+      "order": 3,
+      "path": "docs/athena/job-cost-project-refs.schema-draft.sql",
+      "sha256": "77535a8762e31a963708ad29acb27f05c71a6bf5bc1062aa6871a6fdb9cef327",
+      "managed_identity": null
+    },
+    {
+      "order": 4,
+      "path": "docs/athena/job-cost-originals.schema-draft.sql",
+      "sha256": "e16ed33f8d72ec819fb9f43161f040f91a137b15610b48230d4fbab7f614701a",
+      "managed_identity": null
+    },
+    {
+      "order": 5,
+      "path": "docs/athena/ap-reconciliation-snapshot.schema-draft.sql",
+      "sha256": "a25517349efbc2f301341af41e54adcc4ee71fd7df061a20e6c1e9b50dc76f33",
+      "managed_identity": null
+    },
+    {
+      "order": 6,
+      "path": "docs/athena/billing-reconciliation-snapshot.schema-draft.sql",
+      "sha256": "fdaba5220ef955e50137e4c47df9e1492368590481f3cd590868622819bc3be6",
+      "managed_identity": null
+    }
+  ],
+  "index_strategy": "billing snapshot indexes require approved locking or separate online runner; final SQL/hash may differ",
+  "final_managed_sql_hashes": "not assigned; freeze after managed-lane review",
+  "outbound_actions": "no push, merge, deploy, migration application, PR approval, email or customer write authorized by this task"
+}

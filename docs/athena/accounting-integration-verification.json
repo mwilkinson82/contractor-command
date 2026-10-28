@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-28",
+  "status": "local_candidate_verified_not_released",
+  "tests": {
+    "files_passed": 323,
+    "tests_passed": 3041,
+    "skipped": 4,
+    "todo": 2,
+    "failures": 0,
+    "unhandled_errors": 0,
+    "pinned_ap_producer_enabled": true
+  },
+  "typescript": "passed",
+  "scoped_semantic_eslint": "passed; inherited prettier rule disabled, not repository-wide default lint",
+  "production_build": "passed; upstream deprecation/chunk warnings",
+  "preview": {
+    "home": 200,
+    "accounting": 200,
+    "billing-records": 200,
+    "purchase-orders": 200,
+    "unauthenticated_mcp": 401
+  },
+  "native_postgres": {
+    "coverage": "isolated synthetic PostgreSQL only",
+    "cases": {
+      "orderedDdl": "all producers and integration constraints installed together",
+      "concurrentDuplicate": "one commit, one duplicate rejection on independent connections",
+      "concurrentRetry": "one version and idempotent readback",
+      "concurrentOverpayment": "one 8000-cent evidence record, second rejected against 10000-cent payable",
+      "snapshotIsolation": "read-only snapshot observes complete pre-commit state and next read complete post-commit state",
+      "revokedMembership": "next read denied without hidden rows or counts"
+    },
+    "postgres": "PostgreSQL 18.4 on x86_64-apple-darwin24.6.0, compiled by Apple clang version 17.0.0 (clang-1700.6.3.2), 64-bit"
+  },
+  "source_hashes": "verified by scripts/verify-accounting-release-sources.mjs",
+  "discovery": {
+    "tools": 103,
+    "guard_pattern_count": 99,
+    "schemas": "verified against actual SDK tools/list"
+  },
+  "evidence": [
+    "artifacts/integration-tests.xml",
+    "artifacts/tests.log",
+    "artifacts/build.log",
+    "artifacts/typecheck.log",
+    "artifacts/lint.log",
+    "artifacts/preview-smoke.log",
+    "artifacts/native-postgres-results.json",
+    "artifacts/source-hashes.log"
+  ],
+  "remaining_gates": [
+    "actual managed history/schema/ACL/bucket and advisor verification",
+    "final managed identities and SQL hashes",
+    "safe index strategy and realistic query sizes/plans",
+    "managed staging UAT and host final-confirmation UX",
+    "specific owner approvals for push/PR metadata/merge/migration/deployment"
+  ],
+  "external_mutations_performed": false
+}
