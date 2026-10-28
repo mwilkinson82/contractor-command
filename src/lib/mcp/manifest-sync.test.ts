@@ -18,6 +18,7 @@ import * as G from "./tools/flow-tools";
 import * as Est from "./tools/estimate-tools";
 import * as Bid from "./tools/estimate-bid-tools";
 import * as Field from "./tools/superintendent-tools";
+import * as Production from "./tools/production-tools";
 import * as Start from "./tools/getting-started-tool";
 import * as Brief from "./tools/morning-brief-tools";
 import * as Sub from "./tools/submittal-tools";
@@ -106,9 +107,17 @@ async function liveTools(): Promise<Tool[]> {
       Field.dailyReportDraft,
       Field.dailyReportSave,
       Field.dailyReportGet,
+      Field.dailyWorkVoid,
+      Field.dailyWorkHistory,
       Field.fieldPayApp,
       Field.fieldScheduleFeed,
       Field.fieldProductionRates,
+      Production.productionMappingSources,
+      Production.productionMappingPreview,
+      Production.productionMappingApprove,
+      Production.productionWorkReferences,
+      Production.weeklyProduction,
+      Production.productionPhotoAssociate,
       Field.progressPhotoSave,
       Field.progressPhotos,
       Field.dailyReminder,

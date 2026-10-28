@@ -46,6 +46,7 @@ const PHOTO_BUCKET = "athena-progress";
 
 const workIn = z.object({
   work: z.string().trim().min(1).max(400),
+  allocation_id: z.string().uuid().nullable().optional(),
   sov_item: z.string().trim().max(20).nullable().optional(),
   activity_id: z.string().trim().max(20).nullable().optional(),
   qty: z.number().nullable().optional(),
@@ -242,6 +243,7 @@ const dailyFields = {
   delays: z.string().trim().max(2000).optional(),
   safety: z.string().trim().max(1000).optional(),
   work: z.array(workIn).max(80).optional(),
+  capture_mode: z.enum(["approved", "legacy"]).optional(),
 };
 
 export const dailyReportDraft = defineTool({
@@ -257,10 +259,25 @@ export const dailyReportDraft = defineTool({
       const zone = await jobTimeZone(sb, job.job_id);
       const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
+      const refs = await call<{ allocation_id: string; mapping_version: number; sov_item: string; activity_id: string; unit: string | null }[]>(sb, "mcp_production_work_references", { _job: job.job_id, _date: day });
+      const status = await call<{ found: boolean; revision: number; work_voided?: boolean; lines: { line_no: number; allocation_id: string | null; sov_item: string | null; activity_id: string | null; unit: string | null; mapping_version: number | null }[] }>(sb, "mcp_daily_revision_status", { _job: job.job_id, _date: day });
+      const mapped = draft.work.map((line, i) => {
+        const hits = refs.filter((r) => r.sov_item === line.sov_item && r.activity_id === line.activity_id && (r.unit == null || r.unit === line.unit));
+        const previous = status.lines.find((r) => r.line_no === i + 1 && r.sov_item === line.sov_item && r.activity_id === line.activity_id && r.unit === line.unit && r.allocation_id);
+        const requested = args.work?.[i]?.allocation_id;
+        const selected = requested ? (previous?.allocation_id === requested ? previous : hits.find((r) => r.allocation_id === requested)) : (previous ?? (hits.length === 1 ? hits[0] : null));
+        return { ...line, allocation_id: selected?.allocation_id ?? null, mapping_version: selected?.mapping_version ?? null, previous_mapping_version: previous?.mapping_version ?? null };
+      });
+      const missing = mapped.some((w) => !w.allocation_id);
+      const captureMode = args.capture_mode ?? (missing ? "legacy" : "approved");
+      const priorMapped = status.lines.some((line) => line.allocation_id != null);
+      const ready = draft.ready && (captureMode === "approved" ? !missing : !priorMapped);
+      const shownWork = captureMode === "legacy" ? mapped.map((w) => ({ ...w, allocation_id: null, mapping_version: null })) : mapped;
+      const requestKey = crypto.randomUUID();
       await audit(sb, job, "daily_report_draft", "draft_daily", null);
       return guide(
-        { ...text(dailyCard(`${named(job)} `, day, draft, false)), structuredContent: { saved: false, report_date: day, ready: draft.ready, follow_ups: draft.follow_ups, draft } },
-        draft.ready ? "The daily is complete. Ask the superintendent to confirm, and only after a yes call daily_report_save with confirmed true." : "Ask every still-needed question. Do not save yet.",
+        { ...text([dailyCard(`${named(job)} `, day, draft, false), ...(status.work_voided ? ["The previous work was voided; saving this draft would restore work on the daily."] : []), ...(captureMode === "legacy" ? [priorMapped ? "This daily already has approved references; keep them or void the work through the updated workflow." : "Work will be saved unlinked; it will not appear in approved-mapping production totals."] : mapped.map((w) => w.allocation_id ? `Approved mapping v${w.mapping_version}: SOV ${w.sov_item}, ${w.activity_id}${w.previous_mapping_version != null && w.previous_mapping_version !== w.mapping_version ? ` (previously v${w.previous_mapping_version})` : ""}.` : `No unique approved work reference for SOV ${w.sov_item ?? "needed"}, ${w.activity_id ?? "activity needed"}.`)), ...(status.found ? ["A correction reason is required for a changed saved daily."] : [])].join("\n")), structuredContent: { saved: false, report_date: day, ready, capture_mode: captureMode, follow_ups: draft.follow_ups, draft: { ...draft, work: shownWork }, expected_revision: status.revision, request_key: requestKey, correction_reason_required: status.found, restoring_voided_work: status.work_voided === true } },
+        ready ? "Review the daily and its mapping status with the superintendent. Only after a yes call daily_report_save with confirmed true, the returned capture mode, expected revision and request key. A changed saved daily also needs a correction reason." : "Resolve the missing sections or preserve the existing approved references before saving.",
       );
     }),
 });
@@ -269,7 +286,7 @@ export const dailyReportSave = defineTool({
   name: "daily_report_save",
   title: "Save a confirmed daily report",
   description: "Saves a daily report after the superintendent confirms it.",
-  inputSchema: { ...dailyFields, confirmed: z.boolean() },
+  inputSchema: { ...dailyFields, confirmed: z.boolean(), expected_revision: z.number().int().min(0).optional(), request_key: z.string().uuid().optional(), correction_reason: z.string().trim().min(1).max(1000).optional() },
   annotations: SAVE,
   handler: (args, ctx) =>
     run("daily_report_save", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -280,17 +297,32 @@ export const dailyReportSave = defineTool({
       const day = args.report_date ?? todayIn(zone);
       const draft = assembleDaily(args);
       if (!draft.ready) throw new ToolError(`${prefix(job)}Not saved.\n${draft.follow_ups.map((q) => `- ${q}`).join("\n")}`);
-      const saved = await call<{ id: string; lines: number }>(sb, "mcp_daily_report_save", {
-        _job: job.job_id, _date: day, _confirmed: true,
-        _weather: draft.weather, _manpower: draft.manpower, _subs: draft.subs_on_site, _deliveries: draft.deliveries,
-        _issues: draft.issues, _delays: draft.delays, _safety: draft.safety, _transcript: args.transcript ?? null,
-        _lines: draft.work.map((w) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete })),
+      const hasKey = args.request_key != null;
+      const hasRevision = args.expected_revision != null;
+      if (hasKey !== hasRevision) throw new ToolError("Use both the request key and expected revision from the reviewed daily. Nothing was saved.");
+      const anyAllocation = args.work?.some((w) => !!w.allocation_id) ?? false;
+      const allAllocations = !!args.work?.length && args.work.length === draft.work.length && args.work.every((w) => !!w.allocation_id);
+      const captureMode = args.capture_mode ?? (allAllocations ? "approved" : "legacy");
+      if ((!hasKey && anyAllocation) || (captureMode === "approved" && !allAllocations) || (captureMode === "legacy" && anyAllocation)) throw new ToolError("Review the daily's mapping status and work references first. Nothing was saved.");
+      const lines = draft.work.map((w, i) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete, ...(captureMode === "approved" ? { allocation_id: args.work![i].allocation_id } : {}) }));
+      const common = { _job: job.job_id, _date: day, _confirmed: true, _weather: draft.weather, _manpower: draft.manpower, _subs: draft.subs_on_site, _deliveries: draft.deliveries, _issues: draft.issues, _delays: draft.delays, _safety: draft.safety, _transcript: args.transcript ?? null, _lines: lines };
+      if (!hasKey) {
+        const saved = await call<{ id: string; revision: number; mapping_status: string }>(sb, "mcp_daily_report_save", common);
+        await audit(sb, job, "daily_report_save", "save_daily", saved.id);
+        return guide({ ...text(`${dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)}\nWork is unlinked to an approved mapping and excluded from approved production totals.`), structuredContent: { saved: true, id: saved.id, report_date: day, revision: saved.revision, mapping_status: saved.mapping_status, rates: draft.work.map(rateFromLine).filter(Boolean) } }, "The daily was saved unlinked. Actual billing, cash and the saved schedule were not changed.");
+      }
+      const saved = await call<{ id: string; lines: number; revision: number; revision_id: string; replayed: boolean; is_current: boolean }>(sb, "mcp_daily_report_save_v2", {
+        ...common, _expected_revision: args.expected_revision, _request_key: args.request_key, _reason: args.correction_reason ?? null, _mode: captureMode,
       });
       await audit(sb, job, "daily_report_save", "save_daily", saved.id);
+      if (saved.replayed && !saved.is_current) return guide(
+        { ...text(`${prefix(job)}This request was already saved as revision ${saved.revision}; the daily has since changed. Open the current daily before taking further action.`), structuredContent: { ...saved, saved: true, report_date: day } },
+        "This is a replay of an earlier revision, not the current daily. Call daily_report_get to show the current record.",
+      );
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
-        "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save.",
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true), `Revision ${saved.revision}${saved.replayed ? " · existing request" : ""}`, ...(captureMode === "legacy" ? ["Work is unlinked to an approved mapping and excluded from approved production totals."] : [])].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, revision: saved.revision, revision_id: saved.revision_id, replayed: saved.replayed, mapping_status: captureMode === "approved" ? "approved" : "unlinked", rates: draft.work.map(rateFromLine).filter(Boolean) } },
+        "Production is distinct from actual billing and payment. This save does not change the saved schedule.",
       );
     }),
 });
@@ -307,15 +339,51 @@ export const dailyReportGet = defineTool({
       if (!isJob(job)) return job;
       const zone = await jobTimeZone(sb, job.job_id);
       const day = args.report_date ?? todayIn(zone);
-      const got = await call<{ found: boolean; weather?: string; manpower?: string; subs_on_site?: string; deliveries?: string; issues?: string; delays?: string; safety?: string; lines?: { work: string; sov_item: string; activity_id: string; qty: number; unit: string; crew: number; hours: number; pct_complete: number | null }[] }>(sb, "mcp_daily_report_get", { _job: job.job_id, _date: day });
+      const got = await call<{ found: boolean; work_voided?: boolean; weather?: string; manpower?: string; subs_on_site?: string; deliveries?: string; issues?: string; delays?: string; safety?: string; lines?: { work: string; sov_item: string; activity_id: string; qty: number; unit: string; crew: number; hours: number; pct_complete: number | null }[] }>(sb, "mcp_daily_report_get", { _job: job.job_id, _date: day });
+      const revision = await call<{ revision: number; lines: { revision_line_id: string; line_no: number; allocation_id: string | null }[]; legacy?: boolean }>(sb, "mcp_daily_revision_status", { _job: job.job_id, _date: day });
       await audit(sb, job, "daily_report_get", "view_daily", null);
       if (!got.found) return guide({ ...text(`${prefix(job)}No daily is saved for ${day}.`), structuredContent: { found: false, report_date: day } }, "Nothing saved for that date.");
       const draft = assembleDaily({ ...got, work: got.lines ?? [] });
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
-        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got } },
-        "Show the card as saved.",
+        { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true, got.work_voided === true)].join("\n")), structuredContent: { found: true, report_date: day, daily: got, revision, photo_association_request_key: crypto.randomUUID(), void_request_key: crypto.randomUUID() } },
+        "Show the card as saved. For an explicit photo association, use the chosen revision line ID and the returned photo association request key; reuse that key to reconcile a retry. To void all work on this daily, review the record and reason with the superintendent, then only after an explicit yes use daily_work_void with the returned revision and void request key.",
       );
+    }),
+});
+
+export const dailyWorkVoid = defineTool({
+  name: "daily_work_void",
+  title: "Void erroneous daily work",
+  description: "Voids all work on a saved daily after confirmation while preserving its history.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, report_date: date, expected_revision: z.number().int().min(0), request_key: z.string().uuid(), reason: z.string().trim().min(1).max(1000), confirmed: z.boolean() },
+  annotations: SAVE,
+  handler: (args, ctx) =>
+    run("daily_work_void", ctx, { jobNumber: args.job_number }, async (sb) => {
+      if (!args.confirmed) throw new ToolError("Review the daily and reason with the superintendent first. Nothing was changed.");
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      assertField(job);
+      const result = await call<{ id: string; revision: number; revision_id: string; replayed: boolean; is_current: boolean }>(sb, "mcp_daily_work_void", { _job: job.job_id, _date: args.report_date, _expected_revision: args.expected_revision, _request_key: args.request_key, _reason: args.reason, _confirmed: true });
+      await audit(sb, job, "daily_work_void", "void_daily_work", result.id);
+      const message = result.replayed && !result.is_current ? `This void request was recorded as revision ${result.revision}, but the daily has since changed. Open the current daily.` : `Work on the ${args.report_date} daily was voided. Prior work, rates and photo associations remain in its history.`;
+      return { ...text(`${prefix(job)}${message}`), structuredContent: { ...result, report_date: args.report_date } };
+    }),
+});
+
+export const dailyWorkHistory = defineTool({
+  name: "daily_work_history",
+  title: "Daily work history",
+  description: "Shows retained revisions of a daily report and their work and photo links.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, report_date: date, before_revision: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(50).optional() },
+  annotations: READ,
+  handler: (args, ctx) =>
+    run("daily_work_history", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      assertField(job);
+      const result = await call<{ found: boolean; legacy_unversioned?: boolean; next_before: number | null; revisions: { id: string; revision: number; origin: string; reason: string | null; recorded_at: string; snapshot: { lines: { work: string; qty: number; unit: string; crew: number; hours: number }[] }; lines: { id: string; line_no: number; allocation_id: string | null; photo_ids: string[] }[] }[] }>(sb, "mcp_daily_revision_history", { _job: job.job_id, _date: args.report_date, _before: args.before_revision ?? null, _limit: args.limit ?? 20 });
+      await audit(sb, job, "daily_work_history", "view_daily_work_history", null);
+      const rows = result.revisions.map((r) => `Revision ${r.revision} · ${r.origin === "void" ? "work voided" : r.origin === "legacy_snapshot" ? "legacy snapshot" : r.origin === "approved" ? "approved references" : "unlinked"} · recorded ${r.recorded_at}${r.reason ? ` · reason: ${r.reason}` : ""}\n${r.snapshot.lines.map((line) => `- ${line.work}: ${line.qty} ${line.unit}, crew ${line.crew}, ${line.hours} hours`).join("\n") || "- No current work in this revision."}`);
+      return guide({ ...text([`${prefix(job)}Daily work history · ${args.report_date}`, ...(result.found ? result.legacy_unversioned ? ["This legacy daily has no captured revision yet; its current report remains available."] : rows : ["No saved daily exists for this date."]), ...(result.next_before != null ? ["Earlier revisions are available."] : [])].join("\n")), structuredContent: result as never }, "Show the recorded history, not a revised current daily. If next_before is present, pass it as before_revision to see earlier records. Photo IDs are linked to the specific revision line.");
     }),
 });
 

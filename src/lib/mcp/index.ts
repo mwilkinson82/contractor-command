@@ -44,12 +44,15 @@ import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { jobsList, drawingSetsList } from "./tools/discovery-tools";
 import { ESTIMATE_SERVER_RULE } from "./estimating";
 import { FIELD_SERVER_RULE } from "./superintendent";
+import { productionMappingSources, productionMappingPreview, productionMappingApprove, productionWorkReferences, weeklyProduction, productionPhotoAssociate } from "./tools/production-tools";
 import {
   dailyReminder,
   dailyReminderRun,
   dailyReportDraft,
   dailyReportGet,
   dailyReportSave,
+  dailyWorkVoid,
+  dailyWorkHistory,
   fieldPayApp,
   fieldProductionRates,
   fieldScheduleFeed,
@@ -79,7 +82,7 @@ import { estimateBidSummary, estimateGeneralConditions, estimatePricing, estimat
 const projectRef = import.meta.env["VITE_SUPABASE_PROJECT_ID"] ?? "project-ref-unset";
 
 /** All Athena tools, in tools/list order. */
-export const ATHENA_TOOLS = [changeOrderLog, changeOrderRecord, rfiLog, rfiRecord, rfcLog, rfcRecord, jobsList, drawingSetsList, onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, billingEvidenceRead, billingEvidenceRecord, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, fileUpload, projectDocuments, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, sheetCalibrate, takeoffGeometry, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, fieldPayApp, fieldScheduleFeed, fieldProductionRates, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, submittalPackage, submittalDelivery, submittalVoid, gettingStarted];
+export const ATHENA_TOOLS = [changeOrderLog, changeOrderRecord, rfiLog, rfiRecord, rfcLog, rfcRecord, jobsList, drawingSetsList, onboarding, intake, nextQuestion, answer, report, contractTerms, carryForward, listOpenItems, lookaheadList, lookaheadGet, resolveItem, cpmActivities, livingReportGet, livingReportSave, billingEvidenceRead, billingEvidenceRecord, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink, reportPageShare, reportPageShareRevoke, fileUpload, projectDocuments, teamList, teamInvite, teamUpdateMember, teamRemoveMember, teamAddSeats, setCurrentCompany, drawingSetImport, drawingMarkup, sheetCalibrate, takeoffGeometry, estimateIntake, estimateDocReview, estimateTakeoffSave, estimateTakeoffGet, estimateTakeoffExport, estimateGapAnalysis, estimateBidCheck, estimateItemMark, estimateBuild, estimateStatus, estimatePricing, estimateRateSources, estimateGeneralConditions, estimateRequirements, estimateBidSummary, superintendentView, fieldBoard, superintendentActivity, dailyReportDraft, dailyReportSave, dailyReportGet, dailyWorkVoid, dailyWorkHistory, fieldPayApp, fieldScheduleFeed, fieldProductionRates, productionMappingSources, productionMappingPreview, productionMappingApprove, productionWorkReferences, weeklyProduction, productionPhotoAssociate, progressPhotoSave, progressPhotos, dailyReminder, dailyReminderRun, pmMeeting, pmMorning, pmMorningMeeting, pmEvening, athenaHello, morningBrief, morningBriefSettings, emailDraft, emailConfirmSend, submittalLog, submittalsList, submittalsImport, projectRecordSearch, submittalChase, submittalPackage, submittalDelivery, submittalVoid, gettingStarted];
 
 export default defineMcp({
   name: "athena",
