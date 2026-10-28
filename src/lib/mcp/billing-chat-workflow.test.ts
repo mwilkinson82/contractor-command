@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { deflateRawSync } from "node:zlib";
 import { jsPDF } from "jspdf";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
@@ -24,6 +25,35 @@ vi.mock("./guard", () => ({
 }));
 vi.mock("./jobs", () => ({ resolveJob: async () => state.job }));
 vi.mock("./billing-document-attestation.server", () => ({
+  reserveBillingMemberUpload: async (
+    _sb: unknown,
+    _ctx: unknown,
+    upload: { id: string; storage_path: string },
+  ) => {
+    await asUser(
+      db,
+      { sub: owner, email: "synthetic@example.test", role: "service_role" },
+      async (tx) =>
+        tx.query("SELECT public.mcp_billing_upload_claim($1,$2,$3)", [upload.id, owner, null]),
+    );
+    return async (bytes: Uint8Array) => {
+      const key = `athena-financial-documents/${upload.storage_path}`;
+      const previous = objects.get(key);
+      if (previous) {
+        if (
+          previous.length !== bytes.length ||
+          (await sha256Hex(previous)) !== (await sha256Hex(bytes))
+        )
+          throw new Error("The stored original differs from this file.");
+      } else {
+        objects.set(key, bytes);
+        await db.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [
+          "athena-financial-documents",
+          upload.storage_path,
+        ]);
+      }
+    };
+  },
   recordWithVerifiedBillingOriginal: async (
     _sb: unknown,
     _ctx: unknown,
@@ -123,6 +153,9 @@ beforeAll(async () => {
   await db.exec(
     "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated,service_role; GRANT SELECT,INSERT ON storage.objects TO authenticated,service_role; CREATE TABLE mcp_submittals(id uuid PRIMARY KEY,job_id uuid,number text,revision integer); CREATE TABLE mcp_change_orders(submittal_id uuid PRIMARY KEY,job_id uuid,details jsonb);",
   );
+  await db.exec(
+    "INSERT INTO storage.buckets(id,name,public) VALUES ('athena-financial-documents','athena-financial-documents',false)",
+  );
   for (const f of [
     "20261020213000_athena_living_reports.sql",
     "20261031120000_athena_file_upload.sql",
@@ -181,7 +214,10 @@ beforeAll(async () => {
         upload: async (path: string, bytes: Uint8Array) => {
           if (objects.has(`${bucket}/${path}`)) return { error: { message: "already exists" } };
           objects.set(`${bucket}/${path}`, bytes);
-          await query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [bucket, path]);
+          await db.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [
+            bucket,
+            path,
+          ]);
           return { error: null };
         },
         download: async (path: string) => {
@@ -205,6 +241,27 @@ describe("guided billing workflow with a synthetic original", () => {
     expect(() => assertUploadBytes(png, "receipt.png", "contract")).toThrow();
     expect((await extractUploadDocument(png, "png")).text).toBe("");
   });
+  it("limits financial-document expansion and PDF extraction", async () => {
+    const name = Buffer.from("word/document.xml");
+    const compressed = deflateRawSync(Buffer.alloc(16 * 1024 * 1024 + 1, 65));
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0);
+    header.writeUInt16LE(8, 8);
+    header.writeUInt32LE(compressed.length, 18);
+    header.writeUInt16LE(name.length, 26);
+    const oversizedExpanded = new Uint8Array(Buffer.concat([header, name, compressed]));
+    expect(() =>
+      assertUploadBytes(oversizedExpanded, "receipt.docx", "financial_document"),
+    ).toThrow();
+    const pdf = new jsPDF();
+    for (let i = 1; i < 101; i++) pdf.addPage();
+    const result = await extractUploadDocument(
+      new Uint8Array(pdf.output("arraybuffer")),
+      "pdf",
+      "financial_document",
+    );
+    expect(result.text).toBe("");
+  });
   it("reuses the same attached-file upload safely and refuses unapproved hosts or changed bytes", async () => {
     const pdf = new jsPDF();
     pdf.text("Synthetic receipt", 10, 20);
@@ -223,11 +280,16 @@ describe("guided billing workflow with a synthetic original", () => {
         file_name: "receipt.pdf",
         download_url: "https://files.oaiusercontent.com/synthetic",
       };
+      const rejected = await call(billingDocumentUpload, {
+        ...context,
+        action: "begin",
+        filename: "untrusted.pdf",
+      });
       await expect(
         call(billingDocumentUpload, {
           ...context,
           action: "attached_file",
-          upload_id,
+          upload_id: rejected.structuredContent.upload_id,
           file: { ...file, download_url: "https://unapproved.example/synthetic" },
         }),
       ).rejects.toThrow(/can't fetch/i);
@@ -291,6 +353,7 @@ describe("guided billing workflow with a synthetic original", () => {
             purpose: "financial_document",
             bucket: "athena-financial-documents",
           }) as never,
+        claimFinancial: async () => {},
         put: async (bucket, path, data) => {
           await (
             state.sb as {

@@ -74,6 +74,9 @@ beforeAll(async () => {
     readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"),
   );
   await db.exec(
+    "INSERT INTO storage.buckets(id,name,public) VALUES ('athena-financial-documents','athena-financial-documents',false)",
+  );
+  await db.exec(
     readFileSync("supabase/migrations/20261101120002_athena_financial_documents.sql", "utf8"),
   );
   for (const user of [owner, contract, other]) {
@@ -113,8 +116,7 @@ describe("billing original and ledger association", () => {
       "application/pdf",
       "ab".repeat(32),
     ]);
-    await q(
-      owner,
+    await db.query(
       "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
       [u.storage_path],
     );
@@ -227,8 +229,7 @@ describe("billing original and ledger association", () => {
       "image/png",
       "11".repeat(32),
     ]);
-    await q(
-      owner,
+    await db.query(
       "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
       [u.storage_path],
     );
@@ -257,8 +258,7 @@ describe("billing original and ledger association", () => {
       "application/pdf",
       "33".repeat(32),
     ]);
-    await q(
-      owner,
+    await db.query(
       "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
       [u.storage_path],
     );
@@ -315,8 +315,7 @@ describe("billing original and ledger association", () => {
       "application/pdf",
       "55".repeat(32),
     ]);
-    await q(
-      owner,
+    await db.query(
       "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
       [foreignUpload.storage_path],
     );
@@ -359,5 +358,84 @@ describe("billing original and ledger association", () => {
     );
     for (const user of [contract, other])
       await expect(link(user, invArgs)).rejects.toThrow(/full project access/);
+  });
+  it("denies direct member uploads and limits server-reserved attempts", async () => {
+    const u = await call(owner, "mcp_billing_upload_begin", [
+      job,
+      "quota.pdf",
+      "application/pdf",
+      "77".repeat(32),
+    ]);
+    await expect(
+      q(
+        owner,
+        "INSERT INTO storage.objects(bucket_id,name) VALUES ('athena-financial-documents',$1)",
+        [u.storage_path],
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const args = [u.id, owner, null];
+    await expect(call(owner, "mcp_billing_upload_claim", args)).rejects.toThrow(
+      /permission denied/,
+    );
+    const claim = (actor: string | null, token: string | null) =>
+      asUser(
+        db,
+        { sub: owner, email: "synthetic@example.test", role: "service_role" },
+        async (tx) =>
+          (
+            await tx.query("SELECT public.mcp_billing_upload_claim($1,$2,$3) AS value", [
+              u.id,
+              actor,
+              token,
+            ])
+          ).rows[0].value,
+      );
+    await expect(claim(other, null)).rejects.toThrow(/unavailable/);
+    await expect(claim(null, "00".repeat(32))).rejects.toThrow(/unavailable/);
+    await claim(owner, null);
+    await claim(null, "77".repeat(32));
+    await claim(owner, null);
+    await expect(claim(owner, null)).rejects.toThrow(/too many attempts/i);
+  });
+  it("limits new financial upload sessions per member", async () => {
+    const limited = crypto.randomUUID();
+    await db.query("INSERT INTO auth.users(id,email) VALUES($1,'limited@example.test')", [limited]);
+    await db.query("INSERT INTO test_active_members VALUES($1)", [limited]);
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'owner','Synthetic')",
+      [company, limited],
+    );
+    let lastUpload: Record<string, unknown> | undefined;
+    for (let i = 0; i < 12; i++)
+      lastUpload = await call(limited, "mcp_billing_upload_begin", [
+        job,
+        "small.pdf",
+        "application/pdf",
+        i.toString(16).padStart(64, "0"),
+      ]);
+    await expect(
+      call(limited, "mcp_billing_upload_begin", [
+        job,
+        "small.pdf",
+        "application/pdf",
+        "ff".repeat(32),
+      ]),
+    ).rejects.toThrow(/too many billing uploads/i);
+    await db.query("DELETE FROM mcp_company_members WHERE company_id=$1 AND user_id=$2", [
+      company,
+      limited,
+    ]);
+    await expect(
+      asUser(
+        db,
+        { sub: owner, email: "synthetic@example.test", role: "service_role" },
+        async (tx) =>
+          tx.query("SELECT public.mcp_billing_upload_claim($1,$2,$3)", [
+            lastUpload!.id,
+            limited,
+            null,
+          ]),
+      ),
+    ).rejects.toThrow(/full project access/);
   });
 });

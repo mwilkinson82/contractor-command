@@ -16,6 +16,7 @@ import { drawingFile } from "../drawing-file-input";
 import {
   linkVerifiedBillingOriginal,
   registerVerifiedBillingOriginal,
+  reserveBillingMemberUpload,
 } from "../billing-document-attestation.server";
 
 const bucket = "athena-financial-documents";
@@ -137,6 +138,7 @@ export const billingDocumentUpload = defineTool({
           if (args.action === "attached_file") {
             if (!args.file?.download_url)
               throw new ToolError("Attach the invoice or receipt first.");
+            const put = await reserveBillingMemberUpload(sb, ctx, upload);
             let attached: Uint8Array;
             try {
               attached = await fetchAllowedFile(
@@ -149,20 +151,7 @@ export const billingDocumentUpload = defineTool({
             } catch (e) {
               fileError(e);
             }
-            const stored = await sb.storage.from(bucket).upload(upload.storage_path, attached, {
-              contentType: upload.mime_type,
-              upsert: false,
-            });
-            if (stored.error) {
-              const existing = await readOriginal(sb, upload);
-              if (
-                existing.length !== attached.length ||
-                (await sha256Hex(existing)) !== (await sha256Hex(attached))
-              )
-                throw new ToolError(
-                  "The stored original differs from this file. No billing record was saved.",
-                );
-            }
+            await put(attached);
           }
         } else {
           const filename = args.filename ?? args.file?.file_name;
@@ -183,7 +172,7 @@ export const billingDocumentUpload = defineTool({
           return guide(
             {
               ...text(
-                `Upload ${checked.name} here: ${uploadLink(token)}\nThen return here. No invoice or receipt has been recorded.`,
+                `Upload ${checked.name} here: ${uploadLink(token)}\nMaximum financial file size: 10 MiB. Then return here. No invoice or receipt has been recorded.`,
               ),
               structuredContent: {
                 upload_id: upload.id,
@@ -214,7 +203,7 @@ export const billingDocumentUpload = defineTool({
           bytes.length,
           hash,
         );
-        const extracted = await extractUploadDocument(bytes, checked.ext);
+        const extracted = await extractUploadDocument(bytes, checked.ext, "financial_document");
         const excerpt = extracted.text.slice(0, 16000);
         return guide(
           {
@@ -267,7 +256,7 @@ export const billingDocuments = defineTool({
         if (args.action === "read") {
           if (!args.document_id) throw new ToolError("Which original should I read?");
           const doc = await loadVerifiedBillingDocument(sb, job.job_id, args.document_id);
-          const extracted = await extractUploadDocument(doc.bytes, doc.ext);
+          const extracted = await extractUploadDocument(doc.bytes, doc.ext, "financial_document");
           const part = extracted.text.slice(args.text_offset, args.text_offset + 16000);
           const next =
             args.text_offset + part.length < extracted.text.length

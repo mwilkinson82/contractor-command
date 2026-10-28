@@ -97,3 +97,76 @@ export async function recordWithVerifiedBillingOriginal(
   if (error) dbError(error);
   return data as Record<string, unknown>;
 }
+
+/** Reserve a bounded attempt for the verified upload owner before fetching attached bytes. */
+export async function reserveBillingMemberUpload(
+  sb: Sb,
+  ctx: ToolContext,
+  upload: {
+    id: string;
+    job_id: string;
+    company_id: string;
+    filename: string;
+    mime_type: string;
+    storage_path: string;
+  },
+): Promise<(bytes: Uint8Array) => Promise<void>> {
+  const token = ctx.getToken();
+  if (!token) throw new ToolError("Verified member required.");
+  const identity = await sb.auth.getUser(token);
+  if (identity.error || !identity.data.user?.id) throw new ToolError("Verified member required.");
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  const url = env?.SUPABASE_URL ?? env?.VITE_SUPABASE_URL;
+  const key = env?.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new ToolError("Document upload is temporarily unavailable.");
+  const admin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.rpc("mcp_billing_upload_claim", {
+    _id: upload.id,
+    _actor: identity.data.user.id,
+    _token_hash: null,
+  });
+  if (error) dbError(error);
+  if (
+    !data ||
+    !["open", "finished"].includes(data.status) ||
+    ["id", "job_id", "company_id", "filename", "mime_type", "storage_path"].some(
+      (key) => data[key] !== upload[key as keyof typeof upload],
+    ) ||
+    !upload.storage_path.startsWith(`${upload.company_id}/${upload.job_id}/${upload.id}/`) ||
+    upload.storage_path.split("/").length !== 4 ||
+    upload.storage_path.includes("..")
+  )
+    throw new ToolError("That upload is not available for this project.");
+  return async (bytes) => {
+    const { assertUploadBytes } = await import("./file-upload");
+    const { sha256Hex } = await import("./file-share");
+    const checked = assertUploadBytes(bytes, upload.filename, "financial_document");
+    if (checked.mime !== upload.mime_type)
+      throw new ToolError("That file does not match this upload.");
+    // A completed session can only compare the original; it may never insert again.
+    const stored =
+      data.status === "finished"
+        ? { error: true }
+        : await admin.storage
+            .from("athena-financial-documents")
+            .upload(upload.storage_path, bytes, { contentType: upload.mime_type, upsert: false });
+    if (stored.error) {
+      const existing = await admin.storage
+        .from("athena-financial-documents")
+        .download(upload.storage_path);
+      if (existing.error || !existing.data)
+        throw new ToolError("The existing original could not be checked.");
+      const previous = new Uint8Array(await existing.data.arrayBuffer());
+      if (
+        previous.length !== bytes.length ||
+        (await sha256Hex(previous)) !== (await sha256Hex(bytes))
+      )
+        throw new ToolError(
+          "A different file is already stored for this upload. Start a new upload.",
+        );
+    }
+  };
+}

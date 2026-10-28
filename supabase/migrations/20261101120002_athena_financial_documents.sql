@@ -2,17 +2,14 @@
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
-INSERT INTO storage.buckets(id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('athena-financial-documents', 'athena-financial-documents', false, 104857600,
-  ARRAY['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','image/jpeg','image/png']);
+-- The dedicated bucket is provisioned through Lovable's supported Storage UI, never SQL.
+-- Fail closed unless it already exists and is private. There is no authenticated INSERT policy.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id='athena-financial-documents' AND public=false) THEN
     RAISE EXCEPTION 'Financial-document storage must be private.';
   END IF;
 END $$;
 
-CREATE POLICY "financial documents insert" ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'athena-financial-documents' AND public.mcp_document_path_scope(name) = 'full');
 CREATE POLICY "financial documents read" ON storage.objects FOR SELECT TO authenticated
   USING (bucket_id = 'athena-financial-documents' AND public.mcp_document_path_scope(name) = 'full');
 
@@ -22,12 +19,13 @@ CREATE TABLE public.mcp_billing_uploads (
   filename text NOT NULL, mime_type text NOT NULL, storage_path text NOT NULL,
   token_hash text NOT NULL UNIQUE CHECK(token_hash ~ '^[0-9a-f]{64}$'),
   status text NOT NULL DEFAULT 'open' CHECK(status IN ('open','finished')),
+  attempts integer NOT NULL DEFAULT 0 CHECK(attempts BETWEEN 0 AND 3),
   expires_at timestamptz NOT NULL, created_by uuid NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.mcp_billing_documents (
   id uuid PRIMARY KEY REFERENCES public.mcp_billing_uploads(id),
   company_id uuid NOT NULL, job_id uuid NOT NULL REFERENCES public.mcp_jobs(id),
-  filename text NOT NULL, mime_type text NOT NULL, size_bytes bigint NOT NULL CHECK(size_bytes BETWEEN 1 AND 104857600),
+  filename text NOT NULL, mime_type text NOT NULL, size_bytes bigint NOT NULL CHECK(size_bytes BETWEEN 1 AND 10485760),
   sha256 text NOT NULL CHECK(sha256 ~ '^[0-9a-f]{64}$'), storage_path text NOT NULL,
   created_by uuid NOT NULL, recorded_at timestamptz NOT NULL DEFAULT now()
 );
@@ -57,6 +55,8 @@ BEGIN
   PERFORM public.mcp_assert_active();
   IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
   IF length(coalesce(_filename,'')) NOT BETWEEN 1 AND 120 OR _filename LIKE '%/%' OR _filename LIKE '%\\%' OR _token_hash !~ '^[0-9a-f]{64}$' OR _mime NOT IN ('application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/plain','image/jpeg','image/png') THEN RAISE EXCEPTION 'MCP_BAD:Invalid financial document.'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('billing-upload:' || auth.uid()::text, 0));
+  IF (SELECT count(*) FROM public.mcp_billing_uploads WHERE created_by=auth.uid() AND created_at > now()-interval '1 hour') >= 12 THEN RAISE EXCEPTION 'MCP_BAD:Too many billing uploads. Please try again later.'; END IF;
   SELECT * INTO j FROM public.mcp_jobs WHERE id=_job;
   INSERT INTO public.mcp_billing_uploads(id,company_id,job_id,filename,mime_type,storage_path,token_hash,expires_at,created_by)
   VALUES(ident,j.company_id,_job,_filename,_mime,j.company_id::text||'/'||_job::text||'/'||ident::text||'/'||_filename,_token_hash,now()+interval '2 hours',auth.uid()) RETURNING * INTO u;
@@ -73,6 +73,29 @@ BEGIN
   IF u.id IS NULL THEN RETURN NULL; END IF;
   RETURN jsonb_build_object('id',u.id,'job_id',u.job_id,'company_id',u.company_id,'filename',u.filename,'mime_type',u.mime_type,'storage_path',u.storage_path,'expires_at',u.expires_at,'status',u.status);
 END $$;
+
+-- Each upload attempt is reserved by the server, using either the original member
+-- identity or the opaque upload token. Recheck active full job access in both paths.
+CREATE FUNCTION public.mcp_billing_upload_claim(_id uuid, _actor uuid, _token_hash text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE u public.mcp_billing_uploads; previous_claims text := current_setting('request.jwt.claims', true); result jsonb;
+BEGIN
+  SELECT * INTO u FROM public.mcp_billing_uploads WHERE id=_id FOR UPDATE;
+  IF u.id IS NULL OR ((_actor IS NULL OR _actor IS DISTINCT FROM u.created_by) AND (_token_hash IS NULL OR _token_hash IS DISTINCT FROM u.token_hash)) THEN
+    RAISE EXCEPTION 'MCP_BAD:That upload is unavailable.';
+  END IF;
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',u.created_by,'role','authenticated')::text,true);
+  PERFORM public.mcp_assert_active();
+  IF public.mcp_job_scope(u.job_id) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
+  IF u.expires_at <= now() THEN RAISE EXCEPTION 'MCP_BAD:That upload is expired.'; END IF;
+  IF u.attempts >= 3 THEN RAISE EXCEPTION 'MCP_BAD:Too many attempts for this upload. Start a new upload.'; END IF;
+  UPDATE public.mcp_billing_uploads SET attempts=attempts+1 WHERE id=u.id;
+  result := jsonb_build_object('id',u.id,'company_id',u.company_id,'job_id',u.job_id,'filename',u.filename,'mime_type',u.mime_type,'storage_path',u.storage_path,'status',u.status);
+  PERFORM set_config('request.jwt.claims',coalesce(previous_claims,''),true);
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_billing_upload_claim(uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_billing_upload_claim(uuid,uuid,text) TO service_role;
 
 -- Only the server may attest a fingerprint, after reading and validating the stored bytes.
 -- It resolves the actor from a verified user token; repeat the normal membership and scope
@@ -94,7 +117,7 @@ BEGIN
     PERFORM set_config('request.jwt.claims',coalesce(previous_claims,''),true);
     RETURN result;
   END IF;
-  IF u.status <> 'open' OR u.expires_at <= now() OR _size NOT BETWEEN 1 AND 104857600 OR _sha256 !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'MCP_BAD:Upload is expired or invalid.'; END IF;
+  IF u.status <> 'open' OR u.expires_at <= now() OR _size NOT BETWEEN 1 AND 10485760 OR _sha256 !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'MCP_BAD:Upload is expired or invalid.'; END IF;
   IF NOT EXISTS (SELECT 1 FROM storage.objects WHERE bucket_id='athena-financial-documents' AND name=u.storage_path) THEN RAISE EXCEPTION 'MCP_BAD:Original file is not stored.'; END IF;
   INSERT INTO public.mcp_billing_documents(id,company_id,job_id,filename,mime_type,size_bytes,sha256,storage_path,created_by)
     VALUES(u.id,u.company_id,u.job_id,u.filename,u.mime_type,_size,_sha256,u.storage_path,auth.uid());

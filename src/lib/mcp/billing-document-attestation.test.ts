@@ -8,6 +8,7 @@ import {
   registerVerifiedBillingOriginal,
   linkVerifiedBillingOriginal,
   recordWithVerifiedBillingOriginal,
+  reserveBillingMemberUpload,
 } from "./billing-document-attestation.server";
 
 afterEach(() => {
@@ -111,4 +112,64 @@ it("records with a document only for the verified token actor", async () => {
       _actor: "actor",
     }),
   );
+});
+
+it("reserves the verified member's upload path and validates bytes before server-only storage", async () => {
+  vi.stubEnv("SUPABASE_URL", "https://example.test");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key");
+  const getUser = vi.fn().mockResolvedValue({ data: { user: { id: "actor" } }, error: null });
+  const upload = {
+    id: "document",
+    job_id: "job",
+    company_id: "company",
+    filename: "file.pdf",
+    mime_type: "application/pdf",
+    storage_path: "company/job/document/file.pdf",
+  };
+  const put = vi.fn().mockResolvedValue({ error: null });
+  mock.createClient.mockReturnValue({ rpc: mock.rpc, storage: { from: () => ({ upload: put }) } });
+  mock.rpc.mockResolvedValue({ data: { ...upload, status: "open" }, error: null });
+  const write = await reserveBillingMemberUpload(
+    { auth: { getUser } } as unknown as Sb,
+    { getToken: () => "member-token" } as ToolContext,
+    upload,
+  );
+  expect(mock.rpc).toHaveBeenCalledWith("mcp_billing_upload_claim", {
+    _id: "document",
+    _actor: "actor",
+    _token_hash: null,
+  });
+  await expect(write(new TextEncoder().encode("not a PDF"))).rejects.toThrow(/real/);
+  expect(put).not.toHaveBeenCalled();
+  await write(new TextEncoder().encode("%PDF-1.7 synthetic"));
+  expect(put).toHaveBeenCalledWith(upload.storage_path, expect.any(Uint8Array), {
+    contentType: "application/pdf",
+    upsert: false,
+  });
+  put.mockClear();
+  const bytes = new TextEncoder().encode("%PDF-1.7 synthetic");
+  const download = vi.fn().mockResolvedValue({ data: new Blob([bytes]), error: null });
+  mock.createClient.mockReturnValue({
+    rpc: mock.rpc,
+    storage: { from: () => ({ upload: put, download }) },
+  });
+  mock.rpc.mockResolvedValue({ data: { ...upload, status: "finished" }, error: null });
+  const completed = await reserveBillingMemberUpload(
+    { auth: { getUser } } as unknown as Sb,
+    { getToken: () => "member-token" } as ToolContext,
+    upload,
+  );
+  await completed(bytes);
+  expect(put).not.toHaveBeenCalled();
+  download.mockResolvedValue({ data: null, error: { message: "missing" } });
+  await expect(completed(bytes)).rejects.toThrow(/could not be checked/);
+  expect(put).not.toHaveBeenCalled();
+  mock.rpc.mockResolvedValue({ data: { ...upload, job_id: "other" }, error: null });
+  await expect(
+    reserveBillingMemberUpload(
+      { auth: { getUser } } as unknown as Sb,
+      { getToken: () => "member-token" } as ToolContext,
+      upload,
+    ),
+  ).rejects.toThrow(/not available/);
 });

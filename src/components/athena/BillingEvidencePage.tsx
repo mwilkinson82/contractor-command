@@ -153,7 +153,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
       const bytes = new Uint8Array(await r.data.arrayBuffer());
       if (bytes.length !== doc.size_bytes || (await sha256Hex(bytes)) !== doc.sha256)
         throw new Error("The original does not match its recorded fingerprint.");
-      const url = URL.createObjectURL(new Blob([bytes], { type: doc.mime_type }));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
       const link = document.createElement("a");
       link.href = url;
       link.download = doc.filename;

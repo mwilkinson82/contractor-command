@@ -8,6 +8,7 @@ export const FILE_UPLOAD_CHUNK_CHARS = 12_000;
 export const FILE_UPLOAD_CALL_CHARS = 20_000;
 export const FILE_UPLOAD_HOURS = 2;
 export const DOC_MAX_BYTES = 100 * 1024 * 1024;
+export const FINANCIAL_MAX_BYTES = 10 * 1024 * 1024;
 export const PIECE_MAX_BYTES = 100 * 1024 * 1024;
 export const EXTRACT_MAX_CHARS = 400_000;
 export const FILE_UPLOAD_LINK_BASE = "https://app.meetathena.io/r/file-upload/";
@@ -28,7 +29,11 @@ export type UploadExt = keyof typeof MIME;
 export type UploadPurpose = "contract" | "spec" | "submittal_piece" | "financial_document";
 
 export function uploadMaxBytes(purpose: UploadPurpose): number {
-  return purpose === "submittal_piece" ? PIECE_MAX_BYTES : DOC_MAX_BYTES;
+  return purpose === "financial_document"
+    ? FINANCIAL_MAX_BYTES
+    : purpose === "submittal_piece"
+      ? PIECE_MAX_BYTES
+      : DOC_MAX_BYTES;
 }
 
 export function uploadFilename(
@@ -65,14 +70,19 @@ export function uploadFilename(
 
 const starts = (b: Uint8Array, sig: number[]) => sig.every((v, i) => b[i] === v);
 
-export function sniffUpload(bytes: Uint8Array, ext: UploadExt): boolean {
+export function sniffUpload(bytes: Uint8Array, ext: UploadExt, purpose?: UploadPurpose): boolean {
   if (!bytes.length) return false;
   if (ext === "pdf") return starts(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
   if (ext === "jpg" || ext === "jpeg") return starts(bytes, [0xff, 0xd8, 0xff]);
   if (ext === "png") return starts(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   if (ext === "docx")
     return (
-      starts(bytes, [0x50, 0x4b, 0x03, 0x04]) && unzipEntry(bytes, "word/document.xml") != null
+      starts(bytes, [0x50, 0x4b, 0x03, 0x04]) &&
+      unzipEntry(
+        bytes,
+        "word/document.xml",
+        purpose === "financial_document" ? 16 * 1024 * 1024 : undefined,
+      ) != null
     );
   if (starts(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]) || starts(bytes, [0x50, 0x4b, 0x03, 0x04]))
     return false;
@@ -88,8 +98,11 @@ export function assertUploadBytes(bytes: Uint8Array, filename: string, purpose: 
   const file = uploadFilename(filename, purpose);
   const max = uploadMaxBytes(purpose);
   if (!bytes.length) throw new FileRejected("The file is empty. Nothing was stored.");
-  if (bytes.length > max) throw new FileRejected(`That file is over 100 MB. Nothing was stored.`);
-  if (!sniffUpload(bytes, file.ext))
+  if (bytes.length > max)
+    throw new FileRejected(
+      `That file is over ${Math.round(max / 1024 / 1024)} MB. Nothing was stored.`,
+    );
+  if (!sniffUpload(bytes, file.ext, purpose))
     throw new FileRejected(`That file isn't a real .${file.ext} file. Nothing was stored.`);
   return file;
 }
@@ -150,13 +163,28 @@ export function extractUploadText(bytes: Uint8Array, ext: UploadExt): Extracted 
 }
 
 /** Use the existing bundled PDF engine for font mappings and page provenance. */
-export async function extractUploadDocument(bytes: Uint8Array, ext: UploadExt): Promise<Extracted> {
+export async function extractUploadDocument(
+  bytes: Uint8Array,
+  ext: UploadExt,
+  purpose?: UploadPurpose,
+): Promise<Extracted> {
   if (ext === "jpg" || ext === "jpeg" || ext === "png")
     return { text: "", chars: 0, truncated: false };
+  if (ext === "docx" && purpose === "financial_document") {
+    try {
+      const value = docxText(bytes, 16 * 1024 * 1024).slice(0, EXTRACT_MAX_CHARS);
+      return { text: value, chars: value.length, truncated: value.length === EXTRACT_MAX_CHARS };
+    } catch {
+      return { text: "", chars: 0, truncated: false };
+    }
+  }
   if (ext !== "pdf") return extractUploadText(bytes, ext);
   try {
     const { extractPdfiumDocumentText } = await import("./pdf-renderer");
-    const pages = await extractPdfiumDocumentText(bytes);
+    const pages = await extractPdfiumDocumentText(
+      bytes,
+      purpose === "financial_document" ? { maxPages: 100, maxChars: EXTRACT_MAX_CHARS } : undefined,
+    );
     const text = pages
       .map((page, index) => `[[PDF page ${index + 1}]]\n${page.replaceAll("\u0000", "").trim()}`)
       .join("\n\n");
@@ -171,8 +199,8 @@ export async function extractUploadDocument(bytes: Uint8Array, ext: UploadExt): 
   }
 }
 
-function docxText(bytes: Uint8Array): string {
-  const xml = unzipEntry(bytes, "word/document.xml");
+function docxText(bytes: Uint8Array, maxOutputLength?: number): string {
+  const xml = unzipEntry(bytes, "word/document.xml", maxOutputLength);
   if (!xml) return "";
   const source = new TextDecoder("utf-8").decode(xml);
   const parts: string[] = [];
@@ -192,7 +220,11 @@ function decodeXml(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-export function unzipEntry(bytes: Uint8Array, want: string): Uint8Array | null {
+export function unzipEntry(
+  bytes: Uint8Array,
+  want: string,
+  maxOutputLength?: number,
+): Uint8Array | null {
   const b = Buffer.from(bytes);
   let o = 0;
   while (o + 30 <= b.length && b.readUInt32LE(o) === 0x04034b50) {
@@ -204,8 +236,14 @@ export function unzipEntry(bytes: Uint8Array, want: string): Uint8Array | null {
     const start = o + 30 + nameLen + extra;
     const data = b.subarray(start, start + comp);
     if (name === want) {
-      if (method === 0) return data;
-      if (method === 8) return inflateRawSync(data);
+      if (method === 0) return maxOutputLength && data.length > maxOutputLength ? null : data;
+      if (method === 8) {
+        try {
+          return inflateRawSync(data, maxOutputLength ? { maxOutputLength } : undefined);
+        } catch {
+          return null;
+        }
+      }
       return null;
     }
     o = start + comp;
