@@ -74,6 +74,16 @@ beforeAll(async () => {
   ]);
 });
 describe("approved production MCP workflow", () => {
+  it("routes these requests through the guided conversation", () => {
+    expect(mcp.instructions).toContain("start with production_mapping_sources");
+    expect(mcp.instructions).toMatch(/only after an explicit yes call production_mapping_approve/i);
+    expect(mcp.instructions).toContain(
+      "use daily_report_draft and show its approved or unlinked status",
+    );
+    expect(mcp.instructions).toContain(
+      "To inspect corrections or photos tied to earlier work call daily_work_history",
+    );
+  });
   it("lets a project without any mapping save an explicitly unlinked daily", async () => {
     const fields = {
       job_number: "TEST-U",
@@ -267,6 +277,13 @@ describe("approved production MCP workflow", () => {
     });
     expect(after.isError, after.text).toBe(false);
     expect(after.text).toContain("Work voided; prior revisions are retained.");
+    const history = await call("super", "daily_work_history", {
+      job_number: "TEST-P",
+      report_date: "2026-10-26",
+    });
+    expect(history.isError, history.text).toBe(false);
+    expect(history.text).toContain("work voided");
+    expect(JSON.stringify(history.structured)).toContain(photo);
     expect(
       (
         await state.db!.query(

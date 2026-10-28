@@ -21,11 +21,10 @@ ALTER TABLE public.mcp_production_allocations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "production mapping full read" ON public.mcp_production_mapping_versions FOR SELECT TO authenticated USING (public.mcp_gate() AND coalesce(public.mcp_job_scope(job_id) = 'full',false));
 CREATE POLICY "production allocation full read" ON public.mcp_production_allocations FOR SELECT TO authenticated USING (public.mcp_gate() AND coalesce(public.mcp_job_scope(job_id) = 'full',false));
 REVOKE ALL ON public.mcp_production_mapping_versions, public.mcp_production_allocations FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.mcp_production_mapping_versions, public.mcp_production_allocations TO authenticated;
 GRANT ALL ON public.mcp_production_mapping_versions, public.mcp_production_allocations TO service_role;
 
 CREATE OR REPLACE FUNCTION public.mcp_production_mapping_preview(_job uuid, _cpm uuid, _base_version integer, _effective date, _reason text, _allocations jsonb) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE report public.mcp_living_reports; current_version integer; x jsonb; f public.mcp_job_facts; amount numeric; v numeric; seen text[] := '{}'; pair text; ids uuid[] := '{}'; snapshot jsonb; totals record;
 BEGIN
  PERFORM public.mcp_assert_active();
@@ -109,7 +108,7 @@ REVOKE EXECUTE ON FUNCTION public.mcp_production_mapping_approve(uuid,uuid,integ
 GRANT EXECUTE ON FUNCTION public.mcp_production_mapping_approve(uuid,uuid,integer,date,text,uuid,jsonb,jsonb,boolean) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.mcp_production_mapping_sources(_job uuid) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE report public.mcp_living_reports; sov jsonb; ver integer;
 BEGIN
  PERFORM public.mcp_assert_active();
@@ -170,7 +169,6 @@ CREATE POLICY "daily revision read" ON public.mcp_daily_revisions FOR SELECT TO 
 CREATE POLICY "daily revision line read" ON public.mcp_daily_revision_lines FOR SELECT TO authenticated USING(public.mcp_gate() AND coalesce(public.mcp_job_scope(job_id) IN ('full','super'),false));
 CREATE POLICY "production photo association read" ON public.mcp_production_photo_links FOR SELECT TO authenticated USING(public.mcp_gate() AND coalesce(public.mcp_job_scope(job_id) IN ('full','super'),false));
 REVOKE ALL ON public.mcp_daily_revisions, public.mcp_daily_revision_lines, public.mcp_daily_save_requests, public.mcp_production_photo_links, public.mcp_production_photo_requests FROM PUBLIC,anon,authenticated;
-GRANT SELECT ON public.mcp_daily_revisions, public.mcp_daily_revision_lines, public.mcp_production_photo_links TO authenticated;
 GRANT ALL ON public.mcp_daily_revisions, public.mcp_daily_revision_lines, public.mcp_daily_save_requests, public.mcp_production_photo_links, public.mcp_production_photo_requests TO service_role;
 
 CREATE OR REPLACE FUNCTION public.mcp_daily_report_save_v2(_job uuid,_date date,_confirmed boolean,_weather text,_manpower text,_subs text,_deliveries text,_issues text,_delays text,_safety text,_transcript text,_lines jsonb,_expected_revision integer,_request_key uuid,_reason text,_mode text) RETURNS jsonb
@@ -344,7 +342,7 @@ END $$;
 
 -- Field references deliberately exclude mapping dollars and source documents.
 CREATE OR REPLACE FUNCTION public.mcp_production_work_references(_job uuid,_date date) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE refs jsonb;
 BEGIN
  PERFORM public.mcp_field_guard(_job);
@@ -388,7 +386,7 @@ GRANT EXECUTE ON FUNCTION public.mcp_production_photo_associate(uuid,uuid,uuid,u
 
 -- Quantity/rate progress only, with no earnings or billing calculations.
 CREATE OR REPLACE FUNCTION public.mcp_weekly_production(_job uuid,_from date,_to date) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE out_rows jsonb; unlinked integer;
 BEGIN
  PERFORM public.mcp_field_guard(_job);
@@ -412,7 +410,7 @@ REVOKE EXECUTE ON FUNCTION public.mcp_weekly_production(uuid,date,date) FROM PUB
 GRANT EXECUTE ON FUNCTION public.mcp_weekly_production(uuid,date,date) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.mcp_daily_revision_status(_job uuid,_date date) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
 DECLARE d public.mcp_daily_reports; r public.mcp_daily_revisions; lines jsonb;
 BEGIN
  PERFORM public.mcp_field_guard(_job);
@@ -448,3 +446,22 @@ END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_production_retire_only() FROM PUBLIC,anon,authenticated;
 CREATE TRIGGER production_work_retire_only BEFORE UPDATE OR DELETE ON public.mcp_daily_work_lines FOR EACH ROW EXECUTE FUNCTION public.mcp_production_retire_only();
 CREATE TRIGGER production_rate_retire_only BEFORE UPDATE OR DELETE ON public.mcp_production_rates FOR EACH ROW EXECUTE FUNCTION public.mcp_production_retire_only();
+
+-- Business-read RPCs are volatile because the active-member gate may refresh its cache.
+-- History is paginated and scoped; it exposes no allocation dollars.
+CREATE OR REPLACE FUNCTION public.mcp_daily_revision_history(_job uuid,_date date,_before integer DEFAULT NULL,_limit integer DEFAULT 20) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$
+DECLARE did uuid; rows jsonb; oldest integer; more boolean;
+BEGIN
+ PERFORM public.mcp_field_guard(_job);
+ IF _date IS NULL OR _limit IS NULL OR _limit NOT BETWEEN 1 AND 50 OR (_before IS NOT NULL AND _before<0) THEN RAISE EXCEPTION 'MCP_BAD:Choose a date and a history page size from 1 to 50.'; END IF;
+ SELECT id INTO did FROM public.mcp_daily_reports WHERE job_id=_job AND report_date=_date;
+ IF did IS NULL THEN RETURN jsonb_build_object('found',false,'revisions','[]'::jsonb,'next_before',NULL); END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('id',q.id,'revision',q.revision,'origin',q.origin,'reason',q.reason,'recorded_by',q.recorded_by,'recorded_at',q.recorded_at,'snapshot',q.snapshot,
+   'lines',coalesce((SELECT jsonb_agg(jsonb_build_object('id',l.id,'line_no',l.line_no,'allocation_id',l.allocation_id,'photo_ids',coalesce((SELECT jsonb_agg(p.photo_id ORDER BY p.recorded_at) FROM public.mcp_production_photo_links p WHERE p.revision_line_id=l.id AND p.job_id=_job),'[]'::jsonb)) ORDER BY l.line_no) FROM public.mcp_daily_revision_lines l WHERE l.revision_id=q.id AND l.job_id=_job),'[]'::jsonb)) ORDER BY q.revision DESC),'[]'::jsonb), min(q.revision)
+ INTO rows,oldest FROM (SELECT * FROM public.mcp_daily_revisions WHERE daily_id=did AND job_id=_job AND (_before IS NULL OR revision<_before) ORDER BY revision DESC LIMIT _limit) q;
+ SELECT EXISTS(SELECT 1 FROM public.mcp_daily_revisions WHERE daily_id=did AND job_id=_job AND revision<oldest) INTO more;
+ RETURN jsonb_build_object('found',true,'daily_id',did,'revisions',rows,'next_before',CASE WHEN more THEN oldest END,'legacy_unversioned',oldest IS NULL AND _before IS NULL);
+END $$;
+REVOKE EXECUTE ON FUNCTION public.mcp_daily_revision_history(uuid,date,integer,integer) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.mcp_daily_revision_history(uuid,date,integer,integer) TO authenticated;

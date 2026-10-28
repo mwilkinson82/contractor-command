@@ -70,6 +70,7 @@ const ALL = [
   Field.dailyReportSave,
   Field.dailyReportGet,
   Field.dailyWorkVoid,
+  Field.dailyWorkHistory,
   Field.fieldPayApp,
   Field.fieldScheduleFeed,
   Field.fieldProductionRates,
@@ -181,7 +182,7 @@ describe("0.8.23 host-facing tool text", () => {
 
   it("each tool description is one sentence and carries no style or rule labels", async () => {
     const list = await toolsList(ALL.map(secureTool));
-    expect(list).toHaveLength(77);
+    expect(list).toHaveLength(78);
     for (const t of list) {
       expect(sentences(t.description), t.name).toEqual([t.description.replace(/\.$/, "")]);
       expect(t.description, t.name).not.toMatch(/#[0-9A-Fa-f]{3,8}/);

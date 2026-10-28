@@ -23,9 +23,12 @@ the real app path has not been verified. Do not release on fixture checks alone.
 ## Proposed persistent contract
 
 All records carry company and project IDs, server-recorded actor and timestamp.
-Reads and writes must enforce the existing membership and job-scope gates. Mapping
-money is visible only to full-scope users, while field users receive only the
-references and production information their role may see.
+Reads and writes must enforce the existing membership and job-scope gates. New
+mapping and history tables have no direct authenticated-client privileges; gated
+RPCs provide the appropriate view. Mapping money is visible only to full-scope
+users, while field users receive only references and production information.
+New read RPCs are volatile so the membership gate can refresh its cache in a
+writable transaction; existing read-RPC volatility remains unchanged for clients.
 
 1. **Mapping version:** immutable ID, project-scoped version, CPM report ID and
    version, source SOV snapshot (fact ID, item, value in integer cents, source,
@@ -85,6 +88,8 @@ references and production information their role may see.
   all work on the daily while retaining the report's other sections, history and photo
   links. A later restore needs an explicit new revision and reason. Voiding the entire
   report, including its other sections and reminder implications, is not implemented.
+- `daily_work_history` returns paginated immutable revisions and explicit photo links
+  through the gated RPC, including the actor, recorded time and correction reason.
 - `production_photo_associate(project, photo_id, work_revision_line_id, idempotency_key)`
   records an explicit project-scoped association.
 - `weekly_production(project, from, to)` reads current revisions and approved
@@ -95,6 +100,35 @@ All mutation RPCs must be transactional, enforce the job guard themselves, and
 use consistent locking and unique constraints rather than relying only on the
 TypeScript preview. Test cross-project references and role access at the database
 boundary. Reconcile an uncertain result by idempotency key before retrying.
+
+## Chat-first candidate acceptance
+
+The candidate registers these tools and routing guidance in the MCP server and
+manifest. This is code and in-process protocol evidence, not proof that a published
+host will route a conversation correctly. Verify these utterances in the authenticated
+candidate host on the isolated test project before release:
+
+1. “Help me connect this job's SOV to its CPM.” Athena loads saved sources, asks
+   one missing allocation or basis question at a time, and shows a complete proposed
+   mapping and unallocated lines in chat. No approval or save occurs yet.
+2. After the member explicitly approves that displayed proposal, Athena saves the
+   exact preview with its version, effective date, reason and request key. A stale
+   proposal is reloaded and reviewed again.
+3. “Record today's work.” Athena assembles the daily conversationally, identifies
+   approved or unlinked status, asks missing facts, and shows the draft before saving
+   after confirmation. A correction shows the existing mapping and requires a reason;
+   an unlinked daily remains available without a new mapping.
+4. “Show what changed in this daily,” “attach this photo to that work,” and “void
+   this work” retrieve the specific history, associate a selected photo with a revision,
+   and review the work and reason before confirmation. Work void is not report void.
+5. “Show this week's production” reports period and cumulative quantities and hours,
+   actual and sourced planned rates, and missing values as unknown. It does not post
+   or describe progress as an invoice, payment or earned value.
+
+Use the real host and capture screenshots of the conversation and relevant persistent
+view. A page can be opened for inspection but must not be the required manual-entry
+path for these tasks. Verify the exact tool calls, approval gates and saved records;
+do not infer a host pass from these routing instructions or local fixtures.
 
 ## Compatibility and rollout
 

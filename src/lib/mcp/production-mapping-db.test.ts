@@ -15,6 +15,7 @@ const fact = "00000000-0000-4000-8000-000000000076";
 const cpm = "00000000-0000-4000-8000-000000000077";
 const key = "00000000-0000-4000-8000-000000000078";
 let db: PGlite;
+let billingBefore: any;
 const claims = (user = owner) => ({
   sub: user,
   email: "test@example.com",
@@ -57,6 +58,12 @@ beforeAll(async () => {
   );
   await db.exec(
     readFileSync("supabase/migrations/20261023020000_athena_superintendent.sql", "utf8"),
+  );
+  await db.exec(
+    "CREATE TABLE public.mcp_submittals(id uuid PRIMARY KEY,job_id uuid,number text,revision integer);",
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"),
   );
   await db.exec(
     readFileSync(
@@ -104,11 +111,98 @@ beforeAll(async () => {
     job,
     JSON.stringify({ activities: [{ id: "E090" }, { id: "E100" }] }),
   ]);
+  const invoice = "30000000-0000-4000-8000-000000000001";
+  const receipt = "30000000-0000-4000-8000-000000000002";
+  const records = [
+    [
+      "invoice",
+      {
+        request_id: "30000000-0000-4000-8000-000000000011",
+        id: invoice,
+        expected_version: 0,
+        kind: "invoice",
+        document_number: "TEST-INV",
+        status: "submitted",
+        invoice_date: "2026-10-01",
+        effective_date: "2026-10-01",
+        source: "TEST invoice",
+        gross_cents: 10000,
+        withheld_cents: 0,
+        released_cents: 0,
+        net_due_cents: 10000,
+      },
+    ],
+    [
+      "invoice",
+      {
+        request_id: "30000000-0000-4000-8000-000000000012",
+        id: "30000000-0000-4000-8000-000000000003",
+        expected_version: 0,
+        kind: "credit",
+        credit_for: invoice,
+        document_number: "TEST-CREDIT",
+        status: "posted",
+        invoice_date: "2026-10-02",
+        effective_date: "2026-10-02",
+        source: "TEST credit",
+        net_due_cents: 2000,
+      },
+    ],
+    [
+      "receipt",
+      {
+        request_id: "30000000-0000-4000-8000-000000000013",
+        id: receipt,
+        receipt_date: "2026-10-03",
+        source: "TEST receipt",
+        amount_cents: 3000,
+      },
+    ],
+    [
+      "allocation",
+      {
+        request_id: "30000000-0000-4000-8000-000000000014",
+        id: "30000000-0000-4000-8000-000000000004",
+        receipt_id: receipt,
+        invoice_id: invoice,
+        effective_date: "2026-10-03",
+        source: "TEST allocation",
+        amount_cents: 2000,
+      },
+    ],
+  ] as const;
+  for (const [action, payload] of records)
+    await call("SELECT public.mcp_billing_evidence_record($1,$2,$3::jsonb) result", [
+      job,
+      action,
+      JSON.stringify(payload),
+    ]);
+  billingBefore = (await call("SELECT public.mcp_billing_evidence_get($1) result", [job])).rows[0]
+    .result;
 });
 afterAll(async () => {
   await db?.close();
 });
 describe("database mapping approval", () => {
+  it("can review on a cold membership cache", async () => {
+    await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    expect((await preview()).cpm_id).toBe(cpm);
+    const volatility = await db.query<{ proname: string; provolatile: string }>(
+      "SELECT proname,provolatile FROM pg_proc JOIN pg_namespace n ON n.oid=pronamespace WHERE n.nspname='public' AND proname=ANY($1::text[])",
+      [
+        [
+          "mcp_production_mapping_sources",
+          "mcp_production_mapping_preview",
+          "mcp_production_work_references",
+          "mcp_weekly_production",
+          "mcp_daily_revision_status",
+          "mcp_daily_revision_history",
+        ],
+      ],
+    );
+    expect(volatility.rows).toHaveLength(6);
+    expect(volatility.rows.every((r) => r.provolatile === "v")).toBe(true);
+  });
   it("requires source membership, conservation and unique pair", async () => {
     await expect(preview(allocations, job, stranger)).rejects.toThrow();
     await expect(preview(allocations, other)).rejects.toThrow();
@@ -439,12 +533,9 @@ describe("field authorization", () => {
     ).rows[0].result;
     expect(refs.length).toBe(2);
     expect(JSON.stringify(refs)).not.toMatch(/allocated_cents|billable_value/);
-    const hidden = await asUser(
-      db,
-      claims(superUser),
-      (tx) => tx.query("SELECT * FROM mcp_production_allocations") as Promise<{ rows: unknown[] }>,
-    );
-    expect(hidden.rows).toEqual([]);
+    await expect(
+      asUser(db, claims(superUser), (tx) => tx.query("SELECT * FROM mcp_production_allocations")),
+    ).rejects.toThrow(/permission denied/);
     await expect(preview(allocations, job, superUser)).rejects.toThrow(/Full project access/);
     const w = [{ ...line(allocation1, 10, 1, 2)[0] }];
     expect(
@@ -506,6 +597,12 @@ describe("USD contract credit allocation", () => {
         }),
       ],
     );
+    await db.query(
+      "INSERT INTO mcp_submittals(id,job_id,number,revision) VALUES($1,$2,'TEST-CO',0)",
+      ["10000000-0000-4000-8000-000000000040", job],
+    );
+    const contractBefore = (await call("SELECT public.mcp_billing_evidence_get($1) result", [job]))
+      .rows[0].result.recorded_contract;
     const parts = [
       { sov_fact_id: credit, activity_id: "E090", allocated_cents: -600000 },
       { sov_fact_id: credit, activity_id: "E100", allocated_cents: -400000 },
@@ -535,6 +632,10 @@ describe("USD contract credit allocation", () => {
       )
     ).rows[0];
     expect(record).toEqual({ currency: "USD", sum: "-1000000" });
+    expect(
+      (await call("SELECT public.mcp_billing_evidence_get($1) result", [job])).rows[0].result
+        .recorded_contract,
+    ).toEqual(contractBefore);
     const source = (
       await db.query<{ value: any }>("SELECT value FROM mcp_job_facts WHERE id=$1", [credit])
     ).rows[0].value;
@@ -628,6 +729,33 @@ describe("legacy client compatibility and audited void", () => {
       await call("SELECT public.mcp_daily_report_get($1,'2026-10-26') result", [job])
     ).rows[0].result;
     expect(current).toMatchObject({ found: true, work_voided: true, lines: [] });
+    const page = (
+      await call(
+        "SELECT public.mcp_daily_revision_history($1,'2026-10-26',NULL,1) result",
+        [job],
+        superUser,
+      )
+    ).rows[0].result;
+    expect(page.revisions[0]).toMatchObject({
+      revision: result.revision,
+      origin: "void",
+      reason: "Incorrect work",
+    });
+    const priorPage = (
+      await call(
+        "SELECT public.mcp_daily_revision_history($1,'2026-10-26',$2,1) result",
+        [job, page.next_before],
+        superUser,
+      )
+    ).rows[0].result;
+    expect(priorPage.revisions[0].lines[0].photo_ids).toContain(photo);
+    await expect(
+      call(
+        "SELECT public.mcp_daily_revision_history($1,'2026-10-26',NULL,1) result",
+        [other],
+        superUser,
+      ),
+    ).rejects.toThrow();
     expect(
       (
         await db.query<{ is_current: boolean }>(
@@ -660,6 +788,20 @@ describe("legacy client compatibility and audited void", () => {
         [job, JSON.stringify([{ ...line(allocation1, 320, 4, 20)[0], allocation_id: undefined }])],
       ),
     ).rejects.toThrow(/voided/);
+  });
+});
+
+describe("billing isolation", () => {
+  it("does not change invoice, credit, receipt, allocation or operation records across production workflows", async () => {
+    const after = (await call("SELECT public.mcp_billing_evidence_get($1) result", [job])).rows[0]
+      .result;
+    for (const key of ["invoices", "receipts", "allocations", "receipt_reversals"])
+      expect(after[key]).toEqual(billingBefore[key]);
+    const operations = await db.query<{ n: string }>(
+      "SELECT count(*)::text n FROM mcp_billing_operations WHERE job_id=$1",
+      [job],
+    );
+    expect(operations.rows[0].n).toBe("4");
   });
 });
 

@@ -370,6 +370,23 @@ export const dailyWorkVoid = defineTool({
     }),
 });
 
+export const dailyWorkHistory = defineTool({
+  name: "daily_work_history",
+  title: "Daily work history",
+  description: "Shows retained revisions of a daily report and their work and photo links.",
+  inputSchema: { job_number: jobNumber, company_id: companyId, report_date: date, before_revision: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(50).optional() },
+  annotations: READ,
+  handler: (args, ctx) =>
+    run("daily_work_history", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      assertField(job);
+      const result = await call<{ found: boolean; legacy_unversioned?: boolean; next_before: number | null; revisions: { id: string; revision: number; origin: string; reason: string | null; recorded_at: string; snapshot: { lines: { work: string; qty: number; unit: string; crew: number; hours: number }[] }; lines: { id: string; line_no: number; allocation_id: string | null; photo_ids: string[] }[] }[] }>(sb, "mcp_daily_revision_history", { _job: job.job_id, _date: args.report_date, _before: args.before_revision ?? null, _limit: args.limit ?? 20 });
+      await audit(sb, job, "daily_work_history", "view_daily_work_history", null);
+      const rows = result.revisions.map((r) => `Revision ${r.revision} · ${r.origin === "void" ? "work voided" : r.origin === "legacy_snapshot" ? "legacy snapshot" : r.origin === "approved" ? "approved references" : "unlinked"} · recorded ${r.recorded_at}${r.reason ? ` · reason: ${r.reason}` : ""}\n${r.snapshot.lines.map((line) => `- ${line.work}: ${line.qty} ${line.unit}, crew ${line.crew}, ${line.hours} hours`).join("\n") || "- No current work in this revision."}`);
+      return guide({ ...text([`${prefix(job)}Daily work history · ${args.report_date}`, ...(result.found ? result.legacy_unversioned ? ["This legacy daily has no captured revision yet; its current report remains available."] : rows : ["No saved daily exists for this date."]), ...(result.next_before != null ? ["Earlier revisions are available."] : [])].join("\n")), structuredContent: result as never }, "Show the recorded history, not a revised current daily. If next_before is present, pass it as before_revision to see earlier records. Photo IDs are linked to the specific revision line.");
+    }),
+});
+
 export const fieldPayApp = defineTool({
   name: "field_pay_app",
   title: "Pay app from daily progress",
