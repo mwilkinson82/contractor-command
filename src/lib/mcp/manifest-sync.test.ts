@@ -15,6 +15,7 @@ import {
   jobCostSubmissionRead,
   jobCostSubmissionRecord,
   jobCostAccountingRecord,
+  jobCostPmPaymentApproval,
 } from "./tools/job-cost-submission-tools";
 import * as R from "./tools/report-page-tools";
 import * as T from "./tools/team-tools";
@@ -143,6 +144,7 @@ async function liveTools(): Promise<Tool[]> {
       jobCostSubmissionRead,
       jobCostSubmissionRecord,
       jobCostAccountingRecord,
+      jobCostPmPaymentApproval,
     ],
     metrics: false,
   } as never);

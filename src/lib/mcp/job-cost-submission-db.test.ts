@@ -9,19 +9,44 @@ const owner = "00000000-0000-4000-8000-000000000111",
   superUser = "00000000-0000-4000-8000-000000000114",
   outsider = "00000000-0000-4000-8000-000000000115",
   ap = "00000000-0000-4000-8000-000000000116",
-  allAccess = "00000000-0000-4000-8000-000000000117";
+  allAccess = "00000000-0000-4000-8000-000000000117",
+  super2 = "00000000-0000-4000-8000-000000000118";
 const company = "00000000-0000-4000-8000-000000000121",
   otherCompany = "00000000-0000-4000-8000-000000000122",
   jobA = "00000000-0000-4000-8000-000000000131",
   jobB = "00000000-0000-4000-8000-000000000132",
   otherJob = "00000000-0000-4000-8000-000000000133";
 let db: PGlite;
-const query = (user: string, sql: string, args: unknown[] = []) =>
+const rawQuery = (user: string, sql: string, args: unknown[] = []) =>
   asUser(
     db,
     { sub: user, email: "synthetic@example.test", role: "authenticated" },
     (tx) => tx.query(sql, args) as Promise<{ rows: Array<{ value: unknown }> }>,
   );
+// Normal test commands explicitly create a review ticket, then call the guarded write.
+const query = async (user: string, sql: string, args: unknown[] = []) => {
+  const m = sql.match(
+    /public\.mcp_cost_(submission_save|accounting_action|settlement_action|pm_approve|field_submit)\(\$1,\$2::jsonb\)/,
+  );
+  if (!m) return rawQuery(user, sql, args);
+  const purpose =
+    m[1] === "field_submit"
+      ? "field"
+      : m[1] === "submission_save"
+        ? "submission"
+        : m[1] === "accounting_action"
+          ? "accounting"
+          : m[1] === "pm_approve"
+            ? "pm_approval"
+            : "settlement";
+  const prep = await rawQuery(
+    user,
+    "SELECT public.mcp_cost_review_prepare($1,$2,$3::jsonb) AS value",
+    [args[0], purpose, args[1]],
+  );
+  const review = (prep.rows[0].value as { review_id: string }).review_id;
+  return rawQuery(user, sql.replace("($1,$2::jsonb)", "($1,$2::jsonb,$3,true)"), [...args, review]);
+};
 const save = async (user: string, p: object) =>
   (
     await query(user, "SELECT public.mcp_cost_submission_save($1,$2::jsonb) AS value", [
@@ -51,6 +76,18 @@ const makePayload = () => ({
   expected_version: 0,
   facts: makeFacts(),
 });
+const approveJob = async (recordId: string, jobId: string, version: number, allocated: number) =>
+  query(owner, "SELECT public.mcp_cost_pm_approve($1,$2::jsonb) AS value", [
+    jobId,
+    JSON.stringify({
+      id: recordId,
+      request_id: crypto.randomUUID(),
+      expected_version: version,
+      allocated_cents: allocated,
+      basis: "owner_exception",
+      notes: "Owner decision",
+    }),
+  ]);
 beforeAll(async () => {
   db = await makeDb();
   await db.exec(
@@ -62,7 +99,7 @@ beforeAll(async () => {
   ])
     await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(readFileSync("docs/athena/job-cost-submission.schema-draft.sql", "utf8"));
-  for (const u of [owner, pm, estimator, superUser, outsider, ap, allAccess]) {
+  for (const u of [owner, pm, estimator, superUser, outsider, ap, allAccess, super2]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'synthetic@example.test')", [u]);
     await db.query("INSERT INTO test_active_members VALUES ($1)", [u]);
   }
@@ -85,6 +122,7 @@ beforeAll(async () => {
     [allAccess, "all_access"],
     [estimator, "estimating"],
     [superUser, "super"],
+    [super2, "super"],
   ])
     await db.query(
       "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES ($1,$2,$3,'Member')",
@@ -99,7 +137,7 @@ beforeAll(async () => {
       "INSERT INTO mcp_jobs(id,company_id,user_id,job_number,name) VALUES ($1,$2,$3,$4,'Synthetic')",
       [id, c, u, n],
     );
-  for (const u of [pm, superUser])
+  for (const u of [pm, superUser, super2])
     await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES ($1,$2,$3)", [
       jobA,
       u,
@@ -122,7 +160,7 @@ describe("staged job cost submission SQL", () => {
       }),
     ).rejects.toThrow(/Duplicate/);
     expect((await read(owner)).records.find((r) => r.id === p.id)?.versions).toHaveLength(1);
-    expect((await read(owner)).posting_available).toBe(false);
+    expect((await read(owner)).posting_available).toBe(true);
     await expect(
       save(owner, {
         ...p,
@@ -203,7 +241,7 @@ describe("staged job cost submission SQL", () => {
       expect((await read(user)).records.some((r) => r.id === p.id)).toBe(true);
     }
   });
-  it("keeps accounting actions disabled by default and exercises the transition contract with a synthetic authority hook", async () => {
+  it("enforces accounting roles and fails closed on unknown authority while exercising transitions", async () => {
     const p = makePayload();
     p.facts.document_reference = "Transition receipt";
     await save(owner, p);
@@ -221,7 +259,12 @@ describe("staged job cost submission SQL", () => {
       expected_version: 1,
       ...extra,
     });
-    await expect(action(cmd("approve"))).rejects.toThrow(/not available/);
+    await expect(
+      query(pm, "SELECT public.mcp_cost_accounting_action($1,$2::jsonb) AS value", [
+        jobA,
+        JSON.stringify(cmd("approve")),
+      ]),
+    ).rejects.toThrow(/not available/);
     await db.exec(
       "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT NULL::boolean $$;",
     );
@@ -237,6 +280,8 @@ describe("staged job cost submission SQL", () => {
       expect((await action(approval)).already_applied).toBe(true);
       const posting = cmd("post");
       expect((await action(posting)).status).toBe("posted");
+      await approveJob(p.id, jobA, 1, 6000);
+      await approveJob(p.id, jobB, 1, 4000);
       const payment = cmd("payment", {
         payment_id: crypto.randomUUID(),
         amount_cents: 4000,
@@ -358,7 +403,7 @@ describe("staged job cost submission SQL", () => {
       ).rejects.toThrow(/no supplier payable/);
     } finally {
       await db.exec(
-        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT false $$;",
+        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT EXISTS(SELECT 1 FROM public.mcp_company_members m WHERE m.company_id=_company AND m.user_id=auth.uid() AND m.role IN ('owner','ap') AND public.mcp_role_allowed(m.company_id,m.role)) $$;",
       );
     }
   });
@@ -391,6 +436,8 @@ describe("staged job cost submission SQL", () => {
       await accounting(a.id, "post");
       await accounting(b.id, "approve");
       await accounting(b.id, "post");
+      await approveJob(a.id, jobA, 1, 10000);
+      await approveJob(b.id, jobB, 1, 10000);
       const shared = {
         action: "shared_payment",
         id: a.id,
@@ -457,7 +504,7 @@ describe("staged job cost submission SQL", () => {
         "CREATE OR REPLACE FUNCTION public.mcp_cost_shared_identity_validated(_company uuid,_records uuid[]) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT false $$;",
       );
       await db.exec(
-        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT false $$;",
+        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT EXISTS(SELECT 1 FROM public.mcp_company_members m WHERE m.company_id=_company AND m.user_id=auth.uid() AND m.role IN ('owner','ap') AND public.mcp_role_allowed(m.company_id,m.role)) $$;",
       );
     }
   });
@@ -492,6 +539,8 @@ describe("staged job cost submission SQL", () => {
     try {
       await action(cmd("approve"));
       await action(cmd("post"));
+      await approveJob(p.id, jobA, 1, 6000);
+      await approveJob(p.id, jobB, 1, 4000);
       const firstId = crypto.randomUUID();
       const secondId = crypto.randomUUID();
       const first = cmd("payment", {
@@ -529,14 +578,262 @@ describe("staged job cost submission SQL", () => {
       expect(state.payments[0].correction.reason).toContain("no bank reversal");
     } finally {
       await db.exec(
-        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT false $$;",
+        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT EXISTS(SELECT 1 FROM public.mcp_company_members m WHERE m.company_id=_company AND m.user_id=auth.uid() AND m.role IN ('owner','ap') AND public.mcp_role_allowed(m.company_id,m.role)) $$;",
       );
     }
+  });
+  it("requires separate job-specific PM approval for each split before AP records payment", async () => {
+    const p = makePayload();
+    p.facts.kind = "supplier_bill";
+    p.facts.document_reference = "PM split fixture";
+    await save(owner, p);
+    const accounting = async (user: string, action: string, extra: Record<string, unknown> = {}) =>
+      (
+        await query(user, "SELECT public.mcp_cost_accounting_action($1,$2::jsonb) AS value", [
+          jobA,
+          JSON.stringify({
+            action,
+            id: p.id,
+            request_id: crypto.randomUUID(),
+            expected_version: 1,
+            ...extra,
+          }),
+        ])
+      ).rows[0].value as Record<string, unknown>;
+    await expect(accounting(pm, "approve")).rejects.toThrow(/not available/);
+    expect((await accounting(ap, "approve")).status).toBe("approved");
+    expect((await accounting(ap, "post")).status).toBe("posted");
+    const payment = {
+      payment_id: crypto.randomUUID(),
+      amount_cents: 1000,
+      paid_on: "2026-10-29",
+      reference: "PM split check",
+    };
+    await expect(accounting(ap, "payment", payment)).rejects.toThrow(/PM approval/);
+    const pmView = (await rawQuery(pm, "SELECT public.mcp_cost_pm_review($1) AS value", [jobA]))
+      .rows[0].value as {
+      records: Array<{
+        id: string;
+        allocations: Array<{ amount_cents: number }>;
+        bill_total_cents?: number;
+      }>;
+    };
+    const visible = pmView.records.find((r) => r.id === p.id)!;
+    expect(visible.allocations).toHaveLength(1);
+    expect(visible.allocations[0].amount_cents).toBe(6000);
+    expect(visible).not.toHaveProperty("bill_total_cents");
+    const approve = async (user: string, job: string, basis: string, notes?: string) =>
+      (
+        await query(user, "SELECT public.mcp_cost_pm_approve($1,$2::jsonb) AS value", [
+          job,
+          JSON.stringify({
+            id: p.id,
+            request_id: crypto.randomUUID(),
+            expected_version: 1,
+            allocated_cents: job === jobA ? 6000 : 4000,
+            basis,
+            notes,
+          }),
+        ])
+      ).rows[0].value;
+    await expect(approve(ap, jobA, "work_verified")).rejects.toThrow(/PM or owner/);
+    await expect(approve(allAccess, jobA, "work_verified")).rejects.toThrow(/PM or owner/);
+    await expect(approve(pm, jobB, "work_verified")).rejects.toThrow(/Full project/);
+    await expect(approve(pm, jobA, "deposit")).rejects.toThrow(/Explain/);
+    expect(
+      (
+        (await approve(pm, jobA, "deposit", "Deposit needed for delivery")) as {
+          status: string;
+        }
+      ).status,
+    ).toBe("pm_approved_for_payment");
+    await expect(accounting(ap, "payment", payment)).rejects.toThrow(/PM approval/);
+    await expect(approve(owner, jobB, "owner_exception")).rejects.toThrow(/Explain/);
+    await approve(owner, jobB, "owner_exception", "Owner reviewed second job");
+    expect((await accounting(ap, "payment", payment)).status).toBe("payment_recorded");
+    const correction = {
+      ...p,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      reason: "Correct amount",
+      facts: {
+        ...p.facts,
+        amount_cents: 11000,
+        allocations: [
+          { job_id: jobA, cost_code: "FUEL", amount_cents: 7000 },
+          { job_id: jobB, cost_code: "FUEL", amount_cents: 4000 },
+        ],
+      },
+    };
+    await save(owner, correction);
+    await accounting(ap, "approve", { expected_version: 2 });
+    await accounting(ap, "post", { expected_version: 2 });
+    await expect(
+      accounting(ap, "payment", {
+        ...payment,
+        payment_id: crypto.randomUUID(),
+        reference: "PM split new",
+        expected_version: 2,
+      }),
+    ).rejects.toThrow(/PM approval/);
+  });
+  it("lets assigned superintendents submit and see only their own field entries", async () => {
+    const single = {
+      ...makeFacts(),
+      kind: "reimbursable_expense",
+      counterparty_name: "Member",
+      document_reference: "Field receipt",
+      allocations: [{ job_id: jobA, cost_code: "FUEL", amount_cents: 10000 }],
+    };
+    const p = { ...makePayload(), facts: single };
+    const submit = async (user: string, job: string, data: object) =>
+      (
+        await query(user, "SELECT public.mcp_cost_field_submit($1,$2::jsonb) AS value", [
+          job,
+          JSON.stringify(data),
+        ])
+      ).rows[0].value as Record<string, unknown>;
+    const own = async (user: string, job: string) =>
+      (await rawQuery(user, "SELECT public.mcp_cost_field_own_read($1) AS value", [job])).rows[0]
+        .value as { submissions: Array<{ id: string; facts: Record<string, unknown> }> };
+    expect((await submit(superUser, jobA, p)).status).toBe("submitted");
+    expect((await submit(superUser, jobA, p)).already_applied).toBe(true);
+    expect((await own(superUser, jobA)).submissions.map((r) => r.id)).toContain(p.id);
+    expect((await own(super2, jobA)).submissions).toEqual([]);
+    expect((await read(owner)).records.some((r) => r.id === p.id)).toBe(true);
+    await expect(own(superUser, jobB)).rejects.toThrow(/superintendent/);
+    await expect(
+      rawQuery(superUser, "SELECT public.mcp_cost_submission_read($1)", [jobA]),
+    ).rejects.toThrow(/Full project/);
+    await expect(rawQuery(superUser, "SELECT * FROM public.mcp_cost_submissions")).rejects.toThrow(
+      /permission denied/,
+    );
+    expect(
+      (
+        await submit(superUser, jobA, {
+          ...makePayload(),
+          facts: {
+            ...single,
+            counterparty_name: "Another employee",
+            document_reference: "other payee",
+          },
+        })
+      ).status,
+    ).toBe("submitted");
+    await expect(
+      submit(superUser, jobA, {
+        ...makePayload(),
+        facts: { ...single, kind: "supplier_bill", document_reference: "bill" },
+      }),
+    ).rejects.toThrow(/expense type/);
+    await expect(
+      submit(superUser, jobA, {
+        ...makePayload(),
+        facts: { ...single, original: "stored", document_reference: "upload" },
+      }),
+    ).rejects.toThrow(/missing original/);
+    await expect(
+      submit(superUser, jobA, {
+        ...makePayload(),
+        facts: {
+          ...single,
+          allocations: [{ job_id: jobB, cost_code: "FUEL", amount_cents: 10000 }],
+          document_reference: "other job",
+        },
+      }),
+    ).rejects.toThrow(/assigned job/);
+    await expect(submit(super2, jobA, p)).rejects.toThrow(/different content/);
+    const secondSuper = {
+      ...makePayload(),
+      facts: { ...single, document_reference: "Second super receipt" },
+    };
+    await submit(super2, jobA, secondSuper);
+    expect((await own(super2, jobA)).submissions.map((r) => r.id)).toEqual([secondSuper.id]);
+    expect((await own(superUser, jobA)).submissions.some((r) => r.id === secondSuper.id)).toBe(
+      false,
+    );
+    await db.query("DELETE FROM public.mcp_job_access WHERE job_id=$1 AND user_id=$2", [
+      jobA,
+      super2,
+    ]);
+    await expect(own(super2, jobA)).rejects.toThrow(/superintendent/);
+  });
+  it("requires a server review bound to actor, exact payload, purpose and expiry", async () => {
+    const p = makePayload();
+    p.facts.document_reference = "Ticket fixture";
+    const prepare = async (user: string, purpose: string, data: object) =>
+      (
+        await rawQuery(user, "SELECT public.mcp_cost_review_prepare($1,$2,$3::jsonb) AS value", [
+          jobA,
+          purpose,
+          JSON.stringify(data),
+        ])
+      ).rows[0].value as { review_id: string };
+    const write = async (user: string, data: object, ticket: string | null) =>
+      (
+        await rawQuery(
+          user,
+          "SELECT public.mcp_cost_submission_save($1,$2::jsonb,$3::uuid,true) AS value",
+          [jobA, JSON.stringify(data), ticket],
+        )
+      ).rows[0].value;
+    await expect(write(owner, p, null)).rejects.toThrow(/Review the exact action/);
+    const ticket = await prepare(owner, "submission", p);
+    await expect(
+      write(owner, { ...p, facts: { ...p.facts, description: "changed" } }, ticket.review_id),
+    ).rejects.toThrow(/Review the exact action/);
+    await expect(write(ap, p, ticket.review_id)).rejects.toThrow(/Review the exact action/);
+    const otherJobTicket = (
+      await rawQuery(owner, "SELECT public.mcp_cost_review_prepare($1,$2,$3::jsonb) AS value", [
+        jobB,
+        "submission",
+        JSON.stringify(p),
+      ])
+    ).rows[0].value as { review_id: string };
+    await expect(write(owner, p, otherJobTicket.review_id)).rejects.toThrow(
+      /Review the exact action/,
+    );
+    const wrongPurpose = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO public.mcp_cost_review_tickets(id,company_id,job_id,actor_id,purpose,payload) VALUES($1,$2,$3,$4,'accounting',$5::jsonb)",
+      [wrongPurpose, company, jobA, owner, JSON.stringify(p)],
+    );
+    await expect(write(owner, p, wrongPurpose)).rejects.toThrow(/Review the exact action/);
+    await expect(
+      prepare(owner, "submission", { ...p, facts: { ...p.facts, file_bytes: "not allowed" } }),
+    ).rejects.toThrow(/Invalid review metadata/);
+    await db.query(
+      "UPDATE public.mcp_cost_review_tickets SET expires_at=now()-interval '1 second' WHERE id=$1",
+      [ticket.review_id],
+    );
+    await expect(write(owner, p, ticket.review_id)).rejects.toThrow(/Review the exact action/);
+    const valid = await prepare(owner, "submission", p);
+    await expect(
+      rawQuery(owner, "SELECT public.mcp_cost_submission_save($1,$2::jsonb,$3::uuid,false)", [
+        jobA,
+        JSON.stringify(p),
+        valid.review_id,
+      ]),
+    ).rejects.toThrow(/Confirm the reviewed action/);
+    expect(((await write(owner, p, valid.review_id)) as { version: number }).version).toBe(1);
+    expect(
+      ((await write(owner, p, valid.review_id)) as { already_applied: boolean }).already_applied,
+    ).toBe(true);
+    await expect(
+      write(
+        owner,
+        { ...p, id: crypto.randomUUID(), request_id: crypto.randomUUID() },
+        valid.review_id,
+      ),
+    ).rejects.toThrow(/Review the exact action/);
+    await expect(rawQuery(owner, "SELECT * FROM public.mcp_cost_review_tickets")).rejects.toThrow(
+      /permission denied/,
+    );
   });
   it("rejects unverified PO or supplier IDs and attachment claims", async () => {
     for (const patch of [
       { party_id: crypto.randomUUID() },
-      { purchase_order_id: crypto.randomUUID() },
+      { purchase_order_id: crypto.randomUUID(), purchase_order_version: 1 },
     ])
       await expect(
         save(owner, {
@@ -559,7 +856,7 @@ describe("staged job cost submission SQL", () => {
       po = crypto.randomUUID(),
       foreignPo = crypto.randomUUID();
     await db.exec(
-      "CREATE TABLE public.mcp_project_parties(id uuid PRIMARY KEY,company_id uuid,job_id uuid,name text,kind text); CREATE TABLE public.mcp_purchase_orders(id uuid PRIMARY KEY,company_id uuid,job_id uuid,party_id uuid,number text);",
+      "CREATE TABLE public.mcp_project_parties(id uuid PRIMARY KEY,company_id uuid,job_id uuid,name text,kind text); CREATE TABLE public.mcp_purchase_orders(id uuid PRIMARY KEY,company_id uuid,job_id uuid,party_id uuid,number text); CREATE TABLE public.mcp_purchase_order_versions(po_id uuid,version integer,party_snapshot jsonb,PRIMARY KEY(po_id,version));",
     );
     await db.query(
       "INSERT INTO public.mcp_project_parties VALUES ($1,$2,$3,'Synthetic Supplier','supplier'),($4,$2,$3,'Different Supplier','supplier'),($5,$2,$6,'Other Job Supplier','supplier')",
@@ -568,6 +865,10 @@ describe("staged job cost submission SQL", () => {
     await db.query(
       "INSERT INTO public.mcp_purchase_orders VALUES ($1,$2,$3,$4,'PO-1'),($5,$6,$7,$4,'Foreign')",
       [po, company, jobA, party, foreignPo, otherCompany, otherJob],
+    );
+    await db.query(
+      "INSERT INTO public.mcp_purchase_order_versions VALUES ($1,1,jsonb_build_object('id',$2::text)),($3,1,jsonb_build_object('id',$2::text))",
+      [po, party, foreignPo],
     );
     const f = {
       ...makeFacts(),
@@ -579,14 +880,15 @@ describe("staged job cost submission SQL", () => {
       (
         await save(owner, {
           ...makePayload(),
-          facts: { ...f, party_id: party, purchase_order_id: po },
+          facts: { ...f, party_id: party, purchase_order_id: po, purchase_order_version: 1 },
         })
       ).status,
     ).toBe("submitted");
     for (const patch of [
       { party_id: wrongJobParty },
-      { purchase_order_id: foreignPo },
-      { party_id: otherParty, purchase_order_id: po },
+      { purchase_order_id: foreignPo, purchase_order_version: 1 },
+      { party_id: otherParty, purchase_order_id: po, purchase_order_version: 1 },
+      { party_id: party, purchase_order_id: po, purchase_order_version: 9 },
     ])
       await expect(
         save(owner, {
@@ -601,7 +903,7 @@ describe("staged job cost submission SQL", () => {
       }),
     ).rejects.toThrow(/cannot apply to other jobs/);
     await expect(
-      query(owner, "SELECT public.mcp_cost_validate_project_refs($1,$2,$3,$4)", [
+      query(owner, "SELECT public.mcp_cost_validate_project_refs($1,$2,$3,$4,1)", [
         company,
         jobA,
         party,

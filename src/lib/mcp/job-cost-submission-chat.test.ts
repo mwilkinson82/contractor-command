@@ -6,6 +6,7 @@ import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 const state = vi.hoisted(() => ({
   sb: null as unknown,
   lost: false,
+  actor: "00000000-0000-4000-8000-000000000203",
   job: {
     job_id: "00000000-0000-4000-8000-000000000201",
     company_id: "00000000-0000-4000-8000-000000000202",
@@ -29,13 +30,17 @@ function requireToolError() {
 vi.mock("./jobs", () => ({
   resolveJob: async (_sb: unknown, job: string) => {
     if (job !== "SYN-A") throw new Error("Job unavailable");
-    return state.job;
+    return {
+      ...state.job,
+      scope: state.actor === "00000000-0000-4000-8000-000000000204" ? "super" : "full",
+    };
   },
 }));
 import {
   jobCostSubmissionRead,
   jobCostSubmissionRecord,
   jobCostAccountingRecord,
+  jobCostPmPaymentApproval,
 } from "./tools/job-cost-submission-tools";
 const owner = "00000000-0000-4000-8000-000000000203";
 let db: PGlite;
@@ -47,6 +52,14 @@ const call = (tool: unknown, args: Record<string, unknown>) =>
   );
 beforeAll(async () => {
   db = await makeDb();
+  await db.exec(
+    "CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$;",
+  );
+  for (const f of [
+    "20261021190000_athena_team_invites.sql",
+    "20261022120000_athena_account_team_privacy_terms.sql",
+  ])
+    await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8"));
   await db.exec(readFileSync("docs/athena/job-cost-submission.schema-draft.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES($1,'synthetic@example.test')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES($1)", [owner]);
@@ -62,6 +75,18 @@ beforeAll(async () => {
     "INSERT INTO mcp_jobs(id,company_id,user_id,job_number,name) VALUES($1,$2,$3,'SYN-A','Synthetic')",
     [state.job.job_id, state.job.company_id, owner],
   );
+  const superId = "00000000-0000-4000-8000-000000000204";
+  await db.query("INSERT INTO auth.users(id,email) VALUES($1,'field@example.test')", [superId]);
+  await db.query("INSERT INTO test_active_members VALUES($1)", [superId]);
+  await db.query(
+    "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'super','Field Member')",
+    [state.job.company_id, superId],
+  );
+  await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES($1,$2,$3)", [
+    state.job.job_id,
+    superId,
+    owner,
+  ]);
   state.sb = {
     rpc: async (name: string, values: Record<string, unknown>) => {
       try {
@@ -70,7 +95,7 @@ beforeAll(async () => {
         );
         const result = await asUser(
           db,
-          { sub: owner, email: "synthetic@example.test", role: "authenticated" },
+          { sub: state.actor, email: "synthetic@example.test", role: "authenticated" },
           (tx) =>
             tx.query(
               `SELECT public.${name}(${args.map((_, i) => `$${i + 1}`).join(",")}) AS value`,
@@ -129,7 +154,7 @@ describe("staged conversational submission", () => {
         review_key,
         confirmed: true,
       }),
-    ).rejects.toThrow(/confirm/);
+    ).rejects.toThrow(/review/i);
     state.lost = true;
     const lost = await call(jobCostSubmissionRecord, {
       step: "save",
@@ -155,7 +180,7 @@ describe("staged conversational submission", () => {
       status: "submitted",
     });
   });
-  it("stages accounting review only under a synthetic authority and does not move funds", async () => {
+  it("records owner accounting actions and separate payment approval without moving funds", async () => {
     const entry = await call(jobCostSubmissionRecord, {
       step: "review",
       job_number: "SYN-A",
@@ -176,19 +201,7 @@ describe("staged conversational submission", () => {
       review_key: entry.structuredContent.review_key,
       confirmed: true,
     });
-    await expect(
-      call(jobCostAccountingRecord, {
-        step: "review",
-        job_number: "SYN-A",
-        action: "approve",
-        id: payload.id,
-        expected_version: 1,
-      }),
-    ).rejects.toThrow(/not available/);
-    await db.exec(
-      "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT true $$;",
-    );
-    try {
+    {
       async function reviewAction(action: string, extra: Record<string, unknown> = {}) {
         return call(jobCostAccountingRecord, {
           step: "review",
@@ -220,12 +233,34 @@ describe("staged conversational submission", () => {
           review_key: approval.structuredContent.review_key,
         }),
       ).rejects.toThrow(/confirm/);
-      expect((await saveAction(approval)).structuredContent.result).toMatchObject({
+      const accountingApproval = await saveAction(approval);
+      expect(accountingApproval.content[0].text).toContain("PM payment approval is separate");
+      expect(accountingApproval.structuredContent.result).toMatchObject({
         status: "approved",
       });
       expect((await saveAction(await reviewAction("post"))).structuredContent.result).toMatchObject(
         { status: "posted" },
       );
+      await expect(
+        reviewAction("payment", { amount_cents: 1000, paid_on: "2026-10-29", reference: "check" }),
+      ).rejects.toThrow(/PM payment approval/);
+      const pmReview = await call(jobCostPmPaymentApproval, {
+        step: "review",
+        job_number: "SYN-A",
+        id: payload.id,
+        expected_version: 1,
+        basis: "owner_exception",
+        notes: "Owner reviewed",
+      });
+      expect(pmReview.content[0].text).toContain("does not post or pay");
+      const pmSaved = await call(jobCostPmPaymentApproval, {
+        step: "save",
+        job_number: "SYN-A",
+        payload: pmReview.structuredContent.payload,
+        review_key: pmReview.structuredContent.review_key,
+        confirmed: true,
+      });
+      expect(pmSaved.structuredContent.result).toMatchObject({ status: "pm_approved_for_payment" });
       const payment = await reviewAction("payment", {
         amount_cents: 1000,
         paid_on: "2026-10-29",
@@ -235,10 +270,49 @@ describe("staged conversational submission", () => {
       expect((await saveAction(payment)).structuredContent.result).toMatchObject({
         status: "payment_recorded",
       });
+    }
+  });
+  it("routes assigned superintendent field submission and own read through narrow tools", async () => {
+    state.actor = "00000000-0000-4000-8000-000000000204";
+    try {
+      const review = await call(jobCostSubmissionRecord, {
+        step: "review",
+        job_number: "SYN-A",
+        facts: {
+          kind: "reimbursable_expense",
+          description: "Gas receipt",
+          counterparty_name: "Field Member",
+          incurred_on: "2026-10-28",
+          amount_cents: 2500,
+          allocations: [{ cost_code: "FUEL", amount_cents: 2500 }],
+        },
+      });
+      const saved = await call(jobCostSubmissionRecord, {
+        step: "save",
+        job_number: "SYN-A",
+        payload: review.structuredContent.payload,
+        review_key: review.structuredContent.review_key,
+        confirmed: true,
+      });
+      expect(saved.structuredContent.result).toMatchObject({ status: "submitted" });
+      const read = await call(jobCostSubmissionRead, { job_number: "SYN-A" });
+      expect(read.structuredContent.submissions as unknown[]).toHaveLength(1);
+      await expect(
+        call(jobCostSubmissionRecord, {
+          step: "review",
+          job_number: "SYN-A",
+          facts: {
+            kind: "supplier_bill",
+            description: "Bill",
+            counterparty_name: "Supplier",
+            incurred_on: "2026-10-28",
+            amount_cents: 100,
+            allocations: [{ cost_code: "FUEL", amount_cents: 100 }],
+          },
+        }),
+      ).rejects.toThrow(/field expense/);
     } finally {
-      await db.exec(
-        "CREATE OR REPLACE FUNCTION public.mcp_cost_accounting_authorized(_company uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$ SELECT false $$;",
-      );
+      state.actor = owner;
     }
   });
 });

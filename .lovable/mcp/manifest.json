@@ -9717,7 +9717,7 @@
       {
         "name": "job_cost_submissions_read",
         "title": "Read job cost records",
-        "description": "Reads supplier bill and field expense versions and accounting evidence, subject to full access to every job in each record. Attachments are unavailable.",
+        "description": "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Attachments are unavailable.",
         "inputSchema": {
           "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -9746,7 +9746,7 @@
       {
         "name": "job_cost_submission_record",
         "title": "Review or submit job cost metadata",
-        "description": "Reviews and records a supplier bill or field expense for job allocation; never moves money, retains originals, or posts to accounting.",
+        "description": "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. It does not move funds, retain originals, or post to accounting.",
         "inputSchema": {
           "type": "object",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -9960,7 +9960,8 @@
             },
             "review_key": {
               "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "confirmed": {
               "type": "boolean"
@@ -10092,7 +10093,129 @@
             },
             "review_key": {
               "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_pm_payment_approval",
+        "title": "Review and approve payment for a job",
+        "description": "Shows only the job's share of supplier bills and reimbursements, and records a PM payment approval for the exact version and job allocation. It does not post accounting or pay anyone.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "list",
+                "review",
+                "save"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "basis": {
+              "type": "string",
+              "enum": [
+                "work_verified",
+                "delivery_needed",
+                "advance",
+                "deposit",
+                "owner_exception"
+              ]
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "request_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "expected_version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "allocated_cents": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9000000000000
+                },
+                "basis": {
+                  "type": "string",
+                  "enum": [
+                    "work_verified",
+                    "delivery_needed",
+                    "advance",
+                    "deposit",
+                    "owner_exception"
+                  ]
+                },
+                "notes": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "id",
+                "request_id",
+                "expected_version",
+                "allocated_cents",
+                "basis"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "confirmed": {
               "type": "boolean"
