@@ -82,7 +82,7 @@ function canonical(v: unknown): string {
       .join(",")}}`;
   return JSON.stringify(v);
 }
-const key = (jobId: string, payload: Payload) =>
+const key = (jobId: string, payload: unknown) =>
   sha256Hex(new TextEncoder().encode(canonical({ jobId, payload })));
 export function missingSubmissionFacts(f: Facts): string[] {
   const missing: string[] = [];
@@ -277,6 +277,177 @@ export const jobCostSubmissionRecord = defineTool({
               } as never,
             },
             "Do not invent a new request ID; reconcile and retry only the same confirmed payload.",
+          );
+        }
+      },
+    ),
+});
+
+const accountingPayload = z
+  .object({
+    action: z.enum(["approve", "post", "payment"]),
+    id: z.string().uuid(),
+    request_id: z.string().uuid(),
+    expected_version: z.number().int().positive(),
+    payment_id: z.string().uuid().optional(),
+    amount_cents: z.number().int().positive().max(9000000000000).optional(),
+    paid_on: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    reference: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+type AccountingPayload = z.infer<typeof accountingPayload>;
+/** Unregistered until an accounting authority policy and schema are reviewed. */
+export const jobCostAccountingRecord = defineTool({
+  name: "job_cost_accounting_record",
+  title: "Review a job cost accounting action",
+  description:
+    "Stages approval, accounting posting or recorded settlement evidence after explicit review; it never makes a payment. Accounting authority is disabled pending policy.",
+  inputSchema: {
+    ...jobFields,
+    step: z.enum(["review", "save"]),
+    action: z.enum(["approve", "post", "payment"]).optional(),
+    id: z.string().uuid().optional(),
+    expected_version: z.number().int().positive().optional(),
+    amount_cents: z.number().int().positive().max(9000000000000).optional(),
+    paid_on: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    reference: z.string().trim().min(1).max(200).optional(),
+    payload: accountingPayload.optional(),
+    review_key: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
+    confirmed: z.boolean().optional(),
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  handler: (args, ctx) =>
+    run(
+      "job_cost_accounting_record",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        if (!args.job_number)
+          return guide(
+            {
+              ...text("Which job is this for? Nothing was recorded."),
+              structuredContent: { saved: false, missing: ["job"] },
+            },
+            "Ask which job; do not guess.",
+          );
+        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+        if (args.step === "review") {
+          const missing: string[] = [];
+          if (!args.action) missing.push("action");
+          if (!args.id) missing.push("cost record");
+          if (!args.expected_version) missing.push("current version");
+          if (args.action === "payment") {
+            if (!args.amount_cents) missing.push("recorded payment amount");
+            if (!args.paid_on) missing.push("payment date");
+            if (!args.reference) missing.push("payment reference");
+          }
+          if (missing.length)
+            return guide(
+              {
+                ...text(`Before review I need: ${missing.join(", ")}. Nothing was recorded.`),
+                structuredContent: { saved: false, missing },
+              },
+              "Ask only for missing facts. Payment is evidence only and does not transfer funds.",
+            );
+          const data = await rpc<{
+            records: Array<{
+              id: string;
+              versions: Array<{
+                version: number;
+                facts: { description: string; counterparty_name: string; amount_cents: number };
+              }>;
+              approved_versions: number[];
+              posted_version: number | null;
+            }>;
+            posting_available: boolean;
+          }>(sb, "mcp_cost_submission_read", { _job: job.job_id });
+          if (!data.posting_available)
+            throw new ToolError("Accounting approval, posting and settlement are not available.");
+          const record = data.records.find((r) => r.id === args.id),
+            current = record?.versions[0];
+          if (!record || !current || current.version !== args.expected_version)
+            throw new ToolError("Record unavailable or version changed; read it again.");
+          if (args.action === "post" && !record.approved_versions.includes(current.version))
+            throw new ToolError("Approval is required before posting.");
+          if (args.action === "payment" && record.posted_version !== current.version)
+            throw new ToolError("Post this version before recording settlement.");
+          const payload: AccountingPayload = {
+            action: args.action!,
+            id: args.id!,
+            request_id: crypto.randomUUID(),
+            expected_version: args.expected_version!,
+            ...(args.action === "payment"
+              ? {
+                  payment_id: crypto.randomUUID(),
+                  amount_cents: args.amount_cents!,
+                  paid_on: args.paid_on!,
+                  reference: args.reference!,
+                }
+              : {}),
+          };
+          const reviewKey = await key(job.job_id, payload);
+          return guide(
+            {
+              ...text(
+                `Review ${payload.action} for ${current.facts.description}, ${current.facts.counterparty_name}, ${money(current.facts.amount_cents)}, version ${current.version}.${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
+              ),
+              structuredContent: { saved: false, payload, review_key: reviewKey } as never,
+            },
+            "Show the exact action and facts, ask for explicit confirmation, then save only the reviewed payload and key. Payment is evidence, never a money transfer.",
+          );
+        }
+        if (
+          !args.confirmed ||
+          !args.payload ||
+          !args.review_key ||
+          (await key(job.job_id, args.payload)) !== args.review_key
+        )
+          throw new ToolError("Review and confirm the exact action first. Nothing was recorded.");
+        try {
+          const result = await rpc<Record<string, unknown>>(sb, "mcp_cost_accounting_action", {
+            _job: job.job_id,
+            _p: args.payload,
+          });
+          return guide(
+            {
+              ...text(
+                args.payload.action === "payment"
+                  ? "Settlement evidence recorded. No funds were transferred."
+                  : `Cost ${args.payload.action === "post" ? "posted" : "approved"}.`,
+              ),
+              structuredContent: { saved: true, result } as never,
+            },
+            "Report only the recorded action; settlement is not an additional job cost and no funds were moved.",
+          );
+        } catch (e) {
+          if (e instanceof ToolError) throw e;
+          return guide(
+            {
+              ...text(
+                "The action outcome is unknown. Read the records and retry only the same confirmed request if needed.",
+              ),
+              structuredContent: {
+                saved: null,
+                outcome: "unknown",
+                payload: args.payload,
+                review_key: args.review_key,
+              } as never,
+            },
+            "Reconcile before retry and retain the same request ID.",
           );
         }
       },
