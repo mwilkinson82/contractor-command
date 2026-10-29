@@ -274,6 +274,13 @@
       "when": 1793305011122,
       "tag": "0038_accounting_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793305154763,
+      "tag": "0039_accounting_ap_snapshot",
+      "breakpoints": true
     }
   ]
 }

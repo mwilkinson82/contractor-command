@@ -8412,6 +8412,10 @@ export type Database = {
         Args: { _id: string; _job: string; _record: string }
         Returns: Json
       }
+      mcp_cost_reconciliation_snapshot: {
+        Args: { _job: string }
+        Returns: Json
+      }
       mcp_cost_reference_in_use: {
         Args: { _company: string; _reference: string }
         Returns: boolean
