@@ -142,10 +142,19 @@ export async function loadAccountTeam(
     seats: null,
     team: null,
   };
-  const cos = await db.from("mcp_companies").select("id, name");
+  const [cos, saved] = await Promise.all([
+    db.from("mcp_companies").select("id, name"),
+    db.from("mcp_user_settings").select("current_company"),
+  ]);
   const list = (cos.data as { id: string; name: string | null }[] | null) ?? [];
   if (cos.error || !list.length) return empty;
-  const co = list.find((c) => c.id === preferred) ?? list[0];
+  // RLS returns only the caller's setting. Validate it against accessible companies;
+  // a name or stale preference must never redirect team operations to another tenant.
+  const savedId =
+    !saved.error && Array.isArray(saved.data)
+      ? (saved.data[0] as { current_company?: unknown } | undefined)?.current_company
+      : null;
+  const co = list.find((c) => c.id === preferred) ?? list.find((c) => c.id === savedId) ?? list[0];
   const [own, seat] = await Promise.all([
     db.rpc("mcp_is_company_owner", { _company: co.id }),
     db.rpc("mcp_seat_usage", { _company: co.id }),

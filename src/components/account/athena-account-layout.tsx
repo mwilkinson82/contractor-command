@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  ArrowDownLeft,
   ArrowRight,
   Building2,
+  ChevronDown,
   ChevronRight,
   CircleHelp,
   CreditCard,
@@ -156,9 +156,8 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
         ) : null}
         <div className="aa-sidebar-bottom">
           <a href="https://meetathena.io/connect/" target="_blank" rel="noreferrer">
-            <ArrowDownLeft size={17} />
             Connect your chat
-            <ExternalLink size={13} />
+            <ExternalLink size={17} aria-hidden="true" />
           </a>
           <span className="aa-powered">ATHENA BY ALP</span>
         </div>
@@ -297,7 +296,7 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
             <details className="aa-guide">
               <summary>
                 New to Athena? Start here
-                <CircleHelp size={17} />
+                <ChevronDown size={17} className="aa-guide-chevron" aria-hidden="true" />
               </summary>
               {props.guide}
             </details>

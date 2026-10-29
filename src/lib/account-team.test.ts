@@ -27,6 +27,8 @@ import { OWNER_ONLY_MESSAGE } from "./mcp/tools/team-tools";
 function fakeDb(
   rpcs: Record<string, { data?: unknown; error?: { message: string } | null }>,
   companies: unknown[] = [{ id: "c1", name: "Harbor" }],
+  settings: unknown[] = [],
+  settingsError: { message: string } | null = null,
 ) {
   const calls: [string, Record<string, unknown> | undefined][] = [];
   const db: AccountDb = {
@@ -35,7 +37,12 @@ function fakeDb(
       const r = rpcs[fn] ?? {};
       return { data: r.data ?? null, error: r.error ?? null };
     }),
-    from: () => ({ select: async () => ({ data: companies, error: null }) }),
+    from: (table) => ({
+      select: async () => ({
+        data: table === "mcp_user_settings" ? settings : companies,
+        error: table === "mcp_user_settings" ? settingsError : null,
+      }),
+    }),
   };
   return { db, calls };
 }
@@ -89,6 +96,100 @@ describe("team writes use the same database functions as the chat tools", () => 
   it("no company means nothing to manage", async () => {
     const { db } = fakeDb({}, []);
     expect((await loadAccountTeam(db)).companyId).toBeNull();
+  });
+  it("uses the saved accessible Athena company rather than the first membership", async () => {
+    const { db, calls } = fakeDb(
+      {},
+      [
+        { id: "aop", name: "AOP Construction" },
+        { id: "alp", name: "ALP Construction" },
+      ],
+      [{ current_company: "alp" }],
+    );
+    expect(await loadAccountTeam(db)).toMatchObject({
+      companyId: "alp",
+      companyName: "ALP Construction",
+    });
+    expect(calls.every(([, args]) => args?._company === "alp")).toBe(true);
+  });
+  it("keeps an explicit accessible selection ahead of the saved selection", async () => {
+    const { db, calls } = fakeDb(
+      {},
+      [
+        { id: "a", name: "Harbor" },
+        { id: "b", name: "Northline" },
+      ],
+      [{ current_company: "b" }],
+    );
+    expect((await loadAccountTeam(db, "a")).companyName).toBe("Harbor");
+    expect(calls.every(([, args]) => args?._company === "a")).toBe(true);
+  });
+  it("never uses an inaccessible saved company for owner, seat or team calls", async () => {
+    const { db, calls } = fakeDb(
+      {},
+      [{ id: "a", name: "Harbor" }],
+      [{ current_company: "foreign" }],
+    );
+    expect((await loadAccountTeam(db)).companyId).toBe("a");
+    expect(calls.every(([, args]) => args?._company === "a")).toBe(true);
+  });
+  it.each([[], [{ current_company: null }], [{ current_company: "deleted-company" }], [{}]])(
+    "keeps an accessible fallback for a missing or stale saved selection: %j",
+    async (...rows) => {
+      const settings = rows as unknown[];
+      const { db, calls } = fakeDb({}, [{ id: "a", name: "Harbor" }], settings);
+      expect((await loadAccountTeam(db)).companyId).toBe("a");
+      expect(calls.every(([, args]) => args?._company === "a")).toBe(true);
+    },
+  );
+  it("uses the valid saved company when an explicit preference is inaccessible", async () => {
+    const { db, calls } = fakeDb(
+      {},
+      [
+        { id: "a", name: "Harbor" },
+        { id: "b", name: "Northline" },
+      ],
+      [{ current_company: "b" }],
+    );
+    expect((await loadAccountTeam(db, "foreign")).companyId).toBe("b");
+    expect(calls.every(([, args]) => args?._company === "b")).toBe(true);
+  });
+  it("keeps the existing accessible fallback if the settings read is unavailable", async () => {
+    const { db, calls } = fakeDb(
+      {},
+      [{ id: "a", name: "Harbor" }],
+      [{ current_company: "foreign" }],
+      { message: "Unavailable" },
+    );
+    expect((await loadAccountTeam(db)).companyId).toBe("a");
+    expect(calls.every(([, args]) => args?._company === "a")).toBe(true);
+  });
+  it("makes no owner, seat or team calls when there are no accessible companies", async () => {
+    const { db, calls } = fakeDb({}, [], [{ current_company: "foreign" }]);
+    expect((await loadAccountTeam(db)).companyId).toBeNull();
+    expect(calls).toEqual([]);
+  });
+  it("rechecks owner scope when the accessible selection changes", async () => {
+    const { db } = fakeDb({}, [
+      { id: "a", name: "Harbor" },
+      { id: "b", name: "Northline" },
+    ]);
+    const rpc = vi.fn(async (fn: string, args?: Record<string, unknown>) => ({
+      data:
+        fn === "mcp_is_company_owner"
+          ? args?._company === "a"
+          : fn === "mcp_team_list"
+            ? { members: [], pending: [], jobs: [], seats, roles_allowed: null }
+            : seats,
+      error: null,
+    }));
+    db.rpc = rpc;
+    expect((await loadAccountTeam(db, "a")).isOwner).toBe(true);
+    rpc.mockClear();
+    const selected = await loadAccountTeam(db, "b");
+    expect(selected).toMatchObject({ companyId: "b", isOwner: false, team: null });
+    expect(rpc.mock.calls.every(([, args]) => args?._company === "b")).toBe(true);
+    expect(rpc.mock.calls.some(([fn]) => fn === "mcp_team_list")).toBe(false);
   });
   it("invite drops job list for all-jobs roles and maps the seat-limit error", async () => {
     const { db, calls } = fakeDb({});

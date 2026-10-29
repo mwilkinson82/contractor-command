@@ -8,7 +8,7 @@ export function ProjectHomeLinks({ jobs }: { jobs: ProjectHomeJob[] }) {
   return (
     <section className="mt-8 rounded-2xl border border-[#D1D5DB] bg-white p-7">
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6B7280]">
-        Project homes
+        Project dashboards
       </p>
       <ul className="mt-4 space-y-3">
         {jobs.map((job) => (
@@ -20,7 +20,7 @@ export function ProjectHomeLinks({ jobs }: { jobs: ProjectHomeJob[] }) {
               {job.job_number ? `${job.job_number} – ` : ""}
               {job.name}
             </a>
-            <div className="text-[12px] text-[#6B7280]">Open project home</div>
+            <div className="text-[12px] text-[#6B7280]">Open project dashboard</div>
           </li>
         ))}
       </ul>

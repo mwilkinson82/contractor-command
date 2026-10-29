@@ -600,6 +600,12 @@
 .aa-guide[open] > summary {
   border-bottom: 1px solid #e6edf5;
 }
+.aa-guide-chevron {
+  flex-shrink: 0;
+}
+.aa-guide[open] > summary .aa-guide-chevron {
+  transform: rotate(180deg);
+}
 .aa-guide > section,
 .aa-guide > div {
   max-width: none;
