@@ -181,6 +181,11 @@ export async function handleResendInboundPost(
     collectAddresses(event.data?.to, event.data?.cc, event.data?.bcc, event.data?.received_for),
   );
   if (hint) {
+    // Verified support events only. Never acknowledge held work as completed:
+    // Resend must retain/retry it while the schema and runtime are coordinated.
+    if (deps.env.SUPPORT_INTAKE_HOLD === "true") {
+      return json({ ok: false, error: "Support intake temporarily held; retry" }, 503);
+    }
     try {
       const result = await deps.processSupport(emailId, { apiKey, env: deps.env, hint });
       if (result.status !== "not_support") {
