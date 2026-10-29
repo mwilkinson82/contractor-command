@@ -86,12 +86,11 @@ describe("read-only portfolio discovery under actual RLS", () => {
     );
     expect(r.structuredContent.companies.map((c) => c.name)).not.toContain("Foreign company");
     expect(r.structuredContent.companies).toHaveLength(4);
-    expect(Object.fromEntries(r.structuredContent.companies.map((c) => [c.name, c.jobs.length]))).toEqual({
-      "Fictional AOP": 2,
-      "Fictional ALP": 13,
-      "Fictional Test": 4,
-      "Fictional QA": 1,
-    });
+    expect(r.content[0].text).toContain("**Jobs:** 20 · **Companies:** 4");
+    expect(r.content[0].text).toContain("Fictional ALP");
+    expect(r.structuredContent).not.toHaveProperty("card");
+    expect(r.structuredContent).not.toHaveProperty("html");
+    expect(r).not.toHaveProperty("_meta");
   });
   it("filters an explicit company by name without changing the saved company", async () => {
     const r = await readJobs(sb(), "Fictional ALP");
