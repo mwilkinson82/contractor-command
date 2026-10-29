@@ -295,6 +295,13 @@
       "when": 1793312980039,
       "tag": "0041_po_company_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793315776826,
+      "tag": "0042_report_read_compatibility",
+      "breakpoints": true
     }
   ]
 }
