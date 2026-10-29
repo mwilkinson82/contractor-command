@@ -7,13 +7,14 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview",
+    "preview": "npx --yes --package=wrangler@4.154.0 wrangler dev --config .output/server/wrangler.json --local --ip 127.0.0.1",
     "lint": "eslint .",
     "format": "prettier --write .",
     "sync:handbook": "node scripts/sync-alp-handbook.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "support:preview": "node --experimental-strip-types scripts/support-autoreply-preview.ts"
+    "support:preview": "node --experimental-strip-types scripts/support-autoreply-preview.ts",
+    "verify:preview": "node scripts/verify-athena-preview.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3",
