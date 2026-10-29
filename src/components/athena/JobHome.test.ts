@@ -69,6 +69,9 @@ describe("persistent job home", () => {
       }),
     );
     expect(list).toContain(`href="/r/job/${job}/home"`);
+    expect(list).toContain("Project dashboards");
+    expect(list).toContain("Open project dashboard");
+    expect(list).not.toContain("Open project home");
     expect(list).not.toContain(`/r/job/${job}/field`);
     const home = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
     expect(home).toContain(`href="/r/job/${job}/field"`);
@@ -142,7 +145,8 @@ describe("persistent job home", () => {
       error: new Error("denied"),
     };
     html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
-    expect(html).toContain("Sign in");
+    expect(html).toContain("This project is currently unavailable");
+    expect(html).not.toContain("Sign in");
     expect(html).not.toContain("Secret");
   });
 });
