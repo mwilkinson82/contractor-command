@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { openBoardPage } from "@/lib/board-link.functions";
 import { BoardSignIn } from "./BoardSignIn";
+import { ProjectReadUnavailable } from "./ProjectReadUnavailable";
+import { projectReadRecovery } from "@/lib/project-read-recovery";
 import { usePageVisible } from "./ReportPage";
 import { dedupeOpenRows } from "@/lib/mcp/open-feed";
 import { lookaheadModel, lookaheadWindow, type SAct } from "@/lib/mcp/styled-views";
@@ -30,8 +32,10 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const open = useServerFn(openBoardPage);
   const visible = usePageVisible();
   const read = async (page: BoardPage): Promise<PagePayload> => {
+    let readError: unknown;
     if (session) {
       const result = await rpc("mcp_report_page_get", { _page: page, _job: jobId, _company: null });
+      readError = result.error;
       if (
         !result.error &&
         result.data &&
@@ -44,7 +48,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       const result = await open({ data: { token, jobId, page } });
       if (result.status === "ok") return JSON.parse(result.payload) as PagePayload;
     }
-    throw new Error("This view is unavailable.");
+    throw readError ?? new Error("This view is unavailable.");
   };
   const field = useQuery({
     queryKey: ["job-home", jobId, "field", session?.user.id, token],
@@ -94,7 +98,12 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
         <p role="status">Loading project…</p>
       </main>
     );
-  if (!base) return <BoardSignIn returnTo={`/r/job/${jobId}/home`} />;
+  if (!base)
+    return projectReadRecovery(!!session, field.error) === "sign-in" ? (
+      <BoardSignIn returnTo={`/r/job/${jobId}/home`} />
+    ) : (
+      <ProjectReadUnavailable />
+    );
   const href = (page: string) =>
     `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>

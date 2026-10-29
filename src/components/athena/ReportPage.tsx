@@ -18,6 +18,8 @@ import { openBoardPage } from "@/lib/board-link.functions";
 import { boardReturnForVisit } from "@/lib/board-sign-in";
 import { BOARD_PAGES } from "@/lib/mcp/board-link";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
+import { ProjectReadUnavailable } from "@/components/athena/ProjectReadUnavailable";
+import { projectReadRecovery } from "@/lib/project-read-recovery";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -80,11 +82,11 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
       // Lightweight check first: when the saved version / saved-at stamp hasn't changed, keep the same object
       // (no full read, no re-render).
       const st = await rpc("mcp_report_page_stamp", args);
-      if (st.error) throw new Error(st.error.message);
+      if (st.error) throw st.error;
       const stamp = typeof st.data === "string" ? st.data : null;
       if (prev && stamp !== null && prev.stamp === stamp) return prev;
       const { data, error } = await rpc("mcp_report_page_get", args);
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       const payload = data as PagePayload;
       if (payload.page === "photos" && payload.photos?.length) {
         const photos = await Promise.all(payload.photos.map(async (ph) => {
@@ -151,8 +153,10 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
   if (authLoading || (!payload && ((session && q.isLoading) || (token && jobId && tokenPage && linked.isLoading)))) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   // Either the scoped member read or the validated key can open the live board.
   if (payload) return live;
-  // No readable job: recover with email-code sign-in even if a stale/other-user session exists.
+  // Only a missing/rejected session needs a code. A failed scoped read must not create a login loop.
   if (page !== "portfolio") {
+    if (projectReadRecovery(!!session, q.error) === "unavailable")
+      return <ProjectReadUnavailable />;
     const location = typeof window === "undefined" ? undefined : `${window.location.pathname}${window.location.search}${window.location.hash}`;
     const returnTo = boardReturnForVisit(page, jobId, location);
     if (returnTo) return <BoardSignIn returnTo={returnTo} />;
