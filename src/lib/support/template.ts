@@ -16,6 +16,8 @@ const CARD = "#FFFFFF";
 const INK = "#4A5568";
 const MUTED = "#D6E0F0";
 
+export const CIRCLE_LOGO_URL = "https://app.alpcontractorcircle.com/brand/circle-v1/email-ink.png";
+
 export type RenderedMail = { html: string; text: string };
 
 function shell(input: {
@@ -32,6 +34,20 @@ function shell(input: {
         `<p style="margin:0 0 14px;font-size:16px;line-height:1.55;color:${INK};">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`,
     )
     .join("");
+  const header =
+    input.inbox.brand === "circle"
+      ? `<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="middle"><img src="${CIRCLE_LOGO_URL}" width="200" height="53" alt="Contractor Circle" style="display:block;width:200px;height:53px;border:0;outline:none;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:${CARD};"></td>
+<td valign="middle" style="padding-left:14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;line-height:1.3;color:${MUTED};">${escapeHtml(input.inbox.product)}</td>
+</tr>
+</table>`
+      : `<table role="presentation" cellpadding="0" cellspacing="0">
+<tr>
+<td bgcolor="${MARK}" width="28" height="28" align="center" valign="middle" style="background:${MARK};width:28px;height:28px;border-radius:6px;text-align:center;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;line-height:28px;color:${CARD};">${escapeHtml(input.inbox.mark)}</td>
+<td style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;line-height:1.3;color:${CARD};">${escapeHtml(input.inbox.product)}</td>
+</tr>
+</table>`;
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,12 +64,7 @@ function shell(input: {
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" bgcolor="${CARD}" style="width:100%;max-width:560px;background:${CARD};border:1px solid ${MUTED};border-radius:12px;">
 <tr>
 <td bgcolor="${NAVY}" style="background:${NAVY};padding:22px 28px;">
-<table role="presentation" cellpadding="0" cellspacing="0">
-<tr>
-<td bgcolor="${MARK}" width="28" height="28" align="center" valign="middle" style="background:${MARK};width:28px;height:28px;border-radius:6px;text-align:center;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;line-height:28px;color:${CARD};">${escapeHtml(input.inbox.mark)}</td>
-<td style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;line-height:1.3;color:${CARD};">${escapeHtml(input.inbox.product)}</td>
-</tr>
-</table>
+${header}
 </td>
 </tr>
 <tr>
