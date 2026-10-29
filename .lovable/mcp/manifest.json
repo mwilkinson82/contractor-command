@@ -3505,7 +3505,7 @@
       {
         "name": "purchase_orders_record",
         "title": "Review or save project party, terms or purchase order",
-        "description": "Reviews and after explicit confirmation saves a project party, terms version, company default or purchase order draft.",
+        "description": "Reviews and after explicit confirmation saves a project party, supplier/PO terms proposal, company default or purchase order draft. approve_company_terms is a separate owner-only approval: saving it immediately records approved company-wide terms. Unapproved company terms cannot be saved. Never call an approval action when the user says save only or do not approve.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -3538,6 +3538,7 @@
               "enum": [
                 "party",
                 "terms",
+                "approve_company_terms",
                 "approve_terms",
                 "default_terms",
                 "order"

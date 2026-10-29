@@ -7,6 +7,8 @@ import type { CardModel } from "../cards/model";
 import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
+import { guide } from "../visible";
+import { JOBS_RESPONSE_GUIDANCE, jobsResponseText } from "../jobs-response";
 
 const READ = {
   readOnlyHint: true,
@@ -56,36 +58,14 @@ export async function readJobs(sb: Sb, named?: string) {
     ...c,
     jobs: jobs.filter((j) => j.company_id === c.id),
   }));
-  const card: CardModel = {
-    state: "result",
-    show_state: false,
-    title: named ? "Company jobs" : "Your jobs · All companies",
-    kpis: [
-      { label: "Jobs", value: String(jobs.length) },
-      { label: "Companies", value: String(companies.length) },
-    ],
-    sections: grouped.length
-      ? grouped.map((c) => ({
-          heading: c.name,
-          kind: "table" as const,
-          columns: ["Job", "Name"],
-          rows: c.jobs.length
-            ? c.jobs.map((j) => ({ cells: [j.job_number, j.name ?? ""] }))
-            : [{ cells: ["No jobs on file", ""] }],
-        }))
-      : [
-          {
-            heading: "Companies",
-            kind: "list" as const,
-            rows: [{ cells: ["No accessible company on file."] }],
-          },
-        ],
-  };
-  return shown(card, {
-    companies: grouped,
-    jobs,
-    counts: { jobs: jobs.length, companies: companies.length },
-  });
+  const counts = { jobs: jobs.length, companies: companies.length };
+  return guide(
+    {
+      content: [{ type: "text" as const, text: jobsResponseText(grouped, counts, !!named) }],
+      structuredContent: { companies: grouped, jobs, counts },
+    },
+    JOBS_RESPONSE_GUIDANCE,
+  );
 }
 
 export const jobsList = defineTool({
