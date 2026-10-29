@@ -2981,6 +2981,44 @@
         "outputSchema": null
       },
       {
+        "name": "accounting_reconciliation",
+        "title": "Review project accounting exceptions",
+        "description": "Reviews recorded billing and AP exceptions from complete scoped snapshots and reports unavailable coverage. Does not repair records or move money.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "limit": {
+              "default": 12,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "billing_evidence_read",
         "title": "Read project billing records",
         "description": "Reads source-recorded invoices, credits, retainage, receipts and allocations for a project; it does not infer billing from progress.",
