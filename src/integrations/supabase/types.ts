@@ -2665,6 +2665,9 @@ export type Database = {
       mcp_cost_submission_versions: {
         Row: {
           facts: Json
+          project_party_ref: string | null
+          purchase_order_ref: string | null
+          purchase_order_version_ref: number | null
           reason: string | null
           record_id: string
           recorded_at: string
@@ -2673,6 +2676,9 @@ export type Database = {
         }
         Insert: {
           facts: Json
+          project_party_ref?: string | null
+          purchase_order_ref?: string | null
+          purchase_order_version_ref?: number | null
           reason?: string | null
           record_id: string
           recorded_at?: string
@@ -2681,6 +2687,9 @@ export type Database = {
         }
         Update: {
           facts?: Json
+          project_party_ref?: string | null
+          purchase_order_ref?: string | null
+          purchase_order_version_ref?: number | null
           reason?: string | null
           record_id?: string
           recorded_at?: string
@@ -2694,6 +2703,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mcp_cost_submissions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_version_party_ref"
+            columns: ["project_party_ref"]
+            isOneToOne: false
+            referencedRelation: "mcp_project_parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_version_po_ref"
+            columns: ["purchase_order_ref"]
+            isOneToOne: false
+            referencedRelation: "mcp_purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_version_po_revision_ref"
+            columns: ["purchase_order_ref", "purchase_order_version_ref"]
+            isOneToOne: false
+            referencedRelation: "mcp_purchase_order_versions"
+            referencedColumns: ["po_id", "version"]
           },
         ]
       }
