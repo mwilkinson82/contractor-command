@@ -267,6 +267,13 @@
       "when": 1793304866981,
       "tag": "0037_accounting_ap_references",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793305011122,
+      "tag": "0038_accounting_receipts",
+      "breakpoints": true
     }
   ]
 }

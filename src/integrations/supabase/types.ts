@@ -2469,6 +2469,140 @@ export type Database = {
           },
         ]
       }
+      mcp_cost_receipt_uploads: {
+        Row: {
+          attempts: number
+          company_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          record_id: string
+          status: string
+          storage_path: string
+          token_hash: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          created_at?: string
+          created_by: string
+          expires_at: string
+          filename: string
+          id?: string
+          job_id: string
+          mime_type: string
+          record_id: string
+          status?: string
+          storage_path: string
+          token_hash: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          mime_type?: string
+          record_id?: string
+          status?: string
+          storage_path?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_receipt_uploads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_receipt_uploads_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_receipt_uploads_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_receipts: {
+        Row: {
+          company_id: string
+          created_by: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          record_id: string
+          recorded_at: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Insert: {
+          company_id: string
+          created_by: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          record_id: string
+          recorded_at?: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Update: {
+          company_id?: string
+          created_by?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          mime_type?: string
+          record_id?: string
+          recorded_at?: string
+          sha256?: string
+          size_bytes?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_receipts_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "mcp_cost_receipt_uploads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_receipts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_receipts_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_cost_review_tickets: {
         Row: {
           actor_id: string
@@ -8224,6 +8358,10 @@ export type Database = {
         Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
         Returns: Json
       }
+      mcp_cost_own_field_receipt_access: {
+        Args: { _job: string; _record: string }
+        Returns: boolean
+      }
       mcp_cost_pm_approve: {
         Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
         Returns: Json
@@ -8235,6 +8373,43 @@ export type Database = {
       mcp_cost_pm_review: { Args: { _job: string }; Returns: Json }
       mcp_cost_pm_withdraw: {
         Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_receipt_get: {
+        Args: { _id: string; _job: string; _record: string }
+        Returns: Json
+      }
+      mcp_cost_receipt_list: {
+        Args: { _job: string; _record: string }
+        Returns: Json
+      }
+      mcp_cost_receipt_register: {
+        Args: {
+          _actor: string
+          _id: string
+          _job: string
+          _record: string
+          _sha256: string
+          _size: number
+        }
+        Returns: Json
+      }
+      mcp_cost_receipt_upload_begin: {
+        Args: {
+          _filename: string
+          _job: string
+          _mime: string
+          _record: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_cost_receipt_upload_claim: {
+        Args: { _actor: string; _id: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_cost_receipt_upload_get: {
+        Args: { _id: string; _job: string; _record: string }
         Returns: Json
       }
       mcp_cost_reference_in_use: {
