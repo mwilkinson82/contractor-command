@@ -281,6 +281,13 @@
       "when": 1793305154763,
       "tag": "0039_accounting_ap_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793305209048,
+      "tag": "0040_accounting_billing_snapshot",
+      "breakpoints": true
     }
   ]
 }

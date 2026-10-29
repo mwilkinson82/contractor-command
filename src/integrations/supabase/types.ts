@@ -8273,6 +8273,10 @@ export type Database = {
         Args: { _exclude?: string; _invoice: string; _job: string }
         Returns: number
       }
+      mcp_billing_reconciliation_snapshot: {
+        Args: { _job: string }
+        Returns: Json
+      }
       mcp_billing_record_document: {
         Args: { _action: string; _actor: string; _job: string; _p: Json }
         Returns: Json
