@@ -17,7 +17,7 @@ const INK = "#4A5568";
 const MUTED = "#D6E0F0";
 
 export const CIRCLE_LOGO_URL = "https://app.alpcontractorcircle.com/brand/circle-v1/email-ink.png";
-export const ATHENA_LOGO_URL = "https://app.alpcontractorcircle.com/brand/athena-v1/email-white-on-blue.png";
+export const ATHENA_LOGO_URL = "https://app.alpcontractorcircle.com/brand/athena-v1/email-ink.png";
 
 export type RenderedMail = { html: string; text: string };
 
