@@ -4275,6 +4275,263 @@ export type Database = {
           },
         ]
       }
+      mcp_po_company_defaults: {
+        Row: {
+          company_id: string
+          terms_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          company_id: string
+          terms_id: string
+          updated_at?: string
+          updated_by: string
+          version: number
+        }
+        Update: {
+          company_id?: string
+          terms_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_po_company_defaults_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_company_defaults_terms_id_fkey"
+            columns: ["terms_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_po_terms_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_po_default_events: {
+        Row: {
+          actor_id: string
+          company_id: string
+          recorded_at: string
+          terms_id: string
+          version: number
+        }
+        Insert: {
+          actor_id: string
+          company_id: string
+          recorded_at?: string
+          terms_id: string
+          version: number
+        }
+        Update: {
+          actor_id?: string
+          company_id?: string
+          recorded_at?: string
+          terms_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_po_default_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_default_events_terms_id_fkey"
+            columns: ["terms_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_po_terms_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_po_operations: {
+        Row: {
+          action: string
+          actor_id: string
+          job_id: string
+          payload_hash: string
+          request_id: string
+          result: Json
+          review_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          job_id: string
+          payload_hash: string
+          request_id: string
+          result: Json
+          review_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          job_id?: string
+          payload_hash?: string
+          request_id?: string
+          result?: Json
+          review_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_po_operations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_po_reviews: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          job_id: string
+          payload_hash: string
+          request_id: string
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          expires_at?: string
+          id: string
+          job_id: string
+          payload_hash: string
+          request_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          payload_hash?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_po_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_po_terms_versions: {
+        Row: {
+          approved_by: string | null
+          body: string
+          change_note: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string | null
+          parent_id: string | null
+          party_id: string | null
+          po_id: string | null
+          proposal_id: string | null
+          scope: string
+          source: string
+          state: string
+          title: string
+        }
+        Insert: {
+          approved_by?: string | null
+          body: string
+          change_note?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          id: string
+          job_id?: string | null
+          parent_id?: string | null
+          party_id?: string | null
+          po_id?: string | null
+          proposal_id?: string | null
+          scope: string
+          source: string
+          state: string
+          title: string
+        }
+        Update: {
+          approved_by?: string | null
+          body?: string
+          change_note?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string | null
+          parent_id?: string | null
+          party_id?: string | null
+          po_id?: string | null
+          proposal_id?: string | null
+          scope?: string
+          source?: string
+          state?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_po_terms_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_terms_versions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_terms_versions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_po_terms_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_terms_versions_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_project_parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_terms_versions_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_po_terms_versions_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_po_terms_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_production_rates: {
         Row: {
           activity_id: string
@@ -4440,6 +4697,107 @@ export type Database = {
           },
         ]
       }
+      mcp_project_parties: {
+        Row: {
+          company_id: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          contract_reference: string | null
+          created_at: string
+          created_by: string
+          id: string
+          insurance_reference: string | null
+          job_id: string
+          kind: string
+          name: string
+          trade: string | null
+          version: number
+        }
+        Insert: {
+          company_id: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contract_reference?: string | null
+          created_at?: string
+          created_by: string
+          id: string
+          insurance_reference?: string | null
+          job_id: string
+          kind: string
+          name: string
+          trade?: string | null
+          version?: number
+        }
+        Update: {
+          company_id?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contract_reference?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          insurance_reference?: string | null
+          job_id?: string
+          kind?: string
+          name?: string
+          trade?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_project_parties_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_project_parties_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_project_party_versions: {
+        Row: {
+          party_id: string
+          reason: string | null
+          recorded_at: string
+          recorded_by: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          party_id: string
+          reason?: string | null
+          recorded_at?: string
+          recorded_by: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          party_id?: string
+          reason?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_project_party_versions_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_project_parties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_project_record_events: {
         Row: {
           actor: string
@@ -4501,6 +4859,115 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_purchase_order_versions: {
+        Row: {
+          created_at: string
+          created_by: string
+          lines: Json
+          needed_by: string
+          order_date: string
+          party_snapshot: Json
+          po_id: string
+          reason: string | null
+          status: string
+          terms_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          lines: Json
+          needed_by: string
+          order_date: string
+          party_snapshot: Json
+          po_id: string
+          reason?: string | null
+          status: string
+          terms_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          lines?: Json
+          needed_by?: string
+          order_date?: string
+          party_snapshot?: Json
+          po_id?: string
+          reason?: string | null
+          status?: string
+          terms_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_purchase_order_versions_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_purchase_order_versions_terms_id_fkey"
+            columns: ["terms_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_po_terms_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_purchase_orders: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string
+          number: string
+          party_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          id: string
+          job_id: string
+          number: string
+          party_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string
+          number?: string
+          party_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_purchase_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_purchase_orders_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_project_parties"
             referencedColumns: ["id"]
           },
         ]
@@ -7571,6 +8038,22 @@ export type Database = {
           _job: string
           _to: string
         }
+        Returns: Json
+      }
+      mcp_project_po_terms_get: { Args: { _job: string }; Returns: Json }
+      mcp_project_purchase_orders_get: { Args: { _job: string }; Returns: Json }
+      mcp_project_purchase_orders_record: {
+        Args: {
+          _action: string
+          _confirmed: boolean
+          _job: string
+          _p: Json
+          _review: string
+        }
+        Returns: Json
+      }
+      mcp_project_purchase_orders_review: {
+        Args: { _action: string; _job: string; _p: Json; _review: string }
         Returns: Json
       }
       mcp_project_record_add:
