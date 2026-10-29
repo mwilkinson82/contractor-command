@@ -397,13 +397,14 @@ describe("sendManualSupportReply", () => {
 });
 
 describe("support email logos", () => {
-  it("uses the Contractor Circle logo only in Circle emails", async () => {
-    const { renderSupportAutoreply, CIRCLE_LOGO_URL } = await import("./template.ts");
+  it("uses each brand's logo in its emails", async () => {
+    const { renderSupportAutoreply, CIRCLE_LOGO_URL, ATHENA_LOGO_URL } = await import("./template.ts");
     const { SUPPORT_INBOXES } = await import("./ticket.ts");
     const circle = renderSupportAutoreply({ inbox: SUPPORT_INBOXES.circle, ticketNumber: "CIR-1" });
     expect(circle.html).toContain(`src="${CIRCLE_LOGO_URL}"`);
     expect(circle.html).toContain('alt="Contractor Circle"');
     const athena = renderSupportAutoreply({ inbox: SUPPORT_INBOXES.athena, ticketNumber: "ATH-1" });
-    expect(athena.html).not.toContain("<img");
+    expect(athena.html).toContain(`src="${ATHENA_LOGO_URL}"`);
+    expect(athena.html).toContain('alt="Athena"');
   });
 });
