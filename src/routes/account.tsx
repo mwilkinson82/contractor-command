@@ -7,14 +7,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompany, logoPublicUrl } from "@/hooks/use-company";
 import { GREETING_ICONS, type GreetingIconKey } from "@/components/portal/greeting-icon";
-import { ArrowUpRight, Check, AlertCircle, KeyRound, Building2, Loader2, Upload, Image as ImageIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  AlertCircle,
+  KeyRound,
+  Building2,
+  Loader2,
+  Upload,
+  Image as ImageIcon,
+} from "lucide-react";
 import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing.functions";
 import { TeamSection, useAccountTeam } from "@/components/account/team-section";
 import { planLabel, planRate, seatSummary } from "@/lib/account-team";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
 import { HUB_ACCOUNT_TITLE, pageTitle } from "@/lib/host-document";
 import { ProjectHomeLinks, type ProjectHomeJob } from "@/components/athena/ProjectHomeLinks";
+import { AthenaAccountLayout } from "@/components/account/athena-account-layout";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 
@@ -35,24 +53,51 @@ type AosLink = {
 
 function ProjectHomes() {
   const [jobs, setJobs] = useState<ProjectHomeJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   useEffect(() => {
     let alive = true;
     void supabase
       .from("mcp_jobs")
       .select("id, job_number, name")
       .order("job_number")
-      .then(({ data }) => {
-        if (alive) setJobs(data ?? []);
+      .then(({ data, error: queryError }) => {
+        if (!alive) return;
+        setJobs(data ?? []);
+        setError(!!queryError);
+        setLoading(false);
       });
     return () => {
       alive = false;
     };
   }, []);
+  if (loading)
+    return (
+      <div className="aa-card" role="status">
+        Loading your projects…
+      </div>
+    );
+  if (error)
+    return (
+      <div className="aa-card" role="status">
+        Your projects could not be loaded. Reload the page to try again.
+      </div>
+    );
+  if (!jobs.length)
+    return (
+      <div className="aa-card">
+        <h2>No projects yet</h2>
+        <p>
+          In your connected chat, ask Athena to “Start a job.” Your saved projects will appear here.
+        </p>
+      </div>
+    );
   return <ProjectHomeLinks jobs={jobs} />;
 }
 
 function AccountPage() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const isAdmin = useIsAdmin();
   const { company, refetch: refetchCompany } = useCompany();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [link, setLink] = useState<AosLink | null>(null);
@@ -73,10 +118,7 @@ function AccountPage() {
   const athena = useAccountTeam();
   const tier = athena.state?.seats?.tier ?? null;
   const rate = planRate(tier);
-  const [athenaHost, setAthenaHost] = useState(false);
-  useEffect(() => {
-    setAthenaHost(onAthenaHost());
-  }, []);
+  const athenaHost = onAthenaHost();
 
   useEffect(() => {
     if (!company) return;
@@ -125,18 +167,16 @@ function AccountPage() {
     }
     setCoSaving(true);
     setCoMsg(null);
-    const { error } = await supabase
-      .from("companies")
-      .upsert(
-        {
-          owner_user_id: user.id,
-          name: trimmed,
-          address: coAddress.trim() || null,
-          greeting_icon: coIcon,
-          logo_path: coLogoPath,
-        },
-        { onConflict: "owner_user_id" },
-      );
+    const { error } = await supabase.from("companies").upsert(
+      {
+        owner_user_id: user.id,
+        name: trimmed,
+        address: coAddress.trim() || null,
+        greeting_icon: coIcon,
+        logo_path: coLogoPath,
+      },
+      { onConflict: "owner_user_id" },
+    );
     if (error) setCoMsg(error.message);
     else {
       await refetchCompany();
@@ -150,7 +190,11 @@ function AccountPage() {
     (async () => {
       const [{ data: p }, { data: l }] = await Promise.all([
         supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
-        supabase.from("aos_links").select("aos_email, link_code, verified_at, last_sync_at").eq("user_id", user.id).maybeSingle(),
+        supabase
+          .from("aos_links")
+          .select("aos_email, link_code, verified_at, last_sync_at")
+          .eq("user_id", user.id)
+          .maybeSingle(),
       ]);
       setProfile(p as Profile | null);
       setLink(l as AosLink | null);
@@ -210,65 +254,62 @@ function AccountPage() {
     setSaving(false);
   }
 
-  return (
-    <Container>
-      {athenaHost ? (
-        <div className="mb-8">
-          <AthenaStartTip />
-          <MorningBriefPushBar />
-        </div>
-      ) : null}
-      {athenaHost ? <ProjectHomes /> : null}
-      <PageHeader
-        eyebrow="Account"
-        title="Profile, AOS link & billing."
-        lede="Your Contractor Circle membership, the AOS account it's wired to, and billing details."
-      />
-
-      <div className="mt-10 grid gap-5 lg:grid-cols-2">
-        {/* Profile */}
-        <div className="rounded-2xl border border-border bg-card p-7">
-          <p className="label-mono">Profile</p>
-          <dl className="mt-4 space-y-3 text-sm">
-            <Row k="Name" v={profile?.full_name ?? "—"} />
-            <Row k="Email" v={profile?.email ?? user?.email ?? "—"} />
-          </dl>
-        </div>
-
-        {/* Membership */}
-        <div className="rounded-2xl border border-border bg-card p-7">
-          <p className="label-mono">Membership</p>
-          <dl className="mt-4 space-y-3 text-sm">
-            <Row k="Plan" v={athena.loading ? "…" : planLabel(tier)} />
-            {rate && <Row k="Rate" v={rate} />}
-            <Row k="Seats" v={athena.loading ? "…" : seatSummary(athena.state?.seats)} />
-          </dl>
-          <BillingActions />
-        </div>
+  const profileSection = (
+    <>
+      {/* Profile */}
+      <div className="rounded-2xl border border-border bg-card p-7">
+        <p className="label-mono">Profile</p>
+        <dl className="mt-4 space-y-3 text-sm">
+          <Row k="Name" v={profile?.full_name ?? "—"} />
+          <Row k="Email" v={profile?.email ?? user?.email ?? "—"} />
+        </dl>
       </div>
+    </>
+  );
 
+  const billingSection = (
+    <>
+      {/* Membership */}
+      <div className="rounded-2xl border border-border bg-card p-7">
+        <p className="label-mono">{athenaHost ? "Plan & billing" : "Membership"}</p>
+        <dl className="mt-4 space-y-3 text-sm">
+          <Row k="Plan" v={athena.loading ? "…" : planLabel(tier)} />
+          {rate && <Row k="Rate" v={rate} />}
+          <Row k="Seats" v={athena.loading ? "…" : seatSummary(athena.state?.seats)} />
+        </dl>
+        <BillingActions athena={athenaHost} />
+      </div>
+    </>
+  );
+
+  const companySection = (
+    <>
       {/* Company */}
       <div className="mt-5 rounded-2xl border border-border bg-card p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="label-mono">Company</p>
-            <h3 className="mt-2 font-display text-xl">
-              Name, address & greeting icon.
-            </h3>
+            <h3 className="mt-2 font-display text-xl">Name, address & greeting icon.</h3>
             <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">
-              How Marshall greets you on the command center.
+              {athenaHost
+                ? "Your company details and the identity Athena uses in your workspace."
+                : "How Marshall greets you on the command center."}
             </p>
           </div>
         </div>
 
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <label
+              htmlFor="account-company-name"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+            >
               Company name
             </label>
             <div className="relative mt-2">
               <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
+                id="account-company-name"
                 value={coName}
                 onChange={(e) => setCoName(e.target.value)}
                 placeholder="ACME Construction Co."
@@ -277,10 +318,14 @@ function AccountPage() {
             </div>
           </div>
           <div>
-            <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <label
+              htmlFor="account-company-address"
+              className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+            >
               Address <span className="text-muted-foreground/60">· optional</span>
             </label>
             <input
+              id="account-company-address"
               value={coAddress}
               onChange={(e) => setCoAddress(e.target.value)}
               placeholder="123 Main St, Vancouver, BC"
@@ -310,9 +355,7 @@ function AccountPage() {
                   aria-label={label}
                 >
                   <Icon className="text-[1.75rem]" />
-                  <span className="font-mono text-[9px] uppercase tracking-[0.18em]">
-                    {label}
-                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.18em]">{label}</span>
                 </button>
               );
             })}
@@ -326,7 +369,11 @@ function AccountPage() {
           <div className="mt-2 flex items-center gap-4">
             <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-background">
               {coLogoPreview ? (
-                <img src={coLogoPreview} alt="Logo preview" className="h-full w-full object-cover object-center" />
+                <img
+                  src={coLogoPreview}
+                  alt="Logo preview"
+                  className="h-full w-full object-cover object-center"
+                />
               ) : (
                 <ImageIcon className="h-6 w-6 text-muted-foreground/50" />
               )}
@@ -345,7 +392,11 @@ function AccountPage() {
                 disabled={coUploading}
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12px] hover:bg-muted disabled:opacity-50"
               >
-                {coUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {coUploading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
                 {coLogoPath ? "Replace logo" : "Upload logo"}
               </button>
               <p className="mt-1.5 text-[11px] text-muted-foreground">
@@ -355,7 +406,6 @@ function AccountPage() {
           </div>
         </div>
 
-
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-5">
           <button
             onClick={saveCompany}
@@ -364,11 +414,53 @@ function AccountPage() {
           >
             {coSaving ? "Saving…" : "Save changes"}
           </button>
-          {coMsg && (
-            <p className="text-[12px] text-foreground/70">{coMsg}</p>
-          )}
+          {coMsg && <p className="text-[12px] text-foreground/70">{coMsg}</p>}
         </div>
       </div>
+    </>
+  );
+
+  if (athenaHost) {
+    return (
+      <AthenaAccountLayout
+        name={profile?.full_name ?? null}
+        email={profile?.email ?? user?.email ?? null}
+        companyName={athena.state?.companyName ?? company?.name ?? null}
+        plan={athena.loading ? "Loading plan…" : planLabel(tier)}
+        seats={athena.loading ? "Loading seats…" : seatSummary(athena.state?.seats)}
+        teamLoading={athena.loading}
+        teamError={!athena.loading && athena.state === null}
+        canViewSupport={false}
+        onSignOut={async () => {
+          const { error } = await signOut();
+          if (error) throw error;
+        }}
+        profile={profileSection}
+        billing={billingSection}
+        company={companySection}
+        team={<TeamSection {...athena} />}
+        projects={<ProjectHomes />}
+        briefing={<MorningBriefPushBar />}
+        guide={<AthenaStartTip />}
+      />
+    );
+  }
+
+  return (
+    <Container>
+      <PageHeader
+        eyebrow="Account"
+        title="Profile, AOS link & billing."
+        lede="Your Contractor Circle membership, the AOS account it's wired to, and billing details."
+      />
+
+      <div className="mt-10 grid gap-5 lg:grid-cols-2">
+        {profileSection}
+
+        {billingSection}
+      </div>
+
+      {companySection}
 
       <TeamSection {...athena} />
 
@@ -379,8 +471,8 @@ function AccountPage() {
             <p className="label-mono">AOS connection</p>
             <h3 className="mt-2 font-display text-xl">Link your AOS account.</h3>
             <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">
-              Your scorecard, rocks, and open issues will surface inside the Command Center once linked.
-              Try email match first — paste a link code if your AOS email is different.
+              Your scorecard, rocks, and open issues will surface inside the Command Center once
+              linked. Try email match first — paste a link code if your AOS email is different.
             </p>
           </div>
           <a
@@ -400,7 +492,8 @@ function AccountPage() {
               <p className="font-display text-[14px]">Match by email</p>
             </div>
             <p className="mt-2 text-[12px] text-muted-foreground">
-              Use the same email you sign into AOS with: <span className="text-foreground">{user?.email}</span>
+              Use the same email you sign into AOS with:{" "}
+              <span className="text-foreground">{user?.email}</span>
             </p>
             <button
               onClick={useEmailMatch}
@@ -451,7 +544,8 @@ function AccountPage() {
           <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md bg-foreground/[0.03] px-3 py-2 text-[11px] text-muted-foreground">
             <AlertCircle className="h-3.5 w-3.5" />
             <span>
-              AOS data sync is wiring up — once the AOS endpoint is live, your scorecard and rocks will surface on Home and in the Vault.
+              AOS data sync is wiring up — once the AOS endpoint is live, your scorecard and rocks
+              will surface on Home and in the Vault.
             </span>
           </div>
         )}
@@ -471,7 +565,7 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
-function BillingActions() {
+function BillingActions({ athena = false }: { athena?: boolean }) {
   const portalFn = useServerFn(createBillingPortalSession);
   const submitFn = useServerFn(submitBillingQuestion);
   const [loading, setLoading] = useState(false);
@@ -503,10 +597,15 @@ function BillingActions() {
     if (!message.trim()) return;
     setSending(true);
     try {
-      await submitFn({ data: { subject: subject.trim() || "Billing question", message: message.trim() } });
+      await submitFn({
+        data: { subject: subject.trim() || "Billing question", message: message.trim() },
+      });
       setSent(true);
       setMessage("");
-      setTimeout(() => { setOpen(false); setSent(false); }, 1400);
+      setTimeout(() => {
+        setOpen(false);
+        setSent(false);
+      }, 1400);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not send.");
     } finally {
@@ -522,7 +621,11 @@ function BillingActions() {
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90 disabled:opacity-60"
         >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          )}
           {loading ? "Opening…" : "Manage subscription"}
         </button>
         <button
@@ -534,8 +637,18 @@ function BillingActions() {
       </div>
       {err && <p className="mt-3 text-[12px] text-foreground/70">{err}</p>}
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSent(false); } }}>
-        <DialogContent className="sm:max-w-[480px]">
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) {
+            setSent(false);
+          }
+        }}
+      >
+        <DialogContent
+          className={athena ? "aa-account-dialog sm:max-w-[480px]" : "sm:max-w-[480px]"}
+        >
           <DialogHeader>
             <DialogTitle>Billing question</DialogTitle>
             <DialogDescription>
@@ -545,21 +658,34 @@ function BillingActions() {
 
           {sent ? (
             <p className="flex items-center gap-2 py-6 text-[13px] text-foreground/80">
-              <Check className="h-4 w-4 text-signal" /> Sent. Marshall's team will follow up by email.
+              <Check className="h-4 w-4 text-signal" /> Sent. Marshall's team will follow up by
+              email.
             </p>
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Subject</label>
+                <label
+                  htmlFor="billing-question-subject"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+                >
+                  Subject
+                </label>
                 <input
+                  id="billing-question-subject"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] focus:border-ink focus:outline-none"
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Question</label>
+                <label
+                  htmlFor="billing-question-message"
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground"
+                >
+                  Question
+                </label>
                 <textarea
+                  id="billing-question-message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   rows={5}
@@ -593,4 +719,3 @@ function BillingActions() {
     </div>
   );
 }
-

@@ -53,7 +53,8 @@ const facts = z
   })
   .strict();
 type Facts = z.infer<typeof facts>;
-type Action = "party" | "terms" | "approve_terms" | "default_terms" | "order";
+type Action =
+  "party" | "terms" | "approve_company_terms" | "approve_terms" | "default_terms" | "order";
 type Ledger = {
   parties: Array<{
     id: string;
@@ -113,7 +114,7 @@ function missing(action: Action, p: Facts): string[] {
       need(p.reason, "reason for party revision");
     }
   }
-  if (action === "terms") {
+  if (action === "terms" || action === "approve_company_terms") {
     need(p.scope, "terms scope");
     need(p.title, "terms title");
     need(p.body?.trim(), "terms text");
@@ -230,7 +231,7 @@ export const purchaseOrderTermsRead = defineTool({
         return guide(
           {
             ...text(
-              `Project terms for ${job.job_number}. Proposals are not effective until the owner approves a separate version.`,
+              `Project terms for ${job.job_number}. Company terms are approved when explicitly recorded through company approval. Supplier/PO proposals are not effective until the owner approves a separate version.`,
             ),
             structuredContent: data as never,
           },
@@ -244,11 +245,18 @@ export const purchaseOrdersRecord = defineTool({
   name: "purchase_orders_record",
   title: "Review or save project party, terms or purchase order",
   description:
-    "Reviews and after explicit confirmation saves a project party, terms version, company default or purchase order draft.",
+    "Reviews and after explicit confirmation saves a project party, supplier/PO terms proposal, company default or purchase order draft. approve_company_terms is a separate owner-only approval: saving it immediately records approved company-wide terms. Unapproved company terms cannot be saved. Never call an approval action when the user says save only or do not approve.",
   inputSchema: {
     ...jobFields,
     step: z.enum(["review", "save"]),
-    action: z.enum(["party", "terms", "approve_terms", "default_terms", "order"]),
+    action: z.enum([
+      "party",
+      "terms",
+      "approve_company_terms",
+      "approve_terms",
+      "default_terms",
+      "order",
+    ]),
     facts,
     review_key: z.string().uuid().optional(),
     confirmed: z.boolean().optional(),
@@ -266,7 +274,24 @@ export const purchaseOrdersRecord = defineTool({
       { jobNumber: args.job_number, companyId: args.company_id },
       async (sb) => {
         if (!args.job_number) return askJob();
-        const termsOnly = args.action === "terms" || args.action === "approve_terms";
+        if (args.action === "terms" && args.facts.scope === "company") {
+          return guide(
+            {
+              ...text(
+                "Nothing was saved or approved. Company terms cannot be stored unapproved in this workflow. Recording this company base would approve it for company-wide use, even without making it the default. I can keep the draft text in our conversation. Approval requires a separate owner instruction.",
+              ),
+              structuredContent: { saved: false, approval_required: true, scope: "company" },
+            },
+            "Respect save-only and do-not-approve instructions: do not call approve_company_terms or silently broaden supplier-only terms to company scope. Only after the owner explicitly authorizes company-wide approval, review approve_company_terms, disclose its approval effect, and ask for separate confirmation before saving. The confirmation flag is not proof of human approval.",
+          );
+        }
+        if (args.action === "approve_company_terms" && args.facts.scope !== "company") {
+          throw new ToolError("Company approval requires company-scoped terms. Nothing was saved.");
+        }
+        const termsOnly =
+          args.action === "terms" ||
+          args.action === "approve_terms" ||
+          args.action === "approve_company_terms";
         const job = await resolveJob(
           sb,
           args.job_number,
@@ -346,7 +371,9 @@ export const purchaseOrdersRecord = defineTool({
           if (absent.length)
             return guide(
               {
-                ...text(`Before review I need: ${absent.join(", ")}. Nothing was saved.`),
+                ...text(
+                  `Before review I need: ${absent.join(", ")}. Nothing was saved.${args.action === "terms" && p.scope !== "company" && !p.parent_id ? " Supplier terms require an existing base version. If none exists, the owner must first review and explicitly approve a company-wide base; making it the default is a separate optional action. Do not create or approve it automatically." : ""}`,
+                ),
                 structuredContent: { saved: false, missing: absent },
               },
               "Ask only for the missing facts; never invent them. If company terms are unavailable to this project member, ask the company owner to prepare a job-scoped variant; do not disclose company-wide or another job’s terms.",
@@ -449,7 +476,7 @@ export const purchaseOrdersRecord = defineTool({
           return guide(
             {
               ...text(
-                `Review ${args.action.replaceAll("_", " ")} for ${company?.name ?? "your company"} · ${job.job_number} · ${job.name}${party ? ` · ${party.name}` : ""}:\n${JSON.stringify(p, null, 2)}${p.lines ? `\nLines: ${p.lines.map((l) => `${l.description}: ${l.quantity} ${l.unit} at ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(l.unit_price_cents / 100)} per ${l.unit}`).join("; ")}` : ""}${selected ? `\nSelected terms (${selected.title}, ${selected.scope}):\n${selected.body}` : ""}${parent ? `\nBase terms (${parent.title}):\n${parent.body}` : ""}${args.action === "default_terms" ? `\nCurrent default: ${currentDefault?.title ?? "none"} (version ${p.expected_default_version}).` : ""}\n${args.action === "terms" && p.scope === "company" ? "Save and record these as company-approved terms?" : args.action === "approve_terms" ? "Approve this exact proposal for internal use? Confirm any other required buy-in separately." : args.action === "default_terms" ? "Set the displayed approved company terms as the default?" : args.action === "order" && p.status === "approved" ? "Internally approve this exact reviewed PO? This does not issue it." : "Is this correct?"} No party, terms version or order has been saved; the review is held temporarily.`,
+                `Review ${args.action.replaceAll("_", " ")} for ${company?.name ?? "your company"} · ${job.job_number} · ${job.name}${party ? ` · ${party.name}` : ""}:\n${JSON.stringify(p, null, 2)}${p.lines ? `\nLines: ${p.lines.map((l) => `${l.description}: ${l.quantity} ${l.unit} at ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(l.unit_price_cents / 100)} per ${l.unit}`).join("; ")}` : ""}${selected ? `\nSelected terms (${selected.title}, ${selected.scope}):\n${selected.body}` : ""}${parent ? `\nBase terms (${parent.title}):\n${parent.body}` : ""}${args.action === "default_terms" ? `\nCurrent default: ${currentDefault?.title ?? "none"} (version ${p.expected_default_version}).` : ""}\n${args.action === "approve_company_terms" ? "Approve and record these exact terms for company-wide use? This is approval now, not an unapproved draft. The company default is a separate action and is unchanged." : args.action === "approve_terms" ? "Approve this exact proposal for internal use? Confirm any other required buy-in separately." : args.action === "default_terms" ? "Set the displayed approved company terms as the default?" : args.action === "order" && p.status === "approved" ? "Internally approve this exact reviewed PO? This does not issue it." : "Is this correct?"} No party, terms version or order has been saved; the review is held temporarily.`,
               ),
               structuredContent: {
                 saved: false,
@@ -465,7 +492,7 @@ export const purchaseOrdersRecord = defineTool({
                     : null,
               } as never,
             },
-            "Show the facts, supplier name, prices in dollars and selected terms. Contracts or an owner can save a proposal, but only the owner can approve a separate effective version; never infer additional buy-in. Ask for explicit confirmation, then save exactly these facts and review key. Internal approval is not issuance, acceptance, a cost or payment.",
+            "Show the facts, supplier name, prices in dollars and selected terms. approve_company_terms records company-wide approved terms immediately; it cannot save an unapproved draft. Never use it for save-only or do-not-approve instructions. Supplier/PO terms are proposals requiring separate owner approval; never infer additional buy-in. Ask for explicit confirmation, then save exactly these facts and review key. Internal approval is not issuance, acceptance, a cost or payment.",
           );
         }
         if (!args.confirmed || !args.review_key || !p.id || !p.request_id)
@@ -487,7 +514,7 @@ export const purchaseOrdersRecord = defineTool({
           return guide(
             {
               ...text(
-                `${result.already_applied ? "This request was previously recorded; current records may have changed. Read the project records before taking another action." : `Saved for ${job.job_number}.`} No purchase order was issued or accepted.\nProject records: ${pageUrl(job.job_id)}`,
+                `${result.already_applied ? "This request was previously recorded; current records may have changed. Read the project records before taking another action." : args.action === "approve_company_terms" ? `Approved company-wide terms for ${job.job_number}. The company default is unchanged.` : `Saved for ${job.job_number}.`} No purchase order was issued or accepted.\nProject records: ${pageUrl(job.job_id)}`,
               ),
               structuredContent: { saved: true, result } as never,
             },

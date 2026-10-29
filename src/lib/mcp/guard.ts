@@ -118,6 +118,11 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     // Keep the shared entitlement, RLS, call caps and security touch above; avoid
     // sweeps, reminders or presentation transforms changing the source response.
     if (tool === "project_documents") return r;
+    // Jobs follow billing's host-composed response path. All access/cap/security checks
+    // above still run; do not inject an embed, onboarding, reminders, or card-shown orders.
+    if (tool === "jobs_list") {
+      return displayFactsResult(stampCanary(r, touch.canary));
+    }
     // The host-display block rides on every result (assistant_guidance only; members never see it).
     // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.
     let swept = sweep ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true) : r;

@@ -24,7 +24,6 @@ type Res = {
 /** These results open on the card. No sweep, style line, or footer is left outside it. */
 export const CARD_FIRST_TOOLS = new Set([
   "change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record",
-  "jobs_list",
   "drawing_sets_list",
   "sheet_calibrate",
   "takeoff_geometry",
@@ -63,7 +62,6 @@ export const CARD_FIRST_TOOLS = new Set([
 /** Tools whose plain text is wrapped in a card. Flow tools set their own card. */
 export const CARD_TOOLS = new Set([
   "change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record",
-  "jobs_list",
   "drawing_sets_list",
   "next_question",
   "answer",
