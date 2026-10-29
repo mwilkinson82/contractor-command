@@ -399,6 +399,7 @@ describe("sendManualSupportReply", () => {
 describe("support email logos", () => {
   it("uses each brand's logo in its emails", async () => {
     const { renderSupportAutoreply, CIRCLE_LOGO_URL, ATHENA_LOGO_URL } = await import("./template.ts");
+    expect(ATHENA_LOGO_URL.endsWith("/brand/athena-v1/email-ink.png")).toBe(true);
     const { SUPPORT_INBOXES } = await import("./ticket.ts");
     const circle = renderSupportAutoreply({ inbox: SUPPORT_INBOXES.circle, ticketNumber: "CIR-1" });
     expect(circle.html).toContain(`src="${CIRCLE_LOGO_URL}"`);
