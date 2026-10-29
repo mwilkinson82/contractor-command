@@ -1,23 +1,35 @@
-# Support release proposal: read-only planning report
+# Release-blocker assessment (read-only)
 
-No changes were made. Every item below comes from local git or project files.
+## 1. Predecessor table privileges
 
-## Confirmed
-- **Backend binding:** Lovable Cloud, one instance shared by preview and the published app. The project id is in `.env`.
-- **Latest source revision:** HEAD `1569ab03f61e7bd8e6eab1258fc1b193742857f1` ("Updated Athena logo to PNG"), tree `1b2b284d4b37d3e3ab8f7c9c9b2b029f4f4ededc`. The working tree is clean, on internal edit branch `edit/edt-a7f86b99…`.
-- **Candidate base:** `1569ab03` is the current HEAD. Nothing newer has been added since, so I found no drift against the base.
-- **Candidate `32412c41…`:** not in this repo (`could not get object info`). It isn't installed, and I didn't infer what it contains.
-- **Migration bookkeeping:** the latest managed entry is `0034_athena_financial_documents`. The latest source file is `20261101120002_athena_financial_documents.sql`.
-- **Managed migration process used so far:** check HEAD and tree, check the SQL hash, then submit once through the managed migration tool. That tool rejects `BEGIN`/`COMMIT` and `storage.buckets` writes, and it records a numbered drizzle file, a snapshot, the journal and regenerated types. Each run has needed owner authorization. The tool still reports `0013` and `0015` as skipped; both are pre-existing and haven't been touched.
+Observed policies (pg_policies):
+- mcp_companies: SELECT only (permissive, authenticated): `mcp_is_company_member(id)`; `mcp_is_company_viewer(id) AND EXISTS(super-view job)`. No INSERT/UPDATE/DELETE policy.
+- mcp_company_members: SELECT only (permissive, authenticated): `mcp_is_company_member(company_id)`. No write policy.
+- mcp_jobs: permissive SELECT (company/contract/super-view); permissive ALL "own rows" `user_id = auth.uid()` USING and WITH CHECK; restrictive SELECT/UPDATE/DELETE guards `company_id IS NULL OR mcp_job_scope(id) IS NOT NULL`. No restrictive INSERT guard.
 
-## Unknown
-- **Deployed revision:** I couldn't see which commit is live on the published site or custom domains. Nothing I can read here exposes it.
-- **Live migration history:** I can't read it, because that access has been denied. The managed tool's own results are the only evidence of what was applied.
-- **Candidate contents:** unknown until `32412c41` is synced into this project.
-- **`origin/main` alignment:** not compared in this pass.
+Table state: all three RLS on, force-RLS off, owner postgres.
+Roles: anon / authenticated are NOLOGIN, no BYPASSRLS, not superuser. authenticator is LOGIN, no BYPASSRLS. service_role has BYPASSRLS.
 
-## Proposed execution (needs separate owner approval)
-1. Sync `32412c41` into the project, with no other changes.
-2. Check that its parent is `1569ab03`. Diff it against HEAD and stop if any newer change would be lost.
-3. If it has migrations, apply each one through the managed tool, once each, with hash checks.
-4. Run the support and resend tests, then report the HEAD and tree. Publishing stays with the owner.
+Exposure findings:
+- Company / member role rows: no write policy, so REST INSERT/UPDATE/DELETE affects 0 rows. No self-role or company escalation path through the grants.
+- mcp_jobs: users can write their own rows through "own rows". This is the intended legacy path. Company-scope fields on those rows are separately constrained by the guards and definer functions. This was not newly analysed for escalation.
+- TRUNCATE: RLS does not apply to it, but PostgREST has no TRUNCATE verb and anon/authenticated cannot log in directly. The only EXECUTE-able public routine whose body matches TRUNCATE/EXECUTE is `mcp_contract_document_save`, and its match is only the JSON key `'truncated'`. No dynamic SQL found. No routine exposes TRUNCATE or arbitrary SQL. The grant is pre-existing and has no ordinary application path. It is a hygiene item, not a blocker for the accounting release.
+
+Verdict: not a release blocker.
+
+## 2. Migration position
+
+The evidence:
+- The recovered normal receipt (#2311) shows 0034 applied, with 0013/0015 skipped.
+- The journal is byte-identical from 6de52b68 to 609f0a97: 35 entries, whens strictly increasing.
+- Native predecessor objects for 0034 are present.
+
+Together this is sufficient operational evidence that only a newly appended entry (0035+) would be pending.
+
+Residual: the receipt is historical. The one smallest supported observation that would make it current-state is the latest managed migration hash/created_at matching 0034 (when 1793203738604). This is optional assurance, not mandatory.
+
+## Mandatory vs optional
+- Mandatory (met): the policies, RLS, roles and routine scan above; an unchanged monotonic journal; the 0034 receipt.
+- Optional: confirm the latest managed migration identity, an INSERT restrictive guard review for mcp_jobs, and baseline TRUNCATE grant hygiene (later, separately approved).
+
+No writes, migrations or publication were performed.
