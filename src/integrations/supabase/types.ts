@@ -2231,6 +2231,514 @@ export type Database = {
           },
         ]
       }
+      mcp_cost_approvals: {
+        Row: {
+          approved_at: string
+          approved_by: string
+          record_id: string
+          version: number
+        }
+        Insert: {
+          approved_at?: string
+          approved_by: string
+          record_id: string
+          version: number
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string
+          record_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_approvals_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_approvals_record_id_version_fkey"
+            columns: ["record_id", "version"]
+            isOneToOne: true
+            referencedRelation: "mcp_cost_submission_versions"
+            referencedColumns: ["record_id", "version"]
+          },
+        ]
+      }
+      mcp_cost_business_approvals: {
+        Row: {
+          allocated_cents: number
+          approved_at: string
+          approved_by: string
+          basis: string
+          bill_total_cents: number
+          id: string
+          job_id: string
+          notes: string | null
+          record_id: string
+          version: number
+        }
+        Insert: {
+          allocated_cents: number
+          approved_at?: string
+          approved_by: string
+          basis: string
+          bill_total_cents: number
+          id?: string
+          job_id: string
+          notes?: string | null
+          record_id: string
+          version: number
+        }
+        Update: {
+          allocated_cents?: number
+          approved_at?: string
+          approved_by?: string
+          basis?: string
+          bill_total_cents?: number
+          id?: string
+          job_id?: string
+          notes?: string | null
+          record_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_business_approvals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_business_approvals_record_id_version_fkey"
+            columns: ["record_id", "version"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submission_versions"
+            referencedColumns: ["record_id", "version"]
+          },
+        ]
+      }
+      mcp_cost_business_withdrawals: {
+        Row: {
+          approval_id: string
+          reason: string
+          withdrawn_at: string
+          withdrawn_by: string
+        }
+        Insert: {
+          approval_id: string
+          reason: string
+          withdrawn_at?: string
+          withdrawn_by: string
+        }
+        Update: {
+          approval_id?: string
+          reason?: string
+          withdrawn_at?: string
+          withdrawn_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_business_withdrawals_approval_id_fkey"
+            columns: ["approval_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_cost_business_approvals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_payment_corrections: {
+        Row: {
+          corrected_at: string
+          corrected_by: string
+          id: string
+          payment_id: string | null
+          reason: string
+          shared_payment_id: string | null
+        }
+        Insert: {
+          corrected_at?: string
+          corrected_by: string
+          id: string
+          payment_id?: string | null
+          reason: string
+          shared_payment_id?: string | null
+        }
+        Update: {
+          corrected_at?: string
+          corrected_by?: string
+          id?: string
+          payment_id?: string | null
+          reason?: string
+          shared_payment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_payment_corrections_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_cost_payment_evidence"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_payment_corrections_shared_payment_id_fkey"
+            columns: ["shared_payment_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_cost_shared_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_payment_evidence: {
+        Row: {
+          amount_cents: number
+          id: string
+          paid_on: string
+          record_id: string
+          recorded_at: string
+          recorded_by: string
+          reference: string
+        }
+        Insert: {
+          amount_cents: number
+          id: string
+          paid_on: string
+          record_id: string
+          recorded_at?: string
+          recorded_by: string
+          reference: string
+        }
+        Update: {
+          amount_cents?: number
+          id?: string
+          paid_on?: string
+          record_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_payment_evidence_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_posting_events: {
+        Row: {
+          accounting_effective_on: string | null
+          posted_at: string
+          posted_by: string
+          record_id: string
+          version: number
+        }
+        Insert: {
+          accounting_effective_on?: string | null
+          posted_at?: string
+          posted_by: string
+          record_id: string
+          version: number
+        }
+        Update: {
+          accounting_effective_on?: string | null
+          posted_at?: string
+          posted_by?: string
+          record_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_posting_events_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_posting_events_record_id_version_fkey"
+            columns: ["record_id", "version"]
+            isOneToOne: true
+            referencedRelation: "mcp_cost_approvals"
+            referencedColumns: ["record_id", "version"]
+          },
+        ]
+      }
+      mcp_cost_review_tickets: {
+        Row: {
+          actor_id: string
+          company_id: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          job_id: string
+          payload: Json
+          purpose: string
+        }
+        Insert: {
+          actor_id: string
+          company_id: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id: string
+          payload: Json
+          purpose: string
+        }
+        Update: {
+          actor_id?: string
+          company_id?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          payload?: Json
+          purpose?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_review_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_review_tickets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_shared_allocations: {
+        Row: {
+          amount_cents: number
+          payment_id: string
+          record_id: string
+        }
+        Insert: {
+          amount_cents: number
+          payment_id: string
+          record_id: string
+        }
+        Update: {
+          amount_cents?: number
+          payment_id?: string
+          record_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_shared_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_shared_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_shared_allocations_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_shared_payments: {
+        Row: {
+          amount_cents: number
+          company_id: string
+          id: string
+          paid_on: string
+          recorded_at: string
+          recorded_by: string
+          reference: string
+        }
+        Insert: {
+          amount_cents: number
+          company_id: string
+          id: string
+          paid_on: string
+          recorded_at?: string
+          recorded_by: string
+          reference: string
+        }
+        Update: {
+          amount_cents?: number
+          company_id?: string
+          id?: string
+          paid_on?: string
+          recorded_at?: string
+          recorded_by?: string
+          reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_shared_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_submission_operations: {
+        Row: {
+          actor_id: string
+          company_id: string
+          request_id: string
+          result: Json
+          signature: string
+        }
+        Insert: {
+          actor_id: string
+          company_id: string
+          request_id: string
+          result: Json
+          signature: string
+        }
+        Update: {
+          actor_id?: string
+          company_id?: string
+          request_id?: string
+          result?: Json
+          signature?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_submission_operations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_submission_references: {
+        Row: {
+          company_id: string
+          counterparty_key: string
+          document_key: string
+          kind: string
+          record_id: string
+        }
+        Insert: {
+          company_id: string
+          counterparty_key: string
+          document_key: string
+          kind: string
+          record_id: string
+        }
+        Update: {
+          company_id?: string
+          counterparty_key?: string
+          document_key?: string
+          kind?: string
+          record_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_submission_references_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_submission_references_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_submission_versions: {
+        Row: {
+          facts: Json
+          reason: string | null
+          record_id: string
+          recorded_at: string
+          recorded_by: string
+          version: number
+        }
+        Insert: {
+          facts: Json
+          reason?: string | null
+          record_id: string
+          recorded_at?: string
+          recorded_by: string
+          version: number
+        }
+        Update: {
+          facts?: Json
+          reason?: string | null
+          record_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_submission_versions_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_cost_submissions: {
+        Row: {
+          anchor_job_id: string
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+        }
+        Insert: {
+          anchor_job_id: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          id: string
+          kind: string
+        }
+        Update: {
+          anchor_job_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_submissions_anchor_job_id_fkey"
+            columns: ["anchor_job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_submissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_daily_reminder_shows: {
         Row: {
           company_id: string
@@ -7670,6 +8178,70 @@ export type Database = {
       mcp_contract_document_save: {
         Args: { _job: string; _p: Json }
         Returns: Json
+      }
+      mcp_cost_accounting_action: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_accounting_authorized: {
+        Args: { _company: string }
+        Returns: boolean
+      }
+      mcp_cost_active_paid: { Args: { _record: string }; Returns: number }
+      mcp_cost_currency_supported: { Args: { _code: string }; Returns: boolean }
+      mcp_cost_field_own_read: { Args: { _job: string }; Returns: Json }
+      mcp_cost_field_submit: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_pm_approve: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_pm_payment_ready: {
+        Args: { _record: string; _version: number }
+        Returns: boolean
+      }
+      mcp_cost_pm_review: { Args: { _job: string }; Returns: Json }
+      mcp_cost_pm_withdraw: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_reference_in_use: {
+        Args: { _company: string; _reference: string }
+        Returns: boolean
+      }
+      mcp_cost_review_consume: {
+        Args: { _job: string; _p: Json; _purpose: string; _review: string }
+        Returns: undefined
+      }
+      mcp_cost_review_prepare: {
+        Args: { _job: string; _p: Json; _purpose: string }
+        Returns: Json
+      }
+      mcp_cost_settlement_action: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_shared_identity_validated: {
+        Args: { _company: string; _records: string[] }
+        Returns: boolean
+      }
+      mcp_cost_submission_read: { Args: { _job: string }; Returns: Json }
+      mcp_cost_submission_save: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_cost_valid_date: { Args: { _date: string }; Returns: boolean }
+      mcp_cost_validate_project_refs: {
+        Args: {
+          _company: string
+          _job: string
+          _party: string
+          _po: string
+          _version: number
+        }
+        Returns: boolean
       }
       mcp_daily_reminder_mark_shown: {
         Args: { _day: string; _job: string }
