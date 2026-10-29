@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { supabaseForToken } from "./mcp/supabase";
 import { FileRejected } from "./mcp/file-share";
-import { readVerifiedFinancialOriginal } from "./mcp/billing-original.server";
+import {
+  readVerifiedCostReceipt,
+  readVerifiedFinancialOriginal,
+} from "./mcp/billing-original.server";
 
 const uuid = z.string().uuid();
 export async function handleBillingOriginalDownload(request: Request): Promise<Response> {
@@ -14,14 +17,18 @@ export async function handleBillingOriginalDownload(request: Request): Promise<R
   const url = new URL(request.url);
   const job = uuid.safeParse(url.searchParams.get("job"));
   const document = uuid.safeParse(url.searchParams.get("document"));
-  if (!job.success || !document.success)
+  const costRecordRaw = url.searchParams.get("cost_record");
+  const costRecord = costRecordRaw === null ? null : uuid.safeParse(costRecordRaw);
+  if (!job.success || !document.success || (costRecord && !costRecord.success))
     return new Response("Original unavailable.", {
       status: 404,
       headers: { "cache-control": "no-store" },
     });
   try {
     const sb = supabaseForToken(auth[1]);
-    const result = await readVerifiedFinancialOriginal(sb, auth[1], job.data, document.data);
+    const result = costRecord?.success
+      ? await readVerifiedCostReceipt(sb, auth[1], job.data, costRecord.data, document.data)
+      : await readVerifiedFinancialOriginal(sb, auth[1], job.data, document.data);
     return new Response(result.bytes as BodyInit, {
       headers: {
         "content-type": "application/octet-stream",

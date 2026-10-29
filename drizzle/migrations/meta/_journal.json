@@ -246,6 +246,48 @@
       "when": 1793203738604,
       "tag": "0034_athena_financial_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793304226792,
+      "tag": "0035_accounting_purchase_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793304772361,
+      "tag": "0036_accounting_ap",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793304866981,
+      "tag": "0037_accounting_ap_references",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793305011122,
+      "tag": "0038_accounting_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793305154763,
+      "tag": "0039_accounting_ap_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793305209048,
+      "tag": "0040_accounting_billing_snapshot",
+      "breakpoints": true
     }
   ]
 }
