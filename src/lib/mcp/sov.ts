@@ -52,6 +52,21 @@ const cleanCodes = (c: unknown): string[] => (Array.isArray(c) ? c.filter((x): x
 const cleanSpec = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 const ITEM = /^(\d{2})\.(\d{2,3})$/;
+const SEQUENTIAL_ITEM = /^\d{1,40}$/;
+
+/** A line number is an identity, not necessarily a CSI division. Keep accepted
+ * sequential keys unchanged so saved daily progress and billing still match. */
+export function sovItemProblems(items: readonly string[]): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (!ITEM.test(item) && !SEQUENTIAL_ITEM.test(item))
+      problems.push(`Line ${item}: use a sequential item number such as 01, or division-dot-line such as 01.01.`);
+    if (seen.has(item)) problems.push(`Line ${item}: duplicate item number.`);
+    seen.add(item);
+  }
+  return problems;
+}
 const cents = (n: number) => Math.round(n * 100);
 
 /** Member-facing refusal when an official SOV dollar would move without an approved change order. */
@@ -149,12 +164,11 @@ export function lineBilling(c: number, d: number | null, e: number | null, retPc
  * Throws SovMismatch (listing every problem) instead of returning numbers that don't tie.
  */
 export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: number | null, billing: Record<string, { d?: number | null; e?: number | null }> = {}): Sov {
-  const problems: string[] = [];
+  const problems = sovItemProblems(lines.map((line) => line.item_no));
   if (!lines.length) problems.push("No SOV lines are recorded.");
   if (feePct === null || feePct === undefined) problems.push("The fee percent isn't recorded.");
   else if (!(feePct >= 0 && feePct < 100)) problems.push("The fee percent must be at least 0 and under 100.");
   for (const l of lines) {
-    if (!ITEM.test(l.item_no)) problems.push(`Line ${l.item_no}: item numbers use the 01.01 style (division, dot, line).`);
     if (typeof l.scheduled_value !== "number" || !Number.isFinite(l.scheduled_value)) problems.push(`Line ${l.item_no}: no scheduled value.`);
     else if (l.scheduled_value < 0 && !(l.executed_change_order && l.fee_included)) problems.push(`Line ${l.item_no}: scheduled value can't be negative.`);
     else if (Math.abs(cents(l.scheduled_value) - l.scheduled_value * 100) > 1e-6) problems.push(`Line ${l.item_no}: scheduled value has more than two decimals.`);
@@ -163,7 +177,9 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
 
   const byDiv = new Map<string, SovLineIn[]>();
   for (const l of [...lines].sort((a, b) => a.item_no.localeCompare(b.item_no, "en", { numeric: true }))) {
-    const div = l.item_no.match(ITEM)![1];
+    // Sequential line numbers do not establish a CSI division. Do not rename
+    // them or infer a division from an unrelated internal cost-code mapping.
+    const div = l.item_no.match(ITEM)?.[1] ?? "";
     (byDiv.get(div) ?? byDiv.set(div, []).get(div)!).push(l);
   }
   const subC = lines.reduce((s, l) => s + cents(l.scheduled_value!), 0);
@@ -178,9 +194,9 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
 
   const divisions: SovDivision[] = [...byDiv.entries()].map(([division, ls]) => {
     const dC = ls.reduce((s, l) => s + cents(l.scheduled_value!), 0);
-    const title = CSI_DIVISIONS[division] ?? `Division ${division}`;
+    const title = division ? CSI_DIVISIONS[division] ?? `Division ${division}` : "Division not specified";
     return {
-      division, title, header: `${division} Division ${division} — ${title}`,
+      division, title, header: division ? `${division} Division ${division} — ${title}` : title,
       lines: ls.map((l) => {
         const b = billing[l.item_no] ?? {};
         return { item_no: l.item_no, description: (l.description ?? "").trim() || `Item ${l.item_no}`, scheduled_value: l.scheduled_value!, cost_codes: cleanCodes(l.cost_codes), spec_section: cleanSpec(l.spec_section), ...lineBilling(l.scheduled_value!, b.d ?? null, b.e ?? null, retPct) };
@@ -308,11 +324,11 @@ export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis:
   const totalName = draft ? "Draft scheduled total" : "Contract sum";
   const body =
     view === "divisions"
-      ? ["Scheduled value by division:", ...s.divisions.map((d) => `- ${d.division} ${d.title}: ${money(d.scheduled_value)} (${d.pct_of_contract.toFixed(2)}%)`)]
+      ? ["Scheduled value by division:", ...s.divisions.map((d) => `- ${[d.division, d.title].filter(Boolean).join(" ")}: ${money(d.scheduled_value)} (${d.pct_of_contract.toFixed(2)}%)`)]
       : [
           // 0.8.3: the cost code is its own column in the visible text (0.8.2 only carried it in structuredContent, so hosts never showed it).
           "Line | Cost code | Division | Description | Scheduled value | % of total",
-          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.cost_code ?? ""} | ${r.division} ${r.division_title} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
+          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.cost_code ?? ""} | ${[r.division, r.division_title].filter(Boolean).join(" ")} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
           ...(s.fee > 0 ? [`CF | | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
           `Total | | | ${totalName} | ${money(s.contract_total)} | 100.00%`,
         ];
