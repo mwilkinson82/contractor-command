@@ -4,12 +4,21 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { Button } from "@/components/ui/button";
 import {
   readSupportDashboard,
   readSupportAttachment,
   listSupportAttachments,
 } from "@/lib/support/dashboard.functions";
 export const Route = createFileRoute("/admin/support")({
+  head: () => ({ meta: [
+    { title: "Support tickets — Athena" },
+    { name: "description", content: "Administrator-only Athena and Contractor Circle support conversation review." },
+    { property: "og:title", content: "Support tickets — Athena" },
+    { property: "og:description", content: "Administrator-only Athena and Contractor Circle support conversation review." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   validateSearch: (s: Record<string, unknown>) => ({
     ticket: typeof s.ticket === "string" ? s.ticket : undefined,
   }),
@@ -99,9 +108,9 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
   const rows = data.tickets ?? data.messages ?? [];
   return (
     <section className="space-y-5">
-      <button className="mr-4 underline" onClick={() => q.refetch()}>
+      <Button variant="link" className="mr-4 underline" onClick={() => q.refetch()}>
         Refresh
-      </button>
+      </Button>
       {error && <p role="alert">{error}</p>}
       {data.tickets ? (
         <>
@@ -178,19 +187,19 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
                   </summary>
                   <pre className="whitespace-pre-wrap break-words">{d.text}</pre>
                   {d.kind === "owner" && (
-                    <button className="mr-4 underline" onClick={() => showAttachments(m.id)}>
+                    <Button variant="link" className="mr-4 underline" onClick={() => showAttachments(m.id)}>
                       Show stored attachments
-                    </button>
+                    </Button>
                   )}
                   {d.kind === "owner" &&
                     (attachmentLists[m.id] ?? []).map((a: any) => (
-                      <button
+                      <Button variant="link"
                         className="mr-4 underline"
                         key={a.index}
                         onClick={() => download(m.id, a.index)}
                       >
                         {a.label}  /  download
-                      </button>
+                      </Button>
                     ))}
                 </details>
               ))}
@@ -217,13 +226,13 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
                 setReview(false);
               }}
             />
-            <button
+            <Button variant="outline"
               className="rounded border p-2"
               disabled={!draft.trim()}
               onClick={() => setReview(true)}
             >
               Review proposed reply
-            </button>
+            </Button>
             {review && (
               <div>
                 <p>Proposed recipient: {data.ticket.from_email}</p>
@@ -239,13 +248,13 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
       )}
       {rows.length === 0 && <p>No records on this page.</p>}
       <nav className="flex gap-4">
-        <button disabled={page === 0} onClick={() => setPage(page - 1)}>
+        <Button variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
           Previous
-        </button>
+        </Button>
         <span>Page {page + 1}</span>
-        <button disabled={rows.length < 50} onClick={() => setPage(page + 1)}>
+        <Button variant="outline" disabled={rows.length < 50} onClick={() => setPage(page + 1)}>
           Next
-        </button>
+        </Button>
       </nav>
     </section>
   );
