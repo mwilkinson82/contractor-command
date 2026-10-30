@@ -9,6 +9,7 @@ const ATHENA_EXACT = new Set([
   "/login",
   "/auth/callback",
   "/account",
+  "/admin/support", // Exact admin-only support page; server functions enforce admin access.
   "/team",
   "/oauth/consent",
   "/.lovable/oauth/consent",
