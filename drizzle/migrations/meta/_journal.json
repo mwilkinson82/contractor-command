@@ -330,6 +330,13 @@
       "when": 1793396190536,
       "tag": "0046_recorded_payment_correction",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793397899107,
+      "tag": "0047_release_completion_runner_checkpoint",
+      "breakpoints": true
     }
   ]
 }
