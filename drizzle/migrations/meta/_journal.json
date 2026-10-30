@@ -309,6 +309,27 @@
       "when": 1793377823371,
       "tag": "0043_support_conversations_owner_review",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793396173390,
+      "tag": "0044_support_receipt_provider_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793396186715,
+      "tag": "0045_ap_supplier_originals",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793396190536,
+      "tag": "0046_recorded_payment_correction",
+      "breakpoints": true
     }
   ]
 }
