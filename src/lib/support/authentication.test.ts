@@ -14,7 +14,7 @@ it("uses only receiver-computed verdicts and requires From alignment", () => {
       senderAuthentication({
         from: "pat@example.com",
         authentication,
-        headers: { "Authentication-Results": "mx; dmarc=pass; dkim=pass" },
+        headers: { "Authentication-Results": "trusted.example; dkim=pass; dmarc=pass" },
       }).verified,
     ).toBe(false);
   }
