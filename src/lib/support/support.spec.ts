@@ -264,7 +264,6 @@ describe("processSupportInbound", () => {
     });
     expect(again).toEqual({ status: "duplicate", ticketNumber: "ATH-0001" });
     expect(sends).toHaveLength(2);
-
   });
 
   it("supports a separate Circle receipt opt-in", async () => {
