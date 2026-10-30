@@ -13,6 +13,7 @@ import { processSupportInbound, type SupportProcessResult } from "@/lib/support/
 import { SupportDeliveryError } from "@/lib/support/resend-send";
 import { supabaseSupportStore } from "@/lib/support/store.server";
 import { collectAddresses, supportInboxForAddresses } from "@/lib/support/ticket";
+import { routeSupport } from "@/lib/support/conversation";
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -43,6 +44,7 @@ export type InboundHttpDeps = {
       apiKey: string;
       env: NodeJS.ProcessEnv;
       hint: ReturnType<typeof supportInboxForAddresses>;
+      hintReview?: string | null;
     },
   ) => Promise<SupportProcessResult>;
 };
@@ -102,6 +104,7 @@ function defaultDeps(overrides?: Partial<InboundHttpDeps>): InboundHttpDeps {
           apiKey: opts.apiKey,
           env: opts.env,
           hint: opts.hint,
+          hintReview: opts.hintReview,
           store: supabaseSupportStore,
         })),
   };
@@ -177,9 +180,11 @@ export async function handleResendInboundPost(
     return json({ ok: false, error: "Forwarder not configured" }, 500);
   }
 
-  const hint = supportInboxForAddresses(
-    collectAddresses(event.data?.to, event.data?.cc, event.data?.bcc, event.data?.received_for),
-  );
+  const routing = routeSupport({
+    from: "",
+    to: collectAddresses(event.data?.to, event.data?.cc, event.data?.bcc, event.data?.received_for),
+  });
+  const hint = routing.inbox;
   if (hint) {
     // Verified support events only. Never acknowledge held work as completed:
     // Resend must retain/retry it while the schema and runtime are coordinated.
@@ -187,7 +192,12 @@ export async function handleResendInboundPost(
       return json({ ok: false, error: "Support intake temporarily held; retry" }, 503);
     }
     try {
-      const result = await deps.processSupport(emailId, { apiKey, env: deps.env, hint });
+      const result = await deps.processSupport(emailId, {
+        apiKey,
+        env: deps.env,
+        hint,
+        hintReview: routing.review,
+      });
       if (result.status !== "not_support") {
         console.log("[resend-inbound] support", {
           emailId,
