@@ -5,11 +5,21 @@ import { boardSignInReturn } from "@/lib/board-sign-in";
 import { boardPageFor } from "@/lib/mcp/board-url";
 import { startedWithJobsCard } from "@/lib/mcp/getting-started";
 import { renderHtml } from "@/lib/mcp/cards/html";
+import { overviewPayments, overviewContract } from "@/lib/project-overview";
+import { supabase } from "@/integrations/supabase/client";
 
-const fixture = vi.hoisted(() => ({ rows: {} as Record<string, unknown>, signedIn: true }));
+const fixture = vi.hoisted(() => ({
+  rows: {} as Record<string, unknown>,
+  signedIn: true,
+  queries: [] as { queryKey: string[]; enabled?: boolean; queryFn: () => Promise<unknown> }[],
+}));
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (opts: { queryKey: string[] }) =>
-    fixture.rows[opts.queryKey[2] ?? "jobs"] ?? { data: undefined, isLoading: false, error: null },
+  useQuery: (opts: { queryKey: string[]; queryFn: () => Promise<unknown> }) => {
+    fixture.queries.push(opts);
+    return (
+      fixture.rows[opts.queryKey[2] ?? "jobs"] ?? { data: undefined, isLoading: false, error: null }
+    );
+  },
 }));
 vi.mock("@/lib/board-link.functions", () => ({ openBoardPage: vi.fn() }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
@@ -33,6 +43,7 @@ const ok = (data: unknown) => ({ data, isLoading: false, error: null });
 
 beforeEach(() => {
   fixture.signedIn = true;
+  fixture.queries = [];
   fixture.rows = {
     field: ok({
       page: "field",
@@ -59,6 +70,104 @@ beforeEach(() => {
       { id: other, job_number: "QA-2", name: "Other" },
     ]),
   };
+});
+
+const finance = () => ({
+  contract: overviewContract(
+    [{ module: "setup", key: "contract_value", value: 12345 }],
+    null,
+    null,
+  ),
+  payments: overviewPayments(
+    { currency: "USD", invoices: [], receipts: [], allocations: [], receipt_reversals: [] },
+    job,
+    new Date("2026-10-30T12:00:00Z"),
+  ),
+});
+
+describe("approved project overview", () => {
+  it("shows source bases, honest unknowns, due dates and canonical review routes", () => {
+    fixture.rows.financial = ok(finance());
+    fixture.rows.communications = ok([]);
+    fixture.rows.field = ok({
+      page: "field",
+      scope: "full",
+      items: [
+        {
+          id: "request-1",
+          action: "Synthetic question",
+          owner: "PM",
+          due: "2026-11-01",
+          type: "rfi",
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html).toContain("$12,345.00");
+    expect(html).toContain("Source: job setup");
+    expect(html).toContain("Unknown");
+    expect(html).toContain("Inception through 2026-10-30");
+    expect(html).toContain("Unapplied receipts");
+    expect(html).toContain("Recorded retainage held");
+    expect(html).toContain("Due 2026-11-01");
+    expect(html).toContain("Review RFI date");
+    expect(html).toContain("No matching communication records");
+    expect(html).not.toMatch(/<button|datetime-local|type="date"|calendar.google/);
+  });
+  it("hides stale private results on source error, sign-out, field scope and denied base", () => {
+    fixture.rows.financial = { ...ok(finance()), error: new Error("denied") };
+    fixture.rows.communications = {
+      ...ok([{ title: "PRIVATE SUBJECT" }]),
+      error: new Error("denied"),
+    };
+    let html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html).not.toContain("$12,345");
+    expect(html).not.toContain("PRIVATE SUBJECT");
+    expect(html).toContain("Currently unavailable");
+    fixture.rows.financial = ok(finance());
+    for (const scope of ["super", "contract"]) {
+      fixture.rows.field = ok({ page: "field", scope, items: [] });
+      fixture.queries = [];
+      html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+      expect(html).not.toContain("$12,345");
+      expect(html).not.toContain("Current contract value");
+      expect(
+        fixture.queries
+          .filter((q) => ["financial", "communications"].includes(q.queryKey[2]))
+          .every((q) => !q.enabled),
+      ).toBe(true);
+    }
+    fixture.signedIn = false;
+    fixture.rows.field = ok({ page: "field", scope: "full", items: [] });
+    fixture.queries = [];
+    html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job, token: "share-token" }));
+    expect(html).not.toContain("$12,345");
+    expect(html).not.toContain("PRIVATE SUBJECT");
+    expect(
+      fixture.queries
+        .filter((q) => ["financial", "communications"].includes(q.queryKey[2]))
+        .every((q) => !q.enabled),
+    ).toBe(true);
+  });
+  it("stops financial and communication reads at the canonical server-side denial", async () => {
+    renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: { message: "denied" },
+    } as never);
+    await expect(
+      fixture.queries.find((q) => q.queryKey[2] === "financial")!.queryFn(),
+    ).rejects.toThrow("Financial evidence unavailable");
+    await expect(
+      fixture.queries.find((q) => q.queryKey[2] === "communications")!.queryFn(),
+    ).rejects.toThrow("Communications unavailable");
+    expect(
+      vi
+        .mocked(supabase.rpc)
+        .mock.calls.slice(-2)
+        .map((call) => call[0]),
+    ).toEqual(["mcp_billing_evidence_get", "mcp_report_page_get"]);
+  });
 });
 
 describe("persistent job home", () => {
