@@ -231,7 +231,7 @@ export function autoreplySubject(
 
 export function notifySubject(original: string | null | undefined, ticketNumber: string): string {
   const base = oneLine(original ?? "") || "(no subject)";
-  const prefix = `[${ticketNumber}] New support ticket: `;
+  const prefix = `[${ticketNumber}] Support message: `;
   const room = Math.max(0, 180 - prefix.length);
   const clipped = base.length > room ? base.slice(0, room).trimEnd() : base;
   return `${prefix}${clipped}`;
