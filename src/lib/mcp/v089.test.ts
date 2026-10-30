@@ -259,9 +259,14 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
 
   it("server wires the three tools and the instructions lead with the CPM rule; palette unchanged (no red)", () => {
     const idx = src("./index.ts");
-    expect(idx).toContain(
-      "cpmActivities, livingReportGet, livingReportSave, billingEvidenceRead, billingEvidenceRecord, billingDocumentUpload, billingDocuments, billingDocumentLink, fileShare, fileShareRevoke, lookaheadPdfTool, reportPageLink",
-    );
+    const tools = idx.match(/export const ATHENA_TOOLS = \[([^\]]+)\]/)?.[1]
+      .split(",").map((tool) => tool.trim());
+    expect(tools).toEqual(expect.arrayContaining([
+      "cpmActivities", "livingReportGet", "livingReportSave", "billingEvidenceRead",
+      "billingEvidenceRecord", "billingDocumentUpload", "billingDocuments",
+      "billingDocumentLink", "fileShare", "fileShareRevoke", "lookaheadPdfTool", "reportPageLink",
+    ]));
+    expect(new Set(tools).size).toBe(tools?.length);
     expect(idx).toContain("instructions:\n    REFUSAL_RULE +");
     expect(idx).toContain("GREETING_RULE +");
     expect(idx).not.toContain("never rose, pink or orange");
