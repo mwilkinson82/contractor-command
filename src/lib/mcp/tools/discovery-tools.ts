@@ -8,7 +8,7 @@ import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
 import { guide } from "../visible";
-import { JOBS_RESPONSE_GUIDANCE, jobsResponseText } from "../jobs-response";
+import { JOBS_RESPONSE_GUIDANCE, jobsResponseText, jobsLegacyHtml } from "../jobs-response";
 
 const READ = {
   readOnlyHint: true,
@@ -59,10 +59,11 @@ export async function readJobs(sb: Sb, named?: string) {
     jobs: jobs.filter((j) => j.company_id === c.id),
   }));
   const counts = { jobs: jobs.length, companies: companies.length };
+  const response = jobsResponseText(grouped, counts, !!named);
   return guide(
     {
-      content: [{ type: "text" as const, text: jobsResponseText(grouped, counts, !!named) }],
-      structuredContent: { companies: grouped, jobs, counts },
+      content: [{ type: "text" as const, text: response }],
+      structuredContent: { companies: grouped, jobs, counts, html: jobsLegacyHtml(response) },
     },
     JOBS_RESPONSE_GUIDANCE,
   );

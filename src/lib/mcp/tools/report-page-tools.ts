@@ -4,14 +4,16 @@
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
-import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveCompany, resolveJob } from "../jobs";
+import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, jobTimeZone, named, prefix, resolveCompany, resolveJob } from "../jobs";
+import { productionPeriod } from "../production-summary";
+import { todayIn } from "../deadlines";
+import { productionReportUrl } from "../../production-report";
 import { guide } from "../visible";
 import { boardLinkExpiry } from "../board-link";
 import { boardPageFor, jobLinksMissingToken, signedJobPages, type BoardLinkPage } from "../board-url";
 import { newToken, tokenHash } from "../file-share";
-import { applyCardClosing } from "../cards/silence";
 import { renderHtml } from "../cards/html";
-import { htmlBlock, renderMarkdown } from "../cards/markdown";
+import { renderMarkdown } from "../cards/markdown";
 import type { CardModel } from "../cards/model";
 import { shortDate } from "../styled-views";
 import { isChatAccessPage, privateChatRefusalCard } from "../private-chat-sharing";
@@ -44,7 +46,7 @@ async function target(sb: Sb, args: { page: string; job_number?: string; company
   }
   if (!args.job_number) throw new ToolError("Which job? Give the job number.");
   const job = await resolveJob(sb, args.job_number, args.company_id);
-  if (!pageAllowed(p === "home" ? "field" : p, job.scope, false)) throw new ToolError(job.scope === "super" ? READ_ONLY_MESSAGE : FULL_ACCESS_MESSAGE);
+  if (!pageAllowed(p === "home" || p === "production" ? "field" : p, job.scope, false)) throw new ToolError(job.scope === "super" ? READ_ONLY_MESSAGE : FULL_ACCESS_MESSAGE);
   return { p, id: job.job_id, job, company: job.company_id, head: prefix(job) };
 }
 
@@ -72,7 +74,12 @@ function boardLinkCard(
   expiresAt: string | null,
   homeUrl: string | null,
 ): CardModel {
-  const label = page === "home" ? "Project home" : PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board";
+  const label =
+    page === "production"
+      ? "Production"
+      : page === "home"
+        ? "Project home"
+        : (PAGE_LABEL[page as keyof typeof PAGE_LABEL] ?? "Board");
   return {
     state: "result",
     show_state: false,
@@ -106,6 +113,20 @@ function boardLinkCard(
             },
           ]
         : []),
+      ...(page === "production"
+        ? [
+            {
+              heading: "Access",
+              kind: "list" as const,
+              rows: [
+                {
+                  cells: ["Sign in with project access to open this report."],
+                  tone: "known" as const,
+                },
+              ],
+            },
+          ]
+        : []),
     ],
     next_move: null,
   };
@@ -115,8 +136,21 @@ export const reportPageLink = defineTool({
   name: "report_page_link",
   title: "Project home or report link",
   description:
-    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
-  inputSchema: { page, job_number: jobNumber, company_id: companyId },
+    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
+  inputSchema: {
+    page,
+    job_number: jobNumber,
+    company_id: companyId,
+    from_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    to_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    range: z.enum(["last_7_days", "this_week"]).optional(),
+  },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("report_page_link", ctx, { jobNumber: args.job_number }, async (sb) => {
@@ -126,6 +160,41 @@ export const reportPageLink = defineTool({
       if (!asked)
         throw new ToolError("Which page? home, items, ior, field, or another named report.");
       const t = await target(sb, { ...args, page: asked });
+      if (t.p === "production") {
+        if (!t.job) throw new ToolError("Which job? Give the job number.");
+        let period: { from: string; to: string };
+        try {
+          period = productionPeriod(
+            args.from_date,
+            args.to_date,
+            todayIn(await jobTimeZone(sb, t.job.job_id)),
+            args.range,
+          );
+        } catch (error) {
+          throw new ToolError(
+            error instanceof Error ? error.message : "Choose valid production dates.",
+          );
+        }
+        const url = productionReportUrl(t.job.job_id, period);
+        const card = boardLinkCard("production", named(t.job), url, null, null);
+        const html = renderHtml(card);
+        await audit(sb, t.job, "report_page_link", "page_link_production", null, t.company);
+        return guide(
+          {
+            ...text(renderMarkdown(card)),
+            structuredContent: {
+              url,
+              page: "production",
+              private: true,
+              requires_session: true,
+              period,
+              card,
+              html,
+            },
+          },
+          "Return the complete Markdown reply and its supplied link. Do not open a generated app or suppress text because an older viewer is present.",
+        );
+      }
       const expires = t.p === "portfolio" ? null : boardLinkExpiry();
       const board = t.job ? await signedJobPages((fn, a) => sb.rpc(fn, a), t.job.job_id, t.job.scope) : {};
       const signed =
@@ -148,13 +217,13 @@ export const reportPageLink = defineTool({
         homeUrl,
       );
       const html = renderHtml(card);
-      const body = applyCardClosing(`${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
+      const body = renderMarkdown(card);
       return guide(
         {
           ...text(body),
           structuredContent: { url, page: t.p, private: true, expires_at: expires ? expires.toISOString() : null, card, html },
         },
-        "The card is the whole reply. Do not add prose before or after it.",
+        "Return the complete Markdown reply and its supplied link. Do not open a generated app or suppress text because an older viewer is present.",
       );
     }),
 });

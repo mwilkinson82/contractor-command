@@ -1,10 +1,16 @@
 import { apMoney } from "../../accounting-ap-versioned";
-import { defineTool } from "@lovable.dev/mcp-js";
+import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text } from "../guard";
 import { resolveJob } from "../jobs";
 import { guide } from "../visible";
-import { accountingDate, accountingMoney, accountingPage } from "../../accounting-report";
+import {
+  accountingDate,
+  accountingMoney,
+  accountingPage,
+  validateAccountingDates,
+  AccountingDateRangeError,
+} from "../../accounting-report";
 import { accountingIO, readAccountingReport } from "../../accounting-report-read";
 
 export const accountingReport = defineTool({
@@ -39,12 +45,19 @@ export const accountingReport = defineTool({
             },
             "Ask only for the job. Default to all entered evidence through today unless the member requests dates; do not ask for amounts or invent missing coverage.",
           );
-        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
         const now = new Date();
+        const dates = { from: args.from, asOf: args.as_of ?? now.toISOString().slice(0, 10) };
+        try {
+          validateAccountingDates(dates, now.toISOString().slice(0, 10));
+        } catch (error) {
+          if (error instanceof AccountingDateRangeError) throw new ToolError(error.message);
+          throw error;
+        }
+        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
         const report = await readAccountingReport(
           accountingIO(sb),
           job.job_id,
-          { from: args.from, asOf: args.as_of ?? now.toISOString().slice(0, 10) },
+          dates,
           job.company_id,
           now,
         );
@@ -90,7 +103,7 @@ export const accountingReport = defineTool({
               report_url: url,
             } as never,
           },
-          "Present the report in the light project report style with a functional text fallback and the private CSV download link. Preserve Unknown, currency, date basis and completeness limitations. Billed revenue is not earned revenue. Settlements and PO commitments are never extra actual costs. The provisional billed less recorded costs is not a complete P&L. Source IDs and versions support drill-down. Do not combine currencies or invent missing costs. AP currency provenance is reviewed submission, not independent document verification. AP range values select effective current versions and are not journal movements. Keep unsupported net AP and settlement allocation Unknown. Follow nextPage for more ledger rows; summary totals always cover all read sources.",
+          "Return complete ordinary Markdown text and the private report/CSV link. Do not generate a visual app as a substitute for the text. Preserve Unknown, currency, date basis and completeness limitations. Billed revenue is not earned revenue. Settlements and PO commitments are never extra actual costs. The provisional billed less recorded costs is not a complete P&L. Source IDs and versions support drill-down. Do not combine currencies or invent missing costs. AP currency provenance is reviewed submission, not independent document verification. AP range values select effective current versions and are not journal movements. Keep unsupported net AP and settlement allocation Unknown. Follow nextPage for more ledger rows; summary totals always cover all read sources.",
         );
       },
     ),

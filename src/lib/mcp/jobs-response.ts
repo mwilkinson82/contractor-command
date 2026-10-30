@@ -38,5 +38,11 @@ export function jobsResponseText(
   return lines.join("\n");
 }
 
-export const JOBS_RESPONSE_GUIDANCE =
-  "Compose this jobs response in the host's normal response style, as for billing records. Lead with the two counts, then group every source job under its company name. When the host supports visual composition, use two simple metric columns and clean white grouped rows with bold project names, muted job numbers, and subtle dividers. Show the project name as the primary text and its job number as secondary text; keep jobs with missing names and all empty states explicit. Use grouped response formatting only if the host supports it; plain Markdown is the complete fallback. Do not create an Athena embed or custom HTML card, claim a native card was shown, or invent links, buttons, statuses, file icons, or verification/success labels.";
+export { READ_RESPONSE_GUIDANCE as JOBS_RESPONSE_GUIDANCE } from "./read-response";
+
+/** Old discovered job tools still open a viewer that requires structuredContent.html.
+ * Supply complete, inert source text without advertising a new widget to current clients. */
+export function jobsLegacyHtml(text: string): string {
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>.jobs-text{margin:0;padding:20px;background:#fff;color:#18314f;font:15px/1.6 system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><div class="jobs-text">${escaped}</div></body></html>`;
+}

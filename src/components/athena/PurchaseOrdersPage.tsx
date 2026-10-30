@@ -1,3 +1,4 @@
+import { AccountingWorkspace } from "./AccountingWorkspace";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,36 +64,46 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
       return r.data as Ledger;
     },
   });
-  if (loading) return <main className="p-8">Loading purchase orders…</main>;
+  if (loading)
+    return (
+      <AccountingWorkspace jobId={jobId} title="Suppliers and purchase orders">
+        <p role="status">Loading purchase orders…</p>
+      </AccountingWorkspace>
+    );
   if (!session) return <BoardSignIn returnTo={`/r/job/${jobId}/purchase-orders`} />;
-  if (result.isLoading) return <main className="p-8">Loading purchase orders…</main>;
+  if (result.isLoading)
+    return (
+      <AccountingWorkspace jobId={jobId} title="Suppliers and purchase orders">
+        <p role="status">Loading purchase orders…</p>
+      </AccountingWorkspace>
+    );
   if (result.error || !result.data)
     return (
-      <main className="p-8">
+      <AccountingWorkspace jobId={jobId} title="Suppliers and purchase orders">
         <p role="alert">Purchase orders are unavailable for this project.</p>
         <a href={`/r/job/${jobId}/home`}>Project home</a>
-      </main>
+      </AccountingWorkspace>
     );
   const { parties, terms, orders, default_terms_id } = result.data;
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-5 py-8 text-[#183453]">
-      <a className="text-blue-700 underline" href={`/r/job/${jobId}/home`}>
-        ← Project home
-      </a>
-      <header>
-        <h1 className="text-3xl font-bold">Suppliers and purchase orders</h1>
-        <p className="mt-2">
+    <AccountingWorkspace
+      jobId={jobId}
+      title="Suppliers and purchase orders"
+      className="af-purchase-orders"
+      description={
+        <p>
           Purchase orders are commitments. They are not posted costs or payments. Create or revise
           drafts with Athena. Owners approve company and job terms. Project members can read
           approved terms on an internally approved PO; contracts staff may propose redlines. A
           proposal is not effective until owner approval, which does not establish supplier
           acceptance.
         </p>
-      </header>
+      }
+    >
       <section>
         <h2 className="text-xl font-semibold">Project parties</h2>
         {parties.length === 0 ? (
-          <p>No parties recorded.</p>
+          <p className="af-empty">No parties recorded.</p>
         ) : (
           <div className="mt-3 grid gap-3">
             {parties.map((p) => (
@@ -116,7 +127,7 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
       <section>
         <h2 className="text-xl font-semibold">Purchase orders</h2>
         {orders.length === 0 ? (
-          <p>No orders recorded.</p>
+          <p className="af-empty">No orders recorded.</p>
         ) : (
           <div className="mt-3 grid gap-3">
             {orders.map((o) => (
@@ -158,7 +169,7 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
       <section>
         <h2 className="text-xl font-semibold">Terms history</h2>
         {terms.length === 0 ? (
-          <p>No terms recorded.</p>
+          <p className="af-empty">No terms recorded.</p>
         ) : (
           terms.map((t) => (
             <details key={t.id} className="mt-3 rounded border p-4">
@@ -184,6 +195,6 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
           ))
         )}
       </section>
-    </main>
+    </AccountingWorkspace>
   );
 }

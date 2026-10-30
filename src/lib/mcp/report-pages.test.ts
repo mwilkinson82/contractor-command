@@ -12,6 +12,7 @@ vi.mock("./jobs", () => ({
   READ_ONLY_MESSAGE: "Your role has a limited, read-only view of this job (no financials).",
   audit: async () => {},
   prefix: () => "2701 – ",
+  jobTimeZone: async () => "America/Chicago",
   named: (job: { job_number?: string; name?: string | null }) =>
     job?.name && job.job_number && job.name.startsWith(job.job_number) ? job.name : `${job?.job_number ?? ""} – ${job?.name ?? ""}`.trim(),
   resolveCompany: async () => "11111111-1111-4111-8111-111111111111",
@@ -70,6 +71,9 @@ describe("0.8.14 report_page_link", () => {
       title: "Project home",
     });
     expect(result.content[0].text).not.toContain("Open items");
+    expect(result.content[0].text).toContain(String(result.structuredContent.url));
+    expect(result.content[0].text).not.toContain("<!doctype");
+    expect(result.structuredContent.html).toBeTypeOf("string");
     expect(jobLinksMissingToken(result)).toEqual([]);
   });
   it.each(["items", "open items", "items board", "open items board"])(
@@ -92,6 +96,50 @@ describe("0.8.14 report_page_link", () => {
       expect(result.structuredContent.card).toMatchObject({ title: "Field board" });
     },
   );
+  it("opens a dated, authenticated production report without minting a board token", async () => {
+    const r = await call(reportPageLink, {
+      page: "production report",
+      job_number: "2701",
+      from_date: "2026-10-28",
+      to_date: "2026-10-29",
+    });
+    expect(r.structuredContent).toMatchObject({
+      page: "production",
+      private: true,
+      requires_session: true,
+      period: { from: "2026-10-28", to: "2026-10-29" },
+    });
+    expect(r.structuredContent.url).toBe(
+      `https://app.meetathena.io/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29`,
+    );
+    expect(r.structuredContent.card).toMatchObject({ title: "Production" });
+    expect(r.content[0].text).toContain("Sign in with project access");
+    expect(jobLinksMissingToken(r)).toEqual([]);
+    expect(state.rpcs).toEqual([]);
+    state.scope = "super";
+    expect(
+      (await call(reportPageLink, { page: "production", job_number: "2701" })).structuredContent
+        .requires_session,
+    ).toBe(true);
+    state.scope = "contract";
+    await expect(call(reportPageLink, { page: "production", job_number: "2701" })).rejects.toThrow(
+      "full access",
+    );
+  });
+  it("rejects invalid production ranges before returning a link", async () => {
+    await expect(
+      call(reportPageLink, {
+        page: "production",
+        job_number: "2701",
+        from_date: "2026-02-30",
+        to_date: "2026-03-01",
+      }),
+    ).rejects.toThrow("valid production dates");
+    await expect(
+      call(reportPageLink, { page: "production", job_number: "2701", from_date: "2026-10-28" }),
+    ).rejects.toThrow("both dates");
+    expect(state.rpcs).toEqual([]);
+  });
   it("requires a job for default-home navigation and still rejects an unknown page", async () => {
     await expect(call(reportPageLink, {})).rejects.toThrow("Which job?");
     await expect(
@@ -104,8 +152,8 @@ describe("0.8.14 report_page_link", () => {
     expect(String(r.structuredContent.url)).toMatch(new RegExp(`^https://app\\.meetathena\\.io/r/job/${JOB}/schedule\\?t=`));
     expect(r.structuredContent.private).toBe(true);
     expect(r.content[0].text).toMatch(/works until/i);
-    expect(r.content[0].text).toContain("#1E3A5F");
-    expect(r.content[0].text).toContain("#1E5FED");
+    expect(r.structuredContent.html).toContain("#1E3A5F");
+    expect(r.structuredContent.html).toContain("#1E5FED");
     expect(r.content[0].text).not.toMatch(/lovable|supabase/i);
     expect(jobLinksMissingToken(r)).toEqual([]);
     const card = r.structuredContent.card as { presentation: string; sections: { rows: { href: string }[] }[] };

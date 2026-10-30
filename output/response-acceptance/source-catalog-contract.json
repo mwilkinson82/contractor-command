@@ -1,0 +1,31 @@
+{
+  "purchase_orders_record": {
+    "description": "Reviews and after explicit confirmation saves a project party, supplier/PO terms proposal, company default or purchase order draft. approve_company_terms is a separate owner-only approval: saving it immediately records approved company-wide terms. Unapproved company terms cannot be saved. Never call an approval action when the user says save only or do not approve.",
+    "actions": [
+      "party",
+      "terms",
+      "approve_company_terms",
+      "approve_terms",
+      "default_terms",
+      "order"
+    ]
+  },
+  "text_read_tools": [
+    {
+      "name": "jobs_list",
+      "meta": null
+    },
+    {
+      "name": "report_page_link",
+      "meta": null
+    },
+    {
+      "name": "accounting_report",
+      "meta": null
+    },
+    {
+      "name": "billing_evidence_read",
+      "meta": null
+    }
+  ]
+}

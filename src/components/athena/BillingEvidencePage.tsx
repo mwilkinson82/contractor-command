@@ -1,3 +1,4 @@
+import { AccountingWorkspace } from "./AccountingWorkspace";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -90,7 +91,7 @@ function cents(value: FormDataEntryValue | null): number {
 const field = (form: FormData, name: string) => String(form.get(name) ?? "").trim();
 const input = "mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm";
 const button =
-  "rounded bg-[#1E3A5F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50";
+  "af-billing-button rounded bg-[#1E3A5F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50";
 
 export function BillingEvidencePage({ jobId }: { jobId: string }) {
   const { session, loading } = useAuth();
@@ -353,35 +354,35 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
   }
   if (loading || data.isLoading)
     return (
-      <main className="p-6" role="status">
-        Loading billing records…
-      </main>
+      <AccountingWorkspace jobId={jobId} title="Billing and payment records">
+        <p role="status">Loading billing records…</p>
+      </AccountingWorkspace>
     );
   if (!session) return <BoardSignIn returnTo={`/r/job/${jobId}/billing-records`} />;
   if (data.error || !data.data)
     return (
-      <main className="p-6">
+      <AccountingWorkspace jobId={jobId} title="Billing and payment records">
         <p role="alert">Billing records are unavailable for this account.</p>
         <button onClick={() => void data.refetch()}>Retry</button>
-      </main>
+      </AccountingWorkspace>
     );
   const { invoices, receipts, allocations, receipt_reversals, recorded_contract } = data.data;
   const totals = recordedTotals(invoices, receipts, receipt_reversals);
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-6 text-[#1E3A5F]">
-      <a className="text-sm underline" href={`/r/job/${jobId}/home`}>
-        Project home
-      </a>
-      <header>
-        <h1 className="text-2xl font-semibold">Billing and payment records</h1>
-        <p className="mt-2 text-sm text-gray-600">
+    <AccountingWorkspace
+      jobId={jobId}
+      title="Billing and payment records"
+      className="af-billing"
+      description={
+        <p>
           Record source documents and cash received. Balances use recorded entries and may be
           incomplete. These records do not update the billing forecast or earned progress.
         </p>
-      </header>
+      }
+    >
       <section
         aria-label="Recorded project amounts"
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="af-metrics grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
         {[
           ["Submitted gross", totals.submittedGross],
@@ -426,7 +427,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
       <section>
         <h2 className="text-lg font-semibold">Invoices and pay applications</h2>
         {invoices.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="af-empty mt-2 text-sm text-gray-600">
             No records recorded yet. Project totals are unknown.
           </p>
         ) : (
@@ -769,7 +770,7 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
           </details>
         )}
         {receipts.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="af-empty mt-2 text-sm text-gray-600">
             No receipts recorded yet. Cash received is unknown.
           </p>
         ) : (
@@ -904,6 +905,6 @@ export function BillingEvidencePage({ jobId }: { jobId: string }) {
           </form>
         </details>
       </section>
-    </main>
+    </AccountingWorkspace>
   );
 }

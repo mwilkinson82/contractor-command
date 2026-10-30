@@ -89,7 +89,10 @@ describe("read-only portfolio discovery under actual RLS", () => {
     expect(r.content[0].text).toContain("**Jobs:** 20 · **Companies:** 4");
     expect(r.content[0].text).toContain("Fictional ALP");
     expect(r.structuredContent).not.toHaveProperty("card");
-    expect(r.structuredContent).not.toHaveProperty("html");
+    // A formerly discovered jobs widget still expects HTML; current discovery stays text-first.
+    expect(r.structuredContent.html).toContain("Fictional ALP");
+    for (const j of r.structuredContent.jobs)
+      expect(r.structuredContent.html).toContain(j.job_number);
     expect(r).not.toHaveProperty("_meta");
   });
   it("filters an explicit company by name without changing the saved company", async () => {

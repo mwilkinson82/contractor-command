@@ -6,7 +6,7 @@ export const PREVIOUS_NATIVE_CARD_URI = "ui://athena/native-card-v2.html";
 export const LEGACY_NATIVE_CARD_URI = "ui://athena/native-card.html";
 export const NATIVE_CARD_URIS = new Set([NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI]);
 export const NATIVE_CARD_MIME = "text/html;profile=mcp-app";
-export const NATIVE_CARD_TOOLS = new Set(["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record", "drawing_sets_list", "report_page_link", "report_page_share", "resolve_item", "lookahead_get", "lookahead_list", "list_open_items", "contract_terms", "report", "field_pay_app", "morning_brief", "athena_hello", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery"]);
+export const NATIVE_CARD_TOOLS = new Set(["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record", "drawing_sets_list", "report_page_share", "resolve_item", "lookahead_get", "lookahead_list", "list_open_items", "contract_terms", "report", "field_pay_app", "morning_brief", "athena_hello", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery"]);
 /** Replies whose text is the styled markdown, plus HTML only for a host that can show a card. */
 export const TEXT_CARD_TOOLS = new Set(["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record", "drawing_sets_list", "lookahead_get", "list_open_items", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery"]);
 export const nativeCardMeta = { ui: { resourceUri: NATIVE_CARD_URI } } as const;

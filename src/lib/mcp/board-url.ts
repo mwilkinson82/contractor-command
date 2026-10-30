@@ -3,7 +3,7 @@
 import { isUuid, pageUrl, type AnyPage } from "../report-pages";
 import { mintJobBoardLinks, withBoardToken, type BoardPage, type BoardScope } from "./board-link";
 
-export type BoardLinkPage = AnyPage | "home";
+export type BoardLinkPage = AnyPage | "home" | "production";
 
 export const PROJECT_HOME_ROUTE_RULE =
   ' For "open the project board", "open the job board", "give me the job board", "show me the job board", project home, or a job dashboard, call report_page_link with page "home" and the job_number the member supplied; preserve company_id when known. This generic navigation intent takes priority over greeting, morning-brief, open-item, and superintendent rules. Use page "items" or list_open_items for explicit open-items requests; use field_board or superintendent_view for explicit field board, super board, superintendent board, super plan, or crew-plan requests. Never present an Open items or Field board destination as the project home. ';
@@ -39,6 +39,9 @@ const ALIASES: Record<string, BoardLinkPage> = {
   briefing: "briefing",
   "morning briefing": "briefing",
   daily: "daily",
+  production: "production",
+  "production report": "production",
+  "production tracking": "production",
   photos: "photos",
   submittals: "submittals",
   submittal: "submittals",
@@ -93,10 +96,10 @@ export function jobLinksMissingToken(value: unknown): string[] {
     const href = match[0];
     try {
       const url = new URL(href);
-      // These records require an authenticated, full-scope session;
-      // a board token cannot grant ledger access. Its address is persistent.
+      // These pages enforce authenticated member/job scope in their own readers.
+      // A board token cannot grant access; their addresses are persistent.
       if (
-        /^\/r\/job\/[0-9a-f-]{36}\/(?:billing-records|purchase-orders|accounting)$/i.test(
+        /^\/r\/job\/[0-9a-f-]{36}\/(?:billing-records|purchase-orders|accounting|production)$/i.test(
           url.pathname,
         )
       )

@@ -1,3 +1,4 @@
+import { AccountingWorkspace } from "./AccountingWorkspace";
 import { apMoney } from "@/lib/accounting-ap-versioned";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -26,13 +27,13 @@ export function AccountingReportView({
 }) {
   const ledger = accountingPage(report, page);
   return (
-    <>
-      <p className="mt-3 text-sm">
+    <div className="af-report">
+      <p className="af-capture mt-3 text-sm">
         {report.ap ? "AR/budget/PO: USD; AP by currency" : "USD"} · {report.from ?? "Inception"}{" "}
         through {report.asOf}, inclusive · Captured {report.capturedAt}
       </p>
-      <p className="mt-3 text-sm">{report.basis}</p>
-      <div className="mt-5 flex flex-wrap gap-4 text-sm">
+      <p className="af-basis mt-3 text-sm">{report.basis}</p>
+      <div className="af-actions mt-5 flex flex-wrap gap-4 text-sm">
         <a className="underline" href={`/r/job/${report.jobId}/home`}>
           Project home
         </a>
@@ -44,7 +45,7 @@ export function AccountingReportView({
         </button>
       </div>
       <h2 className="mt-8 text-lg font-semibold">Recorded amounts</h2>
-      <div className="overflow-x-auto">
+      <div className="af-summary-table overflow-x-auto">
         <table className="mt-3 w-full text-left text-sm">
           <thead>
             <tr className="border-b">
@@ -274,7 +275,7 @@ export function AccountingReportView({
           Next
         </button>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -321,7 +322,12 @@ export function AccountingReportPage({
     element.querySelector("details")?.setAttribute("open", "");
     element.scrollIntoView({ block: "center" });
   }, [query.data, query.error, page]);
-  if (loading) return <main className="p-8">Checking access…</main>;
+  if (loading)
+    return (
+      <AccountingWorkspace jobId={jobId} title="Job accounting evidence">
+        <p role="status">Checking access…</p>
+      </AccountingWorkspace>
+    );
   if (!session)
     return (
       <BoardSignIn
@@ -339,13 +345,15 @@ export function AccountingReportPage({
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
   return (
-    <main className="mx-auto max-w-6xl bg-white px-5 py-8 text-[#1E3A5F]">
-      <h1 className="text-2xl font-semibold">Job accounting evidence</h1>
-      <p className="mt-2 text-sm">Project {jobId}</p>
+    <AccountingWorkspace
+      jobId={jobId}
+      title="Job accounting evidence"
+      description={<p className="af-project-id">Project {jobId}</p>}
+    >
       <form
         action={`/r/job/${jobId}/accounting`}
         method="get"
-        className="mt-5 flex flex-wrap items-end gap-4 text-sm"
+        className="af-filters flex flex-wrap items-end gap-4 text-sm"
       >
         <label>
           From (optional)
@@ -396,6 +404,6 @@ export function AccountingReportPage({
       ) : (
         <p className="mt-6">Report unavailable.</p>
       )}
-    </main>
+    </AccountingWorkspace>
   );
 }

@@ -53,6 +53,11 @@ describe("job board sign-in return", () => {
     expect(boardSignInReturn(`https://evil.example${billing}`)).toBeUndefined();
   });
 
+  it("retains production ranges and exact daily dates through sign-in", () => {
+    expect(boardSignInReturn(`/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29&utm_source=chatgpt`)).toBe(`/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29`);
+    expect(boardSignInReturn(`/r/job/${JOB}/daily?date=2026-10-28&t=old`)).toBe(`/r/job/${JOB}/daily?date=2026-10-28`);
+  });
+
   it("rejects open redirects and anything that is not this origin's job board", () => {
     const rejected = [
       "https://evil.example/r/job/" + JOB + "/items",

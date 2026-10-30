@@ -8,6 +8,25 @@ export const accountingDate = z
     const d = new Date(`${s}T00:00:00Z`);
     return Number.isFinite(d.valueOf()) && d.toISOString().slice(0, 10) === s;
   }, "Use a valid calendar date.");
+
+/** Expected input errors can be shown without disclosing arbitrary backend failures. */
+export class AccountingDateRangeError extends Error {
+  name = "AccountingDateRangeError";
+}
+export function validateAccountingDates(options: { from?: string; asOf: string }, today: string) {
+  if (!accountingDate.safeParse(options.asOf).success)
+    throw new AccountingDateRangeError("Enter a valid as-of date in YYYY-MM-DD format.");
+  if (options.from && !accountingDate.safeParse(options.from).success)
+    throw new AccountingDateRangeError("Enter a valid start date in YYYY-MM-DD format.");
+  if (options.asOf > today)
+    throw new AccountingDateRangeError(
+      "The as-of date cannot be after today. Choose today or an earlier date.",
+    );
+  if (options.from && options.from > options.asOf)
+    throw new AccountingDateRangeError(
+      "The start date must be on or before the as-of date. Choose an earlier start date or a later as-of date.",
+    );
+}
 const cents = z.number().int().nonnegative().max(9_000_000_000_000);
 const source = z.object({ job_id: z.string(), currency: z.literal("USD").optional() });
 const version = z
@@ -219,8 +238,7 @@ export function buildAccountingReport(
   const from = options.from ? accountingDate.parse(options.from) : null;
   const today = s.capturedAt.slice(0, 10);
   accountingDate.parse(today);
-  if (asOf > today || (from && from > asOf))
-    throw new Error("Choose dates through today, with start on or before as-of.");
+  validateAccountingDates(options, today);
   const billing = billingReportSchema.parse(s.billing);
   for (const row of [
     ...billing.invoices,
