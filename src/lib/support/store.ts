@@ -56,7 +56,20 @@ export type SupportTicketStore = {
     state: "ready" | "sent" | "busy" | "review";
     token: string | null;
     payload: Record<string, unknown>;
+    providerEmailId: string | null;
   }>;
+  rememberDelivery(
+    messageId: string,
+    kind: "ack" | "owner",
+    token: string,
+    providerEmailId: string,
+  ): Promise<void>;
+  completeDelivery(
+    messageId: string,
+    kind: "ack" | "owner",
+    token: string,
+    providerMessageId: string | null,
+  ): Promise<void>;
   finishDelivery(
     messageId: string,
     kind: "ack" | "owner",

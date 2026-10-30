@@ -254,22 +254,24 @@ describe("board link page without a session", () => {
     expect(html).not.toContain("have access to this page");
   });
 
-  it.each(["expired", "revoked", "wrong_job", "denied", "unknown"])("recovers a stale session and %s key through email-code sign-in", (status) => {
+  it.each(["expired", "revoked", "wrong_job", "denied", "unknown"])("keeps a signed-in member out of an OTP loop after a scoped denial and %s key", (status) => {
     state.session = { user: { id: "another-member" } };
     state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
     state.linkQuery = { data: { status, payload: null }, isLoading: false, error: null };
     vi.stubGlobal("window", { location: { pathname: `/r/job/${JOB}/items`, search: "?t=old-token&utm_source=chatgpt.com", hash: "#item-1" } });
     const html = renderPage("items", "old-token");
-    expect(html).toContain(BOARD_SIGN_IN_TITLE);
-    expect(html).toContain("Email me a sign-in code");
-    expect(signInReturn(html)).toBe(`/r/job/${JOB}/items#item-1`);
+    expect(html).toContain("This project is currently unavailable");
+    expect(html).toContain("Try again");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).not.toContain("Email me a sign-in code");
+    expect(signInReturn(html)).toBe("");
     expect(html).not.toContain("have access to this page");
     expect(html).not.toContain("Buy the switchgear");
   });
 
-  it("recovers a signed-in member without a key and without job access", () => {
+  it("reauthenticates a signed-in member only when the session is explicitly rejected", () => {
     state.session = { user: { id: "another-member" } };
-    state.pageQuery = { data: undefined, isLoading: false, error: new Error("expired session") };
+    state.pageQuery = { data: undefined, isLoading: false, error: Object.assign(new Error("expired session"), { status: 401 }) };
     const html = renderPage("field");
     expect(html).toContain(BOARD_SIGN_IN_TITLE);
     expect(signInReturn(html)).toBe(`/r/job/${JOB}/field`);
@@ -300,7 +302,8 @@ describe("board link page without a session", () => {
     state.pageQuery = { data: { payload: items }, isLoading: false, error: new Error("no access") };
     state.linkQuery = { data: { status: "revoked", payload: null }, isLoading: false, error: null };
     const html = renderPage("items", "revoked-token");
-    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).toContain("This project is currently unavailable");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
     expect(html).not.toContain("Buy the switchgear");
   });
 
@@ -318,7 +321,8 @@ describe("board link page without a session", () => {
     state.pageQuery = { data: undefined, isLoading: false, error: new Error("no access") };
     state.linkQuery = { data: { status: "ok", payload: JSON.stringify(items) }, isLoading: false, error: new Error("link check failed") };
     const html = renderPage("items", "live-token");
-    expect(html).toContain(BOARD_SIGN_IN_TITLE);
+    expect(html).toContain("This project is currently unavailable");
+    expect(html).not.toContain(BOARD_SIGN_IN_TITLE);
     expect(html).not.toContain("Buy the switchgear");
   });
   it.each(["visible", "hidden"])("refreshes token boards only when the tab is %s", (visibilityState) => {

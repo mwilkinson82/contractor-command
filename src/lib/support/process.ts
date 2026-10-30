@@ -1,4 +1,9 @@
-import { postResendEmail, sha256Hex, SupportDeliveryError } from "./resend-send.ts";
+import {
+  getDeliveredMessageId,
+  postResendEmail,
+  sha256Hex,
+  SupportDeliveryError,
+} from "./resend-send.ts";
 import type { SupportTicketStore } from "./store.ts";
 import { renderManualSupportReply, renderSupportAutoreply, escapeHtml } from "./template.ts";
 import { ownerCopy } from "./owner-copy.ts";
@@ -81,19 +86,30 @@ async function deliverStored(
     throw new SupportDeliveryError("Delivery in progress; retry", true);
   try {
     assertSupportFrom(String(claim.payload.from));
-    await postResendEmail(
-      opts.apiKey,
-      opts.fetchImpl,
-      claim.payload,
-      "support-" + kind + "/" + messageId,
-    );
+    let providerEmailId = claim.providerEmailId;
+    if (!providerEmailId) {
+      const sent = await postResendEmail(
+        opts.apiKey,
+        opts.fetchImpl,
+        claim.payload,
+        "support-" + kind + "/" + messageId,
+      );
+      providerEmailId = sent.id;
+      // Persist acceptance before metadata lookup. A later retry must GET this
+      // accepted email instead of issuing another POST after a lookup failure.
+      await opts.store.rememberDelivery(messageId, kind, claim.token, providerEmailId);
+    }
+    const deliveredId =
+      kind === "ack"
+        ? await getDeliveredMessageId(opts.apiKey, opts.fetchImpl, providerEmailId, claim.payload)
+        : null;
+    await opts.store.completeDelivery(messageId, kind, claim.token, deliveredId);
   } catch (err) {
     const retryable = !(err instanceof SupportDeliveryError) || err.retryable;
     await opts.store.finishDelivery(messageId, kind, claim.token, retryable ? "retry" : "review");
     if (!retryable) return "review" as const;
     throw new SupportDeliveryError("Support delivery pending retry", true);
   }
-  await opts.store.finishDelivery(messageId, kind, claim.token, "sent");
   return "sent" as const;
 }
 

@@ -18,7 +18,7 @@ export function retryableStatus(status: number): boolean {
   );
 }
 
-type SendResult = { id: string | null; duplicate: boolean };
+type SendResult = { id: string; duplicate: boolean };
 
 function errorName(body: unknown): string {
   if (!body || typeof body !== "object") return "";
@@ -70,7 +70,53 @@ export async function postResendEmail(
   }
   const id = parsed && typeof parsed === "object" ? (parsed as { id?: unknown }).id : null;
   if (typeof id !== "string" || !id) throw new SupportDeliveryError("Send outcome uncertain", true);
-  return { id: typeof id === "string" ? id : null, duplicate: false };
+  return { id, duplicate: false };
+}
+
+// Resend may replace a caller-supplied Message-ID. Only its authenticated sent
+// email response establishes the identity a recipient will actually reply to.
+export async function getDeliveredMessageId(
+  apiKey: string,
+  fetchImpl: typeof fetch,
+  emailId: string,
+  expected: Record<string, unknown>,
+): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetchImpl("https://api.resend.com/emails/" + encodeURIComponent(emailId), {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch {
+    throw new SupportDeliveryError("Sent email metadata unavailable", true);
+  }
+  if (!res.ok)
+    throw new SupportDeliveryError("Sent email metadata unavailable (" + res.status + ")", true);
+  let body: Record<string, unknown>;
+  try {
+    body = await res.json();
+  } catch {
+    throw new SupportDeliveryError("Sent email metadata unavailable", true);
+  }
+  const address = (value: unknown) => {
+    if (typeof value !== "string") return "";
+    return (value.match(/<([^<>]+)>/)?.[1] ?? value).trim().toLowerCase();
+  };
+  if (
+    !body ||
+    body.id !== emailId ||
+    address(body.from) !== address(expected.from) ||
+    !Array.isArray(body.to) ||
+    !Array.isArray(expected.to) ||
+    JSON.stringify(body.to.map(address)) !== JSON.stringify(expected.to.map(address)) ||
+    (Array.isArray(body.cc) && body.cc.length > 0) ||
+    (Array.isArray(body.bcc) && body.bcc.length > 0)
+  )
+    throw new SupportDeliveryError("Sent email identity mismatch requires review", false);
+  const messageId = body.message_id;
+  if (typeof messageId !== "string" || !/^<[^<>\s]{1,996}>$/.test(messageId))
+    throw new SupportDeliveryError("Sent email Message-ID not available yet", true);
+  return messageId;
 }
 
 export async function sha256Hex(value: string): Promise<string> {

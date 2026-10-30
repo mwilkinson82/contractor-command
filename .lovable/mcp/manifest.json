@@ -9837,8 +9837,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -9866,6 +9866,11 @@
               ]
             },
             "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "payment_id": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -11411,6 +11416,299 @@
               ]
             }
           },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_payment_correction",
+        "title": "Correct a recorded supplier payment",
+        "description": "Read, review and confirm a correction to existing recorded payment evidence with immutable history and reconciled payable balances; no funds move.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "read",
+                "review",
+                "save"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "payment_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "as_of": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "expected_state": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "replace",
+                "void"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "revised": {
+              "type": "object",
+              "properties": {
+                "amount_cents": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9000000000000
+                },
+                "paid_on": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "allocations": {
+                  "minItems": 1,
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "record_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "expected_version": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 999999999
+                      },
+                      "amount_cents": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9000000000000
+                      }
+                    },
+                    "required": [
+                      "record_id",
+                      "expected_version",
+                      "amount_cents"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "amount_cents",
+                "paid_on",
+                "reference",
+                "allocations"
+              ],
+              "additionalProperties": false
+            },
+            "payload": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_cost_original",
+        "title": "Attach or read a supplier bill original",
+        "description": "Accounting and owners upload a supplier original, review its exact bill version and fingerprint, then separately confirm the link. Reads verify stored bytes. No posting, PM approval or payment occurs; field receipts use their separate workflow.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "review",
+                "link",
+                "list",
+                "read"
+              ]
+            },
+            "record_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            },
+            "filename": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "upload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "original_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "record_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "upload_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "request_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "filename": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "size_bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10485760
+                }
+              },
+              "required": [
+                "record_id",
+                "version",
+                "upload_id",
+                "request_id",
+                "filename",
+                "sha256",
+                "size_bytes"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "action",
+            "record_id"
+          ],
           "additionalProperties": false
         },
         "outputSchema": null

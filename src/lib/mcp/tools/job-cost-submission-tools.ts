@@ -145,7 +145,7 @@ export const jobCostSubmissionRead = defineTool({
         return guide(
           {
             ...text(
-              `${job.job_number}: cost records and accounting evidence. Field receipts are retrieved separately.${data.posting_available ? "" : " Accounting posting is not available."}`,
+              `${job.job_number}: cost records and accounting evidence. AP and owners can list or attach supplier originals with job_cost_original for the exact bill version. Field receipts are retrieved separately.${data.posting_available ? "" : " Accounting posting is not available."}`,
             ),
             structuredContent: data as never,
           },
@@ -374,6 +374,7 @@ export const jobCostAccountingRecord = defineTool({
     step: z.enum(["review", "save"]),
     action: z.enum(["approve", "post", "payment"]).optional(),
     id: z.string().uuid().optional(),
+    payment_id: z.string().uuid().optional(),
     expected_version: z.number().int().positive().optional(),
     amount_cents: z.number().int().positive().max(9000000000000).optional(),
     paid_on: z
@@ -411,6 +412,10 @@ export const jobCostAccountingRecord = defineTool({
           );
         const job = await resolveJob(sb, args.job_number, args.company_id, "full");
         if (args.step === "review") {
+          if (args.payment_id || args.payload)
+            throw new ToolError(
+              "To correct an existing recorded payment, use job_cost_payment_correction with its existing payment identity. This review creates a new payment only.",
+            );
           const missing: string[] = [];
           if (!args.action) missing.push("action");
           if (!args.id) missing.push("cost record");

@@ -32,6 +32,7 @@ import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
 import { HUB_ACCOUNT_TITLE, pageTitle } from "@/lib/host-document";
 import { ProjectHomeLinks, type ProjectHomeJob } from "@/components/athena/ProjectHomeLinks";
 import { AthenaAccountLayout } from "@/components/account/athena-account-layout";
+import { OrganizationProfile } from "@/components/account/organization-profile";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
@@ -98,7 +99,12 @@ function ProjectHomes() {
 function AccountPage() {
   const { user, signOut } = useAuth();
   const isAdmin = useIsAdmin();
-  const { company, refetch: refetchCompany } = useCompany();
+  const {
+    company,
+    loading: companyLoading,
+    error: companyError,
+    refetch: refetchCompany,
+  } = useCompany();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [link, setLink] = useState<AosLink | null>(null);
   const [code, setCode] = useState("");
@@ -425,7 +431,11 @@ function AccountPage() {
       <AthenaAccountLayout
         name={profile?.full_name ?? null}
         email={profile?.email ?? user?.email ?? null}
-        companyName={athena.state?.companyName ?? company?.name ?? null}
+        companyName={athena.state?.companyName ?? null}
+        organization={{
+          name: company?.name ?? null,
+          status: companyLoading ? "loading" : companyError ? "error" : "ready",
+        }}
         plan={athena.loading ? "Loading plan…" : planLabel(tier)}
         seats={athena.loading ? "Loading seats…" : seatSummary(athena.state?.seats)}
         teamLoading={athena.loading}
@@ -437,7 +447,17 @@ function AccountPage() {
         }}
         profile={profileSection}
         billing={billingSection}
-        company={companySection}
+        company={
+          <OrganizationProfile
+            key={`${user?.id ?? "signed-out"}:${company?.id ?? "new"}`}
+            user={user ? { id: user.id, email: user.email } : null}
+            company={company}
+            loading={companyLoading}
+            error={companyError}
+            workspaceName={athena.state?.companyName ?? null}
+            refetch={refetchCompany}
+          />
+        }
         team={<TeamSection {...athena} />}
         projects={<ProjectHomes />}
         briefing={<MorningBriefPushBar />}

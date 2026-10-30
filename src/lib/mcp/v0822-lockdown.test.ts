@@ -171,17 +171,26 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
       f.endsWith(".ts"),
     );
-    let seen = 0;
+    const seen = new Set<string>();
     for (const f of files) {
       const s = src(`./tools/${f}`);
       for (const m of s.matchAll(
         /name: "([a-z_]+)",[\s\S]*?handler: \(args, ctx\) =>\s*\n?\s*run\(\s*"([a-z_]+)",\s*ctx/g,
       )) {
         expect(m[2], f).toBe(m[1]);
-        seen++;
+        expect(seen.has(m[1]), `duplicate guarded tool ${m[1]}`).toBe(false);
+        seen.add(m[1]);
       }
     }
-    expect(seen).toBe(88);
+    // Request tools share two guarded factories instead of literal tool names.
+    const requests = src("./tools/request-tools.ts");
+    expect(requests.match(/handler: \(args, ctx\) =>\s*run\(name, ctx/g)).toHaveLength(2);
+    for (const m of requests.matchAll(/export const \w+ = (logTool|recordTool)\("(rfi|rfc)"\);/g))
+      seen.add(`${m[2]}_${m[1] === "logTool" ? "log" : "record"}`);
+    const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8")) as {
+      mcp: { tools: { name: string }[] };
+    };
+    expect([...seen].sort()).toEqual(manifest.mcp.tools.map((tool) => tool.name).sort());
     expect(src("./index.ts").match(/import \{ billingEvidenceRead, billingEvidenceRecord \} from/g)).toHaveLength(1);
     expect(src("./index.ts")).toContain("tools: ATHENA_TOOLS.map(secureTool)");
     expect(src("./guard.ts")).toMatch(

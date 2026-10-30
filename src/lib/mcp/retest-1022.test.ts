@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { boardPageFor, jobLinksMissingToken, readBoardToken, signedJobUrl } from "./board-url";
+import { boardPageAllowed } from "./board-link";
 import { inferCard } from "./cards/infer";
 import { renderHtml } from "./cards/html";
 import { paletteViolations } from "./cards/palette";
@@ -179,16 +180,24 @@ describe("tool outputs do not emit a tokenless job link", () => {
     for (const file of files) {
       const hits = readFileSync(file, "utf8").match(/https:\/\/app\.meetathena\.io\/r\/job\/[^"'`\s)]+/g) ?? [];
       for (const hit of hits) {
-        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/billing-records$/.test(hit)) continue;
+        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/(billing-records|purchase-orders|accounting)(\?\$\{query\})?$/.test(hit)) continue;
         expect(hit, file).toMatch(/[?&]t=/);
       }
     }
   });
-  it("limits the tokenless exception to session-gated billing records", () => {
+  it("limits tokenless exceptions to session-gated financial pages that board keys cannot open", () => {
     const page = readFileSync("src/components/athena/BillingEvidencePage.tsx", "utf8");
     const sql = readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8");
     expect(page).toMatch(/if \(!session\) return <BoardSignIn/);
     expect(sql).toMatch(/mcp_billing_evidence_get[\s\S]*?mcp_job_scope\(_job\) IS DISTINCT FROM 'full'/);
+    for (const [route, component] of [
+      ["accounting", "AccountingReportPage"], ["purchase-orders", "PurchaseOrdersPage"],
+    ]) {
+      expect(readFileSync(`src/components/athena/${component}.tsx`, "utf8"))
+        .toMatch(/if \(!session\)\s*(?:return|\n\s*return)\s*(?:\(|<)\s*(?:<)?BoardSignIn/);
+      expect(boardPageAllowed(route, "full")).toBe(false);
+      expect(boardPageAllowed(route, "super")).toBe(false);
+    }
   });
 });
 

@@ -3,6 +3,7 @@ import { dbError, type Sb } from "./guard";
 import { sha256Hex } from "./file-share";
 import { reconcileBilling, type Scope, type Coverage, type Finding } from "./reconciliation";
 import { reconcileApSnapshot } from "./ap-reconciliation-snapshot";
+import { reconcileApOriginals } from "./ap-original-reconciliation";
 
 const envelope = z.object({
   snapshot_version: z.literal(1),
@@ -98,20 +99,22 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
   const source = `https://app.meetathena.io/r/job/${scope.job_id}/billing-records`;
   const billing = outcome?.coverage ?? unavailable(reason);
   const originals = outcome?.originals ?? unavailable(reason);
-  let apData: unknown = null;
-  try {
-    const apResult = await boundedSnapshot(sb, "mcp_cost_reconciliation_snapshot", scope.job_id);
-    if (!apResult.error) apData = apResult.data;
-  } catch {
-    /* Unavailable AP must not prevent an independent billing review. */
-  }
+  const [apResult, originalResult] = await Promise.all([
+    boundedSnapshot(sb, "mcp_cost_reconciliation_snapshot", scope.job_id).catch(() => null),
+    boundedSnapshot(sb, "mcp_ap_original_snapshot", scope.job_id).catch(() => null),
+  ]);
+  const apData: unknown = apResult && !apResult.error ? apResult.data : null;
   const ap = reconcileApSnapshot(apData, scope);
+  const apOriginalData: unknown =
+    originalResult && !originalResult.error ? originalResult.data : null;
+  const apOriginals = reconcileApOriginals(apOriginalData, scope);
   const findings: Array<Finding & { source_tool: string }> = (outcome?.findings ?? []).map((f) => ({
     ...f,
     source_url: source,
     source_tool: "billing_evidence_read",
   }));
   findings.push(...ap.findings.map((f) => ({ ...f, source_tool: "job_cost_submissions_read" })));
+  findings.push(...apOriginals.findings.map((f) => ({ ...f, source_tool: "job_cost_original" })));
   return {
     observed_at: observed,
     evidence_key: valid ? await sha256Hex(new TextEncoder().encode(JSON.stringify(data))) : null,
@@ -127,6 +130,10 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
     ap_unknown_currency_records: ap.unknown_currency_records,
     ap_unknown_effective_dates: ap.unknown_effective_dates,
     ap_settlement_unchecked_records: ap.settlement_unchecked_records,
+    ap_supplier_original_evidence_key:
+      apOriginals.coverage.state === "checked"
+        ? await sha256Hex(new TextEncoder().encode(JSON.stringify(apOriginalData)))
+        : null,
     coverage: {
       billing,
       originals,
@@ -169,7 +176,10 @@ export async function readReconciliation(sb: Sb, scope: Scope) {
           : unavailable(
               "Some whole-record settlement comparisons are withheld because currency, timing, shared evidence or AP coverage is unknown.",
             ),
-      ap_originals: unavailable("AP original evidence coverage is unavailable."),
+      ap_originals: unavailable(
+        "Complete AP original coverage is unavailable. Supplier-bill associations are checked separately; field receipts and outside records remain unverified.",
+      ),
+      ap_supplier_originals: apOriginals.coverage,
       ap_job_settlement: unavailable("Recorded settlement is not allocated by job."),
       ap_shared_payment: unavailable("Shared-payment header conservation is unavailable."),
       ap_external_accounting: unavailable("The AP snapshot covers Athena cost records only."),
