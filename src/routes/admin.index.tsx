@@ -152,7 +152,7 @@ function AdminDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/admin/support" search={{ ticket: undefined }} className="rounded-md border border-border bg-card px-3 py-1.5 text-[12px] hover:bg-muted">Support</Link>
+          <Link to="/admin/support" search={{ticket:undefined}} className="rounded-md border px-3 py-1.5 text-sm">Support tickets</Link>
           <Link
             to="/admin/email-approvals"
             className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"
