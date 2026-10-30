@@ -7694,6 +7694,112 @@ export type Database = {
         }
         Relationships: []
       }
+      support_deliveries: {
+        Row: {
+          attempts: number
+          first_attempt_at: string | null
+          kind: string
+          lease_until: string | null
+          message_id: string
+          payload: Json
+          state: string
+          token: string | null
+        }
+        Insert: {
+          attempts?: number
+          first_attempt_at?: string | null
+          kind: string
+          lease_until?: string | null
+          message_id: string
+          payload: Json
+          state?: string
+          token?: string | null
+        }
+        Update: {
+          attempts?: number
+          first_attempt_at?: string | null
+          kind?: string
+          lease_until?: string | null
+          message_id?: string
+          payload?: Json
+          state?: string
+          token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_deliveries_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "support_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          ack_sent_at: string | null
+          brand: string
+          evidence: Json
+          from_email: string
+          id: string
+          legacy_import: boolean
+          message_id: string | null
+          owner_sent_at: string | null
+          preview: boolean
+          receipt_message_id: string
+          received_at: string
+          resend_email_id: string
+          review_reason: string | null
+          sender_verified: boolean
+          suppressed_reason: string | null
+          ticket_id: string
+        }
+        Insert: {
+          ack_sent_at?: string | null
+          brand: string
+          evidence: Json
+          from_email: string
+          id?: string
+          legacy_import?: boolean
+          message_id?: string | null
+          owner_sent_at?: string | null
+          preview?: boolean
+          receipt_message_id: string
+          received_at: string
+          resend_email_id: string
+          review_reason?: string | null
+          sender_verified?: boolean
+          suppressed_reason?: string | null
+          ticket_id: string
+        }
+        Update: {
+          ack_sent_at?: string | null
+          brand?: string
+          evidence?: Json
+          from_email?: string
+          id?: string
+          legacy_import?: boolean
+          message_id?: string | null
+          owner_sent_at?: string | null
+          preview?: boolean
+          receipt_message_id?: string
+          received_at?: string
+          resend_email_id?: string
+          review_reason?: string | null
+          sender_verified?: boolean
+          suppressed_reason?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_ticket_counters: {
         Row: {
           brand: string
@@ -8095,6 +8201,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_support_delivery: {
+        Args: { _kind: string; _message_id: string; _payload: Json }
+        Returns: Json
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -8120,6 +8230,15 @@ export type Database = {
       }
       finish_stripe_webhook_event: {
         Args: { _event_id: string; _last_error?: string; _status: string }
+        Returns: undefined
+      }
+      finish_support_delivery: {
+        Args: {
+          _kind: string
+          _message_id: string
+          _result: string
+          _token: string
+        }
         Returns: undefined
       }
       get_circle_entitlement: {
@@ -9345,6 +9464,24 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_support_message: {
+        Args: {
+          _brand: string
+          _evidence: Json
+          _from_email: string
+          _message_id: string
+          _preview: boolean
+          _raw_summary: string
+          _received_at: string
+          _references: string[]
+          _resend_email_id: string
+          _review_reason: string
+          _sender_verified: boolean
+          _subject: string
+          _suppressed_reason: string
+        }
+        Returns: Json
       }
       replace_schedule_graph: {
         Args: { _dependencies: Json; _schedule_id: string; _tasks: Json }
