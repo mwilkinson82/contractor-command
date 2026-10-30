@@ -1,0 +1,355 @@
+.dr-workspace {
+  min-height: 100vh;
+  background: #f5f8fc;
+  color: #18314f;
+  padding: 28px clamp(16px, 3vw, 40px) 60px;
+  font:
+    14px/1.6 "Archivo",
+    Arial,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.dr-workspace * {
+  box-sizing: border-box;
+}
+.dr-workspace a {
+  color: #2465cb;
+  text-underline-offset: 3px;
+}
+.dr-top,
+.dr-heading {
+  max-width: 1280px;
+  margin: 0 auto 26px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.dr-top span,
+.dr-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  color: #657e9d;
+  letter-spacing: 0.06em;
+}
+.dr-workspace h1 {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0;
+}
+.dr-heading p {
+  color: #65788e;
+  margin-top: 6px;
+}
+.dr-workspace h2 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.dr-workspace h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.dr-workspace button,
+.dr-workspace .dr-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #bbcee7;
+  border-radius: 6px;
+  background: white;
+  color: #2465cb;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+.dr-workspace .dr-button {
+  display: inline-block;
+  background: #2465cb;
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+}
+.dr-workspace button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dr-workspace :is(button, a, input, textarea):focus-visible {
+  outline: 3px solid #659ff4;
+  outline-offset: 3px;
+}
+.dr-layout {
+  max-width: 1280px;
+  margin: auto;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  background: white;
+  border: 1px solid #d7e2ef;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.dr-index {
+  background: #edf3fa;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+}
+.dr-index h2 {
+  font-size: 17px;
+}
+.dr-index p {
+  font-size: 12px;
+  color: #65788e;
+}
+.dr-index form {
+  display: grid;
+  gap: 10px;
+}
+.dr-index nav {
+  display: grid;
+  max-height: 60vh;
+  overflow: auto;
+  gap: 6px;
+}
+.dr-index nav a {
+  display: block;
+  padding: 12px;
+  background: white;
+  border: 1px solid #d7e2ef;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.dr-index nav a[aria-current] {
+  background: #dbe9ff;
+  border-color: #7fa9e5;
+  font-weight: 700;
+}
+.dr-document {
+  min-width: 0;
+  padding: 28px;
+}
+.dr-document header h2 {
+  margin: 8px 0 14px;
+}
+.dr-date-nav {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.dr-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 22px 0;
+  border-bottom: 1px solid #d7e2ef;
+}
+.dr-tabs button {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+}
+.dr-tabs button[aria-current] {
+  border-color: #2465cb;
+  font-weight: 700;
+}
+.dr-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.dr-sections section,
+.dr-evidence {
+  border: 1px solid #d7e2ef;
+  border-radius: 8px;
+  padding: 18px;
+  white-space: pre-wrap;
+}
+.dr-sections .dr-wide {
+  grid-column: 1/-1;
+}
+.dr-work-row + .dr-work-row {
+  margin-top: 18px;
+  border-top: 1px solid #d7e2ef;
+  padding-top: 18px;
+}
+.dr-work-row dl {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.dr-work-row dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #65788e;
+}
+.dr-work-row dd {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.dr-empty {
+  margin-top: 24px;
+  padding: 22px;
+  background: #e9f1fc;
+  border-radius: 8px;
+}
+.dr-empty p,
+.dr-evidence p + p {
+  margin-top: 12px;
+}
+.dr-empty .dr-button {
+  margin-top: 18px;
+}
+.dr-workspace label {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #53677d;
+}
+.dr-workspace input,
+.dr-workspace textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid #bbcee7;
+  border-radius: 6px;
+  background: white;
+  color: #18314f;
+  font:
+    14px/1.5 "Archivo",
+    Arial,
+    sans-serif;
+}
+.dr-capture {
+  max-width: 760px;
+  margin: auto;
+  padding: 26px;
+  border: 1px solid #d7e2ef;
+  border-radius: 12px;
+  background: white;
+}
+.dr-capture header {
+  margin-bottom: 24px;
+}
+.dr-capture header p {
+  color: #65788e;
+  margin: 8px 0;
+}
+.dr-capture > fieldset {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.dr-capture > fieldset:disabled {
+  opacity: 0.85;
+}
+.dr-work-entry {
+  border: 1px solid #d7e2ef;
+  padding: 16px;
+  border-radius: 8px;
+  min-width: 0;
+}
+.dr-work-entry legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.dr-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.dr-confirm {
+  margin: 24px 0;
+  padding: 18px;
+  background: #e9f1fc;
+  border-radius: 8px;
+}
+.dr-confirm label {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 18px;
+}
+.dr-confirm input {
+  width: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+}
+.dr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+.dr-capture [role="alert"] {
+  padding: 16px;
+  color: #982d40;
+  background: #fff3f5;
+  margin: 18px 0;
+  border-radius: 6px;
+}
+.dr-capture > p:last-child {
+  margin-top: 20px;
+  color: #65788e;
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .dr-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dr-index nav {
+    display: flex;
+    flex-wrap: wrap;
+    max-height: 160px;
+  }
+  .dr-index form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+  }
+  .dr-index form label {
+    flex: 1;
+  }
+  .dr-index {
+    padding: 16px;
+  }
+}
+@media (max-width: 540px) {
+  .dr-workspace {
+    padding: 20px 12px 40px;
+  }
+  .dr-document,
+  .dr-capture {
+    padding: 18px;
+  }
+  .dr-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dr-entry-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dr-workspace h1 {
+    font-size: 26px;
+  }
+  .dr-actions {
+    flex-direction: column;
+  }
+}
+.dr-top nav {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.dr-work-facts {
+  color: #65788e;
+  font-size: 12px;
+  margin-top: 8px;
+}

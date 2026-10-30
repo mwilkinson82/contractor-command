@@ -1,3 +1,5 @@
+import { REPORT_TYPES, type ReportType } from "@/lib/accounting-readable";
+import { AccountingReports } from "./AccountingReports";
 import { AccountingWorkspace } from "./AccountingWorkspace";
 import { apMoney } from "@/lib/accounting-ap-versioned";
 import { useEffect, useState } from "react";
@@ -284,13 +286,39 @@ export function AccountingReportPage({
   initialFrom,
   initialAsOf,
   initialPage,
+  initialReportType,
+  initialCurrency,
+  initialVendor,
+  initialCostCode,
 }: {
   jobId: string;
   initialFrom?: string;
   initialAsOf?: string;
   initialPage?: string;
+  initialReportType?: string;
+  initialCurrency?: string;
+  initialVendor?: string;
+  initialCostCode?: string;
 }) {
   const { session, loading } = useAuth();
+  const project = useQuery({
+    queryKey: ["accounting-project-label", jobId, session?.user.id],
+    enabled: !loading && !!session,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mcp_jobs")
+        .select("job_number,name")
+        .eq("id", jobId)
+        .maybeSingle();
+      if (error) throw new Error("Project name unavailable.");
+      return data;
+    },
+  });
+  const identity =
+    !project.error && project.data
+      ? `${project.data.job_number} · ${project.data.name || "Project name not recorded"}`
+      : `Project ${jobId} · name unavailable`;
   const today = new Date().toISOString().slice(0, 10);
   const dates = { from: initialFrom ?? "", asOf: initialAsOf ?? today };
   const [page, setPage] = useState(
@@ -331,7 +359,7 @@ export function AccountingReportPage({
   if (!session)
     return (
       <BoardSignIn
-        returnTo={`/r/job/${jobId}/accounting?${new URLSearchParams({ as_of: dates.asOf, ...(dates.from ? { from: dates.from } : {}), ledger_page: String(page) })}`}
+        returnTo={`/r/job/${jobId}/accounting?${new URLSearchParams({ as_of: dates.asOf, ...(dates.from ? { from: dates.from } : {}), ...(initialPage ? { ledger_page: String(page) } : {}), ...(initialReportType ? { report_type: initialReportType } : {}), ...(initialCurrency ? { currency: initialCurrency } : {}), ...(initialVendor ? { vendor: initialVendor } : {}), ...(initialCostCode ? { cost_code: initialCostCode } : {}) })}`}
       />
     );
   function download() {
@@ -347,10 +375,11 @@ export function AccountingReportPage({
   return (
     <AccountingWorkspace
       jobId={jobId}
-      title="Job accounting evidence"
-      description={<p className="af-project-id">Project {jobId}</p>}
+      title="Project financial reports"
+      description={<p className="af-project-id">{identity}</p>}
     >
       <form
+        id="accounting-dates"
         action={`/r/job/${jobId}/accounting`}
         method="get"
         className="af-filters flex flex-wrap items-end gap-4 text-sm"
@@ -395,11 +424,30 @@ export function AccountingReportPage({
           {query.error.message}
         </p>
       ) : query.data ? (
-        <AccountingReportView
+        <AccountingReports
+          key={`${jobId}:${dates.from}:${dates.asOf}`}
           report={query.data}
-          page={page}
-          setPage={setPage}
-          download={download}
+          identity={identity}
+          initialType={
+            initialPage || (typeof window !== "undefined" && window.location.hash)
+              ? "evidence"
+              : initialReportType && Object.hasOwn(REPORT_TYPES, initialReportType)
+                ? (initialReportType as ReportType)
+                : "summary"
+          }
+          initialFilters={{
+            currency: initialCurrency || "USD",
+            vendor: initialVendor || "",
+            costCode: initialCostCode || "",
+          }}
+          evidence={
+            <AccountingReportView
+              report={query.data}
+              page={page}
+              setPage={setPage}
+              download={download}
+            />
+          }
         />
       ) : (
         <p className="mt-6">Report unavailable.</p>

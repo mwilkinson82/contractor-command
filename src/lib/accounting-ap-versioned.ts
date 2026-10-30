@@ -80,6 +80,8 @@ export type ApCostRow = {
   amountCents: string | null;
   inPeriod: boolean | null;
   source: string;
+  counterparty?: string;
+  reference?: string | null;
 };
 export type ApCurrencyGroup = {
   currency: string | null;
@@ -162,6 +164,8 @@ export function buildVersionedApReport(
           rows.push({
             id: `ap:${r.id}:${v.version}:${i}`,
             recordId: r.id,
+            counterparty: v.counterparty_name,
+            reference: v.document_reference,
             version: v.version,
             currency,
             costCode: a.cost_code,

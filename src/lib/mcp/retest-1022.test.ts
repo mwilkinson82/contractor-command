@@ -180,7 +180,7 @@ describe("tool outputs do not emit a tokenless job link", () => {
     for (const file of files) {
       const hits = readFileSync(file, "utf8").match(/https:\/\/app\.meetathena\.io\/r\/job\/[^"'`\s)]+/g) ?? [];
       for (const hit of hits) {
-        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/(billing-records|purchase-orders|accounting)(\?\$\{query\})?$/.test(hit)) continue;
+        if (/^https:\/\/app\.meetathena\.io\/r\/job\/\$\{[a-zA-Z0-9._]+\}\/(billing-records|purchase-orders|accounting|buyout)(\?\$\{query\})?$/.test(hit)) continue;
         expect(hit, file).toMatch(/[?&]t=/);
       }
     }
@@ -191,7 +191,7 @@ describe("tool outputs do not emit a tokenless job link", () => {
     expect(page).toMatch(/if \(!session\) return <BoardSignIn/);
     expect(sql).toMatch(/mcp_billing_evidence_get[\s\S]*?mcp_job_scope\(_job\) IS DISTINCT FROM 'full'/);
     for (const [route, component] of [
-      ["accounting", "AccountingReportPage"], ["purchase-orders", "PurchaseOrdersPage"],
+      ["accounting", "AccountingReportPage"], ["purchase-orders", "PurchaseOrdersPage"], ["buyout", "PurchaseOrdersPage"],
     ]) {
       expect(readFileSync(`src/components/athena/${component}.tsx`, "utf8"))
         .toMatch(/if \(!session\)\s*(?:return|\n\s*return)\s*(?:\(|<)\s*(?:<)?BoardSignIn/);
