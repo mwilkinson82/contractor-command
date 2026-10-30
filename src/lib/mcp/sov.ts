@@ -328,7 +328,7 @@ export function sovSummaryText(prefix: string, sov: Sov, brand: SovBrand, basis:
       : [
           // 0.8.3: the cost code is its own column in the visible text (0.8.2 only carried it in structuredContent, so hosts never showed it).
           "Line | Cost code | Division | Description | Scheduled value | % of total",
-          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.cost_code ?? ""} | ${[r.division, r.division_title].filter(Boolean).join(" ")}: ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
+          ...sovLineRows(sov).map((r) => `${r.item_no} | ${r.cost_code ?? ""} | ${[r.division, r.division_title].filter(Boolean).join(" ")} | ${r.description} | ${money(r.scheduled_value)} | ${r.pct_of_total.toFixed(2)}%`),
           ...(s.fee > 0 ? [`CF | | | Contractor's fee | ${money(s.fee)} | ${s.fee_pct.toFixed(2)}%`] : []),
           `Total | | | ${totalName} | ${money(s.contract_total)} | 100.00%`,
         ];
