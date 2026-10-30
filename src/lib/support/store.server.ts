@@ -76,7 +76,7 @@ async function updateTicket(id: string, values: Record<string, unknown>): Promis
 
 export const supabaseSupportStore: SupportTicketStore = {
   async open(input: OpenTicketInput): Promise<OpenedSupportTicket> {
-    const { data, error } = await client().rpc("record_support_message", {
+    const { data, error } = await client().rpc("open_support_ticket", {
       _resend_email_id: input.resendEmailId,
       _brand: input.brand,
       _from_email: input.fromEmail,
@@ -84,25 +84,11 @@ export const supabaseSupportStore: SupportTicketStore = {
       _message_id: input.messageId,
       _received_at: input.receivedAt,
       _raw_summary: input.rawSummary,
-      _evidence: input.evidence ?? {},
-      _references: input.references ?? [],
-      _review_reason: input.reviewReason ?? null,
-      _preview: input.preview ?? true,
-      _sender_verified: input.senderVerified === true,
-      _suppressed_reason: input.suppressedReason ?? null,
     });
-    if (error) throw new Error("Unable to record support message");
+    if (error) throw new Error(error.message);
     const row = firstRow(data);
     if (!row) throw new Error("open_support_ticket returned no row");
-    return {
-      ...asTicket(row),
-      inserted: row.inserted === true,
-      messageRecordId: String(row.message_record_id),
-      receiptMessageId: String(row.receipt_message_id),
-      reviewReason: asNullable(row.review_reason),
-      ackPreview: row.ack_preview !== false,
-      legacyImport: row.legacy_import === true,
-    };
+    return { ...asTicket(row), inserted: row.inserted === true };
   },
   async markAutoreplySent(id: string, at: string) {
     await updateTicket(id, { autoreply_sent_at: at });
@@ -125,30 +111,5 @@ export const supabaseSupportStore: SupportTicketStore = {
   },
   async markReplied(id: string) {
     await updateTicket(id, { status: "replied" });
-  },
-  async claimDelivery(messageId, kind, payload) {
-    const { data, error } = await client().rpc("claim_support_delivery", {
-      _message_id: messageId,
-      _kind: kind,
-      _payload: payload,
-    });
-    if (error) throw new Error("Unable to claim support delivery");
-    const row = firstRow(data);
-    if (!row || !["ready", "sent", "busy", "review"].includes(String(row.state)))
-      throw new Error("Invalid delivery claim");
-    return {
-      state: row.state as "ready" | "sent" | "busy" | "review",
-      token: asNullable(row.token),
-      payload: row.payload as Record<string, unknown>,
-    };
-  },
-  async finishDelivery(messageId, kind, token, result) {
-    const { error } = await client().rpc("finish_support_delivery", {
-      _message_id: messageId,
-      _kind: kind,
-      _token: token,
-      _result: result,
-    });
-    if (error) throw new Error("Unable to record support delivery outcome");
   },
 };

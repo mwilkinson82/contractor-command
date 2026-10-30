@@ -115,8 +115,8 @@ export function inboxByBrand(brand: string): SupportInbox | null {
 }
 
 /** Default false. Only the exact values "true" and "1" turn customer delivery on. */
-export function isSupportAutoreplyLive(env: NodeJS.ProcessEnv, brand: SupportBrand): boolean {
-  const raw = env[brand === "athena" ? "ATHENA_SUPPORT_ACK_LIVE" : "CIRCLE_SUPPORT_ACK_LIVE"];
+export function isSupportAutoreplyLive(env: NodeJS.ProcessEnv): boolean {
+  const raw = env.SUPPORT_AUTOREPLY_LIVE;
   if (typeof raw !== "string") return false;
   const value = raw.trim().toLowerCase();
   return value === "true" || value === "1";
@@ -125,9 +125,8 @@ export function isSupportAutoreplyLive(env: NodeJS.ProcessEnv, brand: SupportBra
 export function customerReplyTo(
   fromEmail: string,
   env: NodeJS.ProcessEnv,
-  brand: SupportBrand,
 ): { to: string; preview: boolean } {
-  if (isSupportAutoreplyLive(env, brand)) return { to: fromEmail, preview: false };
+  if (isSupportAutoreplyLive(env)) return { to: fromEmail, preview: false };
   return { to: SUPPORT_PREVIEW_TO, preview: true };
 }
 
@@ -142,8 +141,6 @@ export function assertSupportFrom(from: string): void {
 }
 
 export type InboundMail = {
-  // Set only by the authenticated Resend Receiving API, never by email headers.
-  authentication?: { spf?: string; dkim?: string; dmarc?: string } | null;
   from: string;
   to?: string[] | null;
   cc?: string[] | null;
@@ -155,28 +152,16 @@ export type InboundMail = {
   headers?: Record<string, unknown> | null;
   message_id?: string | null;
   created_at?: string | null;
-  attachments?: Array<{
-    id: string;
-    filename?: string | null;
-    size?: number | null;
-    content_type?: string | null;
-  }> | null;
 };
 
 export type InboundDisposition =
-  | { action: "ignore"; reason: "own_support" | "mailer_daemon" | "invalid_from" }
-  | {
-      action: "record_only";
-      reason: "auto_submitted" | "precedence_bulk" | "unverified_loop_header";
-    }
+  | { action: "ignore"; reason: "own_mail" | "own_support" | "mailer_daemon" | "invalid_from" }
+  | { action: "record_only"; reason: "auto_submitted" | "precedence_bulk" }
   | { action: "reply" };
 
 export function inboundDisposition(mail: InboundMail): InboundDisposition {
-  if (
-    headerValue(mail.headers, "x-alp-support-mail") ||
-    headerValue(mail.headers, "x-alp-inbox-relay")
-  ) {
-    return { action: "record_only", reason: "unverified_loop_header" };
+  if (headerValue(mail.headers, "x-alp-support-mail")) {
+    return { action: "ignore", reason: "own_mail" };
   }
   const from = bareAddress(mail.from ?? "");
   if (SUPPORT_ADDRESS_INDEX[from]) return { action: "ignore", reason: "own_support" };
@@ -231,7 +216,7 @@ export function autoreplySubject(
 
 export function notifySubject(original: string | null | undefined, ticketNumber: string): string {
   const base = oneLine(original ?? "") || "(no subject)";
-  const prefix = `[${ticketNumber}] Support message: `;
+  const prefix = `[${ticketNumber}] New support ticket: `;
   const room = Math.max(0, 180 - prefix.length);
   const clipped = base.length > room ? base.slice(0, room).trimEnd() : base;
   return `${prefix}${clipped}`;

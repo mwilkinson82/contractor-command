@@ -430,7 +430,7 @@ function AccountPage() {
         seats={athena.loading ? "Loading seats…" : seatSummary(athena.state?.seats)}
         teamLoading={athena.loading}
         teamError={!athena.loading && athena.state === null}
-        canViewSupport={isAdmin === true}
+        canViewSupport={false}
         onSignOut={async () => {
           const { error } = await signOut();
           if (error) throw error;
