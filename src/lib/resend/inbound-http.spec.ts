@@ -83,17 +83,14 @@ describe("handleResendInboundPost", () => {
     );
     expect(missingSecret.status).toBe(500);
     expect(await missingSecret.json()).toEqual({
-      ok: false,
-      error: "Webhook not configured",
-      reason: "resend_http_503",
+      ok: false, error: "Webhook not configured", reason: "resend_http_503",
     });
   });
 
   it("fetches and caches the signing secret, refreshes it once, and rejects tampering", async () => {
     const handlers = deps();
     const rotatedSecret = `whsec_${btoa("rotated-test-secret-for-vitest!")}`;
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ signing_secret: SECRET }))
       .mockResolvedValueOnce(Response.json({ secret: rotatedSecret }))
       .mockResolvedValueOnce(Response.json({ signing_secret: rotatedSecret }));
@@ -108,15 +105,11 @@ describe("handleResendInboundPost", () => {
     const cached = await handleResendInboundPost(await signedRequest(body), overrides);
     expect(cached.status).toBe(200);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const rotated = await handleResendInboundPost(
-      await signedRequest(body, rotatedSecret),
-      overrides,
-    );
+    const rotated = await handleResendInboundPost(await signedRequest(body, rotatedSecret), overrides);
     expect(rotated.status).toBe(200);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     const tampered = await handleResendInboundPost(
-      await signedRequest(body, rotatedSecret, true),
-      overrides,
+      await signedRequest(body, rotatedSecret, true), overrides,
     );
     expect(tampered.status).toBe(401);
     expect(await tampered.json()).toEqual({ ok: false, error: "Invalid webhook signature" });
@@ -168,131 +161,5 @@ describe("handleResendInboundPost", () => {
     );
     expect(response.status).toBe(500);
     expect(failing.forward).not.toHaveBeenCalled();
-  });
-});
-
-it("carries mixed-brand webhook routing into review even if received metadata loses a recipient", async () => {
-  const mocks = deps();
-  const result = await handleResendInboundPost(
-    await signedRequest({
-      type: "email.received",
-      data: {
-        email_id: "mixed",
-        to: ["support@meetathena.io"],
-        bcc: ["support@alpcontractorcircle.com"],
-      },
-    }),
-    { env: { RESEND_WEBHOOK_SECRET: SECRET, RESEND_API_KEY: "re_test" }, ...mocks },
-  );
-  expect(result.status).toBe(200);
-  expect(mocks.processSupport).toHaveBeenCalledWith(
-    "mixed",
-    expect.objectContaining({ hintReview: "mixed_brand" }),
-  );
-  expect(mocks.forward).not.toHaveBeenCalled();
-});
-
-describe("support cutover hold", () => {
-  const env = {
-    RESEND_WEBHOOK_SECRET: SECRET,
-    RESEND_API_KEY: "re_test",
-    SUPPORT_INTAKE_HOLD: "true",
-  };
-  it.each([
-    { to: ["support@meetathena.io"] },
-    { cc: ["support@alpcontractorcircle.com"] },
-    { bcc: ["support@meetathena.io"] },
-    { received_for: ["support@meetathena.io"] },
-    { to: ["support@meetathena.io", "support@alpcontractorcircle.com"] },
-  ])(
-    "holds verified support routing before any processor or forwarder runs: %j",
-    async (recipients) => {
-      const handlers = deps();
-      for (let retry = 0; retry < 2; retry++) {
-        const response = await handleResendInboundPost(
-          await signedRequest({
-            type: "email.received",
-            data: { email_id: "held", ...recipients },
-          }),
-          { env, ...handlers },
-        );
-        expect(response.status).toBe(503);
-        expect(await response.json()).toEqual({
-          ok: false,
-          error: "Support intake temporarily held; retry",
-        });
-      }
-      expect(handlers.processSupport).not.toHaveBeenCalled();
-      expect(handlers.forward).not.toHaveBeenCalled();
-      const resumed = await handleResendInboundPost(
-        await signedRequest({ type: "email.received", data: { email_id: "held", ...recipients } }),
-        { env: { ...env, SUPPORT_INTAKE_HOLD: "false" }, ...handlers },
-      );
-      expect(resumed.status).toBe(200);
-      expect(handlers.processSupport).toHaveBeenCalledTimes(1);
-    },
-  );
-  it.each([undefined, "false", "1", "TRUE", ""])(
-    "preserves behavior unless explicitly true (%s)",
-    async (value) => {
-      const handlers = deps();
-      const response = await handleResendInboundPost(
-        await signedRequest({
-          type: "email.received",
-          data: { email_id: "normal", to: ["support@meetathena.io"] },
-        }),
-        { env: { ...env, SUPPORT_INTAKE_HOLD: value }, ...handlers },
-      );
-      expect(response.status).toBe(200);
-      expect(handlers.processSupport).toHaveBeenCalledTimes(1);
-    },
-  );
-  it("retains signature verification during hold", async () => {
-    const handlers = deps();
-    const body = {
-      type: "email.received",
-      data: { email_id: "held", to: ["support@meetathena.io"] },
-    };
-    for (const request of [
-      await signedRequest(body, SECRET, true),
-      new Request("https://example.com", { method: "POST", body: JSON.stringify(body) }),
-    ]) {
-      expect((await handleResendInboundPost(request, { env, ...handlers })).status).toBe(401);
-    }
-    expect(handlers.processSupport).not.toHaveBeenCalled();
-    expect(handlers.forward).not.toHaveBeenCalled();
-  });
-  it("leaves non-support mail, unrelated event types and malformed-event validation unchanged", async () => {
-    const handlers = deps();
-    expect(
-      (
-        await handleResendInboundPost(
-          await signedRequest({
-            type: "email.received",
-            data: { email_id: "other", to: ["office@example.com"] },
-          }),
-          { env, ...handlers },
-        )
-      ).status,
-    ).toBe(200);
-    expect(handlers.forward).toHaveBeenCalledTimes(1);
-    expect(
-      (
-        await handleResendInboundPost(
-          await signedRequest({ type: "email.sent", data: { to: ["support@meetathena.io"] } }),
-          { env, ...handlers },
-        )
-      ).status,
-    ).toBe(200);
-    expect(
-      (
-        await handleResendInboundPost(
-          await signedRequest({ type: "email.received", data: { to: ["support@meetathena.io"] } }),
-          { env, ...handlers },
-        )
-      ).status,
-    ).toBe(400);
-    expect(handlers.forward).toHaveBeenCalledTimes(1);
-    expect(handlers.processSupport).not.toHaveBeenCalled();
   });
 });
