@@ -3961,7 +3961,7 @@
       {
         "name": "report_page_link",
         "title": "Project home or report link",
-        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
+        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -3969,8 +3969,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "page": {
               "default": "home",
@@ -3987,6 +3987,21 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "from_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "to_date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "range": {
+              "type": "string",
+              "enum": [
+                "last_7_days",
+                "this_week"
+              ]
             }
           },
           "additionalProperties": false

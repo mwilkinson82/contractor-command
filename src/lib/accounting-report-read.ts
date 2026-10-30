@@ -1,7 +1,7 @@
 import { attachVersionedAp, buildVersionedApReport } from "./accounting-ap-versioned";
 import { apReportingCapability } from "./accounting-ap-snapshot";
 import {
-  accountingDate,
+  validateAccountingDates,
   billingReportSchema,
   buildAccountingReport,
   poReportSchema,
@@ -74,10 +74,7 @@ export async function readAccountingReport(
   now = new Date(),
 ) {
   const capturedAt = now.toISOString();
-  accountingDate.parse(options.asOf);
-  if (options.from) accountingDate.parse(options.from);
-  if (options.asOf > capturedAt.slice(0, 10) || (options.from && options.from > options.asOf))
-    throw new Error("Choose dates through today, with start on or before as-of.");
+  validateAccountingDates(options, capturedAt.slice(0, 10));
   const billing = await io.rpc("mcp_billing_evidence_get", { _job: jobId });
   if (billing.error)
     throw new Error(

@@ -4,7 +4,8 @@ import { fieldPayAppCardModel, presentPayApp } from "../pay-app-card";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { DEFAULT_TZ, todayIn } from "../deadlines";
-import { productionPeriod, summarizeProduction, type DailyProductionRow } from "../production-summary";
+import { productionPeriod } from "../production-summary";
+import { productionClient, productionReportUrl, readSavedProduction } from "../../production-report";
 import { previewDailyReminderCard, type ReminderStatus } from "../field-reminder";
 import { FileRejected, decodeBase64 } from "../file-share";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
@@ -426,26 +427,14 @@ export const fieldProductionSummary = defineTool({
       const timeZone = await jobTimeZone(sb, job.job_id);
       try { period = productionPeriod(args.from_date, args.to_date, todayIn(timeZone), args.range); }
       catch (error) { throw new ToolError(error instanceof Error ? error.message : "Choose a valid production period."); }
-      // Job/date is unique, so a 31-day period cannot have more than 31 daily reports.
-      const { data: daily, error: dailyError } = await sb.from("mcp_daily_reports").select("id, report_date").eq("job_id", job.job_id).gte("report_date", period.from).lte("report_date", period.to).order("report_date", { ascending: true }).limit(32);
-      if (dailyError) throw new Error(dailyError.message);
-      const reports = (daily ?? []) as { id: string; report_date: string }[];
-      const rows: DailyProductionRow[] = [];
-      let complete = reports.length <= 31;
-      for (const report of reports.slice(0, 31)) {
-        const { data, error } = await sb.from("mcp_production_rates").select("id, daily_id, work, sov_item, activity_id, qty, unit, crew, hours, man_hours, qty_per_man_hour, created_at").eq("job_id", job.job_id).eq("daily_id", report.id).order("id", { ascending: true }).limit(81);
-        if (error) throw new Error(error.message);
-        const rates = (data ?? []) as Omit<DailyProductionRow, "report_date">[];
-        if (rates.length > 80) complete = false;
-        rows.push(...rates.slice(0, 80).map((rate) => ({ ...rate, report_date: report.report_date })));
-      }
-      const groups = summarizeProduction(rows);
+      const { complete, reports_count, rows, groups } = await readSavedProduction(productionClient(sb), job.job_id, period);
+      const reportUrl = productionReportUrl(job.job_id, period);
       await audit(sb, job, "field_production_summary", "view_production_summary", null);
       const shown = (n: number | string) => String(Math.round(Number(n) * 100) / 100);
       const body = rows.length ? rows.map((r) => `- ${r.report_date} · ${r.work} · SOV ${r.sov_item}, activity ${r.activity_id}: ${shown(r.qty)} ${r.unit}, crew ${shown(r.crew)}, ${shown(r.man_hours)} reported person-hours, ${shown(r.qty_per_man_hour)} ${r.unit} per person-hour (saved daily).`) : ["No saved production rows for this period."];
       const totals = groups.map((g) => `- SOV ${g.sov_item}, activity ${g.activity_id}: ${shown(g.quantity)} ${g.unit} / ${shown(g.reported_person_hours)} reported person-hours = ${shown(g.actual_rate)} ${g.unit} per person-hour.`);
       const notes = [complete ? "Coverage: saved rate rows for all daily reports in the selected period, read at request time." : "Coverage is incomplete: at least one daily has more than 80 rate rows; totals cover only the rows shown.", "References are reported, not approved mappings. Person-hours are summed work-line hours and can overlap. Corrections replace earlier saved rows; prior revisions are not available. Planned rates and earned value are unknown."];
-      return guide({ ...text([`${prefix(job)}Production from ${period.from} through ${period.to} (${timeZone})`, ...notes, ...body, ...(totals.length ? ["Reported work-line totals:", ...totals] : [])].join("\n")), structuredContent: { period, time_zone_used: timeZone, complete, reports_count: reports.length, rows, groups, planned_rate: null, earned_value: null, source: "current_saved_dailies", references: "reported_unverified" } }, "Show the period and coverage, keep unlike units separate, and explain reported person-hours may overlap. Do not infer prior revisions, planned rates, earned value, invoices or payments.");
+      return guide({ ...text([`${prefix(job)}Production from ${period.from} through ${period.to} (${timeZone})`, ...notes, `Production report (sign in with project access): ${reportUrl}`, ...body, ...(totals.length ? ["Reported work-line totals:", ...totals] : [])].join("\n")), structuredContent: { period, time_zone_used: timeZone, complete, reports_count, rows, groups, report_url: reportUrl, planned_rate: null, earned_value: null, source: "current_saved_dailies", references: "reported_unverified" } }, "Show the period and coverage, keep unlike units separate, and explain reported person-hours may overlap. Do not infer prior revisions, planned rates, earned value, invoices or payments.");
     }),
 });
 

@@ -4,6 +4,7 @@ import { htmlBlock, renderMarkdown } from "./cards/markdown";
 import type { CardModel } from "./cards/model";
 import { sealCardReply } from "./cards/silence";
 import { displayFactsResult } from "./cards/display-result";
+import { READ_RESPONSE_GUIDANCE, TEXT_READ_TOOLS } from "./read-response";
 import { TAKEOFF_CARD_URI } from "./cards/takeoff-card";
 import { estimatingTool, estimatingUpgrade } from "./estimating-plan";
 import { WhichCompanyAsk } from "./jobs";
@@ -120,8 +121,8 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     if (tool === "project_documents") return r;
     // Jobs follow billing's host-composed response path. All access/cap/security checks
     // above still run; do not inject an embed, onboarding, reminders, or card-shown orders.
-    if (tool === "jobs_list") {
-      return displayFactsResult(stampCanary(r, touch.canary));
+    if (TEXT_READ_TOOLS.has(tool)) {
+      return displayFactsResult(stampCanary(guide(r, READ_RESPONSE_GUIDANCE), touch.canary));
     }
     // The host-display block rides on every result (assistant_guidance only; members never see it).
     // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.
@@ -139,7 +140,9 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     return displayFactsResult(stampCanary(morning, touch.canary));
   } catch (e) {
     if (e instanceof WhichCompanyAsk) {
-      const reply = whichCompanyReply(e);
+      const textOnly = TEXT_READ_TOOLS.has(tool);
+      const reply = whichCompanyReply(e, textOnly);
+      if (textOnly) return displayFactsResult(stampCanary(guide(reply, READ_RESPONSE_GUIDANCE), touch.canary)) as R;
       const carded = attachAthenaCard(tool, finalizeVisible(reply, tool.startsWith("submittal") ? [] : [HOST_DISPLAY_BLOCK]));
       return displayFactsResult(stampCanary(sealCardReply(tool, carded), touch.canary)) as R;
     }
@@ -158,7 +161,7 @@ export function text(body: string) {
   return { content: [{ type: "text" as const, text: body + FOOTER }] };
 }
 
-function whichCompanyReply(ask: WhichCompanyAsk) {
+function whichCompanyReply(ask: WhichCompanyAsk, textOnly = false) {
   const rows = ask.matches.map((match) => ({
     cells: [`${match.company_name}: ${ask.jobNumber}${match.job_name ? ` (${match.job_name})` : ""}`],
     tone: "action" as const,
@@ -171,9 +174,9 @@ function whichCompanyReply(ask: WhichCompanyAsk) {
     sections: [{ heading: "Companies", kind: "list", rows }],
     next_move: ask.creating ? "Name the company. Nothing was created." : "Name the company.",
   };
-  const body = `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
+  const body = textOnly ? renderMarkdown(card) : `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
   return guide(
-    { ...text(body), structuredContent: { card, which_company: true, job_number: ask.jobNumber, companies: ask.matches } },
+    { ...text(body), structuredContent: { card, ...(textOnly ? { html: renderHtml(card) } : {}), which_company: true, job_number: ask.jobNumber, companies: ask.matches } },
     "Wait for the company. Pass company_id on the next call. Nothing was changed.",
   );
 }

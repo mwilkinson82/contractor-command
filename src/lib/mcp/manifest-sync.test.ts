@@ -1,31 +1,8 @@
-import { changeOrderLog, changeOrderRecord } from "./tools/change-order-tools";
-import { jobsList, drawingSetsList } from "./tools/discovery-tools";
-import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
-import * as W from "./tools/workflow-tools";
-import * as L from "./tools/living-tools";
-import * as F from "./tools/file-tools";
-import { projectDocuments } from "./tools/document-read-tools";
-import { fileUpload } from "./tools/file-upload-tool";
-import { billingDocumentUpload, billingDocuments, billingDocumentLink } from "./tools/billing-document-tools";
-import { billingEvidenceRead, billingEvidenceRecord } from "./tools/billing-evidence-tools";
-import * as R from "./tools/report-page-tools";
-import * as T from "./tools/team-tools";
-import * as E from "./tools/email-tools";
-import * as G from "./tools/flow-tools";
-import * as Est from "./tools/estimate-tools";
-import * as Bid from "./tools/estimate-bid-tools";
-import * as Field from "./tools/superintendent-tools";
-import * as Start from "./tools/getting-started-tool";
-import * as Brief from "./tools/morning-brief-tools";
-import * as Sub from "./tools/submittal-tools";
-import * as Chase from "./tools/submittal-chase-tool";
-import * as Void from "./tools/submittal-void-tool";
-import * as Package from "./tools/submittal-package-tools";
-import { rfiLog, rfiRecord, rfcLog, rfcRecord } from "./tools/request-tools";
+import { ATHENA_TOOLS } from "./index";
 import { ATHENA_VERSION } from "./server-info-branding";
 
 type Prop = { format?: string; pattern?: string; description?: string };
@@ -47,100 +24,7 @@ async function liveTools(): Promise<Tool[]> {
     title: "A",
     version: "t",
     instructions: "i",
-    tools: [
-      changeOrderLog,
-      changeOrderRecord,
-      jobsList,
-      drawingSetsList,
-      W.onboarding,
-      W.intake,
-      W.nextQuestion,
-      W.answer,
-      W.report,
-      W.contractTerms,
-      W.carryForward,
-      W.listOpenItems,
-      W.lookaheadList,
-      W.lookaheadGet,
-      W.resolveItem,
-      L.cpmActivities,
-      L.livingReportGet,
-      L.livingReportSave,
-      billingEvidenceRead,
-      billingEvidenceRecord,
-      billingDocumentUpload,
-      billingDocuments,
-      billingDocumentLink,
-      F.fileShare,
-      F.fileShareRevoke,
-      F.lookaheadPdfTool,
-      fileUpload,
-      projectDocuments,
-      R.reportPageLink,
-      R.reportPageShare,
-      R.reportPageShareRevoke,
-      T.teamList,
-      T.teamInvite,
-      T.teamUpdateMember,
-      T.teamRemoveMember,
-      T.teamAddSeats,
-      T.setCurrentCompany,
-      Est.estimateIntake,
-      Est.drawingSetImport,
-      Est.drawingMarkup,
-      sheetCalibrate,
-      takeoffGeometry,
-      Est.estimateDocReview,
-      Est.estimateTakeoffSave,
-      Est.estimateTakeoffGet,
-      Est.estimateTakeoffExport,
-      Est.estimateGapAnalysis,
-      Est.estimateBidCheck,
-      Est.estimateItemMark,
-      Est.estimateBuild,
-      Est.estimateStatus,
-      Bid.estimatePricing,
-      Bid.estimateRateSources,
-      Bid.estimateGeneralConditions,
-      Bid.estimateRequirements,
-      Bid.estimateBidSummary,
-      Field.superintendentView,
-      Field.fieldBoard,
-      Field.superintendentActivity,
-      Field.dailyReportDraft,
-      Field.dailyReportSave,
-      Field.dailyReportGet,
-      Field.fieldPayApp,
-      Field.fieldScheduleFeed,
-      Field.fieldProductionRates,
-      Field.fieldProductionSummary,
-      Field.progressPhotoSave,
-      Field.progressPhotos,
-      Field.dailyReminder,
-      Field.dailyReminderRun,
-      G.pmMeeting,
-      G.pmMorning,
-      G.pmMorningMeeting,
-      G.pmEvening,
-      Brief.athenaHello,
-      Brief.morningBrief,
-      Brief.morningBriefSettings,
-      E.emailDraft,
-      E.emailConfirmSend,
-      Sub.submittalLog,
-      Sub.submittalsList,
-      Sub.submittalsImport,
-      Sub.projectRecordSearch,
-      Chase.submittalChase,
-      Void.submittalVoid,
-      Package.submittalPackage,
-      Package.submittalDelivery,
-      rfiLog,
-      rfiRecord,
-      rfcLog,
-      rfcRecord,
-      Start.gettingStarted,
-    ],
+    tools: ATHENA_TOOLS,
     metrics: false,
   } as never);
   const h = createTanStackMcpHandler(m, { resourcePath: "/mcp" });

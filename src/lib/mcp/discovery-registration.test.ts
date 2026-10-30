@@ -3,8 +3,10 @@ import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_TOOLS } from "./index";
 import { NATIVE_CARD_URI } from "./cards/native";
+import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { TEXT_READ_TOOLS } from "./read-response";
 
-it("advertises real read-only portfolio and drawing-library tools with the existing native card", async () => {
+it("keeps jobs text-first while drawing discovery retains its existing native view", async () => {
   const mcp = defineMcp({
     name: "athena",
     title: "Athena",
@@ -50,7 +52,41 @@ it("advertises real read-only portfolio and drawing-library tools with the exist
       idempotentHint: true,
       openWorldHint: false,
     });
-    expect(tool._meta.ui.resourceUri).toBe(NATIVE_CARD_URI);
-    expect(tool._meta["openai/outputTemplate"]).toBeUndefined();
+    if (name === "jobs_list") expect(tool._meta?.ui).toBeUndefined();
+    else expect(tool._meta.ui.resourceUri).toBe(NATIVE_CARD_URI);
+    expect(tool._meta?.["openai/outputTemplate"]).toBeUndefined();
   }
+  for (const name of TEXT_READ_TOOLS) {
+    const tool = listed.result.tools.find((row: { name: string }) => row.name === name);
+    expect(tool._meta?.ui).toBeUndefined();
+    expect(tool._meta?.["openai/outputTemplate"]).toBeUndefined();
+  }
+  const po = listed.result.tools.find(
+    (row: { name: string }) => row.name === "purchase_orders_record",
+  );
+  const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8"));
+  const committedPo = manifest.mcp.tools.find((row: { name: string }) => row.name === po.name);
+  expect(po.inputSchema.properties.action.enum).toContain("approve_company_terms");
+  expect(committedPo.inputSchema.properties.action.enum).toEqual(
+    po.inputSchema.properties.action.enum,
+  );
+  expect(po.description).toContain("Unapproved company terms cannot be saved");
+  mkdirSync("output/response-acceptance", { recursive: true });
+  writeFileSync(
+    "output/response-acceptance/source-catalog-contract.json",
+    JSON.stringify(
+      {
+        purchase_orders_record: {
+          description: po.description,
+          actions: po.inputSchema.properties.action.enum,
+        },
+        text_read_tools: [...TEXT_READ_TOOLS].map((name) => {
+          const t = listed.result.tools.find((row: { name: string }) => row.name === name);
+          return { name, meta: t._meta ?? null };
+        }),
+      },
+      null,
+      2,
+    ),
+  );
 });

@@ -19,6 +19,7 @@ import { boardReturnForVisit } from "@/lib/board-sign-in";
 import { BOARD_PAGES } from "@/lib/mcp/board-link";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { ProjectReadUnavailable } from "@/components/athena/ProjectReadUnavailable";
+import { productionClient, readProductionDaily } from "@/lib/production-report";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
@@ -62,14 +63,15 @@ export function signSiblingLinks(body: string, token: string): string {
   });
 }
 
-export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPage; jobId?: string; companyId?: string; token?: string }) {
+export function ReportPageView({ page, jobId, companyId, token, reportDate }: { page: AnyPage; jobId?: string; companyId?: string; token?: string; reportDate?: string }) {
   const openLink = useServerFn(openBoardPage);
   const { session, loading: authLoading } = useAuth();
-  const tokenPage = (BOARD_PAGES as readonly string[]).includes(page) ? page : "";
+  const datedDaily = page === "daily" && reportDate !== undefined;
+  const tokenPage = !datedDaily && (BOARD_PAGES as readonly string[]).includes(page) ? page : "";
   const visible = usePageVisible();
   const qc = useQueryClient();
   const query = reportPageQuery(page, jobId, companyId);
-  const key = ["athena-report-page", query.view, query.args._page, jobId ?? null, companyId ?? null, session?.user?.id ?? null] as const;
+  const key = ["athena-report-page", query.view, query.args._page, jobId ?? null, companyId ?? null, session?.user?.id ?? null, datedDaily ? reportDate : null] as const;
   const args = query.args;
   const q = useQuery({
     queryKey: key,
@@ -78,6 +80,7 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
     refetchInterval: visible ? REFRESH_MS : false,
     refetchIntervalInBackground: false,
     queryFn: async (): Promise<Cached> => {
+      if (datedDaily && jobId) return { stamp: null, payload: await readProductionDaily(productionClient(supabase), jobId, reportDate!) };
       const prev = qc.getQueryData<Cached>(key);
       // Lightweight check first: when the saved version / saved-at stamp hasn't changed, keep the same object
       // (no full read, no re-render).
@@ -158,7 +161,8 @@ export function ReportPageView({ page, jobId, companyId, token }: { page: AnyPag
     if (projectReadRecovery(!!session, q.error) === "unavailable")
       return <ProjectReadUnavailable />;
     const location = typeof window === "undefined" ? undefined : `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    const returnTo = boardReturnForVisit(page, jobId, location);
+    const datedLocation = datedDaily && jobId ? `/r/job/${jobId}/daily?date=${encodeURIComponent(reportDate!)}` : undefined;
+    const returnTo = boardReturnForVisit(page, jobId, location ?? datedLocation);
     if (returnTo) return <BoardSignIn returnTo={returnTo} />;
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>

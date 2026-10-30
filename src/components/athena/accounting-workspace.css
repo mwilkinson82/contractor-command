@@ -1,0 +1,338 @@
+/* Scoped to accounting work products; the member portal keeps its own theme. */
+.accounting-workspace {
+  --foreground: #18314f;
+  --border: #dfe7f0;
+  --muted-foreground: #65788e;
+  min-height: 100vh;
+  min-width: 0;
+  padding: 28px clamp(16px, 3vw, 40px) 56px;
+  background: #f5f8fc;
+  color: #18314f;
+  font:
+    14px/1.55 "Archivo",
+    Arial,
+    sans-serif;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.accounting-workspace *,
+.accounting-workspace *::before,
+.accounting-workspace *::after {
+  box-sizing: border-box;
+}
+.af-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.af-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.af-top span {
+  color: #6080a4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.accounting-workspace a {
+  color: #2465cb;
+  text-underline-offset: 3px;
+}
+.af-top a {
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.af-top a:hover {
+  text-decoration: underline;
+}
+.af-header {
+  margin-bottom: 24px;
+}
+.accounting-workspace :is(h1, h2, h3) {
+  font-family: "Archivo", Arial, sans-serif;
+  letter-spacing: -0.025em;
+  color: #18314f;
+}
+.accounting-workspace h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.2;
+  font-weight: 700;
+}
+.accounting-workspace h2 {
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+.accounting-workspace h3 {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 650;
+}
+.af-description {
+  margin-top: 10px;
+  max-width: 92ch;
+  color: #53677d;
+  font-size: 14px;
+}
+.af-project-id {
+  font-size: 12px;
+}
+.af-content > * + * {
+  margin-top: 22px;
+}
+.af-content > section:not(.af-metrics) {
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #dfe7f0;
+  border-radius: 14px;
+  box-shadow: 0 3px 12px #18345304;
+}
+.af-content > section > h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.af-empty {
+  padding: 14px 16px;
+  margin-top: 12px;
+  border: 1px dashed #d7e2ef;
+  border-radius: 9px;
+  background: #f8fafd;
+  color: #65788e;
+}
+.af-content article {
+  background: #fff;
+  border-color: #dfe7f0;
+  border-radius: 10px;
+}
+.af-content article p {
+  margin-top: 6px;
+}
+.af-metrics > div {
+  background: #fff;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 3px 12px #18345304;
+}
+.af-metrics > div > p:first-child {
+  font-size: 12px;
+  color: #65788e;
+}
+.af-metrics > div > p:last-child {
+  font-size: 23px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: #183b63;
+}
+.af-filters {
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+}
+.accounting-workspace label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #53677d;
+}
+.accounting-workspace :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 42px;
+  background: #fff;
+  border: 1px solid #cbd6e3;
+  border-radius: 7px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: #18314f;
+  box-shadow: 0 1px 2px #18345304;
+}
+.accounting-workspace :is(button, a, summary, input, select) {
+  touch-action: manipulation;
+}
+.accounting-workspace :is(button, a, summary, input, select, textarea):focus-visible {
+  outline: 3px solid #659ff4;
+  outline-offset: 3px;
+}
+.accounting-workspace button {
+  cursor: pointer;
+}
+.accounting-workspace button[type="submit"],
+.accounting-workspace .af-billing-button {
+  min-height: 42px;
+  border-radius: 7px;
+  background: #2465cb;
+  color: #fff;
+  font-weight: 600;
+  padding: 9px 16px;
+}
+.accounting-workspace button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.accounting-workspace summary {
+  cursor: pointer;
+  color: #183b63;
+  line-height: 1.6;
+}
+.af-billing section > details,
+.af-purchase-orders section > details {
+  padding: 14px 16px;
+  border: 1px solid #dfe7f0;
+  border-radius: 9px;
+  background: #f8fafd;
+}
+.af-billing section > details[open],
+.af-purchase-orders section > details[open] {
+  background: #fff;
+}
+.af-billing form {
+  gap: 16px;
+}
+.accounting-workspace pre {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 7px;
+  background: #f5f8fc;
+  font:
+    13px/1.6 "Archivo",
+    Arial,
+    sans-serif;
+}
+.af-report > h2,
+.af-report > section > h2 {
+  margin-top: 30px;
+  margin-bottom: 10px;
+}
+.af-report > .af-capture {
+  color: #65788e;
+  font-size: 12px;
+}
+.af-report .af-basis {
+  color: #53677d;
+}
+.af-actions {
+  padding-bottom: 20px;
+  border-bottom: 1px solid #dfe7f0;
+}
+.af-actions button {
+  color: #2465cb;
+}
+.af-report .overflow-x-auto {
+  max-width: 100%;
+  border: 1px solid #dfe7f0;
+  border-radius: 10px;
+  background: #fff;
+  scrollbar-gutter: stable;
+}
+.af-report table {
+  margin-top: 0;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.af-report th,
+.af-report td {
+  padding: 12px 14px;
+  border-color: #e8edf4;
+}
+.af-report thead {
+  background: #edf3fa;
+  color: #53677d;
+}
+.af-report thead th {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+}
+.af-report tbody tr:last-child {
+  border-bottom: 0;
+}
+.af-report tbody tr:nth-child(even) {
+  background: #fafcfe;
+}
+.af-report tbody tr:hover {
+  background: #f0f6ff;
+}
+.af-report td {
+  font-variant-numeric: tabular-nums;
+}
+.af-report > .af-summary-table table {
+  min-width: 640px;
+}
+.af-report > .af-summary-table th:first-child {
+  width: 24%;
+}
+.af-report > .af-summary-table th:nth-child(2) {
+  width: 16%;
+}
+.af-report > ul {
+  padding: 18px 22px 18px 36px;
+  background: #fff;
+  border: 1px solid #dfe7f0;
+  border-radius: 10px;
+  color: #53677d;
+}
+.accounting-workspace [role="alert"] {
+  color: #9f243a;
+  padding: 14px 16px;
+  background: #fff3f5;
+  border: 1px solid #f3c8d0;
+  border-radius: 8px;
+}
+@media (max-width: 700px) {
+  .accounting-workspace {
+    padding: 20px 16px 40px;
+  }
+  .af-top {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .af-top span {
+    letter-spacing: 0.08em;
+    font-size: 9px;
+  }
+  .af-content > section:not(.af-metrics) {
+    padding: 16px;
+  }
+  .af-billing form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .af-billing form > * {
+    grid-column: auto;
+  }
+  .af-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .af-metrics > div {
+    padding: 14px;
+  }
+  .af-metrics > div > p:last-child {
+    font-size: 21px;
+  }
+  .af-report table {
+    min-width: 580px;
+  }
+  .af-filters {
+    padding: 16px;
+    gap: 14px;
+  }
+  .af-filters label {
+    flex: 1 1 140px;
+  }
+  .af-filters input {
+    width: 100%;
+  }
+}

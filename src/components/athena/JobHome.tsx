@@ -105,7 +105,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       <ProjectReadUnavailable />
     );
   const href = (page: string) =>
-    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
+    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "production"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
@@ -180,6 +180,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             : "Currently unavailable",
       ),
       page: "daily",
+    },
+    {
+      title: "Production",
+      detail: "Recorded quantities, hours and actual rates",
+      page: "production",
     },
     { title: "Field board", detail: "Activities, crews and follow-ups", page: "field" },
     { title: "Progress photos", detail: "View saved photos", page: "photos" },
