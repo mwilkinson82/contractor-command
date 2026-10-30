@@ -53,6 +53,7 @@ import { Route as AdminLibraryRouteImport } from './routes/admin.library'
 import { Route as AdminMigrateRouteImport } from './routes/admin.migrate'
 import { Route as AdminPeopleRouteImport } from './routes/admin.people'
 import { Route as AdminQaRouteImport } from './routes/admin.qa'
+import { Route as AdminSupportRouteImport } from './routes/admin.support'
 import { Route as AdminTopicsRouteImport } from './routes/admin.topics'
 import { Route as AdminWeeklyMoveRouteImport } from './routes/admin.weekly-move'
 import { Route as AosIndexRouteImport } from './routes/aos.index'
@@ -330,6 +331,11 @@ const AdminPeopleRoute = AdminPeopleRouteImport.update({
 const AdminQaRoute = AdminQaRouteImport.update({
   id: '/admin/qa',
   path: '/admin/qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSupportRoute = AdminSupportRouteImport.update({
+  id: '/admin/support',
+  path: '/admin/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminTopicsRoute = AdminTopicsRouteImport.update({
@@ -662,6 +668,7 @@ export interface FileRoutesByFullPath {
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/people': typeof AdminPeopleRoute
   '/admin/qa': typeof AdminQaRoute
+  '/admin/support': typeof AdminSupportRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/admin/weekly-move': typeof AdminWeeklyMoveRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
@@ -763,6 +770,7 @@ export interface FileRoutesByTo {
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/people': typeof AdminPeopleRoute
   '/admin/qa': typeof AdminQaRoute
+  '/admin/support': typeof AdminSupportRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/admin/weekly-move': typeof AdminWeeklyMoveRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
@@ -865,6 +873,7 @@ export interface FileRoutesById {
   '/admin/migrate': typeof AdminMigrateRoute
   '/admin/people': typeof AdminPeopleRoute
   '/admin/qa': typeof AdminQaRoute
+  '/admin/support': typeof AdminSupportRoute
   '/admin/topics': typeof AdminTopicsRoute
   '/admin/weekly-move': typeof AdminWeeklyMoveRoute
   '/aos/add-capacity': typeof AosAddCapacityRoute
@@ -968,6 +977,7 @@ export interface FileRouteTypes {
     | '/admin/migrate'
     | '/admin/people'
     | '/admin/qa'
+    | '/admin/support'
     | '/admin/topics'
     | '/admin/weekly-move'
     | '/aos/add-capacity'
@@ -1069,6 +1079,7 @@ export interface FileRouteTypes {
     | '/admin/migrate'
     | '/admin/people'
     | '/admin/qa'
+    | '/admin/support'
     | '/admin/topics'
     | '/admin/weekly-move'
     | '/aos/add-capacity'
@@ -1170,6 +1181,7 @@ export interface FileRouteTypes {
     | '/admin/migrate'
     | '/admin/people'
     | '/admin/qa'
+    | '/admin/support'
     | '/admin/topics'
     | '/admin/weekly-move'
     | '/aos/add-capacity'
@@ -1272,6 +1284,7 @@ export interface RootRouteChildren {
   AdminMigrateRoute: typeof AdminMigrateRoute
   AdminPeopleRoute: typeof AdminPeopleRoute
   AdminQaRoute: typeof AdminQaRoute
+  AdminSupportRoute: typeof AdminSupportRoute
   AdminTopicsRoute: typeof AdminTopicsRoute
   AdminWeeklyMoveRoute: typeof AdminWeeklyMoveRoute
   AosAddCapacityRoute: typeof AosAddCapacityRoute
@@ -1633,6 +1646,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/qa'
       fullPath: '/admin/qa'
       preLoaderRoute: typeof AdminQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/support': {
+      id: '/admin/support'
+      path: '/admin/support'
+      fullPath: '/admin/support'
+      preLoaderRoute: typeof AdminSupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/topics': {
@@ -2098,6 +2118,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminMigrateRoute: AdminMigrateRoute,
   AdminPeopleRoute: AdminPeopleRoute,
   AdminQaRoute: AdminQaRoute,
+  AdminSupportRoute: AdminSupportRoute,
   AdminTopicsRoute: AdminTopicsRoute,
   AdminWeeklyMoveRoute: AdminWeeklyMoveRoute,
   AosAddCapacityRoute: AosAddCapacityRoute,
