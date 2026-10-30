@@ -4,7 +4,7 @@ Prepared locally against original project source 989b3417e1168d02f761935e9631bf7
 
 ## Decisions needed from owner
 
-Latest account-only input is9226425fffe699f10ed1d4d9104e54c637c28d4a, Library patch libfile_c40c8091dd388191a1d34c41240c8007. Reverse-apply check passes against this combined candidate: its four UI/test files already match the new approved patch. There is no duplicate account-link31107336. The two route-allowlist files are a separate support integration requirement. Hold-only candidate on989b3417 is95a505fa54e7e4793c5fb9f6b06dae0e0a89cb6f. Owner will take screenshots manually in Athena for the video; do not create automated production fixtures or perform automated screenshot sessions against live records.
+Latest account-only input is9226425fffe699f10ed1d4d9104e52a637c28d4a, Library patch libfile_c40c8091dd388191a1d34c41240c8007. Reverse-apply check passes against this combined candidate: its four UI/test files already match the new approved patch. There is no duplicate account-link31107336. The two route-allowlist files are a separate support integration requirement. Hold-only candidate on989b3417 is95a505fa54e7e4793c5fb9f6b06dae0e0a89cb6f. Owner will take screenshots manually in Athena for the video; do not create automated production fixtures or perform automated screenshot sessions against live records.
 
 Approve a coordinated original-project support maintenance window and the following concrete operations through the supported Lovable managed operator. This is one staged plan, not permission to skip gates. Source installation/publishing direction is already requested; export, migration, flag effects and test addresses below still need explicit confirmation.
 
