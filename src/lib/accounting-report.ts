@@ -218,7 +218,7 @@ function budgetAmount(value: unknown): number | null {
   return n <= 90_000_000_000 ? extendedCents(n, 100) : null;
 }
 /** No undocumented fractional-cent rounding of PO line extensions. */
-function extendedCents(quantity: number, price: number): number | null {
+export function extendedCents(quantity: number, price: number): number | null {
   const [mantissa, exponent = "0"] = quantity.toString().toLowerCase().split("e");
   const [whole, fractional = ""] = mantissa.split(".");
   const power = Number(exponent) - fractional.length;

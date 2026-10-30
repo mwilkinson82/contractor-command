@@ -53,6 +53,34 @@ const facts = z
   })
   .strict();
 type Facts = z.infer<typeof facts>;
+// Match the order field contract at mcp_project_purchase_orders_record (0041).
+// supplier_name is only a review-time lookup hint; it is resolved before save.
+const orderFields = new Set([
+  "id",
+  "request_id",
+  "expected_version",
+  "party_id",
+  "party_version",
+  "number",
+  "terms_id",
+  "status",
+  "lines",
+  "order_date",
+  "needed_by",
+  "reason",
+]);
+function validateOrderFields(p: Facts, reviewing: boolean) {
+  const unexpected = Object.entries(p)
+    .filter(
+      ([key, value]) =>
+        value !== undefined && !orderFields.has(key) && !(reviewing && key === "supplier_name"),
+    )
+    .map(([key]) => key);
+  if (unexpected.length)
+    throw new ToolError(
+      `These facts do not apply to a purchase order: ${unexpected.join(", ")}. Remove them and review the order again. Nothing was saved.`,
+    );
+}
 type Action =
   "party" | "terms" | "approve_company_terms" | "approve_terms" | "default_terms" | "order";
 type Ledger = {
@@ -299,6 +327,7 @@ export const purchaseOrdersRecord = defineTool({
           termsOnly ? undefined : "full",
         );
         const p: Facts = { ...args.facts };
+        if (args.action === "order") validateOrderFields(p, args.step === "review");
         if (args.step === "review") {
           const state = await rpc<Ledger>(
             sb,
