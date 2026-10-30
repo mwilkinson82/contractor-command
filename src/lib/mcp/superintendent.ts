@@ -922,11 +922,17 @@ const CEDAR_DAILY_PRESENTATION_REPORTS: Readonly<Record<string, string>> = {
   "2026-10-27": "b15d97e1-afea-4622-a040-1278825e0dda",
 };
 
-function dailyReportHeading(day?: string | null): string {
+export function dailyReportHeading(day?: string | null): string {
   if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return "Daily Report";
   const date = new Date(`${day}T00:00:00Z`);
   if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day) return "Daily Report";
   return `Daily Report for ${new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date)}`;
+}
+
+/** Shared approved presentation-only normalization; source evidence stays unchanged. */
+export function dailyDisplayText(text: string | null | undefined, date?: string | null, jobId?: string) {
+  const clean = jobId === CEDAR_DAILY_PRESENTATION_JOB && !!date && Object.hasOwn(CEDAR_DAILY_PRESENTATION_REPORTS, date);
+  return clean ? text?.replace(/^FICTIONAL DEMO:\s*/, "") : text;
 }
 
 export function dailyPageHtml(p: {
@@ -946,11 +952,7 @@ export function dailyPageHtml(p: {
 }, context?: { jobId?: string }): string {
   const title = pageJobTitle(p.job_number, p.job_name, "Daily");
   if (!p.found) return shell(`${title} · Daily`, card(`${value("No daily is saved for this job yet.")}`));
-  const cleanTrainingPrefix = context?.jobId === CEDAR_DAILY_PRESENTATION_JOB
-    && !!p.report_date && Object.hasOwn(CEDAR_DAILY_PRESENTATION_REPORTS, p.report_date);
-  const displayText = (text: string | null | undefined) => cleanTrainingPrefix
-    ? text?.replace(/^FICTIONAL DEMO:\s*/, "")
-    : text;
+  const displayText = (text: string | null | undefined) => dailyDisplayText(text, p.report_date, context?.jobId);
   const delay = isRecordedDelay(p.delays);
   const block = (k: string, v: string | null | undefined, alert = false) => card(`${label(k)}${value(displayText(v)?.trim() || "Needed", alert)}`, alert);
   const work = (p.work ?? p.lines ?? []).map((w, n) => {

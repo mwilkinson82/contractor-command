@@ -1,3 +1,6 @@
+import { assertScheduleCompany } from "../schedule-job";
+import { scheduleActivity, scheduleRequest } from "../schedule-schema";
+import { prepareSchedule, readScheduleControl, schedulePortfolio, controlledTiaResult, ScheduleInputError } from "../schedule-control";
 import { safeBillingView } from "../billing-semantics";
 import {loadJobSourceClauses} from "../source-clauses";
 import {clauseKinds} from "../literal-clauses";
@@ -44,21 +47,7 @@ const READ = { readOnlyHint: true, openWorldHint: false } as const;
 const SAVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
 const reportType = z.enum(LIVING_REPORT_TYPES);
 
-const activity = z.object({
-  id: z.string().trim().min(1).max(20),
-  name: z.string().trim().min(1).max(160),
-  duration: z.number().int().min(0).max(5000).nullable(),
-  start: date.nullable(),
-  finish: date.nullable(),
-  predecessors: z.array(z.object({ id: z.string().trim().min(1).max(20), type: z.enum(["FS", "SS", "FF", "SF"]).optional(), lag: z.number().int().min(-999).max(999).optional() })).max(20),
-  total_float: z.number().int().min(-5000).max(5000).nullable(),
-  critical: z.boolean().nullable(),
-  pct_complete: z.number().min(0).max(100).nullable(),
-  value: z.number().min(0).nullable(),
-  sov_line: z.string().trim().max(20).nullable(),
-  cost_code: z.string().trim().max(20).nullable(),
-  owner_furnished: z.boolean().optional(),
-});
+const activity = scheduleActivity;
 
 type Got = {
   found: boolean; version?: number; status?: string; data_date?: string | null; updated_at?: string; updated_by_name?: string | null;
@@ -198,7 +187,9 @@ export const cpmActivities = defineTool({
       const count = countCheck(acts, Math.max(acts.length, g.activity_count ?? 0));
       const contract = showMoney ? await contractTotal(sb, job) : null;
       const tie = showMoney ? tieCheck(costLoadTotal(acts), contract) : null;
-      const tia = tiaResult(data.tia ?? null);
+      const control = readScheduleControl(data);
+      const tia = controlledTiaResult(control) ?? tiaResult(data.tia ?? null);
+      const ganttSpec = control ? CPM_GANTT_SPEC.map((line, i) => i === 3 ? "3. Controlled schedule bars: blue actual periods use only saved actual_start/actual_finish and split at the saved data date for in-progress work. Percent complete remains reported work progress and does not invent dates. Remaining work is green noncritical/red critical; unknown actual dates have no blue as-built segment. Use zero-duration diamonds. Draw the active baseline's saved date bars beneath current bars and show WBS paths from schedule_control.wbs." : i === 5 ? "5. Data date: a thin vertical line at the saved data date; show Needed if missing. Do not replace it with today." : line) : CPM_GANTT_SPEC;
       const delay = readDelay(data as Record<string, unknown>);
       const holidays = reportCalendarHolidays(data);
       const of = acts.filter(isOwnerFurnished);
@@ -211,7 +202,7 @@ export const cpmActivities = defineTool({
         `Contract completion: ${g.contract_completion_date ?? "Needed"}`,
         `Count check: ${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`,
         ...(tie ? [`Tie: ${tie.line}`] : []),
-        ...CPM_GANTT_SPEC,
+        ...ganttSpec,
         ...(showMoney && of.length ? [`Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}`] : []),
         ...(showMoney ? [`Earned to date: ${money(earnedToDate(acts))}`] : []),
         ...(delay ? [delay.line] : tia ? [`Delay fragnet result (${tia.fragnet}): ${tia.math} ${tia.statement}`] : []),
@@ -226,6 +217,9 @@ export const cpmActivities = defineTool({
           structuredContent: {
             found: true,
             source_clauses:sourceClauses,source_issues:sources.problems,
+            schedule_control: JSON.parse(JSON.stringify(data.schedule_control ?? null)),
+            tia_basis: control?.analysis ? "calculated_isolated_fragnet" : "reported_completion_dates_only",
+            portfolio_contract: schedulePortfolio(data, {company_id: job.company_id, job_id: job.job_id, version: g.version!, data_date: g.data_date ?? null}),
             version: g.version, data_date: g.data_date ?? null, updated_at: g.updated_at ?? null, updated_by: g.updated_by_name ?? null,
             contract_completion_date: g.contract_completion_date ?? null,
             count_check: count,
@@ -364,6 +358,7 @@ export const livingReportSave = defineTool({
     what_changed: z.string().trim().min(1).max(500),
     why: z.string().trim().max(500).optional(),
     activities: z.array(activity).max(400).optional(),
+    schedule_request: scheduleRequest.optional(),
     billing: z.object({ billed_to_date: z.number().min(0).nullable().optional(), unverified_billed_to_date: z.number().min(0).nullable().optional(), unverified_payments_received: z.number().min(0).nullable().optional(), earned_from_dailies: z.number().min(0).nullable().optional(), earned_from_schedule: z.number().min(0).nullable().optional(), payments_received: z.number().min(0).nullable().optional(), months: z.array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number(), kind: z.enum(["actual", "forecast", "unverified"]) })).max(120) }).optional(),
     tia: z.object({ fragnet: z.string().trim().min(1).max(40), prior_completion: date, updated_completion: date, fragnet_only_completion: date.nullable().optional() }).optional(),
     details: z.record(z.string(), z.unknown()).optional(),
@@ -376,24 +371,36 @@ export const livingReportSave = defineTool({
       if (args.approved !== true) throw new ToolError("Ask the PM to approve this update first. Nothing was saved.");
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       const type = args.report_type as LivingReportType;
-      if (type === "cpm" && !args.activities?.length) throw new ToolError("Send the full activity list to save the CPM. Nothing was saved.");
+      if (type === "cpm" && !args.activities?.length && !args.schedule_request) throw new ToolError("Send the full activity list to save the CPM. Nothing was saved.");
+      if (type === "cpm" && args.schedule_request) await assertScheduleCompany(sb, job, args.company_id);
       const prev = await getReport(sb, job, type);
       if ((prev.found ? prev.version! : 0) !== args.base_version)
         throw new ToolError(`This report changed since you loaded it (now v${prev.found ? prev.version : 0}). Load the latest version and update that one. Nothing was saved.`);
+      if (args.schedule_request && type !== "cpm") throw new ToolError("Schedule requests apply only to the CPM.");
+      if (type === "cpm" && args.details && ["schedule_control", "activities", "tia"].some(k => k in args.details!)) throw new ToolError("Use the schedule workflow to preserve schedule controls and analysis; do not replace them in details.");
+      if (type === "cpm" && readScheduleControl(prev.data ?? null) && !args.schedule_request) throw new ToolError("This plan uses controlled scheduling. Prepare and review a schedule revision before saving; no history or settings were replaced.");
+      if (args.schedule_request && prev.data_date && args.schedule_request.data_date < prev.data_date) throw new ToolError("Revision data date cannot precede the saved data date.");
+      if (args.schedule_request && (args.activities || args.tia || args.details || args.data_date && args.data_date !== args.schedule_request.data_date)) throw new ToolError("Save the reviewed schedule revision alone; conflicting activity, TIA, details or data-date overrides are not allowed.");
+      if (type === "cpm" && !args.schedule_request && args.activities?.some(a => ["wbs_id", "calendar_id", "actual_start", "actual_finish", "remaining_duration", "activity_type", "start_no_earlier_than", "finish_no_later_than"].some(k => k in a) || a.predecessors.some(p => p.lag_calendar_basis))) throw new ToolError("Prepare and review these schedule facts first so actuals, calendars and logic are verified.");
+      let prepared: ReturnType<typeof prepareSchedule> | undefined;
+      if (args.schedule_request) {
+        try { prepared = prepareSchedule(prev.found ? prev.data ?? null : null, args.base_version, args.schedule_request, prev.data_date); }
+        catch (e) { if (e instanceof ScheduleInputError) throw new ToolError(e.message); throw e; }
+      }
       // Carry the activity list forward when a non-CPM report doesn't resend it, so no save can drop activities silently.
-      let acts = args.activities as Activity[] | undefined;
+      let acts = (prepared?.data.activities ?? args.activities) as Activity[] | undefined;
       if (!acts && TIED_TYPES.includes(type)) {
         const cpm = type === "cpm" ? prev : await getReport(sb, job, "cpm");
         acts = cpm.found ? ((cpm.data?.activities ?? []) as Activity[]) : undefined;
       }
-      const next: LivingData = { ...(args.details ?? {}), ...(acts ? { activities: acts } : {}), ...(args.billing ? { billing: args.billing } : {}), ...(args.tia ? { tia: args.tia } : {}) };
+      const next: LivingData = prepared?.data ?? { ...(type === "cpm" ? prev.data ?? {} : {}), ...(args.details ?? {}), ...(acts ? { activities: acts } : {}), ...(args.billing ? { billing: args.billing } : {}), ...(args.tia ? { tia: args.tia } : {}) };
       const contract = await contractTotal(sb, job);
       const chk = checkSave(type, next, prev.found ? prev.data ?? null : null, contract);
       if (!chk.ok) {
         await audit(sb, job, "living_report_save", `living_${type}_refused`, null);
         throw new ToolError(`${prefix(job)}Not saved. ${LIVING_LABEL[type]} stays at v${prev.found ? prev.version : 0}.\n${chk.problems.map((p) => `- ${p}`).join("\n")}`);
       }
-      const dated = resolveDataDate(args.data_date);
+      const dated = resolveDataDate(args.schedule_request?.data_date ?? args.data_date);
       if (!dated.ok) {
         await audit(sb, job, "living_report_save", `living_${type}_refused`, null);
         throw new ToolError(`${prefix(job)}${dated.error}`);

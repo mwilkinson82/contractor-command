@@ -336,3 +336,253 @@
     width: 100%;
   }
 }
+
+/* Approved report-selection layout. */
+.af-report-controls {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border: 1px solid #d7e2ef;
+  border-radius: 10px;
+}
+.af-report-controls label {
+  display: grid;
+  gap: 8px;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.af-report-controls select {
+  width: 100%;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.af-report-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 24px 0;
+  border-bottom: 1px solid #d7e2ef;
+}
+.af-report-tabs button {
+  padding: 12px 14px;
+  color: #65788e;
+  border-bottom: 3px solid transparent;
+  text-align: left;
+}
+.af-report-tabs button[aria-current] {
+  color: #2465cb;
+  font-weight: 700;
+  border-color: #2465cb;
+}
+.af-report-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.af-report-toolbar h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.af-report-toolbar p {
+  color: #65788e;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.af-report-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.af-report-buttons > button,
+.af-report-buttons > details {
+  min-height: 44px;
+  border: 1px solid #bbcee7;
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: white;
+  color: #2465cb;
+  font-weight: 600;
+}
+.af-report-buttons details {
+  max-width: 300px;
+}
+.af-report-buttons .af-check {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+.af-report-buttons input[type="checkbox"] {
+  min-height: 20px;
+  width: 20px;
+}
+.af-report-notes {
+  margin: 20px 0;
+  padding: 16px 18px;
+  background: #e9f1fc;
+  border-radius: 8px;
+  color: #53677d;
+  font-size: 12px;
+}
+.af-report-notes p + p {
+  margin-top: 8px;
+}
+.af-report-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.af-report-cards article {
+  border: 1px solid #d7e2ef;
+  padding: 18px;
+  min-width: 0;
+}
+.af-report-cards h3 {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #65788e;
+}
+.af-report-cards .af-value {
+  font-size: 25px;
+  font-weight: 700;
+  margin: 10px 0;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.af-report-cards article p:not(.af-value) {
+  font-size: 11px;
+  color: #65788e;
+  line-height: 1.6;
+}
+.af-readable-table {
+  margin-top: 26px;
+}
+.af-readable-table h2 {
+  margin-bottom: 12px;
+}
+.af-readable-table tbody th {
+  font-weight: 500;
+}
+.af-table-count,
+.af-report-footnote {
+  margin: 10px 0;
+  color: #65788e;
+  font-size: 12px;
+}
+.af-report-limitations {
+  margin-top: 24px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #d7e2ef;
+  border-radius: 8px;
+}
+.af-report-limitations ul {
+  list-style: disc;
+  padding-left: 20px;
+  margin-top: 12px;
+}
+@media (max-width: 1000px) {
+  .af-report-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .af-report-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 500px) {
+  .af-report-controls {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+  .af-report-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .af-report-tabs button {
+    flex: 1 1 40%;
+    padding: 12px 8px;
+  }
+}
+@media print {
+  .af-top,
+  .af-filters,
+  .af-report-controls,
+  .af-report-tabs,
+  .af-report-buttons,
+  .af-report-footnote {
+    display: none !important;
+  }
+  .accounting-workspace {
+    padding: 0;
+    background: white;
+    font-size: 10pt;
+  }
+  .af-report-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .af-report-cards article,
+  tr {
+    break-inside: avoid;
+  }
+  .af-report .overflow-x-auto {
+    overflow: visible;
+    border: 0;
+  }
+  .af-report table {
+    min-width: 0;
+    font-size: 9pt;
+  }
+  .af-report th,
+  .af-report td {
+    padding: 6px;
+  }
+}
+.af-print-only {
+  display: none;
+}
+@media print {
+  .af-print-only {
+    display: table-row;
+  }
+  .af-report-limitations {
+    display: none;
+  }
+}
+.af-report .overflow-x-auto {
+  overflow-x: auto;
+}
+.af-readable-table {
+  min-width: 0;
+}
+.af-table-export {
+  color: #2465cb;
+  border: 1px solid #bbcee7;
+  border-radius: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+@media print {
+  .af-table-export {
+    display: none;
+  }
+}
+.af-money-cell {
+  white-space: nowrap;
+}
+@media print {
+  .accounting-workspace {
+    min-height: 0;
+  }
+  .accounting-workspace:has(.af-readable) .af-header,
+  .af-table-count {
+    display: none;
+  }
+}

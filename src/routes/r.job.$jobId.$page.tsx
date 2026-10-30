@@ -24,6 +24,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
       (page !== "home" &&
         page !== "billing-records" &&
         page !== "purchase-orders" &&
+        page !== "buyout" &&
         page !== "accounting" &&
         page !== "production" &&
         !(JOB_PAGES as readonly string[]).includes(page))
@@ -48,9 +49,15 @@ function JobReportPage() {
         initialFrom={search.from}
         initialAsOf={search.as_of}
         initialPage={search.ledger_page}
+        initialReportType={search.report_type}
+        initialCurrency={search.currency}
+        initialVendor={search.vendor}
+        initialCostCode={search.cost_code}
       />
     );
   if (hostedPageName(page) === "home") return <JobHome jobId={jobId} token={token} />;
+  if (hostedPageName(page) === "buyout")
+    return <PurchaseOrdersPage jobId={jobId} initialTab="suppliers" />;
   if (hostedPageName(page) === "purchase-orders") return <PurchaseOrdersPage jobId={jobId} />;
   if (hostedPageName(page) === "billing-records") return <BillingEvidencePage jobId={jobId} />;
   return (

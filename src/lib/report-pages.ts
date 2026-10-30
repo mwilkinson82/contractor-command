@@ -1,3 +1,4 @@
+import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
 // Pure logic: URLs, payload types and one HTML renderer shared by the signed-in page and the owner share link.
 // Member-facing text never names tools, hosting or database vendors. Navy, blue and gray; red only for delays,
@@ -81,7 +82,7 @@ export function pageAllowed(page: AnyPage, scope: "full" | "contract" | "super" 
 }
 
 // ---------- payloads (what the page functions return) ----------
-type Act = { id: string; name: string; description?: string | null; start: string | null; finish: string | null; total_float?: number | null; critical?: boolean | null; pct_complete?: number | null; duration?: number | null };
+type Act = { wbs_id?: string | null; actual_start?: string | null; actual_finish?: string | null; predecessors?: import("./mcp/living").Logic[]; id: string; name: string; description?: string | null; start: string | null; finish: string | null; total_float?: number | null; critical?: boolean | null; pct_complete?: number | null; duration?: number | null };
 type Tia = { fragnet?: string; fragment?: string; prior_completion?: string; updated_completion?: string; holidays?: string[] | null };
 export type Report = {
   found: boolean; version?: number; data_date?: string | null; updated_at?: string | null; updated_by_name?: string | null;
@@ -159,6 +160,12 @@ function scheduleView(p: JobPayload): string {
   const r = p.report,
     d = r.data ?? {};
   const acts = d.activities ?? [];
+  const control = readScheduleControl(d);
+  const paths = control ? wbsPaths(control.wbs) : new Map<string, string>();
+  const orderedNodes = control ? orderedWbs(control.wbs) : [];
+  const nodeRank = new Map(orderedNodes.map((n, i) => [n.id, i]));
+  const displayActs = control ? [...acts].sort((a, b) => (nodeRank.get(a.wbs_id ?? "") ?? 100000) - (nodeRank.get(b.wbs_id ?? "") ?? 100000)) : acts;
+  const baseline = control?.baselines.find(b => b.id === control.active_baseline_id);
   const dated = acts.filter((a) => {
     const start = scheduleDay(a.start),
       finish = scheduleDay(a.finish);
@@ -175,9 +182,11 @@ function scheduleView(p: JobPayload): string {
     const fragId = String(tia.fragnet ?? tia.fragment ?? "");
     const frag = (d.activities ?? []).find((a) => a.id === fragId);
     out.push(
-      `<div style="border:2px solid ${RED};border-radius:10px;padding:12px;margin:0 0 16px;background:repeating-linear-gradient(45deg,#fff,#fff 8px,#FEF2F2 8px,#FEF2F2 16px)"><strong style="color:${RED}">${esc(delayLabel(tia.prior_completion, tia.updated_completion, tia.holidays))}</strong><span style="color:${G1}"> · Delay fragnet ${esc(fragId)}${frag ? ` · ${esc(activityTitle(frag))}` : ""}: completion ${esc(tia.prior_completion)} → ${esc(tia.updated_completion)}</span></div>`,
+      `<div style="border:2px solid ${RED};border-radius:10px;padding:12px;margin:0 0 16px;background:repeating-linear-gradient(45deg,#fff,#fff 8px,#FEF2F2 8px,#FEF2F2 16px)"><strong style="color:${RED}">${esc(controlledTiaResult(control)?.completion_delay ?? delayLabel(tia.prior_completion, tia.updated_completion, tia.holidays))}</strong><span style="color:${G1}"> · Delay fragnet ${esc(fragId)}${frag ? ` · ${esc(activityTitle(frag))}` : ""}: completion ${esc(tia.prior_completion)} → ${esc(tia.updated_completion)}</span></div>`,
     );
   }
+  if (control) out.push(`<p style="color:${G1};font-size:12px">Schedule dates: ${esc(control.calculation.status)}${baseline ? ` · Baseline: ${esc(baseline.name)} (${esc(baseline.status)}, source v${baseline.source_version})` : " · Baseline not captured"}</p>`);
+  if (control?.wbs.length) out.push(`<details style="margin:10px 0"><summary>Work breakdown structure</summary><ul>${orderedNodes.map(({id}) => `<li data-wbs-id="${esc(id)}">${esc(paths.get(id)!)}</li>`).join("")}</ul></details>`);
   const crit = dated.filter((a) => a.critical).length;
   out.push(
     tiles([
@@ -189,8 +198,9 @@ function scheduleView(p: JobPayload): string {
   );
   if (acts.length) {
     // Calendar positions are presentation only; working durations and float remain saved values.
-    const first = dated.length ? Math.min(...dated.map((a) => scheduleDay(a.start)!)) : null;
-    const last = dated.length ? Math.max(...dated.map((a) => scheduleDay(a.finish)!)) : null;
+    const timelineActivities = [...dated, ...(baseline?.activities ?? []).filter(a => scheduleDay(a.start) !== null && scheduleDay(a.finish) !== null)];
+    const first = timelineActivities.length ? Math.min(...timelineActivities.map(a => scheduleDay(a.start)!)) : null;
+    const last = timelineActivities.length ? Math.max(...timelineActivities.map(a => scheduleDay(a.finish)!)) : null;
     const lo = first === null ? null : scheduleMonth(first);
     const hi = last === null ? null : addScheduleMonths(scheduleMonth(last), 1);
     const span = lo === null || hi === null ? null : hi - lo;
@@ -258,24 +268,29 @@ function scheduleView(p: JobPayload): string {
         return `linear-gradient(to right,transparent ${pos},${color} ${pos},${color} calc(${pos} + 1px),transparent calc(${pos} + 1px))`;
       })
       .join(",");
-    const rows = acts
+    let previousWbs: string | undefined;
+    const rows = displayActs
       .map((a) => {
         const start = scheduleDay(a.start),
           finish = scheduleDay(a.finish);
         const plottable =
           start !== null && finish !== null && finish >= start && lo !== null && span !== null;
         const l = plottable ? percentAt(start) : 0;
-        const w = plottable ? ((finish - start) / span) * 100 : 0;
+        const w = plottable ? ((finish - start + (control && a.duration !== 0 ? DAY_MS : 0)) / span) * 100 : 0;
         const frag = delayId === a.id;
         const pct = isNum(a.pct_complete) ? Math.min(100, Math.max(0, a.pct_complete)) : null;
         const remaining = a.critical === true ? "#C12D2D" : a.critical === false ? "#16834A" : G2;
         const background = frag
           ? `repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)`
           : remaining;
+        const actualEnd = a.actual_finish ? scheduleDay(a.actual_finish)! + DAY_MS : a.actual_start && dd !== null ? dd : null;
+        const actualWidth = plottable && a.actual_start && actualEnd !== null && finish > start
+          ? Math.max(0, Math.min(100, ((actualEnd - start) / (finish + DAY_MS - start)) * 100)) : 0;
+        const shownProgress = control ? (a.actual_finish ? 100 : a.actual_start ? actualWidth : null) : pct;
         const progress =
-          pct === null
+          shownProgress === null
             ? ""
-            : `<div data-progress="${pct}" style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:${BLUE}"></div>`;
+            : `<div data-progress="${shownProgress}"${control ? ' data-actual-period="true"' : ""} style="position:absolute;left:0;top:0;bottom:0;width:${shownProgress}%;background:${BLUE}"></div>`;
         const status =
           (pct === null ? "Progress Needed" : `${pct}% complete`) +
           (pct !== 100 && a.critical == null ? " · Criticality Needed" : "");
@@ -296,7 +311,14 @@ function scheduleView(p: JobPayload): string {
         const unplotted = !plottable
           ? `<span style="font-size:11px;color:${G1}">${start !== null && finish !== null && finish < start ? "Check dates" : "Dates needed"}</span>`
           : "";
-        return `<tr id="activity-${esc(a.id)}"><td class="cpm-id" data-id="${esc(a.id)}">${esc(a.id)}</td><td class="cpm-name"><strong>${esc(activityTitle(a))}</strong><div style="font-size:11px;font-weight:400;color:${G1}">${esc(status)}${delay}</div></td><td class="cpm-number">${isNum(a.duration) ? esc(a.duration) : "Needed"}</td><td class="cpm-date">${esc(dateText(a.start))}</td><td class="cpm-date">${esc(dateText(a.finish))}</td><td class="cpm-number" style="color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : "Needed"}</td><td class="cpm-chart">${marker}<div style="position:relative;height:14px">${shape}${unplotted}</div></td></tr>`;
+        const base = baseline?.activities.find(b => b.id === a.id);
+        const bs = scheduleDay(base?.start), bf = scheduleDay(base?.finish);
+        const baselineShape = base && bs !== null && bf !== null && lo !== null && span !== null
+          ? `<div data-baseline="${esc(baseline!.id)}" title="${esc(baseline!.name)}: ${esc(base.start)} to ${esc(base.finish)}" style="position:absolute;left:${percentAt(bs).toFixed(4)}%;width:max(2px,${((bf - bs + (base.duration === 0 ? 0 : DAY_MS)) / span * 100).toFixed(4)}%);bottom:0;height:3px;background:${G2}"></div>` : "";
+        const wbsLabel = a.wbs_id ? paths.get(a.wbs_id) ?? a.wbs_id : control ? "WBS unassigned" : null;
+        const group = control && previousWbs !== (a.wbs_id ?? "") ? `<tr class="cpm-wbs-group"><th colspan="7" scope="rowgroup" style="background:#EFF6FF;color:${NAVY};font-size:12px;padding:7px">${esc(wbsLabel ?? "WBS unassigned")}</th></tr>` : "";
+        previousWbs = a.wbs_id ?? "";
+        return `${group}<tr id="activity-${esc(a.id)}"><td class="cpm-id" data-id="${esc(a.id)}">${esc(a.id)}</td><td class="cpm-name"><strong>${esc(activityTitle(a))}</strong><div style="font-size:11px;font-weight:400;color:${G1}">${esc(status)}${delay}</div>${wbsLabel ? `<div data-wbs="${esc(a.wbs_id ?? "")}" style="font-size:10px;color:${G1}">${esc(wbsLabel)}</div>` : ""}</td><td class="cpm-number">${isNum(a.duration) ? esc(a.duration) : "Needed"}</td><td class="cpm-date">${esc(dateText(a.start))}</td><td class="cpm-date">${esc(dateText(a.finish))}</td><td class="cpm-number" style="color:${isNum(a.total_float) && a.total_float < 0 ? RED : G1}">${isNum(a.total_float) ? esc(shownFloat(a.total_float)) : "Needed"}</td><td class="cpm-chart">${marker}<div style="position:relative;height:${baseline ? 21 : 14}px"><div style="position:absolute;left:0;right:0;top:0;height:14px">${shape}${unplotted}</div>${baselineShape}</div></td></tr>`;
       })
       .join("");
     const css = `<style>.ath-cpm-scroll{overflow-x:auto;overscroll-behavior-x:contain}.ath-cpm{border-collapse:separate;border-spacing:0;table-layout:fixed;width:${612 + timelineWidth}px;font-size:12px;color:${NAVY}}.ath-cpm th,.ath-cpm td{box-sizing:border-box;padding:5px 6px;vertical-align:middle;border-bottom:1px solid ${G4};text-align:left}.ath-cpm th{color:${G1};background:#fff;font-weight:600;white-space:nowrap}.ath-cpm .cpm-id,.ath-cpm .cpm-name{position:sticky;background:#fff;z-index:2}.ath-cpm .cpm-id{left:0;width:82px}.ath-cpm .cpm-name{left:82px;width:200px;box-shadow:1px 0 0 ${G4}}.ath-cpm th.cpm-id,.ath-cpm th.cpm-name{z-index:3}.ath-cpm .cpm-number{white-space:nowrap;color:${G1}}.ath-cpm .cpm-date{white-space:nowrap;color:${G1}}.ath-cpm .cpm-chart{position:relative;padding:5px 0;${gridBackground ? `background-image:${gridBackground};` : ""}}.ath-cpm .cpm-axis{position:relative;height:44px;padding:0;background:#fff;font-weight:400;overflow:hidden}.ath-cpm .cpm-chart:before,.ath-cpm .cpm-axis:before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:${G1};z-index:3;pointer-events:none}@media(max-width:600px){.ath-cpm .cpm-name{position:static;box-shadow:none}}</style>`;
@@ -307,10 +329,11 @@ function scheduleView(p: JobPayload): string {
     out.push(
       card(
         `${css}<p style="margin:0 0 8px;font-size:12px;color:${G1}">Scroll horizontally for schedule columns and timeline. <span data-date-range="${dateRange}">${esc(dateLabel)}</span></p><div class="ath-cpm-scroll" tabindex="0" role="region" aria-label="Schedule table and timeline"><table class="ath-cpm">${cols}<thead><tr><th class="cpm-id" scope="col">Activity ID</th><th class="cpm-name" scope="col">Activity</th><th scope="col">Duration<br>WD</th><th scope="col">Start</th><th scope="col">Finish</th><th scope="col">Float<br>WD</th><th class="cpm-axis" scope="col" aria-label="Gantt calendar timeline">${axis}</th></tr></thead><tbody>${rows}</tbody></table></div>` +
-          `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> Actual progress &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#16834A"></span> Remaining noncritical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#C12D2D"></span> Remaining critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:9px;height:9px;background:${G1};transform:rotate(45deg)"></span> Milestone &nbsp; <span style="display:inline-block;width:1px;height:10px;background:${BLUE}"></span> Data date</p>`,
+          `<p style="margin:12px 0 0;font-size:12px;color:${G1}"><span style="display:inline-block;width:10px;height:10px;background:${BLUE}"></span> ${control ? "Actual period (evidenced dates)" : "Reported progress"} &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#16834A"></span> Remaining noncritical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:#C12D2D"></span> Remaining critical &nbsp; <span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,${RED},${RED} 4px,#FCA5A5 4px,#FCA5A5 8px)"></span> Delay fragnet &nbsp; <span style="display:inline-block;width:9px;height:9px;background:${G1};transform:rotate(45deg)"></span> Milestone &nbsp; <span style="display:inline-block;width:1px;height:10px;background:${BLUE}"></span> Data date${baseline ? ` &nbsp; <span style="display:inline-block;width:12px;height:3px;background:${G2}"></span> Baseline` : ""}</p>`,
       ),
     );
   }
+  if (acts.length) out.push(card(`<details><summary>Dependency logic (${acts.reduce((n, a) => n + (a.predecessors?.length ?? 0), 0)} links)</summary><ul>${acts.flatMap(a => (a.predecessors ?? []).map(link => `<li data-logic-from="${esc(link.id)}" data-logic-to="${esc(a.id)}">${esc(link.id)} → ${esc(a.id)} · ${esc(link.type ?? "FS")} · lag ${esc(link.lag ?? 0)} WD · ${esc(link.lag_calendar_basis ?? "project")} calendar</li>`)).join("")}</ul></details>`));
   return out.join("");
 }
 

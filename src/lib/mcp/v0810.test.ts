@@ -146,7 +146,7 @@ import { isAppHandoff } from "@/lib/consent-loading";
 describe("0.8.10 CPM Gantt spec + desktop return", () => {
   it("cpm_activities sends the Gantt spec right after the Tie line", () => {
     const src = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");
-    expect(src).toMatch(/`Tie: \$\{tie\.line\}`\] : \[\]\),\s*\.\.\.CPM_GANTT_SPEC,/);
+    expect(src).toMatch(/`Tie: \$\{tie\.line\}`\] : \[\]\),\s*\.\.\.ganttSpec,/);
     expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW/);
     expect(CPM_GANTT_SPEC).toHaveLength(10);
     const all = CPM_GANTT_SPEC.join("\n");

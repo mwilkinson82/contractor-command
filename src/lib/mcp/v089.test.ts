@@ -158,7 +158,7 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
         prior_completion: "2027-06-04",
         updated_completion: "2027-06-04",
       })!.statement,
-    ).toBe("Completion delay: +0 WD (0 CD): float absorbed it.");
+    ).toBe("Completion delay: +0 WD (0 CD). Reported completion-date comparison only; network causation and float absorption are not established by date subtraction.");
     expect(tiaResult(null)).toBeNull();
   });
 
@@ -262,9 +262,9 @@ describe("0.8.9 CPM activity handoff, tie guard, owner-furnished, living reports
     const tools = idx.match(/export const ATHENA_TOOLS = \[([^\]]+)\]/)?.[1]
       .split(",").map((tool) => tool.trim());
     expect(tools).toEqual(expect.arrayContaining([
-      "cpmActivities", "livingReportGet", "livingReportSave", "billingEvidenceRead",
+      "scheduleWorkflow", "buyoutRead", "buyoutRecord", "cpmActivities", "livingReportGet", "livingReportSave", "billingEvidenceRead",
       "billingEvidenceRecord", "billingDocumentUpload", "billingDocuments",
-      "billingDocumentLink", "fileShare", "fileShareRevoke", "lookaheadPdfTool", "reportPageLink",
+      "billingDocumentLink", "purchaseOrdersRead", "purchaseOrderTermsRead", "purchaseOrdersRecord", "fileShare", "fileShareRevoke", "lookaheadPdfTool", "reportPageLink",
     ]));
     expect(new Set(tools).size).toBe(tools?.length);
     expect(idx).toContain("instructions:\n    REFUSAL_RULE +");

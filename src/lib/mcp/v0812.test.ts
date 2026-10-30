@@ -241,7 +241,7 @@ describe("0.8.12 completion delay: WD and CD", () => {
     expect(t.impact_cd).toBe(15);
     expect(t.impact_wd).toBe(9);
     expect(t.completion_delay).toBe("Completion delay: +9 WD (15 CD)");
-    expect(t.statement).toBe("Completion delay: +9 WD (15 CD).");
+    expect(t.statement).toBe("Completion delay: +9 WD (15 CD). Reported completion-date comparison only; network causation and float absorption are not established by date subtraction.");
     expect(completionDelayLine(9, "2027-06-05", "2027-06-19")).toBe(
       delayCallout(9, "2027-06-05", "2027-06-19").replace("Delay:", "Completion delay:"),
     );

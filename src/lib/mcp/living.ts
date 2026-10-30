@@ -1,3 +1,4 @@
+import { publicScheduleControl } from "./schedule-privacy";
 // 0.8.9: cost-loaded CPM activity handoff, tie-to-contract guard, owner-furnished exclusion and living reports.
 // Pure logic only (no database); the tools live in tools/living-tools.ts. Athena hands the saved values; the host
 // draws them and never recomputes, rebuilds or guesses them.
@@ -19,7 +20,7 @@ export const LIVING_LABEL: Record<LivingReportType, string> = {
 /** Reports whose dollars must tie to the contract to the cent before a save. */
 export const TIED_TYPES: readonly LivingReportType[] = ["cpm", "billing_forecast"];
 
-export type Logic = { id: string; type?: "FS" | "SS" | "FF" | "SF"; lag?: number };
+export type Logic = { id: string; type?: "FS" | "SS" | "FF" | "SF"; lag?: number; lag_calendar_basis?: "predecessor" | "successor" | "project" | "24h" };
 export type Activity = {
   id: string;
   name: string;
@@ -34,6 +35,14 @@ export type Activity = {
   sov_line: string | null;
   cost_code: string | null;
   owner_furnished?: boolean;
+  wbs_id?: string | null;
+  calendar_id?: string;
+  activity_type?: "task" | "milestone-start" | "milestone-finish";
+  actual_start?: string | null;
+  actual_finish?: string | null;
+  remaining_duration?: number | null;
+  start_no_earlier_than?: string | null;
+  finish_no_later_than?: string | null;
 };
 export type BillingMonth = { month: string; amount: number; kind: "actual" | "forecast" | "unverified" };
 // 0.8.10: the scheduling term is "fragnet" (delay fragnet), never "fragment". Legacy saved keys are still read.
@@ -323,7 +332,7 @@ export function tiaResult(t: Tia | null | undefined): TiaResult | null {
         )
       : "Completion delay: +0 WD (0 CD)";
   const math = `Updated completion ${short(t.updated_completion)} − prior completion ${short(t.prior_completion)}.${frag !== null ? ` Fragnet-only impact: ${short(t.updated_completion)} − ${short(only!)} = ${frag} CD.` : ""}`;
-  const statement = impact > 0 ? `${completion_delay}.` : `${completion_delay}: float absorbed it.`;
+  const statement = `${completion_delay}. Reported completion-date comparison only; network causation and float absorption are not established by date subtraction.`;
   return {
     fragnet,
     prior_completion: t.prior_completion,
@@ -428,6 +437,7 @@ export function stripMoney(d: LivingData): LivingData {
   void _c;
   return {
     ...rest,
+    ...(rest.schedule_control ? {schedule_control: publicScheduleControl(rest.schedule_control)} : {}),
     activities: (d.activities ?? []).map(({ value: _v, ...a }) => {
       void _v;
       return { ...a, value: null };
