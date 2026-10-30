@@ -77,7 +77,7 @@ describe("refusals", () => {
   it.each([
     [[], 15, /No SOV lines/],
     [REF, null, /fee percent isn't recorded/],
-    [[{ item_no: "1", description: "x", scheduled_value: 5 }], 15, /01\.01 style/],
+    [[{ item_no: "01.", description: "x", scheduled_value: 5 }], 15, /division-dot-line/],
     [[{ item_no: "01.01", description: "x", scheduled_value: null }], 15, /no scheduled value/],
     [[{ item_no: "01.01", description: "x", scheduled_value: 1.005 }], 15, /two decimals/],
   ])("refuses bad input %#", (lines, fee, re) => {

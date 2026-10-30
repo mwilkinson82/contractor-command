@@ -1,7 +1,7 @@
 import {loadJobSourceClauses} from "../source-clauses";
 import {clauseKinds,literalClauseCard} from "../literal-clauses";
 import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TABLE_STYLE, SOV_TOTAL_REFUSAL, buildSov, sovItemProblems, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { draftSovText, nextDraftFacts } from "../sov-draft";
 import { storedModule } from "../record-copy";
 import type { SovLineIn } from "../sov";
@@ -735,6 +735,8 @@ export const intake = defineTool({
       }
 
       if (args.section === "budget") {
+        const itemProblems = sovItemProblems((args.sov_lines ?? []).map((line) => line.line));
+        if (itemProblems.length) throw new ToolError(`${itemProblems.join("\n")} Nothing was saved.`);
         if (args.fee_pct !== undefined && !(args.fee_pct >= 0 && args.fee_pct < 100)) throw new ToolError("The fee percent must be at least 0 and under 100.");
         const budget: Record<string, unknown> = {};
         for (const b of args.budget_lines ?? []) budget[b.cost_code] = { description: b.description ?? null, amount: b.amount ?? null };
