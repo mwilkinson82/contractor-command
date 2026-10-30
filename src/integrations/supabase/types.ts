@@ -962,6 +962,162 @@ export type Database = {
           },
         ]
       }
+      mcp_ap_original_uploads: {
+        Row: {
+          attempts: number
+          company_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          record_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+          verified_at: string | null
+          version: number
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          filename: string
+          id: string
+          job_id: string
+          mime_type: string
+          record_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+          verified_at?: string | null
+          version: number
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          mime_type?: string
+          record_id?: string
+          sha256?: string
+          size_bytes?: number
+          storage_path?: string
+          verified_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_ap_original_uploads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_ap_original_uploads_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_ap_original_uploads_record_id_version_fkey"
+            columns: ["record_id", "version"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submission_versions"
+            referencedColumns: ["record_id", "version"]
+          },
+        ]
+      }
+      mcp_ap_originals: {
+        Row: {
+          company_id: string
+          filename: string
+          id: string
+          job_id: string
+          linked_at: string
+          linked_by: string
+          mime_type: string
+          payload: Json
+          record_id: string
+          request_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+          version: number
+        }
+        Insert: {
+          company_id: string
+          filename: string
+          id: string
+          job_id: string
+          linked_at?: string
+          linked_by: string
+          mime_type: string
+          payload: Json
+          record_id: string
+          request_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+          version: number
+        }
+        Update: {
+          company_id?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          linked_at?: string
+          linked_by?: string
+          mime_type?: string
+          payload?: Json
+          record_id?: string
+          request_id?: string
+          sha256?: string
+          size_bytes?: number
+          storage_path?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_ap_originals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_ap_originals_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "mcp_ap_original_uploads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_ap_originals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_ap_originals_record_id_version_fkey"
+            columns: ["record_id", "version"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submission_versions"
+            referencedColumns: ["record_id", "version"]
+          },
+        ]
+      }
       mcp_audit_log: {
         Row: {
           action: string
@@ -7702,6 +7858,7 @@ export type Database = {
           lease_until: string | null
           message_id: string
           payload: Json
+          provider_email_id: string | null
           state: string
           token: string | null
         }
@@ -7712,6 +7869,7 @@ export type Database = {
           lease_until?: string | null
           message_id: string
           payload: Json
+          provider_email_id?: string | null
           state?: string
           token?: string | null
         }
@@ -7722,6 +7880,7 @@ export type Database = {
           lease_until?: string | null
           message_id?: string
           payload?: Json
+          provider_email_id?: string | null
           state?: string
           token?: string | null
         }
@@ -8205,6 +8364,15 @@ export type Database = {
         Args: { _kind: string; _message_id: string; _payload: Json }
         Returns: Json
       }
+      complete_support_delivery: {
+        Args: {
+          _kind: string
+          _message_id: string
+          _provider_message_id: string
+          _token: string
+        }
+        Returns: undefined
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -8308,6 +8476,71 @@ export type Database = {
           _key: string
           _needed_by: string
           _owner: string
+        }
+        Returns: Json
+      }
+      mcp_ap_original_get: {
+        Args: { _id: string; _job: string; _record: string }
+        Returns: Json
+      }
+      mcp_ap_original_link: {
+        Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
+        Returns: Json
+      }
+      mcp_ap_original_list: {
+        Args: { _job: string; _record: string; _version?: number }
+        Returns: Json
+      }
+      mcp_ap_original_review: {
+        Args: {
+          _job: string
+          _record: string
+          _request: string
+          _upload: string
+          _version: number
+        }
+        Returns: Json
+      }
+      mcp_ap_original_scope: {
+        Args: {
+          _current?: boolean
+          _job: string
+          _record: string
+          _version: number
+        }
+        Returns: Json
+      }
+      mcp_ap_original_snapshot: { Args: { _job: string }; Returns: Json }
+      mcp_ap_original_upload_begin: {
+        Args: {
+          _filename: string
+          _id: string
+          _job: string
+          _mime: string
+          _record: string
+          _sha256: string
+          _size: number
+          _version: number
+        }
+        Returns: Json
+      }
+      mcp_ap_original_upload_claim: {
+        Args: { _actor: string; _id: string }
+        Returns: Json
+      }
+      mcp_ap_original_upload_get: {
+        Args: { _id: string; _job: string; _record: string; _version: number }
+        Returns: Json
+      }
+      mcp_ap_original_verify: {
+        Args: {
+          _actor: string
+          _id: string
+          _job: string
+          _record: string
+          _sha256: string
+          _size: number
+          _version: number
         }
         Returns: Json
       }
@@ -8484,6 +8717,24 @@ export type Database = {
       mcp_cost_own_field_receipt_access: {
         Args: { _job: string; _record: string }
         Returns: boolean
+      }
+      mcp_cost_payment_balances_as_of: {
+        Args: { _day: string; _state: Json }
+        Returns: Json
+      }
+      mcp_cost_payment_correction: {
+        Args: {
+          _confirmed?: boolean
+          _job: string
+          _p: Json
+          _review?: string
+          _step: string
+        }
+        Returns: Json
+      }
+      mcp_cost_payment_correction_state: {
+        Args: { _job: string; _payment: string; _record: string }
+        Returns: Json
       }
       mcp_cost_pm_approve: {
         Args: { _confirmed: boolean; _job: string; _p: Json; _review: string }
@@ -9482,6 +9733,15 @@ export type Database = {
           _suppressed_reason: string
         }
         Returns: Json
+      }
+      remember_support_delivery: {
+        Args: {
+          _kind: string
+          _message_id: string
+          _provider_email_id: string
+          _token: string
+        }
+        Returns: undefined
       }
       replace_schedule_graph: {
         Args: { _dependencies: Json; _schedule_id: string; _tasks: Json }
