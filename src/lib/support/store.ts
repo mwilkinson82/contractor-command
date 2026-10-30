@@ -16,7 +16,14 @@ export type SupportTicket = {
   autoreply_suppressed_reason: string | null;
 };
 
-export type OpenedSupportTicket = SupportTicket & { inserted: boolean };
+export type OpenedSupportTicket = SupportTicket & {
+  inserted: boolean;
+  messageRecordId: string;
+  receiptMessageId: string;
+  reviewReason: string | null;
+  ackPreview: boolean;
+  legacyImport: boolean;
+};
 
 export type OpenTicketInput = {
   resendEmailId: string;
@@ -26,6 +33,12 @@ export type OpenTicketInput = {
   messageId: string | null;
   receivedAt: string;
   rawSummary: string | null;
+  evidence?: Record<string, unknown>;
+  references?: string[];
+  reviewReason?: string | null;
+  preview?: boolean;
+  senderVerified?: boolean;
+  suppressedReason?: string | null;
 };
 
 export type SupportTicketStore = {
@@ -35,4 +48,19 @@ export type SupportTicketStore = {
   markAutoreplySuppressed(id: string, reason: string): Promise<void>;
   get(id: string): Promise<SupportTicket | null>;
   markReplied(id: string): Promise<void>;
+  claimDelivery(
+    messageId: string,
+    kind: "ack" | "owner",
+    payload: Record<string, unknown>,
+  ): Promise<{
+    state: "ready" | "sent" | "busy" | "review";
+    token: string | null;
+    payload: Record<string, unknown>;
+  }>;
+  finishDelivery(
+    messageId: string,
+    kind: "ack" | "owner",
+    token: string,
+    result: "sent" | "retry" | "review",
+  ): Promise<void>;
 };

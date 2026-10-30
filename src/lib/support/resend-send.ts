@@ -42,6 +42,7 @@ export async function postResendEmail(
         "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
     });
   } catch (err) {
     throw new SupportDeliveryError(
@@ -59,7 +60,7 @@ export async function postResendEmail(
     }
   }
   if (res.status === 409 && errorName(parsed) === "invalid_idempotent_request") {
-    return { id: null, duplicate: true };
+    throw new SupportDeliveryError("Idempotency payload conflict requires review", false);
   }
   if (!res.ok) {
     throw new SupportDeliveryError(
@@ -68,6 +69,7 @@ export async function postResendEmail(
     );
   }
   const id = parsed && typeof parsed === "object" ? (parsed as { id?: unknown }).id : null;
+  if (typeof id !== "string" || !id) throw new SupportDeliveryError("Send outcome uncertain", true);
   return { id: typeof id === "string" ? id : null, duplicate: false };
 }
 

@@ -1,0 +1,12 @@
+import React,{useState,useEffect} from "react";
+const params=()=>new URLSearchParams(location.search);export const calls:string[]=[];
+export function useAuth(){const [user,setUser]=useState<any>({id:"fixture-admin"});useEffect(()=>{const f=()=>setUser(null);window.addEventListener("fixture-signout",f);return()=>window.removeEventListener("fixture-signout",f)},[]);return{user,loading:false};}
+export function useIsAdmin(){return params().get("state")!=="nonadmin";}
+export function useServerFn(fn:any){return fn;}
+export function createFileRoute(){return(options:any)=>({...options,useSearch:()=>({ticket:params().get("ticket")??undefined})});}
+export function Link({to,search,children,...props}:any){const p=params();if(search?.ticket)p.set("ticket",search.ticket);else p.delete("ticket");return <a {...props} href={"/?"+p.toString()}>{children}</a>;}
+const ticket={id:"00000000-0000-4000-8000-000000000001",ticket_number:"ATH-0042",brand:"athena",from_email:"synthetic-customer@example.invalid",subject:"Attachment and schedule question",status:"open",received_at:"2026-10-29T12:00:00Z",last_update:"2026-10-29T13:00:00Z"};
+export async function readSupportDashboard({data}:any){calls.push("read");if(params().get("state")==="error")throw Error("Synthetic service unavailable");if(params().get("state")==="empty")return{tickets:[]};if(!data.ticketId)return{tickets:[ticket,{...ticket,id:"00000000-0000-4000-8000-000000000002",ticket_number:"ATH-0041",status:"closed",subject:"Previous synthetic issue"}]};return{ticket,messages:[{id:"00000000-0000-4000-8000-000000000003",received_at:ticket.last_update,preview:true,review_reason:"unverified_sender_for_correlation",evidence:{text:params().get("state")==="long"?"Long synthetic message "+"unbrokentext".repeat(250):"Please review the attached schedule. <img src=x onerror=alert(1)> is untrusted text.",html_source:"<script>window.fixtureXss=true</script>",attachments:[{filename:"schedule.pdf",size:23}]},deliveries:[{kind:"ack",state:"sent",text:"Synthetic automatic receipt preview."},{kind:"owner",state:"sent",text:"Synthetic owner notice."}]}]};}
+export async function listSupportAttachments(){calls.push("attachments");return[{index:0,label:"Synthetic schedule"}];}
+export async function readSupportAttachment(){calls.push("download");return{filename:"support-attachment-1.untrusted.bin",content:btoa("synthetic attachment bytes")};}
+(window as any).fixtureCalls=calls;
