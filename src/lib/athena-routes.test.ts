@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { athenaHostRedirect, athenaPathAllowed, isHostedReport, isTodayPage, postSignInDefault } from "./athena-routes";
+import {
+  athenaHostRedirect,
+  athenaPathAllowed,
+  isHostedReport,
+  isTodayPage,
+  postSignInDefault,
+} from "./athena-routes";
 
 describe("Athena-only route shell", () => {
   it.each([
     "/login",
     "/auth/callback",
     "/account",
+    "/admin/support",
     "/oauth/consent",
     "/.lovable/oauth/consent",
     "/reset-password",
@@ -27,9 +34,24 @@ describe("Athena-only route shell", () => {
     expect(athenaHostRedirect(p)).toBeNull();
   });
 
-  it.each(["/", "/ecosystem", "/aos", "/overwatch", "/handbook", "/start-here", "/calls", "/admin", "/onboarding", "/upgrade", "/vault", "/ask", "/scheduler", "/welcome", "/signup"])(
-    "redirects Circle route %s to /account",
-    (p) => expect(athenaHostRedirect(p)).toBe("/account"),
+  it.each([
+    "/",
+    "/ecosystem",
+    "/aos",
+    "/overwatch",
+    "/handbook",
+    "/start-here",
+    "/calls",
+    "/admin",
+    "/onboarding",
+    "/upgrade",
+    "/vault",
+    "/ask",
+    "/scheduler",
+    "/welcome",
+    "/signup",
+  ])("redirects Circle route %s to /account", (p) =>
+    expect(athenaHostRedirect(p)).toBe("/account"),
   );
 
   it("sends /team to the Team section of /account", () => {
@@ -40,6 +62,9 @@ describe("Athena-only route shell", () => {
     expect(athenaPathAllowed("/accountant")).toBe(false);
     expect(athenaPathAllowed("/mcpx")).toBe(false);
     expect(athenaPathAllowed("/oauthx")).toBe(false);
+    expect(athenaPathAllowed("/admin/support-extra")).toBe(false);
+    expect(athenaPathAllowed("/admin/support/tickets")).toBe(false);
+    expect(athenaPathAllowed("/admin/users")).toBe(false);
   });
 
   it("field and items are the same hosted report, so neither is bounced to login on its own", () => {
@@ -65,7 +90,13 @@ describe("Athena-only route shell", () => {
 
   it("every connect-flow route file maps to an allowed path", () => {
     // The OAuth connect flow: discovery (.well-known), MCP, consent, login, callback.
-    for (const p of ["/mcp", "/oauth/consent", "/.lovable/oauth/consent", "/login", "/auth/callback"]) {
+    for (const p of [
+      "/mcp",
+      "/oauth/consent",
+      "/.lovable/oauth/consent",
+      "/login",
+      "/auth/callback",
+    ]) {
       expect(athenaPathAllowed(p)).toBe(true);
     }
   });
