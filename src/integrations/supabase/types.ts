@@ -1720,6 +1720,152 @@ export type Database = {
           },
         ]
       }
+      mcp_buyout_operations: {
+        Row: {
+          actor_id: string
+          company_id: string
+          job_id: string | null
+          payload_hash: string
+          recorded_at: string
+          request_id: string
+          result: Json
+          review_id: string
+        }
+        Insert: {
+          actor_id: string
+          company_id: string
+          job_id?: string | null
+          payload_hash: string
+          recorded_at?: string
+          request_id: string
+          result: Json
+          review_id: string
+        }
+        Update: {
+          actor_id?: string
+          company_id?: string
+          job_id?: string | null
+          payload_hash?: string
+          recorded_at?: string
+          request_id?: string
+          result?: Json
+          review_id?: string
+        }
+        Relationships: []
+      }
+      mcp_buyout_records: {
+        Row: {
+          company_id: string
+          id: string
+          job_id: string | null
+          kind: string
+          record_key: string
+          version: number
+        }
+        Insert: {
+          company_id: string
+          id: string
+          job_id?: string | null
+          kind: string
+          record_key: string
+          version: number
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          job_id?: string | null
+          kind?: string
+          record_key?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_buyout_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_buyout_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_buyout_reviews: {
+        Row: {
+          actor_id: string
+          cancelled: boolean
+          company_id: string
+          expires_at: string
+          id: string
+          job_id: string | null
+          payload_hash: string
+          request_id: string
+          state_hash: string
+        }
+        Insert: {
+          actor_id: string
+          cancelled?: boolean
+          company_id: string
+          expires_at?: string
+          id: string
+          job_id?: string | null
+          payload_hash: string
+          request_id: string
+          state_hash: string
+        }
+        Update: {
+          actor_id?: string
+          cancelled?: boolean
+          company_id?: string
+          expires_at?: string
+          id?: string
+          job_id?: string | null
+          payload_hash?: string
+          request_id?: string
+          state_hash?: string
+        }
+        Relationships: []
+      }
+      mcp_buyout_versions: {
+        Row: {
+          facts: Json
+          reason: string
+          record_id: string
+          recorded_at: string
+          recorded_by: string
+          version: number
+        }
+        Insert: {
+          facts: Json
+          reason: string
+          record_id: string
+          recorded_at?: string
+          recorded_by: string
+          version: number
+        }
+        Update: {
+          facts?: Json
+          reason?: string
+          record_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_buyout_versions_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_buyout_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_call_log: {
         Row: {
           called_at: string
@@ -3055,6 +3201,47 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_daily_capture_requests: {
+        Row: {
+          company_id: string
+          created_at: string
+          job_id: string
+          report_date: string
+          request_id: string
+          request_payload: Json
+          requested_by: string
+          result: Json | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          job_id: string
+          report_date: string
+          request_id: string
+          request_payload: Json
+          requested_by: string
+          result?: Json | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          job_id?: string
+          report_date?: string
+          request_id?: string
+          request_payload?: Json
+          requested_by?: string
+          result?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_daily_capture_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -8659,6 +8846,43 @@ export type Database = {
         Returns: Json
       }
       mcp_board_link_revoke: { Args: { _token_hash: string }; Returns: Json }
+      mcp_buyout_get: {
+        Args: { _company: string; _job?: string }
+        Returns: Json
+      }
+      mcp_buyout_record: {
+        Args: {
+          _company: string
+          _confirmed: boolean
+          _expected: number
+          _facts: Json
+          _id: string
+          _job: string
+          _kind: string
+          _reason: string
+          _request: string
+          _review: string
+        }
+        Returns: Json
+      }
+      mcp_buyout_review: {
+        Args: {
+          _company: string
+          _expected: number
+          _facts: Json
+          _id: string
+          _job: string
+          _kind: string
+          _reason: string
+          _request: string
+          _review: string
+        }
+        Returns: Json
+      }
+      mcp_buyout_review_cancel: {
+        Args: { _company: string; _job: string; _review: string }
+        Returns: Json
+      }
       mcp_caller_is_no_access_role: { Args: never; Returns: boolean }
       mcp_can_access_contract: { Args: { _job: string }; Returns: boolean }
       mcp_can_access_job: { Args: { _job: string }; Returns: boolean }
@@ -8836,6 +9060,24 @@ export type Database = {
       }
       mcp_daily_reminder_status: {
         Args: { _job_number: string }
+        Returns: Json
+      }
+      mcp_daily_report_create: {
+        Args: {
+          _confirmed: boolean
+          _date: string
+          _delays: string
+          _deliveries: string
+          _issues: string
+          _job: string
+          _lines: Json
+          _manpower: string
+          _request: string
+          _reviewed_at: string
+          _safety: string
+          _subs: string
+          _weather: string
+        }
         Returns: Json
       }
       mcp_daily_report_get: {
