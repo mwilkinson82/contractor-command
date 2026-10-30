@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { SupportDeliveryError } from "./resend-send.ts";
 import type { SupportBrand } from "./ticket.ts";
 import type {
   OpenedSupportTicket,
@@ -7,7 +8,7 @@ import type {
   SupportTicketStore,
 } from "./store.ts";
 
-type RpcError = { message: string } | null;
+type RpcError = { message: string; code?: string } | null;
 
 type SupportClient = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: RpcError }>;
@@ -140,7 +141,34 @@ export const supabaseSupportStore: SupportTicketStore = {
       state: row.state as "ready" | "sent" | "busy" | "review",
       token: asNullable(row.token),
       payload: row.payload as Record<string, unknown>,
+      providerEmailId: asNullable(row.provider_email_id),
     };
+  },
+  async rememberDelivery(messageId, kind, token, providerEmailId) {
+    const { error } = await client().rpc("remember_support_delivery", {
+      _message_id: messageId,
+      _kind: kind,
+      _token: token,
+      _provider_email_id: providerEmailId,
+    });
+    if (error)
+      throw new SupportDeliveryError(
+        "Unable to retain accepted support delivery",
+        !["23505", "P0001"].includes(error.code ?? ""),
+      );
+  },
+  async completeDelivery(messageId, kind, token, providerMessageId) {
+    const { error } = await client().rpc("complete_support_delivery", {
+      _message_id: messageId,
+      _kind: kind,
+      _token: token,
+      _provider_message_id: providerMessageId,
+    });
+    if (error)
+      throw new SupportDeliveryError(
+        "Unable to record support delivery identity",
+        !["23505", "P0001"].includes(error.code ?? ""),
+      );
   },
   async finishDelivery(messageId, kind, token, result) {
     const { error } = await client().rpc("finish_support_delivery", {

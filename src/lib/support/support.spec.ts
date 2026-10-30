@@ -16,7 +16,10 @@ const ALLOWED_COLORS = new Set(["#0b1f3a", "#1e5fed", "#eef1f6", "#ffffff", "#4a
 
 function memoryStore(): SupportTicketStore & { rows: OpenedSupportTicket[] } {
   const rows: OpenedSupportTicket[] = [];
-  const deliveries = new Map<string, { payload: Record<string, unknown>; state: string }>();
+  const deliveries = new Map<
+    string,
+    { payload: Record<string, unknown>; state: string; providerEmailId?: string }
+  >();
   const seq = { athena: 0, circle: 0 };
   const find = (id: string) => rows.find((row) => row.id === id);
   return {
@@ -52,13 +55,24 @@ function memoryStore(): SupportTicketStore & { rows: OpenedSupportTicket[] } {
     },
     async claimDelivery(messageId, kind, payload) {
       const key = messageId + "/" + kind;
-      const d = deliveries.get(key) ?? { payload, state: "retry" };
+      const d = deliveries.get(key) ?? { payload, state: "retry", providerEmailId: undefined };
       deliveries.set(key, d);
       return {
         state: d.state === "sent" ? "sent" : d.state === "review" ? "review" : "ready",
         payload: d.payload,
         token: "claim",
+        providerEmailId: d.providerEmailId ?? null,
       };
+    },
+    async rememberDelivery(messageId, kind, _token, providerEmailId) {
+      const d = deliveries.get(messageId + "/" + kind);
+      if (!d) throw new Error("Missing delivery fixture");
+      d.providerEmailId = providerEmailId;
+    },
+    async completeDelivery(messageId, kind, token, providerMessageId) {
+      const row = rows.find((r) => r.messageRecordId === messageId);
+      if (row && kind === "ack" && providerMessageId) row.receiptMessageId = providerMessageId;
+      await this.finishDelivery(messageId, kind, token, "sent");
     },
     async finishDelivery(messageId, kind, _token, result) {
       const d = deliveries.get(messageId + "/" + kind);
@@ -97,8 +111,21 @@ function mockResend(email: InboundMail, sendStatus = 200, sendBody: unknown = { 
   const sends: Array<{ body: Record<string, unknown>; key: string | null }> = [];
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (method === "GET")
-      return new Response(JSON.stringify({ id: "em", ...email }), { status: 200 });
+    if (method === "GET") {
+      if (String(url).includes("/emails/receiving/"))
+        return new Response(JSON.stringify({ id: "em", ...email }), { status: 200 });
+      const id = String(url).split("/").at(-1)!;
+      const sent = sends[Number(id.split("_").at(-1)) - 1];
+      return new Response(
+        JSON.stringify({
+          id,
+          from: sent?.body.from,
+          to: sent?.body.to,
+          message_id: `<provider-${id}@example.com>`,
+        }),
+        { status: 200 },
+      );
+    }
     const headers = new Headers(init?.headers);
     sends.push({
       body: JSON.parse(String(init?.body)),
@@ -519,8 +546,18 @@ describe("support email logos", () => {
 it("retries a failed owner notice without repeating an accepted receipt", async () => {
   const store = memoryStore();
   const sends: Array<{ body: unknown; key: string | null }> = [];
-  const fetchImpl = (async (_url: string, init?: RequestInit) => {
-    if (!init?.method || init.method === "GET") return Response.json(baseMail);
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    if (!init?.method || init.method === "GET") {
+      if (String(url).includes("/receiving/")) return Response.json(baseMail);
+      const id = String(url).split("/").at(-1);
+      const body = sends[0]?.body as Record<string, unknown>;
+      return Response.json({
+        id,
+        from: body?.from,
+        to: body?.to,
+        message_id: "<accepted@example.com>",
+      });
+    }
     sends.push({
       body: JSON.parse(String(init.body)),
       key: new Headers(init.headers).get("Idempotency-Key"),

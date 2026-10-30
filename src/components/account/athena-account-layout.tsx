@@ -20,7 +20,7 @@ import "./athena-account.css";
 type Section = "overview" | "company" | "team" | "billing" | "projects";
 const sections = [
   { id: "overview", label: "Overview", Icon: LayoutGrid },
-  { id: "company", label: "Company profile", Icon: Building2 },
+  { id: "company", label: "Organization profile", Icon: Building2 },
   { id: "team", label: "Team & access", Icon: Users },
   { id: "billing", label: "Plan & billing", Icon: CreditCard },
   { id: "projects", label: "Your projects", Icon: FolderOpen },
@@ -31,8 +31,8 @@ const copy: Record<Section, { title: string; description: string }> = {
     description: "Your workspace, your people, and everything you need to keep moving.",
   },
   company: {
-    title: "Company profile",
-    description: "Keep your company identity and workspace details up to date.",
+    title: "Organization profile",
+    description: "The organization details saved to your account.",
   },
   team: {
     title: "Team & access",
@@ -52,6 +52,7 @@ export type AthenaAccountLayoutProps = {
   name: string | null;
   email: string | null;
   companyName: string | null;
+  organization?: { name: string | null; status: "loading" | "error" | "ready" };
   plan: string;
   seats: string;
   teamLoading: boolean;
@@ -233,9 +234,15 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
                   <Building2 size={20} />
                 </span>
                 <span>
-                  <small>YOUR COMPANY</small>
-                  <strong>{props.companyName || "Set up your company"}</strong>
-                  <em>Manage company profile</em>
+                  <small>ORGANIZATION PROFILE</small>
+                  <strong>
+                    {props.organization?.status === "loading"
+                      ? "Loading…"
+                      : props.organization?.status === "error"
+                        ? "Unavailable"
+                        : props.organization?.name || "Set up your organization"}
+                  </strong>
+                  <em>Edit account organization</em>
                 </span>
                 <ChevronRight size={18} />
               </button>
@@ -304,7 +311,7 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
           <section
             className="aa-existing"
             hidden={section !== "company"}
-            aria-label="Company settings"
+            aria-label="Organization profile"
           >
             {props.company}
           </section>

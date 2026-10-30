@@ -9,10 +9,7 @@ beforeAll(async () => {
   );
   await db.exec(readFileSync("supabase/migrations/20261028194500_support_tickets.sql", "utf8"));
   await db.exec(
-    readFileSync(
-      "supabase/migrations/20261029125856_support_conversations_owner_review.sql",
-      "utf8",
-    ),
+    readFileSync("drizzle/migrations/0043_support_conversations_owner_review.sql", "utf8"),
   );
 });
 afterAll(async () => {

@@ -355,7 +355,7 @@ export function reconcileApSnapshot(raw: unknown, scope: Scope): ApResult {
     coverage: {
       state: "checked",
       reason:
-        "Checks cover Athena cost records only. Version currency is supplied and reviewed, not independently verified. Settlement checks infer payment currency only from consistent posting history. Original evidence, job-level settlement, shared-payment conservation and external accounting coverage remain unavailable.",
+        "Checks cover Athena cost records only. Version currency is supplied and reviewed, not independently verified. Settlement checks infer payment currency only from consistent posting history. These amount checks do not inspect original files; supplier-original associations are checked separately. Job-level settlement, shared-payment conservation and external accounting coverage remain unavailable.",
     },
     findings,
     currency_totals: [...totals]
