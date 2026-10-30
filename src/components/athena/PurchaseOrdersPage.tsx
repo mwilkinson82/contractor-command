@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { BoardSignIn } from "./BoardSignIn";
+import { extendedCents, sumCents } from "@/lib/accounting-report";
 
 type Party = {
   id: string;
@@ -50,8 +51,11 @@ const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+const money = (cents: number | null) => {
+  if (cents === null) return "Unavailable";
+  const amount = BigInt(cents);
+  return `$${new Intl.NumberFormat("en-US").format(amount / 100n)}.${String(amount % 100n).padStart(2, "0")}`;
+};
 export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
   const { session, loading } = useAuth();
   const result = useQuery({
@@ -137,6 +141,10 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
                 </h3>
                 {o.versions.map((v) => {
                   const t = terms.find((x) => x.id === v.terms_id);
+                  const extensions = v.lines.map((line) =>
+                    extendedCents(line.quantity, line.unit_price_cents),
+                  );
+                  const total = sumCents(extensions);
                   return (
                     <details key={v.version} className="mt-3" open={v === o.versions[0]}>
                       <summary>
@@ -148,10 +156,20 @@ export function PurchaseOrdersPage({ jobId }: { jobId: string }) {
                         {v.lines.map((line, i) => (
                           <li key={i}>
                             {line.description} · {line.quantity} {line.unit} ·{" "}
-                            {money(line.unit_price_cents)} per {line.unit}
+                            {money(line.unit_price_cents)} per {line.unit} · Line total:{" "}
+                            <strong className="tabular-nums">{money(extensions[i])}</strong>
                           </li>
                         ))}
                       </ul>
+                      <p className="mt-3 font-semibold tabular-nums">
+                        Order total (USD): {money(total)}
+                      </p>
+                      {total === null && (
+                        <p>
+                          A line or total cannot be represented as whole cents at supported
+                          precision. No amount has been rounded.
+                        </p>
+                      )}
                       <p>Supplier at this version: {v.party_snapshot.name}</p>
                       {v.reason && <p>Revision: {v.reason}</p>}
                       <p>
