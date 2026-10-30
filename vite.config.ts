@@ -8,7 +8,7 @@ import { execSync } from "node:child_process";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 import { loadEnv } from "vite";
-import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
+import { mcpPluginForNativePaths } from "./src/lib/build/mcp-native-paths";
 import { commitFromEnv, normalizeCommit } from "./src/lib/athena-build";
 
 function gitHeadCommit(): string {
@@ -40,7 +40,7 @@ export default defineConfig({
       __ATHENA_BUILT_AT__: JSON.stringify(new Date().toISOString()),
     },
     plugins: [
-      mcpPlugin(),
+      mcpPluginForNativePaths(),
       {
         name: "athena-pdfium-wasm",
         enforce: "pre",
