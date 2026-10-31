@@ -121,6 +121,27 @@ beforeAll(async () => {
 }, 30000);
 afterAll(() => db.close());
 
+// Exercise the authenticated RPC boundary directly, without application ownership checks.
+async function rawUploadRpc(
+  user: string,
+  operation: "get" | "chunk" | "complete",
+  id: string,
+  job = jobs[0],
+) {
+  return asUser(db, { ...claims, sub: user }, async (tx) => {
+    // The existing stable getter inherits the canonical cached membership gate.
+    await tx.query("SELECT public.mcp_assert_active()");
+    const suffix =
+      operation === "get" ? "" : operation === "chunk" ? ",0" : ",'{\"fixture\":true}'::jsonb";
+    return (
+      await tx.query(`SELECT public.mcp_file_upload_${operation}($1,$2${suffix}) AS value`, [
+        id,
+        job,
+      ])
+    ).rows[0].value;
+  });
+}
+
 async function upload(purpose = "contract") {
   const begun = await call(fileUpload, {
     action: "begin",
@@ -149,6 +170,93 @@ async function upload(purpose = "contract") {
 }
 
 describe("upload and company choices across fresh scoped tool calls", () => {
+  it("denies direct RPC metadata and pending-state mutations for another same-job member", async () => {
+    const { begun } = await upload("spec");
+    expect(await rawUploadRpc(peer, "get", begun.upload_id)).toBeNull();
+    for (const operation of ["chunk", "complete"] as const)
+      await expect(rawUploadRpc(peer, operation, begun.upload_id)).rejects.toThrow(
+        "That upload is not available on this job",
+      );
+    expect(
+      (
+        await db.query<any>("SELECT status,chunks,result FROM mcp_file_uploads WHERE id=$1", [
+          begun.upload_id,
+        ])
+      ).rows[0],
+    ).toEqual({ status: "open", chunks: [], result: null });
+    expect(await rawUploadRpc(owner, "get", begun.upload_id)).toMatchObject({
+      id: begun.upload_id,
+    });
+    expect(await rawUploadRpc(owner, "chunk", begun.upload_id)).toMatchObject({ chunk_index: 0 });
+    expect(await rawUploadRpc(owner, "complete", begun.upload_id)).toEqual({ fixture: true });
+    // The cached result is also private after completion.
+    expect(await rawUploadRpc(peer, "get", begun.upload_id)).toBeNull();
+    await expect(rawUploadRpc(peer, "complete", begun.upload_id)).rejects.toThrow("not available");
+  });
+
+  it("checks current purpose scope at direct RPCs even for the upload creator", async () => {
+    const { begun } = await upload("spec");
+    // Synthetic fixture models a previously full-scope creator whose role changed.
+    await db.query("UPDATE mcp_file_uploads SET purpose='submittal_piece' WHERE id=$1", [
+      begun.upload_id,
+    ]);
+    await db.query(
+      "UPDATE mcp_company_members SET role='contracts' WHERE company_id=$1 AND user_id=$2",
+      [companies[0], owner],
+    );
+    try {
+      expect(await rawUploadRpc(owner, "get", begun.upload_id)).toBeNull();
+      for (const operation of ["chunk", "complete"] as const)
+        await expect(rawUploadRpc(owner, operation, begun.upload_id)).rejects.toThrow(
+          "not available",
+        );
+    } finally {
+      await db.query(
+        "UPDATE mcp_company_members SET role='owner' WHERE company_id=$1 AND user_id=$2",
+        [companies[0], owner],
+      );
+    }
+    expect(await rawUploadRpc(owner, "get", begun.upload_id)).toMatchObject({
+      purpose: "submittal_piece",
+    });
+    expect(await rawUploadRpc(owner, "chunk", begun.upload_id)).toMatchObject({ chunk_index: 0 });
+    expect(await rawUploadRpc(owner, "complete", begun.upload_id)).toEqual({ fixture: true });
+  });
+
+  it("retains direct RPC job, membership, expiry and execute boundaries", async () => {
+    const { begun } = await upload("spec");
+    expect(await rawUploadRpc(owner, "get", begun.upload_id, jobs[1])).toBeNull();
+    await expect(rawUploadRpc(outsider, "get", begun.upload_id)).rejects.toThrow("MCP_NO_JOB");
+    await db.query("DELETE FROM test_active_members WHERE user_id=$1", [owner]);
+    await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    try {
+      for (const operation of ["get", "chunk", "complete"] as const)
+        await expect(rawUploadRpc(owner, operation, begun.upload_id)).rejects.toThrow(
+          "MCP_INACTIVE",
+        );
+    } finally {
+      await db.query("INSERT INTO test_active_members VALUES($1)", [owner]);
+      await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    }
+    await db.query("UPDATE mcp_file_uploads SET expires_at=now()-interval '1 minute' WHERE id=$1", [
+      begun.upload_id,
+    ]);
+    for (const operation of ["chunk", "complete"] as const)
+      await expect(rawUploadRpc(owner, operation, begun.upload_id)).rejects.toThrow("expired");
+    for (const signature of [
+      "mcp_file_upload_get(uuid,uuid)",
+      "mcp_file_upload_chunk(uuid,uuid,integer)",
+      "mcp_file_upload_complete(uuid,uuid,jsonb)",
+    ])
+      expect(
+        (
+          await db.query<any>("SELECT has_function_privilege('anon',$1,'EXECUTE') AS allowed", [
+            signature,
+          ])
+        ).rows[0].allowed,
+      ).toBe(false);
+  });
+
   it("lists the saved file on the exact job after verified finish, but not after bytes alone", async () => {
     const { begun, response } = await upload();
     expect(await response.json()).toMatchObject({
@@ -334,6 +442,110 @@ describe("actual authenticated upload card completion and recovery", () => {
     ]);
     expect(v.calls.filter((c) => c.arguments.action === "begin")).toEqual([]);
     v.close();
+  });
+
+  it("revalidates a previously visited upload after another upload completes and Back restores it", async () => {
+    const a = await begin(),
+      b = await begin(),
+      v = view();
+    await ready(v, b.result);
+    await ready(v, a.result);
+    choose(v, a.filename);
+    await vi.waitFor(() => expect(v.status.textContent).toBe("File added to job."));
+    v.result(b.result);
+    expect(v.app.textContent).not.toContain("File added to job");
+    await vi.waitFor(() => expect(v.status.textContent).toContain("Choose the file"));
+    expect(v.app.textContent).toContain(b.filename);
+    expect(
+      v.calls.filter(
+        (c) =>
+          c.arguments.action === "resume" &&
+          c.arguments.upload_id === b.result.structuredContent.upload_id,
+      ),
+    ).toHaveLength(2);
+    expect(
+      v.calls.some(
+        (c) =>
+          c.arguments.action === "finish" &&
+          c.arguments.upload_id === b.result.structuredContent.upload_id,
+      ),
+    ).toBe(false);
+    expect((await list()).structuredContent.documents.some((d: any) => d.name === b.filename)).toBe(
+      false,
+    );
+    v.close();
+  });
+
+  it("queues Back navigation during completion without carrying success into the restored context", async () => {
+    const a = await begin(),
+      b = await begin();
+    let release!: () => void;
+    const paused = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const v = view({
+      dispatch: async (name, args) => {
+        if (args.action === "finish") await paused;
+        return dispatch(name, args);
+      },
+    });
+    await ready(v, b.result);
+    await ready(v, a.result);
+    choose(v, a.filename);
+    await vi.waitFor(() => expect(v.calls.some((c) => c.arguments.action === "finish")).toBe(true));
+    v.result(b.result);
+    release();
+    await vi.waitFor(() => expect(v.app.textContent).toContain(b.filename));
+    expect(v.app.textContent).not.toContain("File added to job");
+    await vi.waitFor(() => expect(v.status.textContent).toContain("Choose the file"));
+    v.close();
+  });
+
+  it("keeps concurrent cards isolated and rejects a completion reply belonging to the other card", async () => {
+    const a = await begin(),
+      b = await begin();
+    let resolveA!: (result: unknown) => void,
+      wrongReply = true;
+    const aFinished = new Promise<unknown>((resolve) => {
+      resolveA = resolve;
+    });
+    const va = view({
+      dispatch: async (name, args) => {
+        const result = await dispatch(name, args);
+        if (args.action === "finish") resolveA(result);
+        return result;
+      },
+    });
+    const vb = view({
+      dispatch: async (name, args) => {
+        if (args.action === "finish" && wrongReply) return aFinished;
+        return dispatch(name, args);
+      },
+    });
+    await ready(va, a.result);
+    await ready(vb, b.result);
+    expect(vb.app.textContent).not.toContain("File added to job");
+    choose(vb, b.filename);
+    await vi.waitFor(() =>
+      expect(vb.calls.some((c) => c.arguments.action === "finish")).toBe(true),
+    );
+    choose(va, a.filename);
+    await vi.waitFor(() => expect(va.status.textContent).toBe("File added to job."));
+    await vi.waitFor(() =>
+      expect(vb.status.textContent).toContain("exact job attachment was not confirmed"),
+    );
+    expect(vb.app.textContent).not.toContain("File added to job");
+    wrongReply = false;
+    vb.click("Retry completion");
+    await vi.waitFor(() => expect(vb.status.textContent).toBe("File added to job."));
+    expect(va.app.textContent).toContain(a.filename);
+    expect(vb.app.textContent).toContain(b.filename);
+    const docs = (await list()).structuredContent.documents;
+    expect(docs.find((d: any) => d.name === a.filename).id).not.toBe(
+      docs.find((d: any) => d.name === b.filename).id,
+    );
+    va.close();
+    vb.close();
   });
 
   it("recovers received bytes after the card closes, through fresh-chat job files", async () => {

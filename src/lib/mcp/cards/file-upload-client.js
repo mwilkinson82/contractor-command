@@ -10,7 +10,8 @@
     current = null,
     portfolio = null,
     busy = false,
-    completed = null;
+    completed = null,
+    queuedResult = null;
   var loaded = new Set(),
     UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
   function send(m) {
@@ -52,6 +53,26 @@
       c.job_number.length > 0 &&
       c.job_number.length <= 40
     );
+  }
+  function contextKey(c) {
+    return JSON.stringify([c.company_id, c.job_number, c.upload_id]);
+  }
+  function confirmed(c) {
+    return (
+      completed &&
+      same(completed, c) &&
+      completed.filename === c.filename &&
+      completed.job_association === "verified"
+    );
+  }
+  function settled() {
+    busy = false;
+    if (closed) return;
+    if (queuedResult) {
+      var next = queuedResult;
+      queuedResult = null;
+      result(next);
+    } else render();
   }
   function urlFor(c) {
     try {
@@ -131,16 +152,17 @@
   }
   function render() {
     if (closed) return;
+    var verified = confirmed(current);
     var shell = node("article"),
       head = node("header"),
       body = node("main");
     head.append(
-      node("h1", completed ? "File added to job" : current ? "Add file to job" : "Your job files"),
+      node("h1", verified ? "File added to job" : current ? "Add file to job" : "Your job files"),
     );
     shell.append(head, body);
     if (current) {
       body.append(node("p", current.filename), node("p", "Job " + current.job_number));
-      if (completed) {
+      if (verified) {
         body.append(node("p", "Athena verified this file in the job's files."));
         if (completed.readable_state === "failed")
           body.append(
@@ -208,7 +230,7 @@
         body.append(node("p", "The file has not arrived. Choose it in a new upload to continue."));
         if (current.restart) body.append(button("Choose file", restart, true));
       }
-      if (!completed)
+      if (!verified)
         body.append(
           button("Refresh upload status", function () {
             recover(current);
@@ -349,8 +371,7 @@
       current = Object.assign({}, current, { verification_pending: true });
       status.textContent = e.message || "Upload recovery was not confirmed.";
     } finally {
-      busy = false;
-      render();
+      settled();
     }
   }
   async function upload(file) {
@@ -399,8 +420,7 @@
       status.textContent =
         e.message || "Upload was not confirmed. Refresh its status before retrying.";
     } finally {
-      busy = false;
-      render();
+      settled();
     }
   }
   async function restart() {
@@ -423,8 +443,7 @@
     } catch (e) {
       status.textContent = e.message;
     } finally {
-      busy = false;
-      render();
+      settled();
     }
   }
   async function showPending(c, before) {
@@ -467,22 +486,35 @@
     } catch (e) {
       status.textContent = e.message;
     } finally {
-      busy = false;
-      render();
+      settled();
     }
   }
   function result(r) {
-    if (busy || closed) return;
+    if (closed) return;
     var sc = r && r.structuredContent;
     if (!sc) return;
+    if (busy) {
+      if (
+        (valid(sc.upload_context) &&
+          (!same(current, sc.upload_context) || current.filename !== sc.upload_context.filename)) ||
+        Array.isArray(sc.pending_uploads)
+      )
+        queuedResult = r;
+      return;
+    }
     if (valid(sc.upload_context)) {
-      if (completed && same(current, sc.upload_context)) return;
       var c = sc.upload_context;
+      if (confirmed(current) && same(current, c) && completed.filename === c.filename) return;
+      if (!same(current, c) || current.filename !== c.filename) {
+        completed = null;
+        loaded.delete(contextKey(c));
+        status.textContent = "";
+      }
       current = c;
       portfolio = null;
       render();
-      if (!loaded.has(c.upload_id) && host.serverTools) {
-        loaded.add(c.upload_id);
+      if (!loaded.has(contextKey(c)) && host.serverTools) {
+        loaded.add(contextKey(c));
         recover(c);
       }
     } else if (
