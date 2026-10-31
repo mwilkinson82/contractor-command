@@ -379,6 +379,13 @@
       "when": 1793419842238,
       "tag": "0053_file_upload_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793428241296,
+      "tag": "0054_file_upload_received_bytes",
+      "breakpoints": true
     }
   ]
 }
