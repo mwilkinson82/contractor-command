@@ -21,7 +21,13 @@ import {
   nativeCardMeta,
   nativeResourceMeta,
 } from "./cards/native";
-import { CARD_WIDGET_MIME, CARD_WIDGET_URI, cardWidgetHtml, cardWidgetMeta, cardWidgetResourceMeta } from "./cards/widget";
+import {
+  CARD_WIDGET_MIME,
+  CARD_WIDGET_URI,
+  cardWidgetHtml,
+  cardWidgetMeta,
+  cardWidgetResourceMeta,
+} from "./cards/widget";
 import {
   EMAIL_CARD_MIME,
   EMAIL_CARD_TOOLS,
@@ -41,6 +47,15 @@ import {
   drawingCardResultMeta,
   drawingResourceMeta,
 } from "./cards/drawing-card";
+import {
+  FILE_UPLOAD_CARD_URI,
+  FILE_UPLOAD_CARD_MIME,
+  fileUploadCardHtml,
+  fileUploadCardMeta,
+  fileUploadCardResultMeta,
+  fileUploadResourceMeta,
+  hasFileUploadView,
+} from "./cards/file-upload-card";
 
 const MEETINGS = new Set([
   "pm_meeting",
@@ -153,7 +168,12 @@ if (!proto[patched]) {
           { title: "Athena card", mimeType: CARD_WIDGET_MIME, _meta: cardWidgetResourceMeta },
           async () => ({
             contents: [
-              { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, text: cardWidgetHtml(), _meta: cardWidgetResourceMeta },
+              {
+                uri: CARD_WIDGET_URI,
+                mimeType: CARD_WIDGET_MIME,
+                text: cardWidgetHtml(),
+                _meta: cardWidgetResourceMeta,
+              },
             ],
           }),
         );
@@ -259,25 +279,59 @@ if (!proto[patched]) {
         );
       (this as { _athenaTakeoffCard?: boolean })._athenaTakeoffCard = true;
     }
+    if (
+      (name === "file_upload" || name === "project_documents") &&
+      typeof this.registerResource === "function" &&
+      !(this as { _athenaFileUploadCard?: boolean })._athenaFileUploadCard
+    ) {
+      this.registerResource(
+        "athena-file-upload",
+        FILE_UPLOAD_CARD_URI,
+        {
+          title: "Athena job files",
+          mimeType: FILE_UPLOAD_CARD_MIME,
+          _meta: fileUploadResourceMeta,
+        },
+        async () => ({
+          contents: [
+            {
+              uri: FILE_UPLOAD_CARD_URI,
+              mimeType: FILE_UPLOAD_CARD_MIME,
+              text: fileUploadCardHtml(),
+              _meta: fileUploadResourceMeta,
+            },
+          ],
+        }),
+      );
+      (this as { _athenaFileUploadCard?: boolean })._athenaFileUploadCard = true;
+    }
     // openai/outputTemplate on tools/list makes ChatGPT
     // treat the tool as a widget, skip the styled card text, and hide the Athena icon.
     const fileMeta = drawingFileMeta(name);
     // The email view retains precedence for submittal_delivery.
-    const cardMeta = TAKEOFF_CARD_TOOLS.has(name)
-      ? takeoffCardMeta
-      : DRAWING_CARD_TOOLS.has(name)
-        ? drawingCardMeta
-        : EMAIL_CARD_TOOLS.has(name)
-          ? emailCardMeta
-          : NATIVE_CARD_TOOLS.has(name)
-            ? nativeCardMeta
-            : {};
+    const cardMeta =
+      name === "file_upload"
+        ? fileUploadCardMeta
+        : TAKEOFF_CARD_TOOLS.has(name)
+          ? takeoffCardMeta
+          : DRAWING_CARD_TOOLS.has(name)
+            ? drawingCardMeta
+            : EMAIL_CARD_TOOLS.has(name)
+              ? emailCardMeta
+              : NATIVE_CARD_TOOLS.has(name)
+                ? nativeCardMeta
+                : {};
     const next =
       Object.keys(fileMeta).length || Object.keys(cardMeta).length
         ? { ...config, _meta: { ...config._meta, ...fileMeta, ...cardMeta } }
         : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
+      if (
+        (name === "file_upload" || name === "project_documents") &&
+        hasFileUploadView(result.structuredContent)
+      )
+        return { ...result, _meta: { ...(result._meta ?? {}), ...fileUploadCardResultMeta } };
       if (
         TAKEOFF_CARD_TOOLS.has(name) &&
         (result.structuredContent as Record<string, unknown> | undefined)?.engine

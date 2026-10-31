@@ -94,7 +94,7 @@ const KIND_LABEL: Record<FileKind, string> = { sov: "SOV", schedule: "Schedule",
 export const fileShare = defineTool({
   name: "file_share",
   title: "Share a file as a link",
-  description: "Stores a file for a job and returns a download link.",
+  description: "Creates a job-scoped download link without registering a contract, specification, or drawing source.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -126,9 +126,9 @@ export const fileShare = defineTool({
       return guide(
         {
           ...text([FILE_LINK_RULE, `${prefix(job)}${KIND_LABEL[kind]} link ready: ${f.name}`, `Link: ${link}`, `Anyone with this link can download the file until ${fmtDate(exp)}.`].join("\n")),
-          structuredContent: { shared: true, link, filename: f.name, mime_type: f.mime, size_bytes: f.size, kind, expires_at: exp.toISOString(), attached: false },
+          structuredContent: { shared: true, source_document: false, link, filename: f.name, mime_type: f.mime, size_bytes: f.size, kind, expires_at: exp.toISOString(), attached: false },
         },
-        `Put ${link} in the email body on its own line with the file name. Say "link" (not "attached") unless your email tool also attached the file. If the member wants the link turned off later, call file_share_revoke with this link.`,
+        `Put ${link} in the email body on its own line with the file name. Say "link" (not "attached") unless your email tool also attached the file. This result is a download share, not a registered project source. To add a contract or specification source use file_upload; for drawing sources use drawing_set_import. If the member wants the link turned off later, call file_share_revoke with this link.`,
       );
     }),
 });

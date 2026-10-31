@@ -34,7 +34,7 @@ describe("upload link", () => {
       token,
       d,
     );
-    expect(await form.text()).toContain("Store on this job");
+    expect(await form.text()).toContain("Upload file");
     expect(form.headers.get("referrer-policy")).toBe("no-referrer");
     const pdf = new TextEncoder().encode("%PDF-1.7\ncontract text");
     const put = await handleFileUpload(
@@ -43,7 +43,40 @@ describe("upload link", () => {
       d,
     );
     expect(put.status).toBe(200);
+    expect(await put.json()).toMatchObject({
+      stored: true,
+      uploaded: true,
+      upload_complete: false,
+      finish_required: true,
+    });
     expect(d.putCalls[0]?.[0]).toBe(0x25);
+  });
+
+  it("keeps browser upload receipt separate from Athena's completed processing", async () => {
+    const pending = { ...session };
+    const d = deps({ lookup: async () => pending });
+    const form = new FormData();
+    form.set(
+      "file",
+      new File(["%PDF-1.7 synthetic"], "Agreement.pdf", { type: "application/pdf" }),
+    );
+    const result = await handleFileUpload(
+      new Request("https://example.test/upload", { method: "POST", body: form }),
+      token,
+      d,
+    );
+    const html = await result.text();
+    expect(result.status).toBe(200);
+    expect(html).toContain("Upload received");
+    expect(html).toContain("job attachment is not confirmed yet");
+    expect(html).not.toContain("File stored");
+    expect(pending.status).toBe("open");
+    const completed = await handleFileUpload(
+      new Request("https://example.test/upload"),
+      token,
+      deps({ lookup: async () => ({ ...session, status: "finished" }) }),
+    );
+    expect(await completed.text()).toContain("Upload processed");
   });
 
   it("rejects an unknown link, a text file on a pdf slot, and an oversized body", async () => {

@@ -1,4 +1,7 @@
+import { companyChoiceLabel } from "./company-choice";
+
 export type JobsResponseGroup = {
+  id?: string;
   name: string;
   jobs: { job_number: string; name: string | null }[];
 };
@@ -23,7 +26,7 @@ export function jobsResponseText(
   ];
   if (!groups.length) return [...lines, "", "No accessible company on file."].join("\n");
   for (const group of groups) {
-    lines.push("", `### ${literal(group.name)}`);
+    lines.push("", `### ${literal(companyChoiceLabel(group, groups))}`);
     if (!group.jobs.length) {
       lines.push("", "No jobs on file.");
       continue;

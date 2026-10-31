@@ -14,10 +14,11 @@ import { clauseLine, isClaimClause, missingNotices, type ClauseRow, legacySource
 import { noticeRequirements } from "./notice-plain";
 import { DEFAULT_TZ, dateIn, todayIn } from "./deadlines";
 import { jobHeading } from "./job-label";
+import { ambiguousCompanyMessage, companyChoiceLabel } from "./company-choice";
 
 export type Job = { job_id: string; job_number: string; name: string; company_id: string; scope?: "full" | "contract" | "super" };
 
-const companyNames = (m: { mcp_companies: { name: string | null } }[]) => m.map((c) => c.mcp_companies.name ?? "unnamed company").join("; ");
+const companyNames = (companies: MemberCompany[]) => companies.map((c) => companyChoiceLabel(c, companies)).join("; ");
 
 export const MULTI_COMPANY_ASK = "You belong to more than one company. Which one should Athena use? I'll remember it, so you only answer this once (call set_current_company with that name).";
 
@@ -83,7 +84,6 @@ export function isWhichCompanyAsk(e: unknown): e is WhichCompanyAsk {
 export async function resolveCompany(sb: Sb, companyId?: string): Promise<string> {
   // Companies are only visible to their members (RLS), so this is "my companies".
   const companies = await memberCompanies(sb);
-  const mine = companies.map((c) => ({ company_id: c.id, mcp_companies: { name: c.name } }));
   if (companyId) {
     // Accept the company's id or its name (plain-text hosts only see names).
     const want = companyId.trim().toLowerCase();
@@ -95,7 +95,8 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
       if (companies.length > 1) await rememberCompany(sb, hit);
       return hit;
     }
-    throw new ToolError(companies.length > 1 ? `You aren't a member of a company called "${companyId.trim()}". Your companies: ${companyNames(mine)}.` : "You aren't a member of that company.");
+    if (byName.length > 1) throw new ToolError(ambiguousCompanyMessage(companyId, byName));
+    throw new ToolError(companies.length > 1 ? `You aren't a member of a company called "${companyId.trim()}". Your companies: ${companyNames(companies)}.` : "You aren't a member of that company.");
   }
   if (!companies.length) {
     const nr = await sb.rpc("mcp_caller_is_no_access_role");
@@ -107,7 +108,7 @@ export async function resolveCompany(sb: Sb, companyId?: string): Promise<string
     const curId = await currentCompany(sb);
     if (curId && companies.some((m) => m.id === curId)) return curId;
     // Never pick one silently. Ask once; the answer is saved (set_current_company, or naming it on the next call).
-    throw new ToolError(`${MULTI_COMPANY_ASK} Your companies: ${companyNames(mine)}. Nothing was changed.`);
+    throw new ToolError(`${MULTI_COMPANY_ASK} Your companies: ${companyNames(companies)}. Nothing was changed.`);
   }
   return companies[0].id;
 }
