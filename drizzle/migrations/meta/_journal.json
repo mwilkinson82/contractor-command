@@ -393,6 +393,13 @@
       "when": 1793459978417,
       "tag": "0055_estimating_member_read_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793461940762,
+      "tag": "0056_guarded_post_read_transactions",
+      "breakpoints": true
     }
   ]
 }
