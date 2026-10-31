@@ -98,6 +98,34 @@ describe("published Athena entry routing contract", () => {
       expect(field.description).toContain('use report_page_link with page "home" instead');
     }
   });
+  it("publishes native-first attachment routing and bounded expired-byte recovery", async () => {
+    const result = await rpc("initialize", 5, {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "attachment-routing-test", version: "1" },
+    });
+    for (const rule of [
+      "prefer the original attached in chat: call file_upload action from_url",
+      "Do not request a second picker when a usable original is supplied",
+      "preserve its exact company, job and upload_id",
+      "Which job should I save this to?",
+      "Never infer a destination from the filename",
+      "an explicit company is a strict boundary",
+      "The two-hour expiry blocks new bytes",
+      "Authenticated finish may attach eligible bytes already received before expiry",
+      "an expired empty or incomplete upload cannot be completed",
+      "finish only after every intended chunk has arrived",
+      "only after verified job association",
+      "Never store a drawing as a contract or specification",
+      "subject to the existing estimating plan and storage checks",
+      "except filing attachments",
+      "Never force a concept presentation, arbitrary reference file, or drawing",
+      "without mislabeling or saving it",
+    ])
+      expect(result.instructions).toContain(rule);
+    expect(result.instructions).not.toContain("Expired uploads require a new upload");
+    expect(result.instructions).not.toContain("file, call file_upload action begin");
+  });
   it("keeps discovery descriptions identical to the committed manifest", async () => {
     const result = await rpc("tools/list", 2);
     const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8"));
