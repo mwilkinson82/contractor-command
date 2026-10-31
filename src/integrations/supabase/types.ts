@@ -9262,6 +9262,15 @@ export type Database = {
         Args: { _id: string; _job: string }
         Returns: Json
       }
+      mcp_file_upload_recovery: {
+        Args: {
+          _before?: string
+          _job: string
+          _limit?: number
+          _upload?: string
+        }
+        Returns: Json
+      }
       mcp_flags_unknown: {
         Args: { _job: string; _keys: string[] }
         Returns: Json
