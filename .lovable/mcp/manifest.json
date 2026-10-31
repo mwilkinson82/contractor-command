@@ -5493,7 +5493,7 @@
       {
         "name": "file_upload",
         "title": "Upload a contract, spec, or submittal file",
-        "description": "Adds a PDF, DOCX, or TXT to the selected job through an authenticated upload card that uploads and verifies completion, with pending and resume actions for the member's own interrupted uploads, from_url for a fetchable file link, chunk then finish for text-only hosts, and prepare_readable for an existing saved source; project_documents list shows saved files and recoverable pending uploads.",
+        "description": "Saves an original PDF, DOCX, or TXT attached in chat through file/from_url, reuses an explicitly selected upload_id on resume, and verifies the saved job association; an authenticated upload card is the fallback, with pending and resume actions for the member's own interrupted uploads, from_url for a fetchable file link, chunk then finish for text-only hosts, and prepare_readable for an existing saved source; project_documents list shows saved files and recoverable pending uploads.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -5576,6 +5576,7 @@
                 },
                 "file_id": {
                   "type": "string",
+                  "minLength": 1,
                   "maxLength": 200
                 },
                 "file_name": {
@@ -5589,7 +5590,8 @@
                 }
               },
               "required": [
-                "download_url"
+                "download_url",
+                "file_id"
               ]
             },
             "submittal_id": {

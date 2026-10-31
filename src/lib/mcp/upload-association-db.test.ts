@@ -766,6 +766,256 @@ describe("actual authenticated upload card completion and recovery", () => {
     );
   });
 
+  it("keeps a rejected PUT empty, offers the same picker, and never claims received bytes", async () => {
+    const started = await begin();
+    const v = view({
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            stored: false,
+            error: "That file isn't a real .txt file. Nothing was stored.",
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+    });
+    await ready(v, started.result);
+    choose(v, started.filename);
+    await vi.waitFor(() => expect(v.status.textContent).toContain("isn't a real .txt"));
+    expect(v.app.textContent).not.toContain("Upload received");
+    expect(v.app.textContent).not.toContain("Retry completion");
+    expect(v.all().some((el) => el.tagName === "INPUT" && !el.disabled)).toBe(true);
+    expect(v.calls.some((c) => ["finish", "begin"].includes(String(c.arguments.action)))).toBe(
+      false,
+    );
+    v.close();
+  });
+
+  it("labels a lost PUT reply as unknown until authenticated recovery confirms receipt", async () => {
+    const started = await begin();
+    const v = view({
+      fetch: async () => {
+        throw new Error("Network reply lost");
+      },
+    });
+    await ready(v, started.result);
+    choose(v, started.filename);
+    await vi.waitFor(() => expect(v.status.textContent).toContain("Network reply lost"));
+    expect(v.app.textContent).toContain("Upload status is unknown");
+    expect(v.app.textContent).not.toContain("Upload received");
+    expect(v.calls.some((c) => c.arguments.action === "finish")).toBe(false);
+    v.close();
+  });
+
+  it("hydrates a pending-only response with saved documents and puts empty requests in a secondary group", async () => {
+    const a = await begin();
+    const b = await call(fileUpload, {
+      action: "begin",
+      company_id: companies[0],
+      job_number: "SYN-1",
+      purpose: "spec",
+      filename: a.filename,
+    });
+    const count = (await db.query<any>("SELECT count(*)::int AS n FROM mcp_file_uploads")).rows[0]
+      .n;
+    const v = view();
+    v.result(
+      await call(fileUpload, { action: "pending", company_id: companies[0], job_number: "SYN-1" }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        v.calls.some((c) => c.name === "project_documents" && c.arguments.action === "list"),
+      ).toBe(true),
+    );
+    await vi.waitFor(() => expect(v.app.textContent).toContain("Saved files"));
+    await vi.waitFor(() => expect(v.app.textContent).toContain("requests without a file"));
+    expect(v.app.textContent).not.toContain("Uploads to finish");
+    expect(
+      v.all().some((el) => el.tagName === "DETAILS" && el.textContent.includes(a.filename)),
+    ).toBe(true);
+    expect((await db.query<any>("SELECT count(*)::int AS n FROM mcp_file_uploads")).rows[0].n).toBe(
+      count,
+    );
+    expect(v.calls.some((c) => c.arguments.action === "begin")).toBe(false);
+    expect(b.structuredContent.upload_id).not.toBe(a.result.structuredContent.upload_id);
+    v.close();
+  });
+
+  it("keeps a selected empty session on resume without offering a silently new upload", async () => {
+    const started = await begin();
+    const count = (await db.query<any>("SELECT count(*)::int AS n FROM mcp_file_uploads")).rows[0]
+      .n;
+    const v = view();
+    v.result(started.result);
+    await vi.waitFor(() => expect(v.calls.some((c) => c.arguments.action === "resume")).toBe(true));
+    // Fresh resume has no recoverable token URL; it must request the original in chat.
+    const resumed = view();
+    resumed.result(
+      await call(fileUpload, {
+        action: "resume",
+        company_id: companies[0],
+        job_number: "SYN-1",
+        upload_id: started.result.structuredContent.upload_id,
+      }),
+    );
+    await vi.waitFor(() => expect(resumed.app.textContent).toContain("same upload request"));
+    expect(resumed.app.textContent).not.toContain("new upload to continue");
+    expect(resumed.app.textContent).not.toContain("Choose file");
+    expect(resumed.calls.every((c) => c.arguments.action !== "begin")).toBe(true);
+    expect((await db.query<any>("SELECT count(*)::int AS n FROM mcp_file_uploads")).rows[0].n).toBe(
+      count,
+    );
+    v.close();
+    resumed.close();
+  });
+
+  it.each(["begin", "resume", "from_url"])(
+    "uses chat-native original bytes with the selected upload ID (%s) and replays without another fetch",
+    async (action) => {
+      const started = await begin();
+      const id = started.result.structuredContent.upload_id;
+      const count = (await db.query<any>("SELECT count(*)::int AS n FROM mcp_file_uploads")).rows[0]
+        .n;
+      const fetcher = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("Fictional native original"));
+      try {
+        const args = {
+          action,
+          company_id: companies[0],
+          job_number: "SYN-1",
+          upload_id: id,
+          file: {
+            download_url: "https://files.oaiusercontent.com/fictional-native.txt",
+            file_id: "fictional-host-file",
+            file_name: started.filename,
+            mime_type: "text/plain",
+          },
+        };
+        const saved = await call(fileUpload, args);
+        expect(saved.structuredContent).toMatchObject({
+          upload_id: id,
+          job_association: "verified",
+          upload_complete: true,
+        });
+        expect(
+          (await db.query<any>("SELECT count(*)::int AS n FROM mcp_file_uploads")).rows[0].n,
+        ).toBe(count);
+        const replay = await call(fileUpload, args);
+        expect(replay.structuredContent.document_id).toBe(saved.structuredContent.document_id);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        const v = view();
+        v.result(
+          await call(fileUpload, {
+            action: "resume",
+            company_id: companies[0],
+            job_number: "SYN-1",
+            upload_id: id,
+          }),
+        );
+        await vi.waitFor(() => expect(v.status.textContent).toBe("File added to job."));
+        await vi.waitFor(() => expect(v.app.textContent).toContain("Saved files"));
+        expect(v.app.textContent).toContain(started.filename);
+        expect(v.app.textContent).toContain("Saved to job SYN-1");
+        v.result(
+          await call(fileUpload, {
+            action: "pending",
+            company_id: companies[0],
+            job_number: "SYN-1",
+          }),
+        );
+        await vi.waitFor(() => expect(v.app.textContent).toContain(started.filename));
+        expect(v.app.textContent).toContain("Saved files");
+        v.close();
+      } finally {
+        fetcher.mockRestore();
+      }
+    },
+  );
+
+  it("does not associate a selected native original when storage receipt misses its deadline", async () => {
+    const started = await begin();
+    const id = started.result.structuredContent.upload_id;
+    const session = (
+      await db.query<any>("SELECT bucket,storage_path FROM mcp_file_uploads WHERE id=$1", [id])
+    ).rows[0];
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("Fictional native original"));
+    uploadInterleave = async (bucket, path, bytes) => {
+      if (path !== session.storage_path) return;
+      await db.query(
+        "UPDATE mcp_file_uploads SET expires_at=now()-interval '1 minute' WHERE id=$1",
+        [id],
+      );
+      await asUser(db, claims, (tx) =>
+        tx.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [bucket, path]),
+      );
+      objects.set(`${bucket}/${path}`, bytes.slice());
+      return { error: { message: "already exists" } };
+    };
+    try {
+      await expect(
+        call(fileUpload, {
+          action: "from_url",
+          company_id: companies[0],
+          job_number: "SYN-1",
+          upload_id: id,
+          file: {
+            download_url: "https://files.oaiusercontent.com/fictional-native.txt",
+            file_id: "fictional-host-file",
+          },
+        }),
+      ).rejects.toThrow("not received within");
+      expect(
+        (await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [id])).rows,
+      ).toEqual([]);
+    } finally {
+      uploadInterleave = undefined;
+      fetcher.mockRestore();
+    }
+  });
+
+  it("rejects another actor, wrong company, expired new bytes, and invalid native originals before association", async () => {
+    const started = await begin();
+    const id = started.result.structuredContent.upload_id;
+    const args = {
+      action: "from_url",
+      company_id: companies[0],
+      job_number: "SYN-1",
+      upload_id: id,
+      file: {
+        download_url: "https://files.oaiusercontent.com/fictional-native.txt",
+        file_id: "fictional-host-file",
+      },
+    };
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(new Uint8Array([0, 0, 0, 0])));
+    try {
+      claims.sub = peer;
+      await expect(call(fileUpload, args)).rejects.toThrow("not available");
+      claims.sub = owner;
+      await expect(call(fileUpload, { ...args, company_id: companies[1] })).rejects.toThrow(
+        "not available",
+      );
+      expect(fetcher).not.toHaveBeenCalled();
+      await expect(call(fileUpload, args)).rejects.toThrow("isn't a real .txt");
+      expect(
+        (await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [id])).rows,
+      ).toEqual([]);
+      await db.query(
+        "UPDATE mcp_file_uploads SET expires_at=now()-interval '1 minute' WHERE id=$1",
+        [id],
+      );
+      fetcher.mockClear();
+      await expect(call(fileUpload, args)).rejects.toThrow("expired");
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      claims.sub = owner;
+      fetcher.mockRestore();
+    }
+  });
+
   it("retries completion with the same ID after a recoverable host failure", async () => {
     const started = await begin();
     let fail = true;
