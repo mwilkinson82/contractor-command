@@ -207,6 +207,7 @@ export const estimatePricing = defineTool({
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) {
+        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
         loaded.lines = verifiedLines(loaded.lines, measurement);
         loaded.verdicts = loaded.verdicts.map((v) =>
           v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
@@ -269,10 +270,7 @@ export const estimatePricing = defineTool({
         _quotes: quotes,
         _sources: null,
       });
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-        role: loaded.setup.role,
-        trades: loaded.setup.trades,
-      });
+      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
       const lines = state.items.filter((i) => i.kind === "line" && i.status !== "dropped");
       const body = [
         `${named(job)} · Pricing`,
@@ -520,6 +518,7 @@ export const estimateRequirements = defineTool({
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) {
+        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
         loaded.lines = verifiedLines(loaded.lines, measurement);
         loaded.verdicts = loaded.verdicts.map((v) =>
           v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
@@ -619,6 +618,7 @@ export const estimateBidSummary = defineTool({
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) {
+        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
         loaded.lines = verifiedLines(loaded.lines, measurement);
         loaded.verdicts = loaded.verdicts.map((v) =>
           v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
@@ -635,10 +635,7 @@ export const estimateBidSummary = defineTool({
           _overhead: overhead,
           _profit: profit,
         });
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-        role: loaded.setup.role,
-        trades: loaded.setup.trades,
-      });
+      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
       let direct = 0;
       let directPlaceholder = false;
       for (const item of state.items.filter((i) => i.kind === "line" && i.status !== "dropped")) {

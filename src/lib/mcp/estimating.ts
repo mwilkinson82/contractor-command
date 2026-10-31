@@ -28,7 +28,7 @@ export const REQUIREMENT_OPEN_LIST =
 export const ESTIMATE_SERVER_RULE =
   " Takeoff quantities are MEASURED or DEDUCED. MEASURED is straight off a sheet (READ). DEDUCED is computed (DERIVED): multiply the MEASURED inputs, show the math, and cite the sheet and the detail or grid. Leave a quantity blank only when one named input is missing on every sheet. A vendor or shop-drawing note is not a reason for a blank. Addenda override the base documents. Do not invent quantities, dimensions, unit prices or vendor numbers. Every estimating report (takeoff, Estimate Analysis, estimator loop, Estimate Summary, bid summary) is landscape, 17 by 11 inches, with the Athena logo at the top right. Portrait only if the member asks. Red only for risks and gaps that hold up the bid. Questions go back to the estimator. Do not price a final bid until the takeoff is settled. A rate is the contractor's own figure, or a PLACEHOLDER the contractor supplies and then confirms. Do not attribute a number to RSMeans, NECA, SMACNA or MCAA, and do not reproduce their tables. " +
   REQUIREMENT_OPEN_LIST +
-  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the intake, the saved profile, or the line sets two, and that face count is applied to the form quantity and shown on the line. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile: net when the drawings are read as drawn, gross on the estimator key, and the line says which. The foundation checklist is under-slab insulation, termite treatment, fine grade, base course, trench base, dowels, keyway, and slab edge forms. Each one is quantified or marked N/A with a reason, or it stays a gap. Ask scope, whether the estimator is the general contractor or a self-performer, which profile applies, and whether forms are one face or both faces. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. A blank quantity is saved as HOLD, quantity pending, and is not dropped. Every line in the call is saved or listed as rejected. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line. Do not back-solve a quantity to the estimator's number when the drawings do not define it: emit an open question with the low and high, the sheet, and the reasoning. Read the estimator's line note and basis formula before calling a gap, and call a gap only when that basis is missing or inconsistent with the drawings. Separate BY G.C., by others, NIC, and not in contract into an out-of-scope section before comparing.";
+  " Special requirements stay out of installation labor and material. Overhead is applied first, then profit on top. The bid summary shows direct cost, general conditions, special requirements, overhead and profit, and the total. Forms use one face unless the intake, the saved profile, or the line sets two, and that face count is applied to the form quantity and shown on the line. The earth side is not formed by default. Rebar is shown in LF and in LB. Termite treatment is gross area plus a separate perimeter in LF. Concrete, fiber, vapor barrier, base and fine grading follow the active profile: net when the drawings are read as drawn, gross on the estimator key, and the line says which. Use the agreed estimate in_scope/out_scope, not company trade alone, to determine foundation checklist applicability. For included foundation work the checklist is under-slab insulation, termite treatment, fine grade, base course, trench base, dowels, keyway, and slab edge forms. Apply only the included requirements; each is quantified or marked N/A with a reason, or stays a gap. Missing or conflicting scope needs clarification, not eight assumed foundation requirements. Electrical scopes can include pads or pole bases: retain that work without inventing unrelated slab requirements. Preserve existing gaps for explicit review; never delete them or mark them N/A merely because applicability changes. Ask scope, whether the estimator is the general contractor or a self-performer, which profile applies, and whether forms are one face or both faces. Do not assume self-performer, and do not mark intake complete until those are answered. If a job with the same name or number already has a takeoff, ask whether to reuse it or start fresh. A takeoff save either adds or updates lines, or replaces the whole takeoff; say which. A blank quantity is saved as HOLD, quantity pending, and is not dropped. Every line in the call is saved or listed as rejected. Show MEASURED or DEDUCED, the sheet, and the math on each takeoff line. Do not back-solve a quantity to the estimator's number when the drawings do not define it: emit an open question with the low and high, the sheet, and the reasoning. Read the estimator's line note and basis formula before calling a gap, and call a gap only when that basis is missing or inconsistent with the drawings. Separate BY G.C., by others, NIC, and not in contract into an out-of-scope section before comparing.";
 
 export const NOT_RELEVANT_ASK =
   "Why is this not relevant? Send the reason in this same turn. Nothing was changed.";
@@ -87,7 +87,7 @@ export const CONCRETE_CHECKLIST = [
   { key: "ew", group: "Earthwork", label: "Earthwork for footings and pits" },
 ] as const;
 
-/** Run on every takeoff. Quantified, or N/A with a reason. */
+/** Apply only to agreed foundation scope. Quantified, or N/A with a reason. */
 export const FOUNDATION_CHECKLIST = [
   { key: "pi", label: "Under-slab insulation", unit: "LF" },
   { key: "pt", label: "Termite treatment", unit: "LF" },
@@ -1267,7 +1267,7 @@ export function assignGapRefs(
 }
 
 /** Verification items the takeoff and the spec-versus-drawing list already imply. */
-export function autoGaps(lines: StoredLine[], pairs: SpecDrawing[]): GapIn[] {
+export function autoGaps(lines: StoredLine[], pairs: SpecDrawing[], scope?: EstimateScope): GapIn[] {
   const fromLines: GapIn[] = lines
     .filter((l) => l.qty == null)
     .map((l) => ({
@@ -1296,7 +1296,7 @@ export function autoGaps(lines: StoredLine[], pairs: SpecDrawing[]): GapIn[] {
     spec_section: p.spec_section,
     holds_bid: true,
   }));
-  return [...fromLines, ...fromPairs, ...foundationGapPrompts(lines)];
+  return [...fromLines, ...fromPairs, ...foundationGapPrompts(lines, scope)];
 }
 
 const FOUNDATION_ALIAS: Record<string, RegExp> = {
@@ -1318,7 +1318,7 @@ function normItem(value: string): string {
     .trim();
 }
 
-function coversFoundation(line: StoredLine, check: { key: string; label: string }): boolean {
+function coversFoundation(line: { item: string; checklist_key?: string | null }, check: { key: string; label: string }): boolean {
   if (line.checklist_key === check.key) return true;
   const item = line.item.toLowerCase();
   if (item.includes(check.label.toLowerCase())) return true;
@@ -1363,9 +1363,209 @@ export function alignGapsToTakeoff<T extends { title: string; sheet: string; rea
   return out;
 }
 
-/** Missing foundation scope becomes a gap prompt. A quantity or an N/A line closes it. */
-export function foundationGapPrompts(lines: StoredLine[]): GapIn[] {
-  return FOUNDATION_CHECKLIST.filter((c) => {
+/** Saved estimate scope, not the company's trade or an inferred sheet prefix. */
+export type EstimateScope = Pick<Setup, "role" | "trades"> &
+  Partial<Pick<Setup, "in_scope" | "out_scope" | "doc_review">>;
+export type FoundationScope = {
+  state: "included" | "excluded" | "unknown" | "conflicting";
+  requiredKeys: string[];
+  wholeFoundation: boolean;
+  namedRequirements: { key: string; label: string }[];
+  unresolvedClauses: string[];
+  clarification: string | null;
+};
+const FOUNDATION_WORK = /\bfoundations?\b|\bconcrete\b|\bslabs?\b|\bfootings?\b/i;
+const LIMITED_FOUNDATION =
+  /\bpads?\b|\bpole (?:bases?|foundations?)\b|\bbollard(?:s| bases?)?\b|\bequipment (?:bases?|foundations?)\b/i;
+const LIMITED_REQUIREMENTS = [
+  { key: "pads", label: "Pads", match: /\bpads?\b/i },
+  { key: "pole_bases", label: "Pole bases", match: /\bpole (?:bases?|foundations?|footings?)\b/i },
+  {
+    key: "bollard_bases",
+    label: "Bollard bases",
+    match: /\bbollard(?:s| bases?|foundations?)?\b/i,
+  },
+  {
+    key: "equipment_bases",
+    label: "Equipment bases",
+    match: /\bequipment (?:bases?|foundations?)\b/i,
+  },
+] as const;
+const NON_FOUNDATION_CONCRETE =
+  /\bsidewalks?\b|\bpaving\b|\b(?:suspended|elevated) (?:concrete )?slabs?\b/i;
+const UNCERTAIN_SCOPE = /\b(?:if|unless|except|maybe|possibly|tbd|confirm|verify)\b|\?/i;
+const NEGATED_SCOPE = /\b(?:no|not|without|exclude[ds]?|by others|nic)\b/i;
+
+/** Conservative applicability: recognize explicit whole/limited work and individual requirements.
+ * Unrecognized, conditional or contradictory scope stays a question. Trades never establish scope.
+ * Existing source requirements and positive takeoff rows are evidence, not permission to discard exclusions.
+ */
+export function foundationScope(lines: StoredLine[], scope?: EstimateScope): FoundationScope {
+  const included = scope?.in_scope?.filter((s) => s.trim()) ?? [];
+  const excluded = scope?.out_scope?.filter((s) => s.trim()) ?? [];
+  const source = scope?.doc_review?.pairs?.map((p) => p.requirement) ?? [];
+  const mentions = (s: string) =>
+    FOUNDATION_WORK.test(s) ||
+    LIMITED_FOUNDATION.test(s) ||
+    FOUNDATION_CHECKLIST.some((c) => coversFoundation({ item: s }, c));
+  const uncertain =
+    included.some((s) => mentions(s) && (UNCERTAIN_SCOPE.test(s) || NEGATED_SCOPE.test(s))) ||
+    excluded.some((s) => mentions(s) && UNCERTAIN_SCOPE.test(s));
+  const clearIn = included.filter((s) => !UNCERTAIN_SCOPE.test(s) && !NEGATED_SCOPE.test(s));
+  const clearOut = excluded.filter((s) => !UNCERTAIN_SCOPE.test(s));
+  const coordinationOnly = (text: string) =>
+    /\b(?:through|within|inside|embedded in|grounding)\b/i.test(text) &&
+    !/\b(?:concrete foundations?|foundation work|footing work|slab on grade)\b/i.test(text);
+  const wholeWork = (s: string) => {
+    // Mixed scope can include whole foundations AND pads. Remove only limited noun phrases
+    // before looking for an independent whole-foundation commitment.
+    const remainder = s.replace(/\b(?:pole|equipment) foundations?\b/gi, "bases");
+    // References to the concrete another trade installs do not commit this package to installing it.
+    if (coordinationOnly(remainder)) return false;
+    if (/\bfoundations?\b|\bfootings?\b|\bslab on grade\b/i.test(remainder)) return true;
+    return false;
+  };
+  const wholeIn = clearIn.some(wholeWork);
+  const wholeOut =
+    clearOut.some(wholeWork) ||
+    clearOut.some((s) => /^(?:all )?concrete(?: work)?(?: by others)?$/i.test(s.trim()));
+  const namedRequirements = LIMITED_REQUIREMENTS.filter((requirement) =>
+    [...clearIn, ...source].some((text) => requirement.match.test(text)),
+  ).map(({ key, label }) => ({ key, label }));
+  const limitedIn = namedRequirements.length > 0;
+  // Classify each included clause independently. A known sidewalk or pad does not answer
+  // a separate unspecified-concrete commitment, including one joined in the same entry.
+  const unresolvedClauses = [
+    ...new Set(
+      clearIn.flatMap((entry) =>
+        entry
+          .split(/\s*(?:[,;]|\b(?:and|plus|with|including)\b)\s*/i)
+          .map((clause) => clause.trim())
+          .filter(
+            (clause) =>
+              clause &&
+              mentions(clause) &&
+              !wholeWork(clause) &&
+              !coordinationOnly(clause) &&
+              !NON_FOUNDATION_CONCRETE.test(clause) &&
+              !LIMITED_REQUIREMENTS.some((requirement) => requirement.match.test(clause)) &&
+              !FOUNDATION_CHECKLIST.some((check) => coversFoundation({ item: clause }, check)),
+          ),
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  const boundedOther =
+    clearIn.some((s) => NON_FOUNDATION_CONCRETE.test(s)) &&
+    !wholeIn &&
+    !limitedIn &&
+    !unresolvedClauses.length;
+  const exclusiveOther =
+    (clearIn.some((s) => /\bonly\b/i.test(s) && !mentions(s)) && !clearIn.some(mentions)) ||
+    boundedOther;
+  // A conduit through a slab or a foundation-grounding note is not a concrete installation.
+  const directWork = (s: string) =>
+    /^(?:(?:cast(?:[- ]in[- ]place)?|pour|construct|install|provide)\s+)?(?:concrete\s+)?(?:foundations?|(?:continuous |isolated )?footings?|slab on grade|equipment pads?|pole (?:bases?|foundations?)|bollard bases?)\b/i.test(
+      s.trim(),
+    ) || FOUNDATION_CHECKLIST.some((c) => coversFoundation({ item: s }, c));
+  const positiveRows = lines.filter(
+    (l) =>
+      !l.exclusion &&
+      (directWork(l.item) || FOUNDATION_CHECKLIST.some((c) => c.key === l.checklist_key)),
+  );
+  const sourceWork = source.some(directWork);
+  const explicitInKeys = FOUNDATION_CHECKLIST.filter((c) =>
+    clearIn.some((s) => coversFoundation({ item: s }, c)),
+  ).map((c) => c.key);
+  const includedKeys = FOUNDATION_CHECKLIST.filter(
+    (c) =>
+      explicitInKeys.includes(c.key) ||
+      source.some((s) => coversFoundation({ item: s }, c)) ||
+      lines.some((l) => coversFoundation(l, c)),
+  ).map((c) => c.key);
+  const excludedKeys = FOUNDATION_CHECKLIST.filter((c) =>
+    clearOut.some((s) => coversFoundation({ item: s }, c)),
+  ).map((c) => c.key);
+  const itemConflict = FOUNDATION_CHECKLIST.some(
+    (check) =>
+      excludedKeys.includes(check.key) &&
+      (explicitInKeys.includes(check.key) ||
+        lines.some((line) => !line.exclusion && coversFoundation(line, check)) ||
+        source.some((text) => coversFoundation({ item: text }, check))),
+  );
+  const wholeConflict =
+    (wholeOut || exclusiveOther) && (wholeIn || limitedIn || positiveRows.length > 0 || sourceWork);
+  const conflict = wholeConflict || itemConflict;
+  const state = conflict
+    ? "conflicting"
+    : uncertain || unresolvedClauses.length > 0
+      ? "unknown"
+      : wholeIn || limitedIn || includedKeys.length > 0
+        ? "included"
+        : wholeOut || exclusiveOther
+          ? "excluded"
+          : "unknown";
+  const requiredKeys =
+    wholeIn && !conflict && !uncertain
+      ? FOUNDATION_CHECKLIST.filter((c) => !excludedKeys.includes(c.key)).map((c) => c.key)
+      : includedKeys;
+  const clarification =
+    state === "conflicting"
+      ? "Foundation scope conflicts with included work, exclusions, or saved line/source requirements. Confirm which foundation work this estimate includes; existing lines and gaps are preserved." + (unresolvedClauses.length ? ` Unresolved included work: ${unresolvedClauses.map((clause) => `"${clause}"`).join("; ")}.` : "")
+      : unresolvedClauses.length
+        ? `Clarify the included scope for ${unresolvedClauses.map((clause) => `"${clause}"`).join("; ")}. What must be measured or explicitly excluded before this estimate can be settled?`
+        : state === "unknown" ||
+            (state === "included" && !wholeIn && !limitedIn && !included.length)
+          ? "Foundation checklist applicability is not established by the agreed estimate scope. Confirm whether foundation work is included, excluded, or limited to named items."
+          : null;
+  return {
+    state,
+    requiredKeys,
+    wholeFoundation: wholeIn && !conflict && !uncertain,
+    namedRequirements,
+    unresolvedClauses,
+    clarification,
+  };
+}
+
+function coversLimited(
+  line: StoredLine,
+  requirement: (typeof LIMITED_REQUIREMENTS)[number],
+): boolean {
+  // Feeder/conduit quantities serving a base do not quantify installation of that base.
+  return (
+    requirement.match.test(line.item) &&
+    !/\b(?:conduits?|feeders?|wiring|grounding|circuits?)\b/i.test(line.item)
+  );
+}
+
+/** Named limited work has its own coverage check; it never expands into the eight fixed items. */
+function limitedScopeGaps(lines: StoredLine[], scope: FoundationScope): GapIn[] {
+  return scope.namedRequirements.flatMap((requirement) => {
+    const check = LIMITED_REQUIREMENTS.find((check) => check.key === requirement.key)!;
+    const rows = lines.filter((line) => coversLimited(line, check));
+    // An existing line keeps its normal quantity/exclusion review obligations. Do not create
+    // a second gap for it; this coverage check is specifically for entirely absent work.
+    if (rows.length) return [];
+    return [
+      {
+        kind: "verify",
+        category: "scope_seam",
+        severity: "hard",
+        title: requirement.label,
+        reasoning: `${requirement.label} is included in the agreed scope but has no takeoff line. Add its evidenced takeoff or explicitly review its coverage/exclusion with a reason.`,
+        sheet: "scope not measured",
+        spec_section: "agreed scope",
+        holds_bid: true,
+      } satisfies GapIn,
+    ];
+  });
+}
+
+/** Only included foundation requirements become missing-item prompts; unclear scope is one question. */
+export function foundationGapPrompts(lines: StoredLine[], scope?: EstimateScope): GapIn[] {
+  const applicability = foundationScope(lines, scope);
+  const prompts: GapIn[] = FOUNDATION_CHECKLIST.filter((c) => {
+    if (!applicability.requiredKeys.includes(c.key)) return false;
     const rows = lines.filter((l) => coversFoundation(l, c));
     if (!rows.length) return true;
     if (rows.some((r) => r.qty != null)) return false;
@@ -1387,6 +1587,19 @@ export function foundationGapPrompts(lines: StoredLine[]): GapIn[] {
       holds_bid: true,
     };
   });
+  prompts.push(...limitedScopeGaps(lines, applicability));
+  if (applicability.clarification)
+    prompts.unshift({
+      kind: "verify",
+      category: "scope_seam",
+      severity: "hard",
+      title: "Confirm foundation scope",
+      reasoning: applicability.clarification,
+      sheet: "scope not confirmed",
+      spec_section: "scope not confirmed",
+      holds_bid: true,
+    });
+  return prompts;
 }
 
 /** Keep every gap number. New items are added. A mark does not mint a new id. */
@@ -1479,7 +1692,7 @@ export function settle(
   lines: StoredLine[],
   gaps: StoredGap[],
   verdicts: StoredVerdict[],
-  opts: { role: Setup["role"]; trades: string[] },
+  opts: EstimateScope,
 ): {
   items: SettledView[];
   counts: { open: number; settled: number; dropped: number };
@@ -1487,6 +1700,8 @@ export function settle(
   blockers: string[];
   checklist: { label: string; state: string }[];
   foundation: { label: string; state: string }[];
+  foundationScope: FoundationScope;
+  foundationGaps: GapIn[];
   stale: string[];
 } {
   const stale: string[] = [];
@@ -1606,9 +1821,8 @@ export function settle(
     settled: items.filter((i) => i.status === "settled").length,
     dropped: items.filter((i) => i.status === "dropped").length,
   };
-  const requireList =
-    (opts.role === "self_performer" && isConcrete(opts.trades)) ||
-    lines.some((l) => l.checklist_key);
+  const applicability = foundationScope(lines, opts);
+  const requireList = opts.role === "self_performer" && applicability.wholeFoundation && isConcrete(opts.trades);
   const checklist = CONCRETE_CHECKLIST.map((c) => {
     const rows = items.filter((i) => i.kind === "line" && i.checklistKey === c.key);
     if (!rows.length)
@@ -1619,8 +1833,8 @@ export function settle(
     if (rows.some((r) => r.qty != null)) return { label: c.label, state: "quantity" };
     return { label: c.label, state: "open" };
   });
-  const foundation = FOUNDATION_CHECKLIST.map((c) => {
-    const rows = items.filter((i) => i.kind === "line" && i.checklistKey === c.key);
+  const foundation = FOUNDATION_CHECKLIST.filter((c) => applicability.requiredKeys.includes(c.key)).map((c) => {
+    const rows = items.filter((i) => i.kind === "line" && lines.some((l) => `T-${l.line_no}` === i.ref && coversFoundation(l, c)));
     if (!rows.length) return { label: c.label, state: "not on the takeoff" };
     if (rows.some((r) => r.qty != null && r.status !== "dropped"))
       return { label: c.label, state: "quantity" };
@@ -1630,6 +1844,16 @@ export function settle(
   const blockers = items
     .filter((i) => i.status === "open")
     .map((i) => `${i.title} (${i.ref})${i.missing ? ` — ${i.missing}` : ""}`);
+  const resolvedNamed = (title: string) => gaps.some((gap) => {
+    if (normItem(gap.title) !== normItem(title)) return false;
+    const item = items.find((item) => item.kind === "gap" && item.ref === gap.ref);
+    const verdict = latestVerdict(verdicts, (v) => v.item_kind === "gap" && v.gap_ref === gap.ref);
+    return item?.status === "settled" && item.qty != null ||
+      item?.status === "dropped" && verdict?.mark === "not_relevant" && Boolean(verdict.note?.trim());
+  });
+  const namedGaps = limitedScopeGaps(lines, applicability).filter((gap) => !resolvedNamed(gap.title));
+  for (const gap of namedGaps) blockers.push(`${gap.title}: included scope is not accounted for.`);
+  if (applicability.clarification) blockers.push(applicability.clarification);
   if (requireList)
     for (const c of checklist)
       if (c.state === "not on the takeoff" || c.state === "open")
@@ -1643,6 +1867,8 @@ export function settle(
     blockers,
     checklist,
     foundation,
+    foundationScope: applicability,
+    foundationGaps: foundationGapPrompts(lines, opts).filter((gap) => !applicability.namedRequirements.some((requirement) => requirement.label === gap.title) || !resolvedNamed(gap.title)),
     stale,
   };
 }
@@ -2007,6 +2233,8 @@ export function renderTakeoff(
     ...table,
     "",
     "Foundation scope",
+    ...(state.foundationScope.clarification ? [`- ${state.foundationScope.clarification}`] : []),
+    ...(state.foundation.length ? [] : [state.foundationScope.state === "excluded" ? "- Foundation checklist excluded by the agreed estimate scope." : "- No whole-foundation checklist assumed; only named requirements apply."]),
     ...state.foundation.map((c) =>
       c.state === "quantity" || c.state === "N/A"
         ? `- ${c.label}: ${c.state}.`
@@ -2037,7 +2265,8 @@ export function renderTakeoff(
       layout: estimateLayout(),
       coverage: coverageLine(linesIn),
       counts: state.counts,
-      checklist_gaps: foundationGapPrompts(linesIn),
+      checklist_gaps: state.foundationGaps,
+      foundation_scope: state.foundationScope,
       lines: rows.map((r) => ({
         ...r,
         basis_label: r.basis,

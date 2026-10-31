@@ -51,6 +51,7 @@ export type EngineSnapshot = {
   verdicts?: StoredVerdict[];
   role?: Setup["role"];
   trades?: string[];
+  estimate_scope?: import("../estimating").EstimateScope;
   gaps?: StoredGap[];
   sources?: { id: string; stale: boolean }[];
   accepted_history?: GeometryRevision[];
@@ -92,7 +93,19 @@ export async function engineSnapshot(
       );
     return null;
   }
-  return data as EngineSnapshot;
+  const estimate = await sb.rpc("mcp_estimate_get", { _job: jobId });
+  if (estimate.error) dbError(estimate.error);
+  const setup = (estimate.data as { setup?: import("../estimating").Setup } | null)?.setup;
+  return {
+    ...(data as EngineSnapshot),
+    estimate_scope: {
+      role: setup?.role ?? null,
+      trades: setup?.trades ?? [],
+      in_scope: setup?.in_scope ?? [],
+      out_scope: setup?.out_scope ?? [],
+      doc_review: setup?.doc_review ?? null,
+    },
+  };
 }
 export function measurementLines(state: EngineSnapshot): LineMeasurement[] {
   return state.lines.map((line) => {

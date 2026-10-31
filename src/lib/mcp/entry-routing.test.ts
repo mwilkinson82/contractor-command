@@ -126,6 +126,18 @@ describe("published Athena entry routing contract", () => {
     expect(result.instructions).not.toContain("Expired uploads require a new upload");
     expect(result.instructions).not.toContain("file, call file_upload action begin");
   });
+  it("publishes estimating applicability rather than a universal foundation checklist", async () => {
+    const result = await rpc("initialize", 6, {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "foundation-scope-test", version: "1" },
+    });
+    expect(result.instructions).toContain(
+      "Use the agreed estimate in_scope/out_scope, not company trade alone",
+    );
+    expect(result.instructions).toContain("Missing or conflicting scope needs clarification");
+    expect(result.instructions).toContain("Preserve existing gaps for explicit review");
+  });
   it("keeps discovery descriptions identical to the committed manifest", async () => {
     const result = await rpc("tools/list", 2);
     const manifest = JSON.parse(readFileSync(".lovable/mcp/manifest.json", "utf8"));

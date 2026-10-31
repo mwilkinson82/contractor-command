@@ -21,7 +21,7 @@ import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
 import { calibrate, measure, type Calibration, type Shape } from "./geometry";
 import { inspectSheet, renderTile, scaleProposals, sheetSpace, type SheetInspection } from "./pdf";
-import { foundationGapPrompts, parseState, settle, takeoffLineFor } from "../estimating";
+import { parseState, settle, takeoffLineFor } from "../estimating";
 import {
   engineSnapshot,
   measurementStatus,
@@ -397,7 +397,7 @@ export async function viewEngine(
     });
   const { renderPdfiumPage } = await import("../pdf-renderer");
   const review = parseState({
-    setup: { role: state.role, trades: state.trades ?? [] },
+    setup: state.estimate_scope ?? { role: state.role, trades: state.trades ?? [] },
     takeoff: { version: state.takeoff_version, lines: state.lines },
     gaps: state.gaps ?? [],
     verdicts: state.verdicts ?? [],
@@ -406,26 +406,25 @@ export async function viewEngine(
     verifiedLines(review.lines, state),
     review.gaps,
     review.verdicts.map((v) => (v.item_kind === "line" ? { ...v, corrected_qty: null } : v)),
-    { role: review.setup.role, trades: review.setup.trades },
+    review.setup,
   );
-  // Scope the takeoff never included is a coverage gap, not an unlocated line. The fixed foundation
-  // checklist names what every foundation takeoff must quantify or mark N/A; it is not a reading of the
-  // drawings, so scope beyond it (piers, bollards, pole foundations) still has to come from the sheets.
-  const uncovered = foundationGapPrompts(review.lines).filter(
+  // Only agreed foundation requirements become checklist gaps. Unknown scope stays a question;
+  // work outside the fixed list still needs its own source/quantity evidence.
+  const uncovered = settled.foundationGaps.filter(
     (g) => !takeoffLineFor(review.lines, g.title),
   );
   if (uncovered.length)
     card.sections?.push({
-      heading: "Foundation checklist items with no takeoff line",
+      heading: settled.foundationScope.clarification ? "Foundation scope needs clarification" : "Included foundation requirements with no takeoff line",
       kind: "list",
       rows: [
         ...uncovered.map((g) => ({
-          cells: [g.title, "Add a takeoff line and locate it, or mark it N/A with a reason."],
+          cells: [g.title, g.reasoning],
           tone: "unknown" as const,
         })),
         {
           cells: [
-            "This checklist is fixed. Scope the drawings show beyond it is not checked here.",
+            "Only agreed foundation requirements apply. Other drawing scope still needs its own evidence; existing gaps are preserved for review.",
           ],
           tone: "unknown" as const,
         },
@@ -520,6 +519,8 @@ export async function viewEngine(
     source_key: s.source_key,
   }));
   const structuredContent = {
+    foundation_scope: settled.foundationScope,
+    checklist_gaps: settled.foundationGaps,
     scale_lock: lock,
     guided_measurement: guided,
     snapshot_at: new Date().toISOString(),
