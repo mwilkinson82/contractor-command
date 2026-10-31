@@ -27,6 +27,42 @@ function deps(over: Partial<UploadDeps> = {}): UploadDeps & { putCalls: Uint8Arr
 }
 
 describe("upload link", () => {
+  it("rejects new bytes on an expired token and rechecks expiry after reading a slow body", async () => {
+    const expired = { ...session, expires_at: "2000-01-01T00:00:00Z" };
+    const denied = deps({ lookup: async () => expired });
+    const response = await handleFileUpload(
+      new Request("https://example.test/upload", { method: "PUT", body: "%PDF-1.7 test" }),
+      token,
+      denied,
+    );
+    expect(response.status).toBe(410);
+    expect(denied.putCalls).toHaveLength(0);
+    const pending = { ...session };
+    const d = deps({ lookup: async () => pending });
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          controller.enqueue(new TextEncoder().encode("%PDF-1.7 test"));
+          pending.expires_at = "2000-01-01T00:00:00Z";
+          controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const slow = await handleFileUpload(
+      new Request("https://example.test/upload", {
+        method: "PUT",
+        body: stream,
+        duplex: "half",
+      } as RequestInit),
+      token,
+      d,
+    );
+    expect(slow.status).toBe(410);
+    expect(await slow.json()).toMatchObject({ stored: false });
+    expect(d.putCalls).toHaveLength(0);
+  });
+
   it("shows a form and stores a PUT of the matching file", async () => {
     const d = deps();
     const form = await handleFileUpload(

@@ -182,7 +182,7 @@
             true,
           ),
         );
-      } else if (current.expired && current.status !== "finished") {
+      } else if (current.expired && !current.bytes_received && current.status !== "finished") {
         body.append(
           node(
             "p",
@@ -190,6 +190,21 @@
           ),
         );
         if (current.restart) body.append(button("Start new upload", restart));
+      } else if (current.received_via === "chunks") {
+        body.append(
+          node(
+            "p",
+            String(current.received_chunks || 0) +
+              " chunks received. Athena cannot determine whether you sent every intended chunk. Finish only when the full file has been sent.",
+          ),
+          button(
+            "Finish received chunks",
+            function () {
+              recover(current, true);
+            },
+            true,
+          ),
+        );
       } else if (
         current.bytes_received ||
         current.receipt_uncertain ||
@@ -272,15 +287,22 @@
           node("strong", u.filename),
           node(
             "p",
-            u.expired
-              ? "Expired"
+            u.received_via === "chunks"
+              ? String(u.received_chunks) + " chunks received; completeness unconfirmed"
               : u.bytes_received
                 ? "Uploaded; attachment pending"
-                : "File not received",
+                : u.expired
+                  ? "Link expired before eligible bytes arrived"
+                  : u.received_chunks
+                    ? "Chunk transfer incomplete"
+                    : "File not received",
           ),
-          button(u.expired ? "Review expired upload" : "Resume upload", function () {
-            recover(c);
-          }),
+          button(
+            u.expired && !u.bytes_received ? "Review expired upload" : "Resume upload",
+            function () {
+              recover(c);
+            },
+          ),
         );
         body.append(row);
       });
@@ -307,7 +329,7 @@
     size();
   }
   async function finish(c) {
-    if (c.expired && c.status !== "finished") return;
+    if (c.expired && !c.bytes_received && c.status !== "finished") return;
     status.textContent = "Adding the file to your job…";
     size();
     var r = await call(args(c, "finish")),
@@ -342,7 +364,7 @@
     });
     status.textContent = "File added to job.";
   }
-  async function recover(c) {
+  async function recover(c, finishChunks) {
     if (busy || !valid(c) || !host.serverTools || closed) return;
     busy = true;
     completed = null;
@@ -362,11 +384,18 @@
         !next.upload_url && c.upload_url && !next.expired ? { upload_url: c.upload_url } : {},
       );
       remember();
-      if (current.bytes_received || current.status === "finished") await finish(current);
+      if (
+        (current.bytes_received && (current.received_via !== "chunks" || finishChunks)) ||
+        current.status === "finished"
+      )
+        await finish(current);
       else
-        status.textContent = current.expired
-          ? "Upload expired."
-          : "Choose the file to add to this job.";
+        status.textContent =
+          current.received_via === "chunks"
+            ? "Received chunks are ready for explicit completion. Check that you sent the full file."
+            : current.expired
+              ? "Upload expired."
+              : "Choose the file to add to this job.";
     } catch (e) {
       current = Object.assign({}, current, { verification_pending: true });
       status.textContent = e.message || "Upload recovery was not confirmed.";

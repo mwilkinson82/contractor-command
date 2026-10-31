@@ -1,0 +1,18 @@
+Complete already-received uploads after transport expiry
+
+The two-hour upload token and chunk-write deadline remain unchanged. Current source rejects authenticated finish solely because time elapsed, even if the caller's bytes are already present. The proposed recovery and complete replacements distinguish receiving new bytes from registering previously received bytes.
+
+Receipt evidence
+Recovery reports object receipts only when storage.objects created_at/updated_at are no later than the upload's existing expires_at. Otherwise it can report received chunks when registered indexes are nonempty, contiguous from zero, and every referenced part exists with no creation/update later than expiry. Missing, late or subsequently modified parts cannot qualify. Recovery returns received_via (object/chunks/null) and received_chunks, retaining all current creator/company/job/purpose checks and bounded pagination. No tokens, storage paths or content are returned.
+
+Authenticated completion
+The application and mcp_file_upload_complete permit expired open sessions only with eligible receipt evidence. Completed sessions retain current idempotent cached results and current authorization checks. Expired tokens/chunk calls never gain write authority. The byte route also rechecks expiry after reading the request body before issuing a storage write; this closes the slow-request gap without changing token duration. Storage receipt timestamps remain decisive if storage itself finishes after the deadline.
+
+Objects and chunks
+Object mode can resume automatically through the authenticated card. A lost PUT response followed by expiry needs no re-upload. Chunk-only mode is visible in normal job-file recovery; the card displays the recorded count and requires an explicit Finish received chunks action. Sessions do not record an expected total, so a contiguous prefix cannot prove the full file arrived and MUST NOT auto-attach. Existing authenticated finish semantics still let the sender indicate that all intended chunks were sent. Gapped/missing/late parts remain incomplete. Assembly verifies an existing final object's bytes against the joined chunks rather than silently using conflicting bytes. Lost completion replies reconcile through the same ID without another save.
+
+Migration/security impact
+file-upload-received-bytes.sql is an unapplied native-runner proposal, with no top-level BEGIN/COMMIT. It replaces only mcp_file_upload_recovery(uuid,uuid,uuid,integer) and mcp_file_upload_complete(uuid,uuid,jsonb). Their signatures, SECURITY DEFINER/search_path/volatility settings and existing ACLs are preserved; CREATE OR REPLACE adds no grants. The existing get/chunk definitions, token hashes, two-hour expiry, canonical membership gate/cache, creator checks, full/contract scopes and full-only submittal scope remain in place. No table, policy, role, auth, CORS, credential or entitlement changes. No new persistent receipt table or background job is introduced.
+
+Limits and release sequence
+This does not reconstruct missing chunks, reactivate expired links, enable estimating, repair customer records or prove a customer-specific cause. Authenticated storage content must remain intact; modified/unknown-timestamp receipts fail closed after expiry. A partial text chunk prefix remains indistinguishable from a full text file without an expected count, so explicit completion is necessary and clearly labeled. Review and apply the proposed SQL through Lovable Cloud before application publication, then verify installed definitions/ACLs and isolated host acceptance. No SQL or production data was changed during preparation.

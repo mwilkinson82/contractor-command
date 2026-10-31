@@ -61,7 +61,7 @@ type Session = {
 };
 
 const UPLOAD_GUIDE =
-  "Use the authenticated upload card for begin and resume; it uploads and calls finish automatically. Do not issue a parallel finish while the card is completing. For a text-only host, begin returns upload_url; after bytes arrive, call finish with the same upload_id without asking for another upload. Upload-link success alone confirms bytes only. Say the file is available on the job only after job_association is verified. project_documents list exposes the current member's own pending uploads on that exact job; use resume for the selected ID. Expiry still requires a new upload. from_url accepts a fetchable HTTPS file link; chunk accepts ordered base64 pieces of at most 12000 characters, then finish. Stored contract/spec files are the sources clause checks read, and stored submittal pieces are ready for package build.";
+  "Use the authenticated upload card for begin and resume; it uploads and calls finish automatically. Do not issue a parallel finish while the card is completing. For a text-only host, begin returns upload_url; after bytes arrive, call finish with the same upload_id without asking for another upload. Upload-link success alone confirms bytes only. Say the file is available on the job only after job_association is verified. project_documents list exposes the current member's own pending uploads on that exact job; use resume for the selected ID. The two-hour link expiry blocks new bytes, but authenticated finish can attach bytes received before expiry. Chunk recovery shows received parts; finish only after every intended chunk has been sent. from_url accepts a fetchable HTTPS file link; chunk accepts ordered base64 pieces of at most 12000 characters, then finish. Stored contract/spec files are the sources clause checks read, and stored submittal pieces are ready for package build.";
 
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (
@@ -234,9 +234,13 @@ async function verifyDocumentAssociation(
   return data.id;
 }
 
-async function loadBytes(sb: Sb, session: Session): Promise<Uint8Array> {
+async function loadBytes(
+  sb: Sb,
+  session: Session,
+  mode?: "object" | "chunks" | null,
+): Promise<Uint8Array> {
   const direct = await download(sb, session.bucket, session.storage_path);
-  if (direct?.length) return direct;
+  if (mode !== "chunks" && direct?.length) return direct;
   const chunks = (session.chunks ?? []).map(Number);
   const gap = missingChunk(chunks);
   if (gap != null)
@@ -253,7 +257,12 @@ async function loadBytes(sb: Sb, session: Session): Promise<Uint8Array> {
     parts.push(part);
   }
   const bytes = joinChunks(parts);
-  await storeObject(sb, session.bucket, session.storage_path, bytes, session.mime_type);
+  if (direct?.length && (await sha256Hex(direct)) !== (await sha256Hex(bytes)))
+    throw new ToolError(
+      "The assembled file differs from the received chunks. No attachment was confirmed.",
+    );
+  if (!direct?.length)
+    await storeObject(sb, session.bucket, session.storage_path, bytes, session.mime_type);
   return bytes;
 }
 
@@ -392,12 +401,16 @@ export const fileUpload = defineTool({
         if (!session) throw new ToolError("That upload is not available to you on this job.");
         assertSessionPath(job.company_id, job.job_id, session);
         return storedReply(
-          `${prefix(job)}${session.filename}: ${owned.expired ? "Upload expired." : owned.bytes_received ? "Upload received; job attachment is awaiting confirmation." : "Waiting for the file."}`,
+          `${prefix(job)}${session.filename}: ${owned.bytes_received ? (owned.received_via === "chunks" ? "Received chunks; finish only after all intended chunks have been sent." : "Upload received; job attachment is awaiting confirmation.") : owned.expired ? "Upload link expired before eligible bytes arrived." : "Waiting for the file."}`,
           {
             company_id: job.company_id,
             job_number: job.job_number,
             upload_id: session.id,
-            upload_context: uploadContext(job, session, owned.bytes_received),
+            upload_context: {
+              ...uploadContext(job, session, owned.bytes_received),
+              received_via: owned.received_via ?? null,
+              received_chunks: owned.received_chunks ?? 0,
+            },
           },
         );
       }
@@ -598,7 +611,7 @@ export const fileUpload = defineTool({
 
       if (!args.upload_id)
         throw new ToolError("Which upload should be confirmed? Nothing was stored.");
-      await requireOwnUpload(sb, job, args.upload_id);
+      const owned = await requireOwnUpload(sb, job, args.upload_id);
       const session = await rpc<Session | null>(sb, "mcp_file_upload_get", {
         _id: args.upload_id,
         _job: job.job_id,
@@ -679,12 +692,15 @@ export const fileUpload = defineTool({
         }
         return storedReply(session.result.visible, cached);
       }
-      if (new Date(session.expires_at).getTime() <= Date.now())
+      if (
+        new Date(session.expires_at).getTime() <= Date.now() &&
+        (!owned.bytes_received || !owned.received_via)
+      )
         throw new ToolError(
-          "That upload link has expired. The file's job attachment is not confirmed by this request. Start a new upload from Athena.",
+          "The upload link expired before eligible bytes were received. Start a new upload from Athena.",
         );
       assertSessionPath(job.company_id, job.job_id, session);
-      const bytes = await loadBytes(sb, session);
+      const bytes = await loadBytes(sb, session, owned.received_via);
       return finishBytes(sb, job, { ...session, tracked: true }, bytes);
     }),
 });
