@@ -1,3 +1,4 @@
+import { accountingRecordUrl, billingRecordLinks } from "../../accounting-record-target";
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
@@ -279,6 +280,11 @@ export const billingDocuments = defineTool({
           "mcp_billing_documents_get",
           { _job: job.job_id },
         );
+        const ledger = await rpc<Parameters<typeof billingRecordLinks>[1]>(
+          sb,
+          "mcp_billing_evidence_get",
+          { _job: job.job_id },
+        );
         const documents = result.documents.map(({ storage_path: _storagePath, ...rest }) => rest);
         return {
           ...text(
@@ -287,6 +293,7 @@ export const billingDocuments = defineTool({
           structuredContent: {
             documents,
             links: result.links,
+            record_links: billingRecordLinks(job.job_id, ledger),
             records_url: `https://app.meetathena.io/r/job/${job.job_id}/billing-records`,
           } as never,
         };
@@ -342,6 +349,7 @@ export const billingDocumentLink = defineTool({
           invoices: Array<{
             id: string;
             document_number: string;
+            kind: string;
             versions: Array<{ version: number }>;
           }>;
           receipts: Array<{
@@ -380,7 +388,16 @@ export const billingDocumentLink = defineTool({
         const target = invoice
           ? `invoice ${invoice.document_number}, version ${args.invoice_version}`
           : `receipt ${receipt!.source}, ${receipt!.receipt_date}, ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(receipt!.amount_cents / 100)}`;
-        const url = `https://app.meetathena.io/r/job/${job.job_id}/billing-records`;
+        const url = accountingRecordUrl(
+          job.job_id,
+          invoice
+            ? {
+                kind: invoice.kind === "credit" ? "credit" : "invoice",
+                id: invoice.id,
+                version: args.invoice_version,
+              }
+            : { kind: "receipt", id: receipt!.id },
+        );
         if (args.step === "review")
           return guide(
             {

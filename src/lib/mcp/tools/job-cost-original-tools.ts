@@ -1,3 +1,4 @@
+import { accountingRecordUrl } from "../../accounting-record-target";
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text } from "../guard";
@@ -80,7 +81,18 @@ export const jobCostOriginal = defineTool({
           return guide(
             {
               ...text("Supplier originals, identified by their exact saved bill version."),
-              structuredContent: result as never,
+              structuredContent: {
+                ...result,
+                ...(args.expected_version
+                  ? {
+                      record_url: accountingRecordUrl(job.job_id, {
+                        kind: "payable",
+                        id: args.record_id,
+                        version: args.expected_version,
+                      }),
+                    }
+                  : {}),
+              } as never,
             },
             "Use job_cost_original read for a stored original. A link is source evidence, not verification of invoice contents, accounting approval or payment.",
           );
@@ -108,6 +120,11 @@ export const jobCostOriginal = defineTool({
                 `Original ${document.filename}, bill version ${document.version}: ${extracted.text ? "readable text is available." : "stored and fingerprint-checked; no readable text was extracted."}`,
               ),
               structuredContent: {
+                record_url: accountingRecordUrl(job.job_id, {
+                  kind: "payable",
+                  id: args.record_id,
+                  version: document.version,
+                }),
                 original_id: document.id,
                 record_id: document.record_id,
                 version: document.version,

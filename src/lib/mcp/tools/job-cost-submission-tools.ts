@@ -1,3 +1,4 @@
+import { costRecordLinks } from "../../accounting-record-target";
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError, text, type Sb } from "../guard";
@@ -147,9 +148,12 @@ export const jobCostSubmissionRead = defineTool({
             ...text(
               `${job.job_number}: cost records and accounting evidence. AP and owners can list or attach supplier originals with job_cost_original for the exact bill version. Field receipts are retrieved separately.${data.posting_available ? "" : " Accounting posting is not available."}`,
             ),
-            structuredContent: data as never,
+            structuredContent: {
+              ...data,
+              record_links: costRecordLinks(job.job_id, data.records),
+            } as never,
           },
-          "Show the latest version, job-specific PM payment approvals, accounting-approved versions, posted version and recorded payments separately. A pending correction does not replace the posted version. Never treat missing records as complete history or payment evidence as another cost.",
+          "Use the matching record_links URL for a specific supplier bill, expense or payment. Show the latest version, job-specific PM payment approvals, accounting-approved versions, posted version and recorded payments separately. A pending correction does not replace the posted version. Never treat missing records as complete history or payment evidence as another cost.",
         );
       },
     ),

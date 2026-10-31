@@ -483,6 +483,23 @@ describe("guided billing workflow with a synthetic original", () => {
       credit_for: inv.p.id,
     });
     const read = await call(billingEvidenceRead, context);
+    const recordLinks = read.structuredContent.record_links as Array<{
+      target: { id: string; kind: string; version?: number };
+      url: string;
+    }>;
+    expect(
+      recordLinks.some(
+        (l) =>
+          l.target.id === inv.p.id &&
+          l.target.version === 1 &&
+          l.url.includes("record_kind=invoice"),
+      ),
+    ).toBe(true);
+    expect(
+      recordLinks.some((l) => l.target.id === receipt.p.id && l.target.kind === "receipt"),
+    ).toBe(true);
+    expect(recordLinks.some((l) => l.target.kind === "allocation")).toBe(true);
+    expect(recordLinks.some((l) => l.target.kind === "credit")).toBe(true);
     expect(read.structuredContent.balances).toMatchObject([
       {
         document_number: "SYN-1",

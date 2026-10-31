@@ -1,3 +1,5 @@
+import { AccountingRecordPage } from "@/components/athena/AccountingRecordPage";
+import { accountingContextDates, accountingTargetFromSearch } from "@/lib/accounting-record-target";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ReportPageView } from "@/components/athena/ReportPage";
 import { JOB_PAGES, hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
@@ -42,9 +44,29 @@ function JobReportPage() {
     return (
       <ProductionReportPage jobId={jobId} from={search.from} to={search.to} range={search.range} />
     );
-  if (hostedPageName(page) === "accounting")
+  if (hostedPageName(page) === "accounting") {
+    let selected = null;
+    let recordDates = {};
+    try {
+      selected = accountingTargetFromSearch(search);
+      if (selected) recordDates = accountingContextDates(search);
+    } catch {
+      return (
+        <AccountingRecordPage key={JSON.stringify(search)} jobId={jobId} target={null} invalid />
+      );
+    }
+    if (selected)
+      return (
+        <AccountingRecordPage
+          key={`${jobId}:${JSON.stringify(search)}`}
+          jobId={jobId}
+          target={selected}
+          dates={recordDates}
+        />
+      );
     return (
       <AccountingReportPage
+        key={`${jobId}:${JSON.stringify(search)}`}
         jobId={jobId}
         initialFrom={search.from}
         initialAsOf={search.as_of}
@@ -55,6 +77,7 @@ function JobReportPage() {
         initialCostCode={search.cost_code}
       />
     );
+  }
   if (hostedPageName(page) === "home") return <JobHome jobId={jobId} token={token} />;
   if (hostedPageName(page) === "buyout")
     return <PurchaseOrdersPage jobId={jobId} initialTab="suppliers" />;

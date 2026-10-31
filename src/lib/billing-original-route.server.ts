@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { supabaseForToken } from "./mcp/supabase";
 import { FileRejected } from "./mcp/file-share";
+import { readApOriginalForToken } from "./mcp/ap-original.server";
 import {
   readVerifiedCostReceipt,
   readVerifiedFinancialOriginal,
@@ -19,16 +20,35 @@ export async function handleBillingOriginalDownload(request: Request): Promise<R
   const document = uuid.safeParse(url.searchParams.get("document"));
   const costRecordRaw = url.searchParams.get("cost_record");
   const costRecord = costRecordRaw === null ? null : uuid.safeParse(costRecordRaw);
-  if (!job.success || !document.success || (costRecord && !costRecord.success))
+  const apRaw = url.searchParams.get("ap_record");
+  const apRecord = apRaw === null ? null : uuid.safeParse(apRaw);
+  const version = url.searchParams.get("version");
+  if (
+    !job.success ||
+    !document.success ||
+    (costRecord && !costRecord.success) ||
+    (apRecord && (!apRecord.success || !version || !/^[1-9]\d{0,8}$/.test(version))) ||
+    (apRecord && costRecord) ||
+    (version !== null && !apRecord)
+  )
     return new Response("Original unavailable.", {
       status: 404,
       headers: { "cache-control": "no-store" },
     });
   try {
     const sb = supabaseForToken(auth[1]);
-    const result = costRecord?.success
-      ? await readVerifiedCostReceipt(sb, auth[1], job.data, costRecord.data, document.data)
-      : await readVerifiedFinancialOriginal(sb, auth[1], job.data, document.data);
+    const result = apRecord?.success
+      ? await readApOriginalForToken(
+          sb,
+          auth[1],
+          job.data,
+          apRecord.data,
+          document.data,
+          Number(version),
+        )
+      : costRecord?.success
+        ? await readVerifiedCostReceipt(sb, auth[1], job.data, costRecord.data, document.data)
+        : await readVerifiedFinancialOriginal(sb, auth[1], job.data, document.data);
     return new Response(result.bytes as BodyInit, {
       headers: {
         "content-type": "application/octet-stream",

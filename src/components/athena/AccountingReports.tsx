@@ -1,3 +1,4 @@
+import { accountingModeLocation, ledgerRecordUrl } from "@/lib/accounting-record-target";
 import { useMemo, useState, type ReactNode } from "react";
 import type { AccountingReport } from "@/lib/accounting-report";
 import {
@@ -36,6 +37,15 @@ export function AccountingReports({
   const [showBasis, setShowBasis] = useState(true);
   const [page, setPage] = useState(1);
   const choices = useMemo(() => reportingChoices(report), [report]);
+  const invoiceLinks = useMemo(
+    () =>
+      report.rows
+        .filter((r) => r.kind === "billed")
+        .map((r) =>
+          ledgerRecordUrl(report.jobId, r, { from: report.from || undefined, as_of: report.asOf }),
+        ),
+    [report],
+  );
   const view = useMemo(
     () => (type === "evidence" ? null : readableAccountingReport(report, type, filters)),
     [report, type, filters],
@@ -63,6 +73,7 @@ export function AccountingReports({
       .slice(0, 4) ?? [];
   const additional = view?.metrics.filter((m) => !featured.includes(m)) ?? [];
   function selectType(value: ReportType) {
+    window.location.assign(accountingModeLocation(window.location.href, value));
     setType(value);
     setFilters(defaultReportFilters);
     setPage(1);
@@ -289,7 +300,13 @@ export function AccountingReports({
                           {row.map((value, j) =>
                             j === 0 ? (
                               <th scope="row" key={j}>
-                                {value}
+                                {table.title === "Recorded invoice balances" && invoiceLinks[i] ? (
+                                  <a className="underline" href={invoiceLinks[i]!}>
+                                    {value}
+                                  </a>
+                                ) : (
+                                  value
+                                )}
                               </th>
                             ) : (
                               <td

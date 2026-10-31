@@ -1,3 +1,4 @@
+import { accountingRecordUrl, ledgerRecordUrl } from "@/lib/accounting-record-target";
 import { REPORT_TYPES, type ReportType } from "@/lib/accounting-readable";
 import { AccountingReports } from "./AccountingReports";
 import { AccountingWorkspace } from "./AccountingWorkspace";
@@ -147,7 +148,17 @@ export function AccountingReportView({
                   <tr className="border-b align-top" key={r.id} id={r.id}>
                     <td className="p-2">{r.effectiveOn ?? "Unknown"}</td>
                     <th className="p-2 font-normal">
-                      {r.recordId} · v{r.version} · {r.costCode}
+                      <a
+                        className="underline"
+                        href={accountingRecordUrl(
+                          report.jobId,
+                          { kind: "payable", id: r.recordId, version: r.version },
+                          { as_of: report.asOf, from: report.from || undefined },
+                        )}
+                      >
+                        {r.reference || r.counterparty || "Supplier bill"} · v{r.version}
+                      </a>{" "}
+                      · {r.costCode}
                     </th>
                     <td className="p-2 whitespace-nowrap">{apMoney(r.amountCents, r.currency)}</td>
                     <td className="p-2">
@@ -227,8 +238,28 @@ export function AccountingReportView({
                 <tr className="border-b align-top" key={r.id} id={r.id}>
                   <td className="p-2 whitespace-nowrap">{r.date ?? "Unknown"}</td>
                   <th scope="row" className="p-2 font-normal">
-                    {r.label}
-                    {r.version ? ` · v${r.version}` : ""}
+                    {ledgerRecordUrl(report.jobId, r, {
+                      as_of: report.asOf,
+                      from: report.from || undefined,
+                    }) ? (
+                      <a
+                        className="underline"
+                        href={
+                          ledgerRecordUrl(report.jobId, r, {
+                            as_of: report.asOf,
+                            from: report.from || undefined,
+                          })!
+                        }
+                      >
+                        {r.label}
+                        {r.version ? ` · v${r.version}` : ""}
+                      </a>
+                    ) : (
+                      <>
+                        {r.label}
+                        {r.version ? ` · v${r.version}` : ""}
+                      </>
+                    )}
                   </th>
                   <td className="p-2">
                     {r.kind.replaceAll("_", " ")}
@@ -359,7 +390,7 @@ export function AccountingReportPage({
   if (!session)
     return (
       <BoardSignIn
-        returnTo={`/r/job/${jobId}/accounting?${new URLSearchParams({ as_of: dates.asOf, ...(dates.from ? { from: dates.from } : {}), ...(initialPage ? { ledger_page: String(page) } : {}), ...(initialReportType ? { report_type: initialReportType } : {}), ...(initialCurrency ? { currency: initialCurrency } : {}), ...(initialVendor ? { vendor: initialVendor } : {}), ...(initialCostCode ? { cost_code: initialCostCode } : {}) })}`}
+        returnTo={`/r/job/${jobId}/accounting?${new URLSearchParams({ as_of: dates.asOf, ...(dates.from ? { from: dates.from } : {}), ...(initialPage ? { ledger_page: String(page) } : {}), ...(initialReportType ? { report_type: initialReportType } : {}), ...(initialCurrency ? { currency: initialCurrency } : {}), ...(initialVendor ? { vendor: initialVendor } : {}), ...(initialCostCode ? { cost_code: initialCostCode } : {}) })}${typeof window !== "undefined" ? window.location.hash : ""}`}
       />
     );
   function download() {

@@ -5367,7 +5367,7 @@
       {
         "name": "report_page_link",
         "title": "Project home or report link",
-        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
+        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), page \"statement\" for a private Customer Statement report, other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -11739,7 +11739,7 @@
       {
         "name": "accounting_report",
         "title": "Job accounting evidence and accountant export",
-        "description": "Reads a job ledger, dated billing versus receipts, retainage, current posted costs, unpaid balances where supported, separate PO commitments and current budget comparison. Opens a private report with accountant CSV download. Missing cost coverage stays unknown; not a complete P&L.",
+        "description": "Reads a job ledger, dated billing versus receipts, retainage, current posted costs, unpaid balances where supported, separate PO commitments and current budget comparison. Opens a private report with accountant CSV download. For a customer statement use report_type statement; other modes are summary, receivables, costs and evidence. Missing cost coverage stays unknown; not a complete P&L.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -11747,8 +11747,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -11767,6 +11767,16 @@
             "as_of": {
               "type": "string",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "report_type": {
+              "type": "string",
+              "enum": [
+                "summary",
+                "receivables",
+                "costs",
+                "statement",
+                "evidence"
+              ]
             },
             "page": {
               "default": 1,

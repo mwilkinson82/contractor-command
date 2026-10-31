@@ -56,6 +56,7 @@ describe("read results through the real guard", () => {
           from: "2026-10-20",
           as_of: "2026-10-10",
           page: 1,
+          report_type: undefined,
         },
         ctx,
       ),
