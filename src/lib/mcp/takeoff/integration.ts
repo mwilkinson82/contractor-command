@@ -14,7 +14,7 @@ export function measuredSettlement(loaded: ReturnType<typeof parseState>, state:
     verifiedLines(loaded.lines, state),
     loaded.gaps,
     loaded.verdicts.map((v) => (v.item_kind === "line" ? { ...v, corrected_qty: null } : v)),
-    { role: loaded.setup.role, trades: loaded.setup.trades },
+    loaded.setup,
   );
 }
 const csvCell = (value: unknown) => {

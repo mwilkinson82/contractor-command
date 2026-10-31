@@ -941,10 +941,7 @@ export const estimateTakeoffSave = defineTool({
               report_rows: account.statuses.map((r) => `L${r.line_no} · ${r.item} · ${r.status}`),
               save_account: account,
             });
-          const state = settle(prior.lines, prior.gaps, prior.verdicts, {
-            role: prior.setup.role,
-            trades: prior.setup.trades,
-          });
+          const state = settle(prior.lines, prior.gaps, prior.verdicts, prior.setup);
           const view = renderTakeoff(
             `${named(job)}`,
             prior.lines,
@@ -1007,10 +1004,7 @@ export const estimateTakeoffSave = defineTool({
             ],
           });
         }
-        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-          role: loaded.setup.role,
-          trades: loaded.setup.trades,
-        });
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
         await audit(sb, job, "estimate_takeoff_save", "save_estimate_takeoff", null);
         const view = renderTakeoff(
           `${named(job)}`,
@@ -1087,10 +1081,7 @@ export const estimateTakeoffGet = defineTool({
           return pages.length ? attachSheetPages(result, pages) : result;
         };
         if (!loaded.version) return withPages(emptyTakeoff(`${named(job)}`), []);
-        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-          role: loaded.setup.role,
-          trades: loaded.setup.trades,
-        });
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
         const view = renderTakeoff(`${named(job)}`, loaded.lines, state, loaded.revision);
         return withPages(
           reply({
@@ -1243,7 +1234,7 @@ export const estimateGapAnalysis = defineTool({
       try {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const prior = await load(sb, job.job_id);
-        const implied = autoGaps(prior.lines, prior.setup.doc_review?.pairs ?? []);
+        const implied = autoGaps(prior.lines, prior.setup.doc_review?.pairs ?? [], prior.setup);
         let clauses: { section: string; verbatim_text: string }[] = [];
         const cq = await sb
           .from("mcp_contract_clauses")
@@ -1309,10 +1300,7 @@ export const estimateGapAnalysis = defineTool({
         const gaps = prepareGaps(merged);
         await rpc(sb, "mcp_estimate_gaps_save", { _job: job.job_id, _items: gaps });
         const loaded = await load(sb, job.job_id);
-        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-          role: loaded.setup.role,
-          trades: loaded.setup.trades,
-        });
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
         await audit(sb, job, "estimate_gap_analysis", "save_estimate_gaps", null);
         const view = renderGaps(`${named(job)}`, loaded.gaps, state, reviewed.outOfScope);
         return reply(view);
@@ -1389,10 +1377,7 @@ export const estimateItemMark = defineTool({
         const line = lineNo ? prior.lines.find((l) => l.line_no === Number(lineNo[1])) : undefined;
         const gap = prior.gaps.find((g) => g.ref.toLowerCase() === id.toLowerCase());
         if (!line && !gap) {
-          const state = settle(prior.lines, prior.gaps, prior.verdicts, {
-            role: prior.setup.role,
-            trades: prior.setup.trades,
-          });
+          const state = settle(prior.lines, prior.gaps, prior.verdicts, prior.setup);
           const view = renderMark(label, null, prior.accuracy, state);
           return reply(view);
         }
@@ -1436,10 +1421,7 @@ export const estimateItemMark = defineTool({
           _owner: args.owner ?? null,
         });
         const loaded = await load(sb, job.job_id);
-        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-          role: loaded.setup.role,
-          trades: loaded.setup.trades,
-        });
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
         const item =
           state.items.find((i) => i.ref === (line ? `T-${line.line_no}` : gap!.ref)) ?? null;
         await audit(
@@ -1483,10 +1465,7 @@ export const estimateBuild = defineTool({
           return viewEngine(sb, job, measurement);
         const state = measurement
           ? measuredSettlement(loaded, measurement)
-          : settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-              role: loaded.setup.role,
-              trades: loaded.setup.trades,
-            });
+          : settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
         const rates: RateIn[] = (args.rates ?? []).map((r) => ({
           ...r,
           rate: r.rate ?? null,
@@ -1549,10 +1528,7 @@ export const estimateStatus = defineTool({
       if (!loaded.version && loaded.lines.length === 0) return noEstimate(`${named(job)}`);
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) return viewEngine(sb, job, measurement);
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-        role: loaded.setup.role,
-        trades: loaded.setup.trades,
-      });
+      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
       await audit(sb, job, "estimate_status", "view_estimate_status", null);
       const view = renderStatus(`${named(job)}`, state, loaded.accuracy);
       return reply(view);

@@ -422,7 +422,7 @@ describe("coverage, gaps, bids, summary", () => {
         line_no: 1,
       },
     ]);
-    const open = settle(takeoff, [], [], { role: "self_performer", trades: ["03 Concrete"] });
+    const open = settle(takeoff, [], [], { role: "self_performer", trades: ["03 Concrete"], in_scope: ["Concrete foundations"] });
     expect(open.settled).toBe(false);
     const draft = renderSummary(
       "2701 – Crystal",
@@ -458,6 +458,7 @@ describe("coverage, gaps, bids, summary", () => {
     const closed = settle(closedLines, [], verdicts, {
       role: "self_performer",
       trades: ["03 Concrete"],
+      in_scope: ["Concrete foundations"],
     });
     expect(closed.settled).toBe(true);
     const summary = renderSummary(
@@ -921,7 +922,8 @@ describe("intake reuse and takeoff save mode", () => {
   });
 
   it("flags the foundation scope when it is not taken off", () => {
-    const prompts = foundationGapPrompts([]);
+    const scope = { role: "self_performer" as const, trades: ["03 Concrete"], in_scope: ["Concrete foundations"] };
+    const prompts = foundationGapPrompts([], scope);
     for (const name of ["Slab edge forms", "Keyway", "Dowels", "Under-slab insulation", "Termite treatment", "Fine grade", "Trench base"])
       expect(prompts.map((g) => g.title)).toContain(name);
     const closed = foundationGapPrompts(
@@ -949,6 +951,7 @@ describe("intake reuse and takeoff save mode", () => {
         note: null,
         inputs: [],
       })),
+      scope,
     );
     expect(closed).toEqual([]);
   });

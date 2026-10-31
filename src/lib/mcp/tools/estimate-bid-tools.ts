@@ -269,10 +269,7 @@ export const estimatePricing = defineTool({
         _quotes: quotes,
         _sources: null,
       });
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-        role: loaded.setup.role,
-        trades: loaded.setup.trades,
-      });
+      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
       const lines = state.items.filter((i) => i.kind === "line" && i.status !== "dropped");
       const body = [
         `${named(job)} · Pricing`,
@@ -635,10 +632,7 @@ export const estimateBidSummary = defineTool({
           _overhead: overhead,
           _profit: profit,
         });
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, {
-        role: loaded.setup.role,
-        trades: loaded.setup.trades,
-      });
+      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
       let direct = 0;
       let directPlaceholder = false;
       for (const item of state.items.filter((i) => i.kind === "line" && i.status !== "dropped")) {
