@@ -109,12 +109,12 @@ beforeEach(() => {
 });
 
 describe("submittal job resolution is the same for every caller", () => {
-  it("opens 2701 on the company that has it, from either tool, even when the other company is named", async () => {
+  it("opens the unique job from either tool when no company is named or the correct one is selected", async () => {
     const calls = [
-      list({ job_number: "2701", company_id: "alp" }),
+      list({ job_number: "2701", company_id: "aop" }),
       list({ job_number: "2701" }),
-      list({ job_number: "2701", company_id: "ALP Construction" }),
-      log({ action: "add", job_number: "2701", company_id: "alp" }),
+      list({ job_number: "2701", company_id: "AOP Construction" }),
+      log({ action: "add", job_number: "2701", company_id: "aop" }),
       log({ action: "add", job_number: "2701" }),
     ];
     const results = await Promise.all(calls);
@@ -134,11 +134,20 @@ describe("submittal job resolution is the same for every caller", () => {
     expect(state.writes.filter((w) => w !== "rpc mcp_board_link_create")).toEqual([]);
   });
 
+  it("rejects an explicitly named different company before reading or writing submittals", async () => {
+    for (const company_id of ["alp", "ALP Construction"]) {
+      await expect(list({ job_number: "2701", company_id })).rejects.toThrow("not in the company you named");
+      await expect(log({ action: "add", job_number: "2701", company_id })).rejects.toThrow("not in the company you named");
+    }
+    expect(state.filters.filter((f) => f.table === "mcp_submittals")).toEqual([]);
+    expect(state.writes).toEqual([]);
+  });
+
   it("returns a styled empty card from both tools and writes nothing", async () => {
     state.rows = [];
     state.filters = [];
     state.rpcs = [];
-    const listed = await list({ job_number: "2701", company_id: "alp" });
+    const listed = await list({ job_number: "2701", company_id: "aop" });
     const logged = await log({ action: "add", job_number: "2701", company_id: "aop" });
     for (const result of [listed, logged]) {
       const text = result.content[0].text ?? "";

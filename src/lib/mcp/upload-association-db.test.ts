@@ -336,7 +336,7 @@ describe("upload and company choices across fresh scoped tool calls", () => {
       ).rows[0].current_company,
     ).toBe(companies[1]);
     expect((await list(companies[1])).structuredContent.documents).toEqual([]);
-    await expect(list(companies[2])).rejects.toThrow("Which company?");
+    await expect(list(companies[2])).rejects.toThrow("aren't a member of that company");
     expect(await client().from("mcp_jobs").select("id").eq("id", jobs[2])).toMatchObject({
       data: [],
     });

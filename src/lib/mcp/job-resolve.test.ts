@@ -48,9 +48,8 @@ describe("a unique job number resolves across companies", () => {
     expect(job.company_id).toBe("aop");
   });
 
-  it("finds 2701 on submittals_list even when the host sends the active company", async () => {
-    const job = await resolveJob(db(jobs), "2701", "alp");
-    expect(job).toMatchObject({ job_number: "2701", company_id: "aop", name: "Harbor Point" });
+  it("stops when an explicit company does not contain the job", async () => {
+    await expect(resolveJob(db(jobs), "2701", "alp")).rejects.toThrow("not in the company you named");
   });
 
   it("keeps the named company when that company has the job", async () => {

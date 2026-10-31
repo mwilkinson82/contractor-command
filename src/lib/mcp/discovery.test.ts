@@ -184,7 +184,7 @@ describe("stored drawing discovery", () => {
   });
   it("does not substitute another company when an explicit filter lacks that job", async () => {
     await expect(readDrawingSets(sb(), "CCW-003", "Fictional AOP")).rejects.toThrow(
-      /selected company/,
+      /not in the company you named/,
     );
     await expect(readDrawingSets(sb(outsider), "CCW-003")).rejects.toThrow();
   });

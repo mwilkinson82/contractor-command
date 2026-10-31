@@ -133,34 +133,37 @@ async function lookupJob(sb: Sb, companyId: string, jobNumber: string): Promise<
   return (data ?? { not_found: true, suggestions: [] }) as JobLookup;
 }
 
-function namedCompanyId(companies: MemberCompany[], companyId?: string): string | null {
-  const want = companyId?.trim().toLowerCase();
-  if (!want) return null;
+/** Resolve an explicit destination only within the caller's visible memberships. No preference writes. */
+function namedCompany(companies: MemberCompany[], companyId: string): MemberCompany {
+  const want = companyId.trim().toLowerCase();
   const byId = companies.find((company) => company.id === want);
-  if (byId) return byId.id;
+  if (byId) return byId;
   const byName = companies.filter((company) => company.name.trim().toLowerCase() === want);
-  return byName.length === 1 ? byName[0].id : null;
+  if (byName.length === 1) return byName[0];
+  if (byName.length > 1) throw new ToolError(ambiguousCompanyMessage(companyId, byName));
+  throw new ToolError("You aren't a member of that company. Nothing was changed.");
 }
 
 async function resolveJobRaw(sb: Sb, jobNumber: string, companyId?: string): Promise<Job> {
   const companies = await memberCompanies(sb);
   if (!companies.length) await resolveCompany(sb);
+  const selected = companyId !== undefined ? namedCompany(companies, companyId) : null;
+  const search = selected ? [selected] : companies;
   const hits: CompanyJobHit[] = [];
   const suggestions: { job_number: string; name: string }[] = [];
-  for (const company of companies) {
+  for (const company of search) {
     const r = await lookupJob(sb, company.id, jobNumber);
     if (r.job_id && r.job_number) hits.push({ ...(r as Job), company_name: company.name });
     else for (const s of r.suggestions ?? []) suggestions.push(s);
   }
-  // A host often sends the active company. A number that exists on exactly one company still resolves.
-  const named = namedCompanyId(companies, companyId);
-  const namedHit = named ? hits.find((hit) => hit.company_id === named) : undefined;
-  if (namedHit) return namedHit;
+  // An explicit company is a destination boundary, never a hint to search elsewhere.
   if (hits.length === 1) return hits[0];
   if (hits.length > 1) {
     throw new WhichCompanyAsk(jobNumber, hits.map((hit) => ({ company_id: hit.company_id, company_name: hit.company_name, job_name: hit.name })));
   }
-  if (suggestions.length) throw new ToolError(`No job ${jobNumber}. Did you mean ${suggestions.slice(0, 3).map((x) => `job ${x.job_number} (${x.name})`).join(" or ")}? Nothing was changed.`);
+  const missing = selected ? `Job ${jobNumber} is not in the company you named.` : `No job ${jobNumber}.`;
+  if (suggestions.length) throw new ToolError(`${missing} Did you mean ${suggestions.slice(0, 3).map((x) => `job ${x.job_number} (${x.name})`).join(" or ")}? Nothing was changed.`);
+  if (selected) throw new ToolError(`${missing} Check the company and job before trying again. Nothing was changed.`);
   throw new ToolError(companies.length > 1 ? `No job ${jobNumber} in your companies. Create it with intake section "create_job".` : `No job ${jobNumber} in this company. Create it with intake section "create_job".`);
 }
 
