@@ -15,6 +15,13 @@ const companies = [731, 732, 733].map(
 );
 const jobs = [741, 742, 743].map((n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`);
 const objects = new Map<string, Uint8Array>();
+let uploadInterleave:
+  | ((
+      bucket: string,
+      path: string,
+      bytes: Uint8Array,
+    ) => Promise<{ error: { message: string } } | undefined>)
+  | undefined;
 let db: PGlite;
 let originalRpcMetadata: any[];
 let clients = 0;
@@ -43,6 +50,8 @@ function client() {
     storage: {
       from: (bucket: string) => ({
         upload: async (path: string, bytes: Uint8Array) => {
+          const raced = await uploadInterleave?.(bucket, path, bytes);
+          if (raced) return raced;
           if (objects.has(`${bucket}/${path}`)) return { error: { message: "already exists" } };
           await asUser(db, claims, (tx) =>
             tx.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [bucket, path]),
@@ -82,7 +91,7 @@ const list = (company = companies[0]) =>
     company_id: company,
     action: "list",
     offset: 0,
-    limit: 10,
+    limit: 25,
   });
 
 beforeAll(async () => {
@@ -585,6 +594,101 @@ describe("actual authenticated upload card completion and recovery", () => {
       ).rejects.toThrow("expired before eligible bytes");
     }
   });
+
+  it.each(["different", "identical", "missing"])(
+    "verifies the canonical object after an insert race (%s) and retries the same upload",
+    async (mode) => {
+      const started = await begin();
+      await sendChunks(started);
+      await expireAfterReceipt(started.result.structuredContent.upload_id);
+      const session = (
+        await db.query<any>("SELECT bucket,storage_path FROM mcp_file_uploads WHERE id=$1", [
+          started.result.structuredContent.upload_id,
+        ])
+      ).rows[0];
+      const key = `${session.bucket}/${session.storage_path}`;
+      const v = view();
+      v.result(await list());
+      v.click("Resume upload", started.filename);
+      await vi.waitFor(() => expect(v.app.textContent).toContain("2 chunks received"));
+      const saves = rpcCalls.filter((n) => n === "mcp_contract_document_save").length;
+      let collisions = 0;
+      uploadInterleave = async (bucket, path, bytes) => {
+        if (path !== session.storage_path) return;
+        collisions++;
+        await asUser(db, claims, (tx) =>
+          tx.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [bucket, path]),
+        );
+        if (mode !== "missing")
+          objects.set(
+            key,
+            mode === "identical"
+              ? bytes.slice()
+              : new TextEncoder().encode("A concurrent conflicting file"),
+          );
+        return { error: { message: "already exists" } };
+      };
+      try {
+        v.click("Finish received chunks");
+        if (mode !== "identical") {
+          await vi.waitFor(() =>
+            expect(v.status.textContent).toContain("stored file could not be verified"),
+          );
+          expect(v.app.textContent).not.toContain("File added to job");
+          expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves);
+          expect(
+            (
+              await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [
+                started.result.structuredContent.upload_id,
+              ])
+            ).rows,
+          ).toEqual([]);
+          expect(
+            (
+              await db.query<any>("SELECT status FROM mcp_file_uploads WHERE id=$1", [
+                started.result.structuredContent.upload_id,
+              ])
+            ).rows[0].status,
+          ).toBe("open");
+          // Model the competing writer being reconciled, then retry through the same card/ID.
+          objects.delete(key);
+          await db.query("DELETE FROM storage.objects WHERE bucket_id=$1 AND name=$2", [
+            session.bucket,
+            session.storage_path,
+          ]);
+          uploadInterleave = undefined;
+          v.click("Retry completion");
+          await vi.waitFor(() => expect(v.app.textContent).toContain("2 chunks received"));
+          v.click("Finish received chunks");
+        }
+        await vi.waitFor(() => expect(v.status.textContent).toBe("File added to job."));
+        expect(collisions).toBe(1);
+        expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves + 1);
+        const rows = (
+          await db.query<any>("SELECT id,file_sha256 FROM mcp_spec_documents WHERE upload_id=$1", [
+            started.result.structuredContent.upload_id,
+          ])
+        ).rows;
+        expect(rows).toHaveLength(1);
+        const { sha256Hex } = await import("./file-share");
+        expect(rows[0].file_sha256).toBe(await sha256Hex(objects.get(key)!));
+        uploadInterleave = undefined;
+        const again = view();
+        again.result(started.result);
+        await vi.waitFor(() => expect(again.status.textContent).toBe("File added to job."));
+        expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves + 1);
+        expect(
+          v.calls
+            .filter((c) => c.arguments.action === "finish")
+            .every((c) => c.arguments.upload_id === started.result.structuredContent.upload_id),
+        ).toBe(true);
+        again.close();
+      } finally {
+        uploadInterleave = undefined;
+        v.close();
+      }
+    },
+  );
 
   it("does not associate a conflicting final object in place of received chunks", async () => {
     const started = await begin();

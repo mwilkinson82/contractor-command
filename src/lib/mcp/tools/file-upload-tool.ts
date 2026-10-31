@@ -263,7 +263,14 @@ async function loadBytes(
     );
   if (!direct?.length)
     await storeObject(sb, session.bucket, session.storage_path, bytes, session.mime_type);
-  return bytes;
+  // An insert-only duplicate may mean another writer won after the initial read.
+  // Verify the canonical bytes before parsing or associating a document/piece.
+  const canonical = await download(sb, session.bucket, session.storage_path);
+  if (!canonical?.length || (await sha256Hex(canonical)) !== (await sha256Hex(bytes)))
+    throw new ToolError(
+      "The stored file could not be verified against the received chunks. No attachment was confirmed.",
+    );
+  return canonical;
 }
 
 function storedReply(visible: string, structured: Record<string, unknown>) {
