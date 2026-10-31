@@ -17,6 +17,7 @@ import {
 } from "./lib/mcp/card-timing";
 import { isTrustedHost } from "./lib/trusted-hosts";
 import { isDrawingUploadPut } from "./lib/mcp/drawing-upload";
+import { isFileUploadPut } from "./lib/mcp/file-upload-origin";
 import { checkAthenaEntitlement, NO_ENTITLEMENT_MESSAGE } from "./lib/mcp/entitlement";
 import { supabaseForToken } from "./lib/mcp/supabase";
 import { athenaBuild, withAthenaBuildHeader } from "./lib/athena-build";
@@ -31,7 +32,12 @@ const mcpBuildStamp = createMiddleware().server(async ({ next, request }) => {
   if (!isMcpPath(new URL(request.url).pathname)) return result;
   const commit = athenaBuild().commit;
   if (result instanceof Response) return withAthenaBuildHeader(result, commit);
-  if (result && typeof result === "object" && "response" in result && result.response instanceof Response) {
+  if (
+    result &&
+    typeof result === "object" &&
+    "response" in result &&
+    result.response instanceof Response
+  ) {
     return { ...result, response: withAthenaBuildHeader(result.response, commit) };
   }
   return result;
@@ -107,6 +113,7 @@ export const csrfOriginGuard = createMiddleware().server(async ({ next, request 
   if (isDrawingUploadPut(method, url.pathname)) {
     return next();
   }
+  if (isFileUploadPut(method, url.pathname)) return next();
 
   // Sec-Fetch-Site is set by all modern browsers and cannot be forged by
   // cross-site attackers. Trust it as the primary signal.
@@ -144,7 +151,8 @@ async function hasToolCall(request: Request): Promise<boolean> {
   if (request.method.toUpperCase() !== "POST") return false;
   try {
     const parsed = JSON.parse(await request.clone().text()) as
-      { method?: string } | { method?: string }[];
+      | { method?: string }
+      | { method?: string }[];
     const list = Array.isArray(parsed) ? parsed : [parsed];
     return list.some((m) => m?.method === "tools/call");
   } catch {

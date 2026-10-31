@@ -34,6 +34,12 @@ const LABEL: Record<UploadPurpose, string> = {
   submittal_piece: "Submittal piece",
   financial_document: "Financial document",
 };
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "PUT, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "600",
+};
 
 function page(status: number, body: string) {
   return new Response(body, {
@@ -50,7 +56,7 @@ function page(status: number, body: string) {
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" },
   });
 }
 
@@ -156,6 +162,7 @@ export async function handleFileUpload(
   token: string,
   deps: UploadDeps = uploadDepsFromEnv(),
 ): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (!TOKEN_RE.test(token))
     return page(
       404,
@@ -185,7 +192,13 @@ export async function handleFileUpload(
   const label = LABEL[session.purpose] ?? "File";
   if (state === "stored") {
     return req.method === "PUT"
-      ? json(409, { stored: true, filename: session.filename })
+      ? json(409, {
+          stored: true,
+          uploaded: true,
+          upload_complete: true,
+          finish_required: false,
+          filename: session.filename,
+        })
       : page(
           200,
           uploadPage({
@@ -193,6 +206,7 @@ export async function handleFileUpload(
             purpose: label,
             until: until(session.expires_at),
             done: true,
+            complete: true,
           }),
         );
   }
@@ -254,7 +268,13 @@ export async function handleFileUpload(
         );
   }
   return req.method === "PUT"
-    ? json(200, { stored: true, filename: session.filename })
+    ? json(200, {
+        stored: true,
+        uploaded: true,
+        upload_complete: false,
+        finish_required: true,
+        filename: session.filename,
+      })
     : page(
         200,
         uploadPage({

@@ -8,6 +8,7 @@ import { READ_RESPONSE_GUIDANCE, TEXT_READ_TOOLS } from "./read-response";
 import { TAKEOFF_CARD_URI } from "./cards/takeoff-card";
 import { estimatingTool, estimatingUpgrade } from "./estimating-plan";
 import { WhichCompanyAsk } from "./jobs";
+import { companyChoiceLabel } from "./company-choice";
 import { attachDailyReminder } from "./field-reminder";
 import { attachGettingStarted } from "./getting-started";
 import { attachMorningCard } from "./morning-brief-card";
@@ -165,8 +166,10 @@ export function text(body: string) {
 }
 
 function whichCompanyReply(ask: WhichCompanyAsk, textOnly = false) {
-  const rows = ask.matches.map((match) => ({
-    cells: [`${match.company_name}: ${ask.jobNumber}${match.job_name ? ` (${match.job_name})` : ""}`],
+  const companies = ask.matches.map((match) => ({ id: match.company_id, name: match.company_name }));
+  const ambiguous = companies.some((c) => companyChoiceLabel(c, companies) !== c.name);
+  const rows = ask.matches.map((match, index) => ({
+    cells: [`${ambiguous ? `${index + 1}. ` : ""}${companyChoiceLabel({ id: match.company_id, name: match.company_name }, companies)}: ${ask.jobNumber}${match.job_name ? ` (${match.job_name})` : ""}`],
     tone: "action" as const,
   }));
   const card: CardModel = {
@@ -175,12 +178,14 @@ function whichCompanyReply(ask: WhichCompanyAsk, textOnly = false) {
     show_state: false,
     ask: { prompt: ask.creating ? `Which company should job ${ask.jobNumber} be created in?` : `Which company is job ${ask.jobNumber} in?` },
     sections: [{ heading: "Companies", kind: "list", rows }],
-    next_move: ask.creating ? "Name the company. Nothing was created." : "Name the company.",
+    next_move: ambiguous
+      ? `Choose a numbered company above.${ask.creating ? " Nothing was created." : ""}`
+      : ask.creating ? "Name the company. Nothing was created." : "Name the company.",
   };
   const body = textOnly ? renderMarkdown(card) : `${renderMarkdown(card)}\n\n${htmlBlock(renderHtml(card))}`;
   return guide(
     { ...text(body), structuredContent: { card, ...(textOnly ? { html: renderHtml(card) } : {}), which_company: true, job_number: ask.jobNumber, companies: ask.matches } },
-    "Wait for the company. Pass company_id on the next call. Nothing was changed.",
+    "Wait for the company. For a numbered choice, use its exact company_id from the returned companies list on the next call; never pass the number or the ambiguous name as company_id. Nothing was changed.",
   );
 }
 

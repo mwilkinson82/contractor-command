@@ -109,7 +109,7 @@ describe("file upload bytes", () => {
     expect(html).toContain("#1E5FED");
     expect(html.toLowerCase()).not.toMatch(VENDOR_RE);
     expect(uploadPage({ filename: "a.pdf", purpose: "Contract", until: "", done: true })).toContain(
-      "File stored",
+      "Upload received",
     );
   });
 });

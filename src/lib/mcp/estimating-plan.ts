@@ -17,7 +17,7 @@ export async function estimatingUpgrade(
   const { data, error } = await sb.rpc("mcp_company_tier", { _company: job.company_id });
   if (error || typeof data !== "string")
     throw new ToolError(
-      "Athena couldn't check this company's estimating plan. Your drawings are saved; please try again.",
+      "Athena couldn't check this company's estimating plan. No estimating operation was started. Please try again.",
     );
   if (["athena_office", "circle", "hardcore"].includes(data.toLowerCase())) return null;
   return {

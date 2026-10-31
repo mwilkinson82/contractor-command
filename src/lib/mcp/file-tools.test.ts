@@ -96,6 +96,7 @@ describe("0.8.11 file_share tool", () => {
     expect(a._token_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(a)).not.toContain(link.split("/f/")[1]);
     expect(r.structuredContent.attached).toBe(false);
+    expect(r.structuredContent.source_document).toBe(false);
     expect(r.content[0].text.split("\n")[0]).toMatch(/^Put this link in the email body/);
     expect(r.content[0].text).toContain(`Link: ${link}`);
     expect(r.content[0].text).not.toMatch(/supabase|lovable|store\//i);

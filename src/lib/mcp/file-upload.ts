@@ -4,6 +4,8 @@ import { inflateRawSync } from "node:zlib";
 import { allowedDrawingDownloadUrl } from "./drawing-set";
 import { FileRejected } from "./file-share";
 import { isSafeFinancialXlsx } from "./financial-xlsx";
+import { FILE_UPLOAD_LINK_BASE } from "./file-upload-origin";
+export { FILE_UPLOAD_LINK_BASE } from "./file-upload-origin";
 
 export const FILE_UPLOAD_CHUNK_CHARS = 12_000;
 export const FILE_UPLOAD_CALL_CHARS = 20_000;
@@ -12,11 +14,10 @@ export const DOC_MAX_BYTES = 100 * 1024 * 1024;
 export const FINANCIAL_MAX_BYTES = 10 * 1024 * 1024;
 export const PIECE_MAX_BYTES = 100 * 1024 * 1024;
 export const EXTRACT_MAX_CHARS = 400_000;
-export const FILE_UPLOAD_LINK_BASE = "https://app.meetathena.io/r/file-upload/";
 export const DOC_BUCKET = "athena-documents";
 
 export const FILE_UPLOAD_DESCRIPTION =
-  "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece; action prepare_readable with document_id explicitly prepares complete reusable PDF text for an existing saved source without replacing or uploading its original; use project_documents for reads.";
+  "Adds a PDF, DOCX, or TXT to the selected job through an authenticated upload card that uploads and verifies completion, with pending and resume actions for the member's own interrupted uploads, from_url for a fetchable file link, chunk then finish for text-only hosts, and prepare_readable for an existing saved source; project_documents list shows saved files and recoverable pending uploads.";
 
 const MIME = {
   pdf: "application/pdf",
@@ -356,13 +357,22 @@ export function uploadPage(input: {
   until: string;
   error?: string;
   done?: boolean;
+  complete?: boolean;
 }): string {
-  const title = input.done ? "File stored" : input.error ? "Upload didn't work" : "Upload a file";
+  const title = input.complete
+    ? "Upload processed"
+    : input.done
+      ? "Upload received"
+      : input.error
+        ? "Upload didn't work"
+        : "Upload a file";
   const body = input.done
-    ? `<h1>File stored</h1><p>Go back and tell Athena the file is in.</p>`
+    ? input.complete
+      ? `<h1>Upload processed</h1><p>Athena has processed this upload. Return to your conversation to check its current saved file details.</p>`
+      : `<h1>Upload received</h1><p>${escapeHtml(input.filename)} has uploaded. Its job attachment is not confirmed yet.</p><p>Return to Athena to finish adding the file to your job. Wait for Athena's saved file confirmation before treating it as available on the job.</p>`
     : input.error
       ? `<h1>Upload didn't work</h1><p class="err">${escapeHtml(input.error)}</p>`
-      : `<h1>Upload this file</h1><p>${escapeHtml(input.filename)} · ${escapeHtml(input.purpose)} · link works until ${escapeHtml(input.until)}.</p><form method="post" enctype="multipart/form-data"><input type="file" name="file" required><button type="submit">Store on this job</button></form>`;
+      : `<h1>Upload this file</h1><p>${escapeHtml(input.filename)} · ${escapeHtml(input.purpose)} · link works until ${escapeHtml(input.until)}.</p><form method="post" enctype="multipart/form-data"><input type="file" name="file" required><button type="submit">Upload file</button></form>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${title} · Athena</title><style>body{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;background:#F4F7FB;color:#1E3A5F}main{max-width:32rem;margin:10vh auto;padding:24px}button{background:#1E5FED;color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit}p{color:#4B5563}.err{color:#B91C1C}input{display:block;margin:16px 0}</style></head><body><main>${body}</main></body></html>`;
 }
 

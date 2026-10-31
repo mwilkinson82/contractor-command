@@ -589,7 +589,14 @@ export const estimateIntake = defineTool({
   handler: (args, ctx) =>
     run("estimate_intake", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const prior = await load(sb, job.job_id);
+      let prior: Awaited<ReturnType<typeof load>>;
+      try {
+        prior = await load(sb, job.job_id);
+      } catch (error) {
+        if (error instanceof ToolError && error.message === "Estimating storage is not available yet. Nothing was changed.")
+          return errorCard("Estimating unavailable", error.message);
+        throw error;
+      }
       const profileOnFile = await savedProfileRecord(sb, job.job_id);
       const sameName = await sameNameTakeoffs(sb, job);
       const warning = reuseWarning({

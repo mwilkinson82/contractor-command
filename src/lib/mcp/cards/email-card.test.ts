@@ -13,6 +13,7 @@ import {
 } from "./email-card";
 import { NATIVE_CARD_MIME, NATIVE_CARD_URI } from "./native";
 import { DRAWING_CARD_MIME, DRAWING_CARD_URI } from "./drawing-card";
+import { FILE_UPLOAD_CARD_URI, FILE_UPLOAD_CARD_MIME } from "./file-upload-card";
 import { nativeCardPayload, nativeCardResponse, nativeCardVisit } from "../native-card-transport";
 import { claudeCardReply } from "./claude-reply";
 import { paletteViolations } from "./palette";
@@ -424,6 +425,7 @@ describe("email card on the wire", () => {
       [EMAIL_CARD_URI, EMAIL_CARD_MIME],
       [DRAWING_CARD_URI, DRAWING_CARD_MIME],
       [TAKEOFF_CARD_URI, TAKEOFF_CARD_MIME],
+      [FILE_UPLOAD_CARD_URI, FILE_UPLOAD_CARD_MIME],
     ]);
     const read = await nativeCardVisit(request("resources/read", { uri: EMAIL_CARD_URI }));
     const res = await nativeCardResponse(

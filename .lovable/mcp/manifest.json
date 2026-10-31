@@ -5208,7 +5208,7 @@
       {
         "name": "file_share",
         "title": "Share a file as a link",
-        "description": "Stores a file for a job and returns a download link.",
+        "description": "Creates a job-scoped download link without registering a contract, specification, or drawing source.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -5493,7 +5493,7 @@
       {
         "name": "file_upload",
         "title": "Upload a contract, spec, or submittal file",
-        "description": "Uploads a PDF, DOCX, or TXT for ChatGPT, Claude, and Grok Bot: action begin returns a two-hour upload link (send the raw bytes to that link, or open it and choose the file) then action finish stores it, action from_url fetches the client's https file link, and action chunk accepts base64 pieces of at most 12000 characters in order before finish, saving a contract or spec on the job or attaching a submittal piece; action prepare_readable with document_id explicitly prepares complete reusable PDF text for an existing saved source without replacing or uploading its original; use project_documents for reads.",
+        "description": "Adds a PDF, DOCX, or TXT to the selected job through an authenticated upload card that uploads and verifies completion, with pending and resume actions for the member's own interrupted uploads, from_url for a fetchable file link, chunk then finish for text-only hosts, and prepare_readable for an existing saved source; project_documents list shows saved files and recoverable pending uploads.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -5501,8 +5501,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "action": {
               "type": "string",
@@ -5511,7 +5511,9 @@
                 "chunk",
                 "finish",
                 "from_url",
-                "prepare_readable"
+                "prepare_readable",
+                "pending",
+                "resume"
               ]
             },
             "job_number": {
@@ -5538,6 +5540,11 @@
               "maxLength": 120
             },
             "upload_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "before_upload": {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"

@@ -34,9 +34,9 @@ describe("estimating company-plan boundary", () => {
     [null, null],
     [null, { message: "unavailable" }],
   ])("never guesses access if the plan check fails", async (data, error) => {
-    await expect(estimatingUpgrade(db(data, error) as unknown as Sb, "QA")).rejects.toThrow(
-      "couldn't check",
-    );
+    const failure = estimatingUpgrade(db(data, error) as unknown as Sb, "QA");
+    await expect(failure).rejects.toThrow("No estimating operation was started");
+    await expect(failure).rejects.not.toThrow("drawings are saved");
   });
   it("covers estimation reads and writes without gating PM tools", () => {
     for (const name of [

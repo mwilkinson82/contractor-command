@@ -9,6 +9,7 @@ import { renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
 import { guide } from "../visible";
 import { JOBS_RESPONSE_GUIDANCE, jobsResponseText, jobsLegacyHtml } from "../jobs-response";
+import { ambiguousCompanyMessage } from "../company-choice";
 
 const READ = {
   readOnlyHint: true,
@@ -24,6 +25,7 @@ export function discoveryCompanies(companies: MemberCompany[], named?: string): 
   const want = named.trim().toLowerCase();
   const id = companies.find((c) => c.id.toLowerCase() === want);
   const matches = id ? [id] : companies.filter((c) => c.name.trim().toLowerCase() === want);
+  if (matches.length > 1) throw new ToolError(ambiguousCompanyMessage(named, matches));
   if (matches.length !== 1)
     throw new ToolError("Choose one of your companies by its exact name or company ID.");
   return matches;

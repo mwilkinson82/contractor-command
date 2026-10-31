@@ -1,5 +1,5 @@
 // Contract, spec, and submittal-piece files. The tool call stays small; the bytes use an upload link, a fetchable link, or chunks.
-import { ToolError, defineTool } from "@lovable.dev/mcp-js";
+import { ToolError, defineTool, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { newSubmittalPiece } from "../../submittal-piece-input";
 import { dbError, run, text, type Sb } from "../guard";
@@ -33,6 +33,9 @@ import { findPackagePiece, pieceRef } from "../submittal-package";
 import { submittalRpc } from "./submittal-package-tools";
 import { prepareReadable, type ReadableSource } from "../document-readable";
 import { guide } from "../visible";
+import { readUploadRecovery, requireOwnUpload } from "../upload-recovery";
+import { ambiguousCompanyMessage } from "../company-choice";
+import { fileUploadCardResultMeta } from "../cards/file-upload-card";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -58,7 +61,7 @@ type Session = {
 };
 
 const UPLOAD_GUIDE =
-  "File upload for ChatGPT, Claude, and Grok Bot. action begin returns upload_url. Send the raw bytes to that URL with the file content type, or open the URL and choose the file. action from_url takes source_url or file.download_url when the client gives a fetchable https link. action chunk takes upload_id, chunk_index starting at 0, and content_base64 of at most 12000 characters, in order, then action finish. A stored contract or spec is what clause checks read, so intake can omit contract_text. A stored submittal piece is ready for submittal_package action build.";
+  "Use the authenticated upload card for begin and resume; it uploads and calls finish automatically. Do not issue a parallel finish while the card is completing. For a text-only host, begin returns upload_url; after bytes arrive, call finish with the same upload_id without asking for another upload. Upload-link success alone confirms bytes only. Say the file is available on the job only after job_association is verified. project_documents list exposes the current member's own pending uploads on that exact job; use resume for the selected ID. Expiry still requires a new upload. from_url accepts a fetchable HTTPS file link; chunk accepts ordered base64 pieces of at most 12000 characters, then finish. Stored contract/spec files are the sources clause checks read, and stored submittal pieces are ready for package build.";
 
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (
@@ -198,6 +201,39 @@ function assertSessionPath(companyId: string, jobId: string, session: Session) {
   }
 }
 
+const ASSOCIATION_UNCONFIRMED =
+  "The file's entry on this job could not be verified. Its upload may already be stored. Reload the job's files before retrying, and keep the same upload ID.";
+
+/** Verify the member-visible job entry, not just a successful storage write or cached receipt. */
+async function verifyDocumentAssociation(
+  sb: Sb,
+  job: { job_id: string; company_id: string },
+  session: Pick<Session, "id" | "purpose" | "storage_path">,
+  documentId?: string,
+  fileHash?: string,
+) {
+  const { data, error } = await sb
+    .from(session.purpose === "contract" ? "mcp_contract_documents" : "mcp_spec_documents")
+    .select("id,company_id,job_id,upload_id,storage_bucket,storage_path,file_sha256")
+    .eq("job_id", job.job_id)
+    .eq("company_id", job.company_id)
+    .eq("upload_id", session.id)
+    .maybeSingle();
+  if (
+    error ||
+    !data ||
+    data.job_id !== job.job_id ||
+    data.company_id !== job.company_id ||
+    data.upload_id !== session.id ||
+    data.storage_bucket !== DOC_BUCKET ||
+    data.storage_path !== session.storage_path ||
+    (documentId && data.id !== documentId) ||
+    (fileHash && data.file_sha256 !== fileHash)
+  )
+    throw new ToolError(ASSOCIATION_UNCONFIRMED);
+  return data.id;
+}
+
 async function loadBytes(sb: Sb, session: Session): Promise<Uint8Array> {
   const direct = await download(sb, session.bucket, session.storage_path);
   if (direct?.length) return direct;
@@ -221,11 +257,51 @@ async function loadBytes(sb: Sb, session: Session): Promise<Uint8Array> {
   return bytes;
 }
 
-function storedReply(
-  visible: string,
-  structured: Record<string, string | number | boolean | null>,
+function storedReply(visible: string, structured: Record<string, unknown>) {
+  return guide(
+    {
+      ...text(visible),
+      structuredContent: structured as JsonValueInput,
+      ...(structured.upload_context || Array.isArray(structured.pending_uploads)
+        ? { _meta: fileUploadCardResultMeta }
+        : {}),
+    },
+    UPLOAD_GUIDE,
+  );
+}
+
+function uploadContext(
+  job: { company_id: string; job_number: string },
+  session: Pick<Session, "id" | "purpose" | "filename" | "mime_type" | "expires_at" | "status"> &
+    Partial<Session>,
+  bytesReceived: boolean,
+  url?: string,
 ) {
-  return guide({ ...text(visible), structuredContent: structured }, UPLOAD_GUIDE);
+  return {
+    company_id: job.company_id,
+    job_number: job.job_number,
+    upload_id: session.id,
+    filename: session.filename,
+    mime_type: session.mime_type,
+    purpose: session.purpose,
+    expires_at: session.expires_at,
+    status: session.status,
+    bytes_received: bytesReceived,
+    expired: session.status !== "finished" && new Date(session.expires_at).getTime() <= Date.now(),
+    ...(url ? { upload_url: url } : {}),
+    restart: {
+      company_id: job.company_id,
+      job_number: job.job_number,
+      purpose: session.purpose,
+      filename: session.filename,
+      ...(session.submittal_id ? { submittal_id: session.submittal_id } : {}),
+      ...(session.new_piece
+        ? { new_piece: session.new_piece }
+        : session.piece_id
+          ? { package_item: session.piece_id }
+          : {}),
+    },
+  };
 }
 
 export const fileUpload = defineTool({
@@ -233,12 +309,21 @@ export const fileUpload = defineTool({
   title: "Upload a contract, spec, or submittal file",
   description: FILE_UPLOAD_DESCRIPTION,
   inputSchema: {
-    action: z.enum(["begin", "chunk", "finish", "from_url", "prepare_readable"]),
+    action: z.enum([
+      "begin",
+      "chunk",
+      "finish",
+      "from_url",
+      "prepare_readable",
+      "pending",
+      "resume",
+    ]),
     job_number: jobNumber,
     company_id: companyId,
     purpose: z.enum(["contract", "spec", "submittal_piece"]).optional(),
     filename: z.string().trim().min(1).max(120).optional(),
     upload_id: z.string().uuid().optional(),
+    before_upload: z.string().uuid().optional(),
     document_id: z.string().uuid().optional(),
     chunk_index: z.number().int().min(0).max(6000).optional(),
     content_base64: z.string().max(FILE_UPLOAD_CHUNK_CHARS).optional(),
@@ -271,22 +356,55 @@ export const fileUpload = defineTool({
           `Input is ${size.toLocaleString()} characters; the limit is 20,000. Trim or split it.`,
         );
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      if (args.company_id) {
+        const want = args.company_id.trim().toLowerCase();
+        const companies = await memberCompanies(sb);
+        const byId = companies.find((c) => c.id.toLowerCase() === want);
+        const named = byId ? [byId] : companies.filter((c) => c.name.trim().toLowerCase() === want);
+        if (named.length > 1) throw new ToolError(ambiguousCompanyMessage(args.company_id, named));
+        if (named.length !== 1 || named[0].id !== job.company_id)
+          throw new ToolError("That job is not in the company you named. Nothing changed.");
+      }
       const purposeArg = args.purpose as UploadPurpose | undefined;
       if (purposeArg === "submittal_piece" && job.scope !== "full")
         throw new ToolError(FULL_ACCESS_MESSAGE);
 
+      if (args.action === "pending") {
+        const pending = await readUploadRecovery(sb, job, { before: args.before_upload });
+        return storedReply(
+          `${prefix(job)}Pending uploads: ${pending.uploads.length}. Choose an upload to resume.`,
+          {
+            company_id: job.company_id,
+            job_number: job.job_number,
+            upload_recovery_view: true,
+            pending_uploads: pending.uploads,
+            pending_next_before: pending.next_before,
+          },
+        );
+      }
+      if (args.action === "resume") {
+        if (!args.upload_id) throw new ToolError("Choose a pending upload from this job's files.");
+        const owned = await requireOwnUpload(sb, job, args.upload_id);
+        const session = await rpc<Session | null>(sb, "mcp_file_upload_get", {
+          _id: args.upload_id,
+          _job: job.job_id,
+        });
+        if (!session) throw new ToolError("That upload is not available to you on this job.");
+        assertSessionPath(job.company_id, job.job_id, session);
+        return storedReply(
+          `${prefix(job)}${session.filename}: ${owned.expired ? "Upload expired." : owned.bytes_received ? "Upload received; job attachment is awaiting confirmation." : "Waiting for the file."}`,
+          {
+            company_id: job.company_id,
+            job_number: job.job_number,
+            upload_id: session.id,
+            upload_context: uploadContext(job, session, owned.bytes_received),
+          },
+        );
+      }
+
       if (args.action === "prepare_readable") {
         if (job.scope !== "full" && job.scope !== "contract")
           throw new ToolError(READ_ONLY_MESSAGE);
-        if (args.company_id) {
-          const named = (await memberCompanies(sb)).filter(
-            (c) =>
-              c.id.toLowerCase() === args.company_id!.toLowerCase() ||
-              c.name.trim().toLowerCase() === args.company_id!.toLowerCase(),
-          );
-          if (named.length !== 1 || named[0].id !== job.company_id)
-            throw new ToolError("That job is not in the company you named. Nothing changed.");
-        }
         if (!args.document_id)
           throw new ToolError("Choose the exact saved document_id. No upload is required.");
         const sources: (ReadableSource & { mime_type: string })[] = [];
@@ -318,7 +436,9 @@ export const fileUpload = defineTool({
           {
             document_id: source.id,
             readable_state: "ready",
-            clause_index_state:"extracted",clause_count:ready.clause_count,clause_index_reused:ready.clause_index_reused,
+            clause_index_state: "extracted",
+            clause_count: ready.clause_count,
+            clause_index_reused: ready.clause_index_reused,
             total_pdf_pages: ready.document.total_pdf_pages,
             source_sha256: source.file_sha256,
             reused_extraction: ready.reused,
@@ -327,6 +447,8 @@ export const fileUpload = defineTool({
         );
       }
       if (args.action === "begin") {
+        // Confirm the reviewed recovery surface is installed before creating an upload.
+        await readUploadRecovery(sb, job);
         const purpose = purposeOf(purposeArg, "begin");
         if (purpose === "submittal_piece" && job.scope !== "full")
           throw new ToolError(FULL_ACCESS_MESSAGE);
@@ -350,20 +472,18 @@ export const fileUpload = defineTool({
           _new_piece: target?.new_piece ?? null,
         });
         const link = uploadLink(token);
-        const label =
-          purpose === "contract"
-            ? "Contract"
-            : purpose === "spec"
-              ? "Specification"
-              : "Submittal piece";
         return storedReply(
           [
-            `${prefix(job)}${label} upload link ready for ${file.name}.`,
-            "Open this link and choose the file, or send the raw file to this same link. The link works for 2 hours.",
+            `${prefix(job)}Add ${file.name} with the upload card. It uploads the file and confirms its job attachment in one action.`,
+            "The upload link is an alternative when this host cannot show upload controls. It works for 2 hours; pending uploads remain visible in this job's files.",
             link,
           ].join("\n"),
           {
             upload_id: session.id,
+            upload_context: uploadContext(job, { ...session, ...target }, false, link),
+            upload_complete: false,
+            job_association: "unconfirmed",
+            finish_required: true,
             upload_url: link,
             expires_at: session.expires_at,
             filename: file.name,
@@ -384,6 +504,7 @@ export const fileUpload = defineTool({
           throw new ToolError(
             `That chunk is over ${FILE_UPLOAD_CHUNK_CHARS.toLocaleString()} characters. Nothing was stored.`,
           );
+        await requireOwnUpload(sb, job, args.upload_id);
         const session = await rpc<Session | null>(sb, "mcp_file_upload_get", {
           _id: args.upload_id,
           _job: job.job_id,
@@ -477,6 +598,7 @@ export const fileUpload = defineTool({
 
       if (!args.upload_id)
         throw new ToolError("Which upload should be confirmed? Nothing was stored.");
+      await requireOwnUpload(sb, job, args.upload_id);
       const session = await rpc<Session | null>(sb, "mcp_file_upload_get", {
         _id: args.upload_id,
         _job: job.job_id,
@@ -485,9 +607,45 @@ export const fileUpload = defineTool({
       if (session.purpose === "submittal_piece" && job.scope !== "full")
         throw new ToolError(FULL_ACCESS_MESSAGE);
       if (session.status === "finished" && session.result?.visible) {
+        assertSessionPath(job.company_id, job.job_id, session);
+        const cached: Record<string, string | number | boolean | null> = {
+          ...session.result.structured,
+          company_id: job.company_id,
+          job_number: job.job_number,
+          upload_id: session.id,
+          filename: session.filename,
+          job_association: "verified",
+          upload_complete: true,
+          finish_required: false,
+        };
+        if (session.purpose === "submittal_piece") {
+          const context = await submittalRpc<{ items: Item[] }>(
+            sb,
+            "mcp_submittal_package_context",
+            {
+              _job: job.job_id,
+              _submittal: session.submittal_id,
+            },
+          );
+          if (
+            !session.piece_id ||
+            !context.items.some(
+              (item) =>
+                item.id === session.piece_id &&
+                item.file_ref === `athena-submittals/${session.storage_path}`,
+            )
+          )
+            throw new ToolError(ASSOCIATION_UNCONFIRMED);
+        } else {
+          cached.document_id = await verifyDocumentAssociation(
+            sb,
+            job,
+            session,
+            typeof cached.document_id === "string" ? cached.document_id : undefined,
+          );
+        }
         // A completed specification with no extracted text may be retried after a
         // parser repair. Never replace an official contract or create another source.
-        const cached = session.result.structured;
         if (session.purpose === "spec" && cached?.body_chars === 0) {
           assertSessionPath(job.company_id, job.job_id, session);
           const { data: doc, error } = await sb
@@ -519,13 +677,12 @@ export const fileUpload = defineTool({
           );
           if (extracted.chars) return finishBytes(sb, job, { ...session, tracked: false }, bytes);
         }
-        return storedReply(
-          session.result.visible,
-          cached ?? { upload_id: session.id, stored: true },
-        );
+        return storedReply(session.result.visible, cached);
       }
       if (new Date(session.expires_at).getTime() <= Date.now())
-        throw new ToolError("That upload link has expired. Start again. Nothing was stored.");
+        throw new ToolError(
+          "That upload link has expired. The file's job attachment is not confirmed by this request. Start a new upload from Athena.",
+        );
       assertSessionPath(job.company_id, job.job_id, session);
       const bytes = await loadBytes(sb, session);
       return finishBytes(sb, job, { ...session, tracked: true }, bytes);
@@ -602,6 +759,7 @@ async function finishBytes(
       file_ref: `athena-submittals/${relative}`,
     };
   } else {
+    const fileHash = await sha256Hex(bytes);
     const saved = await rpc<{ id: string; body_chars: number; truncated: boolean; name: string }>(
       sb,
       "mcp_contract_document_save",
@@ -615,15 +773,16 @@ async function finishBytes(
           path: session.storage_path,
           mime_type: checked.mime,
           size_bytes: bytes.length,
-          file_sha256: await sha256Hex(bytes),
+          file_sha256: fileHash,
           upload_id: session.id,
           truncated: extracted?.truncated ?? false,
         },
       },
     );
+    await verifyDocumentAssociation(sb, job, session, saved.id, fileHash);
     let readableState = "not_pdf";
     let readablePages: number | null = null;
-    let clauseCount:number|null=null;
+    let clauseCount: number | null = null;
     if (checked.ext === "pdf") {
       try {
         const ready = await prepareReadable(
@@ -643,7 +802,7 @@ async function finishBytes(
         );
         readableState = "ready";
         readablePages = ready.document.total_pdf_pages;
-        clauseCount=ready.clause_count;
+        clauseCount = ready.clause_count;
       } catch {
         readableState = "failed";
       }
@@ -671,12 +830,21 @@ async function finishBytes(
       filename: saved.name,
       readable_state: readableState,
       total_pdf_pages: readablePages,
-      clause_index_state:readableState==="ready"?"extracted":"unavailable",clause_count:clauseCount,
+      clause_index_state: readableState === "ready" ? "extracted" : "unavailable",
+      clause_count: clauseCount,
       body_chars: saved.body_chars,
       truncated: saved.truncated,
       size_bytes: bytes.length,
     };
   }
+  structured = {
+    ...structured,
+    company_id: job.company_id,
+    job_number: job.job_number,
+    job_association: "verified",
+    upload_complete: true,
+    finish_required: false,
+  };
   const result = { visible, structured };
   if (session.tracked)
     await rpc(sb, "mcp_file_upload_complete", {

@@ -49,6 +49,13 @@ import {
   drawingCardMeta,
   drawingResourceMeta,
 } from "./cards/drawing-card";
+import {
+  FILE_UPLOAD_CARD_URI,
+  FILE_UPLOAD_CARD_MIME,
+  fileUploadCardHtml,
+  fileUploadCardMeta,
+  fileUploadResourceMeta,
+} from "./cards/file-upload-card";
 
 export const ATHENA_MCP_APPS_CAPABILITIES = {
   extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [NATIVE_CARD_MIME] } },
@@ -79,6 +86,16 @@ const CARD_VIEWS: Record<
     meta: Record<string, unknown>;
   }
 > = Object.fromEntries([
+  [
+    FILE_UPLOAD_CARD_URI,
+    {
+      name: "athena-file-upload",
+      title: "Athena job files",
+      mimeType: FILE_UPLOAD_CARD_MIME,
+      html: fileUploadCardHtml,
+      meta: fileUploadResourceMeta,
+    },
+  ],
   ...[...TAKEOFF_CARD_URIS].map((uri) => [
     uri,
     {
@@ -123,15 +140,17 @@ const CARD_VIEWS: Record<
 const isCardUri = (uri: unknown): uri is string => typeof uri === "string" && uri in CARD_VIEWS;
 /** Tools that open on a card view, with the `_meta.ui` each advertises. */
 const cardMetaFor = (name: string) =>
-  TAKEOFF_CARD_TOOLS.has(name)
-    ? takeoffCardMeta.ui
-    : DRAWING_CARD_TOOLS.has(name)
-      ? drawingCardMeta.ui
-      : EMAIL_CARD_TOOLS.has(name)
-        ? emailCardMeta.ui
-        : NATIVE_CARD_TOOLS.has(name)
-          ? nativeCardMeta.ui
-          : null;
+  name === "file_upload"
+    ? fileUploadCardMeta.ui
+    : TAKEOFF_CARD_TOOLS.has(name)
+      ? takeoffCardMeta.ui
+      : DRAWING_CARD_TOOLS.has(name)
+        ? drawingCardMeta.ui
+        : EMAIL_CARD_TOOLS.has(name)
+          ? emailCardMeta.ui
+          : NATIVE_CARD_TOOLS.has(name)
+            ? nativeCardMeta.ui
+            : null;
 
 /** Session id from initialize → whether that client can show a card, and whether it is Claude or Grok. Same isolate only. */
 const cardSessions = new Map<string, { inlineHtml: boolean; claude: boolean; grok: boolean }>();
@@ -324,7 +343,13 @@ function acceptsJson(accept: string | null): boolean {
 }
 
 /** Listed views: the current native card and the email card (the legacy URI stays readable, not listed). */
-const LISTED_VIEWS = [NATIVE_CARD_URI, EMAIL_CARD_URI, DRAWING_CARD_URI, TAKEOFF_CARD_URI];
+const LISTED_VIEWS = [
+  NATIVE_CARD_URI,
+  EMAIL_CARD_URI,
+  DRAWING_CARD_URI,
+  TAKEOFF_CARD_URI,
+  FILE_UPLOAD_CARD_URI,
+];
 const resourceEntry = (uri: string) => {
   const view = CARD_VIEWS[uri];
   return { uri, name: view.name, title: view.title, mimeType: view.mimeType, _meta: view.meta };
@@ -344,7 +369,8 @@ function emailCardResultForClaude(result: Obj): Obj {
     ? result.content.map((block) => {
         const row = obj(block);
         const blockMeta = obj(row?._meta);
-        if (!row || !blockMeta || blockMeta["openai/outputTemplate"] !== CARD_WIDGET_URI) return block;
+        if (!row || !blockMeta || blockMeta["openai/outputTemplate"] !== CARD_WIDGET_URI)
+          return block;
         const restMeta = { ...blockMeta };
         delete restMeta["openai/outputTemplate"];
         const { _meta: _drop, ...rest } = row;

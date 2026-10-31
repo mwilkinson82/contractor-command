@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { jsPDF } from "jspdf";
 import { createHash } from "node:crypto";
 import { visibleProblems } from "./visible";
+import { uploadCard } from "../../../tests/support/file-upload-card";
+import { handleFileUpload, type UploadDeps } from "../file-upload-route.server";
 
 const state = vi.hoisted(() => ({
   job: {
@@ -16,6 +18,9 @@ const state = vi.hoisted(() => ({
   attached: "" as string,
   rpcs: [] as [string, Record<string, unknown>][],
   fetches: 0,
+  savedDoc: null as Record<string, unknown> | null,
+  savedDocTable: "mcp_contract_documents",
+  associationVisible: true,
   recoveredDoc: null as {
     id: string;
     body: string;
@@ -65,7 +70,13 @@ function fakeSb() {
         eq: () => q,
         order: () => q,
         maybeSingle: async () => ({
-          data: table === "mcp_spec_documents" ? state.recoveredDoc : null,
+          data: state.associationVisible
+            ? table === "mcp_spec_documents" && state.recoveredDoc
+              ? state.recoveredDoc
+              : table === state.savedDocTable
+                ? state.savedDoc
+                : null
+            : null,
           error: null,
         }),
         limit: async () => ({
@@ -77,6 +88,37 @@ function fakeSb() {
     },
     rpc: async (fn: string, args: Record<string, unknown>) => {
       state.rpcs.push([fn, args]);
+      if (fn === "mcp_file_upload_recovery") {
+        const session = state.session;
+        return {
+          error: null,
+          data: {
+            uploads:
+              args._upload && session && args._upload === session.id
+                ? [
+                    {
+                      upload_id: session.id,
+                      company_id: state.job.company_id,
+                      job_id: state.job.job_id,
+                      purpose: session.purpose,
+                      filename: session.filename,
+                      mime_type: session.mime_type,
+                      expires_at: session.expires_at,
+                      status: session.status,
+                      created_at: new Date().toISOString(),
+                      expired:
+                        session.status !== "finished" &&
+                        new Date(String(session.expires_at)).getTime() <= Date.now(),
+                      bytes_received: state.objects.has(
+                        `${session.bucket}/${session.storage_path}`,
+                      ),
+                    },
+                  ]
+                : [],
+            next_before: null,
+          },
+        };
+      }
       if (fn === "mcp_file_upload_begin") {
         const id = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
         state.session = {
@@ -111,6 +153,17 @@ function fakeSb() {
       }
       if (fn === "mcp_contract_document_save") {
         const body = String((args._p as { body: string }).body);
+        const p = args._p as Record<string, unknown>;
+        state.savedDocTable = p.kind === "spec" ? "mcp_spec_documents" : "mcp_contract_documents";
+        state.savedDoc = {
+          id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          company_id: state.job.company_id,
+          job_id: args._job,
+          upload_id: p.upload_id,
+          storage_bucket: p.bucket,
+          storage_path: p.path,
+          file_sha256: p.file_sha256,
+        };
         if (state.recoveredDoc) state.recoveredDoc.body = body;
         return {
           data: {
@@ -166,11 +219,55 @@ beforeEach(() => {
   state.attached = "";
   state.rpcs = [];
   state.fetches = 0;
+  state.savedDoc = null;
+  state.savedDocTable = "mcp_contract_documents";
+  state.associationVisible = true;
   state.recoveredDoc = null;
   vi.unstubAllGlobals();
 });
 
 describe("file_upload tool", () => {
+  it("completes a submittal piece through the actual card without a separate finish request", async () => {
+    const begun = await call({
+      action: "begin",
+      job_number: state.job.job_number,
+      purpose: "submittal_piece",
+      filename: "Fictional-cut.pdf",
+      submittal_number: "05 12 00-001",
+      package_item: "P1",
+    });
+    const view = uploadCard({
+      dispatch: (_name, args) => call(args),
+      fetch: async (input, init) => {
+        const request = new Request(String(input), init),
+          token = new URL(request.url).pathname.split("/").pop()!;
+        return handleFileUpload(request, token, {
+          lookup: async () => state.session as unknown as Awaited<ReturnType<UploadDeps["lookup"]>>,
+          put: async (bucket, path, bytes) => {
+            state.objects.set(`${bucket}/${path}`, bytes);
+          },
+        });
+      },
+    });
+    try {
+      view.result(begun);
+      await vi.waitFor(() =>
+        expect(view.all().some((el) => el.tagName === "INPUT" && !el.disabled)).toBe(true),
+      );
+      view.choose(
+        new File(["%PDF-1.7 Fictional cut sheet"], "Fictional-cut.pdf", {
+          type: "application/pdf",
+        }),
+      );
+      view.click("Add file to job");
+      await vi.waitFor(() => expect(view.status.textContent).toBe("File added to job."));
+      expect(state.attached).toBe(state.session!.storage_path);
+      expect(view.calls.filter((c) => c.arguments.action === "finish")).toHaveLength(1);
+      expect(state.session!.status).toBe("finished");
+    } finally {
+      view.close();
+    }
+  });
   it("returns an upload link and does not store the raw token", async () => {
     const r = await call({
       action: "begin",
@@ -185,6 +282,11 @@ describe("file_upload tool", () => {
     const begin = state.rpcs.find(([fn]) => fn === "mcp_file_upload_begin")!;
     expect(JSON.stringify(begin[1])).not.toContain(link.split("/").pop());
     expect(begin[1]._token_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(r.structuredContent).toMatchObject({
+      upload_complete: false,
+      job_association: "unconfirmed",
+      finish_required: true,
+    });
     expect(visible(r).toLowerCase()).not.toMatch(/\b(lovable|supabase)\b/);
   });
 
@@ -205,6 +307,11 @@ describe("file_upload tool", () => {
     });
     const r = await call({ action: "finish", job_number: "2701", upload_id: state.session!.id });
     expect(visible(r)).toMatch(/Contract stored: Agreement.txt/);
+    expect(r.structuredContent).toMatchObject({
+      job_association: "verified",
+      upload_complete: true,
+      finish_required: false,
+    });
     expect(visible(r)).toMatch(/Text read from the file: \d+ characters/);
     expect(visibleProblems(visible(r))).toEqual([]);
     const save = state.rpcs.find(([fn]) => fn === "mcp_contract_document_save")!;
@@ -284,6 +391,10 @@ describe("file_upload tool", () => {
     };
     state.recoveredDoc = {
       id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      company_id: state.job.company_id,
+      job_id: state.job.job_id,
+      upload_id: session.id,
+      storage_bucket: "athena-documents",
       body: "",
       storage_path: String(session.storage_path),
       file_sha256: createHash("sha256").update(bytes).digest("hex"),
@@ -297,9 +408,7 @@ describe("file_upload tool", () => {
     expect(replay.structuredContent.body_chars).toBeGreaterThan(0);
     expect(saves()).toHaveLength(1);
     expect(state.rpcs.filter(([fn]) => fn === "mcp_file_upload_begin")).toHaveLength(1);
-    expect(
-      [...state.objects.keys()].filter((key) => !key.includes(".athena-")),
-    ).toHaveLength(1);
+    expect([...state.objects.keys()].filter((key) => !key.includes(".athena-"))).toHaveLength(1);
     expect(
       [...state.objects.keys()].filter((key) => key.includes(".athena-readable-")),
     ).toHaveLength(1);
@@ -315,6 +424,10 @@ describe("file_upload tool", () => {
     };
     state.recoveredDoc = {
       id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      company_id: state.job.company_id,
+      job_id: state.job.job_id,
+      upload_id: session.id,
+      storage_bucket: "athena-documents",
       body: "",
       storage_path: String(session.storage_path),
       file_sha256: "ab".repeat(32),
@@ -338,10 +451,64 @@ describe("file_upload tool", () => {
         visible: "original receipt",
         structured: { body_chars: purpose === "contract" ? 0 : 20, stored: true },
       };
+      state.savedDoc = {
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        company_id: state.job.company_id,
+        job_id: state.job.job_id,
+        upload_id: session.id,
+        storage_bucket: "athena-documents",
+        storage_path: session.storage_path,
+      };
+      state.savedDocTable = purpose === "spec" ? "mcp_spec_documents" : "mcp_contract_documents";
       const result = await call({ action: "finish", job_number: "2701", upload_id: session.id });
       expect(visible(result)).toContain("original receipt");
+      expect(result.structuredContent.document_id).toBe(state.savedDoc.id);
     }
     expect(state.rpcs.some(([fn]) => fn === "mcp_contract_document_save")).toBe(false);
+  });
+
+  it("does not report job success or complete an upload when document readback is missing", async () => {
+    await call({
+      action: "begin",
+      job_number: "2701",
+      purpose: "contract",
+      filename: "Agreement.txt",
+    });
+    const id = state.session!.id;
+    state.objects.set(
+      `athena-documents/${state.session!.storage_path}`,
+      new TextEncoder().encode("Fictional contract"),
+    );
+    state.associationVisible = false;
+    await expect(call({ action: "finish", job_number: "2701", upload_id: id })).rejects.toThrow(
+      "entry on this job could not be verified",
+    );
+    expect(state.session!.status).toBe("open");
+    expect(state.rpcs.some(([fn]) => fn === "mcp_file_upload_complete")).toBe(false);
+    state.associationVisible = true;
+    const retry = await call({ action: "finish", job_number: "2701", upload_id: id });
+    expect(retry.structuredContent).toMatchObject({ job_association: "verified", upload_id: id });
+    expect(state.rpcs.filter(([fn]) => fn === "mcp_file_upload_begin")).toHaveLength(1);
+  });
+
+  it("rechecks cached completion and refuses a job entry that was replaced", async () => {
+    await call({
+      action: "begin",
+      job_number: "2701",
+      purpose: "contract",
+      filename: "Agreement.txt",
+    });
+    state.objects.set(
+      `athena-documents/${state.session!.storage_path}`,
+      new TextEncoder().encode("Fictional contract"),
+    );
+    await call({ action: "finish", job_number: "2701", upload_id: state.session!.id });
+    state.savedDoc!.upload_id = "different-upload";
+    const saves = state.rpcs.filter(([fn]) => fn === "mcp_contract_document_save").length;
+    await expect(
+      call({ action: "finish", job_number: "2701", upload_id: state.session!.id }),
+    ).rejects.toThrow("entry on this job could not be verified");
+    expect(state.rpcs.filter(([fn]) => fn === "mcp_contract_document_save")).toHaveLength(saves);
   });
 });
 
