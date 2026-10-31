@@ -17,7 +17,7 @@ export const EXTRACT_MAX_CHARS = 400_000;
 export const DOC_BUCKET = "athena-documents";
 
 export const FILE_UPLOAD_DESCRIPTION =
-  "Adds a PDF, DOCX, or TXT to the selected job through an authenticated upload card that uploads and verifies completion, with pending and resume actions for the member's own interrupted uploads, from_url for a fetchable file link, chunk then finish for text-only hosts, and prepare_readable for an existing saved source; project_documents list shows saved files and recoverable pending uploads.";
+  "Saves an original PDF, DOCX, or TXT attached in chat through file/from_url, reuses an explicitly selected upload_id on resume, and verifies the saved job association; an authenticated upload card is the fallback, with pending and resume actions for the member's own interrupted uploads, from_url for a fetchable file link, chunk then finish for text-only hosts, and prepare_readable for an existing saved source; project_documents list shows saved files and recoverable pending uploads.";
 
 const MIME = {
   pdf: "application/pdf",

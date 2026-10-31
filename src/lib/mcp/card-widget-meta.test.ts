@@ -60,6 +60,16 @@ describe("ChatGPT card widget stays off tools/list", () => {
     expect(markup?._meta?.["openai/outputTemplate"]).toBeUndefined();
     expect(importer?._meta?.["openai/outputTemplate"]).toBeUndefined();
   });
+  it("advertises the chat-native file input with the exact required host fields", async () => {
+    const listed=await rpc("tools/list", 121);
+    const upload=listed.tools.find((t:{name:string})=>t.name === "file_upload");
+    expect(upload._meta["openai/fileParams"]).toEqual(["file"]);
+    expect(upload.inputSchema.properties.file.properties).toHaveProperty("download_url");
+    expect(upload.inputSchema.properties.file.properties).toHaveProperty("file_id");
+    expect(upload.inputSchema.properties.file.properties).toHaveProperty("mime_type");
+    expect(upload.inputSchema.properties.file.properties).toHaveProperty("file_name");
+    expect(upload.inputSchema.properties.file.required.sort()).toEqual(["download_url","file_id"]);
+  });
   it("card tools have no openai/outputTemplate in tools/list, and the resource is listed once", async () => {
     const defs = ATHENA_TOOLS.filter((tool) => CARD_NAMES.has(tool.name));
     expect(defs.length).toBeGreaterThan(10);

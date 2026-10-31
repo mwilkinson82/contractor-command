@@ -61,7 +61,7 @@ type Session = {
 };
 
 const UPLOAD_GUIDE =
-  "Use the authenticated upload card for begin and resume; it uploads and calls finish automatically. Do not issue a parallel finish while the card is completing. For a text-only host, begin returns upload_url; after bytes arrive, call finish with the same upload_id without asking for another upload. Upload-link success alone confirms bytes only. Say the file is available on the job only after job_association is verified. project_documents list exposes the current member's own pending uploads on that exact job; use resume for the selected ID. The two-hour link expiry blocks new bytes, but authenticated finish can attach bytes received before expiry. Chunk recovery shows received parts; finish only after every intended chunk has been sent. from_url accepts a fetchable HTTPS file link; chunk accepts ordered base64 pieces of at most 12000 characters, then finish. Stored contract/spec files are the sources clause checks read, and stored submittal pieces are ready for package build.";
+  "Prefer the original file attached in chat: use from_url with file and its host-supplied download_url. Do not ask for a second picker when usable original bytes are supplied. If resuming a selected upload, preserve its upload_id in from_url; never create a replacement from its filename. Use the upload card only as a fallback when this host cannot supply the original. Do not issue a parallel finish while the card is completing. For a text-only host, begin returns upload_url; after bytes arrive, call finish with the same upload_id without asking for another upload. Upload-link success alone confirms bytes only. Say the file is available on the job only after job_association is verified. project_documents list exposes the current member's own pending uploads on that exact job; use resume for the selected ID. The two-hour link expiry blocks new bytes, but authenticated finish can attach bytes received before expiry. Chunk recovery shows received parts; finish only after every intended chunk has been sent. from_url accepts a fetchable HTTPS file link; chunk accepts ordered base64 pieces of at most 12000 characters, then finish. Stored contract/spec files are the sources clause checks read, and stored submittal pieces are ready for package build.";
 
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (
@@ -347,7 +347,7 @@ export const fileUpload = defineTool({
     file: z
       .object({
         download_url: z.string().trim().max(8000),
-        file_id: z.string().max(200).optional(),
+        file_id: z.string().min(1).max(200),
         file_name: z.string().trim().min(1).max(120).optional(),
         mime_type: z.string().max(200).optional(),
       })
@@ -381,11 +381,16 @@ export const fileUpload = defineTool({
         if (named.length !== 1 || named[0].id !== job.company_id)
           throw new ToolError("That job is not in the company you named. Nothing changed.");
       }
+      let action = args.action;
+      if (action === "resume" && !args.upload_id)
+        throw new ToolError("Choose the exact upload to resume.");
+      if (args.file && (action === "begin" || action === "resume")) action = "from_url";
+      else if (action === "begin" && args.upload_id) action = "resume";
       const purposeArg = args.purpose as UploadPurpose | undefined;
       if (purposeArg === "submittal_piece" && job.scope !== "full")
         throw new ToolError(FULL_ACCESS_MESSAGE);
 
-      if (args.action === "pending") {
+      if (action === "pending") {
         const pending = await readUploadRecovery(sb, job, { before: args.before_upload });
         return storedReply(
           `${prefix(job)}Pending uploads: ${pending.uploads.length}. Choose an upload to resume.`,
@@ -398,7 +403,7 @@ export const fileUpload = defineTool({
           },
         );
       }
-      if (args.action === "resume") {
+      if (action === "resume") {
         if (!args.upload_id) throw new ToolError("Choose a pending upload from this job's files.");
         const owned = await requireOwnUpload(sb, job, args.upload_id);
         const session = await rpc<Session | null>(sb, "mcp_file_upload_get", {
@@ -422,7 +427,7 @@ export const fileUpload = defineTool({
         );
       }
 
-      if (args.action === "prepare_readable") {
+      if (action === "prepare_readable") {
         if (job.scope !== "full" && job.scope !== "contract")
           throw new ToolError(READ_ONLY_MESSAGE);
         if (!args.document_id)
@@ -466,7 +471,7 @@ export const fileUpload = defineTool({
           },
         );
       }
-      if (args.action === "begin") {
+      if (action === "begin") {
         // Confirm the reviewed recovery surface is installed before creating an upload.
         await readUploadRecovery(sb, job);
         const purpose = purposeOf(purposeArg, "begin");
@@ -515,7 +520,7 @@ export const fileUpload = defineTool({
         );
       }
 
-      if (args.action === "chunk") {
+      if (action === "chunk") {
         if (!args.upload_id || args.chunk_index == null || !args.content_base64)
           throw new ToolError(
             "Send the upload id, the chunk index, and the chunk. Nothing was stored.",
@@ -563,8 +568,28 @@ export const fileUpload = defineTool({
         );
       }
 
-      if (args.action === "from_url") {
-        const purpose = purposeOf(purposeArg, "from_url");
+      let attachedSession: Session | null = null;
+      if (action === "from_url" && args.upload_id) {
+        await requireOwnUpload(sb, job, args.upload_id);
+        attachedSession = await rpc<Session | null>(sb, "mcp_file_upload_get", {
+          _id: args.upload_id,
+          _job: job.job_id,
+        });
+        if (!attachedSession)
+          throw new ToolError("That selected upload is not available on this job.");
+        assertSessionPath(job.company_id, job.job_id, attachedSession);
+        if (attachedSession.purpose === "submittal_piece" && job.scope !== "full")
+          throw new ToolError(FULL_ACCESS_MESSAGE);
+        if (purposeArg && purposeArg !== attachedSession.purpose)
+          throw new ToolError("Keep the selected upload's file type. Nothing was stored.");
+        if (args.filename && uploadFilename(args.filename).name !== attachedSession.filename)
+          throw new ToolError("Keep the selected upload's filename. Nothing was stored.");
+        if (attachedSession.status === "finished") action = "finish";
+        else if (new Date(attachedSession.expires_at).getTime() <= Date.now())
+          throw new ToolError("That upload link has expired. New bytes cannot be added to it.");
+      }
+      if (action === "from_url") {
+        const purpose = purposeOf(attachedSession?.purpose ?? purposeArg, "from_url");
         if (purpose === "submittal_piece" && job.scope !== "full")
           throw new ToolError(FULL_ACCESS_MESSAGE);
         const url = args.source_url ?? args.file?.download_url;
@@ -577,12 +602,15 @@ export const fileUpload = defineTool({
         if (!url) throw new ToolError("Pass the file link. Nothing was stored.");
         let file: ReturnType<typeof uploadFilename>;
         try {
-          file = uploadFilename(args.filename || args.file?.file_name || "");
+          file = uploadFilename(
+            attachedSession?.filename || args.filename || args.file?.file_name || "",
+          );
         } catch (e) {
           rejected(e);
         }
         const target =
-          purpose === "submittal_piece" ? await pieceTarget(sb, job.job_id, args) : null;
+          attachedSession ??
+          (purpose === "submittal_piece" ? await pieceTarget(sb, job.job_id, args) : null);
         let bytes: Uint8Array;
         try {
           bytes = await fetchAllowedFile(url, uploadMaxBytes(purpose));
@@ -590,13 +618,30 @@ export const fileUpload = defineTool({
         } catch (e) {
           rejected(e);
         }
-        const id = crypto.randomUUID();
+        if (attachedSession && new Date(attachedSession.expires_at).getTime() <= Date.now())
+          throw new ToolError(
+            "That upload link expired before the file arrived. New bytes were not added.",
+          );
+        const id = attachedSession?.id ?? crypto.randomUUID();
         const path =
-          purpose === "submittal_piece"
+          attachedSession?.storage_path ??
+          (purpose === "submittal_piece"
             ? `${job.company_id}/${job.job_id}/pieces/${id}/${file.name}`
-            : `${job.company_id}/${job.job_id}/${id}/${file.name}`;
+            : `${job.company_id}/${job.job_id}/${id}/${file.name}`);
         const bucket = purpose === "submittal_piece" ? "athena-submittals" : DOC_BUCKET;
         await storeObject(sb, bucket, path, bytes, file.mime);
+        const canonical = await download(sb, bucket, path);
+        if (!canonical?.length || (await sha256Hex(canonical)) !== (await sha256Hex(bytes)))
+          throw new ToolError(
+            "The stored original could not be verified. No attachment was confirmed.",
+          );
+        if (attachedSession) {
+          const receipt = await requireOwnUpload(sb, job, attachedSession.id);
+          if (!receipt.bytes_received || receipt.received_via !== "object")
+            throw new ToolError(
+              "The original was not received within this upload request's deadline. No attachment was confirmed.",
+            );
+        }
         return finishBytes(
           sb,
           job,
@@ -610,9 +655,9 @@ export const fileUpload = defineTool({
             submittal_id: target?.submittal_id ?? null,
             piece_id: target?.piece_id ?? null,
             new_piece: target?.new_piece ?? null,
-            tracked: false,
+            tracked: !!attachedSession,
           },
-          bytes,
+          canonical,
         );
       }
 
@@ -835,7 +880,7 @@ async function finishBytes(
       ? `Text read from the file: ${saved.body_chars.toLocaleString()} characters${saved.truncated ? ", which is the most kept for clause checks" : ""}.`
       : "No text could be read from the file. The file is stored.";
     visible = [
-      `${prefix(job)}${label} stored: ${saved.name}.`,
+      `${prefix(job)}${label} stored: ${saved.name}. Saved to job ${job.job_number}.`,
       read,
       readableState === "ready"
         ? `Complete reusable readable document ready: ${readablePages} physical PDF pages.`

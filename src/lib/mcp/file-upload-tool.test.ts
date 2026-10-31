@@ -227,6 +227,45 @@ beforeEach(() => {
 });
 
 describe("file_upload tool", () => {
+  it("saves an original supplied with begin directly without creating a picker session", async () => {
+    vi.stubGlobal("fetch", async () => new Response("Fictional original source text"));
+    const saved = await call({
+      action: "begin",
+      job_number: state.job.job_number,
+      purpose: "spec",
+      file: {
+        download_url: "https://files.oaiusercontent.com/fictional-original.txt",
+        file_id: "fictional-file",
+        file_name: "Original.txt",
+      },
+    });
+    expect(saved.structuredContent).toMatchObject({
+      filename: "Original.txt",
+      job_number: state.job.job_number,
+      job_association: "verified",
+      upload_complete: true,
+    });
+    expect(saved.structuredContent.upload_context).toBeUndefined();
+    expect(state.rpcs.some(([name]) => name === "mcp_file_upload_begin")).toBe(false);
+    expect(visible(saved)).toContain("Saved to job " + state.job.job_number);
+  });
+
+  it("treats begin with an explicit existing ID as resume instead of creating a replacement", async () => {
+    const first = await call({
+      action: "begin",
+      job_number: state.job.job_number,
+      purpose: "spec",
+      filename: "Original.txt",
+    });
+    const selected = await call({
+      action: "begin",
+      job_number: state.job.job_number,
+      upload_id: first.structuredContent.upload_id,
+    });
+    expect(selected.structuredContent.upload_id).toBe(first.structuredContent.upload_id);
+    expect(state.rpcs.filter(([name]) => name === "mcp_file_upload_begin")).toHaveLength(1);
+  });
+
   it("completes a submittal piece through the actual card without a separate finish request", async () => {
     const begun = await call({
       action: "begin",

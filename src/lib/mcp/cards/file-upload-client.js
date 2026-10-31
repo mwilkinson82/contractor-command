@@ -11,7 +11,8 @@
     portfolio = null,
     busy = false,
     completed = null,
-    queuedResult = null;
+    queuedResult = null,
+    resizeObserver = null;
   var loaded = new Set(),
     UUID = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i;
   function send(m) {
@@ -150,20 +151,78 @@
     b.addEventListener("click", fn);
     return b;
   }
+  function incompleteTransfer(upload) {
+    return upload && !upload.bytes_received && Number(upload.received_chunks || 0) > 0;
+  }
+  function sameJob(a, b) {
+    return a && b && a.company_id === b.company_id && a.job_number === b.job_number;
+  }
+  function savedFiles(body, list) {
+    if (!list) return;
+    body.append(node("h2", "Saved files"));
+    var docs = Array.isArray(list.documents) ? list.documents.slice() : [];
+    if (
+      sameJob(completed, list) &&
+      completed.document_id &&
+      !docs.some(function (d) {
+        return d.id === completed.document_id;
+      })
+    )
+      docs.unshift({
+        id: completed.document_id,
+        name: completed.filename,
+        kind: completed.purpose || "File",
+      });
+    docs.forEach(function (d) {
+      var row = node("section");
+      row.className = "row saved";
+      row.append(node("strong", d.name), node("p", (d.kind || "File") + " · Saved"));
+      body.append(row);
+    });
+    if (!docs.length)
+      body.append(
+        node(
+          "p",
+          Array.isArray(list.documents) ? "No saved files on this page." : "Loading saved files…",
+        ),
+      );
+    if (list.saved_list_unavailable)
+      body.append(
+        node("p", "The saved file is confirmed. The rest of the file list could not be loaded."),
+      );
+  }
   function render() {
     if (closed) return;
     var verified = confirmed(current);
     var shell = node("article"),
       head = node("header"),
       body = node("main");
-    head.append(
-      node("h1", verified ? "File added to job" : current ? "Add file to job" : "Your job files"),
-    );
+    head.append(node("h1", verified ? "Saved" : current ? "Add file" : "Job files"));
     shell.append(head, body);
+    status.hidden =
+      status.textContent === "File added to job." &&
+      !!(verified || (portfolio && sameJob(completed, portfolio)));
     if (current) {
-      body.append(node("p", current.filename), node("p", "Job " + current.job_number));
+      body.append(node("strong", current.filename), node("p", "Job " + current.job_number));
       if (verified) {
-        body.append(node("p", "Athena verified this file in the job's files."));
+        body.append(
+          node(
+            "p",
+            "Saved to job " +
+              current.job_number +
+              (current.purpose === "submittal_piece"
+                ? ". Attached to its submittal."
+                : ". Available in this job's saved files."),
+          ),
+        );
+        savedFiles(
+          body,
+          portfolio || {
+            company_id: current.company_id,
+            job_number: current.job_number,
+            documents: [],
+          },
+        );
         if (completed.readable_state === "failed")
           body.append(
             node(
@@ -186,10 +245,30 @@
         body.append(
           node(
             "p",
-            "This upload expired. Its job attachment is not confirmed. Start a new upload to continue.",
+            incompleteTransfer(current)
+              ? "This upload expired with an incomplete transfer. The complete file is not confirmed."
+              : "This upload expired without a complete, eligible file. Start a new upload only if you want to try again.",
           ),
         );
         if (current.restart) body.append(button("Start new upload", restart));
+      } else if (incompleteTransfer(current)) {
+        body.append(
+          node(
+            "p",
+            "Incomplete transfer. " +
+              String(current.received_chunks) +
+              (Number(current.received_chunks) === 1 ? " chunk recorded; " : " chunks recorded; ") +
+              "the full file is not ready to attach.",
+          ),
+          node("p", "Continue the original transfer in this chat using the same request."),
+          button(
+            "Check upload status",
+            function () {
+              recover(current);
+            },
+            true,
+          ),
+        );
       } else if (current.received_via === "chunks") {
         body.append(
           node(
@@ -205,11 +284,18 @@
             true,
           ),
         );
-      } else if (
-        current.bytes_received ||
-        current.receipt_uncertain ||
-        current.status === "finished"
-      ) {
+      } else if (current.receipt_uncertain && !current.bytes_received) {
+        body.append(
+          node("p", "Upload status is unknown. Check before sending the file again."),
+          button(
+            "Check upload status",
+            function () {
+              recover(current);
+            },
+            true,
+          ),
+        );
+      } else if (current.bytes_received || current.status === "finished") {
         body.append(
           node("p", "Upload received. Job attachment is awaiting confirmation."),
           button(
@@ -242,39 +328,39 @@
           ),
         );
       } else {
-        body.append(node("p", "The file has not arrived. Choose it in a new upload to continue."));
-        if (current.restart) body.append(button("Choose file", restart, true));
-      }
-      if (!verified)
         body.append(
+          node(
+            "p",
+            "No complete file is confirmed. Attach the original in this chat to continue with this same upload request.",
+          ),
+        );
+      }
+      var options = node("details");
+      options.append(node("summary", "More options"));
+      if (!verified)
+        options.append(
           button("Refresh upload status", function () {
             recover(current);
           }),
         );
-      body.append(
+      options.append(
         button("Show job files", function () {
           showPending({ company_id: current.company_id, job_number: current.job_number });
         }),
       );
+      body.append(options);
     } else if (portfolio) {
       body.append(node("p", "Job " + portfolio.job_number));
-      (portfolio.documents || []).forEach(function (d) {
-        var row = node("section");
-        row.className = "row";
-        row.append(node("strong", d.name), node("p", d.kind || "File"));
-        body.append(row);
-      });
-      body.append(node("h2", "Uploads to finish"));
-      if (!(portfolio.pending_uploads || []).length)
-        body.append(
-          node(
-            "p",
-            portfolio.pending_unavailable
-              ? "Pending uploads could not be loaded. Refresh to try again."
-              : "No pending uploads on this page.",
-          ),
-        );
-      (portfolio.pending_uploads || []).forEach(function (u) {
+      savedFiles(body, portfolio);
+      var uploads = portfolio.pending_uploads || [],
+        received = uploads.filter(function (u) {
+          return u.bytes_received;
+        }),
+        partial = uploads.filter(incompleteTransfer),
+        empty = uploads.filter(function (u) {
+          return !u.bytes_received && !incompleteTransfer(u);
+        });
+      function uploadRow(u, parent) {
         var c = {
           company_id: portfolio.company_id,
           job_number: portfolio.job_number,
@@ -287,15 +373,17 @@
           node("strong", u.filename),
           node(
             "p",
-            u.received_via === "chunks"
-              ? String(u.received_chunks) + " chunks received; completeness unconfirmed"
-              : u.bytes_received
-                ? "Uploaded; attachment pending"
+            u.bytes_received
+              ? u.received_via === "chunks"
+                ? String(u.received_chunks) + " chunks received; completeness unconfirmed"
+                : "File received; ready to attach"
+              : incompleteTransfer(u)
+                ? u.expired
+                  ? "Expired · Incomplete transfer"
+                  : "Incomplete transfer · Full file not ready"
                 : u.expired
-                  ? "Link expired before eligible bytes arrived"
-                  : u.received_chunks
-                    ? "Chunk transfer incomplete"
-                    : "File not received",
+                  ? "Expired request · No eligible file confirmed"
+                  : "Waiting for a file",
           ),
           button(
             u.expired && !u.bytes_received ? "Review expired upload" : "Resume upload",
@@ -304,8 +392,44 @@
             },
           ),
         );
-        body.append(row);
-      });
+        parent.append(row);
+      }
+      if (received.length) {
+        body.append(node("h2", "Received files to attach"));
+        received.forEach(function (u) {
+          uploadRow(u, body);
+        });
+      }
+      if (partial.length) {
+        var transfers = node("details");
+        transfers.append(
+          node("summary", String(partial.length) + " incomplete transfers"),
+          node(
+            "p",
+            "Some chunks were recorded, but the complete file is not confirmed. These transfers are not ready to attach.",
+          ),
+        );
+        partial.forEach(function (u) {
+          uploadRow(u, transfers);
+        });
+        body.append(transfers);
+      }
+      if (empty.length) {
+        var requests = node("details");
+        requests.append(
+          node("summary", String(empty.length) + " requests awaiting a file"),
+          node(
+            "p",
+            "These requests are separate from the saved files above. No complete, eligible file is confirmed for them.",
+          ),
+        );
+        empty.forEach(function (u) {
+          uploadRow(u, requests);
+        });
+        body.append(requests);
+      }
+      if (portfolio.pending_unavailable)
+        body.append(node("p", "Upload requests could not be loaded. Saved files are shown above."));
       if (portfolio.pending_next_before)
         body.append(
           button("More pending uploads", function () {
@@ -363,6 +487,29 @@
       },
     });
     status.textContent = "File added to job.";
+    try {
+      var listing = await call(
+          {
+            action: "list",
+            company_id: c.company_id,
+            job_number: c.job_number,
+            offset: 0,
+            limit: 25,
+          },
+          "project_documents",
+        ),
+        files = listing && listing.structuredContent;
+      if (!sameJob(c, files) || !Array.isArray(files.documents))
+        throw new Error("Saved list unavailable");
+      portfolio = files;
+    } catch (_) {
+      portfolio = {
+        company_id: c.company_id,
+        job_number: c.job_number,
+        documents: [],
+        saved_list_unavailable: true,
+      };
+    }
   }
   async function recover(c, finishChunks) {
     if (busy || !valid(c) || !host.serverTools || closed) return;
@@ -393,9 +540,15 @@
         status.textContent =
           current.received_via === "chunks"
             ? "Received chunks are ready for explicit completion. Check that you sent the full file."
-            : current.expired
-              ? "Upload expired."
-              : "Choose the file to add to this job.";
+            : incompleteTransfer(current)
+              ? current.expired
+                ? "Upload expired with an incomplete transfer."
+                : "Transfer incomplete."
+              : current.expired
+                ? "Upload expired."
+                : urlFor(current)
+                  ? "Choose the file to add to this job."
+                  : "";
     } catch (e) {
       current = Object.assign({}, current, { verification_pending: true });
       status.textContent = e.message || "Upload recovery was not confirmed.";
@@ -405,7 +558,8 @@
   }
   async function upload(file) {
     var c = current,
-      url = c && urlFor(c);
+      url = c && urlFor(c),
+      rejectedReceipt = false;
     if (busy || !url || !host.serverTools || closed) return;
     if (!file.size || file.size > 104857600) {
       status.textContent = "Choose a nonempty PDF, Word, or text file up to 100 MB.";
@@ -426,6 +580,7 @@
       try {
         receipt = await response.json();
       } catch (_) {
+        rejectedReceipt = response.status >= 400 && response.status < 500;
         if (response.status === 410) current = Object.assign({}, current, { expired: true });
         throw new Error(
           response.status === 410
@@ -437,15 +592,20 @@
         (!response.ok && response.status !== 409) ||
         receipt.stored !== true ||
         receipt.filename !== c.filename
-      )
+      ) {
+        rejectedReceipt = receipt.stored === false;
+        if (response.status === 410) current = Object.assign({}, current, { expired: true });
         throw new Error(
-          receipt.error || "Upload was not confirmed. Refresh its status before retrying.",
+          receipt.error || "Upload was not confirmed. Check its status before retrying.",
         );
+      }
       current = Object.assign({}, c, { bytes_received: true });
       remember();
       await finish(current);
     } catch (e) {
-      current = Object.assign({}, current, { receipt_uncertain: true });
+      current = Object.assign({}, current, {
+        receipt_uncertain: !rejectedReceipt && !current.bytes_received,
+      });
       status.textContent =
         e.message || "Upload was not confirmed. Refresh its status before retrying.";
     } finally {
@@ -510,7 +670,7 @@
         documents: sc.documents || c.documents || (portfolio && portfolio.documents) || [],
       });
       current = null;
-      completed = null;
+      if (!sameJob(completed, sc)) completed = null;
       status.textContent = "";
     } catch (e) {
       status.textContent = e.message;
@@ -551,10 +711,14 @@
       UUID.test(sc.company_id) &&
       typeof sc.job_number === "string"
     ) {
-      portfolio = sc;
+      var prior = sameJob(portfolio, sc) ? portfolio : null;
+      portfolio = Object.assign({}, sc, {
+        documents: Array.isArray(sc.documents) ? sc.documents : prior && prior.documents,
+      });
       current = null;
-      completed = null;
+      if (!sameJob(completed, sc)) completed = null;
       render();
+      if (!Array.isArray(sc.documents) && host.serverTools) showPending(portfolio);
     } else if (
       sc.job_association === "verified" &&
       valid(sc) &&
@@ -596,6 +760,7 @@
     else if (m.method === "ui/resource-teardown") {
       send({ id: m.id, result: {} });
       closed = true;
+      if (resizeObserver) resizeObserver.disconnect();
       window.removeEventListener("message", receive);
       requests.forEach(function (task) {
         clearTimeout(task.timer);
@@ -605,6 +770,10 @@
     }
   }
   window.addEventListener("message", receive);
+  if (typeof ResizeObserver === "function") {
+    resizeObserver = new ResizeObserver(size);
+    resizeObserver.observe(document.body);
+  }
   send({
     id: 1,
     method: "ui/initialize",

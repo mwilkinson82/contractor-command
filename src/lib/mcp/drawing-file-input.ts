@@ -14,6 +14,7 @@ export const drawingFile = z
   .optional();
 
 const FILE_TOOLS = new Set([
+  "file_upload",
   "drawing_set_import",
   "estimate_intake",
   "estimate_takeoff_save",
