@@ -1,3 +1,4 @@
+import { billingRecordLinks } from "../../accounting-record-target";
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError, text, type Sb } from "../guard";
@@ -56,6 +57,7 @@ type Invoice = BillingInvoice & {
     BillingInvoice["versions"][number] & {
       gross_cents: number | null;
       certified_cents: number | null;
+      version: number;
     }
   >;
 };
@@ -224,10 +226,11 @@ export const billingEvidenceRead = defineTool({
               totals,
               balances,
               records_url: recordsUrl(job.job_id),
+              record_links: billingRecordLinks(job.job_id, data),
               currency: "USD",
             } as never,
           },
-          "Present recorded submitted billing, certification, credits, retainage and cash separately. Do not infer zero from missing records or treat progress as an invoice or payment. Use document numbers to identify an invoice before allocating or crediting it.",
+          "Present recorded submitted billing, certification, credits, retainage and cash separately. Do not infer zero from missing records or treat progress as an invoice or payment. Use the matching record_links URL when discussing a specific invoice, credit, receipt or allocation. Preserve the selected version. Use document numbers to identify an invoice before allocating or crediting it.",
         );
       },
     ),

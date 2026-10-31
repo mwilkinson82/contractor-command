@@ -156,13 +156,27 @@ export async function readApOriginal(
   record: string,
   id: string,
 ) {
-  await member(sb, ctx);
+  return readApOriginalForToken(sb, ctx.getToken() ?? "", job, record, id);
+}
+
+/** Browser and tool share the same authenticated scope and verified-byte read. */
+export async function readApOriginalForToken(
+  sb: Sb,
+  token: string,
+  job: string,
+  record: string,
+  id: string,
+  version?: number,
+) {
+  if (!token) throw new ToolError("Verified member required.");
+  const identity = await sb.auth.getUser(token);
+  if (identity.error || !identity.data.user?.id) throw new ToolError("Verified member required.");
   const document = await apOriginalRpc<ApOriginal>(sb, "mcp_ap_original_get", {
     _job: job,
     _record: record,
     _id: id,
   });
-  assertApOriginal(document, job, record);
+  assertApOriginal(document, job, record, version);
   if (document.id !== id) throw new ToolError("That supplier original is unavailable.");
   return { document, bytes: await checkedApOriginalBytes(document) };
 }

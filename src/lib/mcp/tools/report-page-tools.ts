@@ -1,3 +1,4 @@
+import { accountingReportUrl } from "../../accounting-record-target";
 // 0.8.14: living report pages. report_page_link returns the private, always-current page URL (signed-in company
 // members with access only). report_page_share makes an optional owner share link (expiring, revocable; off by
 // default). report_page_share_revoke turns one off.
@@ -136,7 +137,7 @@ export const reportPageLink = defineTool({
   name: "report_page_link",
   title: "Project home or report link",
   description:
-    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
+    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), page "statement" for a private Customer Statement report, other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
   inputSchema: {
     page,
     job_number: jobNumber,
@@ -156,6 +157,33 @@ export const reportPageLink = defineTool({
     run("report_page_link", ctx, { jobNumber: args.job_number }, async (sb) => {
       const requestedPage = args.page ?? "home";
       if (isChatAccessPage(requestedPage)) return refuseChatAccess(args.job_number);
+      const mode = requestedPage.trim().toLowerCase().replace(/[_-]+/g, " ");
+      if (
+        ["statement", "customer statement", "customer statement report", "accounting"].includes(
+          mode,
+        )
+      ) {
+        if (!args.job_number)
+          return guide(
+            {
+              ...text("Which job should I use for this report?"),
+              structuredContent: { missing: ["job_number"] },
+            },
+            "Ask only for the job.",
+          );
+        const job = await resolveJob(sb, args.job_number, args.company_id, "full");
+        const type = mode === "accounting" ? "summary" : "statement";
+        const url = accountingReportUrl(job.job_id, type, {
+          from: args.from_date,
+          as_of: args.to_date,
+        });
+        return {
+          ...text(
+            `${type === "statement" ? "Customer statement" : "Accounting report"}: ${url}. Sign in with full project access.`,
+          ),
+          structuredContent: { report_url: url, report_type: type, job_id: job.job_id },
+        };
+      }
       const asked = boardPageFor(requestedPage);
       if (!asked)
         throw new ToolError("Which page? home, items, ior, field, or another named report.");

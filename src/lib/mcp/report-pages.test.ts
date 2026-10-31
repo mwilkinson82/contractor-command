@@ -49,6 +49,20 @@ const sched = { page: "schedule" as const, job_number: "2701", job_name: "Harbor
 
 beforeEach(() => { state.scope = "full"; state.leader = true; state.rpcs = []; state.revoke = null; });
 
+describe("private accounting report links", () => {
+  it.each(["statement", "customer statement", "customer statement report"])(
+    "opens %s in its actual mode without creating a signed board link",
+    async (page) => {
+      const result = await call(reportPageLink, { page, job_number: "2701", company_id: CO });
+      expect(result.structuredContent.report_type).toBe("statement");
+      expect(result.structuredContent.report_url).toBe(
+        `https://app.meetathena.io/r/job/${JOB}/accounting?report_type=statement`,
+      );
+      expect(state.rpcs.map(([name]) => name)).not.toContain("mcp_board_link_create");
+    },
+  );
+});
+
 describe("0.8.14 report_page_link", () => {
   it.each([
     undefined,

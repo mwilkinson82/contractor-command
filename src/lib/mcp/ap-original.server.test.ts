@@ -15,6 +15,7 @@ import {
   storeApOriginal,
   verifyApOriginalUpload,
   readApOriginal,
+  readApOriginalForToken,
   type ApOriginal,
 } from "./ap-original.server";
 import { sha256Hex } from "./file-share";
@@ -129,5 +130,18 @@ describe("server attests exact supplier original bytes", () => {
     ).rejects.toThrow(/Verified member/);
     state.read.mockResolvedValue(new Uint8Array([0, 1, 2]));
     await expect(checkedApOriginalBytes(original)).rejects.toThrow();
+  });
+});
+
+it("uses the same member and scoped AP read for browser downloads and refuses a mismatched version before bytes", async () => {
+  (sb.rpc as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: original, error: null });
+  await expect(
+    readApOriginalForToken(sb, "synthetic-session", "job", "bill", original.id, 2),
+  ).rejects.toThrow(/bill version/);
+  expect(state.read).not.toHaveBeenCalled();
+  expect(sb.rpc).toHaveBeenCalledWith("mcp_ap_original_get", {
+    _job: "job",
+    _record: "bill",
+    _id: original.id,
   });
 });

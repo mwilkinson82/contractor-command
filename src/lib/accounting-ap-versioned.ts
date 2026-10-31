@@ -173,7 +173,7 @@ export function buildVersionedApReport(
             incurredOn: v.incurred_on,
             amountCents: currency && dated ? a.amount_cents : null,
             inPeriod: dated ? !from || p.accounting_effective_on! >= from : null,
-            source: `${r.id}; ${r.kind}; ${v.counterparty_name}; reference ${v.document_reference ?? "missing"}; currency source ${v.currency_source} (review confirmation, not independent document verification); incurred ${v.incurred_on ?? "Unknown"}; accounting effective ${dated ? p.accounting_effective_on : "Unknown"}; recorded ${v.recorded_at}; posted recording ${p.posted_at}${later ? "; later unposted revision excluded" : ""}${changed ? "; currency changed across versions: prior settlement is not carried into this currency" : ""}; settlement allocation and conservation unsupported; originals missing`,
+            source: `${r.id}; ${r.kind}; ${v.counterparty_name}; reference ${v.document_reference ?? "missing"}; currency source ${v.currency_source} (review confirmation, not independent document verification); incurred ${v.incurred_on ?? "Unknown"}; accounting effective ${dated ? p.accounting_effective_on : "Unknown"}; recorded ${v.recorded_at}; posted recording ${p.posted_at}${later ? "; later unposted revision excluded" : ""}${changed ? "; currency changed across versions: prior settlement is not carried into this currency" : ""}; settlement allocation and conservation unsupported; supplier originals are not included in this snapshot`,
           }),
         );
     }

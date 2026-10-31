@@ -1,3 +1,4 @@
+import { accountingRecordUrl } from "../../accounting-record-target";
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError, text, type Sb } from "../guard";
@@ -248,9 +249,16 @@ export const jobCostPaymentCorrection = defineTool({
               ...text(
                 `Recorded payment ${state.payment.reference} · ${state.payment.paid_on}${state.correction ? " · corrected; see history" : ""}\n${sourceLines(state)}${balances}${historyText}\nThis is recorded evidence; it does not verify a bank payment.`,
               ),
-              structuredContent: result as never,
+              structuredContent: {
+                ...result,
+                record_url: accountingRecordUrl(job.job_id, {
+                  kind: "payment",
+                  id: args.payment_id!,
+                  payableId: args.id!,
+                }),
+              } as never,
             },
-            "Use the existing payment ID and expected_state from this read. Show prior facts and current versions. Ask for a reason and complete revised facts or explicit removal of erroneous evidence. For replacement, provide every original payable allocation with its current_version as expected_version. Never infer a proportional split.",
+            "Offer record_url to open this exact recorded payment. Use the existing payment ID and expected_state from this read. Show prior facts and current versions. Ask for a reason and complete revised facts or explicit removal of erroneous evidence. For replacement, provide every original payable allocation with its current_version as expected_version. Never infer a proportional split.",
           );
         }
         const p = result.payload as ReviewPayload;
