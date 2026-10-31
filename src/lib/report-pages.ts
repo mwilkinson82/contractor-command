@@ -345,20 +345,77 @@ function iorView(p: JobPayload, jobId?: string): string {
   });
 }
 
+/** Portfolio completion fields are saved calendar dates, not free-form date strings. */
+const portfolioDay = (value: unknown): number | null =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? scheduleDay(value) : null;
+
 function portfolioView(p: PortfolioPayload): string {
   const jobs = p.jobs ?? [];
-  const contract = jobs.reduce((s, j) => s + (isNum(j.cpm?.contract_total) ? j.cpm!.contract_total! : 0), 0);
-  const delayed = jobs.filter((j) => j.cpm?.tia?.prior_completion && j.cpm.tia.updated_completion && j.cpm.tia.updated_completion > j.cpm.tia.prior_completion);
-  const out = [tiles([tile("Jobs", String(jobs.length)), ...(p.money ? [tile("Contract value", money(contract))] : []), tile("Jobs with a delay", String(delayed.length), delayed.length > 0)])];
-  if (delayed.length) out.push(card(`<h2 style="margin:0 0 8px;font-size:15px;color:${NAVY}">Needs attention</h2>` + delayed.map((j) => `<div style="padding:6px 0;color:${NAVY}">${esc(j.job_number)} ${esc(j.name)} · <strong style="color:${RED}">${esc(delayLabel(j.cpm!.tia!.prior_completion!, j.cpm!.tia!.updated_completion!))}</strong></div>`).join("")));
-  out.push(`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">` + jobs.map((j) => {
-    const late = delayed.includes(j);
-    const chip = late ? `<span style="font-size:11px;color:#fff;background:${RED};border-radius:999px;padding:2px 8px">Delay</span>` : `<span style="font-size:11px;color:${BLUE};border:1px solid ${BLUE};border-radius:999px;padding:2px 8px">On track</span>`;
-    return `<div style="background:#fff;border:1px solid ${G3};border-radius:12px;padding:14px"><div style="display:flex;justify-content:space-between;gap:8px"><strong style="color:${NAVY}">${esc(j.job_number)} ${esc(j.name)}</strong>${chip}</div>` +
-      `<div style="font-size:12px;color:${G1};margin-top:6px">PM ${esc(j.pm ?? "—")} · Completion ${esc(j.completion_date ?? "Needed")}</div>` +
-      (p.money && isNum(j.cpm?.contract_total) ? `<div style="font-size:13px;color:${NAVY};margin-top:6px">Contract ${money(j.cpm!.contract_total!)}</div>` : "") +
-      `<div style="font-size:12px;color:${G2};margin-top:6px">Schedule ${j.cpm ? `v${esc(j.cpm.version)}` : "not saved"} · IOR ${j.ior ? `v${esc(j.ior.version)}` : "not saved"}</div></div>`;
-  }).join("") + `</div>`);
+  const contractValues = jobs.map((j) => j.cpm?.contract_total);
+  const contract =
+    contractValues.length > 0 && contractValues.every(isNum)
+      ? contractValues.reduce((sum, value) => sum + value, 0)
+      : null;
+  const rows = jobs.map((j) => {
+    const tia = j.cpm?.tia;
+    const prior = portfolioDay(tia?.prior_completion),
+      updated = portfolioDay(tia?.updated_completion);
+    const assessed = prior !== null && updated !== null;
+    const late = assessed && updated > prior;
+    const label = !j.cpm
+      ? "No saved schedule"
+      : !tia
+        ? "No saved TIA"
+        : !assessed
+          ? "TIA dates unavailable"
+          : late
+            ? "Later TIA completion"
+            : updated === prior
+              ? "No TIA completion change"
+              : "Earlier TIA completion";
+    return { j, assessed, late, label };
+  });
+  const delayed = rows.filter((row) => row.late);
+  const out = [
+    tiles([
+      tile("Jobs", String(jobs.length)),
+      ...(p.money ? [tile("Contract value", isNum(contract) ? money(contract) : "Unknown")] : []),
+      tile("Jobs with later TIA completion", String(delayed.length), delayed.length > 0),
+    ]),
+  ];
+  out.push(
+    `<p style="margin:0 0 16px;font-size:12px;color:${G1}">TIA movement compares saved prior and updated completion dates; it does not establish baseline health. Jobs without valid TIA dates are excluded.</p>`,
+  );
+  if (delayed.length)
+    out.push(
+      card(
+        `<h2 style="margin:0 0 8px;font-size:15px;color:${NAVY}">Needs attention</h2>` +
+          delayed
+            .map(
+              ({ j }) =>
+                `<div style="padding:6px 0;color:${NAVY}">${esc(j.job_number)} ${esc(j.name)} · <strong style="color:${RED}">${esc(delayLabel(j.cpm!.tia!.prior_completion!, j.cpm!.tia!.updated_completion!, j.cpm!.tia!.holidays))}</strong></div>`,
+            )
+            .join(""),
+      ),
+    );
+  out.push(
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">` +
+      rows
+        .map(({ j, assessed, late, label }) => {
+          const color = assessed ? BLUE : G1;
+          const chip = `<span style="font-size:11px;${late ? `color:#fff;background:${RED}` : `color:${color};border:1px solid ${color}`};border-radius:999px;padding:2px 8px">${esc(label)}</span>`;
+          return (
+            `<div style="background:#fff;border:1px solid ${G3};border-radius:12px;padding:14px"><div style="display:flex;flex-wrap:wrap;align-items:start;justify-content:space-between;gap:8px"><strong style="color:${NAVY}">${esc(j.job_number)} ${esc(j.name)}</strong>${chip}</div>` +
+            `<div style="font-size:12px;color:${G1};margin-top:6px">PM ${esc(j.pm ?? "—")} · Completion ${esc(portfolioDay(j.completion_date) !== null ? j.completion_date : "Needed")}</div>` +
+            (p.money
+              ? `<div style="font-size:13px;color:${NAVY};margin-top:6px">Contract ${isNum(j.cpm?.contract_total) ? money(j.cpm.contract_total) : "Unknown"}</div>`
+              : "") +
+            `<div style="font-size:12px;color:${G2};margin-top:6px">Schedule ${j.cpm ? `v${esc(j.cpm.version)}` : "not saved"} · IOR ${j.ior ? `v${esc(j.ior.version)}` : "not saved"}</div></div>`
+          );
+        })
+        .join("") +
+      `</div>`,
+  );
   return out.join("");
 }
 
