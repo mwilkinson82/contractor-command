@@ -64,6 +64,13 @@ beforeAll(async () => {
   ])
     await db.exec(readFileSync(`supabase/migrations/${file}.sql`, "utf8"));
   await db.exec(readFileSync("drizzle/migrations/0053_file_upload_recovery.sql", "utf8"));
+  // Current package_context body depends on the record/request/change package chain.
+  for (const file of [
+    "supabase/migrations/20261029120000_athena_submittal_record_page.sql",
+    "drizzle/migrations/0027_athena_request_package_records.sql",
+    "drizzle/migrations/0028_athena_change_order_packages.sql",
+  ])
+    await db.exec(readFileSync(file, "utf8"));
   for (const user of [owner, outsider, inactive])
     await db.query("INSERT INTO auth.users(id,email) VALUES($1,'fictional@example.com')", [user]);
   for (const user of [owner, outsider])
@@ -142,6 +149,14 @@ describe.sequential("ordinary guarded POST readers", () => {
     expect(alters).toEqual(targets.map((t) => `${t.name}(${t.signature})`).sort());
     expect(proposal).not.toMatch(/\b(?:GRANT|REVOKE|CREATE|DELETE|INSERT|UPDATE)\b/i);
     expect(proposal).not.toMatch(/^\s*(?:BEGIN|COMMIT)\s*;/m);
+  });
+  it("uses the current package-context body after its migration prerequisites", async () => {
+    const row = (
+      await db.query<{ body_md5: string }>(
+        "SELECT md5(prosrc) AS body_md5 FROM pg_proc WHERE oid='public.mcp_submittal_package_context(uuid,uuid)'::regprocedure",
+      )
+    ).rows[0];
+    expect(row.body_md5).toBe("bd76f003d7fee53f44ba03c3b030a491");
   });
   it("reproduces the exact read-only row-lock failure at every current POST boundary", async () => {
     for (const target of targets)
