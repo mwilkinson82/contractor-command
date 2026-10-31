@@ -1830,7 +1830,15 @@
       draw();
     } else if (m.method === "ui/notifications/tool-result") {
       var incoming = takeoffData(m.params);
-      if (!incoming) return;
+      if (!incoming) {
+        var blockedCard =
+          m.params && m.params.structuredContent && m.params.structuredContent.card;
+        if (blockedCard && !localResult) {
+          sc = m.params.structuredContent;
+          draw();
+        }
+        if (!incoming) return;
+      }
       var newer =
         incoming &&
         incoming.snapshot_at &&

@@ -80,6 +80,9 @@ import {
   drawingRecords,
   drawingOwned,
   DrawingSheetIndexRequired,
+  sheetAccessResult,
+  SheetPreviewUnavailable,
+  withRevisionNotice,
   keepDrawingPaths,
   indexStoredDrawingSet,
   readStoredDrawingSet,
@@ -1041,6 +1044,8 @@ export const estimateTakeoffSave = defineTool({
             },
           };
         }
+        const blocked = sheetAccessResult(e);
+        if (blocked) return blocked;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be saved."));
       }
     }),
@@ -1101,6 +1106,8 @@ export const estimateTakeoffGet = defineTool({
         );
       } catch (e) {
         if (e instanceof WhichCompanyAsk) throw e;
+        const blocked = sheetAccessResult(e);
+        if (blocked) return blocked;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be read."));
       }
     }),
@@ -1192,6 +1199,8 @@ export const estimateTakeoffExport = defineTool({
         return reply(view);
       } catch (e) {
         if (e instanceof WhichCompanyAsk) throw e;
+        const blocked = sheetAccessResult(e);
+        if (blocked) return blocked;
         return errorCard("Takeoff", errorMessage(e, "The takeoff could not be exported."));
       }
     }),
@@ -1926,6 +1935,10 @@ export const drawingMarkup = defineTool({
             filename: args.source_filename,
           });
         } catch (e) {
+          if (e instanceof SheetPreviewUnavailable) {
+            const blocked = sheetAccessResult(e);
+            if (blocked) return blocked;
+          }
           if (e instanceof DrawingSheetIndexRequired)
             // Build the "sheet names needed" reply from the saved record. Re-reading
             // a large original here (download + hash + parse) can exhaust the worker.
@@ -2017,7 +2030,10 @@ export const drawingMarkup = defineTool({
           );
         const needsSource = !args.source_id && !args.source_filename;
         if (args.operation === "prepare" || needsSource) {
-          const preview = drawingMarkupCard(named(job), source.record, source.sheet, annotations);
+          const preview = withRevisionNotice(
+            drawingMarkupCard(named(job), source.record, source.sheet, annotations),
+            source.redirectNotice,
+          );
           if (needsSource) {
             preview.state = "ask";
             preview.next_move =
@@ -2045,7 +2061,10 @@ export const drawingMarkup = defineTool({
         }
         const saved = await saveDrawingMarkup(sb, job, source, annotations);
         return drawingReply(
-          drawingMarkupCard(named(job), source.record, source.sheet, annotations, saved),
+          withRevisionNotice(
+            drawingMarkupCard(named(job), source.record, source.sheet, annotations, saved),
+            source.redirectNotice,
+          ),
           {
             saved: true,
             markup: saved.record as unknown as JsonValueInput,
@@ -2061,6 +2080,8 @@ export const drawingMarkup = defineTool({
         );
       } catch (e) {
         if (e instanceof WhichCompanyAsk) throw e;
+        const blocked = sheetAccessResult(e);
+        if (blocked) return blocked;
         return errorCard(
           "Drawing markup",
           errorMessage(e, "The stored sheet could not be marked up."),

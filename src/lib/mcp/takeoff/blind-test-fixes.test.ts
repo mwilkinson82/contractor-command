@@ -52,6 +52,25 @@ describe("stored set resolution for measure and scale (blind test item 1)", () =
       /sheet names are needed/,
     );
   });
+  it("keeps a passed revision that already has sheet names and redirects only an empty index", () => {
+    const path = "c/j/drawing-vol/source.pdf";
+    const hash = "b".repeat(64);
+    const line = (id: string, version: number, sheets: string[]) =>
+      ({
+        ...set(id, "Volume.pdf", version, sheets),
+        path,
+        content_hash: hash,
+        source_key: "file:volume.pdf",
+      }) as DrawingRecord;
+    const rev1 = line("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", 1, []);
+    const rev2 = line("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", 2, ["G-0003", "G-0004"]);
+    const rev3 = line("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3", 3, ["G-0003", "A-100"]);
+    const records = [rev3, rev2, rev1];
+    expect(resolveStoredSource(records, "G-0003", rev2.id).id).toBe(rev2.id);
+    expect(resolveStoredSource(records, "G-0003", rev1.id).id).toBe(rev3.id);
+    expect(resolveStoredSource(records, "G-0003").id).toBe(rev3.id);
+    expect(resolveStoredSource(records, "A-100").id).toBe(rev3.id);
+  });
 });
 
 describe("review rows are red only for a risk (blind test item 3)", () => {
