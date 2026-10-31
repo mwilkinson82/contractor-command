@@ -201,6 +201,95 @@ describe("support autoreply rules", () => {
     expect(threadHeaders(null)).toEqual({});
   });
 
+  it.each([
+    ["Athena receipt test A3", "Athena receipt test A3"],
+    ["Re: Athena receipt test A3 [ATH-0007]", "Athena receipt test A3"],
+    ["Re: Re: Athena receipt test A3 [ATH-0007] [ATH-0007]", "Athena receipt test A3"],
+    ["  rE: RE:Re:   Pump status [ATH-0007]  ", "Pump status"],
+    ["Pump Re: status", "Pump Re: status"],
+    ["Re : literal wording", "Re : literal wording"],
+    ["Fwd: Re: Pump status [ATH-0007]", "Fwd: Re: Pump status"],
+    ["[ATH-0007] Pump status", "[ATH-0007] Pump status"],
+    ["Pump [ATH-0007] status", "Pump [ATH-0007] status"],
+    ["Part[ATH-0007]", "Part[ATH-0007]"],
+    ["Re: Pump status [ATH-0008]", "Pump status [ATH-0008]"],
+    ["Re: Pump status [CIR-0007] [ATH-0007]", "Pump status [CIR-0007]"],
+    ["Re: Pump status [ath-0007]", "Pump status [ath-0007]"],
+    ["Re: Überprüfung — 泵 [ATH-0007]", "Überprüfung — 泵"],
+    ["Re:\r\nPump\tstatus [ATH-0007]", "Pump status"],
+    ["Re: [ATH-0007] [ATH-0007]", "(no subject)"],
+    [null, "(no subject)"],
+  ])("normalizes future receipts conservatively: %s", (original, customerSubject) => {
+    const expected = `Re: ${customerSubject} [ATH-0007]`;
+    expect(autoreplySubject(original, "ATH-0007")).toBe(expected);
+    expect(autoreplySubject(expected, "ATH-0007")).toBe(expected);
+  });
+
+  it("treats the current ticket label literally and retains the existing length limit", () => {
+    expect(autoreplySubject("Re: Pump [ATH-0007.*] [ATH-0007.*]", "ATH-0007.*")).toBe(
+      "Re: Pump [ATH-0007.*]",
+    );
+    const subject = autoreplySubject(`Re: ${"Pump ".repeat(100)} [ATH-0007]`, "ATH-0007");
+    expect(subject.length).toBeLessThanOrEqual(180);
+    expect(subject.endsWith(" [ATH-0007]")).toBe(true);
+    expect(autoreplySubject(subject, "ATH-0007")).toBe(subject);
+  });
+
+  it("keeps an accepted frozen subject and headers unchanged without another send", async () => {
+    const store = memoryStore();
+    const original = "Re: Athena receipt test A3 [ATH-0007]";
+    const ticket = await store.open({
+      resendEmailId: "em_frozen",
+      brand: "athena",
+      fromEmail: "pat@example.com",
+      subject: original,
+      messageId: "<gate@example.com>",
+      receivedAt: "2026-10-30T22:45:01.796Z",
+      rawSummary: "Synthetic frozen receipt fixture",
+      preview: true,
+    });
+    store.rows[0].ticket_number = "ATH-0007";
+    const frozen = {
+      from: SUPPORT_INBOXES.athena.from,
+      to: [SUPPORT_PREVIEW_TO],
+      subject: "Re: Re: Athena receipt test A3 [ATH-0007] [ATH-0007]",
+      text: "Previously accepted synthetic receipt",
+      headers: { ...threadHeaders("<gate@example.com>"), "Message-ID": ticket.receiptMessageId },
+    };
+    await store.claimDelivery(ticket.messageRecordId, "ack", frozen);
+    await store.rememberDelivery(ticket.messageRecordId, "ack", "claim", "accepted_fixture");
+    await store.markNotifySent(ticket.id, "2026-10-30T22:45:02Z");
+    const methods: string[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      methods.push(init?.method ?? "GET");
+      if (methods.at(-1) !== "GET") throw new Error("An accepted receipt must not be resent");
+      const body = String(url).includes("/emails/receiving/")
+        ? { ...baseMail, subject: original }
+        : {
+            id: "accepted_fixture",
+            from: frozen.from,
+            to: frozen.to,
+            message_id: "<accepted-fixture@example.invalid>",
+          };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+    const result = await processSupportInbound("em_frozen", {
+      apiKey: "re_test",
+      store,
+      fetchImpl,
+      env: {},
+    });
+    expect(result).toMatchObject({ autoreply: "sent", ticketNumber: "ATH-0007" });
+    expect(methods).toEqual(["GET", "GET"]);
+    const claimed = await store.claimDelivery(ticket.messageRecordId, "ack", {
+      ...frozen,
+      subject: autoreplySubject(original, "ATH-0007"),
+    });
+    expect(claimed.payload).toEqual(frozen);
+    expect(store.rows[0].subject).toBe(original);
+    expect(store.rows[0].receiptMessageId).toBe("<accepted-fixture@example.invalid>");
+  });
+
   it("skips loops from our addresses, mailer-daemon, auto-submitted, and bulk mail", () => {
     expect(inboundDisposition({ from: "Athena Support <support@meetathena.io>" })).toEqual({
       action: "ignore",
