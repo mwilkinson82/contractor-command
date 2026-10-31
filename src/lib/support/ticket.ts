@@ -221,7 +221,12 @@ export function autoreplySubject(
   original: string | null | undefined,
   ticketNumber: string,
 ): string {
-  const base = oneLine(original ?? "") || "(no subject)";
+  let base = oneLine(original ?? "").replace(/^(?:re:\s*)+/i, "");
+  const label = `[${ticketNumber}]`;
+  // Only remove reply decoration for this ticket, never embedded/other ticket text.
+  while (base === label || base.endsWith(` ${label}`))
+    base = base.slice(0, -label.length).trimEnd();
+  base ||= "(no subject)";
   const prefix = "Re: ";
   const suffix = ` [${ticketNumber}]`;
   const room = Math.max(0, 180 - prefix.length - suffix.length);
