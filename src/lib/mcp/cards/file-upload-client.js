@@ -151,6 +151,9 @@
     b.addEventListener("click", fn);
     return b;
   }
+  function incompleteTransfer(upload) {
+    return upload && !upload.bytes_received && Number(upload.received_chunks || 0) > 0;
+  }
   function sameJob(a, b) {
     return a && b && a.company_id === b.company_id && a.job_number === b.job_number;
   }
@@ -242,10 +245,30 @@
         body.append(
           node(
             "p",
-            "This upload expired before a file was received. Start a new upload only if you want to try again.",
+            incompleteTransfer(current)
+              ? "This upload expired with an incomplete transfer. The complete file is not confirmed."
+              : "This upload expired without a complete, eligible file. Start a new upload only if you want to try again.",
           ),
         );
         if (current.restart) body.append(button("Start new upload", restart));
+      } else if (incompleteTransfer(current)) {
+        body.append(
+          node(
+            "p",
+            "Incomplete transfer. " +
+              String(current.received_chunks) +
+              (Number(current.received_chunks) === 1 ? " chunk recorded; " : " chunks recorded; ") +
+              "the full file is not ready to attach.",
+          ),
+          node("p", "Continue the original transfer in this chat using the same request."),
+          button(
+            "Check upload status",
+            function () {
+              recover(current);
+            },
+            true,
+          ),
+        );
       } else if (current.received_via === "chunks") {
         body.append(
           node(
@@ -308,7 +331,7 @@
         body.append(
           node(
             "p",
-            "No file received. Attach the original in this chat to continue with this same upload request.",
+            "No complete file is confirmed. Attach the original in this chat to continue with this same upload request.",
           ),
         );
       }
@@ -333,8 +356,9 @@
         received = uploads.filter(function (u) {
           return u.bytes_received;
         }),
+        partial = uploads.filter(incompleteTransfer),
         empty = uploads.filter(function (u) {
-          return !u.bytes_received;
+          return !u.bytes_received && !incompleteTransfer(u);
         });
       function uploadRow(u, parent) {
         var c = {
@@ -353,9 +377,13 @@
               ? u.received_via === "chunks"
                 ? String(u.received_chunks) + " chunks received; completeness unconfirmed"
                 : "File received; ready to attach"
-              : u.expired
-                ? "Expired request · No file received"
-                : "No file received",
+              : incompleteTransfer(u)
+                ? u.expired
+                  ? "Expired · Incomplete transfer"
+                  : "Incomplete transfer · Full file not ready"
+                : u.expired
+                  ? "Expired request · No eligible file confirmed"
+                  : "Waiting for a file",
           ),
           button(
             u.expired && !u.bytes_received ? "Review expired upload" : "Resume upload",
@@ -372,13 +400,27 @@
           uploadRow(u, body);
         });
       }
+      if (partial.length) {
+        var transfers = node("details");
+        transfers.append(
+          node("summary", String(partial.length) + " incomplete transfers"),
+          node(
+            "p",
+            "Some chunks were recorded, but the complete file is not confirmed. These transfers are not ready to attach.",
+          ),
+        );
+        partial.forEach(function (u) {
+          uploadRow(u, transfers);
+        });
+        body.append(transfers);
+      }
       if (empty.length) {
         var requests = node("details");
         requests.append(
-          node("summary", String(empty.length) + " requests without a file"),
+          node("summary", String(empty.length) + " requests awaiting a file"),
           node(
             "p",
-            "These requests are separate from the saved files above. No file has been received for them.",
+            "These requests are separate from the saved files above. No complete, eligible file is confirmed for them.",
           ),
         );
         empty.forEach(function (u) {
@@ -498,11 +540,15 @@
         status.textContent =
           current.received_via === "chunks"
             ? "Received chunks are ready for explicit completion. Check that you sent the full file."
-            : current.expired
-              ? "Upload expired."
-              : urlFor(current)
-                ? "Choose the file to add to this job."
-                : "";
+            : incompleteTransfer(current)
+              ? current.expired
+                ? "Upload expired with an incomplete transfer."
+                : "Transfer incomplete."
+              : current.expired
+                ? "Upload expired."
+                : urlFor(current)
+                  ? "Choose the file to add to this job."
+                  : "";
     } catch (e) {
       current = Object.assign({}, current, { verification_pending: true });
       status.textContent = e.message || "Upload recovery was not confirmed.";

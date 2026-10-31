@@ -690,6 +690,64 @@ describe("actual authenticated upload card completion and recovery", () => {
     },
   );
 
+  it.each([false, true])(
+    "distinguishes incomplete registered chunks from empty requests (expired=%s)",
+    async (expired) => {
+      const started = await begin();
+      await sendChunks(started, [1]);
+      if (expired) await expireAfterReceipt(started.result.structuredContent.upload_id);
+      const pending = await list();
+      expect(
+        pending.structuredContent.pending_uploads.find(
+          (u: any) => u.upload_id === started.result.structuredContent.upload_id,
+        ),
+      ).toMatchObject({ bytes_received: false, received_chunks: 1, received_via: null, expired });
+      const v = view();
+      v.result(pending);
+      expect(
+        v
+          .all()
+          .some(
+            (el) =>
+              el.tagName === "DETAILS" &&
+              el.textContent.includes("incomplete transfers") &&
+              el.textContent.includes(started.filename),
+          ),
+      ).toBe(true);
+      v.click(expired ? "Review expired upload" : "Resume upload", started.filename);
+      await vi.waitFor(() =>
+        expect(v.app.textContent.toLowerCase()).toContain("incomplete transfer"),
+      );
+      expect(v.app.textContent).not.toMatch(
+        /No file received|before a file was received|No file has been received/,
+      );
+      expect(v.app.textContent).not.toContain("Finish received chunks");
+      expect(
+        v.calls.some((c) => c.arguments.action === "finish" || c.arguments.action === "begin"),
+      ).toBe(false);
+      expect(
+        (
+          await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [
+            started.result.structuredContent.upload_id,
+          ])
+        ).rows,
+      ).toEqual([]);
+      v.close();
+      const reopened = view();
+      reopened.result(started.result);
+      await vi.waitFor(() =>
+        expect(reopened.app.textContent.toLowerCase()).toContain("incomplete transfer"),
+      );
+      expect(reopened.status.textContent).not.toContain("Choose the file");
+      expect(
+        reopened.calls.some(
+          (c) => c.arguments.action === "finish" || c.arguments.action === "begin",
+        ),
+      ).toBe(false);
+      reopened.close();
+    },
+  );
+
   it("does not associate a conflicting final object in place of received chunks", async () => {
     const started = await begin();
     await sendChunks(started);
@@ -827,7 +885,7 @@ describe("actual authenticated upload card completion and recovery", () => {
       ).toBe(true),
     );
     await vi.waitFor(() => expect(v.app.textContent).toContain("Saved files"));
-    await vi.waitFor(() => expect(v.app.textContent).toContain("requests without a file"));
+    await vi.waitFor(() => expect(v.app.textContent).toContain("requests awaiting a file"));
     expect(v.app.textContent).not.toContain("Uploads to finish");
     expect(
       v.all().some((el) => el.tagName === "DETAILS" && el.textContent.includes(a.filename)),
