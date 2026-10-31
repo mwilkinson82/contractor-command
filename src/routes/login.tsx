@@ -11,9 +11,18 @@ import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost, currentHostname } from "@/lib/athena-host-current";
 import { isLovableHost } from "@/lib/athena-host";
 import { completeAthenaCodeSignIn } from "@/lib/athena-code-sign-in";
+import { reviewerPasswordSignIn } from "@/lib/athena-reviewer-sign-in.functions";
+import {
+  installReviewerSession,
+  memberCodeSignInHref,
+  reviewerSearchFlag,
+  reviewerSignInHref,
+  submitAthenaReviewerPassword,
+} from "@/lib/athena-reviewer-sign-in";
 import { loginCopy } from "@/lib/login-copy";
 import { boundedStep } from "@/lib/consent-loading";
 import { postSignInDefault } from "@/lib/athena-routes";
+import { persistAuthRecord } from "@/integrations/supabase/persistent-auth-storage";
 
 const safeRedirect = oauthReturnPath;
 
@@ -34,9 +43,12 @@ export const Route = createFileRoute("/login")({
       links: [{ rel: "canonical", href: "https://alpcontractorcircle.com" }],
     };
   },
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    redirect: typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { redirect?: string; reviewer?: 1 } => {
+    const redirect =
+      typeof search.redirect === "string" ? safeRedirect(search.redirect) : undefined;
+    const reviewer = reviewerSearchFlag(search.reviewer);
+    return reviewer === 1 ? { redirect, reviewer } : { redirect };
+  },
   beforeLoad: async ({ search }) => {
     // Bounded: on a domain where the auth lock or a stale token stalls getSession (seen on app.meetathena.io when
     // the Site URL moved consent there), show the sign-in form instead of spinning forever.
@@ -56,18 +68,24 @@ function LoginPage() {
   return <LoginForm />;
 }
 
-export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boolean } = {}) {
+export function LoginForm({
+  initialCodeSent = false,
+  initialReviewer = false,
+}: { initialCodeSent?: boolean; initialReviewer?: boolean } = {}) {
   const router = useRouter();
   const navigate = useNavigate();
   const requestMagicLink = useServerFn(requestMemberMagicLink);
-  const { redirect: redirectTo } = Route.useSearch();
+  const reviewerSignIn = useServerFn(reviewerPasswordSignIn);
+  const { redirect: redirectTo, reviewer } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fromConnect = !!oauthConsentReturn(redirectTo);
-  // OAuth consent, the Athena host, and the lovable.app connect host all use the emailed code.
+  // OAuth consent, the Athena host, and the connect host all use the emailed code.
+  // ?reviewer=1 is the one password form, and the server allowlist still decides.
   const athenaBrand = fromConnect || onAthenaHost() || isLovableHost(currentHostname());
+  const [reviewerMode, setReviewerMode] = useState(initialReviewer || reviewer === 1);
   const [mode, setMode] = useState<"magic" | "password">("magic");
   const [magicRequested, setMagicRequested] = useState(false);
   const [codeSent, setCodeSent] = useState(initialCodeSent);
@@ -163,6 +181,39 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
     }
   }
 
+  async function onReviewerSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !isHydrated) return;
+    setBusy(true);
+    setErr(null);
+    const supabaseUrl =
+      import.meta.env.VITE_SUPABASE_URL ||
+      (typeof process !== "undefined" ? process.env.SUPABASE_URL : "") ||
+      "";
+    const result = await submitAthenaReviewerPassword({
+      email,
+      password,
+      redirectTo,
+      onAthenaHost: onAthenaHost(),
+      request: (input) => reviewerSignIn({ data: input }),
+      install: (session) => {
+        installReviewerSession(session, {
+          supabaseUrl,
+          setItem: (key, value) => persistAuthRecord(key, value),
+        });
+      },
+      assign: (url) => window.location.assign(url),
+    });
+    if (!result.ok) {
+      setErr(result.message);
+      if (result.showCode) {
+        setReviewerMode(false);
+        setPassword("");
+      }
+      setBusy(false);
+    }
+  }
+
   async function onPasswordSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (busy || !isHydrated) return;
@@ -196,11 +247,53 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
     magicRequested: athenaBrand ? codeSent : magicRequested,
     email,
   });
+  const reviewerLinkClass =
+    "mx-auto mt-4 block text-center text-[11px] font-medium text-[#6B7280] hover:text-[#1E5FED] hover:underline";
 
   if (athenaBrand) {
     return (
-      <AuthCard brand="athena" title={copy.title} subtitle={copy.subtitle}>
-        {codeSent ? (
+      <AuthCard
+        brand="athena"
+        title={copy.title}
+        subtitle={reviewerMode ? "Password sign-in for the reviewer account." : copy.subtitle}
+      >
+        {reviewerMode ? (
+          <form onSubmit={onReviewerSubmit} className="space-y-5" data-signin="reviewer-password">
+            <AuthField
+              id="email"
+              label="Work email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="name@company.com"
+              autoComplete="username"
+              required
+              autoFocus
+            />
+            <AuthField
+              id="password"
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="current-password"
+              required
+            />
+            {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+            <AuthSubmit
+              busy={busy || !isHydrated}
+              label="Sign in"
+              busyLabel={busy ? "Signing in" : "Sign in"}
+            />
+            <a
+              href={memberCodeSignInHref(redirectTo)}
+              data-signin-alt="member-code"
+              className={reviewerLinkClass}
+            >
+              Email me a sign-in code
+            </a>
+          </form>
+        ) : codeSent ? (
           <form onSubmit={onAthenaCodeSubmit} className="space-y-5" data-signin="email-code">
             <p className="text-[13px] leading-relaxed text-foreground/75">
               Check your inbox and spam folder. Open the newest email only; each code works once.
@@ -230,6 +323,13 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
             >
               Try a different email
             </button>
+            <a
+              href={reviewerSignInHref(redirectTo)}
+              data-signin-alt="reviewer"
+              className={reviewerLinkClass}
+            >
+              Reviewer sign-in
+            </a>
           </form>
         ) : (
           <form onSubmit={onAthenaEmailSubmit} className="space-y-5" data-signin="email-code">
@@ -250,6 +350,13 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
               label="Email me a sign-in code"
               busyLabel={busy ? "Sending code" : "Email me a sign-in code"}
             />
+            <a
+              href={reviewerSignInHref(redirectTo)}
+              data-signin-alt="reviewer"
+              className={reviewerLinkClass}
+            >
+              Reviewer sign-in
+            </a>
           </form>
         )}
       </AuthCard>
