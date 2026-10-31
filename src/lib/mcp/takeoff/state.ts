@@ -98,15 +98,13 @@ export async function engineSnapshot(
   const setup = (estimate.data as { setup?: import("../estimating").Setup } | null)?.setup;
   return {
     ...(data as EngineSnapshot),
-    estimate_scope: setup
-      ? {
-          role: setup.role,
-          trades: setup.trades ?? [],
-          in_scope: setup.in_scope ?? [],
-          out_scope: setup.out_scope ?? [],
-          doc_review: setup.doc_review ?? null,
-        }
-      : undefined,
+    estimate_scope: {
+      role: setup?.role ?? null,
+      trades: setup?.trades ?? [],
+      in_scope: setup?.in_scope ?? [],
+      out_scope: setup?.out_scope ?? [],
+      doc_review: setup?.doc_review ?? null,
+    },
   };
 }
 export function measurementLines(state: EngineSnapshot): LineMeasurement[] {

@@ -60,9 +60,11 @@ describe("agreed foundation scope across gap, settlement and display paths", () 
     expect(state.foundation).toHaveLength(8);
     expect(state.settled).toBe(false);
     expect(foundationGapPrompts(line(), scope).map((g) => g.title)).toEqual(
-      FOUNDATION_CHECKLIST.map((c) => c.label),
+      expect.arrayContaining(FOUNDATION_CHECKLIST.map((c) => c.label)),
     );
-    expect(autoGaps(line(), [], scope)).toHaveLength(8);
+    expect(autoGaps(line(), [], scope)).toHaveLength(
+      8 + state.foundationScope.namedRequirements.length,
+    );
   });
   it("retains limited electrical pole-base/pad work without requiring unrelated slab items", () => {
     const scope = {
@@ -76,7 +78,10 @@ describe("agreed foundation scope across gap, settlement and display paths", () 
     expect(state.foundation).toEqual([]);
     expect(state.settled).toBe(false);
     expect(state.blockers.some((b) => b.includes("Equipment pads"))).toBe(true);
-    expect(autoGaps(lines, [], scope).map((g) => g.title)).toEqual(["Equipment pads"]);
+    expect(autoGaps(lines, [], scope).map((g) => g.title)).toEqual([
+      "Equipment pads",
+      "Pole bases",
+    ]);
   });
   it("does not expand one included electrical footing into the full concrete checklist", () => {
     const scope = {
@@ -182,7 +187,10 @@ describe("agreed foundation scope across gap, settlement and display paths", () 
     expect(state.foundation).toEqual([]);
   });
   it("does not mistake agreed electrical penetrations through foundations for foundation installation", () => {
-    const scope = { ...electrical, in_scope: ["Electrical conduits through slabs and foundation walls"] };
+    const scope = {
+      ...electrical,
+      in_scope: ["Electrical conduits through slabs and foundation walls"],
+    };
     expect(foundationGapPrompts(line(), scope)).toEqual([]);
     expect(settle(line(), [], [], scope).settled).toBe(true);
   });

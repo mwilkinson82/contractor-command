@@ -21,7 +21,7 @@ import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
 import { calibrate, measure, type Calibration, type Shape } from "./geometry";
 import { inspectSheet, renderTile, scaleProposals, sheetSpace, type SheetInspection } from "./pdf";
-import { foundationGapPrompts, parseState, settle, takeoffLineFor } from "../estimating";
+import { parseState, settle, takeoffLineFor } from "../estimating";
 import {
   engineSnapshot,
   measurementStatus,
@@ -410,7 +410,7 @@ export async function viewEngine(
   );
   // Only agreed foundation requirements become checklist gaps. Unknown scope stays a question;
   // work outside the fixed list still needs its own source/quantity evidence.
-  const uncovered = foundationGapPrompts(review.lines, review.setup).filter(
+  const uncovered = settled.foundationGaps.filter(
     (g) => !takeoffLineFor(review.lines, g.title),
   );
   if (uncovered.length)

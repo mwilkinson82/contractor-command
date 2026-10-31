@@ -207,6 +207,7 @@ export const estimatePricing = defineTool({
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) {
+        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
         loaded.lines = verifiedLines(loaded.lines, measurement);
         loaded.verdicts = loaded.verdicts.map((v) =>
           v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
@@ -517,6 +518,7 @@ export const estimateRequirements = defineTool({
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) {
+        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
         loaded.lines = verifiedLines(loaded.lines, measurement);
         loaded.verdicts = loaded.verdicts.map((v) =>
           v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
@@ -616,6 +618,7 @@ export const estimateBidSummary = defineTool({
       const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
       const measurement = await engineSnapshot(sb, job.job_id);
       if (measurement) {
+        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
         loaded.lines = verifiedLines(loaded.lines, measurement);
         loaded.verdicts = loaded.verdicts.map((v) =>
           v.item_kind === "line" ? { ...v, corrected_qty: null } : v,

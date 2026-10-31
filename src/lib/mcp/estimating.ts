@@ -1370,11 +1370,28 @@ export type FoundationScope = {
   state: "included" | "excluded" | "unknown" | "conflicting";
   requiredKeys: string[];
   wholeFoundation: boolean;
+  namedRequirements: { key: string; label: string }[];
   clarification: string | null;
 };
 const FOUNDATION_WORK = /\bfoundations?\b|\bconcrete\b|\bslabs?\b|\bfootings?\b/i;
 const LIMITED_FOUNDATION =
   /\bpads?\b|\bpole (?:bases?|foundations?)\b|\bbollard(?:s| bases?)?\b|\bequipment (?:bases?|foundations?)\b/i;
+const LIMITED_REQUIREMENTS = [
+  { key: "pads", label: "Pads", match: /\bpads?\b/i },
+  { key: "pole_bases", label: "Pole bases", match: /\bpole (?:bases?|foundations?|footings?)\b/i },
+  {
+    key: "bollard_bases",
+    label: "Bollard bases",
+    match: /\bbollard(?:s| bases?|foundations?)?\b/i,
+  },
+  {
+    key: "equipment_bases",
+    label: "Equipment bases",
+    match: /\bequipment (?:bases?|foundations?)\b/i,
+  },
+] as const;
+const NON_FOUNDATION_CONCRETE =
+  /\bsidewalks?\b|\bpaving\b|\b(?:suspended|elevated) (?:concrete )?slabs?\b/i;
 const UNCERTAIN_SCOPE = /\b(?:if|unless|except|maybe|possibly|tbd|confirm|verify)\b|\?/i;
 const NEGATED_SCOPE = /\b(?:no|not|without|exclude[ds]?|by others|nic)\b/i;
 
@@ -1400,21 +1417,26 @@ export function foundationScope(lines: StoredLine[], scope?: EstimateScope): Fou
     // before looking for an independent whole-foundation commitment.
     const remainder = s.replace(/\b(?:pole|equipment) foundations?\b/gi, "bases");
     // References to the concrete another trade installs do not commit this package to installing it.
-    const coordinationOnly = /\b(?:through|within|inside|embedded in|grounding)\b/i.test(remainder) &&
+    const coordinationOnly =
+      /\b(?:through|within|inside|embedded in|grounding)\b/i.test(remainder) &&
       !/\b(?:concrete foundations?|foundation work|footing work|slab on grade)\b/i.test(remainder);
     if (coordinationOnly) return false;
     if (/\bfoundations?\b|\bfootings?\b|\bslab on grade\b/i.test(remainder)) return true;
-    return (
-      !LIMITED_FOUNDATION.test(s) &&
-      FOUNDATION_WORK.test(s) &&
-      !FOUNDATION_CHECKLIST.some((c) => coversFoundation({ item: s }, c))
-    );
+    return false;
   };
   const wholeIn = clearIn.some(wholeWork);
-  const wholeOut = clearOut.some(wholeWork);
-  const limitedIn = clearIn.some((s) => LIMITED_FOUNDATION.test(s));
+  const wholeOut =
+    clearOut.some(wholeWork) ||
+    clearOut.some((s) => /^(?:all )?concrete(?: work)?(?: by others)?$/i.test(s.trim()));
+  const namedRequirements = LIMITED_REQUIREMENTS.filter((requirement) =>
+    [...clearIn, ...source].some((text) => requirement.match.test(text)),
+  ).map(({ key, label }) => ({ key, label }));
+  const limitedIn = namedRequirements.length > 0;
+  const boundedOther =
+    clearIn.some((s) => NON_FOUNDATION_CONCRETE.test(s)) && !wholeIn && !limitedIn;
   const exclusiveOther =
-    clearIn.some((s) => /\bonly\b/i.test(s) && !mentions(s)) && !clearIn.some(mentions);
+    (clearIn.some((s) => /\bonly\b/i.test(s) && !mentions(s)) && !clearIn.some(mentions)) ||
+    boundedOther;
   // A conduit through a slab or a foundation-grounding note is not a concrete installation.
   const directWork = (s: string) =>
     /^(?:(?:cast(?:[- ]in[- ]place)?|pour|construct|install|provide)\s+)?(?:concrete\s+)?(?:foundations?|(?:continuous |isolated )?footings?|slab on grade|equipment pads?|pole (?:bases?|foundations?)|bollard bases?)\b/i.test(
@@ -1471,8 +1493,43 @@ export function foundationScope(lines: StoredLine[], scope?: EstimateScope): Fou
     state,
     requiredKeys,
     wholeFoundation: wholeIn && !conflict && !uncertain,
+    namedRequirements,
     clarification,
   };
+}
+
+function coversLimited(
+  line: StoredLine,
+  requirement: (typeof LIMITED_REQUIREMENTS)[number],
+): boolean {
+  // Feeder/conduit quantities serving a base do not quantify installation of that base.
+  return (
+    requirement.match.test(line.item) &&
+    !/\b(?:conduits?|feeders?|wiring|grounding|circuits?)\b/i.test(line.item)
+  );
+}
+
+/** Named limited work has its own coverage check; it never expands into the eight fixed items. */
+function limitedScopeGaps(lines: StoredLine[], scope: FoundationScope): GapIn[] {
+  return scope.namedRequirements.flatMap((requirement) => {
+    const check = LIMITED_REQUIREMENTS.find((check) => check.key === requirement.key)!;
+    const rows = lines.filter((line) => coversLimited(line, check));
+    // An existing line keeps its normal quantity/exclusion review obligations. Do not create
+    // a second gap for it; this coverage check is specifically for entirely absent work.
+    if (rows.length) return [];
+    return [
+      {
+        kind: "verify",
+        category: "scope_seam",
+        severity: "hard",
+        title: requirement.label,
+        reasoning: `${requirement.label} is included in the agreed scope but has no takeoff line. Add its evidenced takeoff or explicitly review its coverage/exclusion with a reason.`,
+        sheet: "scope not measured",
+        spec_section: "agreed scope",
+        holds_bid: true,
+      } satisfies GapIn,
+    ];
+  });
 }
 
 /** Only included foundation requirements become missing-item prompts; unclear scope is one question. */
@@ -1501,6 +1558,7 @@ export function foundationGapPrompts(lines: StoredLine[], scope?: EstimateScope)
       holds_bid: true,
     };
   });
+  prompts.push(...limitedScopeGaps(lines, applicability));
   if (applicability.clarification)
     prompts.unshift({
       kind: "verify",
@@ -1757,6 +1815,15 @@ export function settle(
   const blockers = items
     .filter((i) => i.status === "open")
     .map((i) => `${i.title} (${i.ref})${i.missing ? ` — ${i.missing}` : ""}`);
+  const resolvedNamed = (title: string) => gaps.some((gap) => {
+    if (normItem(gap.title) !== normItem(title)) return false;
+    const item = items.find((item) => item.kind === "gap" && item.ref === gap.ref);
+    const verdict = latestVerdict(verdicts, (v) => v.item_kind === "gap" && v.gap_ref === gap.ref);
+    return item?.status === "settled" && item.qty != null ||
+      item?.status === "dropped" && verdict?.mark === "not_relevant" && Boolean(verdict.note?.trim());
+  });
+  const namedGaps = limitedScopeGaps(lines, applicability).filter((gap) => !resolvedNamed(gap.title));
+  for (const gap of namedGaps) blockers.push(`${gap.title}: included scope is not accounted for.`);
   if (applicability.clarification) blockers.push(applicability.clarification);
   if (requireList)
     for (const c of checklist)
@@ -1772,7 +1839,7 @@ export function settle(
     checklist,
     foundation,
     foundationScope: applicability,
-    foundationGaps: foundationGapPrompts(lines, opts),
+    foundationGaps: foundationGapPrompts(lines, opts).filter((gap) => !applicability.namedRequirements.some((requirement) => requirement.label === gap.title) || !resolvedNamed(gap.title)),
     stale,
   };
 }
