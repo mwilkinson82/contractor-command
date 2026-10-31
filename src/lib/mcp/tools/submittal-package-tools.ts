@@ -180,42 +180,41 @@ type SavedMail = {
   package_id: string | null;
   job_id: string;
   submittal_id: string;
+  company_id: string;
 };
 const REREAD_SAVED_DRAFT =
   "Re-read the saved draft card (call get) and stop. Do not substitute another delivery_id or draft_key.";
 function sameUuid(a: string | null | undefined, b: string | null | undefined) {
   return (a ?? "").toLowerCase() === (b ?? "").toLowerCase();
 }
-/** Read one delivery the same way other job reads do: this job and submittal only, through the caller's own access. */
+/** Read one delivery the same way other job reads do: this job and company only, through the caller's own access. */
 async function readScopedDelivery(
   sb: Sb,
   jobId: string,
-  submittalId: string,
   deliveryId: string,
-  packageId?: string,
+  scope: { companyId: string; submittalId?: string; packageId?: string },
 ): Promise<SavedMail | null> {
-  const cols = "id,draft_key,package_id,job_id,submittal_id";
-  const result = packageId
-    ? await sb
-        .from("mcp_submittal_mail")
-        .select(cols)
-        .eq("job_id", jobId)
-        .eq("submittal_id", submittalId)
-        .eq("id", deliveryId)
-        .eq("package_id", packageId)
-        .maybeSingle()
-    : await sb
-        .from("mcp_submittal_mail")
-        .select(cols)
-        .eq("job_id", jobId)
-        .eq("submittal_id", submittalId)
-        .eq("id", deliveryId)
-        .maybeSingle();
+  const cols = "id,draft_key,package_id,job_id,submittal_id,company_id";
+  let query = sb
+    .from("mcp_submittal_mail")
+    .select(cols)
+    .eq("job_id", jobId)
+    .eq("company_id", scope.companyId)
+    .eq("id", deliveryId);
+  if (scope.submittalId) query = query.eq("submittal_id", scope.submittalId);
+  if (scope.packageId) query = query.eq("package_id", scope.packageId);
+  const result = await query.maybeSingle();
   if (result.error) dbError(result.error);
   const row = result.data as SavedMail | null;
-  if (!row || !sameUuid(row.job_id, jobId) || !sameUuid(row.submittal_id, submittalId) || !sameUuid(row.id, deliveryId))
+  if (
+    !row ||
+    !sameUuid(row.job_id, jobId) ||
+    !sameUuid(row.company_id, scope.companyId) ||
+    !sameUuid(row.id, deliveryId)
+  )
     return null;
-  if (packageId && !sameUuid(row.package_id, packageId)) return null;
+  if (scope.submittalId && !sameUuid(row.submittal_id, scope.submittalId)) return null;
+  if (scope.packageId && !sameUuid(row.package_id, scope.packageId)) return null;
   return row;
 }
 /**
@@ -686,15 +685,30 @@ export const submittalDelivery = defineTool({
       if (!job) throw new ToolError("Which job has this submittal?");
       if (args.action === "approve" && outboundEmailDisabled())
         throw new ToolError("Email sending is turned off. Nothing was sent.");
-      const sid = await identify(sb, job.job_id, args.submittal_id, args.submittal_number);
-      const data = await context(sb, job.job_id, sid);
-      // Diagnose a mismatched pair before the database function, which only says to show the saved draft.
-      // The read stays on this job and submittal (and this package when one was named). It never returns another row's ids.
-      if (args.action !== "draft")
-        assertDeliveryPair(
-          await readScopedDelivery(sb, job.job_id, sid, args.delivery_id!, args.package_id),
+      let sid: string;
+      if (args.action === "draft") {
+        sid = await identify(sb, job.job_id, args.submittal_id, args.submittal_number);
+      } else {
+        // The saved pair already names one row. Do not ask for a submittal number before reading it.
+        // A named submittal or package that is not this row stays "not found" so another job's pair is never offered.
+        const row = assertDeliveryPair(
+          await readScopedDelivery(sb, job.job_id, args.delivery_id!, {
+            companyId: job.company_id,
+            submittalId: args.submittal_id,
+            packageId: args.package_id,
+          }),
           args.draft_key!,
         );
+        if (args.submittal_number) {
+          const named = await identify(sb, job.job_id, undefined, args.submittal_number);
+          if (!sameUuid(named, row.submittal_id))
+            throw new ToolError(
+              `That submittal number does not match this delivery. ${REREAD_SAVED_DRAFT}`,
+            );
+        }
+        sid = row.submittal_id;
+      }
+      const data = await context(sb, job.job_id, sid);
       const saved = await submittalRpc<{
         id: string;
         draft_key: string;
