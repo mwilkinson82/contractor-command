@@ -1371,6 +1371,7 @@ export type FoundationScope = {
   requiredKeys: string[];
   wholeFoundation: boolean;
   namedRequirements: { key: string; label: string }[];
+  unresolvedClauses: string[];
   clarification: string | null;
 };
 const FOUNDATION_WORK = /\bfoundations?\b|\bconcrete\b|\bslabs?\b|\bfootings?\b/i;
@@ -1412,15 +1413,15 @@ export function foundationScope(lines: StoredLine[], scope?: EstimateScope): Fou
     excluded.some((s) => mentions(s) && UNCERTAIN_SCOPE.test(s));
   const clearIn = included.filter((s) => !UNCERTAIN_SCOPE.test(s) && !NEGATED_SCOPE.test(s));
   const clearOut = excluded.filter((s) => !UNCERTAIN_SCOPE.test(s));
+  const coordinationOnly = (text: string) =>
+    /\b(?:through|within|inside|embedded in|grounding)\b/i.test(text) &&
+    !/\b(?:concrete foundations?|foundation work|footing work|slab on grade)\b/i.test(text);
   const wholeWork = (s: string) => {
     // Mixed scope can include whole foundations AND pads. Remove only limited noun phrases
     // before looking for an independent whole-foundation commitment.
     const remainder = s.replace(/\b(?:pole|equipment) foundations?\b/gi, "bases");
     // References to the concrete another trade installs do not commit this package to installing it.
-    const coordinationOnly =
-      /\b(?:through|within|inside|embedded in|grounding)\b/i.test(remainder) &&
-      !/\b(?:concrete foundations?|foundation work|footing work|slab on grade)\b/i.test(remainder);
-    if (coordinationOnly) return false;
+    if (coordinationOnly(remainder)) return false;
     if (/\bfoundations?\b|\bfootings?\b|\bslab on grade\b/i.test(remainder)) return true;
     return false;
   };
@@ -1432,8 +1433,32 @@ export function foundationScope(lines: StoredLine[], scope?: EstimateScope): Fou
     [...clearIn, ...source].some((text) => requirement.match.test(text)),
   ).map(({ key, label }) => ({ key, label }));
   const limitedIn = namedRequirements.length > 0;
+  // Classify each included clause independently. A known sidewalk or pad does not answer
+  // a separate unspecified-concrete commitment, including one joined in the same entry.
+  const unresolvedClauses = [
+    ...new Set(
+      clearIn.flatMap((entry) =>
+        entry
+          .split(/\s*(?:[,;]|\b(?:and|plus|with|including)\b)\s*/i)
+          .map((clause) => clause.trim())
+          .filter(
+            (clause) =>
+              clause &&
+              mentions(clause) &&
+              !wholeWork(clause) &&
+              !coordinationOnly(clause) &&
+              !NON_FOUNDATION_CONCRETE.test(clause) &&
+              !LIMITED_REQUIREMENTS.some((requirement) => requirement.match.test(clause)) &&
+              !FOUNDATION_CHECKLIST.some((check) => coversFoundation({ item: clause }, check)),
+          ),
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
   const boundedOther =
-    clearIn.some((s) => NON_FOUNDATION_CONCRETE.test(s)) && !wholeIn && !limitedIn;
+    clearIn.some((s) => NON_FOUNDATION_CONCRETE.test(s)) &&
+    !wholeIn &&
+    !limitedIn &&
+    !unresolvedClauses.length;
   const exclusiveOther =
     (clearIn.some((s) => /\bonly\b/i.test(s) && !mentions(s)) && !clearIn.some(mentions)) ||
     boundedOther;
@@ -1472,7 +1497,7 @@ export function foundationScope(lines: StoredLine[], scope?: EstimateScope): Fou
   const conflict = wholeConflict || itemConflict;
   const state = conflict
     ? "conflicting"
-    : uncertain
+    : uncertain || unresolvedClauses.length > 0
       ? "unknown"
       : wholeIn || limitedIn || includedKeys.length > 0
         ? "included"
@@ -1485,15 +1510,19 @@ export function foundationScope(lines: StoredLine[], scope?: EstimateScope): Fou
       : includedKeys;
   const clarification =
     state === "conflicting"
-      ? "Foundation scope conflicts with included work, exclusions, or saved line/source requirements. Confirm which foundation work this estimate includes; existing lines and gaps are preserved."
-      : state === "unknown" || (state === "included" && !wholeIn && !limitedIn && !included.length)
-        ? "Foundation checklist applicability is not established by the agreed estimate scope. Confirm whether foundation work is included, excluded, or limited to named items."
-        : null;
+      ? "Foundation scope conflicts with included work, exclusions, or saved line/source requirements. Confirm which foundation work this estimate includes; existing lines and gaps are preserved." + (unresolvedClauses.length ? ` Unresolved included work: ${unresolvedClauses.map((clause) => `"${clause}"`).join("; ")}.` : "")
+      : unresolvedClauses.length
+        ? `Clarify the included scope for ${unresolvedClauses.map((clause) => `"${clause}"`).join("; ")}. What must be measured or explicitly excluded before this estimate can be settled?`
+        : state === "unknown" ||
+            (state === "included" && !wholeIn && !limitedIn && !included.length)
+          ? "Foundation checklist applicability is not established by the agreed estimate scope. Confirm whether foundation work is included, excluded, or limited to named items."
+          : null;
   return {
     state,
     requiredKeys,
     wholeFoundation: wholeIn && !conflict && !uncertain,
     namedRequirements,
+    unresolvedClauses,
     clarification,
   };
 }
