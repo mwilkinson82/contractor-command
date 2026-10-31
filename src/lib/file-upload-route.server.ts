@@ -251,6 +251,22 @@ export async function handleFileUpload(
     const checked = assertUploadBytes(bytes, session.filename, session.purpose);
     if (session.purpose === "financial_document" && checked.mime !== session.mime_type)
       throw new FileRejected("The file type does not match this upload. Nothing was stored.");
+    // Recheck after reading the body: an upload started before expiry may finish reading after it.
+    if (new Date(session.expires_at).getTime() <= Date.now())
+      return req.method === "PUT"
+        ? json(410, {
+            stored: false,
+            error: "This upload link has expired. Start again from Athena.",
+          })
+        : page(
+            410,
+            uploadPage({
+              filename: session.filename,
+              purpose: label,
+              until: until(session.expires_at),
+              error: "This upload link has expired. Start again from Athena.",
+            }),
+          );
     await deps.put(session.bucket, session.storage_path, bytes, session.mime_type);
   } catch (e) {
     const message =

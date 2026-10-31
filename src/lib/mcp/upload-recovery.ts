@@ -13,6 +13,8 @@ export type RecoverableUpload = {
   status: "open" | "finished";
   expired: boolean;
   bytes_received: boolean;
+  received_via?: "object" | "chunks" | null;
+  received_chunks?: number;
 };
 export type UploadRecovery = { uploads: RecoverableUpload[]; next_before: string | null };
 export class UploadRecoveryUnavailable extends ToolError {

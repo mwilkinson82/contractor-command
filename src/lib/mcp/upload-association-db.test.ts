@@ -15,7 +15,15 @@ const companies = [731, 732, 733].map(
 );
 const jobs = [741, 742, 743].map((n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`);
 const objects = new Map<string, Uint8Array>();
+let uploadInterleave:
+  | ((
+      bucket: string,
+      path: string,
+      bytes: Uint8Array,
+    ) => Promise<{ error: { message: string } } | undefined>)
+  | undefined;
 let db: PGlite;
+let originalRpcMetadata: any[];
 let clients = 0;
 const rpcCalls: string[] = [];
 const claims = { sub: owner, email: "fictional-owner@example.com", role: "authenticated" as const };
@@ -41,6 +49,16 @@ function client() {
     },
     storage: {
       from: (bucket: string) => ({
+        upload: async (path: string, bytes: Uint8Array) => {
+          const raced = await uploadInterleave?.(bucket, path, bytes);
+          if (raced) return raced;
+          if (objects.has(`${bucket}/${path}`)) return { error: { message: "already exists" } };
+          await asUser(db, claims, (tx) =>
+            tx.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [bucket, path]),
+          );
+          objects.set(`${bucket}/${path}`, bytes);
+          return { error: null };
+        },
         download: async (path: string) => ({
           data: objects.has(`${bucket}/${path}`)
             ? new Blob([objects.get(`${bucket}/${path}`)! as BlobPart])
@@ -73,7 +91,7 @@ const list = (company = companies[0]) =>
     company_id: company,
     action: "list",
     offset: 0,
-    limit: 10,
+    limit: 25,
   });
 
 beforeAll(async () => {
@@ -82,7 +100,7 @@ beforeAll(async () => {
     "CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$;",
   );
   await db.exec(
-    "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated; GRANT SELECT,INSERT,UPDATE,DELETE ON storage.objects TO authenticated;",
+    "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now()); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated; GRANT SELECT,INSERT,UPDATE,DELETE ON storage.objects TO authenticated;",
   );
   for (const filename of [
     "20261021190000_athena_team_invites.sql",
@@ -90,7 +108,13 @@ beforeAll(async () => {
     "20261031120000_athena_file_upload.sql",
   ])
     await db.exec(readFileSync(`supabase/migrations/${filename}`, "utf8"));
-  await db.exec(readFileSync("release-proposals/file-upload-recovery.sql", "utf8"));
+  await db.exec(readFileSync("drizzle/migrations/0053_file_upload_recovery.sql", "utf8"));
+  originalRpcMetadata = (
+    await db.query(
+      "SELECT proname,pg_get_function_identity_arguments(oid) AS args,provolatile,prosecdef,proacl::text,proconfig FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('mcp_file_upload_recovery','mcp_file_upload_get','mcp_file_upload_chunk','mcp_file_upload_complete') ORDER BY proname",
+    )
+  ).rows;
+  await db.exec(readFileSync("release-proposals/file-upload-received-bytes.sql", "utf8"));
   for (const user of [owner, outsider, peer]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES($1,'fixture@example.com')", [user]);
     await db.query("INSERT INTO test_active_members VALUES($1)", [user]);
@@ -170,6 +194,15 @@ async function upload(purpose = "contract") {
 }
 
 describe("upload and company choices across fresh scoped tool calls", () => {
+  it("preserves installed RPC signatures, execute ACLs, volatility and security settings", async () => {
+    const revised = (
+      await db.query(
+        "SELECT proname,pg_get_function_identity_arguments(oid) AS args,provolatile,prosecdef,proacl::text,proconfig FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('mcp_file_upload_recovery','mcp_file_upload_get','mcp_file_upload_chunk','mcp_file_upload_complete') ORDER BY proname",
+      )
+    ).rows;
+    expect(revised).toEqual(originalRpcMetadata);
+  });
+
   it("denies direct RPC metadata and pending-state mutations for another same-job member", async () => {
     const { begun } = await upload("spec");
     expect(await rawUploadRpc(peer, "get", begun.upload_id)).toBeNull();
@@ -415,6 +448,323 @@ describe("actual authenticated upload card completion and recovery", () => {
       reopened.close();
     },
   );
+
+  async function expireAfterReceipt(uploadId: string) {
+    await db.query(
+      "UPDATE mcp_file_uploads SET created_at=now()-interval '121 minutes',expires_at=now()-interval '1 minute' WHERE id=$1",
+      [uploadId],
+    );
+    await db.query(
+      "UPDATE storage.objects SET created_at=now()-interval '2 minutes',updated_at=now()-interval '2 minutes' WHERE name LIKE '%'||$1||'/%'",
+      [uploadId],
+    );
+  }
+  async function sendChunks(started: Awaited<ReturnType<typeof begin>>, indexes = [0, 1]) {
+    for (const index of indexes)
+      await call(fileUpload, {
+        action: "chunk",
+        company_id: companies[0],
+        job_number: "SYN-1",
+        upload_id: started.result.structuredContent.upload_id,
+        chunk_index: index,
+        content_base64: Buffer.from(index === 0 ? "Fictional " : "chunk text").toString("base64"),
+      });
+  }
+
+  it.each(["contract", "spec"])(
+    "recovers a %s received before expiry after a lost PUT response without another upload",
+    async (purpose) => {
+      const started = await begin(purpose);
+      const first = view({
+        fetch: async (input, init) => {
+          await put(input, init);
+          throw new Error("PUT response lost");
+        },
+      });
+      await ready(first, started.result);
+      choose(first, started.filename);
+      await vi.waitFor(() => expect(first.status.textContent).toContain("PUT response lost"));
+      first.close();
+      await expireAfterReceipt(started.result.structuredContent.upload_id);
+      const recovered = view({
+        fetch: async () => {
+          throw new Error("Must not re-upload");
+        },
+      });
+      recovered.result(await list());
+      recovered.click("Resume upload", started.filename);
+      await vi.waitFor(() => expect(recovered.status.textContent).toBe("File added to job."));
+      const saves = rpcCalls.filter((n) => n === "mcp_contract_document_save").length;
+      const again = view();
+      again.result(started.result);
+      await vi.waitFor(() => expect(again.status.textContent).toBe("File added to job."));
+      expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves);
+      expect(
+        (await list()).structuredContent.documents.some((d: any) => d.name === started.filename),
+      ).toBe(true);
+      recovered.close();
+      again.close();
+    },
+  );
+
+  it.each([false, true])(
+    "shows chunk-only recovery, requires explicit finish, and reconciles lost finish replies (expired=%s)",
+    async (expired) => {
+      const started = await begin();
+      await sendChunks(started);
+      if (expired) await expireAfterReceipt(started.result.structuredContent.upload_id);
+      let lose = true;
+      const v = view({
+        dispatch: async (name, args) => {
+          const r = await dispatch(name, args);
+          if (args.action === "finish" && lose) {
+            lose = false;
+            throw new Error("Finish response lost");
+          }
+          return r;
+        },
+      });
+      const fresh = await list();
+      expect(
+        fresh.structuredContent.pending_uploads.find(
+          (u: any) => u.upload_id === started.result.structuredContent.upload_id,
+        ),
+      ).toMatchObject({
+        bytes_received: true,
+        received_via: "chunks",
+        received_chunks: 2,
+        expired,
+      });
+      v.result(fresh);
+      v.click("Resume upload", started.filename);
+      await vi.waitFor(() => expect(v.app.textContent).toContain("2 chunks received"));
+      expect(v.calls.some((c) => c.arguments.action === "finish")).toBe(false);
+      expect(
+        (await list()).structuredContent.documents.some((d: any) => d.name === started.filename),
+      ).toBe(false);
+      v.click("Finish received chunks");
+      await vi.waitFor(() => expect(v.status.textContent).toContain("Finish response lost"));
+      const saves = rpcCalls.filter((n) => n === "mcp_contract_document_save").length;
+      v.click("Retry completion");
+      await vi.waitFor(() => expect(v.status.textContent).toBe("File added to job."));
+      expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves);
+      const docs = (
+        await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [
+          started.result.structuredContent.upload_id,
+        ])
+      ).rows;
+      expect(docs).toHaveLength(1);
+      v.close();
+    },
+  );
+
+  it("never auto-attaches an unknown chunk prefix and does not treat gaps or late chunks as received files", async () => {
+    const prefix = await begin();
+    await sendChunks(prefix, [0]);
+    const v = view();
+    v.result(await list());
+    v.click("Resume upload", prefix.filename);
+    await vi.waitFor(() => expect(v.app.textContent).toContain("1 chunks received"));
+    expect(v.calls.some((c) => c.arguments.action === "finish")).toBe(false);
+    v.close();
+    const gap = await begin();
+    await sendChunks(gap, [1]);
+    await expireAfterReceipt(gap.result.structuredContent.upload_id);
+    const late = await begin();
+    await sendChunks(late);
+    await expireAfterReceipt(late.result.structuredContent.upload_id);
+    await db.query("UPDATE storage.objects SET updated_at=now() WHERE name LIKE '%'||$1||'/%'", [
+      late.result.structuredContent.upload_id,
+    ]);
+    for (const started of [gap, late]) {
+      const pending = (await list()).structuredContent.pending_uploads.find(
+        (u: any) => u.upload_id === started.result.structuredContent.upload_id,
+      );
+      expect(pending).toMatchObject({ bytes_received: false, received_via: null, expired: true });
+      await expect(
+        dispatch("file_upload", {
+          action: "finish",
+          company_id: companies[0],
+          job_number: "SYN-1",
+          upload_id: started.result.structuredContent.upload_id,
+        }),
+      ).rejects.toThrow("expired before eligible bytes");
+      await expect(
+        rawUploadRpc(owner, "complete", started.result.structuredContent.upload_id),
+      ).rejects.toThrow("expired before eligible bytes");
+    }
+  });
+
+  it.each(["different", "identical", "missing"])(
+    "verifies the canonical object after an insert race (%s) and retries the same upload",
+    async (mode) => {
+      const started = await begin();
+      await sendChunks(started);
+      await expireAfterReceipt(started.result.structuredContent.upload_id);
+      const session = (
+        await db.query<any>("SELECT bucket,storage_path FROM mcp_file_uploads WHERE id=$1", [
+          started.result.structuredContent.upload_id,
+        ])
+      ).rows[0];
+      const key = `${session.bucket}/${session.storage_path}`;
+      const v = view();
+      v.result(await list());
+      v.click("Resume upload", started.filename);
+      await vi.waitFor(() => expect(v.app.textContent).toContain("2 chunks received"));
+      const saves = rpcCalls.filter((n) => n === "mcp_contract_document_save").length;
+      let collisions = 0;
+      uploadInterleave = async (bucket, path, bytes) => {
+        if (path !== session.storage_path) return;
+        collisions++;
+        await asUser(db, claims, (tx) =>
+          tx.query("INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)", [bucket, path]),
+        );
+        if (mode !== "missing")
+          objects.set(
+            key,
+            mode === "identical"
+              ? bytes.slice()
+              : new TextEncoder().encode("A concurrent conflicting file"),
+          );
+        return { error: { message: "already exists" } };
+      };
+      try {
+        v.click("Finish received chunks");
+        if (mode !== "identical") {
+          await vi.waitFor(() =>
+            expect(v.status.textContent).toContain("stored file could not be verified"),
+          );
+          expect(v.app.textContent).not.toContain("File added to job");
+          expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves);
+          expect(
+            (
+              await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [
+                started.result.structuredContent.upload_id,
+              ])
+            ).rows,
+          ).toEqual([]);
+          expect(
+            (
+              await db.query<any>("SELECT status FROM mcp_file_uploads WHERE id=$1", [
+                started.result.structuredContent.upload_id,
+              ])
+            ).rows[0].status,
+          ).toBe("open");
+          // Model the competing writer being reconciled, then retry through the same card/ID.
+          objects.delete(key);
+          await db.query("DELETE FROM storage.objects WHERE bucket_id=$1 AND name=$2", [
+            session.bucket,
+            session.storage_path,
+          ]);
+          uploadInterleave = undefined;
+          v.click("Retry completion");
+          await vi.waitFor(() => expect(v.app.textContent).toContain("2 chunks received"));
+          v.click("Finish received chunks");
+        }
+        await vi.waitFor(() => expect(v.status.textContent).toBe("File added to job."));
+        expect(collisions).toBe(1);
+        expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves + 1);
+        const rows = (
+          await db.query<any>("SELECT id,file_sha256 FROM mcp_spec_documents WHERE upload_id=$1", [
+            started.result.structuredContent.upload_id,
+          ])
+        ).rows;
+        expect(rows).toHaveLength(1);
+        const { sha256Hex } = await import("./file-share");
+        expect(rows[0].file_sha256).toBe(await sha256Hex(objects.get(key)!));
+        uploadInterleave = undefined;
+        const again = view();
+        again.result(started.result);
+        await vi.waitFor(() => expect(again.status.textContent).toBe("File added to job."));
+        expect(rpcCalls.filter((n) => n === "mcp_contract_document_save")).toHaveLength(saves + 1);
+        expect(
+          v.calls
+            .filter((c) => c.arguments.action === "finish")
+            .every((c) => c.arguments.upload_id === started.result.structuredContent.upload_id),
+        ).toBe(true);
+        again.close();
+      } finally {
+        uploadInterleave = undefined;
+        v.close();
+      }
+    },
+  );
+
+  it("does not associate a conflicting final object in place of received chunks", async () => {
+    const started = await begin();
+    await sendChunks(started);
+    await expireAfterReceipt(started.result.structuredContent.upload_id);
+    const session = (
+      await db.query<any>("SELECT bucket,storage_path FROM mcp_file_uploads WHERE id=$1", [
+        started.result.structuredContent.upload_id,
+      ])
+    ).rows[0];
+    await client()
+      .storage.from(session.bucket)
+      .upload(session.storage_path, new TextEncoder().encode("Conflicting final object"));
+    await expect(
+      dispatch("file_upload", {
+        action: "finish",
+        company_id: companies[0],
+        job_number: "SYN-1",
+        upload_id: started.result.structuredContent.upload_id,
+      }),
+    ).rejects.toThrow("differs from the received chunks");
+    expect(
+      (
+        await db.query<any>("SELECT id FROM mcp_spec_documents WHERE upload_id=$1", [
+          started.result.structuredContent.upload_id,
+        ])
+      ).rows,
+    ).toEqual([]);
+  });
+
+  it("denies late/modified objects and expired chunk writes while preserving creator/job/purpose checks", async () => {
+    const started = await begin();
+    await sendChunks(started);
+    await expireAfterReceipt(started.result.structuredContent.upload_id);
+    await expect(
+      call(fileUpload, {
+        action: "chunk",
+        company_id: companies[0],
+        job_number: "SYN-1",
+        upload_id: started.result.structuredContent.upload_id,
+        chunk_index: 2,
+        content_base64: Buffer.from("late").toString("base64"),
+      }),
+    ).rejects.toThrow("expired");
+    await expect(
+      rawUploadRpc(peer, "complete", started.result.structuredContent.upload_id),
+    ).rejects.toThrow("not available");
+    expect(
+      await rawUploadRpc(owner, "get", started.result.structuredContent.upload_id, jobs[1]),
+    ).toBeNull();
+    await db.query("UPDATE mcp_file_uploads SET purpose='submittal_piece' WHERE id=$1", [
+      started.result.structuredContent.upload_id,
+    ]);
+    await db.query(
+      "UPDATE mcp_company_members SET role='contracts' WHERE company_id=$1 AND user_id=$2",
+      [companies[0], owner],
+    );
+    try {
+      await expect(
+        rawUploadRpc(owner, "complete", started.result.structuredContent.upload_id),
+      ).rejects.toThrow("not available");
+    } finally {
+      await db.query(
+        "UPDATE mcp_company_members SET role='owner' WHERE company_id=$1 AND user_id=$2",
+        [companies[0], owner],
+      );
+    }
+    const object = await upload("spec");
+    await expireAfterReceipt(object.begun.upload_id);
+    await db.query("UPDATE storage.objects SET updated_at=now() WHERE name LIKE '%'||$1||'/%'", [
+      object.begun.upload_id,
+    ]);
+    await expect(rawUploadRpc(owner, "complete", object.begun.upload_id)).rejects.toThrow(
+      "expired before eligible bytes",
+    );
+  });
 
   it("retries completion with the same ID after a recoverable host failure", async () => {
     const started = await begin();
