@@ -42,12 +42,22 @@ export function accountingTargetFromSearch(search: Record<string, unknown>) {
   if (!["record_kind", "record_id", "version", "payable_id"].some((k) => search[k] !== undefined))
     return null;
   // Invalid or incomplete targets must stay targeted errors, never become a generic report.
+  // Router search is JSON-decoded: a bare version=4 arrives as number 4,
+  // while URLSearchParams and JSON-quoted router links supply string "4".
+  // Keep the exact value; the target schema still enforces integer/range/kind.
   const v = search.version;
   return accountingTarget.parse({
     kind: search.record_kind,
     id: search.record_id,
     ...(v !== undefined
-      ? { version: typeof v === "string" && /^[1-9]\d{0,8}$/.test(v) ? Number(v) : NaN }
+      ? {
+          version:
+            typeof v === "number"
+              ? v
+              : typeof v === "string" && /^[1-9]\d{0,8}$/.test(v)
+                ? Number(v)
+                : NaN,
+        }
       : {}),
     ...(search.payable_id !== undefined ? { payableId: search.payable_id } : {}),
   });
