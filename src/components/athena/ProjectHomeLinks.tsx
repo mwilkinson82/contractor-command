@@ -6,7 +6,7 @@ export type ProjectHomeJob = { id: string; job_number: string | null; name: stri
 export function ProjectHomeLinks({ jobs }: { jobs: ProjectHomeJob[] }) {
   if (!jobs.length) return null;
   return (
-    <section className="mt-8 rounded-2xl border border-[#D1D5DB] bg-white p-7">
+    <section className="mt-8 min-w-0 [overflow-wrap:anywhere] rounded-2xl border border-[#D1D5DB] bg-white p-7">
       <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#6B7280]">
         Project dashboards
       </p>

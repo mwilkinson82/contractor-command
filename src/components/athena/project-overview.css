@@ -1,4 +1,6 @@
 .job-home {
+  min-width: 0;
+  overflow-wrap: anywhere;
   min-height: 100vh;
   background: #edf2f8;
   color: #1c3654;
@@ -11,6 +13,7 @@
   line-height: 1.5;
 }
 .job-home * {
+  min-width: 0;
   box-sizing: border-box;
 }
 .job-home a {

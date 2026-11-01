@@ -219,7 +219,7 @@ export function ProductionReportPage({
   )
     return <ProjectReadUnavailable />;
   return (
-    <main className="min-h-screen bg-[#F6F8FB] px-4 py-7 text-[#183453] sm:px-6">
+    <main className="min-h-screen min-w-0 [overflow-wrap:anywhere] [&_*]:min-w-0 bg-[#F6F8FB] px-4 py-7 text-[#183453] sm:px-6">
       <div className="mx-auto max-w-5xl rounded-2xl border border-[#DCE3EC] bg-white px-5 py-6 sm:px-8 sm:py-8">
         <nav
           aria-label="Project navigation"

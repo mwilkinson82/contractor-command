@@ -55,7 +55,7 @@ export function RequestLogPage({
     const style = rendered.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
     const body = rendered.match(/<body>([\s\S]*?)<\/body>/)?.[1] ?? "";
     return (
-      <main style={{ padding: 16 }}>
+      <main style={{ padding: 16, minWidth: 0, overflowWrap: "anywhere" }}>
         {session?.user.email && (
           <p style={{ color: "#6B7280", fontSize: 12 }}>Browser account: {session.user.email}</p>
         )}

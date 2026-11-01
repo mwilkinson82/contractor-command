@@ -373,7 +373,7 @@ export function uploadPage(input: {
     : input.error
       ? `<h1>Upload didn't work</h1><p class="err">${escapeHtml(input.error)}</p>`
       : `<h1>Upload this file</h1><p>${escapeHtml(input.filename)} · ${escapeHtml(input.purpose)} · link works until ${escapeHtml(input.until)}.</p><form method="post" enctype="multipart/form-data"><input type="file" name="file" required><button type="submit">Upload file</button></form>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${title} · Athena</title><style>body{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;background:#F4F7FB;color:#1E3A5F}main{max-width:32rem;margin:10vh auto;padding:24px}button{background:#1E5FED;color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit}p{color:#4B5563}.err{color:#B91C1C}input{display:block;margin:16px 0}</style></head><body><main>${body}</main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${title} · Athena</title><style>*{box-sizing:border-box}body{margin:0;overflow-wrap:anywhere;font-family:ui-sans-serif,system-ui,sans-serif;background:#F4F7FB;color:#1E3A5F}main{width:100%;max-width:32rem;margin:10vh auto;padding:24px}button{background:#1E5FED;color:#fff;border:0;border-radius:8px;padding:12px 18px;font:inherit}p{color:#4B5563}.err{color:#B91C1C}input{display:block;max-width:100%;margin:16px 0}</style></head><body><main>${body}</main></body></html>`;
 }
 
 export async function readBounded(req: Request | Response, max: number): Promise<Uint8Array> {

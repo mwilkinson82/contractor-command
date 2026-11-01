@@ -271,7 +271,7 @@ export function goneHtml(): string {
   return (
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link unavailable</title></head>` +
     `<body style="margin:0;background:#F3F4F6;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#6B7280">` +
-    `<main style="max-width:480px;margin:15vh auto;background:#FFFFFF;border:1px solid #D1D5DB;border-radius:12px;padding:32px">` +
+    `<main style="box-sizing:border-box;width:calc(100% - 32px);max-width:480px;margin:15vh auto;background:#FFFFFF;border:1px solid #D1D5DB;border-radius:12px;padding:32px">` +
     `<h1 style="margin:0 0 12px;font-size:20px;color:#2563EB">This link isn't available</h1>` +
     `<p style="margin:0;line-height:1.5">It has expired or was turned off. Ask the sender for a new link.</p>` +
     `<p style="margin:24px 0 0;font-size:12px;color:#9CA3AF">Athena powered by ALP</p></main></body></html>`

@@ -1,3 +1,4 @@
+import { reportSurface } from "./report-surface";
 import { changeSections, changeMoney } from "./mcp/change-orders";
 // The submittal record page: /r/job/<job>/submittal/<number>. One address per submittal number; every log row opens it.
 // Pure logic: payload types and one HTML renderer shared by the signed-in page and the board-token page.
@@ -391,7 +392,7 @@ export function submittalRecordTimeline(events: RecordEventRow[]): RecordEventRo
 }
 
 /** Page body (no <html>). Used inside the signed-in page and the board-token page. */
-export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
+function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
   const today = day(p.today);
   const row = p.current;
   const purpose = packagePurpose(row.package_purpose);
@@ -445,4 +446,9 @@ export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
   );
   const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes · Athena powered by ALP</p>`;
   return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 8px;font-size:22px;color:${NAVY}">${title}</h1>${head}${what}${requestBody}${changeBody}${changeHistory}${piecesHtml(items, p.read_only === true)}${filesHtml(p.packages ?? [], p.transmittals ?? [], p.time_zone_context ?? { job: p.time_zone })}${mailHtml(p.mail ?? [])}${revisionsHtml(p.revisions ?? [])}${timeline}${foot}</div>`;
+}
+
+/** Long references, evidence names and correspondence fit the current pane. */
+export function renderSubmittalRecordBody(p: SubmittalRecordPayload): string {
+  return reportSurface(renderSubmittalRecordContent(p));
 }

@@ -140,7 +140,7 @@ export function OrganizationProfile(props: OrganizationProfileProps) {
       </div>
     );
   return (
-    <section className="aa-card" aria-label="Organization profile editor">
+    <section className="aa-card min-w-0 [overflow-wrap:anywhere] [&_*]:min-w-0" aria-label="Organization profile editor">
       <h3 className="text-lg font-semibold">Organization profile</h3>
       <div className="my-4 rounded-lg border border-[#D1D5DB] bg-[#F5F8FC] p-4 text-sm">
         <p>
@@ -159,9 +159,9 @@ export function OrganizationProfile(props: OrganizationProfileProps) {
           Workspace names, teams and job access are managed separately.
         </p>
       </div>
-      <fieldset disabled={busy} className="space-y-5">
+      <fieldset disabled={busy} className="min-w-0 space-y-5">
         <legend className="sr-only">Edit this account's organization profile</legend>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="text-sm">
             Organization name
             <input
@@ -204,7 +204,7 @@ export function OrganizationProfile(props: OrganizationProfileProps) {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           {preview || props.company?.logo_path ? (
             <img
               src={preview ?? logoPublicUrl(props.company?.logo_path) ?? undefined}
@@ -224,7 +224,7 @@ export function OrganizationProfile(props: OrganizationProfileProps) {
                 chooseLogo(e.target.files?.[0]);
                 e.target.value = "";
               }}
-              className="mt-1 block max-w-full text-sm"
+              className="mt-1 block w-full max-w-full text-sm"
             />
             <span className="mt-1 block text-xs text-[#6B7280]">
               Image under 2 MB. Uploaded when you save this profile.
