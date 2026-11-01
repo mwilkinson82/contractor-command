@@ -48,7 +48,12 @@ export function AccountingReportView({
         </button>
       </div>
       <h2 className="mt-8 text-lg font-semibold">Recorded amounts</h2>
-      <div className="af-summary-table overflow-x-auto">
+      <div
+        className="af-summary-table overflow-x-auto"
+        role="region"
+        aria-label="Recorded amounts"
+        tabIndex={0}
+      >
         <table className="mt-3 w-full text-left text-sm">
           <thead>
             <tr className="border-b">
@@ -80,7 +85,12 @@ export function AccountingReportView({
               Unknown.
             </p>
           ) : null}
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-x-auto"
+            role="region"
+            aria-label="Posted AP currency groups"
+            tabIndex={0}
+          >
             <table className="mt-3 w-full text-left text-sm">
               <thead>
                 <tr>
@@ -108,7 +118,7 @@ export function AccountingReportView({
             </table>
           </div>
           <h3 className="mt-5 font-semibold">AP cost codes by currency</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" role="region" aria-label="AP cost codes" tabIndex={0}>
             <table className="mt-3 w-full text-left text-sm">
               <thead>
                 <tr>
@@ -133,7 +143,12 @@ export function AccountingReportView({
             {report.ap.rows.length} total AP allocation rows. The page controls below apply to both
             source tables.
           </p>
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-x-auto"
+            role="region"
+            aria-label="AP source evidence"
+            tabIndex={0}
+          >
             <table className="mt-3 w-full text-left text-sm">
               <thead>
                 <tr>
@@ -186,7 +201,12 @@ export function AccountingReportView({
         equipment and categories remain unknown. Remaining budget is not a forecast.
       </p>
       {report.costCodes.length ? (
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          role="region"
+          aria-label="Budget by cost code"
+          tabIndex={0}
+        >
           <table className="mt-3 w-full text-left text-sm">
             <thead>
               <tr className="border-b">
@@ -221,7 +241,12 @@ export function AccountingReportView({
         These different row types must not be summed together.
       </p>
       {ledger.rows.length ? (
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          role="region"
+          aria-label="Accounting source ledger"
+          tabIndex={0}
+        >
           <table className="mt-3 w-full text-left text-sm">
             <thead>
               <tr className="border-b">
