@@ -71,7 +71,6 @@ export const CARD_TOOLS = new Set([
   "resolve_item",
   "carry_forward",
   "contract_terms",
-  "report",
   "email_confirm_send",
   "drawing_set_import",
   "drawing_markup",

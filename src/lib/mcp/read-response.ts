@@ -4,6 +4,7 @@ export const READ_RESPONSE_GUIDANCE =
 
 export const TEXT_READ_TOOLS = new Set([
   "jobs_list",
+  "report",
   "report_page_link",
   "accounting_report",
   "billing_evidence_read",

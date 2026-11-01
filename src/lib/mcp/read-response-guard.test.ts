@@ -47,6 +47,46 @@ describe("read results through the real guard", () => {
       expect(read).toHaveBeenCalledOnce();
     },
   );
+  it("keeps every SOV row, chart and deep link without producing the duplicate Job report widget", async () => {
+    const rows = Array.from({ length: 12 }, (_, i) => ({
+      line: String(i + 1),
+      scheduled_value_display: `$${i + 1}.00`,
+      cost_code: `26-${i + 1}`,
+    }));
+    const source = {
+      content: [
+        {
+          type: "text",
+          text:
+            rows
+              .map((r) => `${r.line} | ${r.cost_code} | ${r.scheduled_value_display}`)
+              .join("\n") + "\nhttps://app.meetathena.io/r/job/synthetic/payapp",
+        },
+      ],
+      structuredContent: {
+        sov: { line_items: rows, contract_total_display: "$78.00", billing: null },
+        chart: { bars: rows },
+        card: {
+          state: "result",
+          title: "Schedule of values",
+          kpis: [{ label: "Basis", value: "Synthetic basis" }],
+        },
+      },
+    };
+    const result = await run("report", ctx, {}, async () => source);
+    expect(result.content).toEqual(source.content);
+    expect(result.structuredContent.sov).toEqual(source.structuredContent.sov);
+    expect(result.structuredContent.chart).toEqual(source.structuredContent.chart);
+    expect(JSON.stringify(result)).not.toMatch(
+      /resourceUri|outputTemplate|Card shown|REQUIRED VIEW|<!doctype|getting_started|morning_card/,
+    );
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+      "mcp_abuse_cap_check",
+      "mcp_gate",
+      "mcp_security_touch",
+      "mcp_session_touch",
+    ]);
+  });
   it("returns actionable reversed-range validation through the actual accounting tool and guard", async () => {
     await expect(
       accountingReport.handler(
