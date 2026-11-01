@@ -301,7 +301,7 @@ describe("first-run attachment preserves the requested result", () => {
       ),
     );
     const action = () =>
-      run("report", ctx, {}, async () => ({
+      run("intake", ctx, {}, async () => ({
         content: [{ type: "text", text: "QA-1 saved report facts" }],
       }));
     const first = (await action()) as unknown as Result;

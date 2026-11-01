@@ -473,7 +473,7 @@ export function nativeCardPayload(
       result &&
       result.isError !== true &&
       call.claude &&
-      cardMetaFor(String(call.params.name ?? ""))
+      (cardMetaFor(String(call.params.name ?? "")) || call.params.name === "report")
     ) {
       const name = String(call.params.name ?? "");
       const replied = claudeCardReply(result, name);

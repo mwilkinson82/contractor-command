@@ -1225,7 +1225,7 @@ export const answer = defineTool({
 export const report = defineTool({
   name: "report",
   title: "Job report",
-  description: "Returns the job setup report or a two-week lookahead.",
+  description: "Returns complete source data and ordinary conversation text for job setup, schedule of values or a two-week lookahead without a duplicate embedded report card.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

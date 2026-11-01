@@ -102,9 +102,9 @@ const TOOLS = [
 ] as const;
 
 describe("locked behaviors", () => {
-  it("keeps native card membership unchanged", () => {
+  it("keeps action card membership while report reads use the conversation", () => {
     expect(NATIVE_CARD_TOOLS.has("contract_terms")).toBe(true);
-    expect(NATIVE_CARD_TOOLS.has("report")).toBe(true);
+    expect(NATIVE_CARD_TOOLS.has("report")).toBe(false);
     expect(NATIVE_CARD_TOOLS.has("morning_brief")).toBe(true);
     expect(NATIVE_CARD_TOOLS.has("pm_morning")).toBe(false);
     expect(NATIVE_CARD_TOOLS.has("drawing_markup")).toBe(false);

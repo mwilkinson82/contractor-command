@@ -1,6 +1,8 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { attachAthenaCard } from "./attach";
+import { inferCard } from "./infer";
+import { renderHtml } from "./html";
+import { renderMarkdown } from "./markdown";
 import { cardWidgetHtml } from "./widget";
 import { emptyCard, lookaheadView } from "../styled-views";
 import { signedJobUrl } from "../board-url";
@@ -25,9 +27,12 @@ function result(url: string, prefix = "2701 – ") {
       items: [],
       pageUrl: url,
     });
-  return attachAthenaCard("report", { content: [{ type: "text", text }] }) as unknown as {
-    content: { text: string }[];
-    structuredContent: { card: CardModel; html: string };
+  // Legacy card renderers remain readable, even though new report replies no
+  // longer automatically open them above the native conversation response.
+  const card = inferCard("report", text, {});
+  return {
+    content: [{ text: renderMarkdown(card) }],
+    structuredContent: { card, html: renderHtml(card) },
   };
 }
 
@@ -71,17 +76,12 @@ describe("lookahead report card link", () => {
   });
 
   it("also preserves the live board link when the lookahead has no saved schedule", () => {
-    const shown = attachAthenaCard("report", {
-      content: [
-        {
-          type: "text",
-          text:
-            "2701 – " +
-            emptyCard("lookahead", "2701 Harbor", "Send the schedule export.", [], href),
-        },
-      ],
-    }) as unknown as { structuredContent: { html: string } };
-    assertAddress(shown.structuredContent.html);
+    const card = inferCard(
+      "report",
+      "2701 – " + emptyCard("lookahead", "2701 Harbor", "Send the schedule export.", [], href),
+      {},
+    );
+    assertAddress(renderHtml(card));
   });
 
   it.each([
