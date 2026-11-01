@@ -234,7 +234,12 @@ export function AccountingReports({
           {additional.length > 0 && (
             <section className="af-readable-table">
               <h2>Additional recorded measures</h2>
-              <div className="overflow-x-auto">
+              <div
+                className="overflow-x-auto"
+                role="region"
+                aria-label="Additional recorded measures"
+                tabIndex={0}
+              >
                 <table>
                   <thead>
                     <tr>
@@ -278,7 +283,12 @@ export function AccountingReports({
                 </button>
               </div>
               {table.rows.length ? (
-                <div className="overflow-x-auto">
+                <div
+                  className="overflow-x-auto"
+                  role="region"
+                  aria-label={table.title}
+                  tabIndex={0}
+                >
                   <table>
                     <thead>
                       <tr>

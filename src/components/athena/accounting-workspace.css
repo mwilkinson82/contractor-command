@@ -239,6 +239,7 @@
 .af-report table {
   margin-top: 0;
   width: 100%;
+  min-width: 36rem;
   border-collapse: collapse;
   font-size: 13px;
   line-height: 1.5;
@@ -253,6 +254,9 @@
   color: #53677d;
 }
 .af-report thead th {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.015em;
@@ -268,6 +272,13 @@
 }
 .af-report td {
   font-variant-numeric: tabular-nums;
+}
+.af-report :is(.text-right, .af-money-cell) {
+  white-space: nowrap;
+}
+.af-report .overflow-x-auto:focus-visible {
+  outline: 3px solid #659ff4;
+  outline-offset: 3px;
 }
 .af-report > .af-summary-table table {
   min-width: 640px;
@@ -584,5 +595,24 @@
   .accounting-workspace:has(.af-readable) .af-header,
   .af-table-count {
     display: none;
+  }
+}
+
+/* Metric values keep their full currency/precision without splitting digits. */
+.af-metrics > div,
+.af-report-cards article {
+  container-type: inline-size;
+}
+.af-metrics > div > p:last-child {
+  font-size: clamp(16px, 8cqi, 23px);
+  white-space: nowrap;
+}
+.af-report-cards .af-value {
+  font-size: clamp(16px, 7cqi, 25px);
+  white-space: nowrap;
+}
+@media (max-width: 500px) {
+  .af-metrics {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

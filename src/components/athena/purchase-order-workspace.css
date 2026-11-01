@@ -342,12 +342,13 @@
 }
 .po-detail-summary {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   gap: 24px;
   padding: 24px 20px;
 }
 .po-detail-summary strong {
   display: block;
+  white-space: nowrap;
   font-size: 24px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
@@ -374,12 +375,15 @@
 }
 .po-lines {
   width: 100%;
-  min-width: 515px;
+  min-width: 36rem;
   border-collapse: collapse;
   text-align: left;
   font-size: 12px;
 }
 .po-lines th {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
   color: var(--po-muted);
   text-transform: uppercase;
   font-size: 10px;
@@ -398,9 +402,11 @@
 }
 .po-lines th:nth-child(2) {
   width: 16%;
+  min-width: 6rem;
 }
 .po-lines th:nth-child(3) {
   width: 19%;
+  min-width: 7.5rem;
 }
 .po-lines th:last-child,
 .po-lines td:last-child {
@@ -575,7 +581,7 @@
   font-size: 12px;
 }
 .po-compare-grid .po-lines {
-  min-width: 460px;
+  min-width: 36rem;
 }
 .po-revision form {
   display: grid;
@@ -673,7 +679,7 @@
     grid-template-columns: 1fr;
   }
   .po-sidebar {
-    display: none;
+    display: block;
   }
   .po-main {
     padding: 24px;
@@ -713,6 +719,26 @@
   }
   .po-supplier .po-facts > div {
     margin-bottom: 12px;
+  }
+}
+/* A chat split pane is a viewport too: reclaim the rail before squeezing
+   order details, and keep every project section reachable on small screens. */
+@media (max-width: 1200px) {
+  .po-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .po-sidebar {
+    padding: 8px 12px;
+    min-width: 0;
+  }
+  .po-sidebar nav {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .po-sidebar a {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 }
 @media (max-width: 600px) {
@@ -906,72 +932,5 @@
     font-size: 13px;
     font-weight: 600;
     justify-self: start;
-  }
-}
-@media (max-width: 600px) {
-  .po-lines {
-    min-width: 0;
-    display: block;
-  }
-  .po-lines thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-  .po-lines tbody,
-  .po-lines tfoot {
-    display: block;
-  }
-  .po-lines tbody tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    border-bottom: 1px solid var(--po-line);
-  }
-  .po-lines tbody td {
-    display: block;
-    padding: 10px 14px;
-    border: 0;
-    white-space: normal !important;
-    overflow-wrap: anywhere;
-  }
-  .po-lines tbody td:first-child {
-    grid-column: 1/-1;
-    padding-bottom: 2px;
-    font-weight: 600;
-  }
-  .po-lines tbody td:last-child {
-    grid-column: 1/-1;
-    border-top: 1px solid #edf2f8;
-    padding-top: 8px;
-    padding-bottom: 12px;
-  }
-  .po-lines tbody td[data-label]:not(:first-child)::before {
-    content: attr(data-label);
-    display: block;
-    color: var(--po-muted);
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 4px;
-    font-weight: 700;
-  }
-  .po-lines tbody td:last-child::before {
-    display: inline !important;
-    margin-right: 12px;
-  }
-  .po-lines tfoot tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .po-lines tfoot :is(th, td) {
-    display: block;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .po-compare-grid .po-lines {
-    min-width: 0;
   }
 }
