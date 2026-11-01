@@ -137,6 +137,34 @@ async (page) => {
         scrolls,
       };
     });
+  const checkKeyboard = async (frame) => {
+    const checks = [];
+    const regions = frame.locator(".po-table-scroll,.af-report .overflow-x-auto");
+    for (let i = 0; i < await regions.count(); i++) {
+      const region = regions.nth(i);
+      if (!await region.isVisible()) continue;
+      const maximum = await region.evaluate(el => el.scrollWidth - el.clientWidth);
+      if (maximum <= 1) continue;
+      await region.evaluate(el => el.scrollLeft = 0);
+      await region.focus();
+      let reached = false;
+      for (let key = 0; key < 80; key++) {
+        await page.keyboard.press("ArrowRight");
+        await page.waitForTimeout(20);
+        reached = await region.evaluate(el => el.scrollLeft >= el.scrollWidth - el.clientWidth - 1);
+        if (reached) break;
+      }
+      const end = await region.evaluate(el => ({
+        left: el.scrollLeft,
+        maximum: el.scrollWidth - el.clientWidth,
+        lastColumnRight: el.querySelector("tr:last-child > :last-child")?.getBoundingClientRect().right,
+        regionRight: el.getBoundingClientRect().right,
+      }));
+      checks.push({ ...end, reached });
+      await region.evaluate(el => el.scrollLeft = 0);
+    }
+    return checks;
+  };
   for (const name of cases)
     for (const width of name === "po-header-regression"
       ? [...widths, 521, 601, 701, 768, 951, 1201]
@@ -146,6 +174,10 @@ async (page) => {
       await page.evaluate(() => document.fonts.ready);
       await page.locator("details").evaluateAll((nodes) => nodes.forEach((n) => (n.open = true)));
       const result = { name, ...(await measure(page)) };
+      if (width === 375) {
+        result.keyboardChecks = await checkKeyboard(page);
+        if (result.keyboardChecks.some(c => !c.reached || c.lastColumnRight > c.regionRight + 1)) result.failures.push({kind: "keyboard-last-column-unreachable"});
+      }
       results.push(result);
       if ([375, 1110].includes(width))
         await page.screenshot({
@@ -159,10 +191,15 @@ async (page) => {
       `<html><head><meta charset="utf-8"><style>body{margin:0;display:flex}aside{width:700px}iframe{border:0;width:600px;height:950px}</style></head><body><aside>Synthetic chat pane</aside><iframe src="http://127.0.0.1:4180/${name}.html"></iframe></body></html>`,
     );
     await page.waitForTimeout(100);
-    const frame = page.frames().find((f) => f.url().includes(name + ".html"));
+    const frame = page.mainFrame().childFrames().find((f) => f.url() === `http://127.0.0.1:4180/${name}.html`);
+    if (!frame || frame.parentFrame() !== page.mainFrame()) throw Error("Expected actual report child frame");
     await frame.waitForLoadState();
     await frame.evaluate(() => document.fonts.ready);
-    results.push({ name, iframe: true, ...(await measure(frame)) });
+    await frame.locator("details").evaluateAll(nodes => nodes.forEach(n => n.open = true));
+    const result = { name, iframe: true, ...(await measure(frame)), keyboardChecks: await checkKeyboard(frame) };
+    if (result.width !== 600) throw Error(`Expected 600px child frame, got ${result.width}`);
+    if (result.keyboardChecks.some(c => !c.reached || c.lastColumnRight > c.regionRight + 1)) result.failures.push({kind: "keyboard-last-column-unreachable"});
+    results.push(result);
     await page.screenshot({
       path: `output/playwright/accounting-responsive/${name}-split.png`,
       fullPage: true,

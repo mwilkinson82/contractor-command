@@ -18,7 +18,7 @@ playwright-cli -s=financial-responsive run-code --filename=tests/responsive/acco
 playwright-cli -s=financial-responsive close
 ```
 
-The checker allows only loopback fixtures and the application's public font hosts. It waits for fonts, expands history, and checks visible bounds and clipping ancestors rather than relying on document width alone. It checks whole header words, intact numeric values, focusable internal scrolling and access to the final table column.
+The checker allows only loopback fixtures and the application's public font hosts. It waits for fonts, expands history, and checks visible bounds and clipping ancestors rather than relying on document width alone. It checks whole header words, intact numeric values, focusable internal scrolling and real Arrow-key scrolling through the final table column. Embedded checks select a direct child frame, assert its 600px inner viewport, and expand its history before measuring.
 
 Coverage includes 320/375/430px mobile, 500/600/700px panes, 1110/1365px desktop, adjacent PO breakpoints and a 600px iframe in a 1440px outer viewport. The result's `failed` list must be empty. Screenshots and results belong in ignored `output/playwright`; do not commit them. The CLI function intentionally has no trailing semicolon because `run-code --filename` evaluates a function expression.
 
