@@ -38,7 +38,7 @@ function AdminSupport({ userId }: { userId: string }) {
   const admin = useIsAdmin();
   const { ticket } = Route.useSearch();
   return (
-    <main className="mx-auto max-w-6xl space-y-5 p-6">
+    <main className="mx-auto min-w-0 [overflow-wrap:anywhere] max-w-6xl space-y-5 p-6">
       <Link to="/admin">Admin home</Link>
       <h1 className="text-3xl font-semibold">Support tickets</h1>
       <p>Bookmark this page. Only administrators can access customer support records.</p>
@@ -115,8 +115,8 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
       {data.tickets ? (
         <>
           <p>Tickets ordered by creation date. Last message received is shown for each ticket.</p>
-          <div className="overflow-auto">
-            <table className="w-full min-w-[760px] text-left [&_td]:p-2">
+          <div className="overflow-auto" role="region" aria-label="Support ticket table" tabIndex={0}>
+            <table className="w-full min-w-[760px] text-left [&_th]:whitespace-nowrap [&_td]:p-2">
               <thead>
                 <tr>
                   {["Ticket", "Customer", "Subject", "Status", "Last message"].map((x) => (

@@ -370,7 +370,7 @@ export function TeamSection({ state, loading, reload }: ReturnType<typeof useAcc
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mt-5 rounded-2xl border border-border bg-card p-7">
+    <div className="mt-5 min-w-0 [overflow-wrap:anywhere] [&_*]:min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-7">
       <p className="label-mono">Team</p>
       <h3 className="mt-2 flex items-center gap-2 font-display text-xl" style={{ color: NAVY }}>
         <Users className="h-5 w-5" /> People, roles & job access.

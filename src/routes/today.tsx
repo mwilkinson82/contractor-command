@@ -44,6 +44,10 @@ function TodayPage() {
 
   if (loading) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   if (!session) return <BoardSignIn returnTo="/today" />;
+  return <TodayBriefView html={html} error={error} />;
+}
+
+export function TodayBriefView({ html, error }: { html: string | null; error: string | null }) {
   return (
     <div data-screen="today" style={{ background: "#F3F4F6", minHeight: "100vh" }}>
       <MorningBriefPushBar showBoardLink={false} />

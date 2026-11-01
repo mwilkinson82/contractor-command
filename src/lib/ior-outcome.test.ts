@@ -100,8 +100,8 @@ describe("owner-confirmed IOR outcome", () => {
     expect(page(fixture(), "other-job")).not.toContain("$157,608.70");
     const f = fixture();
     f.version = 4;
-    expect(page(f)).toContain(
-      'Current indicated gross profit · margin</div><div style="font-size:20px;font-weight:600;color:#1E3A5F">Not available',
+    expect(page(f)).toMatch(
+      new RegExp("Current indicated gross profit · margin</div><div[^>]*>Not available"),
     );
     expect(page(f)).not.toContain("$157,608.70");
   });

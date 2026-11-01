@@ -1,3 +1,4 @@
+import { reportSurface } from "./report-surface";
 import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
 // Pure logic: URLs, payload types and one HTML renderer shared by the signed-in page and the owner share link.
@@ -151,7 +152,7 @@ export function delayLabel(prior: string, updated: string, holidays?: string[] |
 
 const card = (inner: string) => `<section style="background:#fff;border:1px solid ${G3};border-radius:12px;padding:16px;margin:0 0 16px">${inner}</section>`;
 const tile = (label: string, value: string, alert = false) =>
-  `<div style="flex:1 1 160px;background:#fff;border:1px solid ${alert ? RED : G3};border-radius:10px;padding:12px"><div style="font-size:12px;color:${G1}">${esc(label)}</div><div style="font-size:20px;font-weight:600;color:${alert ? RED : NAVY}">${esc(value)}</div></div>`;
+  `<div class="ath-report-tile" style="flex:1 1 160px;background:#fff;border:1px solid ${alert ? RED : G3};border-radius:10px;padding:12px"><div style="font-size:12px;color:${G1}">${esc(label)}</div><div class="ath-report-tile-value" style="font-size:20px;font-weight:600;color:${alert ? RED : NAVY}">${esc(value)}</div></div>`;
 const tiles = (t: string[]) => `<div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 16px">${t.join("")}</div>`;
 const stamp = (r: { version?: number; updated_at?: string | null; updated_by_name?: string | null; data_date?: string | null }) =>
   `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">v${esc(r.version)} · Last updated ${esc(r.updated_at?.slice(0, 10) ?? "")}${r.updated_by_name ? ` by ${esc(r.updated_by_name)}` : ""}${r.data_date ? ` · Data date ${esc(r.data_date)}` : ""}</p>`;
@@ -399,7 +400,7 @@ function portfolioView(p: PortfolioPayload): string {
       ),
     );
   out.push(
-    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">` +
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:12px">` +
       rows
         .map(({ j, assessed, late, label }) => {
           const color = assessed ? BLUE : G1;
@@ -446,12 +447,12 @@ function lookaheadPageView(p: LookaheadPayload): string {
   const due = (e: LaEntry) => `Owner: ${esc(e.item.owner ?? "Needed")} · Due ${e.item.due ? `<span style="color:${e.overdue ? RED : G1};font-weight:${e.overdue ? 700 : 400}">${esc(shortDate(e.item.due))}</span>` : "Needed"}`;
   const flagsHtml = (e: LaEntry) => e.flags.map((f) => `<div style="margin-top:6px;font-size:12px;color:${NAVY};border-left:3px solid #1E5FED;padding-left:8px">${esc(f.text)}</div>`).join("");
   const badge = `<span style="display:inline-block;background:${RED};color:#fff;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px">OVERDUE</span>`;
-  out.push(card(h2("TOP 3 PRIORITIES") + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${m.top.length ? m.top.map((t, i) => `<div style="border:1px solid ${G3};border-left:4px solid ${lookaheadAlert(t) ? RED : "#1E5FED"};border-radius:10px;padding:12px"><div style="font-size:18px;font-weight:700;color:${t.overdue ? RED : BLUE}">${i + 1}</div><div style="font-weight:600;color:${NAVY};margin:4px 0">${t.overdue ? badge : ""}${esc(t.label)}</div><div style="font-size:12px;color:${G1}">${due(t)}</div>${flagsHtml(t)}</div>`).join("") : `<div style="border:1px solid ${G3};border-left:4px solid ${BLUE};border-radius:10px;padding:12px;color:${G1}">No open items in this window</div>`}</div>`));
+  out.push(card(h2("TOP 3 PRIORITIES") + `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px">${m.top.length ? m.top.map((t, i) => `<div style="border:1px solid ${G3};border-left:4px solid ${lookaheadAlert(t) ? RED : "#1E5FED"};border-radius:10px;padding:12px"><div style="font-size:18px;font-weight:700;color:${t.overdue ? RED : BLUE}">${i + 1}</div><div style="font-weight:600;color:${NAVY};margin:4px 0">${t.overdue ? badge : ""}${esc(t.label)}</div><div style="font-size:12px;color:${G1}">${due(t)}</div>${flagsHtml(t)}</div>`).join("") : `<div style="border:1px solid ${G3};border-left:4px solid ${BLUE};border-radius:10px;padding:12px;color:${G1}">No open items in this window</div>`}</div>`));
   if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
   else {
     const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
     const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(shownFloat(row.a.total_float))}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
-    out.push(card(h2("CALENDAR") + `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
+    out.push(card(h2("CALENDAR") + `<div class="ath-report-table-scroll" role="region" aria-label="Lookahead calendar" tabindex="0"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
   }
   if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e, n) => `<div id="item-${esc(e.item.id || String(n + 1))}" style="border:1px solid ${G3};border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
   if (m.risks.length) out.push(card(h2("RISKS") + m.risks.map((e) => `<div style="border:1px solid ${G3};border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px"><strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · Impact: ${esc(activityLine(e.a!))}${e.a!.total_float !== undefined && e.a!.total_float !== null ? ` (float ${esc(shownFloat(e.a!.total_float))} WD)` : ""}. ${due(e)}</span>${flagsHtml(e)}</div>`).join("")));
@@ -468,7 +469,7 @@ function payAppPageView(p: PayAppPayload): string {
   if (m.tie) out.push(`<p style="margin:0 0 12px;font-weight:600;color:${m.tie.startsWith("Doesn't") ? RED : NAVY}">${esc(m.tie)}</p>`);
   out.push(tiles([tile("Billed to date", m.billed === null ? "Unknown" : money(m.billed)), tile("Payments received", m.payments === null ? "Unknown" : money(m.payments)), tile("Planned schedule allocation", m.forecast === null ? "Unknown" : money(m.forecast)), tile("Contract", m.contract === null ? "Needed" : money(m.contract)), tile("Left to bill", m.left === null ? "Needed" : money(m.left))]));
   const max = Math.max(1, ...m.months.map((x) => x.amount));
-  out.push(card(h2("MONTHLY BILLING") + `<table style="border-collapse:collapse;width:100%">${m.months.map((x) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;color:${NAVY};white-space:nowrap">${esc(x.month)}</td><td style="padding:6px 8px;width:50%"><div style="height:12px;border-radius:3px;width:${((x.amount / max) * 100).toFixed(1)}%;background:${x.kind === "unverified" ? BLUE : G2}"></div></td><td style="padding:6px 8px;font-size:12px;color:${NAVY};text-align:right">${money(x.amount)}</td><td style="padding:6px 8px;font-size:12px;color:${G1};text-align:right">${money(x.cum)}</td></tr>`).join("")}<tr style="border-top:2px solid ${G3}"><td style="padding:6px 8px;font-weight:600">Total</td><td></td><td style="padding:6px 8px;font-weight:600;text-align:right">${money(m.total)}</td><td></td></tr></table>` + legend([[sw(BLUE), "Recorded; source unverified"], [sw(G2), "Planned"]])));
+  out.push(card(h2("MONTHLY BILLING") + `<div class="ath-report-table-scroll" role="region" aria-label="Monthly billing" tabindex="0"><table style="border-collapse:collapse;width:100%">${m.months.map((x) => `<tr style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;color:${NAVY};white-space:nowrap">${esc(x.month)}</td><td style="padding:6px 8px;width:50%"><div style="height:12px;border-radius:3px;width:${((x.amount / max) * 100).toFixed(1)}%;background:${x.kind === "unverified" ? BLUE : G2}"></div></td><td class="ath-report-amount" style="padding:6px 8px;font-size:12px;color:${NAVY};text-align:right">${money(x.amount)}</td><td class="ath-report-amount" style="padding:6px 8px;font-size:12px;color:${G1};text-align:right">${money(x.cum)}</td></tr>`).join("")}<tr style="border-top:2px solid ${G3}"><td style="padding:6px 8px;font-weight:600">Total</td><td></td><td class="ath-report-amount" style="padding:6px 8px;font-weight:600;text-align:right">${money(m.total)}</td><td></td></tr></table></div>` + legend([[sw(BLUE), "Recorded; source unverified"], [sw(G2), "Planned"]])));
   return out.join("");
 }
 
@@ -551,7 +552,7 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
   }).join("") + historyHtml;
 }
 
-export function renderReportBody(p: PagePayload, context?: { jobId?: string }): string {
+function renderReportContent(p: PagePayload, context?: { jobId?: string }): string {
   if (p.page === "submittals") {
     const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Submittal log`;
     return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
@@ -578,6 +579,11 @@ export function renderReportBody(p: PagePayload, context?: { jobId?: string }): 
   return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0;font-size:22px;color:${NAVY}">${title}</h1>${st || `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">Live view</p>`}${body}<p style="margin:24px 0 0;font-size:12px;color:${G2}">${foot}</p></div>`;
 }
 
+/** Same responsive surface in the signed-in view and the standalone share. */
+export function renderReportBody(p: PagePayload, context?: { jobId?: string }): string {
+  return reportSurface(renderReportContent(p, context));
+}
+
 /** Full document for the public share page. */
 export function renderReportDocument(p: PagePayload): string {
   const t = p.page === "portfolio" ? `${p.company ?? ""} portfolio` : `${p.job_number ?? ""} ${PAGE_LABEL[p.page]}`;
@@ -585,7 +591,7 @@ export function renderReportDocument(p: PagePayload): string {
 }
 
 export function reportGoneHtml(): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link unavailable</title></head><body style="margin:0;background:${G4};font-family:system-ui,sans-serif;color:${G1}"><main style="max-width:480px;margin:15vh auto;background:#fff;border:1px solid ${G3};border-radius:12px;padding:32px"><h1 style="margin:0 0 12px;font-size:20px;color:${BLUE}">This link isn't available</h1><p style="margin:0;line-height:1.5">It has expired or was turned off. Ask the sender for a new link.</p><p style="margin:24px 0 0;font-size:12px;color:${G2}">Athena powered by ALP</p></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Link unavailable</title></head><body style="margin:0;background:${G4};font-family:system-ui,sans-serif;color:${G1}"><main style="box-sizing:border-box;width:calc(100% - 32px);max-width:480px;margin:15vh auto;background:#fff;border:1px solid ${G3};border-radius:12px;padding:32px"><h1 style="margin:0 0 12px;font-size:20px;color:${BLUE}">This link isn't available</h1><p style="margin:0;line-height:1.5">It has expired or was turned off. Ask the sender for a new link.</p><p style="margin:24px 0 0;font-size:12px;color:${G2}">Athena powered by ALP</p></main></body></html>`;
 }
 
 export const REPORT_PAGE_HEADERS: Record<string, string> = {

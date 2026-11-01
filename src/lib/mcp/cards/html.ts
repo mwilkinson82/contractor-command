@@ -56,7 +56,7 @@ export function renderHtml(card: CardModel): string {
   const alertColor = cssColor(ALERT, "#DC2626");
   const css = [
     `body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}`,
-    `.card{max-width:640px;margin:16px auto;border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}`,
+    `.card{box-sizing:border-box;overflow-wrap:anywhere;max-width:640px;margin:16px auto;border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}`,
     `header{background:${navy};color:${white};padding:16px 18px}`,
     `.mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${white}}`,
     `h1{margin:0;font-size:22px}`,
@@ -66,7 +66,7 @@ export function renderHtml(card: CardModel): string {
     `.track{height:8px;border-radius:999px;background:${white};border:1px solid ${gray};overflow:hidden;margin:0 0 14px}`,
     `.fill{height:100%;background:${blue}}`,
     `.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}`,
-    `.kpi{flex:1 1 120px;border:1px solid ${gray};border-radius:10px;padding:8px 10px}`,
+    `.kpi{min-width:0;flex:1 1 14rem;border:1px solid ${gray};border-radius:10px;padding:8px 10px}`,
     `.kpi span{display:block;color:${gray};font-size:12px}`,
     `.kpi strong{font-size:16px}`,
     `h2{margin:16px 0 8px;font-size:14px;color:${navy}}`,
@@ -74,7 +74,7 @@ export function renderHtml(card: CardModel): string {
     `.table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}`,
     `th{background:${blue};color:${white};text-align:left;padding:6px 8px;font-size:12px}`,
     `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
-    `.table-wrap{overflow-x:auto}.card td,.card th{overflow-wrap:break-word}td.num{white-space:nowrap;text-align:right}`,
+    `.table-wrap{overflow-x:auto}.card td{overflow-wrap:anywhere}.card th{overflow-wrap:normal;white-space:nowrap}td.num{white-space:nowrap;text-align:right}`,
     `a{color:${blue};text-decoration:none}`,
     `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${gray}}`,
     `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray};color:${navy}}`,
@@ -145,7 +145,7 @@ export function renderHtml(card: CardModel): string {
             return `<tr ${attr}>${cells}</tr>`;
           })
           .join("");
-        inner = `${heading}${s.scroll ? '<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">' : '<div class="table-wrap">'}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table></div>`;
+        inner = `${heading}${s.scroll ? '<div class="table-scroll" tabindex="0" role="region" aria-label="Continuation table">' : '<div class="table-wrap" tabindex="0" role="region" aria-label="Report table">'}<table><thead><tr>${labels}</tr></thead><tbody>${body}</tbody></table></div>`;
       } else {
         const items = s.rows
           .map((r) => {

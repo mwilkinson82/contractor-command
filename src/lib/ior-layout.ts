@@ -183,15 +183,15 @@ function renderTable(rows: Record<string, unknown>[], moneyOk: boolean, names?: 
     const risk = actualRisk(record);
     const cells = cols.map((key, index) => {
       const shown = index === 0 && LEAD_KEYS.includes(key) ? esc(leadOf(record, names) || "—") : formatValue(key, record[key], moneyOk, names) || "—";
-      return `<td style="padding:8px 10px;font-size:13px;color:${risk ? RED : NAVY};border-top:1px solid #F3F4F6;vertical-align:top">${shown}</td>`;
+      return `<td${isFigure(key, record[key]) ? ' class="ath-report-amount"' : ""} style="padding:8px 10px;font-size:13px;color:${risk ? RED : NAVY};border-top:1px solid #F3F4F6;vertical-align:top">${shown}</td>`;
     }).join("");
     return `<tr>${cells}</tr>`;
   }).join("");
-  return `<table style="border-collapse:collapse;width:100%"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<div class="ath-report-table-scroll" role="region" aria-label="IOR detail table" tabindex="0" style="max-width:100%;overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:36rem"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function tile(label: string, value: string, risk = false): string {
-  return `<div style="flex:1 1 160px;background:#F9FAFB;border:1px solid ${risk ? RED : LINE};border-radius:10px;padding:12px"><div style="font-size:12px;color:${GRAY}">${esc(label)}</div><div style="font-size:20px;font-weight:600;color:${risk ? RED : NAVY}">${value}</div></div>`;
+  return `<div class="ath-report-tile" style="flex:1 1 160px;background:#F9FAFB;border:1px solid ${risk ? RED : LINE};border-radius:10px;padding:12px"><div style="font-size:12px;color:${GRAY}">${esc(label)}</div><div class="ath-report-tile-value" style="font-size:20px;font-weight:600;color:${risk ? RED : NAVY}">${value}</div></div>`;
 }
 
 function renderFacts(record: Record<string, unknown>, moneyOk: boolean, names?: ReportNames | null): string {
