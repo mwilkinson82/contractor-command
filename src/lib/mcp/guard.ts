@@ -126,7 +126,11 @@ export async function run<R>(tool: string, ctx: ToolContext, opts: string | unde
     // Jobs follow billing's host-composed response path. All access/cap/security checks
     // above still run; do not inject an embed, onboarding, reminders, or card-shown orders.
     if (TEXT_READ_TOOLS.has(tool)) {
-      return displayFactsResult(stampCanary(guide(r, READ_RESPONSE_GUIDANCE), touch.canary));
+      // Keep existing setup/lookahead deadline evidence; the SOV stays first and exact.
+      const source = tool === "report" && !(r as { structuredContent?: { sov?: unknown } })?.structuredContent?.sov && sweep
+        ? withSweep(r, sweep, sweepScope.client === true, o.ownerSov === true)
+        : r;
+      return displayFactsResult(stampCanary(guide(source, READ_RESPONSE_GUIDANCE), touch.canary));
     }
     // The host-display block rides on every result (assistant_guidance only; members never see it).
     // Card pass is presentation after the guard. It does not change auth, entitlement, or the sweep.

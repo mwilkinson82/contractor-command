@@ -167,7 +167,7 @@ export function TermsEvidence({
     </div>
   );
 }
-function Comparison({
+export function PurchaseOrderComparison({
   versions,
   ledger,
   onClose,
@@ -326,7 +326,7 @@ export function PurchaseOrderDetails({
         </div>
       </section>
       {compare && (
-        <Comparison
+        <PurchaseOrderComparison
           key={order.id}
           versions={versions}
           ledger={ledger}
