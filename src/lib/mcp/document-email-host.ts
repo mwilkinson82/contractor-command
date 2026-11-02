@@ -10,7 +10,7 @@ type MailboxObservation = {
   canSendMime: boolean;
 };
 export type HostMailbox = MailboxObservation & (
-  | { mode?: "pinned"; connectionId: string }
+  | { mode: "pinned"; connectionId: string }
   | { mode: "assistant_current_gmail"; provider: "gmail"; connectionId?: never }
 );
 export type HostReadiness =
@@ -22,7 +22,7 @@ export function mailboxReadiness(mailbox: HostMailbox | null, now = Date.now()):
   const observed = mailbox?.mode === "assistant_current_gmail";
   const modeValid = !!mailbox && (observed
     ? mailbox.provider === "gmail" && mailbox.connectionId === undefined
-    : (mailbox.mode === undefined || mailbox.mode === "pinned") && typeof mailbox.connectionId === "string" && !!mailbox.connectionId.trim());
+    : mailbox.mode === "pinned" && typeof mailbox.connectionId === "string" && !!mailbox.connectionId.trim());
   if (!mailbox || !mailbox.provider.trim() || !modeValid ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailbox.profileAddress) ||
       !Number.isFinite(mailbox.observedAt) || mailbox.observedAt > now || now - mailbox.observedAt > (observed ? 30_000 : 300_000))

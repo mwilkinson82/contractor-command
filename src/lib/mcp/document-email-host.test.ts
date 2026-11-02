@@ -9,7 +9,7 @@ async function fixture() {
   const artifact=await paymentApplicationArtifact({companyId:"company-a",jobId:"job-a",applicationId:id,version:1,allowHistorical:false,context:{job:{number:"1",name:"Fictional"},currency:"USD",snapshot:body.snapshot,evidence:[],applications:[],selected:{application_id:id,version:1,latest_version:1,body,calculation:calculateApplication(body),billing_version:null,recorded_at:"2026-02-01T12:00:00Z",history:[]}}});
   const {content_base64:_content,latest_version:_latest,...attachment}=artifact;
   const email={company_id:"company-a",job_id:"job-a",from:"owner@example.test",to:"contact@example.test",cc:["pm@example.test"],subject:"Payment application",body:"Please review.",attachment};
-  const mailbox={provider:"gmail",connectionId:"connection-one",profileAddress:"owner@example.test",observedAt:1000000,canSendMime:true};
+  const mailbox={mode:"pinned" as const,provider:"gmail",connectionId:"connection-one",profileAddress:"owner@example.test",observedAt:1000000,canSendMime:true};
   const confirmedHash=await hostReviewHash(email,artifact,mailbox,1000000);
   return {email,artifact,mailbox,confirmedHash,confirmed:true,now:1000000};
 }

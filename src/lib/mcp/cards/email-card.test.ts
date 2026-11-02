@@ -144,7 +144,7 @@ const emailResult = {
 };
 
 describe("document email card", () => {
-  const doc={id:"66666666-6666-4666-8666-666666666666",document_id:"55555555-5555-4555-8555-555555555555",version:2,review_hash:"b".repeat(64),sha256:"a".repeat(64),size_bytes:123,from:"owner@example.test",state:"reviewed",mailbox:{provider:"gmail",connectionId:"one",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
+  const doc={id:"66666666-6666-4666-8666-666666666666",document_id:"55555555-5555-4555-8555-555555555555",version:2,review_hash:"b".repeat(64),sha256:"a".repeat(64),size_bytes:123,from:"owner@example.test",state:"reviewed",mailbox:{mode:"pinned",provider:"gmail",connectionId:"one",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
   const result={structuredContent:{draft:{...draft,attachment:"application-v2.pdf"},document_email:doc,job_number:"2701",company_id:"company-a",send_allowed:true}};
   it("shows exact saved version and hands confirmation to host without declaring sent",async()=>{
     const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
