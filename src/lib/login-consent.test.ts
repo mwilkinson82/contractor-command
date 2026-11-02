@@ -25,6 +25,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/magic-link.functions", () => ({ requestMemberMagicLink: vi.fn() }));
+vi.mock("@/lib/athena-reviewer-sign-in.functions", () => ({ reviewerPasswordSignIn: vi.fn() }));
 vi.mock("@/lib/email/send", () => ({ sendTransactionalEmail: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: {} } }));
 vi.mock("@/lib/athena-host-current", () => ({

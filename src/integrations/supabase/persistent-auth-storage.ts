@@ -80,6 +80,21 @@ function remember(key: string, raw: string) {
   writeCookie(VALUE, stored);
 }
 
+/**
+ * Write a session the Athena host can read on the next page load.
+ * localStorage is what the auth client loads. The cookie is the same backup
+ * the storage wrapper keeps when the client writes a session itself.
+ */
+export function persistAuthRecord(key: string, raw: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, raw);
+  } catch {
+    /* private mode: the cookie copy below still counts on the Athena host */
+  }
+  if (onAthenaSite() && isAuthKey(key)) remember(key, raw);
+}
+
 /** Put the cookie copy back into localStorage before the auth client reads it. */
 export function restoreAthenaSessionFromCookie() {
   if (!onAthenaSite()) return;
@@ -113,7 +128,9 @@ export function readStoredAthenaSession(): StoredSession | null {
   return null;
 }
 
-export function withPersistentSession(storage: PreviewAuthStorage | undefined): PreviewAuthStorage | undefined {
+export function withPersistentSession(
+  storage: PreviewAuthStorage | undefined,
+): PreviewAuthStorage | undefined {
   if (!storage || !onAthenaSite()) return storage;
   return {
     getItem: (key) => {
@@ -129,7 +146,11 @@ export function withPersistentSession(storage: PreviewAuthStorage | undefined): 
           const cookie = readCookie(VALUE);
           const cookieKey = readCookie(KEY);
           if (cookie && cookieKey === key) {
-            try { localStorage.setItem(key, cookie); } catch { /* still return it */ }
+            try {
+              localStorage.setItem(key, cookie);
+            } catch {
+              /* still return it */
+            }
             return cookie;
           }
           return value;
@@ -140,7 +161,11 @@ export function withPersistentSession(storage: PreviewAuthStorage | undefined): 
       const cookie = readCookie(VALUE);
       const cookieKey = readCookie(KEY);
       if (cookie && cookieKey === key) {
-        try { localStorage.setItem(key, cookie); } catch { /* still return it */ }
+        try {
+          localStorage.setItem(key, cookie);
+        } catch {
+          /* still return it */
+        }
         return cookie;
       }
       return null;
