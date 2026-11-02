@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applicationFixture } from "../payment-applications/fixtures";
 import { calculateApplication } from "../payment-applications/model";
 import { paymentApplicationArtifact } from "./document-email-artifact";
-import { gmailMimeRequest, hostReviewHash, mailboxReadiness } from "./document-email-host";
+import { gmailMimeRequest, hostReviewHash, mailboxReadiness, type HostMailbox } from "./document-email-host";
 
 async function fixture() {
   const body=applicationFixture(), id="00000000-0000-4000-8000-000000000002";
@@ -43,5 +43,24 @@ describe("connected email host handoff",()=>{
   it("does not pretend other providers are Gmail",async()=>{
     const f=await fixture();
     await expect(gmailMimeRequest({...f,mailbox:{...f.mailbox,provider:"other"}})).rejects.toThrow(/Gmail/);
+  });
+  it("supports a fresh observed Gmail profile without inventing a connection ID",async()=>{
+    const f=await fixture();
+    const observed:HostMailbox={mode:"assistant_current_gmail",provider:"gmail",profileAddress:f.email.from,observedAt:f.now,canSendMime:true};
+    const confirmedHash=await hostReviewHash(f.email,f.artifact,observed,f.now);
+    expect(confirmedHash).not.toBe(f.confirmedHash);
+    const mime=await gmailMimeRequest({...f,mailbox:observed,confirmedHash});
+    expect(mime.from_address).toBe(f.email.from);
+    expect(Buffer.from(mime.payload.parts[1].body.base64_url_content,"base64url")).toEqual(Buffer.from(f.artifact.content_base64,"base64"));
+    expect(mailboxReadiness(observed,f.now+30001).status).toBe("connect_email");
+    expect(mailboxReadiness({...observed,canSendMime:false},f.now).status).toBe("unsupported_attachment");
+    await expect(gmailMimeRequest({...f,mailbox:{...observed,profileAddress:"other@example.test"},confirmedHash})).rejects.toThrow(/sender changed/);
+    await expect(gmailMimeRequest({...f,mailbox:f.mailbox,confirmedHash})).rejects.toThrow(/changed/);
+    await expect(gmailMimeRequest({...f,mailbox:observed,confirmedHash,email:{...f.email,to:"other@example.test"}})).rejects.toThrow(/changed/);
+    await expect(gmailMimeRequest({...f,mailbox:observed,confirmedHash,email:{...f.email,cc:["other@example.test"]}})).rejects.toThrow(/changed/);
+    await expect(gmailMimeRequest({...f,mailbox:observed,confirmedHash,email:{...f.email,subject:"changed"}})).rejects.toThrow(/changed/);
+    await expect(gmailMimeRequest({...f,mailbox:observed,confirmedHash,email:{...f.email,body:"changed"}})).rejects.toThrow(/changed/);
+    await expect(gmailMimeRequest({...f,mailbox:observed,confirmedHash,artifact:{...f.artifact,content_base64:btoa("tampered")}})).rejects.toThrow(/bytes/);
+    expect(mailboxReadiness({...observed,connectionId:"invented"} as unknown as HostMailbox,f.now).status).toBe("connect_email");
   });
 });

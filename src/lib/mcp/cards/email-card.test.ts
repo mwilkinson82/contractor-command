@@ -154,6 +154,15 @@ describe("document email card", () => {
     v.answer(m.id,{});await v.flush();expect(v.app.textContent).toContain("Waiting for the connected account and a provider response");
     const input=v.el(e=>e.id==="body");input.value="changed after handoff";input.fire("input");expect(v.el(e=>e.className==="primary").disabled).toBe(true);
   });
+  it("discloses an unpinned Gmail account and asks the host to recheck before sending",async()=>{
+    const observed={...doc,mailbox:{mode:"assistant_current_gmail",provider:"gmail",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:{structuredContent:{...result.structuredContent,document_email:observed}}});
+    expect(v.app.textContent).toContain("Gmail account is rechecked, not locked");
+    v.el(e=>e.className==="primary").fire("click");await v.flush();const h=v.requests().at(-1)!;v.answer(h.id,{structuredContent:{handoff:true}});await v.flush();
+    const m=v.requests().at(-1)!;expect(m.method).toBe("ui/message");const text=JSON.stringify(m.params);
+    expect(text).toContain("without inventing a connection ID");expect(text).toContain("Immediately before sending");expect(text).toContain("do not send");expect(text).toContain("not atomically pinned");
+    v.answer(m.id,{});await v.flush();
+  });
   it("re-reviews edits before handing them to the host",async()=>{
     const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
     const input=v.el(e=>e.id==="body");input.value="Updated message";input.fire("input");v.el(e=>e.className==="primary").fire("click");await v.flush();
