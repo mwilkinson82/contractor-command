@@ -9539,6 +9539,10 @@ export type Database = {
       mcp_normalize_role: { Args: { _role: string }; Returns: string }
       mcp_open_item_create: { Args: { _f: Json; _job: string }; Returns: Json }
       mcp_pa_calculate: { Args: { a: Json; evidence: Json }; Returns: Json }
+      mcp_pa_contract_basis: {
+        Args: { _action: string; _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_pa_dispatch: {
         Args: { _action: string; _job: string; _p: Json }
         Returns: Json
