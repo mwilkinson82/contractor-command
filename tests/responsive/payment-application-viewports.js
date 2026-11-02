@@ -56,8 +56,10 @@ async (page) => {
   const child = page.frames().find((f) => f.parentFrame() === page.mainFrame());
   if (!child) throw Error("Missing child frame");
   const width = await child.evaluate(() => innerWidth);
-  result.checks.push({ name: "embedded", width });
-  if (width !== 600) result.failed.push({ name: "embedded", width });
+  const clipped=await child.evaluate(()=>[...document.querySelectorAll('a,button,h1,h2,dt,dd,p')].filter(e=>!e.closest('.pa-scroll')).some(e=>{const r=e.getBoundingClientRect();return r.left<0||r.right>innerWidth;}));
+  const scroller=child.locator('.pa-scroll');await scroller.focus();await page.keyboard.press('ArrowRight');await page.waitForTimeout(200);const keyboardScroll=await scroller.evaluate(e=>e.scrollLeft);await scroller.evaluate(e=>e.scrollLeft=e.scrollWidth);const lastVisible=await scroller.evaluate(e=>{const a=e.getBoundingClientRect(),b=e.querySelector('tbody tr td:last-child').getBoundingClientRect();return b.right<=a.right+1&&b.left>=a.left-1;});
+  const embedded={name:'embedded',width,clipped,keyboardScroll,lastVisible};result.checks.push(embedded);
+  if(width!==600||clipped||keyboardScroll<=0||!lastVisible)result.failed.push(embedded);
   await page.screenshot({
     path: "output/playwright/payment-applications/embedded-600.png",
     fullPage: true,

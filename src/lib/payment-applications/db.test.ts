@@ -180,6 +180,56 @@ async function save(p: Awaited<ReturnType<typeof payload>>) {
   return await record("payment_application_save", { ...p, review_key: r.review_key });
 }
 describe("versioned payment applications", () => {
+  it("freezes the fee and an executed fee-included change without charging its fee twice", async () => {
+    const sourceId = crypto.randomUUID();
+    try {
+      await db.query("UPDATE mcp_jobs SET sov_fee_pct=10 WHERE id=$1", [job]);
+      await db.query(
+        "UPDATE mcp_job_facts SET value=jsonb_set(value,'{billable_value}','90000') WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job],
+      );
+      await db.query("INSERT INTO mcp_submittals VALUES($1,$2,'CO-1',1)", [sourceId, job]);
+      await db.query("INSERT INTO mcp_change_orders VALUES($1,$2,$3::jsonb)", [
+        sourceId,
+        job,
+        JSON.stringify({ state: "executed", total_cents: 1000000 }),
+      ]);
+      await db.query(
+        "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','02',$2::jsonb,'known','member_answer',$3)",
+        [
+          job,
+          JSON.stringify({
+            description: "Executed addition",
+            billable_value: 10000,
+            executed_change_order: sourceId,
+            fee_included: true,
+          }),
+          owner,
+        ],
+      );
+      const c = await context();
+      expect(c.snapshot).toMatchObject({
+        contract_cents: 11000000,
+        lines: [
+          { item: "01", scheduled_cents: 9000000 },
+          { item: "02", scheduled_cents: 1000000 },
+          { item: "CF", scheduled_cents: 1000000 },
+        ],
+      });
+    } finally {
+      await db.query("UPDATE mcp_jobs SET sov_fee_pct=0 WHERE id=$1", [job]);
+      await db.query(
+        "UPDATE mcp_job_facts SET value=jsonb_set(value,'{billable_value}','100000') WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job],
+      );
+      await db.query("DELETE FROM mcp_job_facts WHERE job_id=$1 AND module='sov' AND key='02'", [
+        job,
+      ]);
+      await db.query("DELETE FROM mcp_change_orders WHERE submittal_id=$1", [sourceId]);
+      await db.query("DELETE FROM mcp_submittals WHERE id=$1", [sourceId]);
+    }
+  });
+
   it("rejects malformed direct-RPC continuation and certificate values at review", async () => {
     const p = await payload();
     const bad = structuredClone(p) as any;
