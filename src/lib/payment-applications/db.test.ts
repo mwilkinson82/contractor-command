@@ -16,6 +16,7 @@ vi.mock("../mcp/jobs", () => ({
 import {
   paymentApplicationRead,
   paymentApplicationRecord,
+  paymentApplicationPrepare,
 } from "../mcp/tools/payment-application-tools";
 import { applicationFixture } from "./fixtures";
 import { calculateApplication } from "./model";
@@ -146,6 +147,8 @@ beforeAll(async () => {
   await db.exec(readFileSync("release-proposals/sov-payment-applications.sql", "utf8"));
   expect((await attributes()).rows).toEqual(before);
   await db.exec(readFileSync("release-proposals/payment-application-contract-basis.sql", "utf8"));
+  expect((await attributes()).rows).toEqual(before);
+  await db.exec(readFileSync("release-proposals/conversational-payment-drafts.sql", "utf8"));
   expect((await attributes()).rows).toEqual(before);
   await db.query("UPDATE mcp_jobs SET sov_fee_pct=0 WHERE id=$1", [job]);
   await db.query(
@@ -1139,5 +1142,285 @@ describe("reviewed contract basis", () => {
     } finally {
       await db.query("INSERT INTO test_active_members VALUES($1)", [owner]);
     }
+  });
+});
+
+describe("shared conversational working draft", () => {
+  it("preserves an unresolved this-period request, deduplicates, rejects stale writes, and never issues billing", async () => {
+    const ctx = await context();
+    const a = applicationFixture();
+    a.snapshot = ctx.snapshot as typeof a.snapshot;
+    Object.assign(a, {
+      number: "",
+      source: "Member request",
+      period_start: "",
+      period_end: "",
+      prior_cutoff: "",
+      state: "draft",
+      certification: null,
+    });
+    a.lines[0].prior_work_cents = null;
+    a.lines[0].work_cents = null;
+    const id = crypto.randomUUID(),
+      request_id = crypto.randomUUID();
+    const p = {
+      id,
+      request_id,
+      request_hash: "a".repeat(64),
+      expected_version: 0,
+      operation: "save",
+      application: a,
+      intent: { [a.lines[0].item]: { basis: "this_period", amount_cents: 3000000 } },
+    };
+    const saved = await record("payment_application_working", p);
+    expect(saved).toMatchObject({ id, version: 1, working_state: "open" });
+    const read = await record("payment_application_read", { id, version: 1 });
+    const selected = read.selected as any;
+    expect(selected.body.lines[0].work_cents).toBeNull();
+    expect(selected.working_intent[a.lines[0].item].amount_cents).toBe(3000000);
+    expect(selected.calculation.complete).toBe(false);
+    expect(selected.calculation.payment_due_cents).toBeNull();
+    expect(await record("payment_application_working", p)).toMatchObject({
+      version: 1,
+      already_applied: true,
+    });
+    expect(
+      await record("payment_application_working_outcome", {
+        id,
+        request_id,
+        request_hash: p.request_hash,
+      }),
+    ).toMatchObject({ version: 1, applied: true });
+    await expect(
+      record("payment_application_working", {
+        ...p,
+        request_id: crypto.randomUUID(),
+        request_hash: "b".repeat(64),
+      }),
+    ).rejects.toThrow(/changed/);
+    expect((await get()).invoices).toEqual([]);
+    const cancel = {
+      id,
+      request_id: crypto.randomUUID(),
+      request_hash: "c".repeat(64),
+      expected_version: 1,
+      operation: "cancel",
+    };
+    expect(await record("payment_application_working", cancel)).toMatchObject({
+      version: 2,
+      working_state: "cancelled",
+    });
+    await expect(
+      record("payment_application_review", {
+        id,
+        request_id: crypto.randomUUID(),
+        expected_version: 2,
+        application: a,
+      }),
+    ).rejects.toThrow();
+    expect(
+      await record("payment_application_working", {
+        ...cancel,
+        request_id: crypto.randomUUID(),
+        request_hash: "d".repeat(64),
+        expected_version: 2,
+        operation: "resume",
+      }),
+    ).toMatchObject({ version: 3, working_state: "open" });
+    for (const user of [outsider, superintendent, estimator])
+      await expect(record("payment_application_working", p, user)).rejects.toThrow();
+  });
+});
+
+describe("conversation to a shared application draft", () => {
+  const invoke = (args: any) => (paymentApplicationPrepare as any).handler(args, {});
+  it("keeps the requested this-period amount pending until prior work is known, supports retry and exact revisions without issuing billing", async () => {
+    const request = {
+      job_number: "2701",
+      operation: "prepare",
+      request_id: crypto.randomUUID(),
+      request_text: "Bill 30000 this period for construction work",
+      changes: [{ line: "Construction work", basis: "this_period", amount_cents: 3000000 }],
+    };
+    const first = await invoke(request);
+    const selected = first.structuredContent.selected;
+    expect(selected.body.source).toBe("");
+    expect(selected.version).toBe(1);
+    expect(selected.body.lines[0].work_cents).toBeNull();
+    expect(selected.working_intent["01"]).toEqual({ basis: "this_period", amount_cents: 3000000 });
+    expect(first.structuredContent.application_url).toContain(
+      `application_id=${request.request_id}&version=1`,
+    );
+    expect(first.content[0].text).toMatch(/No billing was submitted or certified/);
+    expect(first.structuredContent.questions.join(" ")).toMatch(/prior installed work is needed/);
+    const retry = await invoke(request);
+    expect(retry.structuredContent).toMatchObject({
+      already_applied: true,
+      selected: { version: 1 },
+    });
+    await expect(
+      invoke({ ...request, changes: [{ ...request.changes[0], amount_cents: 4000000 }] }),
+    ).rejects.toThrow(/different content/);
+    const revise = {
+      ...request,
+      request_id: crypto.randomUUID(),
+      application_id: request.request_id,
+      expected_version: 1,
+      changes: [{ ...request.changes[0], prior_work_cents: 1000000 }],
+    };
+    const updated = await invoke(revise);
+    expect(updated.structuredContent.selected.body.lines[0].work_cents).toBe(4000000);
+    expect(updated.structuredContent.selected.version).toBe(2);
+    await expect(invoke({ ...revise, request_id: crypto.randomUUID() })).rejects.toThrow(/changed/);
+    expect((await get()).invoices).toEqual([]);
+    const read = await (paymentApplicationRead as any).handler(
+      { job_number: "2701", application_id: request.request_id, version: 2 },
+      {},
+    );
+    expect(read.structuredContent.document_url).toBeNull();
+  });
+  it("does not lose unresolved intent or review unsaved changes when finalizing a working draft", async () => {
+    const ctx = await context();
+    const a = applicationFixture();
+    a.snapshot = ctx.snapshot as typeof a.snapshot;
+    a.lines[0].prior_work_cents = null;
+    a.lines[0].work_cents = null;
+    const id = crypto.randomUUID();
+    const working = {
+      id,
+      request_id: crypto.randomUUID(),
+      request_hash: "9".repeat(64),
+      expected_version: 0,
+      operation: "save",
+      application: a,
+      intent: { [a.lines[0].item]: { basis: "this_period", amount_cents: 3000000 } },
+    };
+    await record("payment_application_working", working);
+    const review = { id, request_id: crypto.randomUUID(), expected_version: 1, application: a };
+    await expect(record("payment_application_review", review)).rejects.toThrow(
+      /Prior installed work is Needed/,
+    );
+    const changed = { ...a, source: "A change not yet saved" };
+    await expect(
+      record("payment_application_review", { ...review, application: changed }),
+    ).rejects.toThrow(/Save the working changes/);
+    const read = await record("payment_application_read", { id, version: 1 });
+    expect((read.selected as any).working_intent[a.lines[0].item].amount_cents).toBe(3000000);
+    expect((await get()).invoices).toEqual([]);
+  });
+  it("invalidates stale final reviews and issues exactly once only after a new exact review", async () => {
+    const base = await payload();
+    const draft = {
+      ...base,
+      request_hash: "e".repeat(64),
+      operation: "save",
+      application: { ...base.application, state: "draft" },
+      intent: {},
+    };
+    await record("payment_application_working", draft);
+    const formal = {
+      id: base.id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      application: { ...base.application, state: "submitted" },
+    };
+    const staleReview = await record("payment_application_review", formal);
+    expect((await get()).invoices).toHaveLength(0);
+    const next = {
+      ...draft,
+      request_id: crypto.randomUUID(),
+      request_hash: "f".repeat(64),
+      expected_version: 1,
+      application: { ...draft.application, source: "Updated actual source" },
+    };
+    await record("payment_application_working", next);
+    await expect(
+      record("payment_application_save", { ...formal, review_key: staleReview.review_key }),
+    ).rejects.toThrow();
+    expect((await get()).invoices).toHaveLength(0);
+    const current = {
+      ...formal,
+      request_id: crypto.randomUUID(),
+      expected_version: 2,
+      application: { ...formal.application, source: "Updated actual source" },
+    };
+    const reviewed = await record("payment_application_review", current);
+    const result = await record("payment_application_save", {
+      ...current,
+      review_key: reviewed.review_key,
+    });
+    expect(result).toMatchObject({ id: base.id, version: 3, state: "submitted" });
+    expect(
+      await record("payment_application_save", { ...current, review_key: reviewed.review_key }),
+    ).toMatchObject({ version: 3, already_applied: true });
+    expect((await get()).invoices).toHaveLength(1);
+  });
+  it("carries only an explicitly selected current actual certificate into a new chat draft", async () => {
+    const first = await payload();
+    first.application.state = "submitted";
+    await save(first);
+    const certified = {
+      ...first,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      application: {
+        ...first.application,
+        state: "certified" as const,
+        reason: "Record actual certificate",
+        certification: { amount_cents: 1200000, date: "2026-02-02", source: "Actual certificate" },
+      },
+    };
+    await save(certified);
+    const request = {
+      job_number: "2701",
+      operation: "prepare",
+      request_id: crypto.randomUUID(),
+      request_text: "Continue from the saved certificate and bill 3000 this period",
+      patch: { prior_mode: "saved", prior_application: { id: first.id, version: 2 } },
+      changes: [{ line: "Construction work", basis: "this_period", amount_cents: 300000 }],
+    };
+    const result = await invoke(request);
+    const body = result.structuredContent.selected.body;
+    expect(body.prior_application).toEqual({ id: first.id, version: 2 });
+    expect(body.prior_certified_net_cents).toBe(1200000);
+    expect(body.lines[0].prior_work_cents).toBe(1000000);
+    expect(body.lines[0].work_cents).toBe(1300000);
+    expect((await get()).invoices).toHaveLength(1);
+    await expect(
+      invoke({
+        ...request,
+        request_id: crypto.randomUUID(),
+        patch: { prior_mode: "saved", prior_application: { id: first.id, version: 1 } },
+      }),
+    ).rejects.toThrow(/latest saved actual certificate/);
+  });
+  it("asks before saving when line, amount basis or line capacity is unclear", async () => {
+    const args = {
+      job_number: "2701",
+      operation: "prepare",
+      request_id: crypto.randomUUID(),
+      request_text: "Bill it",
+      changes: [{ line: "unknown", basis: "this_period", amount_cents: 100 }],
+    };
+    expect((await invoke(args)).structuredContent).toMatchObject({ saved: false });
+    expect(
+      (
+        await invoke({
+          ...args,
+          request_id: crypto.randomUUID(),
+          changes: [{ line: "Construction work", amount_cents: 100 }],
+        })
+      ).structuredContent,
+    ).toMatchObject({ saved: false });
+    expect(
+      (
+        await invoke({
+          ...args,
+          request_id: crypto.randomUUID(),
+          changes: [{ line: "Construction work", basis: "cumulative", amount_cents: 10000001 }],
+        })
+      ).structuredContent,
+    ).toMatchObject({ saved: false });
+    expect((await context()).applications).toEqual([]);
   });
 });

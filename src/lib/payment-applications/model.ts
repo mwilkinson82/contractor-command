@@ -143,11 +143,29 @@ const ratio = (n: number, bps: number) => {
   const p = BigInt(Math.abs(n)) * BigInt(bps);
   return Number((p + 5000n) / 10000n) * (n < 0 ? -1 : 1);
 };
-export function calculateApplication(input: Application): Calculation {
-  const a = applicationSchema.parse(input),
+export const workingApplicationInputSchema = applicationSchema.extend({
+  number: z.string().trim().max(120),
+  source: z.string().max(2000),
+  period_start: z.union([day, z.literal("")]),
+  period_end: z.union([day, z.literal("")]),
+  prior_cutoff: z.union([day, z.literal("")]),
+});
+export function calculateApplication(input: Application, working = false): Calculation {
+  const a = (working ? workingApplicationInputSchema : applicationSchema).parse(input),
     issues: string[] = [];
-  if (a.period_start > a.period_end) issues.push("The application period ends before it starts.");
-  if (a.prior_cutoff >= a.period_start)
+  const missingHeader =
+    !a.number.trim() || !a.source.trim() || !a.period_start || !a.period_end || !a.prior_cutoff;
+  for (const [key, label] of [
+    ["number", "Application number"],
+    ["source", "Progress/application source"],
+    ["period_start", "Period start"],
+    ["period_end", "Period end"],
+    ["prior_cutoff", "Prior certificate cutoff"],
+  ] as const)
+    if (!a[key].trim()) issues.push(`${label} is Needed.`);
+  if (a.period_start && a.period_end && a.period_start > a.period_end)
+    issues.push("The application period ends before it starts.");
+  if (a.prior_cutoff && a.period_start && a.prior_cutoff >= a.period_start)
     issues.push("The prior certificate cutoff must precede this period.");
   if (a.prior_mode === "saved" && !a.prior_application)
     issues.push("Choose the exact prior certified application.");
@@ -279,7 +297,7 @@ export function calculateApplication(input: Application): Calculation {
   const gross = sum(rows.map((l) => l.gross_cents)),
     held = sum(rows.map((l) => l.retained_cents)),
     earned = minus(gross, held),
-    due = minus(earned, a.prior_certified_net_cents);
+    due = missingHeader ? null : minus(earned, a.prior_certified_net_cents);
   if (
     a.prior_mode === "first" &&
     (priorGross !== 0 || priorHeld !== 0 || a.prior_certified_net_cents !== 0)
@@ -345,7 +363,7 @@ export function reconcileEvidence(a: Application, evidence: Evidence[]): string[
   for (const e of evidence) {
     const choice = choices.find((c) => c.id === e.id && c.version === e.version);
     if (choice?.treatment !== "prior_billing") continue;
-    if (e.invoice_date > a.prior_cutoff)
+    if (a.prior_cutoff && e.invoice_date > a.prior_cutoff)
       issues.push(`${e.number}: evidence is later than the prior cutoff.`);
     if (e.kind === "credit") {
       if (!choices.some((c) => c.id === e.credit_for && c.treatment === "prior_billing"))

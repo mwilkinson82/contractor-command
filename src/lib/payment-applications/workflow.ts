@@ -1,5 +1,7 @@
 import { type Application, type Snapshot, type Evidence, type Calculation } from "./model";
 export type SavedApplication = {
+  working_state?: "open" | "cancelled" | null;
+  working_intent?: import("./working").WorkingIntent;
   application_id: string;
   version: number;
   latest_version: number;
@@ -16,6 +18,7 @@ export type ApplicationContext = {
   snapshot_issue?: string | null;
   evidence: Evidence[];
   applications: {
+    working_state?: "open" | "cancelled" | null;
     id: string;
     number: string;
     version: number;
