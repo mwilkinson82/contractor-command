@@ -3503,6 +3503,62 @@ export type Database = {
           },
         ]
       }
+      mcp_document_email_deliveries: {
+        Row: {
+          actor_id: string
+          application_id: string
+          application_version: number
+          company_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          job_id: string
+          payload: Json
+          receipt: Json | null
+          review_hash: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          application_id: string
+          application_version: number
+          company_id: string
+          created_at?: string
+          expires_at?: string
+          id: string
+          job_id: string
+          payload: Json
+          receipt?: Json | null
+          review_hash: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          application_id?: string
+          application_version?: number
+          company_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          payload?: Json
+          receipt?: Json | null
+          review_hash?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_document_email_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_drawing_versions: {
         Row: {
           annotations: Json
@@ -9238,6 +9294,10 @@ export type Database = {
       }
       mcp_delay_event_add: {
         Args: { _claim: Json; _d: Json; _job: string; _notice: Json }
+        Returns: Json
+      }
+      mcp_document_email_delivery: {
+        Args: { _action: string; _job: string; _p: Json }
         Returns: Json
       }
       mcp_document_path_scope: { Args: { _name: string }; Returns: string }
