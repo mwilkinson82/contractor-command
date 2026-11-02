@@ -4,6 +4,7 @@ import {
   applicationUrl,
   applicationTarget,
   carryCertificate,
+  isCertificateRevision,
   emptyApplication,
   type SavedApplication,
 } from "./workflow";
@@ -58,5 +59,45 @@ describe("exact application links and provenance", () => {
     expect(next.lines[0].prior_stored_cents).toBe(500000);
     expect(next.lines[0].work_cents).toBeNull();
     expect(() => carryCertificate(b, { ...s, latest_version: 3 })).toThrow();
+  });
+});
+
+describe("recovered edit intent", () => {
+  it("recognizes only the same frozen certificate facts, regardless of JSON key order", () => {
+    const a = applicationFixture();
+    a.state = "submitted";
+    const base: SavedApplication = {
+      application_id: id,
+      version: 1,
+      latest_version: 1,
+      body: a,
+      calculation: calculateApplication(a),
+      billing_version: 1,
+      recorded_at: "2026-02-01",
+      history: [],
+    };
+    const cert = {
+      ...a,
+      state: "certified" as const,
+      reason: "Actual certificate",
+      certification: { amount_cents: 1350000, date: "2026-02-02", source: "Certificate" },
+    };
+    expect(isCertificateRevision(cert, base)).toBe(true);
+    expect(
+      isCertificateRevision(
+        {
+          ...cert,
+          snapshot: Object.fromEntries(Object.entries(a.snapshot).reverse()) as typeof a.snapshot,
+        },
+        base,
+      ),
+    ).toBe(true);
+    expect(
+      isCertificateRevision(
+        { ...cert, lines: a.lines.map((l) => ({ ...l, work_cents: 1100000 })) },
+        base,
+      ),
+    ).toBe(false);
+    expect(isCertificateRevision(cert, { ...base, body: { ...a, state: "draft" } })).toBe(false);
   });
 });

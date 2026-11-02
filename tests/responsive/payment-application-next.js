@@ -1,0 +1,24 @@
+async (page) => {
+ const root='output/playwright/payment-applications';const first='00000000-0000-4000-8000-000000000002';
+ const html=await(await page.request.get('http://127.0.0.1:4182/interactive.html')).text();await page.context().route('**/r/job/**',r=>r.fulfill({body:html,contentType:'text/html'}));
+ // Run after the certificate control: the first fixture is a saved certified version 2.
+ await page.goto(`http://127.0.0.1:4182/r/job/00000000-0000-4000-8000-000000000001/payment-applications?application_id=${first}&version=2`);
+ await page.getByRole('button',{name:'Prepare a new application',exact:true}).waitFor();
+ await page.setViewportSize({width:600,height:1000});
+ const before=await page.evaluate(id=>sessionStorage.getItem(`fixture-saved:${id}`),first);
+ // A checked, unapplied recovered edit must not donate its request/record identity to a later new intent.
+ const recovered=await page.evaluate(id=>{const old=JSON.parse(sessionStorage.getItem(`fixture-saved:${id}`));const p={id:crypto.randomUUID(),request_id:crypto.randomUUID(),expected_version:0,application:{...old.body,number:'Abandoned pending draft',state:'draft',certification:null},review_key:crypto.randomUUID()};sessionStorage.setItem('payment-application:isolated-browser:00000000-0000-4000-8000-000000000001',JSON.stringify(p));return {id:p.id,request:p.request_id};},first);
+ await page.reload();await page.getByRole('button',{name:'Check outcome and return to review',exact:true}).click();await page.getByRole('button',{name:'Cancel editing',exact:true}).click();
+ await page.getByRole('button',{name:'Prepare a new application',exact:true}).click();await page.getByRole('heading',{name:'Prepare application',exact:true}).waitFor();
+ for(const [label,value] of [['Application number','February application'],['Period start','2026-02-01'],['Period end / billing date','2026-02-28'],['Progress/application source','Reviewed February installed and stored material evidence'],['Applicable retainage terms','Contract ten percent on eligible work and storage']])await page.getByLabel(label,{exact:true}).fill(value);
+ await page.getByLabel('Save state').selectOption('submitted');await page.getByLabel('Saved predecessor').selectOption(first);
+ for(const [label,value] of [['Cumulative installed (USD)','18000'],['Currently stored (USD)','2000'],['Transferred from prior storage into installed work (USD)','3000'],['Cumulative approved release (USD)','0'],['Work retainage (%)','10'],['Stored retainage (%)','10'],['Stored material evidence and eligibility','Eligible inventory and title evidence']])await page.getByLabel(label,{exact:true}).fill(value);
+ await page.getByLabel('Relationship').selectOption('prior_billing');await page.getByLabel('Reconciliation basis',{exact:true}).fill('Prior saved request and actual certificate');
+ await page.getByRole('button',{name:'Review application',exact:true}).click();await page.getByRole('button',{name:'Confirm submission',exact:true}).waitFor();
+ const review=await page.evaluate(()=>window.__pa_calls.findLast(c=>c._action==='payment_application_review')._p);
+ if(review.id===first||review.id===recovered.id||review.request_id===recovered.request||review.expected_version!==0)throw Error('New intent reused a selected or recovered identity');
+ if(review.application.prior_application?.id!==first||review.application.prior_application.version!==2||!review.application.evidence.some(e=>e.id===first&&e.treatment==='prior_billing'))throw Error('Selected saved application was lost from predecessor/evidence');
+ await page.getByRole('button',{name:'Confirm submission',exact:true}).click();await page.waitForURL(new RegExp(`application_id=${review.id}&version=1`));await page.getByRole('button',{name:'Download saved PDF'}).waitFor();
+ const after=await page.evaluate(id=>sessionStorage.getItem(`fixture-saved:${id}`),first);if(before!==after)throw Error('Creating next application modified the first identity/history');
+ await page.screenshot({path:root+'/next-from-detail-600.png',fullPage:true});return {newIdentity:review.id,expectedVersion:0,savedVersion:1,predecessorVersion:2,priorBillingIncluded:true,oldIdentityAndHistoryUnchanged:true,recoveredIdentityCleared:true};
+}

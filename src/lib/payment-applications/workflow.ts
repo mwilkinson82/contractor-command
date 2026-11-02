@@ -131,3 +131,26 @@ export function carryCertificate(a: Application, previous: SavedApplication): Ap
     }),
   };
 }
+
+/** Same frozen financial/source fields as the server's certificate-only comparison. */
+export function isCertificateRevision(application: Application, base: SavedApplication): boolean {
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, v]) => [key, canonical(v)]),
+          )
+        : value;
+  const frozen = (a: Application) => {
+    const { state, certification, reason, ...facts } = a;
+    return JSON.stringify(canonical(facts));
+  };
+  return (
+    ["submitted", "certified"].includes(base.body.state) &&
+    application.state === "certified" &&
+    frozen(application) === frozen(base.body)
+  );
+}

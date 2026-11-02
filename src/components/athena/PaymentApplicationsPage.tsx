@@ -17,6 +17,7 @@ import {
   applicationUrl,
   emptyApplication,
   carryCertificate,
+  isCertificateRevision,
   type ApplicationContext,
   type ApplicationReview,
   type SavePayload,
@@ -143,15 +144,20 @@ export function PaymentApplicationsPage({
     [pending, setPending] = useState<(SavePayload & { review_key: string }) | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const [certificateMode, setCertificateMode] = useState(false);
-  const [recoveredIdentity, setRecoveredIdentity] = useState<Pick<
-    SavePayload,
-    "id" | "request_id" | "expected_version"
-  > | null>(null);
+  const [editContext, setEditContext] = useState<{
+    kind: "new" | "revision" | "certificate";
+    id: string;
+    expected_version: number;
+    base: SavedApplication | null;
+    read: ApplicationContext;
+    recoveryRequestId?: string;
+  } | null>(null);
+  const certificateMode = editContext?.kind === "certificate";
+  const editingBase = editContext?.base;
   const recoveryKey = `payment-application:${session?.user.id ?? ""}:${jobId}`;
   useEffect(() => {
     setEdit(null);
-    setCertificateMode(false);
+    setEditContext(null);
     setReview(null);
     setError("");
   }, [id, version, jobId, session?.user.id]);
@@ -172,8 +178,13 @@ export function PaymentApplicationsPage({
     queryFn: () => call<ApplicationContext>(jobId, "payment_application_read", { id, version }),
   });
   const saved = data.error ? undefined : data.data?.selected;
-  const knownApplications = (data.error ? [] : (data.data?.applications ?? []))
-    .filter((a) => a.id !== saved?.application_id && ["submitted", "certified"].includes(a.state))
+  const workingData = editContext?.read ?? data.data;
+  const knownApplications = (data.error ? [] : (workingData?.applications ?? []))
+    .filter(
+      (a) =>
+        a.id !== (editContext?.id ?? saved?.application_id) &&
+        ["submitted", "certified"].includes(a.state),
+    )
     .sort((a, b) => b.period_end.localeCompare(a.period_end));
   const latestKnown = knownApplications[0];
   const currentSovMatches =
@@ -215,16 +226,66 @@ export function PaymentApplicationsPage({
     );
     setReview(null);
   }
+  async function startNew() {
+    if (busy || pending) return;
+    setBusy(true);
+    setError("");
+    try {
+      // A selected detail omits its own invoice from evidence; a new request needs the full job context.
+      const read = await call<ApplicationContext>(jobId, "payment_application_read", {});
+      if (!read.snapshot) throw Error(read.snapshot_issue ?? "A current saved SOV is needed.");
+      setEditContext({
+        kind: "new",
+        id: crypto.randomUUID(),
+        expected_version: 0,
+        base: null,
+        read,
+      });
+      setEdit({
+        ...emptyApplication(read.snapshot),
+        ...(read.applications.some((a) => ["submitted", "certified"].includes(a.state))
+          ? { prior_mode: "saved" as const }
+          : {}),
+      });
+      setReview(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function startRevision(certificate = false) {
+    if (!saved || !data.data || busy || pending) return;
+    setEditContext({
+      kind: certificate ? "certificate" : "revision",
+      id: saved.application_id,
+      expected_version: saved.version,
+      base: saved,
+      read: data.data,
+    });
+    setEdit(
+      certificate
+        ? {
+            ...structuredClone(saved.body),
+            state: "certified",
+            reason: "",
+            certification: { amount_cents: null as unknown as number, date: "", source: "" },
+          }
+        : structuredClone(saved.body),
+    );
+    setReview(null);
+    setError("");
+  }
   async function prepare() {
-    if (!edit) return;
+    if (!edit || !editContext) return;
     setBusy(true);
     setError("");
     try {
       const application = applicationSchema.parse(edit);
       const payload: SavePayload = {
-        id: recoveredIdentity?.id ?? saved?.application_id ?? crypto.randomUUID(),
-        request_id: recoveredIdentity?.request_id ?? crypto.randomUUID(),
-        expected_version: recoveredIdentity?.expected_version ?? saved?.version ?? 0,
+        id: editContext.id,
+        request_id: editContext.recoveryRequestId ?? crypto.randomUUID(),
+        expected_version: editContext.expected_version,
         application,
       };
       setReview(await call(jobId, "payment_application_review", payload));
@@ -275,17 +336,32 @@ export function PaymentApplicationsPage({
         window.location.assign(applicationUrl(jobId, r.id, r.version));
         return;
       }
-      setRecoveredIdentity({
+      const read = await call<ApplicationContext>(
+        jobId,
+        "payment_application_read",
+        pending.expected_version > 0 ? { id: pending.id, version: pending.expected_version } : {},
+      );
+      const base = pending.expected_version > 0 ? read.selected : null;
+      if (
+        pending.expected_version > 0 &&
+        (!base || base.latest_version !== pending.expected_version)
+      )
+        throw Error(
+          "This application changed. Open its latest saved version with Athena before reconciling the pending edit.",
+        );
+      setEditContext({
+        kind: base
+          ? isCertificateRevision(pending.application, base)
+            ? "certificate"
+            : "revision"
+          : "new",
         id: pending.id,
-        request_id: pending.request_id,
         expected_version: pending.expected_version,
+        base,
+        read,
+        recoveryRequestId: pending.request_id,
       });
       setEdit(pending.application);
-      setCertificateMode(
-        !!saved &&
-          ["submitted", "certified"].includes(saved.body.state) &&
-          pending.application.state === "certified",
-      );
       setReview(null);
       setPending(null);
       sessionStorage.removeItem(recoveryKey);
@@ -346,23 +422,7 @@ export function PaymentApplicationsPage({
                 <button onClick={() => void download(saved)}>Download saved PDF</button>
                 {saved.version === saved.latest_version &&
                   ["submitted", "certified"].includes(saved.body.state) && (
-                    <button
-                      disabled={!!pending}
-                      onClick={() => {
-                        setCertificateMode(true);
-                        setEdit({
-                          ...structuredClone(saved.body),
-                          state: "certified",
-                          reason: "",
-                          certification: {
-                            amount_cents: null as unknown as number,
-                            date: "",
-                            source: "",
-                          },
-                        });
-                        setReview(null);
-                      }}
-                    >
+                    <button disabled={busy || !!pending} onClick={() => startRevision(true)}>
                       {saved.body.state === "certified"
                         ? "Correct actual certificate"
                         : "Record actual certificate"}
@@ -370,12 +430,8 @@ export function PaymentApplicationsPage({
                   )}
                 {saved.version === saved.latest_version && (
                   <button
-                    disabled={!!pending || !currentSovMatches}
-                    onClick={() => {
-                      setCertificateMode(false);
-                      setEdit(structuredClone(saved.body));
-                      setReview(null);
-                    }}
+                    disabled={busy || !!pending || !currentSovMatches}
+                    onClick={() => startRevision()}
                   >
                     Revise this application
                   </button>
@@ -423,17 +479,8 @@ export function PaymentApplicationsPage({
               )}
               <div className="pa-actions">
                 <button
-                  disabled={!data.data.snapshot || !!pending}
-                  onClick={() => {
-                    if (data.data?.snapshot) {
-                      setCertificateMode(false);
-                      setEdit({
-                        ...emptyApplication(data.data.snapshot),
-                        ...(latestKnown ? { prior_mode: "saved" as const } : {}),
-                      });
-                      setReview(null);
-                    }
-                  }}
+                  disabled={busy || !data.data.snapshot || !!pending}
+                  onClick={() => void startNew()}
                 >
                   Prepare a new application
                 </button>
@@ -445,23 +492,23 @@ export function PaymentApplicationsPage({
               <h2>
                 {certificateMode
                   ? "Record an actual certificate"
-                  : saved
+                  : editContext?.expected_version
                     ? "Revise application"
                     : "Prepare application"}
               </h2>
-              {certificateMode && saved && (
+              {certificateMode && editingBase && (
                 <>
                   <p>
-                    This certificate refers to the unchanged issued request, version {saved.version}
-                    . Its period, SOV, amounts and prior sources stay frozen. No additional invoice
-                    is created.
+                    This certificate refers to the unchanged issued request, version{" "}
+                    {editingBase.version}. Its period, SOV, amounts and prior sources stay frozen.
+                    No additional invoice is created.
                   </p>
                   <details>
                     <summary>
-                      Issued request, version {saved.version} ·{" "}
-                      {appMoney(saved.calculation.payment_due_cents)}
+                      Issued request, version {editingBase.version} ·{" "}
+                      {appMoney(editingBase.calculation.payment_due_cents)}
                     </summary>
-                    <PaymentApplicationDetail saved={saved} jobId={jobId} />
+                    <PaymentApplicationDetail saved={editingBase} jobId={jobId} />
                   </details>
                   <TextInput
                     label="Revision reason"
@@ -584,7 +631,7 @@ export function PaymentApplicationsPage({
                         }}
                       >
                         <option value="">Choose the actual prior certificate</option>
-                        {data.data.applications
+                        {workingData!.applications
                           .filter((a) => a.state === "certified" && a.id === latestKnown?.id)
                           .map((a) => (
                             <option key={a.id} value={a.id}>
@@ -674,7 +721,7 @@ export function PaymentApplicationsPage({
                     automatically become certificates. A prior requested amount above actual
                     certification must be reconciled before issuing another application.
                   </p>
-                  {data.data.evidence.map((e) => {
+                  {workingData!.evidence.map((e) => {
                     const choice = edit.evidence.find((c) => c.id === e.id);
                     return (
                       <section className="pa-line" key={e.id}>
@@ -785,6 +832,7 @@ export function PaymentApplicationsPage({
                   disabled={busy || !!pending}
                   onClick={() => {
                     setEdit(null);
+                    setEditContext(null);
                     setReview(null);
                   }}
                 >

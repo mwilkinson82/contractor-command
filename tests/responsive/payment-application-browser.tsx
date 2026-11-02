@@ -12,16 +12,39 @@ import {
 } from "../../src/lib/payment-applications/workflow";
 export const fixtureJob = "00000000-0000-4000-8000-000000000001";
 const seed = applicationFixture();
-export const context = (): ApplicationContext => ({
-  job: { number: "SYN-01", name: "Construction project" },
-  currency: "USD",
-  snapshot: JSON.parse(sessionStorage.getItem("fixture-current-sov") ?? "null") ?? seed.snapshot,
-  evidence: [],
-  applications: JSON.parse(sessionStorage.getItem("fixture-list") ?? "[]"),
-  selected: null,
-});
+export const context = (): ApplicationContext => {
+  const applications = JSON.parse(sessionStorage.getItem("fixture-list") ?? "[]");
+  const evidence = applications
+    .filter((a: any) => ["submitted", "certified"].includes(a.state))
+    .map((a: any) => {
+      const saved = JSON.parse(sessionStorage.getItem(`fixture-saved:${a.id}`)!);
+      return {
+        id: a.id,
+        version: saved.version,
+        number: a.number,
+        kind: "pay_application",
+        status: a.state,
+        invoice_date: saved.body.period_end,
+        gross_cents: saved.calculation.billing_gross_cents,
+        net_due_cents: saved.calculation.payment_due_cents,
+        certified_cents: saved.body.certification?.amount_cents ?? null,
+        credit_for: null,
+      };
+    });
+  return {
+    job: { number: "SYN-01", name: "Construction project" },
+    currency: "USD",
+    snapshot: JSON.parse(sessionStorage.getItem("fixture-current-sov") ?? "null") ?? seed.snapshot,
+    evidence,
+    applications,
+    selected: null,
+  };
+};
 const search = Object.fromEntries(new URL(location.href).searchParams);
-if (new URL(location.href).searchParams.has("certificate_fixture")) {
+if (
+  new URL(location.href).searchParams.has("certificate_fixture") &&
+  !sessionStorage.getItem("fixture-saved:00000000-0000-4000-8000-000000000002")
+) {
   const original = applicationFixture();
   original.state = "submitted";
   const saved: SavedApplication = {
@@ -35,6 +58,7 @@ if (new URL(location.href).searchParams.has("certificate_fixture")) {
     history: [{ version: 1, state: "submitted", recorded_at: "2026-02-01T12:00:00Z", reason: "" }],
   };
   sessionStorage.setItem(`fixture-saved:${saved.application_id}`, JSON.stringify(saved));
+  sessionStorage.setItem(`fixture-version:${saved.application_id}:1`, JSON.stringify(saved));
   sessionStorage.setItem(
     "fixture-list",
     JSON.stringify([
@@ -62,14 +86,30 @@ export const fixtureRpc = async (_name: string, args: any) => {
     if (args._action === "payment_application_read") {
       const c = context();
       if (p.id) {
-        const saved = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
-        if (!saved || (p.version && Number(p.version) !== saved.version))
-          throw Error("Exact version unavailable");
-        c.selected = saved;
+        const head = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
+        const saved =
+          p.version && Number(p.version) !== head?.version
+            ? JSON.parse(sessionStorage.getItem(`fixture-version:${p.id}:${p.version}`) ?? "null")
+            : head;
+        if (!saved) throw Error("Exact version unavailable");
+        c.selected = { ...saved, latest_version: head.version, history: head.history };
+        c.evidence = c.evidence.filter((e) => e.id !== p.id);
       }
       return { data: c, error: null };
     }
+    if (args._action === "payment_application_outcome") {
+      const op = JSON.parse(sessionStorage.getItem(`fixture-op:${p.request_id}`) ?? "null");
+      if (!op) return { data: { applied: false }, error: null };
+      const { review_key, ...payload } = p;
+      if (op.payload !== JSON.stringify(payload))
+        throw Error("Operation belongs to different content");
+      return { data: { ...op.result, applied: true }, error: null };
+    }
     if (args._action === "payment_application_review") {
+      const existing = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
+      if ((existing?.version ?? 0) !== p.expected_version) throw Error("Version changed");
+      if (existing && existing.body.number !== p.application.number)
+        throw Error("Keep the application number");
       const calc = calculateApplication(p.application);
       if (p.application.state !== "draft" && !calc.complete) throw Error("Needed inputs remain");
       const key = crypto.randomUUID();
@@ -89,6 +129,7 @@ export const fixtureRpc = async (_name: string, args: any) => {
       const { review_key, ...payload } = p;
       if (sessionStorage.getItem(`fixture-review:${review_key}`) !== JSON.stringify(payload))
         throw Error("Review changed");
+      const previous = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
       const saved: SavedApplication = {
         application_id: p.id,
         version: p.expected_version + 1,
@@ -107,12 +148,15 @@ export const fixtureRpc = async (_name: string, args: any) => {
             reason: p.application.reason,
             recorded_at: "2026-02-01T12:00:00Z",
           },
+          ...(previous?.history ?? []),
         ],
       };
       sessionStorage.setItem(`fixture-saved:${p.id}`, JSON.stringify(saved));
+      sessionStorage.setItem(`fixture-version:${p.id}:${saved.version}`, JSON.stringify(saved));
       sessionStorage.setItem(
         "fixture-list",
         JSON.stringify([
+          ...context().applications.filter((a) => a.id !== p.id),
           {
             id: p.id,
             version: saved.version,
@@ -122,6 +166,13 @@ export const fixtureRpc = async (_name: string, args: any) => {
             period_end: p.application.period_end,
           },
         ]),
+      );
+      sessionStorage.setItem(
+        `fixture-op:${p.request_id}`,
+        JSON.stringify({
+          payload: JSON.stringify(payload),
+          result: { id: p.id, version: saved.version },
+        }),
       );
       return { data: { id: p.id, version: saved.version }, error: null };
     }

@@ -10,6 +10,8 @@ async (page) => {
     );
   await page.setViewportSize({ width: 375, height: 900 });
   await page.goto("http://127.0.0.1:4182/interactive.html");
+  await page.evaluate(()=>sessionStorage.clear());
+  await page.reload();
   await page.getByRole("button", { name: "Prepare a new application" }).click();
   const editorWidths = [];
   for (const width of [320, 375, 430, 500, 600, 700, 1110, 1365]) {
