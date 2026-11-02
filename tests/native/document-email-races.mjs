@@ -19,7 +19,7 @@ const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const cases=[];
 const begin=async(c,actor=uid)=>{await q(c,'begin');await q(c,'set local role authenticated');await q(c,"select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:actor,role:'authenticated'})]);};
-const rpc=async(c,delivery,action,args={})=>(await q(c,'select public.mcp_document_email_delivery($1,$2,$3::jsonb) r',[job,action,JSON.stringify({delivery_id:delivery,...args})]))[0].r;
+const rpc=async(c,delivery,action,args={})=>(await q(c,'select public.mcp_document_email_delivery($1,$2,$3::jsonb) r',[job,action,pool.json({delivery_id:delivery,...args})]))[0].r;
 const execute=async(c,delivery,action,args={})=>{await begin(c);try{const r=await rpc(c,delivery,action,args);await q(c,'commit');return r;}catch(e){await q(c,'rollback');throw e;}};
 const make=async(n)=>{
  const app=id(400+n),delivery=id(500+n);
@@ -74,7 +74,7 @@ try {
  {const {delivery}=await make(6);await execute(a,delivery,'claim',{review_hash:hash,confirmed:true});await begin(a);assert.equal((await rpc(a,delivery,'uncertain',{review_hash:hash})).state,'uncertain');await begin(b);const p=rpc(b,delivery,'receipt',{review_hash:hash,receipt});p.catch(()=>{});await waitForB();await q(a,'commit');assert.equal((await finishB(p)).state,'host_reported_provider_acceptance');assert.equal((await execute(a,delivery,'receipt',{review_hash:hash,receipt})).already_recorded,true);await assert.rejects(execute(a,delivery,'receipt',{review_hash:hash,receipt:{...receipt,message_id:'different'}}));cases.push('uncertain first accepts only matching receipt and exact replay');}
  {const {delivery}=await make(7);await execute(a,delivery,'claim',{review_hash:hash,confirmed:true});await begin(a);assert.equal((await rpc(a,delivery,'receipt',{review_hash:hash,receipt})).state,'host_reported_provider_acceptance');await begin(b);const p=rpc(b,delivery,'uncertain',{review_hash:hash});p.catch(()=>{});await waitForB();await q(a,'commit');const e=await finishB(p,true);assert.match(String(e),/unresolved/i);cases.push('receipt first preserves reported acceptance');}
  // Anonymous and direct-table access remain denied; scope uses real gate functions.
- await q(a,'begin');await q(a,'set local role anon');await assert.rejects(q(a,'select public.mcp_document_email_delivery($1,$2,$3::jsonb)',[job,'status',JSON.stringify({delivery_id:id(501)})]));await q(a,'rollback');
+ await q(a,'begin');await q(a,'set local role anon');await assert.rejects(q(a,'select public.mcp_document_email_delivery($1,$2,$3::jsonb)',[job,'status',pool.json({delivery_id:id(501)})]));await q(a,'rollback');
  await begin(a);await assert.rejects(q(a,'select * from public.mcp_document_email_deliveries'));await q(a,'rollback');cases.push('anonymous execute and authenticated table read denied');
  console.log(JSON.stringify({environment:'disposable PostgreSQL 17 CI service',auth:'repository gate, entitlement, provisioning and scope functions; synthetic JWT auth adapter',migration:'0060',cases},null,2));
 } finally {a.release();b.release();admin.release();await pool.end({timeout:5});}
