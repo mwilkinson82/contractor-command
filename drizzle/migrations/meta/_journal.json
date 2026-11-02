@@ -421,6 +421,13 @@
       "when": 1793640921440,
       "tag": "0059_conversational_payment_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793658437512,
+      "tag": "0060_document_email_delivery",
+      "breakpoints": true
     }
   ]
 }
