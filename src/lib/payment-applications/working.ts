@@ -17,6 +17,19 @@ export const intentSchema = z.record(
 );
 export type WorkingIntent = z.infer<typeof intentSchema>;
 export const workingApplicationSchema = workingApplicationInputSchema;
+// Formal saved versions contain cumulative values, not the editor's working intent.
+export function intentFromSavedApplication(a: Application): WorkingIntent {
+  return Object.fromEntries(a.lines.map((line) => {
+    if (line.prior_work_cents === null && line.work_cents !== null) {
+      return [line.item, { basis: "cumulative" as const, amount_cents: line.work_cents }];
+    }
+    return [line.item, {
+      basis: "this_period" as const,
+      amount_cents: line.work_cents === null || line.prior_work_cents === null
+        ? null : line.work_cents - line.prior_work_cents,
+    }];
+  }));
+}
 export function deriveIntent(a: Application, intent: WorkingIntent): Application {
   return {
     ...a,

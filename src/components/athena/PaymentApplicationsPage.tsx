@@ -26,6 +26,7 @@ import {
 import { PaymentApplicationContractBasis } from "./PaymentApplicationContractBasis";
 import {
   deriveIntent,
+  intentFromSavedApplication,
   sameWorkingValue,
   workingApplicationSchema,
   workingRequestHash,
@@ -351,7 +352,7 @@ export function PaymentApplicationsPage({
       base: saved,
       read: data.data,
     });
-    setIntent(saved.working_intent ?? {});
+    setIntent(saved.working_state ? (saved.working_intent ?? {}) : intentFromSavedApplication(saved.body));
     setEdit(
       certificate
         ? {
