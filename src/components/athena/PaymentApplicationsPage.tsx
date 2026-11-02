@@ -241,7 +241,33 @@ export function PaymentApplicationsPage({
   async function download(s: SavedApplication) {
     try {
       const { applicationPdf } = await import("@/lib/payment-applications/pdf");
-      const bytes = applicationPdf(data.data!.job, s);
+      // Resolve the company through the same job-scoped, RLS-protected path used by purchase orders.
+      let brand: { companyName?: string; logo?: Uint8Array; logoFormat?: "PNG" | "JPEG" } = {};
+      try {
+        const j = await supabase.from("mcp_jobs").select("id,company_id").eq("id", jobId).single();
+        if (!j.error && j.data?.id === jobId && j.data.company_id) {
+          const c = await supabase.from("mcp_companies").select("id,name,logo_url").eq("id", j.data.company_id).single();
+          if (!c.error && c.data?.id === j.data.company_id) {
+            brand.companyName = c.data.name;
+            if (c.data.logo_url) {
+              const u = new URL(c.data.logo_url);
+              const backend = import.meta.env.VITE_SUPABASE_URL;
+              if (backend && u.origin === new URL(backend).origin && u.pathname.startsWith("/storage/v1/object/public/") && /\.(png|jpe?g)$/i.test(u.pathname)) {
+                const res = await fetch(u.href, { redirect: "error", signal: AbortSignal.timeout(10000) });
+                const length = Number(res.headers.get("content-length"));
+                if (res.ok && length > 0 && length <= 1024 * 1024) {
+                  const bytes = new Uint8Array(await res.arrayBuffer());
+                  if (bytes.length <= 1024 * 1024) {
+                    brand.logo = bytes;
+                    brand.logoFormat = /\.png$/i.test(u.pathname) ? "PNG" : "JPEG";
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch { /* A missing or inaccessible logo must not prevent the saved document. */ }
+      const bytes = applicationPdf(data.data!.job, s, brand);
       const url = URL.createObjectURL(
         new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
       );

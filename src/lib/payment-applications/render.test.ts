@@ -117,6 +117,57 @@ describe("saved application view and document", () => {
     expect(Buffer.from(bytes).subarray(0, 5).toString()).toBe("%PDF-");
     expect(bytes).toEqual(applicationPdf(f.job, f.selected!));
   });
+  it("renders an original branded application and paginated continuation without inventing unknown inputs", () => {
+    const f = fixture();
+    const a = f.selected!.body;
+    a.snapshot.lines = Array.from({ length: 40 }, (_, i) => ({
+      item: String(i + 1).padStart(2, "0"), description: `Work package ${i + 1}`,
+      scheduled_cents: 250000,
+    }));
+    a.lines = a.snapshot.lines.map((s) => ({ ...a.lines[0], item: s.item, work_cents: 100000, stored_cents: 50000 }));
+    f.selected!.calculation = calculateApplication(a);
+    const bytes = applicationPdf(f.job, f.selected!, { companyName: "Example Builders" });
+    const raw = Buffer.from(bytes).toString("latin1");
+    expect(raw).toContain("Example Builders");
+    expect(raw).toContain("CONTINUATION SCHEDULE");
+    expect(raw).toContain("CARRIED FORWARD");
+    expect(raw).toContain("BROUGHT FORWARD");
+    expect(raw).toContain("Not provided");
+    expect(raw).toContain("not an AIA contract document");
+    const dir = process.env.ATHENA_PAYMENT_APP_ARTIFACTS;
+    if (dir) writeFileSync(`${dir}/multipage.pdf`, bytes);
+  });
+  it("prints saved application values and retains zero, unknown, and original contract distinctions", () => {
+    const f = fixture(), a = f.selected!.body;
+    a.snapshot.contract_cents = 48000000;
+    a.snapshot.provenance.contract_fact = { value: 480000 };
+    const schedule = [3000000, 22000000, 15000000, 6000000, 2000000];
+    const prior = [3000000, 1800000, 0, 0, 0], work = [3000000, 4800000, 1500000, 700000, 0];
+    a.snapshot.lines = schedule.map((scheduled_cents, i) => ({item: String(i+1), description: `Scope ${i+1}`, scheduled_cents}));
+    a.lines = a.snapshot.lines.map((s,i) => ({...a.lines[0], item:s.item, prior_work_cents:prior[i], work_cents:work[i],
+      prior_stored_cents:0, prior_retained_cents:[200000,180000,0,0,0][i], stored_cents:0, stored_to_work_cents:0,
+      work_retainage_bps:1000, stored_retainage_bps:1000, release_cents:i===0?100000:0,
+      release_basis:i===0?"Reviewed release":"", stored_basis:"" }));
+    a.prior_mode = "external"; a.prior_certified_net_cents = 4420000;
+    f.selected!.calculation = calculateApplication(a);
+    expect(f.selected!.calculation.payment_due_cents).toBe(4680000);
+    const raw=Buffer.from(applicationPdf(f.job,f.selected!,{companyName:"Example Builders"})).toString("latin1");
+    expect(raw).toContain("$46,800.00");
+    expect(raw).toContain("$480,000.00");
+    expect(raw).toContain("$30,000.00");
+    const dir=process.env.ATHENA_PAYMENT_APP_ARTIFACTS;
+    if(dir) writeFileSync(`${dir}/payment-summary.pdf`,applicationPdf(f.job,f.selected!,{companyName:"Example Builders"}));
+  });
+  it("embeds a supplied company logo and preserves missing work as Needed", () => {
+    const f=fixture();
+    f.selected!.body.lines[0].work_cents=null;
+    f.selected!.calculation=calculateApplication(f.selected!.body);
+    const logo = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGP4zwAE/wEHAAH/4iOeWQAAAABJRU5ErkJggg==", "base64"));
+    const raw=Buffer.from(applicationPdf(f.job,f.selected!,{companyName:"Example Builders",logo,logoFormat:"PNG"})).toString("latin1");
+    expect(raw).toContain("/Subtype /Image");
+    expect(raw).toContain("Example Builders");
+    expect(raw).toContain("Needed");
+  });
   it("exports private rendered fixtures when explicitly requested", () => {
     const dir = process.env.ATHENA_PAYMENT_APP_ARTIFACTS;
     if (!dir) return;
