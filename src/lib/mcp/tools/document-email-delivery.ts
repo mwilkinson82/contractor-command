@@ -59,7 +59,14 @@ export const documentEmailDelivery=defineTool({
    }
    if(a.action==='receipt'&&!a.receipt)throw new ToolError('A provider receipt is required.');
    const result=await call(a.action,{review_hash:a.review_hash,...(a.confirmed?{confirmed:true}:{}),...(a.receipt?{receipt:a.receipt}:{})});
-   return {...text(`Email status: ${result.state}. ${result.state==='host_reported_provider_acceptance'?'Provider acceptance was reported by the assistant; recipient delivery is not verified.':'No new email was sent.'}`),structuredContent:result};
+   const statusText=result.state==='host_reported_provider_acceptance'
+    ?'Provider acceptance was reported by the assistant; recipient delivery is not verified.'
+    :result.state==='uncertain'
+     ?'The provider outcome is uncertain. This email may have been sent; check the connected account before another attempt.'
+     :result.state==='cancelled'
+      ?'This operation was cancelled before a send claim.'
+      :'Athena updated the status and did not send email.';
+   return {...text(`Email status: ${result.state}. ${statusText}`),structuredContent:result};
   }catch(e){if(e instanceof ToolError)throw e;throw new ToolError(e instanceof Error?e.message:'The document email is unavailable.');}
  })
 });

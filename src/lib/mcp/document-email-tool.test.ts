@@ -29,6 +29,15 @@ describe('document email MCP handoff',()=>{
   const replay=await call({action:'claim',confirmed:true,mailbox:mailbox()});expect(replay.structuredContent.send_allowed).toBe(false);
   const sent=await call({action:'receipt',receipt:{provider:'gmail',connection_id:'one',from:'owner@example.test',review_hash:state.row.review_hash,attachment_sha256:state.row.payload.email.attachment.sha256,message_id:'synthetic',sent_at:'2026-01-01T00:00:00Z'}});expect(sent.structuredContent.state).toBe('host_reported_provider_acceptance');expect(sent.content[0].text).toContain('reported by the assistant');
  });
+ it('makes clear that an uncertain provider outcome may already have sent the email',async()=>{
+  state.scope='full';state.version=1;state.brand='Example Company';state.row=null;
+  await call({action:'review',document_id:app,version:1,draft,mailbox:mailbox()});
+  await call({action:'handoff',confirmed:true});await call({action:'claim',confirmed:true,mailbox:mailbox()});
+  const uncertain=await call({action:'uncertain'});
+  expect(uncertain.structuredContent.state).toBe('uncertain');
+  expect(uncertain.content[0].text).toMatch(/may have been sent.*check the connected account/i);
+  expect(uncertain.content[0].text).not.toMatch(/no new email was sent/i);
+ });
  it('stops before claim when the sender, access or version changes',async()=>{
   state.scope='full';state.version=1;state.brand='Example Company';state.row=null;await call({action:'review',document_id:app,version:1,draft,mailbox:mailbox()});
   await expect(call({action:'claim',confirmed:true,mailbox:{...mailbox(),connectionId:'two'}})).rejects.toThrow(/changed/);expect(state.row.state).toBe('reviewed');
