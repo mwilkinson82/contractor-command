@@ -148,7 +148,8 @@ export const HOST_DISPLAY_BLOCK = [
   "- Schedule of values (report deliverable sov): present it as a spreadsheet, line-item view by default: one row per line with line no., cost code, division, description, scheduled value and % of total (the Cost Code column always sits right after the line no.), then the grand total that ties to the contract sum. Claude: an artifact table built from this result; ChatGPT: a canvas or table; elsewhere: a clean table plus an offer to create an Excel file. Table style: header row blue #2563EB with white bold text; alternating light-gray (#F3F4F6) and white row bands; bold total row with a blue #2563EB top rule. Blue #2563EB and gray only, never orange, rust or the alert color, including totals. After the table, at most one line: no footer or license note and no roll-up offer unless the member asks.",
   `- Summary offer: use this wording verbatim, never paraphrased or shortened: "${SUMMARY_OFFER_TEXT}"`,
   "- Write for contractor office staff and owners. No technical notes: nothing about artifacts, canvas, sharing settings, code, files, tools or colors (the exact SOV delivery question is the one exception).",
-  "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. Call email_draft for the card; never send in the same reply. Send only after a separate yes and email_confirm_send.",
+  "- For a saved payment application requested as an email attachment, resolve its exact application and version, the recipient and the host’s actual connected email profile. Use document_email_delivery review to show the editable card. After explicit confirmation use its one-time claim and connected email tool; record the host-reported provider receipt, or mark an uncertain outcome and never automatically resend. If no compatible email account is available, explain the available link or download fallback. Never imply an authenticated project page is an external download link.",
+  "- Email on demand: whenever the member asks to email something (\"also email this sub\", \"send this to the supplier\"), show the email card in that same reply with recipient, subject, body and attachment filled in from Athena's saved job data. If the address isn't in Athena's results, leave To blank on the card and ask for it in the same reply. Never guess an address. For other email workflows call email_draft for the card; never send in the same reply. Send only after a separate yes and email_confirm_send. Saved payment applications use the document email workflow above.",
   "- Keep everything private. Never publish, share or create a public link unless the member asks for it in this chat.",
 ].join("\n");
 
@@ -194,22 +195,15 @@ export const SOV_ALT_GRAY = "#9CA3AF";
 /** 0.8.9: pinned at the top of every SOV and report result: list all three options, never recommend one. */
 export const SHARE_OPTIONS_REQUIRED =
   "REQUIRED: When this is shared with the team or the owner (any audience), list all 3 sharing options below, numbered 1, 2 and 3, word for word, and let the member pick. Never recommend, pre-select or offer only one (not just a Google Sheets link, not just a PDF).";
-/**
- * 0.8.10: attachments. Athena returns no files; the host builds the file and the host's email tool must carry it.
- * ChatGPT's Gmail/Outlook email action has no attachment field (drafts and sends go out bare), Claude's Gmail
- * create_draft takes base64 attachments, Grok Bot attaches to a Gmail draft. Never claim an attachment that isn't there.
- */
+/** Attachment support depends on the active host connector and its actual schema. */
 export const EMAIL_ATTACHMENT_RULE =
-  "REQUIRED: Only say a file is attached if your email tool actually attached it. If your email tool can't attach files (ChatGPT's email today), put a link to the file in the email body instead (a canvas or file shared as anyone with the link, or a Google Drive or OneDrive link), and say so in one line under the card. Best link: call Athena's file_share with the file you built and use the app.meetathena.io/f/ link it returns (opens for anyone with it, 30 days). Never send an email that says \"attached\" without the file.";
+  "REQUIRED: Only say a file is attached if the connected email tool actually attached the exact reviewed bytes. Inspect the active connector's attachment capabilities. If unavailable, ask how to proceed; do not create a public share link without the member's authorization.";
 export const EMAIL_ATTACHMENT_STRUCTURED = {
   never_claim_missing_attachment: true,
-  attach_when_supported:
-    "Use the email tool's attachments field when it has one (Claude Gmail create_draft attachments, base64, 25 MB total; Grok Bot Gmail draft attachment).",
-  fallback_when_unsupported:
-    "ChatGPT Gmail/Outlook email action has no attachments field: put a link to the file in the body (canvas or file shared as anyone with the link, or a Drive/OneDrive link) and tell the member in one line. Or save a draft and tell the member to attach the downloaded file in Gmail before sending.",
+  attach_when_supported: "Use the active email connector's supported MIME attachment fields with the exact reviewed file bytes.",
+  fallback_when_unsupported: "Explain that the connected email tool cannot attach this file and ask how the member wants to proceed.",
   share_link_tool: "file_share",
-  share_link_how:
-    "Call file_share with job_number, kind, filename and content_base64 (the bytes of the file you built). Put the returned link in the email body. Works in every host.",
+  share_link_how: "Create an external link only when the member authorizes that sharing method.",
   rule: EMAIL_ATTACHMENT_RULE,
 } as const;
 /** 0.8.9: email cards carry a literal To: label. 0.8.10: as the first line inside the card. */
@@ -320,7 +314,7 @@ export const SOV_DELIVERY_BLOCK = [
   "- Claude: the delivery question is mandatory even in Claude. Put it directly under the artifact as the last thing in the reply.",
   "- Email on demand, at any point: use the job's saved subs, suppliers and contacts from Athena results (including names and emails written in job answers, lookahead or open-item text) and show the email card right away with recipient, subject, body and attachment filled in. If the contact or address isn't there, leave To blank and ask in the same reply. Never guess an address.",
   "- Claude: no narration before or between steps (no \"Building...\", \"First I'll pull...\" or \"I need two things before...\"). Show the file and the email card in the same reply, To blank if needed, with one short question under it. Never hold the card back while you ask.",
-  `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Claude: pass the file in the Gmail draft's attachments. ChatGPT: its email action can't attach files, so call file_share and put its link in the body.`,
+  `- Attachments: ${EMAIL_ATTACHMENT_RULE.replace(/^REQUIRED: /, "")} Use the connected email tool only when it supports the exact attachment.`,
   "- Never send anything in the same reply. Show the email_draft card, ask the yes/no confirm question, and send only after a separate yes and email_confirm_send.",
   `- If the member says "not now", leave the SOV in the chat and add an open item to deliver it within ${SOV_NOT_NOW_DAYS} days (intake section open_item).`,
 ].join("\n");

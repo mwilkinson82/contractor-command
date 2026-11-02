@@ -1,0 +1,35 @@
+name: Document email integration checks
+on:
+  pull_request:
+    branches: [codex/payment-application-document, codex/athena-passwordless-login-only]
+permissions:
+  contents: read
+jobs:
+  email-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install existing verification dependencies
+        run: npm install --no-save --legacy-peer-deps @lovable.dev/mcp-js@3.0.5 zod@4.4.3
+      - name: Test document email integration
+        run: >-
+          npx vitest run --maxWorkers=2
+          src/lib/mcp/document-email-artifact.test.ts
+          src/lib/mcp/document-email-brand.test.ts
+          src/lib/mcp/document-email-db.test.ts
+          src/lib/mcp/document-email-delivery.test.ts
+          src/lib/mcp/document-email-export.test.ts
+          src/lib/mcp/document-email-host.test.ts
+          src/lib/mcp/document-email-tool.test.ts
+          src/lib/mcp/document-email-visible.test.ts
+          src/lib/mcp/cards/email-card.test.ts
+          src/lib/mcp/email-safety.test.ts
+          src/lib/mcp/submittals.test.ts
+      - name: Typecheck
+        run: npx tsc --noEmit --incremental false
+      - name: Build without deployment
+        run: npm run build

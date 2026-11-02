@@ -6,7 +6,6 @@ import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text, type Sb } from "../guard";
 import { resolveJob, type Job } from "../jobs";
-import { recordEvent } from "../project-record";
 import { whoForJob } from "../people";
 import { draftIdentity } from "../drafts";
 import { jobContacts } from "../contacts";
@@ -185,21 +184,7 @@ export const emailConfirmSend = defineTool({
         const approved = await call("approve", { delivery_id: saved.id, draft_key: saved.draft_key, confirmed: true });
         return guide({ ...text(approved.already_approved ? "Already approved. Check Sent mail before retrying this chase." : `Approved: one chase to ${d.to}. Send receipt still needed.`), structuredContent: { send_confirmed: !approved.already_approved, sent_by_athena: false, delivery_id: saved.id, draft_key: saved.draft_key, project_record: false } }, approved.already_approved ? "Check connected Sent mail before any retry and record an existing receipt; never send a duplicate." : "Send this exact reviewed draft once using the connected email tool, then call submittal_delivery record_sent with the successful provider receipt; do not count a failed send.");
       }
-      // Reply outcomes are not recorded yet. A later pass uses kind email_reply.
-      let recorded = false;
-      if (args.job_number?.trim()) {
-        const job = await resolveJob(sb as Sb, args.job_number, args.company_id);
-        const id = await recordEvent(sb as Sb, {
-          jobId: job.job_id,
-          kind: "email_sent",
-          title: d.subject,
-          summary: `Email to ${d.to}. Subject: ${d.subject}.`,
-          counterpartyEmail: d.to,
-          payload: { subject: d.subject, to: d.to, draft_key: args.draft_key },
-          actor: "user",
-        });
-        recorded = id != null;
-      }
+      // A host approval is not a provider receipt. Do not record an email as sent here.
       return guide(
         {
           ...text(`Confirmed: one email to ${d.to}, subject "${d.subject}".`),
@@ -207,10 +192,10 @@ export const emailConfirmSend = defineTool({
             send_confirmed: true,
             draft_key: args.draft_key,
             sent_by_athena: false,
-            project_record: recorded,
+            project_record: false,
           },
         },
-        "You may now send this one email exactly as reviewed with your email tool, then tell the member it went out and from which account.",
+        "You may now send this one email exactly as reviewed with your connected email tool. Confirm delivery only from the provider receipt; reconcile an uncertain outcome before retrying.",
       );
     }),
 });

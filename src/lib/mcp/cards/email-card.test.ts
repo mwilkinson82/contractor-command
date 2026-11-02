@@ -109,7 +109,7 @@ function view(hostCapabilities: Obj = { serverTools: {}, message: {} }) {
     removeEventListener: () => {},
   };
   const script = emailCardHtml().match(/<script>([\s\S]*?)<\/script>/)![1];
-  runInNewContext(script, { window, document: dom.document, setTimeout, clearTimeout, Promise });
+  runInNewContext(script, { window, document: dom.document, setTimeout, clearTimeout, Promise, crypto: {randomUUID: () => "77777777-7777-4777-8777-777777777777"} });
   const message = (data: unknown) =>
     receive({ data, source: parent, origin: "https://sandbox.example" });
   message({
@@ -142,6 +142,53 @@ const emailResult = {
     company_id: "ALP Construction",
   },
 };
+
+describe("document email card", () => {
+  const doc={id:"66666666-6666-4666-8666-666666666666",document_id:"55555555-5555-4555-8555-555555555555",version:2,review_hash:"b".repeat(64),sha256:"a".repeat(64),size_bytes:123,from:"owner@example.test",state:"reviewed",mailbox:{provider:"gmail",connectionId:"one",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
+  const result={structuredContent:{draft:{...draft,attachment:"application-v2.pdf"},document_email:doc,job_number:"2701",company_id:"company-a",send_allowed:true}};
+  it("shows exact saved version and hands confirmation to host without declaring sent",async()=>{
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
+    expect(v.app.textContent).toContain("From (reported account): owner@example.test");expect(v.app.textContent).toContain("Saved version 2");expect(v.app.textContent).toContain("exact saved PDF");
+    v.el(e=>e.className==="primary").fire("click");await v.flush();const h=v.requests().at(-1)!;expect(h.method).toBe("tools/call");v.answer(h.id,{structuredContent:{handoff:true}});await v.flush();const m=v.requests().at(-1)!;
+    expect(m.method).toBe("ui/message");expect(JSON.stringify(m.params)).toContain(doc.id);expect(v.app.textContent).not.toContain("Sent");
+    v.answer(m.id,{});await v.flush();expect(v.app.textContent).toContain("Waiting for the connected account and a provider response");
+    const input=v.el(e=>e.id==="body");input.value="changed after handoff";input.fire("input");expect(v.el(e=>e.className==="primary").disabled).toBe(true);
+  });
+  it("re-reviews edits before handing them to the host",async()=>{
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
+    const input=v.el(e=>e.id==="body");input.value="Updated message";input.fire("input");v.el(e=>e.className==="primary").fire("click");await v.flush();
+    const req=v.requests().at(-1)!;expect(req.method).toBe("ui/message");expect(JSON.stringify(req.params)).toContain("Updated message");expect(JSON.stringify(req.params)).toContain("SAME delivery ID");
+    expect(v.el(e=>e.id==="body").disabled).toBe(true);v.answer(req.id,{});await v.flush();
+  });
+  it("freezes an uncertain handoff and does not start a second one",async()=>{
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
+    const button=v.el(e=>e.className==="primary");button.fire("click");await v.flush();
+    const handoff=v.requests().at(-1)!;v.answer(handoff.id,{structuredContent:{handoff:true}});await v.flush();
+    const msg=v.requests().at(-1)!;expect(msg.method).toBe("ui/message");
+    v.message({jsonrpc:"2.0",id:msg.id,error:{message:"response lost"}});await v.flush();
+    expect(button.disabled).toBe(true);expect(v.app.textContent).toContain("outcome is uncertain");
+    const count=v.requests().length;button.fire("click");await v.flush();expect(v.requests()).toHaveLength(count);
+  });
+  it("keeps the same review identity and freezes an edited draft when acknowledgement is lost",async()=>{
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
+    const body=v.el(e=>e.id==="body"),button=v.el(e=>e.className==="primary");body.value="Edited before review";body.fire("input");button.fire("click");await v.flush();
+    const req=v.requests().at(-1)!;expect(req.method).toBe("ui/message");expect(JSON.stringify(req.params)).toContain(doc.id);expect(body.disabled).toBe(true);
+    v.message({jsonrpc:"2.0",id:req.id,error:{message:"response lost"}});await v.flush();expect(button.disabled).toBe(true);const n=v.requests().length;button.fire("click");await v.flush();expect(v.requests()).toHaveLength(n);
+  });
+  it("does not offer approval without host continuation",()=>{
+    const v=view({serverTools:{}});v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
+    expect(v.el(e=>e.className==="primary").disabled).toBe(true);
+    expect(v.app.textContent).toContain("Use an available link or download");
+  });
+  it("shows a pending review after reload without allowing another send",()=>{
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:{structuredContent:{...result.structuredContent,document_email:{...doc,state:"handoff_pending"},send_allowed:false}}});
+    expect(v.el(e=>e.className==="pill").textContent).toBe("Pending");expect(v.el(e=>e.className==="primary").disabled).toBe(true);expect(v.app.textContent).toContain("reconcile");
+  });
+  it("retains the provenance and delivery limitation in the status card",()=>{
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:{structuredContent:{state:"host_reported_provider_acceptance"}}});
+    expect(v.app.textContent).toContain("reported by the assistant");expect(v.app.textContent).toContain("delivery is not verified");
+  });
+});
 
 describe("email card view", () => {
   it("initializes like the native card and fills editable fields from the draft", () => {
@@ -413,7 +460,7 @@ describe("email card on the wire", () => {
     });
     expect(by.contract_terms).toEqual({ ui: { resourceUri: NATIVE_CARD_URI } });
     expect(by.cpm_activities).toBeUndefined();
-    expect([...EMAIL_CARD_TOOLS]).toEqual(["email_draft", "submittal_delivery"]);
+    expect([...EMAIL_CARD_TOOLS]).toEqual(["email_draft", "submittal_delivery", "document_email_delivery"]);
   });
 
   it("lists and serves the email card resource next to the native card", async () => {
