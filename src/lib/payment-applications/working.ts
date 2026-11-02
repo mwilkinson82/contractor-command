@@ -11,7 +11,7 @@ export const intentSchema = z.record(
   z
     .object({
       basis: z.enum(["this_period", "cumulative"]),
-      amount_cents: z.number().int().min(0).max(9_000_000_000_000).nullable(),
+      amount_cents: z.number().int().min(-9_000_000_000_000).max(9_000_000_000_000).nullable(),
     })
     .strict(),
 );
@@ -64,10 +64,22 @@ export const draftChangeSchema = z
       .describe(
         "This-period increment or total installed to date. Ask when the member's intent is ambiguous.",
       ),
-    amount_cents: z.number().int().min(0).max(9_000_000_000_000).nullable(),
-    prior_work_cents: z.number().int().min(0).nullable().optional(),
+    amount_cents: z.number().int().min(-9_000_000_000_000).max(9_000_000_000_000).nullable(),
+    prior_work_cents: z
+      .number()
+      .int()
+      .min(-9_000_000_000_000)
+      .max(9_000_000_000_000)
+      .nullable()
+      .optional(),
     prior_stored_cents: z.number().int().min(0).nullable().optional(),
-    prior_retained_cents: z.number().int().min(0).nullable().optional(),
+    prior_retained_cents: z
+      .number()
+      .int()
+      .min(-9_000_000_000_000)
+      .max(9_000_000_000_000)
+      .nullable()
+      .optional(),
     stored_cents: z.number().int().min(0).nullable().optional(),
     stored_to_work_cents: z.number().int().min(0).nullable().optional(),
     release_cents: z.number().int().min(0).nullable().optional(),
@@ -204,16 +216,23 @@ export function draftProposal(
     if (
       requested?.amount_cents !== null &&
       requested?.amount_cents !== undefined &&
-      requested.amount_cents > scheduled.scheduled_cents
+      (requested.amount_cents > Math.max(0, scheduled.scheduled_cents) ||
+        requested.amount_cents < Math.min(0, scheduled.scheduled_cents))
     )
       questions.push(
         `${scheduled.description}: requested amount exceeds the full scheduled line capacity.`,
       );
     if (
       l.work_cents !== null &&
-      (l.work_cents > scheduled.scheduled_cents ||
-        l.work_cents < 0 ||
-        (l.stored_cents !== null && l.work_cents + l.stored_cents > scheduled.scheduled_cents))
+      (l.work_cents > Math.max(0, scheduled.scheduled_cents) ||
+        l.work_cents < Math.min(0, scheduled.scheduled_cents) ||
+        (l.stored_cents !== null &&
+          (l.work_cents + l.stored_cents > Math.max(0, scheduled.scheduled_cents) ||
+            l.work_cents + l.stored_cents < Math.min(0, scheduled.scheduled_cents))) ||
+        (l.prior_work_cents !== null &&
+          (scheduled.scheduled_cents >= 0
+            ? l.work_cents < l.prior_work_cents
+            : l.work_cents > l.prior_work_cents)))
     )
       questions.push(
         `${scheduled.description}: requested work exceeds the saved line capacity. Scheduled ${(scheduled.scheduled_cents / 100).toFixed(2)}; prior installed ${l.prior_work_cents === null ? "Needed" : (l.prior_work_cents / 100).toFixed(2)}; current stored ${l.stored_cents === null ? "Needed" : (l.stored_cents / 100).toFixed(2)}.`,

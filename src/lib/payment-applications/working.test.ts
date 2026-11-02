@@ -81,4 +81,42 @@ describe("conversational payment working amounts", () => {
     expect(result.blocking.join(" ")).toMatch(/Existing billing needs reconciliation/);
     expect(result.application.prior_certified_net_cents).toBeNull();
   });
+  it("accepts signed work only within the credit-valued SOV line", () => {
+    const ctx = context();
+    ctx.snapshot!.lines[1] = {
+      item: "02",
+      description: "Credit adjustment",
+      scheduled_cents: -500000,
+    };
+    const valid = draftProposal(ctx, {
+      request_text: "Apply 1000 of the credit",
+      changes: [
+        {
+          line: "Credit adjustment",
+          basis: "this_period",
+          amount_cents: -100000,
+          prior_work_cents: -100000,
+        },
+      ],
+    });
+    expect(valid.blocking).toEqual([]);
+    expect(valid.application.lines[1].work_cents).toBe(-200000);
+    const excess = draftProposal(ctx, {
+      request_text: "Apply excessive credit",
+      changes: [
+        {
+          line: "Credit adjustment",
+          basis: "this_period",
+          amount_cents: -500000,
+          prior_work_cents: -100000,
+        },
+      ],
+    });
+    expect(excess.blocking.join(" ")).toMatch(/exceeds/);
+    const wrongSign = draftProposal(ctx, {
+      request_text: "Apply a positive amount",
+      changes: [{ line: "Credit adjustment", basis: "cumulative", amount_cents: 100 }],
+    });
+    expect(wrongSign.blocking.join(" ")).toMatch(/exceeds/);
+  });
 });

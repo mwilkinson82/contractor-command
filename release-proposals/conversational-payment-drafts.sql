@@ -92,17 +92,17 @@ BEGIN
    IF a->'snapshot' IS DISTINCT FROM snapshot THEN RAISE EXCEPTION 'MCP_BAD:The saved SOV changed. Reconcile it before editing this draft.'; END IF;
    FOR entry IN SELECT * FROM jsonb_each(intent) LOOP
      IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(a->'lines')l WHERE l->>'item'=entry.key) OR jsonb_typeof(entry.value) IS DISTINCT FROM 'object' OR coalesce(entry.value->>'basis','') NOT IN ('this_period','cumulative') OR NOT(entry.value ? 'amount_cents') OR EXISTS(SELECT 1 FROM jsonb_object_keys(entry.value)t(k) WHERE t.k NOT IN ('basis','amount_cents')) THEN RAISE EXCEPTION 'MCP_BAD:Use an exact SOV line and explicit amount basis.'; END IF;
-     PERFORM public.mcp_pa_number(entry.value->'amount_cents');
+     PERFORM public.mcp_pa_number(entry.value->'amount_cents',true);
    END LOOP;
    FOR line IN SELECT * FROM jsonb_array_elements(a->'lines') LOOP
      SELECT public.mcp_pa_number(l->'scheduled_cents',true) INTO scheduled FROM jsonb_array_elements(snapshot->'lines')l WHERE l->>'item'=line->>'item';
      IF intent ? (line->>'item') THEN
-       amount:=public.mcp_pa_number(intent->(line->>'item')->'amount_cents');
-       IF amount>scheduled THEN RAISE EXCEPTION 'MCP_BAD:Requested work exceeds the remaining line capacity.'; END IF;
+       amount:=public.mcp_pa_number(intent->(line->>'item')->'amount_cents',true);
+       IF amount>greatest(0,scheduled) OR amount<least(0,scheduled) THEN RAISE EXCEPTION 'MCP_BAD:Requested work exceeds the remaining line capacity.'; END IF;
        derived:=CASE WHEN intent->(line->>'item')->>'basis'='cumulative' THEN amount ELSE public.mcp_pa_number(line->'prior_work_cents',true)+amount END;
        line:=jsonb_set(line,'{work_cents}',coalesce(to_jsonb(derived),'null'::jsonb));
      END IF;
-     IF public.mcp_pa_number(line->'work_cents',true)>greatest(0,scheduled) OR public.mcp_pa_number(line->'work_cents',true)<least(0,scheduled) OR public.mcp_pa_number(line->'work_cents',true)+public.mcp_pa_number(line->'stored_cents')>greatest(0,scheduled) OR (scheduled>=0 AND public.mcp_pa_number(line->'work_cents',true)<public.mcp_pa_number(line->'prior_work_cents',true)) THEN RAISE EXCEPTION 'MCP_BAD:Requested work exceeds line capacity or reduces the prior certificate. Reconcile it first.'; END IF;
+     IF public.mcp_pa_number(line->'work_cents',true)>greatest(0,scheduled) OR public.mcp_pa_number(line->'work_cents',true)<least(0,scheduled) OR public.mcp_pa_number(line->'work_cents',true)+public.mcp_pa_number(line->'stored_cents')>greatest(0,scheduled) OR public.mcp_pa_number(line->'work_cents',true)+public.mcp_pa_number(line->'stored_cents')<least(0,scheduled) OR (scheduled>=0 AND public.mcp_pa_number(line->'work_cents',true)<public.mcp_pa_number(line->'prior_work_cents',true)) OR (scheduled<0 AND public.mcp_pa_number(line->'work_cents',true)>public.mcp_pa_number(line->'prior_work_cents',true)) THEN RAISE EXCEPTION 'MCP_BAD:Requested work exceeds line capacity or reduces the prior certificate. Reconcile it first.'; END IF;
      rows:=rows||jsonb_build_array(line);
    END LOOP;
    a:=jsonb_set(a,'{lines}',rows);

@@ -20,6 +20,7 @@ import {
 } from "../mcp/tools/payment-application-tools";
 import { applicationFixture } from "./fixtures";
 import { calculateApplication } from "./model";
+import { emptyApplication } from "./workflow";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
@@ -1278,6 +1279,54 @@ describe("conversation to a shared application draft", () => {
       {},
     );
     expect(read.structuredContent.document_url).toBeNull();
+  });
+  it("persists signed work on a credit SOV line without creating billing", async () => {
+    await db.query(
+      "UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='01'",
+      [job, JSON.stringify({ description: "Construction work", billable_value: 105000 })],
+    );
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','02',$2::jsonb,'known','member_answer',$3)",
+      [job, JSON.stringify({ description: "Credit adjustment", billable_value: -5000 }), owner],
+    );
+    try {
+      const ctx = await context();
+      const a = emptyApplication(ctx.snapshot as any);
+      const credit = a.lines.find((l) => l.item === "02")!;
+      credit.prior_work_cents = -100000;
+      const p = {
+        id: crypto.randomUUID(),
+        request_id: crypto.randomUUID(),
+        request_hash: "8".repeat(64),
+        expected_version: 0,
+        operation: "save",
+        application: a,
+        intent: { "02": { basis: "this_period", amount_cents: -100000 } },
+      };
+      const result = await record("payment_application_working", p);
+      const read = await record("payment_application_read", { id: p.id, version: result.version });
+      expect((read.selected as any).body.lines.find((l: any) => l.item === "02").work_cents).toBe(
+        -200000,
+      );
+      await expect(
+        record("payment_application_working", {
+          ...p,
+          request_id: crypto.randomUUID(),
+          request_hash: "7".repeat(64),
+          expected_version: 1,
+          intent: { "02": { basis: "this_period", amount_cents: 10000 } },
+        }),
+      ).rejects.toThrow(/capacity|reduces/);
+      expect((await get()).invoices).toEqual([]);
+    } finally {
+      await db.query("DELETE FROM mcp_job_facts WHERE job_id=$1 AND module='sov' AND key='02'", [
+        job,
+      ]);
+      await db.query(
+        "UPDATE mcp_job_facts SET value=$2::jsonb WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job, JSON.stringify({ description: "Construction work", billable_value: 100000 })],
+      );
+    }
   });
   it("does not lose unresolved intent or review unsaved changes when finalizing a working draft", async () => {
     const ctx = await context();
