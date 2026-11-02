@@ -168,6 +168,30 @@ describe("saved application view and document", () => {
     expect(raw).toContain("Example Builders");
     expect(raw).toContain("Needed");
   });
+  it("paginates every line of a maximum-length description and rejects unsupported characters", () => {
+    const f=fixture(), a=f.selected!.body;
+    const description=Array.from({length:100},(_,i)=>`L${String(i).padStart(3,"0")}`).join("\n");
+    a.snapshot.lines[0].description=description;
+    f.selected!.calculation=calculateApplication(a);
+    const bytes=applicationPdf(f.job,f.selected!,{companyName:"Construção São José"});
+    const raw=Buffer.from(bytes).toString("latin1");
+    for(let i=0;i<100;i++) expect(raw).toContain(`(L${String(i).padStart(3,"0")})`);
+    expect(raw).toContain("CARRIED FORWARD");
+    expect(raw.split("(CARRIED FORWARD)")[1].split("(BROUGHT FORWARD)")[0]).toContain("($100,000.00)");
+    expect(()=>applicationPdf(f.job,f.selected!,{companyName:"建設"})).toThrow(/cannot yet display/);
+    const dir=process.env.ATHENA_PAYMENT_APP_ARTIFACTS;
+    if(dir) writeFileSync(`${dir}/long-description.pdf`,bytes);
+  });
+  it("retains long unbroken descriptions and long company and project names", () => {
+    const f=fixture(), a=f.selected!.body;
+    a.snapshot.lines[0].description="W".repeat(500);
+    f.selected!.calculation=calculateApplication(a);
+    const bytes=applicationPdf({number:"01",name:"Project ".repeat(60)},f.selected!,{companyName:"Company ".repeat(30)});
+    const raw=Buffer.from(bytes).toString("latin1");
+    const pieces=[...raw.matchAll(/\((W+)\) Tj/g)].map(m=>m[1].length);
+    expect(pieces.reduce((n,x)=>n+x,0)).toBe(500);
+    expect(raw).toContain("ADDITIONAL APPLICATION DETAILS");
+  });
   it("exports private rendered fixtures when explicitly requested", () => {
     const dir = process.env.ATHENA_PAYMENT_APP_ARTIFACTS;
     if (!dir) return;

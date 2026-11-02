@@ -10,7 +10,12 @@ export function applicationPdf(job: { number: string; name: string }, saved: Sav
   d.setCreationDate(new Date(saved.recorded_at));
   d.setFileId(saved.application_id.replaceAll("-", ""));
   d.setProperties({ title: `Payment application ${a.number} version ${saved.version}`, author: brand.companyName || "Payment application" });
-  const clean = (s: string) => s.replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "?");
+  const clean = (s: string) => {
+    s = s.replace(/\r\n?/g, "\n");
+    if (/[^\x20-\x7E\xA0-\xFF\n]/.test(s))
+      throw new Error("This PDF cannot yet display some characters in the supplied name or description. No document was generated.");
+    return s;
+  };
   const text = (s: string, x: number, y: number, size = 9, bold = false, options?: { align: "right" | "left" }) => {
     d.setFont("helvetica", bold ? "bold" : "normal"); d.setFontSize(size); d.setTextColor(25, 35, 48);
     d.text(clean(s), x, y, options);
@@ -98,10 +103,19 @@ export function applicationPdf(job: { number: string; name: string }, saved: Sav
   }
   for (const row of c.rows) {
     const cells=[row.item,row.description,value(row.scheduled_cents),value(row.prior_work_cents),value(row.this_period_work_cents),value(row.stored_cents),value(row.gross_cents),row.gross_cents===null?"Needed":row.scheduled_cents===0?"N/A":`${(row.gross_cents/row.scheduled_cents*100).toFixed(1)}%`,value(row.balance_cents),value(row.retained_cents)];
-    const h=Math.max(24,...cells.map((v,i)=>clip(v,widths[i]-7,8,i===0).length*10+8));
-    if(y+h>520 && y>84){ subtotal("CARRIED FORWARD"); d.addPage("letter","landscape"); head(); subtotal("BROUGHT FORWARD"); }
-    cells.forEach((v,i)=>{ const ls=clip(v,widths[i]-7,8,i===0); ls.forEach((t,j)=>text(t,i>=2?xs[i+1]-4:xs[i]+3,y+13+j*10,8,i===0,i>=2?{align:"right"}:undefined)); });
-    y+=h; rule(24,y,768,y); priorRows.push(row);
+    const lines=cells.map((v,i)=>clip(v,widths[i]-7,8,i===0));
+    const count=Math.max(...lines.map(ls=>ls.length));
+    let start=0;
+    while(start<count){
+      let available=Math.floor((520-y-8)/10);
+      if(available<1){ subtotal("CARRIED FORWARD"); d.addPage("letter","landscape"); head(); subtotal("BROUGHT FORWARD"); available=Math.floor((520-y-8)/10); }
+      const take=Math.min(available,count-start), h=Math.max(24,take*10+8);
+      if(start>0) text("cont.",xs[0]+3,y+13,7,true);
+      lines.forEach((ls,i)=>ls.slice(start,start+take).forEach((t,j)=>text(t,i>=2?xs[i+1]-4:xs[i]+3,y+13+j*10,8,i===0,i>=2?{align:"right"}:undefined)));
+      if(start===0) priorRows.push(row);
+      y+=h; rule(24,y,768,y); start+=take;
+      if(start<count){ subtotal("CARRIED FORWARD"); d.addPage("letter","landscape"); head(); subtotal("BROUGHT FORWARD"); }
+    }
   }
   if(y+34>550){subtotal("CARRIED FORWARD");d.addPage("letter","landscape");head();}
   subtotal("TOTAL");
