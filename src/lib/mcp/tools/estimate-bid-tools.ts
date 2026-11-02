@@ -7,24 +7,21 @@ import {
   GC_ITEMS,
   METROS,
   RATE_SOURCE_IDS,
+  QUOTE_COVERAGE_REQUIRED,
   WORK_TYPES,
   BidError,
-  applyFactors,
   assembleBid,
   basisCheck,
   calendarDays,
   describeRateChoice,
   gcLineAmount,
   nextMove,
-  priceLabor,
-  priceMaterial,
   priceRequirement,
   requirementGaps,
   scanProject,
   sourceAsk,
   type LaborIn,
   type RateChoice,
-  type RateSourceId,
   type RequirementHit,
   type RequirementPrice,
 } from "../estimating-bid";
@@ -40,6 +37,11 @@ import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { audit, named, resolveJob } from "../jobs";
 import { money } from "../sov";
 import { guide } from "../visible";
+import {
+  calculateEstimatePricing,
+  mergePricingRates,
+  type MaterialIn,
+} from "../estimating-pricing";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -67,13 +69,7 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
 
 type BidState = {
   labor: LaborIn[];
-  material: {
-    ref: string;
-    unit_price: number | null;
-    confirmed?: boolean;
-    apply_factor?: boolean;
-    source?: RateSourceId | null;
-  }[];
+  material: MaterialIn[];
   quotes: {
     sub: string;
     description: string;
@@ -202,158 +198,144 @@ export const estimatePricing = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_pricing", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
-      const measurement = await engineSnapshot(sb, job.job_id);
-      if (measurement) {
-        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
-        loaded.lines = verifiedLines(loaded.lines, measurement);
-        loaded.verdicts = loaded.verdicts.map((v) =>
-          v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
-        );
-      }
-      const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
-      const asked = (args.labor?.length ?? 0) + (args.material?.length ?? 0) > 0;
-      const onFile = prior.labor.length + prior.material.length > 0;
-      if (!asked && !onFile) {
-        return present(
-          "Pricing",
-          [
-            `${named(job)} · Pricing`,
-            "Before pricing, send the labor rate and the material rate, or save them on this job first.",
-            "Labor: production per man-hour, or the man-hours you already have, crew size, hours in a man-day, and an hourly rate or a blended crew rate.",
-            "Material: a unit price for each line.",
-            "Nothing was priced.",
-          ],
-          {
-            priced: false,
-            card: {
-              state: "ask",
-              title: "Rates",
-              ask: { prompt: "What are the labor and material rates?" },
+    run(
+      "estimate_pricing",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
+        const measurement = await engineSnapshot(sb, job.job_id);
+        if (measurement) {
+          if (measurement.estimate_scope)
+            loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
+          loaded.lines = verifiedLines(loaded.lines, measurement);
+          loaded.verdicts = loaded.verdicts.map((v) =>
+            v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+          );
+        }
+        const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
+        const asked = (args.labor?.length ?? 0) + (args.material?.length ?? 0) > 0;
+        const onFile = prior.labor.length + prior.material.length > 0;
+        if (!asked && !onFile) {
+          return present(
+            "Pricing",
+            [
+              `${named(job)} · Pricing`,
+              "Before pricing, send the labor rate and the material rate, or save them on this job first.",
+              "Labor: production per man-hour, or the man-hours you already have, crew size, hours in a man-day, and an hourly rate or a blended crew rate.",
+              "Material: a unit price for each line.",
+              "Nothing was priced.",
+            ],
+            {
+              priced: false,
+              card: {
+                state: "ask",
+                title: "Rates",
+                ask: { prompt: "What are the labor and material rates?" },
+              },
             },
-          },
-          ["Ask for labor and material rates before pricing. Do not invent a rate."],
+            ["Ask for labor and material rates before pricing. Do not invent a rate."],
+          );
+        }
+        if (!loaded.setup.role) {
+          return present(
+            "Estimate Summary",
+            [
+              `${named(job)} · Pricing`,
+              "Save the intake and name general contractor or self-performer before pricing. Nothing was priced.",
+              nextMove("takeoff"),
+            ],
+            { priced: false },
+            ["Do not assume the role."],
+          );
+        }
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
+        const { labor, material, pricing } = (() => {
+          try {
+            const labor = mergePricingRates(prior.labor, args.labor ?? [], state.items);
+            const material = mergePricingRates(prior.material, args.material ?? [], state.items);
+            return {
+              labor,
+              material,
+              pricing: calculateEstimatePricing(state.items, {
+                labor,
+                material,
+                sources: prior.sources,
+              }),
+            };
+          } catch (error) {
+            if (error instanceof BidError) throw new ToolError(error.message);
+            throw error;
+          }
+        })();
+        const quotes = args.quotes
+          ? args.quotes.map((q) => ({
+              ...q,
+              amount: q.amount ?? null,
+              ref: q.ref ?? null,
+              trade: q.trade ?? null,
+            }))
+          : prior.quotes;
+        await rpc(sb, "mcp_estimate_pricing_save", {
+          _job: job.job_id,
+          _labor: labor,
+          _material: material,
+          _quotes: quotes,
+          _sources: null,
+        });
+        const body = [
+          `${named(job)} · Pricing`,
+          loaded.setup.role === "gc"
+            ? "General contractor: labor plus material is the basis for checking a sub quote."
+            : "Self-performer: labor is man-hours or man-days from your production, times your rate.",
+          !asked && onFile
+            ? "Using the labor and material rates saved on this job."
+            : "Using the rates in this call.",
+        ];
+        const { direct, placeholder } = pricing;
+        const blockers = [...pricing.blockers, ...(quotes.length ? [QUOTE_COVERAGE_REQUIRED] : [])];
+        for (const row of pricing.rows)
+          body.push(`- ${row.ref} ${row.title}. ${row.labor.math} ${row.material.math}`);
+        body.push(...blockers.map((blocker) => `- ${blocker} Holds the bid.`));
+        if (loaded.setup.role === "self_performer") {
+          body.push(
+            "Send, for each line: production per man-hour, or man-hours you already have; crew size; hours in a man-day; and an hourly rate or a blended crew rate.",
+          );
+        } else {
+          body.push(
+            "Send labor the same way, plus a material price per line, to build the basis. Then send each sub quote.",
+          );
+          for (const q of quotes) {
+            const row = pricing.rows.find((row) => row.ref === q.ref);
+            const check = basisCheck(
+              row?.labor.amount ?? null,
+              row?.material.amount ?? null,
+              q.amount,
+            );
+            body.push(`- ${q.sub} ${q.description}. ${check.line}`);
+          }
+        }
+        if (quotes.length)
+          body.push(
+            "Subcontract quote coverage needs review before a bid total can be built. Identify carried scope and any self-perform replacement or split; comparison quotes are preserved.",
+          );
+        if (!labor.length && !material.length) body.push("No rates are on file yet.");
+        body.push(
+          placeholder
+            ? "A figure above is PLACEHOLDER until you confirm it."
+            : "Confirmed figures are marked.",
         );
-      }
-      if (!loaded.setup.role) {
+        body.push(nextMove("pricing"));
+        await audit(sb, job, "estimate_pricing", "save_estimate_pricing", null);
         return present(
           "Estimate Summary",
-          [
-            `${named(job)} · Pricing`,
-            "Save the intake and name general contractor or self-performer before pricing. Nothing was priced.",
-            nextMove("takeoff"),
-          ],
-          { priced: false },
-          ["Do not assume the role."],
+          body,
+          { direct, placeholder, blockers, pricing_rows: pricing.rows, role: loaded.setup.role },
+          ["Use only rates in this result. Do not attribute a number to a publisher."],
         );
-      }
-      const labor = mergeBy(prior.labor, args.labor ?? [], (r) => r.ref);
-      const material = mergeBy(
-        prior.material,
-        (args.material ?? []).map((m) => ({ ...m, unit_price: m.unit_price ?? null })),
-        (r) => r.ref,
-      );
-      const quotes = args.quotes
-        ? args.quotes.map((q) => ({
-            ...q,
-            amount: q.amount ?? null,
-            ref: q.ref ?? null,
-            trade: q.trade ?? null,
-          }))
-        : prior.quotes;
-      await rpc(sb, "mcp_estimate_pricing_save", {
-        _job: job.job_id,
-        _labor: labor,
-        _material: material,
-        _quotes: quotes,
-        _sources: null,
-      });
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
-      const lines = state.items.filter((i) => i.kind === "line" && i.status !== "dropped");
-      const body = [
-        `${named(job)} · Pricing`,
-        loaded.setup.role === "gc"
-          ? "General contractor: labor plus material is the basis for checking a sub quote."
-          : "Self-performer: labor is man-hours or man-days from your production, times your rate.",
-        !asked && onFile
-          ? "Using the labor and material rates saved on this job."
-          : "Using the rates in this call.",
-      ];
-      let placeholder = false;
-      let direct = 0;
-      for (const item of lines) {
-        const lab = labor.find((l) => l.ref === item.ref || l.ref === item.title);
-        const mat = material.find((m) => m.ref === item.ref || m.ref === item.title);
-        if (!lab && !mat) continue;
-        const priced = lab ? priceLabor(item.qty, item.unit, lab) : null;
-        const materialP = mat
-          ? priceMaterial(item.qty, mat.unit_price ?? null, Boolean(mat.confirmed))
-          : null;
-        const factor =
-          prior.sources.find(
-            (s) => s.carry && s.source === (lab as { source?: RateSourceId } | undefined)?.source,
-          ) ??
-          (prior.sources.filter((s) => s.carry).length === 1
-            ? prior.sources.find((s) => s.carry)!
-            : null);
-        let laborDollars = priced?.labor ?? null;
-        let extra = "";
-        if (laborDollars != null && (lab as { apply_factor?: boolean } | undefined)?.apply_factor) {
-          const applied = applyFactors(laborDollars, factor);
-          laborDollars = applied.amount;
-          extra = applied.note;
-        }
-        if (priced?.placeholder || materialP?.placeholder) placeholder = true;
-        if (laborDollars != null) direct += laborDollars;
-        if (materialP?.material != null) direct += materialP.material;
-        body.push(
-          `- ${item.ref} ${item.title}. ${priced?.math ?? ""} ${materialP?.math ?? ""} ${extra}`
-            .replace(/\s+/g, " ")
-            .trim(),
-        );
-      }
-      if (loaded.setup.role === "self_performer") {
-        body.push(
-          "Send, for each line: production per man-hour, or man-hours you already have; crew size; hours in a man-day; and an hourly rate or a blended crew rate.",
-        );
-      } else {
-        body.push(
-          "Send labor the same way, plus a material price per line, to build the basis. Then send each sub quote.",
-        );
-        for (const q of quotes) {
-          const item = lines.find((i) => i.ref === q.ref);
-          const lab = item
-            ? priceLabor(
-                item.qty,
-                item.unit,
-                labor.find((l) => l.ref === item.ref) ?? { ref: item.ref },
-              )
-            : null;
-          const mat = item
-            ? priceMaterial(
-                item.qty,
-                material.find((m) => m.ref === item.ref)?.unit_price ?? null,
-                false,
-              )
-            : null;
-          const check = basisCheck(lab?.labor ?? null, mat?.material ?? null, q.amount);
-          body.push(`- ${q.sub} ${q.description}. ${check.line}`);
-        }
-      }
-      if (!labor.length && !material.length) body.push("No rates are on file yet.");
-      body.push(
-        placeholder
-          ? "A figure above is PLACEHOLDER until you confirm it."
-          : "Confirmed figures are marked.",
-      );
-      body.push(nextMove("pricing"));
-      await audit(sb, job, "estimate_pricing", "save_estimate_pricing", null);
-      return present("Estimate Summary", body, { direct, placeholder, role: loaded.setup.role }, [
-        "Use only rates in this result. Do not attribute a number to a publisher.",
-      ]);
-    }),
+      },
+    ),
 });
 
 export const estimateRateSources = defineTool({
@@ -380,29 +362,34 @@ export const estimateRateSources = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_rate_sources", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
-      const sources = args.sources ? (args.sources as RateChoice[]) : prior.sources;
-      if (args.sources)
-        await rpc(sb, "mcp_estimate_pricing_save", {
-          _job: job.job_id,
-          _labor: null,
-          _material: null,
-          _quotes: null,
-          _sources: sources,
-        });
-      await audit(sb, job, "estimate_rate_sources", "save_estimate_rate_sources", null);
-      const body = [
-        `${named(job)} · Rate references`,
-        ...sourceAsk(),
-        ...(sources.length ? sources.map(describeRateChoice) : ["None carried yet."]),
-        nextMove("rates"),
-      ];
-      return present("Estimate Summary", body, { sources }, [
-        "Do not look up or reproduce a licensed table. A factor is PLACEHOLDER until the contractor confirms it.",
-      ]);
-    }),
+    run(
+      "estimate_rate_sources",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
+        const sources = args.sources ? (args.sources as RateChoice[]) : prior.sources;
+        if (args.sources)
+          await rpc(sb, "mcp_estimate_pricing_save", {
+            _job: job.job_id,
+            _labor: null,
+            _material: null,
+            _quotes: null,
+            _sources: sources,
+          });
+        await audit(sb, job, "estimate_rate_sources", "save_estimate_rate_sources", null);
+        const body = [
+          `${named(job)} · Rate references`,
+          ...sourceAsk(),
+          ...(sources.length ? sources.map(describeRateChoice) : ["None carried yet."]),
+          nextMove("rates"),
+        ];
+        return present("Estimate Summary", body, { sources }, [
+          "Do not look up or reproduce a licensed table. A factor is PLACEHOLDER until the contractor confirms it.",
+        ]);
+      },
+    ),
 });
 
 export const estimateGeneralConditions = defineTool({
@@ -430,49 +417,60 @@ export const estimateGeneralConditions = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_general_conditions", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
-      const duration =
-        args.start_date && args.finish_date
-          ? calendarDays(args.start_date, args.finish_date)
-          : (args.duration_days ?? prior.duration);
-      const sent = mergeBy(prior.gcLines, args.lines ?? [], (r) => r.key);
-      const priced = GC_ITEMS.map((item) => {
-        const row = sent.find((s) => s.key === item.key);
-        const calc = gcLineAmount({
-          key: item.key,
-          amount: row?.amount,
-          qty: row?.qty,
-          rate: row?.rate,
-          duration,
-          confirmed: row?.confirmed,
+    run(
+      "estimate_general_conditions",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
+        const duration =
+          args.start_date && args.finish_date
+            ? calendarDays(args.start_date, args.finish_date)
+            : (args.duration_days ?? prior.duration);
+        const sent = mergeBy(prior.gcLines, args.lines ?? [], (r) => r.key);
+        const priced = GC_ITEMS.map((item) => {
+          const row = sent.find((s) => s.key === item.key);
+          const calc = gcLineAmount({
+            key: item.key,
+            amount: row?.amount,
+            qty: row?.qty,
+            rate: row?.rate,
+            duration,
+            confirmed: row?.confirmed,
+          });
+          return { key: item.key, label: item.label, ...calc };
         });
-        return { key: item.key, label: item.label, ...calc };
-      });
-      await rpc(sb, "mcp_estimate_gc_save", {
-        _job: job.job_id,
-        _start: args.start_date ?? null,
-        _finish: args.finish_date ?? null,
-        _days: duration,
-        _lines: sent,
-      });
-      await audit(sb, job, "estimate_general_conditions", "save_estimate_general_conditions", null);
-      const body = [
-        `${named(job)} · General conditions`,
-        duration
-          ? `Schedule duration: ${duration} calendar days.`
-          : sent.some((row) => row.key === "supervision" && row.qty != null)
-            ? "Schedule duration is not set. Supervision uses the quantity that was sent."
-            : "Schedule duration is not set. Supervision stays blank until you send a quantity, the start and finish, or the number of days.",
-        ...priced.map((p) => `- ${p.math}`),
-        "This adder is separate from construction labor and material.",
-        nextMove("gc"),
-      ];
-      return present("Estimate Summary", body, { duration_days: duration, lines: priced }, [
-        "Do not fill a general conditions figure the contractor did not send.",
-      ]);
-    }),
+        await rpc(sb, "mcp_estimate_gc_save", {
+          _job: job.job_id,
+          _start: args.start_date ?? null,
+          _finish: args.finish_date ?? null,
+          _days: duration,
+          _lines: sent,
+        });
+        await audit(
+          sb,
+          job,
+          "estimate_general_conditions",
+          "save_estimate_general_conditions",
+          null,
+        );
+        const body = [
+          `${named(job)} · General conditions`,
+          duration
+            ? `Schedule duration: ${duration} calendar days.`
+            : sent.some((row) => row.key === "supervision" && row.qty != null)
+              ? "Schedule duration is not set. Supervision uses the quantity that was sent."
+              : "Schedule duration is not set. Supervision stays blank until you send a quantity, the start and finish, or the number of days.",
+          ...priced.map((p) => `- ${p.math}`),
+          "This adder is separate from construction labor and material.",
+          nextMove("gc"),
+        ];
+        return present("Estimate Summary", body, { duration_days: duration, lines: priced }, [
+          "Do not fill a general conditions figure the contractor did not send.",
+        ]);
+      },
+    ),
 });
 
 export const estimateRequirements = defineTool({
@@ -513,92 +511,100 @@ export const estimateRequirements = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_requirements", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
-      const measurement = await engineSnapshot(sb, job.job_id);
-      if (measurement) {
-        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
-        loaded.lines = verifiedLines(loaded.lines, measurement);
-        loaded.verdicts = loaded.verdicts.map((v) =>
-          v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
-        );
-      }
-      const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
-      let clauses: { section: string; verbatim_text: string }[] = [];
-      const cq = await sb
-        .from("mcp_contract_clauses")
-        .select("section, verbatim_text")
-        .eq("job_id", job.job_id);
-      if (!cq.error && Array.isArray(cq.data))
-        clauses = cq.data as { section: string; verbatim_text: string }[];
-      let hits;
-      try {
-        hits = scanProject({ setup: loaded.setup, clauses, findings: args.findings });
-      } catch (e) {
-        if (e instanceof BidError) throw new ToolError(e.message);
-        throw e;
-      }
-      let n = prior.requirements.reduce((m, r) => Math.max(m, Number(r.ref.slice(2)) || 0), 0);
-      const priced = hits.map((hit) => {
-        const prev = prior.requirements.find(
-          (r) =>
-            r.kind === hit.kind && r.sourceRef === hit.sourceRef && r.sourceType === hit.sourceType,
-        );
-        const entered = (args.prices ?? []).find(
-          (p) =>
-            (p.ref && p.ref === prev?.ref) ||
-            (p.kind === hit.kind && p.source_ref === hit.sourceRef),
-        );
-        const row = priceRequirement(
-          hit,
-          {
-            amount: entered?.amount ?? prev?.amount,
-            confirmed: entered?.confirmed ?? prev?.confirmed,
-            placement: entered?.placement ?? prev?.placement,
-            excluded: entered?.excluded ?? prev?.excluded,
-          },
-          0,
-        );
-        if (!prev) n += 1;
-        return { ...row, ref: prev?.ref ?? `R-${n}` };
-      });
-      await rpc(sb, "mcp_estimate_requirements_save", {
-        _job: job.job_id,
-        _items: priced.map((r) => ({
-          ref: r.ref,
-          kind: r.kind,
-          label: r.label,
-          description: r.description,
-          source_type: r.sourceType,
-          source_ref: r.sourceRef,
-          citation: r.citation,
-          placement: r.placement,
-          amount: r.amount,
-          confirmed: r.confirmed,
-          excluded: r.excluded,
-        })),
-      });
-      await audit(sb, job, "estimate_requirements", "save_estimate_requirements", null);
-      const gaps = requirementGaps(hits, loaded.setup.role);
-      const body = [
-        `${named(job)} · Special requirements`,
-        REQUIREMENT_OPEN_LIST,
-        "These stay out of installation labor and material. Price each one, or confirm it, and say whether it sits in general conditions or on its own line.",
-        ...(priced.length
-          ? priced.map(
-              (r) =>
-                `- ${r.label} (${r.ref}). ${r.sourceType === "contract" ? "Contract clause" : r.sourceType === "spec" ? "Spec" : "Sheet"} ${r.sourceRef}. ${r.citation}${r.excluded ? " Excluded." : r.amount == null ? " Unpriced. Holds the bid." : ` ${money(r.amount)} ${r.confirmed ? "Confirmed." : "PLACEHOLDER."}`}`,
-            )
-          : [
-              "- None found in the documents on file. Send a finding if the drawings call for one.",
-            ]),
-        nextMove("requirements"),
-      ];
-      return present("Estimate Analysis", body, { requirements: priced, gaps }, [
-        "Cite the source on each item. Do not invent a price.",
-      ]);
-    }),
+    run(
+      "estimate_requirements",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
+        const measurement = await engineSnapshot(sb, job.job_id);
+        if (measurement) {
+          if (measurement.estimate_scope)
+            loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
+          loaded.lines = verifiedLines(loaded.lines, measurement);
+          loaded.verdicts = loaded.verdicts.map((v) =>
+            v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+          );
+        }
+        const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
+        let clauses: { section: string; verbatim_text: string }[] = [];
+        const cq = await sb
+          .from("mcp_contract_clauses")
+          .select("section, verbatim_text")
+          .eq("job_id", job.job_id);
+        if (!cq.error && Array.isArray(cq.data))
+          clauses = cq.data as { section: string; verbatim_text: string }[];
+        let hits;
+        try {
+          hits = scanProject({ setup: loaded.setup, clauses, findings: args.findings });
+        } catch (e) {
+          if (e instanceof BidError) throw new ToolError(e.message);
+          throw e;
+        }
+        let n = prior.requirements.reduce((m, r) => Math.max(m, Number(r.ref.slice(2)) || 0), 0);
+        const priced = hits.map((hit) => {
+          const prev = prior.requirements.find(
+            (r) =>
+              r.kind === hit.kind &&
+              r.sourceRef === hit.sourceRef &&
+              r.sourceType === hit.sourceType,
+          );
+          const entered = (args.prices ?? []).find(
+            (p) =>
+              (p.ref && p.ref === prev?.ref) ||
+              (p.kind === hit.kind && p.source_ref === hit.sourceRef),
+          );
+          const row = priceRequirement(
+            hit,
+            {
+              amount: entered?.amount ?? prev?.amount,
+              confirmed: entered?.confirmed ?? prev?.confirmed,
+              placement: entered?.placement ?? prev?.placement,
+              excluded: entered?.excluded ?? prev?.excluded,
+            },
+            0,
+          );
+          if (!prev) n += 1;
+          return { ...row, ref: prev?.ref ?? `R-${n}` };
+        });
+        await rpc(sb, "mcp_estimate_requirements_save", {
+          _job: job.job_id,
+          _items: priced.map((r) => ({
+            ref: r.ref,
+            kind: r.kind,
+            label: r.label,
+            description: r.description,
+            source_type: r.sourceType,
+            source_ref: r.sourceRef,
+            citation: r.citation,
+            placement: r.placement,
+            amount: r.amount,
+            confirmed: r.confirmed,
+            excluded: r.excluded,
+          })),
+        });
+        await audit(sb, job, "estimate_requirements", "save_estimate_requirements", null);
+        const gaps = requirementGaps(hits, loaded.setup.role);
+        const body = [
+          `${named(job)} · Special requirements`,
+          REQUIREMENT_OPEN_LIST,
+          "These stay out of installation labor and material. Price each one, or confirm it, and say whether it sits in general conditions or on its own line.",
+          ...(priced.length
+            ? priced.map(
+                (r) =>
+                  `- ${r.label} (${r.ref}). ${r.sourceType === "contract" ? "Contract clause" : r.sourceType === "spec" ? "Spec" : "Sheet"} ${r.sourceRef}. ${r.citation}${r.excluded ? " Excluded." : r.amount == null ? " Unpriced. Holds the bid." : ` ${money(r.amount)} ${r.confirmed ? "Confirmed." : "PLACEHOLDER."}`}`,
+              )
+            : [
+                "- None found in the documents on file. Send a finding if the drawings call for one.",
+              ]),
+          nextMove("requirements"),
+        ];
+        return present("Estimate Analysis", body, { requirements: priced, gaps }, [
+          "Cite the source on each item. Do not invent a price.",
+        ]);
+      },
+    ),
 });
 
 export const estimateBidSummary = defineTool({
@@ -613,87 +619,93 @@ export const estimateBidSummary = defineTool({
   },
   annotations: SAVE,
   handler: (args, ctx) =>
-    run("estimate_bid_summary", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
-      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
-      const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
-      const measurement = await engineSnapshot(sb, job.job_id);
-      if (measurement) {
-        if (measurement.estimate_scope) loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
-        loaded.lines = verifiedLines(loaded.lines, measurement);
-        loaded.verdicts = loaded.verdicts.map((v) =>
-          v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+    run(
+      "estimate_bid_summary",
+      ctx,
+      { jobNumber: args.job_number, companyId: args.company_id },
+      async (sb) => {
+        const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+        const loaded = parseState(await rpc(sb, "mcp_estimate_get", { _job: job.job_id }));
+        const measurement = await engineSnapshot(sb, job.job_id);
+        if (measurement) {
+          if (measurement.estimate_scope)
+            loaded.setup = { ...loaded.setup, ...measurement.estimate_scope };
+          loaded.lines = verifiedLines(loaded.lines, measurement);
+          loaded.verdicts = loaded.verdicts.map((v) =>
+            v.item_kind === "line" ? { ...v, corrected_qty: null } : v,
+          );
+        }
+        if (measurement && !measurementStatus(measurement).settled)
+          return viewEngine(sb, job, measurement);
+        const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
+        const overhead = args.overhead_pct ?? prior.overhead;
+        const profit = args.profit_pct ?? prior.profit;
+        const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
+        const pricing = calculateEstimatePricing(state.items, prior);
+        const { direct, placeholder: directPlaceholder } = pricing;
+        const gc = GC_ITEMS.map((item) => {
+          const row = prior.gcLines.find((l) => l.key === item.key);
+          const calc = gcLineAmount({
+            key: item.key,
+            amount: row?.amount,
+            qty: row?.qty,
+            rate: row?.rate,
+            duration: prior.duration,
+            confirmed: row?.confirmed,
+          });
+          return {
+            label: item.label,
+            amount: calc.amount,
+            placeholder: calc.placeholder,
+            risk: calc.amount == null,
+            note: calc.math,
+          };
+        });
+        const view = assembleBid({
+          direct,
+          directPlaceholder,
+          directBlockers: pricing.blockers,
+          gc,
+          requirements: prior.requirements,
+          quotes: prior.quotes,
+          overheadPct: overhead,
+          profitPct: profit,
+          settled: state.settled,
+        });
+        if (args.overhead_pct != null || args.profit_pct != null)
+          await rpc(sb, "mcp_estimate_bid_save", {
+            _job: job.job_id,
+            _overhead: overhead,
+            _profit: profit,
+          });
+        await audit(sb, job, "estimate_bid_summary", "save_estimate_bid", null);
+        const body = [
+          `${named(job)} · Bid summary`,
+          "Overhead is applied first. Profit is applied on top of overhead.",
+          ...view.lines,
+          nextMove("bid"),
+        ];
+        if (measurement)
+          return viewEngine(sb, job, measurement, undefined, {
+            report_title: "Bid summary",
+            bid_summary: {
+              ready: view.ready,
+              total: view.total,
+              direct,
+              blockers: view.blockers,
+            },
+            report_rows: body,
+          });
+        return present(
+          "Bid summary",
+          body,
+          { ready: view.ready, total: view.total, direct, blockers: view.blockers },
+          [
+            "Show direct cost, general conditions, special requirements, overhead and profit, and the total. Red only on a row that holds the bid.",
+          ],
         );
-      }
-      if (measurement && !measurementStatus(measurement).settled)
-        return viewEngine(sb, job, measurement);
-      const prior = parseBid(await rpc(sb, "mcp_estimate_bid_get", { _job: job.job_id }));
-      const overhead = args.overhead_pct ?? prior.overhead;
-      const profit = args.profit_pct ?? prior.profit;
-      if (args.overhead_pct != null || args.profit_pct != null)
-        await rpc(sb, "mcp_estimate_bid_save", {
-          _job: job.job_id,
-          _overhead: overhead,
-          _profit: profit,
-        });
-      const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
-      let direct = 0;
-      let directPlaceholder = false;
-      for (const item of state.items.filter((i) => i.kind === "line" && i.status !== "dropped")) {
-        const lab = prior.labor.find((l) => l.ref === item.ref);
-        const mat = prior.material.find((m) => m.ref === item.ref);
-        const priced = lab ? priceLabor(item.qty, item.unit, lab) : null;
-        const materialP = mat
-          ? priceMaterial(item.qty, mat.unit_price, Boolean(mat.confirmed))
-          : null;
-        if (priced?.placeholder || materialP?.placeholder) directPlaceholder = true;
-        if (priced?.labor != null) direct += priced.labor;
-        if (materialP?.material != null) direct += materialP.material;
-      }
-      const gc = GC_ITEMS.map((item) => {
-        const row = prior.gcLines.find((l) => l.key === item.key);
-        const calc = gcLineAmount({
-          key: item.key,
-          amount: row?.amount,
-          qty: row?.qty,
-          rate: row?.rate,
-          duration: prior.duration,
-          confirmed: row?.confirmed,
-        });
-        return {
-          label: item.label,
-          amount: calc.amount,
-          placeholder: calc.placeholder,
-          risk: calc.amount == null,
-          note: calc.math,
-        };
-      });
-      const view = assembleBid({
-        direct,
-        directPlaceholder,
-        gc,
-        requirements: prior.requirements,
-        quotes: prior.quotes,
-        overheadPct: overhead,
-        profitPct: profit,
-        settled: state.settled,
-      });
-      await audit(sb, job, "estimate_bid_summary", "save_estimate_bid", null);
-      const body = [
-        `${named(job)} · Bid summary`,
-        "Overhead is applied first. Profit is applied on top of overhead.",
-        ...view.lines,
-        nextMove("bid"),
-      ];
-      if (measurement)
-        return viewEngine(sb, job, measurement, undefined, {
-          report_title: "Bid summary",
-          bid_summary: { ready: view.ready, total: view.total, direct },
-          report_rows: body,
-        });
-      return present("Bid summary", body, { ready: view.ready, total: view.total, direct }, [
-        "Show direct cost, general conditions, special requirements, overhead and profit, and the total. Red only on a row that holds the bid.",
-      ]);
-    }),
+      },
+    ),
 });
 
 function mergeBy<T>(prior: T[], incoming: T[], key: (row: T) => string): T[] {
