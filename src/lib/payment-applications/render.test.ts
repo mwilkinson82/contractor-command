@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { applicationFixture } from "./fixtures";
 import { calculateApplication } from "./model";
 import { applicationPdf } from "./pdf";
+import { validatePaymentLogo } from "./brand";
 import type { ApplicationContext, SavedApplication } from "./workflow";
 const state = vi.hoisted(() => ({
   data: null as any,
@@ -167,6 +168,19 @@ describe("saved application view and document", () => {
     expect(raw).toContain("/Subtype /Image");
     expect(raw).toContain("Example Builders");
     expect(raw).toContain("Needed");
+  });
+  it("embeds validated PNG and JPEG bytes in the generated application PDF", async () => {
+    const f=fixture();
+    const logos=[
+      Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGP4zwAE/wEHAAH/4iOeWQAAAABJRU5ErkJggg==", "base64")),
+      new Uint8Array(readFileSync("tests/fixtures/payment-brand/logo.jpg")),
+    ];
+    for (const logo of logos) {
+      const logoFormat=await validatePaymentLogo(logo);
+      expect(logoFormat).not.toBeNull();
+      const raw=Buffer.from(applicationPdf(f.job,f.selected!,{companyName:"Example Builders",logo,logoFormat:logoFormat!})).toString("latin1");
+      expect(raw).toContain("/Subtype /Image");
+    }
   });
   it("paginates every line of a maximum-length description and rejects unsupported characters", () => {
     const f=fixture(), a=f.selected!.body;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { imageFormat, MAX_COMPANY_LOGO_BYTES, resolvePaymentBrand } from "@/lib/payment-applications/brand";
+import { validatePaymentLogo, MAX_COMPANY_LOGO_BYTES, resolvePaymentBrand } from "@/lib/payment-applications/brand";
 
 /** Company is derived from the authorized job, never from a typed company name. */
 export function PaymentCompanyBrand({ jobId, actorId }: { jobId: string; actorId: string }) {
@@ -50,8 +50,8 @@ export function PaymentCompanyBrand({ jobId, actorId }: { jobId: string; actorId
     try {
       if (!url && file) {
         if (file.size < 1 || file.size > MAX_COMPANY_LOGO_BYTES) throw Error("Choose a PNG or JPEG no larger than 1 MB.");
-        const bytes = new Uint8Array(await file.arrayBuffer()), format = imageFormat(bytes);
-        if (!format || (format === "PNG" ? file.type !== "image/png" : file.type !== "image/jpeg")) throw Error("Choose a valid PNG or JPEG image.");
+        const bytes = new Uint8Array(await file.arrayBuffer()), format = await validatePaymentLogo(bytes);
+        if (!active.current || !format || (format === "PNG" ? file.type !== "image/png" : file.type !== "image/jpeg")) throw Error("Choose a valid PNG or JPEG image no larger than 2048 pixels in either dimension.");
         let attempt = uploadAttempt.current;
         if (!attempt) {
           const path = `${actorId}/athena-${data.data.id}-${crypto.randomUUID()}.${format === "PNG" ? "png" : "jpg"}`;

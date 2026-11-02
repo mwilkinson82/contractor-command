@@ -1,9 +1,62 @@
 /** Shared PDF/attachment branding policy. The caller resolves company identity through job access. */
 export const MAX_COMPANY_LOGO_BYTES = 1024 * 1024;
+export const MAX_COMPANY_LOGO_DIMENSION = 2048;
 export type PaymentBrand = { companyName?: string; logo?: Uint8Array; logoFormat?: "PNG" | "JPEG" };
 export function imageFormat(bytes: Uint8Array): "PNG" | "JPEG" | null {
   if (bytes.length >= 8 && [137,80,78,71,13,10,26,10].every((v,i) => bytes[i] === v)) return "PNG";
   if (bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "JPEG";
+  return null;
+}
+/** Validate dimensions before decoding, then decode using the same supported image families as the PDF. */
+export async function validatePaymentLogo(bytes: Uint8Array): Promise<"PNG" | "JPEG" | null> {
+  if (!bytes.length || bytes.length > MAX_COMPANY_LOGO_BYTES) return null;
+  const format=imageFormat(bytes), view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const safe=(w:number,h:number)=>w>0 && h>0 && w<=MAX_COMPANY_LOGO_DIMENSION && h<=MAX_COMPANY_LOGO_DIMENSION && w*h<=MAX_COMPANY_LOGO_DIMENSION**2;
+  try {
+    if (format === "PNG") {
+      if(bytes.length<45 || view.getUint32(8)!==13 || String.fromCharCode(...bytes.subarray(12,16))!=="IHDR") return null;
+      const w=view.getUint32(16), h=view.getUint32(20); if(!safe(w,h)) return null;
+      let at=8, ended=false, sawData=false; const chunks:Uint8Array[]=[];
+      while(at+12<=bytes.length){
+        const n=view.getUint32(at), end=at+12+n;
+        if(end>bytes.length) return null;
+        const type=String.fromCharCode(...bytes.subarray(at+4,at+8));
+        // Compressed ancillary data and animation are not needed for static logos.
+        if(["iCCP","zTXt","iTXt","acTL","fdAT","fcTL"].includes(type)) return null;
+        if(type==="IDAT"){sawData=true;chunks.push(bytes.subarray(at+8,at+8+n));}
+        if(type==="IEND"){if(n!==0 || end!==bytes.length) return null; ended=true;break;}
+        at=end;
+      }
+      if(!ended || !sawData) return null;
+      const source=new Blob(chunks.map(c=>new Uint8Array(c))).stream().pipeThrough(new DecompressionStream("deflate"));
+      const reader=source.getReader(); let inflated=0, limit=w*h*8+h*8+65536;
+      while(true){const p=await reader.read();if(p.done)break;inflated+=p.value.length;if(inflated>limit){await reader.cancel();return null;}}
+      const {decode}=await import("fast-png");
+      const decoded=decode(bytes,{checkCrc:true});
+      return decoded.width===w && decoded.height===h && decoded.data.length>0 ? "PNG" : null;
+    }
+    if (format === "JPEG") {
+      if(bytes.length<12 || bytes[bytes.length-2]!==255 || bytes[bytes.length-1]!==217) return null;
+      let p=2, width=0, height=0;
+      while(p+3<bytes.length){
+        if(bytes[p++]!==255) return null;
+        while(bytes[p]===255)p++;
+        const marker=bytes[p++];
+        if(marker===0xda) break;
+        if(marker===0xd9 || marker===0xd8 || marker===0x01 || (marker>=0xd0 && marker<=0xd7)) return null;
+        if(p+2>bytes.length) return null;
+        const n=view.getUint16(p);if(n<2 || p+n>bytes.length) return null;
+        if([0xc0,0xc1,0xc2].includes(marker)){
+          if(n<8 || width) return null; height=view.getUint16(p+3);width=view.getUint16(p+5);if(!safe(width,height))return null;
+        }
+        p+=n;
+      }
+      if(!width || !height) return null;
+      const {decode}=await import("jpeg-js");
+      const image=decode(bytes,{useTArray:true,formatAsRGBA:true,tolerantDecoding:false,maxResolutionInMP:4.194304,maxMemoryUsageInMB:64});
+      return image.width===width && image.height===height && image.data.length===width*height*4 ? "JPEG" : null;
+    }
+  } catch { return null; }
   return null;
 }
 export function isCompanyLogoUrl(raw: string, backend: string): boolean {
@@ -32,7 +85,7 @@ export async function resolvePaymentBrand(input: { companyName?: string; logoUrl
     }
     const bytes = new Uint8Array(count);
     let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-    const format = imageFormat(bytes);
+    const format = await validatePaymentLogo(bytes);
     if (bytes.length <= MAX_COMPANY_LOGO_BYTES && bytes.length === len && format) return { ...brand, logo: bytes, logoFormat: format };
   } catch { /* Name-only fallback if the configured public asset cannot be read. */ }
   return brand;

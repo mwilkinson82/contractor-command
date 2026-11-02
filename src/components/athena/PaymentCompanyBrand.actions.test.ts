@@ -7,7 +7,7 @@ vi.mock("@/integrations/supabase/client",()=>({supabase:{auth:{getUser:m.getUser
 import { PaymentCompanyBrand } from "./PaymentCompanyBrand";
 function nodes(tree:ReactNode): any[]{if(Array.isArray(tree))return tree.flatMap(nodes);if(!React.isValidElement(tree))return [];return [tree,...nodes((tree.props as any).children)];}
 function render(){m.cursor=0;return PaymentCompanyBrand({jobId:"job-a",actorId:"user-a"});}
-const bytes=Uint8Array.from([137,80,78,71,13,10,26,10,1]);
+const bytes=Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAADUlEQVR4nGP4zwAE/wEHAAH/4iOeWQAAAABJRU5ErkJggg==","base64"));
 const file={type:"image/png",size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File;
 describe("company branding actions",()=>{
   beforeEach(()=>{m.slots=[];m.owner=true;vi.clearAllMocks();m.getUser.mockResolvedValue({data:{user:{id:"user-a"}},error:null});m.rpc.mockResolvedValue({error:null});});
@@ -16,7 +16,7 @@ describe("company branding actions",()=>{
     m.refetch.mockImplementation(async()=>{const p=m.rpc.mock.calls[0][1]._p.logo_url;return {data:{logo_url:p,logoAvailable:true}};});
     let tree=render();nodes(tree).find(n=>n.type==="input"&&n.props.type==="file").props.onChange({target:{files:[file]}});
     tree=render();const save=nodes(tree).find(n=>n.type==="button"&&n.props.children==="Save company logo");
-    const one=save.props.onClick();save.props.onClick();await one;await new Promise(r=>setTimeout(r,0));
+    save.props.onClick();save.props.onClick();await vi.waitFor(()=>expect(m.rpc).toHaveBeenCalledTimes(1));
     expect(m.upload).toHaveBeenCalledTimes(1);expect(m.rpc).toHaveBeenCalledTimes(1);
     expect(m.rpc.mock.calls[0][1]._company).toBe("company-a");
     expect(m.rpc.mock.calls[0][1]._p.logo_url).toContain("/user-a/athena-company-a-");
@@ -24,8 +24,17 @@ describe("company branding actions",()=>{
   it("does not re-upload when the result is uncertain and checks the same path",async()=>{
     m.upload.mockResolvedValue({error:{message:"unknown"}});m.download.mockResolvedValue({data:null,error:{message:"unknown"}});
     let tree=render();nodes(tree).find(n=>n.type==="input"&&n.props.type==="file").props.onChange({target:{files:[file]}});
-    tree=render();nodes(tree).find(n=>n.type==="button"&&n.props.children==="Save company logo").props.onClick();await new Promise(r=>setTimeout(r,0));
-    tree=render();nodes(tree).find(n=>n.type==="button"&&n.props.children==="Check same logo upload").props.onClick();await new Promise(r=>setTimeout(r,0));
+    tree=render();nodes(tree).find(n=>n.type==="button"&&n.props.children==="Save company logo").props.onClick();await vi.waitFor(()=>expect(m.upload).toHaveBeenCalledTimes(1));
+    await vi.waitFor(()=>expect(nodes(render()).find(n=>n.type==="button"&&n.props.children==="Check same logo upload")?.props.disabled).toBe(false));
+    tree=render();nodes(tree).find(n=>n.type==="button"&&n.props.children==="Check same logo upload").props.onClick();await vi.waitFor(()=>expect(m.download).toHaveBeenCalledTimes(1));
     expect(m.upload).toHaveBeenCalledTimes(1);expect(m.download).toHaveBeenCalledWith(m.upload.mock.calls[0][0]);expect(m.rpc).not.toHaveBeenCalled();
+  });
+  it("rejects a header-only PNG before any upload or profile change",async()=>{
+    const bad=Uint8Array.from([137,80,78,71,13,10,26,10,1]);
+    const selected={type:"image/png",size:bad.length,arrayBuffer:async()=>bad.buffer} as File;
+    let tree=render();nodes(tree).find(n=>n.type==="input"&&n.props.type==="file").props.onChange({target:{files:[selected]}});
+    tree=render();nodes(tree).find(n=>n.type==="button"&&n.props.children==="Save company logo").props.onClick();
+    await vi.waitFor(()=>expect(nodes(render()).some(n=>n.props?.role==="status"&&String(n.props.children).includes("Choose a valid"))).toBe(true));
+    expect(m.upload).not.toHaveBeenCalled();expect(m.rpc).not.toHaveBeenCalled();
   });
 });
