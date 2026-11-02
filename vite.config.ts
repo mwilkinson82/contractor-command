@@ -9,6 +9,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 import { loadEnv } from "vite";
 import { mcpPluginForNativePaths } from "./src/lib/build/mcp-native-paths";
+import { pdfiumWasmPlugin } from "./src/lib/build/pdfium-wasm";
 import { commitFromEnv, normalizeCommit } from "./src/lib/athena-build";
 
 function gitHeadCommit(): string {
@@ -41,21 +42,7 @@ export default defineConfig({
     },
     plugins: [
       mcpPluginForNativePaths(),
-      {
-        name: "athena-pdfium-wasm",
-        enforce: "pre",
-        // Preserve the binary import through Vite. Nitro's Workers preset then
-        // emits a compiled WASM module alongside the server, never a public URL.
-        resolveId(source: string) {
-          if (source !== "@hyzyla/pdfium/pdfium.wasm?module") return;
-          return {
-            id:
-              path.resolve(process.cwd(), "node_modules/@hyzyla/pdfium/dist/pdfium.wasm") +
-              "?module",
-            external: true,
-          };
-        },
-      },
+      pdfiumWasmPlugin(),
     ],
     resolve: {
       alias: [
