@@ -27,6 +27,8 @@ jobs:
           node-version: '24'
       - name: Install existing project verification dependencies
         run: npm install --no-save --legacy-peer-deps @lovable.dev/mcp-js@3.0.5 zod@4.4.3
+      - name: Mask the synthetic service password
+        run: echo "::add-mask::synthetic-${{ github.run_id }}-${{ github.run_attempt }}"
       - name: Run synthetic native PostgreSQL races
         env:
           ATHENA_EMAIL_NATIVE_TEST: '1'
