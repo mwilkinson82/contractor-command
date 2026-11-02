@@ -145,7 +145,7 @@ const ratio = (n: number, bps: number) => {
 };
 export const workingApplicationInputSchema = applicationSchema.extend({
   number: z.string().trim().max(120),
-  source: z.string().max(2000),
+  source: z.string().trim().max(2000),
   period_start: z.union([day, z.literal("")]),
   period_end: z.union([day, z.literal("")]),
   prior_cutoff: z.union([day, z.literal("")]),

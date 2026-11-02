@@ -242,6 +242,21 @@ export function draftProposal(
   return { application: workingApplicationSchema.parse(a), intent, questions, blocking };
 }
 
+// JSONB may return object properties in a different order; arrays and values remain exact.
+export function sameWorkingValue(a: unknown, b: unknown): boolean {
+  const canonical = (v: any): any =>
+    Array.isArray(v)
+      ? v.map(canonical)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort()
+              .map((k) => [k, canonical(v[k])]),
+          )
+        : v;
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
 export async function workingRequestHash(value: unknown): Promise<string> {
   const stable = (v: any): any =>
     Array.isArray(v)

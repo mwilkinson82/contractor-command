@@ -26,6 +26,7 @@ import {
 import { PaymentApplicationContractBasis } from "./PaymentApplicationContractBasis";
 import {
   deriveIntent,
+  sameWorkingValue,
   workingApplicationSchema,
   workingRequestHash,
   type WorkingIntent,
@@ -517,8 +518,8 @@ export function PaymentApplicationsPage({
       if (editContext.base?.working_state) {
         const current = { ...application, state: "draft", certification: null };
         if (
-          JSON.stringify(current) !== JSON.stringify(editContext.base.body) ||
-          JSON.stringify(intent) !== JSON.stringify(editContext.base.working_intent ?? {})
+          !sameWorkingValue(current, workingApplicationSchema.parse(editContext.base.body)) ||
+          !sameWorkingValue(intent, editContext.base.working_intent ?? {})
         )
           throw Error("Save working changes before reviewing the exact application version.");
         if (

@@ -1473,3 +1473,60 @@ describe("conversation to a shared application draft", () => {
     expect((await context()).applications).toEqual([]);
   });
 });
+
+describe("working draft JSONB and source normalization", () => {
+  it("reviews PostgreSQL-returned objects independent of key order, preserves legacy text, and rejects actual changes", async () => {
+    const p = await payload();
+    const a = { ...p.application, state: "draft", source: " \tReviewed progress record \n" };
+    await record("payment_application_working", {
+      ...p,
+      application: a,
+      request_hash: "a".repeat(64),
+      operation: "save",
+      intent: { "01": { basis: "cumulative", amount_cents: a.lines[0].work_cents } },
+    });
+    let read: any = await record("payment_application_read", { id: p.id, version: 1 });
+    expect(read.selected.body.source).toBe("Reviewed progress record");
+    await db.query(
+      "UPDATE mcp_payment_application_versions SET body=jsonb_set(body,'{source}',to_jsonb($2::text)) WHERE application_id=$1 AND version=1",
+      [p.id, " \tReviewed progress record \n"],
+    );
+    read = await record("payment_application_read", { id: p.id, version: 1 });
+    const { applicationSchema } = await import("./model");
+    const { sameWorkingValue, workingApplicationSchema } = await import("./working");
+    const current = applicationSchema.parse(read.selected.body);
+    expect(
+      sameWorkingValue(
+        { ...current, state: "draft", certification: null },
+        workingApplicationSchema.parse(read.selected.body),
+      ),
+    ).toBe(true);
+    expect(sameWorkingValue({ x: null }, { x: 0 })).toBe(false);
+    expect(sameWorkingValue({ x: null }, {})).toBe(false);
+    expect(sameWorkingValue({ x: [1, 2] }, { x: [2, 1] })).toBe(false);
+    const req = {
+      id: p.id,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      application: current,
+    };
+    expect(await record("payment_application_review", req)).toHaveProperty("review_key");
+    const changed = structuredClone(current);
+    changed.lines[0].work_cents!++;
+    await expect(
+      record("payment_application_review", {
+        ...req,
+        request_id: crypto.randomUUID(),
+        application: changed,
+      }),
+    ).rejects.toThrow(/Save the working changes/);
+    expect(
+      ((await record("payment_application_read", { id: p.id, version: 1 })) as any).selected.body
+        .source,
+    ).toBe(" \tReviewed progress record \n");
+    if (process.env.ATHENA_WORKING_JSONB_FIXTURE) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(process.env.ATHENA_WORKING_JSONB_FIXTURE, JSON.stringify(read));
+    }
+  });
+});
