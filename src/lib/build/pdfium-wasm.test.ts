@@ -10,7 +10,8 @@ function configured(command: "serve" | "build") {
   if (typeof configure !== "function" || typeof resolve !== "function")
     throw new Error("Expected callable PDFium plugin hooks");
   configure.call({} as never, { command, root: process.cwd() } as ResolvedConfig);
-  return (source: string) => resolve.call({} as never, source, undefined, { isEntry: false });
+  return (source: string) =>
+    resolve.call({} as never, source, undefined, { isEntry: false, attributes: {} });
 }
 
 describe("PDFium compiled module resolution", () => {
