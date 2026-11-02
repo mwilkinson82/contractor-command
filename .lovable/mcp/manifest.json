@@ -5367,7 +5367,7 @@
       {
         "name": "report_page_link",
         "title": "Project home or report link",
-        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), page \"statement\" for a private Customer Statement report, other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
+        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), page \"statement\" for a private Customer Statement report, page \"payapp\" only for the separate monthly billing forecast; for a saved SOV payment application use payment_application_read, other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -10005,8 +10005,8 @@
       },
       {
         "name": "field_pay_app",
-        "title": "Pay app from daily progress",
-        "description": "Builds the next pay application from saved daily progress so it ties to the schedule of values.",
+        "title": "Daily progress preview",
+        "description": "Previews reported daily progress against the SOV and does not save a formal payment application or certificate; use payment_application_read and payment_application_record for that workflow.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -15376,6 +15376,491 @@
           },
           "required": [
             "step"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payment_application_read",
+        "title": "Saved SOV payment applications",
+        "description": "Reads the current SOV, prior billing evidence and versioned saved payment applications and provides the exact saved application and downloadable PDF link, distinct from the monthly billing forecast and daily progress preview.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "application_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "payment_application_record",
+        "title": "Review or save an SOV payment application",
+        "description": "Reviews the exact SOV-linked application and saves it only after explicit confirmation; draft/ready do not issue billing; submitted creates one incremental current-amount billing record; certified records the actual certificate on that same record. No payment is sent.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "application": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "period_start": {
+                  "type": "string"
+                },
+                "period_end": {
+                  "type": "string"
+                },
+                "prior_cutoff": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "ready",
+                    "submitted",
+                    "certified"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "retainage_basis": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "prior_mode": {
+                  "type": "string",
+                  "enum": [
+                    "first",
+                    "external",
+                    "saved"
+                  ]
+                },
+                "prior_application": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "version": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prior_certified_net_cents": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9000000000000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "prior_basis": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "certification": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "amount_cents": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9000000000000
+                        },
+                        "date": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "amount_cents",
+                        "date",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence": {
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "version": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "treatment": {
+                        "type": "string",
+                        "enum": [
+                          "prior_billing",
+                          "separate"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "version",
+                      "treatment",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "lines": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "item": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      "prior_work_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9000000000000,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "prior_stored_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "prior_retained_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9000000000000,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "work_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9000000000000,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "stored_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "stored_to_work_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "work_retainage_bps": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "stored_retainage_bps": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "release_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9000000000000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "stored_basis": {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "release_basis": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "item",
+                      "prior_work_cents",
+                      "prior_stored_cents",
+                      "prior_retained_cents",
+                      "work_cents",
+                      "stored_cents",
+                      "stored_to_work_cents",
+                      "work_retainage_bps",
+                      "stored_retainage_bps",
+                      "release_cents",
+                      "stored_basis",
+                      "release_basis"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "snapshot": {
+                  "type": "object",
+                  "properties": {
+                    "fingerprint": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "contract_cents": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9000000000000
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "item": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "scheduled_cents": {
+                            "type": "integer",
+                            "minimum": -9000000000000,
+                            "maximum": 9000000000000
+                          }
+                        },
+                        "required": [
+                          "item",
+                          "description",
+                          "scheduled_cents"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "fingerprint",
+                    "contract_cents",
+                    "lines"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "number",
+                "period_start",
+                "period_end",
+                "prior_cutoff",
+                "state",
+                "source",
+                "reason",
+                "retainage_basis",
+                "prior_mode",
+                "prior_application",
+                "prior_certified_net_cents",
+                "prior_basis",
+                "certification",
+                "evidence",
+                "lines",
+                "snapshot"
+              ],
+              "additionalProperties": false
+            },
+            "review_key": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "step",
+            "id",
+            "request_id",
+            "expected_version",
+            "application"
           ],
           "additionalProperties": false
         },

@@ -294,16 +294,16 @@ describe("feeds", () => {
     { item_no: "03.02", description: "Rebar", scheduled_value: 500 },
   ];
 
-  it("ties the G702 certificate to the schedule of values", () => {
+  it("keeps incomplete progress unknown instead of claiming a complete certificate", () => {
     const app = buildFieldPayApp(lines, 10, 10, [{ item_no: "03.01", pct: 30 }], []);
     expect(app.contract_sum).toBe(1666.67);
     expect(app.rows[0]).toMatchObject({ previous: 0, this_period: 300, total_completed: 300, balance: 700, pct_complete: 30 });
     expect(app.rows[1].total_completed).toBeNull();
-    const cents = (n: number) => Math.round(n * 100);
-    const contract = cents(app.contract_sum);
-    expect(cents(app.completed_and_stored) + cents(app.balance_to_finish)).toBe(contract);
-    expect(cents(app.current_payment_due) + cents(app.previous_certificates) + cents(app.retainage ?? 0) + cents(app.balance_to_finish)).toBe(contract);
-    expect(app.checks.every((c) => c.includes(String(app.contract_sum)) || c.startsWith("Contract") || c.includes("equals"))).toBe(true);
+    expect(app.completed_and_stored).toBeNull();
+    expect(app.balance_to_finish).toBeNull();
+    expect(app.current_payment_due).toBeNull();
+    expect(app.previous_certificates).toBeNull();
+    expect(app.checks.some(c=>c.startsWith("Needed:"))).toBe(true);
   });
 
   it("shows dollars to full scope and percents only to a super", async () => {
@@ -317,9 +317,9 @@ describe("feeds", () => {
     state.tables.mcp_daily_work_lines = [{ daily_id: "d1", sov_item: "03.01", activity_id: "A1000", qty: 40, unit: "cy", pct_complete: 30 }];
     const full = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
     expect(full.content[0].text).toContain("| Contract sum · Reported | $1,666.67 |");
-    expect(full.content[0].text).toContain("G702 tie checks");
+    expect(full.content[0].text).toContain("Progress calculation checks");
     expect(full.structuredContent.card).toBeDefined();
-    expect(full.structuredContent.html).toContain("G703 continuation");
+    expect(full.structuredContent.html).toContain("Reported SOV progress");
     state.scope = "super";
     const sup = await handle(fieldPayApp, { job_number: "2701", period_to: "2026-10-21" });
     expect(sup.content[0].text).not.toContain("$");

@@ -53,6 +53,7 @@ export function boardSignInReturn(value: unknown): string | undefined {
   if (parts.length !== 4) return undefined;
   const page = hostedPageName(parts[3]);
   if (
+    page !== "payment-applications" &&
     page !== "home" &&
     page !== "billing-records" &&
     page !== "purchase-orders" &&
