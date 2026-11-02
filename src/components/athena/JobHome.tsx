@@ -186,7 +186,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       <ProjectReadUnavailable />
     );
   const href = (page: string) =>
-    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "production"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
+    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
@@ -288,14 +288,15 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             detail: "View recorded invoices and receipts",
             page: "billing-records",
           },
+          {title:"Payment applications",detail:"Prepare or open a saved SOV application",page:"payment-applications"},
           {
             title: "Billing forecast",
             detail: state(
               billing,
               billing.data?.page === "payapp" && billing.data.report?.found
-                ? "View saved billing"
+                ? "View saved forecast"
                 : billing.data?.page === "payapp" && billing.data.report?.found === false
-                  ? "No billing recorded yet"
+                  ? "No billing forecast saved yet"
                   : "Currently unavailable",
             ),
             page: "payapp",

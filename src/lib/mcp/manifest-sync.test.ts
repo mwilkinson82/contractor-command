@@ -9,6 +9,7 @@ type Prop = { format?: string; pattern?: string; description?: string };
 type Tool = {
   name: string;
   description?: string;
+  title?:string;
   inputSchema: { properties: Record<string, Prop> };
 };
 
@@ -92,6 +93,7 @@ describe("MCP manifest is in sync with source", () => {
       expect(t.description, `${t.name} description`).toBe(
         live.find((tool) => tool.name === t.name)?.description,
       );
+    for(const name of ["field_pay_app","payment_application_read","payment_application_record"]) expect(manifest.mcp.tools.find(t=>t.name===name)?.title,`${name} title`).toBe(live.find(t=>t.name===name)?.title);
     // Assert the actual SDK discovery wire, not just our Zod object or a committed manifest.
     const pkg = live.find((t) => t.name === "submittal_package")!;
     expect(pkg.inputSchema.properties.rebuild_from_package_id).toMatchObject({

@@ -447,13 +447,13 @@ export type G703Row = {
 
 export type G702 = {
   contract_sum: number;
-  completed_and_stored: number;
+  completed_and_stored: number | null;
   retainage: number | null;
   retainage_note: string | null;
-  earned_less_retainage: number;
-  previous_certificates: number;
-  current_payment_due: number;
-  balance_to_finish: number;
+  earned_less_retainage: number | null;
+  previous_certificates: number | null;
+  current_payment_due: number | null;
+  balance_to_finish: number | null;
   rows: G703Row[];
   checks: string[];
 };
@@ -561,15 +561,18 @@ export function buildFieldPayApp(
     `Current payment ${money(dollars(currentDue))} plus previous certificates ${money(dollars(previousCertificates))} plus retainage ${money(dollars(ret))} plus balance equals the contract sum.`,
     ...(rounding ? [rounding] : []),
   ];
+  const incomplete = rows.some(row => row.total_completed === null);
+  if (incomplete) checks.splice(1, checks.length - 1, "Needed: complete current and prior reported progress before totaling this preview.");
+  if (retPct === null) checks.push("Needed: retainage terms before an earned-net or payment calculation.");
   return {
     contract_sum: dollars(contract),
-    completed_and_stored: dollars(completed),
-    retainage: retPct == null ? null : dollars(ret),
+    completed_and_stored: incomplete ? null : dollars(completed),
+    retainage: incomplete || retPct == null ? null : dollars(ret),
     retainage_note: retNote,
-    earned_less_retainage: dollars(earnedLess),
-    previous_certificates: dollars(previousCertificates),
-    current_payment_due: dollars(currentDue),
-    balance_to_finish: dollars(balance),
+    earned_less_retainage: incomplete || retPct == null ? null : dollars(earnedLess),
+    previous_certificates: incomplete ? null : dollars(previousCertificates),
+    current_payment_due: incomplete || retPct == null ? null : dollars(currentDue),
+    balance_to_finish: incomplete ? null : dollars(balance),
     rows,
     checks,
   };

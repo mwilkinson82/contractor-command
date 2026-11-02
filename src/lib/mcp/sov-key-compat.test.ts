@@ -186,19 +186,14 @@ describe("saved sequential SOV keys", () => {
     );
     expect(forecast).toMatchObject({
       contract_sum: 480_000,
-      completed_and_stored: 59_000,
-      previous_certificates: 28_000,
-      current_payment_due: 25_100,
-      retainage: 5_900,
-      balance_to_finish: 421_000,
+      completed_and_stored: null,
+      previous_certificates: null,
+      current_payment_due: null,
+      retainage: null,
+      balance_to_finish: null,
     });
     expect(forecast.rows.find((row) => row.item_no === "03")?.total_completed).toBeNull();
-    expect(
-      forecast.current_payment_due +
-        forecast.previous_certificates +
-        (forecast.retainage ?? Number.NaN) +
-        forecast.balance_to_finish,
-    ).toBe(480_000);
+    expect(forecast.checks.some(check=>check.startsWith("Needed:"))).toBe(true);
   });
 
   it("runs actual intake to pay-app handlers with the original keys, without billing writes", async () => {
@@ -236,12 +231,12 @@ describe("saved sequential SOV keys", () => {
     db.writes = [];
     const result = await invoke(fieldPayApp, { job_number: "2810", period_to: "2026-10-29" });
     expect(result.structuredContent).toMatchObject({
-      ties: true,
+      ties: false,
       pay_app: {
         contract_sum: 480_000,
         previous_certificates: null,
         current_payment_due: null,
-        prior_reported_progress: 28_000,
+        prior_reported_progress: null,
       },
     });
     expect(db.facts).toEqual(saved);
