@@ -84,6 +84,7 @@ export const fixtureRpc = async (_name: string, args: any) => {
   try {
     const p = args._p;
     if (args._action === "payment_application_read") {
+      if(p.id&&p.version===undefined)await new Promise(r=>setTimeout(r,Number(sessionStorage.getItem("fixture-predecessor-delay")??0)));
       const c = context();
       if (p.id) {
         const head = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");

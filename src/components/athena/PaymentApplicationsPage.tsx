@@ -144,7 +144,7 @@ export function PaymentApplicationsPage({
     [pending, setPending] = useState<(SavePayload & { review_key: string }) | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const [editContext, setEditContext] = useState<{
+  const [editContext, setEditContextState] = useState<{
     kind: "new" | "revision" | "certificate";
     id: string;
     expected_version: number;
@@ -152,6 +152,14 @@ export function PaymentApplicationsPage({
     read: ApplicationContext;
     recoveryRequestId?: string;
   } | null>(null);
+  const [pendingPredecessor, setPendingPredecessor] = useState<string | null>(null);
+  const editContextRef = useRef(editContext);
+  const predecessorRequest = useRef(0);
+  function setEditContext(next: typeof editContext) {
+    editContextRef.current = next;
+    setPendingPredecessor(null);
+    setEditContextState(next);
+  }
   const certificateMode = editContext?.kind === "certificate";
   const editingBase = editContext?.base;
   const recoveryKey = `payment-application:${session?.user.id ?? ""}:${jobId}`;
@@ -225,6 +233,32 @@ export function PaymentApplicationsPage({
       a ? { ...a, lines: a.lines.map((l) => (l.item === item ? { ...l, ...p } : l)) } : a,
     );
     setReview(null);
+  }
+  async function selectPredecessor(id: string) {
+    const context = editContextRef.current;
+    if (!context) return;
+    const request = ++predecessorRequest.current;
+    setPendingPredecessor(id);
+    setReview(null);
+    setEdit((a) =>
+      a ? { ...a, prior_application: null, prior_certified_net_cents: null, prior_basis: "" } : a,
+    );
+    if (!id) {
+      setPendingPredecessor(null);
+      return;
+    }
+    try {
+      const p = await call<ApplicationContext>(jobId, "payment_application_read", { id });
+      if (editContextRef.current !== context || predecessorRequest.current !== request) return;
+      setPendingPredecessor(null);
+      if (p.selected)
+        setEdit((current) => (current ? carryCertificate(current, p.selected!) : current));
+    } catch (e) {
+      if (editContextRef.current === context && predecessorRequest.current === request) {
+        setPendingPredecessor(null);
+        setError((e as Error).message);
+      }
+    }
   }
   async function startNew() {
     if (busy || pending) return;
@@ -616,19 +650,8 @@ export function PaymentApplicationsPage({
                     <label>
                       Saved predecessor
                       <select
-                        value={edit.prior_application?.id ?? ""}
-                        onChange={async (e) => {
-                          try {
-                            const p = await call<ApplicationContext>(
-                              jobId,
-                              "payment_application_read",
-                              { id: e.target.value },
-                            );
-                            if (p.selected) change(carryCertificate(edit, p.selected));
-                          } catch (e) {
-                            setError((e as Error).message);
-                          }
-                        }}
+                        value={pendingPredecessor ?? edit.prior_application?.id ?? ""}
+                        onChange={(e) => void selectPredecessor(e.target.value)}
                       >
                         <option value="">Choose the actual prior certificate</option>
                         {workingData!.applications
@@ -640,6 +663,11 @@ export function PaymentApplicationsPage({
                           ))}
                       </select>
                     </label>
+                  )}
+                  {!!pendingPredecessor && (
+                    <p role="status">
+                      Loading the selected certificate. Current work entries will be preserved.
+                    </p>
                   )}
                   <div className="pa-fields">
                     <MoneyInput
@@ -822,7 +850,7 @@ export function PaymentApplicationsPage({
               )}
               <div className="pa-actions">
                 <button
-                  disabled={busy || !!pending}
+                  disabled={busy || !!pending || !!pendingPredecessor}
                   className="pa-primary"
                   onClick={() => void prepare()}
                 >
