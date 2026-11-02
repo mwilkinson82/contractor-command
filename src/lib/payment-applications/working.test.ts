@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applicationFixture } from "./fixtures";
-import { draftProposal, resolveDraftLine } from "./working";
+import { deriveIntent, draftProposal, intentFromSavedApplication, resolveDraftLine } from "./working";
 import type { ApplicationContext } from "./workflow";
 
 const context = (): ApplicationContext => {
@@ -20,6 +20,27 @@ const context = (): ApplicationContext => {
 };
 
 describe("conversational payment working amounts", () => {
+  it("restores formal saved amounts as period work without inventing missing values", () => {
+    const a = applicationFixture();
+    const base = a.lines[0];
+    a.lines = [
+      { ...base, item: "01", prior_work_cents: 3000000, work_cents: 3000000 },
+      { ...base, item: "02", prior_work_cents: 1800000, work_cents: 4800000 },
+      { ...base, item: "03", prior_work_cents: 0, work_cents: 1500000 },
+      { ...base, item: "04", prior_work_cents: 0, work_cents: 700000 },
+      { ...base, item: "05", prior_work_cents: 0, work_cents: 0 },
+      { ...base, item: "06", prior_work_cents: null, work_cents: 200 },
+      { ...base, item: "07", prior_work_cents: 0, work_cents: null },
+      { ...base, item: "08", prior_work_cents: -200, work_cents: -500 },
+    ];
+    const intent = intentFromSavedApplication(a);
+    expect(["01", "02", "03", "04", "05"].map((id) => intent[id].amount_cents))
+      .toEqual([0, 3000000, 1500000, 700000, 0]);
+    expect(intent["06"]).toEqual({ basis: "cumulative", amount_cents: 200 });
+    expect(intent["07"].amount_cents).toBeNull();
+    expect(intent["08"].amount_cents).toBe(-300);
+    expect(deriveIntent(a, intent)).toEqual(a);
+  });
   it("requires an unambiguous SOV line and amount basis", () => {
     const ctx = context();
     const result = draftProposal(ctx, {
