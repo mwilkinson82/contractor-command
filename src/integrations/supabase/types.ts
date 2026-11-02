@@ -5290,6 +5290,127 @@ export type Database = {
           },
         ]
       }
+      mcp_payment_application_reviews: {
+        Row: {
+          actor_id: string
+          consumed_at: string | null
+          context_hash: string
+          expires_at: string
+          id: string
+          job_id: string
+          payload: Json
+        }
+        Insert: {
+          actor_id: string
+          consumed_at?: string | null
+          context_hash: string
+          expires_at?: string
+          id?: string
+          job_id: string
+          payload: Json
+        }
+        Update: {
+          actor_id?: string
+          consumed_at?: string | null
+          context_hash?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_payment_application_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_payment_application_versions: {
+        Row: {
+          application_id: string
+          billing_version: number | null
+          body: Json
+          calculation: Json
+          job_id: string
+          recorded_at: string
+          recorded_by: string
+          version: number
+        }
+        Insert: {
+          application_id: string
+          billing_version?: number | null
+          body: Json
+          calculation: Json
+          job_id: string
+          recorded_at?: string
+          recorded_by: string
+          version: number
+        }
+        Update: {
+          application_id?: string
+          billing_version?: number | null
+          body?: Json
+          calculation?: Json
+          job_id?: string
+          recorded_at?: string
+          recorded_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_payment_application_versions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_payment_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_payment_application_versions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_payment_applications: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string
+          number: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          id: string
+          job_id: string
+          number: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string
+          number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_payment_applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_po_company_defaults: {
         Row: {
           company_id: string
@@ -9417,6 +9538,17 @@ export type Database = {
       mcp_next_check: { Args: { _job: string }; Returns: Json }
       mcp_normalize_role: { Args: { _role: string }; Returns: string }
       mcp_open_item_create: { Args: { _f: Json; _job: string }; Returns: Json }
+      mcp_pa_calculate: { Args: { a: Json; evidence: Json }; Returns: Json }
+      mcp_pa_dispatch: {
+        Args: { _action: string; _job: string; _p: Json }
+        Returns: Json
+      }
+      mcp_pa_evidence: {
+        Args: { _exclude: string; _job: string }
+        Returns: Json
+      }
+      mcp_pa_number: { Args: { signed?: boolean; v: Json }; Returns: number }
+      mcp_pa_snapshot: { Args: { _job: string }; Returns: Json }
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
       mcp_progress_photo_create: {
