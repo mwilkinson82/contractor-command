@@ -30,6 +30,10 @@ export function intentFromSavedApplication(a: Application): WorkingIntent {
     }];
   }));
 }
+// Missing keys inherit the saved body for display; explicit null remains Needed.
+export function displayIntent(a: Application, intent: WorkingIntent): WorkingIntent {
+  return { ...intentFromSavedApplication(a), ...intent };
+}
 export function deriveIntent(a: Application, intent: WorkingIntent): Application {
   return {
     ...a,

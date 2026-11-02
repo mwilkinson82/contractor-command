@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applicationFixture } from "./fixtures";
-import { deriveIntent, draftProposal, intentFromSavedApplication, resolveDraftLine } from "./working";
+import { deriveIntent, displayIntent, draftProposal, intentFromSavedApplication, resolveDraftLine } from "./working";
 import type { ApplicationContext } from "./workflow";
 
 const context = (): ApplicationContext => {
@@ -20,6 +20,24 @@ const context = (): ApplicationContext => {
 };
 
 describe("conversational payment working amounts", () => {
+  it("displays untouched known lines in a partial working intent without changing that intent", () => {
+    const a = applicationFixture();
+    const base = a.lines[0];
+    a.lines = [
+      { ...base, item: "01", prior_work_cents: 3000000, work_cents: 3000000 },
+      { ...base, item: "02", prior_work_cents: 1800000, work_cents: 5300000 },
+      { ...base, item: "03", prior_work_cents: 0, work_cents: 1500000 },
+      { ...base, item: "04", prior_work_cents: 0, work_cents: 700000 },
+      { ...base, item: "05", prior_work_cents: 0, work_cents: 0 },
+    ];
+    const intent = { "02": { basis: "this_period" as const, amount_cents: 3500000 },
+      "04": { basis: "cumulative" as const, amount_cents: null } };
+    const shown = displayIntent(a, intent);
+    expect(["01", "02", "03", "04", "05"].map((id) => shown[id].amount_cents))
+      .toEqual([0, 3500000, 1500000, null, 0]);
+    expect(shown["04"].basis).toBe("cumulative");
+    expect(Object.keys(intent)).toEqual(["02", "04"]);
+  });
   it("restores formal saved amounts as period work without inventing missing values", () => {
     const a = applicationFixture();
     const base = a.lines[0];
