@@ -26,6 +26,7 @@ import {
 import { PaymentApplicationContractBasis } from "./PaymentApplicationContractBasis";
 import {
   deriveIntent,
+  displayIntent,
   intentFromSavedApplication,
   sameWorkingValue,
   workingApplicationSchema,
@@ -197,6 +198,7 @@ export function PaymentApplicationsPage({
     setEditContextState(next);
   }
   const certificateMode = editContext?.kind === "certificate";
+  const visibleIntent = edit ? displayIntent(edit, intent) : intent;
   const editingBase = editContext?.base;
   const recoveryKey = `payment-application:${session?.user.id ?? ""}:${jobId}`;
   useEffect(() => {
@@ -1011,13 +1013,13 @@ export function PaymentApplicationsPage({
                             <label>
                               Amount represents
                               <select
-                                value={intent[l.item]?.basis ?? "this_period"}
+                                value={visibleIntent[l.item]?.basis ?? "this_period"}
                                 onChange={(e) => {
                                   const next = {
                                     ...intent,
                                     [l.item]: {
                                       basis: e.target.value as "this_period" | "cumulative",
-                                      amount_cents: intent[l.item]?.amount_cents ?? null,
+                                      amount_cents: visibleIntent[l.item]?.amount_cents ?? null,
                                     },
                                   };
                                   setIntent(next);
@@ -1031,12 +1033,12 @@ export function PaymentApplicationsPage({
                             </label>
                             <MoneyInput
                               label={`Requested work · ${l.item}`}
-                              value={intent[l.item]?.amount_cents ?? null}
+                              value={visibleIntent[l.item]?.amount_cents ?? null}
                               onChange={(amount_cents) => {
                                 const next = {
                                   ...intent,
                                   [l.item]: {
-                                    basis: intent[l.item]?.basis ?? "this_period",
+                                    basis: visibleIntent[l.item]?.basis ?? "this_period",
                                     amount_cents,
                                   },
                                 };
