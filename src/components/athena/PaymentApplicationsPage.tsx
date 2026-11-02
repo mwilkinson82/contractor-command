@@ -23,6 +23,7 @@ import {
   type SavePayload,
   type SavedApplication,
 } from "@/lib/payment-applications/workflow";
+import { PaymentApplicationContractBasis } from "./PaymentApplicationContractBasis";
 import "./payment-applications.css";
 const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
@@ -446,6 +447,14 @@ export function PaymentApplicationsPage({
           remain readable; recording a certificate against unchanged issued facts does not require
           the current SOV.
         </p>
+      )}
+      {data.data && !invalid && !data.error && !edit && !pending && (
+        <PaymentApplicationContractBasis
+          key={`${session.user.id}:${jobId}`}
+          jobId={jobId}
+          actorId={session.user.id}
+          onSaved={() => data.refetch()}
+        />
       )}
       {data.data && !invalid && !data.error && (
         <>

@@ -34,7 +34,16 @@ export const context = (): ApplicationContext => {
   return {
     job: { number: "SYN-01", name: "Construction project" },
     currency: "USD",
-    snapshot: JSON.parse(sessionStorage.getItem("fixture-current-sov") ?? "null") ?? seed.snapshot,
+    snapshot:
+      new URL(location.href).searchParams.has("contract_missing") &&
+      !sessionStorage.getItem("fixture-contract-basis")
+        ? null
+        : (JSON.parse(sessionStorage.getItem("fixture-current-sov") ?? "null") ?? seed.snapshot),
+    snapshot_issue:
+      new URL(location.href).searchParams.has("contract_missing") &&
+      !sessionStorage.getItem("fixture-contract-basis")
+        ? "Reconcile the saved SOV with the recorded approved contract and change orders."
+        : null,
     evidence,
     applications,
     selected: null,
@@ -83,8 +92,84 @@ export const fixtureRpc = async (_name: string, args: any) => {
   (window as any).__pa_calls.push(args);
   try {
     const p = args._p;
+    if (args._action.startsWith("contract_basis_")) {
+      const stored = JSON.parse(sessionStorage.getItem("fixture-contract-basis") ?? "null");
+      const version = sessionStorage.getItem("fixture-contract-version") ?? "missing-v0";
+      if (args._action === "contract_basis_read")
+        return {
+          data: {
+            version,
+            original_cents:
+              stored?.original_cents ??
+              (new URL(location.href).searchParams.has("contract_missing")
+                ? null
+                : seed.snapshot.contract_cents),
+            approved_cents: stored?.original_cents ?? null,
+            change_cents: 0,
+            sov_cents: seed.snapshot.contract_cents,
+            basis: stored?.basis ?? null,
+          },
+          error: null,
+        };
+      const op = JSON.parse(
+        sessionStorage.getItem(`fixture-contract-op:${p.request_id}`) ?? "null",
+      );
+      if (op) {
+        if (op.payload !== JSON.stringify({ ...p, review_key: undefined }))
+          throw Error("Operation belongs to different content");
+        return { data: { ...op.result, applied: true, already_applied: true }, error: null };
+      }
+      if (args._action === "contract_basis_outcome")
+        return { data: { applied: false }, error: null };
+      if (p.expected_version !== version)
+        throw Error("The contract or SOV changed. Reload the basis and review again.");
+      if (p.original_cents !== seed.snapshot.contract_cents)
+        throw Error("Reconcile the original contract and saved SOV.");
+      if (args._action === "contract_basis_review") {
+        const delay = Number(sessionStorage.getItem("fixture-contract-delay") ?? 0);
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+        const key = crypto.randomUUID();
+        sessionStorage.setItem(`fixture-contract-review:${key}`, JSON.stringify(p));
+        return {
+          data: {
+            review_key: key,
+            payload: p,
+            approved_cents: p.original_cents,
+            sov_cents: seed.snapshot.contract_cents,
+            expires_at: "2026-12-01T12:00:00Z",
+          },
+          error: null,
+        };
+      }
+      const { review_key, ...payload } = p;
+      if (
+        sessionStorage.getItem(`fixture-contract-review:${review_key}`) !== JSON.stringify(payload)
+      )
+        throw Error("Review expired or changed");
+      sessionStorage.setItem("fixture-contract-basis", JSON.stringify(payload));
+      sessionStorage.setItem("fixture-contract-version", crypto.randomUUID());
+      const result = {
+        saved: true,
+        original_cents: p.original_cents,
+        approved_cents: p.original_cents,
+        basis: p.basis,
+      };
+      sessionStorage.setItem(
+        `fixture-contract-op:${p.request_id}`,
+        JSON.stringify({ payload: JSON.stringify(payload), result }),
+      );
+      if (sessionStorage.getItem("fixture-contract-lose-response")) {
+        sessionStorage.removeItem("fixture-contract-lose-response");
+        throw Error("Connection interrupted");
+      }
+      return { data: { ...result, applied: true }, error: null };
+    }
+
     if (args._action === "payment_application_read") {
-      if(p.id&&p.version===undefined)await new Promise(r=>setTimeout(r,Number(sessionStorage.getItem("fixture-predecessor-delay")??0)));
+      if (p.id && p.version === undefined)
+        await new Promise((r) =>
+          setTimeout(r, Number(sessionStorage.getItem("fixture-predecessor-delay") ?? 0)),
+        );
       const c = context();
       if (p.id) {
         const head = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
