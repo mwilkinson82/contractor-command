@@ -109,6 +109,13 @@ export function applicationPdf(
       `${c.evidence?.find((b) => b.id === e.id)?.number ?? (e.treatment === "prior_billing" ? "Prior billing" : "Separate evidence")} - version ${e.version}: ${e.reason}`,
     );
   line(`SOV provenance fingerprint: ${a.snapshot.fingerprint}`);
+  line(
+    `Saved fee basis: ${a.snapshot.provenance.fee_pct}%. SOV source records: ${a.snapshot.provenance.sov_facts.length}. Contract source: ${String(a.snapshot.provenance.contract_fact?.source ?? "Not supplied")}.`,
+  );
+  for (const change of a.snapshot.provenance.approved_changes)
+    line(
+      `Approved change ${String(change.number ?? "reference needed")}, revision ${String(change.revision ?? "needed")}: ${String(change.state ?? "needed")}.`,
+    );
   line(`Saved: ${saved.recorded_at}`);
   if (a.reason) line(`Revision: ${a.reason}`);
   line("No bank transfer or external certification is performed by this report.");

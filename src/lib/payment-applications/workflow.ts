@@ -37,6 +37,7 @@ export type ApplicationReview = {
   payload: SavePayload;
   calculation: Calculation;
   billing_effect: string;
+  certificate_only?: boolean;
 };
 export function applicationUrl(job: string, id?: string, version?: number, download = false) {
   const q = new URLSearchParams();

@@ -154,3 +154,33 @@ describe("saved application view and document", () => {
     );
   });
 });
+
+describe("frozen certificate action", () => {
+  it("offers a certificate-only action after a current SOV change", () => {
+    state.data = fixture();
+    state.data.snapshot = {
+      ...state.data.snapshot,
+      fingerprint: "new-source",
+      contract_cents: 11000000,
+    };
+    const html = renderToStaticMarkup(
+      h(PaymentApplicationsPage, { jobId: job, search: { application_id: id, version: 2 } }),
+    );
+    expect(html).toContain("Record actual certificate");
+    expect(html).toContain("current SOV source differs");
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("financial read failure", () => {
+  it("hides retained financial results after an authorization error", () => {
+    state.data = fixture();
+    state.error = Error("Billing evidence requires full project access.");
+    const html = renderToStaticMarkup(
+      h(PaymentApplicationsPage, { jobId: job, search: { application_id: id, version: 2 } }),
+    );
+    expect(html).toContain("full project access");
+    expect(html).not.toContain("$13,500.00");
+    expect(html).not.toContain("Download saved PDF");
+  });
+});

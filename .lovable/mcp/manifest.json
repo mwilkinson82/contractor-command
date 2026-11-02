@@ -15786,6 +15786,57 @@
                       "minimum": 0,
                       "maximum": 9000000000000
                     },
+                    "provenance": {
+                      "type": "object",
+                      "properties": {
+                        "fee_pct": {
+                          "type": "number",
+                          "minimum": 0,
+                          "exclusiveMaximum": 100
+                        },
+                        "sov_facts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "contract_fact": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "approved_changes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "fee_pct",
+                        "sov_facts",
+                        "contract_fact",
+                        "approved_changes"
+                      ],
+                      "additionalProperties": false
+                    },
                     "lines": {
                       "minItems": 1,
                       "maxItems": 100,
@@ -15820,6 +15871,7 @@
                   "required": [
                     "fingerprint",
                     "contract_cents",
+                    "provenance",
                     "lines"
                   ],
                   "additionalProperties": false

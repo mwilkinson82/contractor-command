@@ -18,6 +18,7 @@ export function applicationFixture(): Application {
     evidence: [],
     snapshot: {
       fingerprint: "fixture",
+      provenance: { fee_pct: 0, sov_facts: [], contract_fact: null, approved_changes: [] },
       contract_cents: 10000000,
       lines: [{ item: "01", description: "Construction work", scheduled_cents: 10000000 }],
     },

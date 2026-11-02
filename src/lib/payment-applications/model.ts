@@ -17,6 +17,14 @@ export const snapshotSchema = z
   .object({
     fingerprint: z.string().min(1),
     contract_cents: money,
+    provenance: z
+      .object({
+        fee_pct: z.number().min(0).lt(100),
+        sov_facts: z.array(z.record(z.string(), z.unknown())),
+        contract_fact: z.record(z.string(), z.unknown()).nullable(),
+        approved_changes: z.array(z.record(z.string(), z.unknown())),
+      })
+      .strict(),
     lines: z
       .array(
         z

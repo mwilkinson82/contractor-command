@@ -37,25 +37,30 @@ REVOKE ALL ON FUNCTION public.mcp_pa_number(jsonb,boolean) FROM PUBLIC,anon,auth
 
 CREATE FUNCTION public.mcp_pa_snapshot(_job uuid) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SET search_path=public AS $$
-DECLARE lines jsonb; f numeric; base numeric; changes numeric; contract numeric; value numeric; approved numeric; r record;
+DECLARE lines jsonb; f numeric; base numeric; changes numeric; contract numeric; value numeric; approved numeric; provenance jsonb; fact_sources jsonb:='[]'; contract_source jsonb; co_sources jsonb; r record;
 BEGIN
  SELECT sov_fee_pct INTO f FROM public.mcp_jobs WHERE id=_job;
- IF f IS NULL OR f<0 OR f>=100 THEN RAISE EXCEPTION 'MCP_BAD:The saved SOV fee basis is needed, including an explicit zero fee.'; END IF;
+ IF f IS NULL OR f<0 OR f>=100 THEN RAISE EXCEPTION USING ERRCODE='PAP01', MESSAGE='MCP_BAD:The saved SOV fee basis is needed, including an explicit zero fee.'; END IF;
  lines:='[]'; base:=0; changes:=0;
- FOR r IN SELECT f.key,f.value,f.status FROM public.mcp_job_facts f WHERE job_id=_job AND module='sov' ORDER BY key LOOP
-   IF r.status<>'known' OR jsonb_typeof(r.value->'billable_value') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Every saved SOV line needs a known scheduled value.'; END IF;
+ FOR r IN SELECT f.id,f.key,f.value,f.status,f.source,f.updated_at,f.updated_by FROM public.mcp_job_facts f WHERE job_id=_job AND module='sov' ORDER BY key LOOP
+   IF r.status<>'known' OR jsonb_typeof(r.value->'billable_value') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION USING ERRCODE='PAP01', MESSAGE='MCP_BAD:Every saved SOV line needs a known scheduled value.'; END IF;
+   fact_sources:=fact_sources||jsonb_build_array(jsonb_build_object('id',r.id,'key',r.key,'value',r.value,'status',r.status,'source',r.source,'updated_at',r.updated_at,'updated_by',r.updated_by));
    value:=(r.value->>'billable_value')::numeric*100;
-   IF value<>trunc(value) OR abs(value)>9000000000000 OR length(r.key)>40 OR r.key='CF' THEN RAISE EXCEPTION 'MCP_BAD:Reconcile the saved SOV line values and identifiers.'; END IF;
+   IF value<>trunc(value) OR abs(value)>9000000000000 OR length(r.key)>40 OR r.key='CF' THEN RAISE EXCEPTION USING ERRCODE='PAP01', MESSAGE='MCP_BAD:Reconcile the saved SOV line values and identifiers.'; END IF;
    IF nullif(r.value->>'executed_change_order','') IS NOT NULL AND r.value->>'fee_included'='true' THEN changes:=changes+value; ELSE base:=base+value; END IF;
    lines:=lines||jsonb_build_array(jsonb_build_object('item',r.key,'description',left(coalesce(r.value->>'description',r.key),500),'scheduled_cents',value));
  END LOOP;
- IF jsonb_array_length(lines) NOT BETWEEN 1 AND 99 THEN RAISE EXCEPTION 'MCP_BAD:A saved SOV with at most 99 work lines is needed.'; END IF;
+ IF jsonb_array_length(lines) NOT BETWEEN 1 AND 99 THEN RAISE EXCEPTION USING ERRCODE='PAP01', MESSAGE='MCP_BAD:A saved SOV with at most 99 work lines is needed.'; END IF;
  contract:=round(base/(1-f/100))+changes;
- IF contract<0 OR contract>9000000000000 THEN RAISE EXCEPTION 'MCP_BAD:Reconcile the saved SOV contract total.'; END IF;
+ IF contract<0 OR contract>9000000000000 THEN RAISE EXCEPTION USING ERRCODE='PAP01', MESSAGE='MCP_BAD:Reconcile the saved SOV contract total.'; END IF;
  approved:=public.mcp_pa_number(public.mcp_billing_evidence_get(_job)->'recorded_contract'->'approved_cents');
- IF approved IS NULL OR approved<>contract THEN RAISE EXCEPTION 'MCP_BAD:Reconcile the saved SOV with the recorded approved contract and change orders.'; END IF;
+ IF approved IS NULL OR approved<>contract THEN RAISE EXCEPTION USING ERRCODE='PAP01', MESSAGE='MCP_BAD:Reconcile the saved SOV with the recorded approved contract and change orders.'; END IF;
  IF contract<>base+changes THEN lines:=lines||jsonb_build_array(jsonb_build_object('item','CF','description','Contractor fee','scheduled_cents',contract-base-changes)); END IF;
- RETURN jsonb_build_object('fingerprint',md5(jsonb_build_object('lines',lines,'fee_pct',f,'contract_cents',contract)::text),'contract_cents',contract,'lines',lines);
+ SELECT jsonb_build_object('id',b.id,'key',b.key,'value',b.value,'status',b.status,'source',b.source,'updated_at',b.updated_at,'updated_by',b.updated_by) INTO contract_source FROM public.mcp_job_facts b WHERE b.job_id=_job AND b.module='contract' AND b.key='contract_value';
+ SELECT coalesce(jsonb_agg(jsonb_build_object('id',c.submittal_id,'number',sub.number,'revision',sub.revision,'state',c.details->>'state','total_cents',c.details->'total_cents','updated_at',to_jsonb(c)->'updated_at','details_fingerprint',md5(c.details::text),'references',(SELECT coalesce(jsonb_agg(jsonb_build_object('kind',ref->'kind','source_id',ref->'source_id','source_ref',ref->'source_ref','sha256',ref->'sha256','revision',ref->'revision','page',ref->'page')),'[]') FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.details->'references')='array' THEN c.details->'references' ELSE '[]' END)ref)) ORDER BY sub.number,sub.revision),'[]') INTO co_sources
+ FROM public.mcp_change_orders c JOIN public.mcp_submittals sub ON sub.id=c.submittal_id AND sub.job_id=_job WHERE c.job_id=_job AND c.details->>'state' IN ('approved','executed') AND NOT EXISTS(SELECT 1 FROM public.mcp_submittals newer WHERE newer.job_id=_job AND newer.number=sub.number AND newer.revision>sub.revision);
+ provenance:=jsonb_build_object('fee_pct',f,'sov_facts',fact_sources,'contract_fact',contract_source,'approved_changes',co_sources);
+ RETURN jsonb_build_object('fingerprint',md5(jsonb_build_object('lines',lines,'provenance',provenance,'contract_cents',contract)::text),'contract_cents',contract,'lines',lines,'provenance',provenance);
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_pa_snapshot(uuid) FROM PUBLIC,anon,authenticated;
 
@@ -165,18 +170,23 @@ LANGUAGE plpgsql VOLATILE SET search_path=public AS $$
 DECLARE j public.mcp_jobs; head public.mcp_payment_applications; prev public.mcp_payment_application_versions; predecessor public.mcp_payment_application_versions;
  ticket public.mcp_payment_application_reviews; op public.mcp_billing_operations; existing public.mcp_billing_invoice_versions;
  ident uuid; rid uuid; reviewid uuid; expected integer; sig text; a jsonb; snapshot jsonb; evidence jsonb; calc jsonb; result jsonb; listing jsonb; selected jsonb;
- l jsonb; oldline jsonb; snapshot_issue text; issue jsonb:='[]'; bv integer; used numeric; credits numeric; latest integer;
+ l jsonb; oldline jsonb; snapshot_issue text; certificate_only boolean:=false; known_prior public.mcp_payment_application_versions; issue jsonb:='[]'; bv integer; used numeric; credits numeric; latest integer;
 BEGIN
  PERFORM public.mcp_assert_active();
  IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
  IF jsonb_typeof(_p) IS DISTINCT FROM 'object' OR octet_length(_p::text)>210000 THEN RAISE EXCEPTION 'MCP_BAD:Invalid payment application request.'; END IF;
  SELECT * INTO j FROM public.mcp_jobs WHERE id=_job FOR UPDATE;
+ -- Authorization can change while this transaction waits for the job lock.
+ PERFORM public.mcp_assert_active();
+ IF j.id IS NULL OR public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
  ident:=nullif(_p->>'id','')::uuid;
  IF _action='payment_application_outcome' THEN
    rid:=nullif(_p->>'request_id','')::uuid;
    SELECT * INTO op FROM public.mcp_billing_operations WHERE job_id=_job AND request_id=rid;
    IF op.request_id IS NULL THEN RETURN jsonb_build_object('applied',false); END IF;
    IF op.actor_id IS DISTINCT FROM auth.uid() OR op.signature IS DISTINCT FROM md5((_p-'review_key')::text) THEN RAISE EXCEPTION 'MCP_BAD:Operation belongs to different content.'; END IF;
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
    RETURN op.result||jsonb_build_object('applied',true);
  END IF;
  IF _action='payment_application_read' THEN
@@ -193,11 +203,13 @@ BEGIN
      IF selected IS NULL THEN RAISE EXCEPTION 'MCP_BAD:This exact payment application version is unavailable.'; END IF;
    END IF;
    -- A historical document remains readable if today's SOV is incomplete.
-   BEGIN snapshot:=public.mcp_pa_snapshot(_job); EXCEPTION WHEN raise_exception THEN
-     IF SQLERRM NOT LIKE 'MCP_BAD:%' THEN RAISE; END IF;
+   BEGIN snapshot:=public.mcp_pa_snapshot(_job); EXCEPTION WHEN SQLSTATE 'PAP01' THEN
      snapshot:=NULL; snapshot_issue:=substring(SQLERRM FROM 9);
    END;
-   RETURN jsonb_build_object('job',jsonb_build_object('number',j.job_number,'name',j.name),'currency','USD','snapshot',snapshot,'snapshot_issue',snapshot_issue,'evidence',public.mcp_pa_evidence(_job,ident),'applications',listing,'selected',selected);
+ evidence:=public.mcp_pa_evidence(_job,ident);
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
+   RETURN jsonb_build_object('job',jsonb_build_object('number',j.job_number,'name',j.name),'currency','USD','snapshot',snapshot,'snapshot_issue',snapshot_issue,'evidence',evidence,'applications',listing,'selected',selected);
  END IF;
  IF _action NOT IN ('payment_application_review','payment_application_save') THEN RAISE EXCEPTION 'MCP_BAD:Unknown application action.'; END IF;
  rid:=nullif(_p->>'request_id','')::uuid; expected:=(_p->>'expected_version')::integer; a:=_p->'application';
@@ -206,6 +218,8 @@ BEGIN
  SELECT * INTO op FROM public.mcp_billing_operations WHERE job_id=_job AND request_id=rid;
  IF op.request_id IS NOT NULL THEN
    IF op.actor_id IS DISTINCT FROM auth.uid() OR op.signature IS DISTINCT FROM sig THEN RAISE EXCEPTION 'MCP_BAD:Operation ID belongs to different content.'; END IF;
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
    RETURN op.result||jsonb_build_object('already_applied',true);
  END IF;
  SELECT * INTO head FROM public.mcp_payment_applications WHERE id=ident;
@@ -215,9 +229,29 @@ BEGIN
  IF prev.version IS NOT NULL AND (a->>'number' IS DISTINCT FROM head.number OR length(btrim(coalesce(a->>'reason',''))) NOT BETWEEN 1 AND 2000) THEN RAISE EXCEPTION 'MCP_BAD:Keep the application number and explain this revision.'; END IF;
  IF prev.version IS NULL AND EXISTS(SELECT 1 FROM public.mcp_billing_invoices WHERE id=ident AND job_id=_job) THEN RAISE EXCEPTION 'MCP_BAD:Choose a new application identity.'; END IF;
  IF EXISTS(SELECT 1 FROM public.mcp_payment_applications WHERE job_id=_job AND lower(btrim(number))=lower(btrim(a->>'number')) AND id<>ident) OR EXISTS(SELECT 1 FROM public.mcp_billing_invoices WHERE job_id=_job AND lower(btrim(document_number))=lower(btrim(a->>'number')) AND id<>ident) THEN RAISE EXCEPTION 'MCP_BAD:This application or billing number already exists.'; END IF;
- snapshot:=public.mcp_pa_snapshot(_job);
- IF a->'snapshot' IS DISTINCT FROM snapshot THEN RAISE EXCEPTION 'MCP_BAD:The saved SOV changed. Refresh and reconcile the application before review.'; END IF;
- evidence:=public.mcp_pa_evidence(_job,ident); calc:=public.mcp_pa_calculate(a,evidence);
+ certificate_only:=coalesce(prev.body->>'state' IN ('submitted','certified') AND a->>'state'='certified' AND (a-'state'-'certification'-'reason')=(prev.body-'state'-'certification'-'reason'),false);
+ IF certificate_only THEN
+   -- A certificate records an already-issued request; it never rebases that request onto today's SOV.
+   snapshot:=prev.body->'snapshot'; evidence:=prev.calculation->'evidence';
+ ELSE
+   snapshot:=public.mcp_pa_snapshot(_job);
+   IF a->'snapshot' IS DISTINCT FROM snapshot THEN RAISE EXCEPTION 'MCP_BAD:The saved SOV changed. Refresh and reconcile the application before review.'; END IF;
+   evidence:=public.mcp_pa_evidence(_job,ident);
+ END IF;
+ calc:=public.mcp_pa_calculate(a,evidence);
+ -- There is one cumulative application lineage for this job's official SOV, including approved revisions.
+ -- A free-text classification cannot turn known application work or its credits into unrelated evidence.
+ IF NOT certificate_only THEN
+   FOR oldline IN SELECT v.body||jsonb_build_object('id',h.id) FROM public.mcp_payment_applications h JOIN LATERAL(SELECT * FROM public.mcp_payment_application_versions WHERE application_id=h.id ORDER BY version DESC LIMIT 1)v ON true WHERE h.job_id=_job AND h.id<>ident AND v.body->>'state' IN ('submitted','certified') LOOP
+     IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(a->'evidence')x WHERE x->>'id'=oldline->>'id' AND x->>'treatment'='prior_billing') THEN RAISE EXCEPTION 'MCP_BAD:Carry forward the known saved applications; they cannot be classified as separate billing.'; END IF;
+     IF EXISTS(SELECT 1 FROM jsonb_array_elements(evidence)e JOIN jsonb_array_elements(a->'evidence')x ON x->>'id'=e->>'id' WHERE e->>'credit_for'=oldline->>'id' AND x->>'treatment'<>'prior_billing') THEN RAISE EXCEPTION 'MCP_BAD:Reconcile credits with their saved application lineage.'; END IF;
+   END LOOP;
+   SELECT v.* INTO known_prior FROM public.mcp_payment_applications h JOIN LATERAL(SELECT * FROM public.mcp_payment_application_versions WHERE application_id=h.id ORDER BY version DESC LIMIT 1)v ON true WHERE h.job_id=_job AND h.id<>ident AND v.body->>'state' IN ('submitted','certified') ORDER BY (v.body->>'period_end')::date DESC,h.created_at DESC LIMIT 1;
+   IF known_prior.application_id IS NOT NULL THEN
+     IF a->>'prior_mode' IS DISTINCT FROM 'saved' OR a->'prior_application'->>'id' IS DISTINCT FROM known_prior.application_id::text OR a->'prior_application'->>'version' IS DISTINCT FROM known_prior.version::text THEN RAISE EXCEPTION 'MCP_BAD:Continue from the latest saved certified application; a first or external declaration cannot reset known work.'; END IF;
+     IF known_prior.body->>'state'<>'certified' THEN RAISE EXCEPTION 'MCP_BAD:Record the actual prior certificate before preparing the next application.'; END IF;
+   END IF;
+ END IF;
  IF a->>'prior_mode'='saved' AND jsonb_typeof(a->'prior_application')='object' THEN
    SELECT * INTO predecessor FROM public.mcp_payment_application_versions WHERE application_id=(a->'prior_application'->>'id')::uuid AND version=(a->'prior_application'->>'version')::integer AND job_id=_job;
    IF predecessor.application_id=ident OR predecessor.body->>'state' IS DISTINCT FROM 'certified' OR predecessor.version IS DISTINCT FROM (SELECT max(version) FROM public.mcp_payment_application_versions WHERE application_id=predecessor.application_id) THEN RAISE EXCEPTION 'MCP_BAD:Choose the current exact certified predecessor in this job.'; END IF;
@@ -239,9 +273,11 @@ BEGIN
  IF a->>'state' IN ('submitted','certified') AND EXISTS(SELECT 1 FROM public.mcp_payment_applications h JOIN LATERAL(SELECT body FROM public.mcp_payment_application_versions WHERE application_id=h.id ORDER BY version DESC LIMIT 1)v ON true WHERE h.job_id=_job AND h.id<>ident AND v.body->>'state' IN ('submitted','certified') AND (v.body->>'period_start')::date<=(a->>'period_end')::date AND (v.body->>'period_end')::date>=(a->>'period_start')::date) THEN RAISE EXCEPTION 'MCP_BAD:An issued application already covers this period. Revise that application instead.'; END IF;
  IF a->>'state'<>'draft' AND calc->>'complete'<>'true' THEN RAISE EXCEPTION 'MCP_BAD:Complete and reconcile the Needed inputs before marking ready, submitting or certifying.'; END IF;
  IF public.mcp_pa_number(calc->'billing_gross_cents',true)<0 THEN RAISE EXCEPTION 'MCP_BAD:The current billing gross requires a separate reviewed correction.'; END IF;
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
  IF _action='payment_application_review' THEN
    INSERT INTO public.mcp_payment_application_reviews(job_id,actor_id,payload,context_hash) VALUES(_job,auth.uid(),_p-'review_key',md5(jsonb_build_object('snapshot',snapshot,'evidence',evidence,'calculation',calc)::text)) RETURNING * INTO ticket;
-   RETURN jsonb_build_object('review_key',ticket.id,'expires_at',ticket.expires_at,'payload',_p-'review_key','calculation',calc,'state',a->>'state','billing_effect',CASE WHEN a->>'state' IN ('submitted','certified') THEN 'One current-amount billing record; no payment is sent.' ELSE 'Saved application only; no issued billing.' END);
+   RETURN jsonb_build_object('review_key',ticket.id,'expires_at',ticket.expires_at,'payload',_p-'review_key','calculation',calc,'state',a->>'state','certificate_only',certificate_only,'billing_effect',CASE WHEN certificate_only THEN 'Records the actual certificate against the unchanged issued request; no additional invoice or payment.' WHEN a->>'state' IN ('submitted','certified') THEN 'One current-amount billing record; no payment is sent.' ELSE 'Saved application only; no issued billing.' END);
  END IF;
  reviewid:=nullif(_p->>'review_key','')::uuid;
  UPDATE public.mcp_payment_application_reviews SET consumed_at=now() WHERE id=reviewid AND job_id=_job AND actor_id=auth.uid() AND payload=_p-'review_key' AND context_hash=md5(jsonb_build_object('snapshot',snapshot,'evidence',evidence,'calculation',calc)::text) AND consumed_at IS NULL AND expires_at>now() RETURNING * INTO ticket;
@@ -262,6 +298,8 @@ BEGIN
  INSERT INTO public.mcp_payment_application_versions(application_id,version,job_id,body,calculation,billing_version,recorded_by) VALUES(ident,expected+1,_job,a,calc,bv,auth.uid());
  result:=jsonb_build_object('id',ident,'version',expected+1,'state',a->>'state','billing_version',bv);
  INSERT INTO public.mcp_billing_operations(job_id,request_id,actor_id,signature,result) VALUES(_job,rid,auth.uid(),sig,result);
+ PERFORM public.mcp_assert_active();
+ IF public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END IF;
  RETURN result||jsonb_build_object('already_applied',false);
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_pa_dispatch(uuid,text,jsonb) FROM PUBLIC,anon,authenticated;

@@ -69,7 +69,7 @@ export const paymentApplicationRead = defineTool({
                 : null,
             } as never,
           },
-          "Use the exact saved application link. Ask only for missing period, prior certificate and line-level current work/stored materials/retainage facts. Cash, credits and daily progress do not prove certification. Keep missing inputs unknown. To prepare and save a formal application use payment_application_record; billing forecasts are separate. Never label this as an official proprietary form or signed certification without evidence.",
+          "Use the exact saved application link. Ask only for missing period, prior certificate and line-level current work/stored materials/retainage facts. Known saved application work must continue from the latest actual saved certificate; never classify it or its related credits as separate billing or restart it as first/external. Cash, credits and daily progress do not prove certification. Keep missing inputs unknown. To prepare and save a formal application use payment_application_record; billing forecasts are separate. Never label this as an official proprietary form or signed certification without evidence.",
         );
       },
     ),
@@ -122,7 +122,7 @@ export const paymentApplicationRecord = defineTool({
               ),
               structuredContent: review as never,
             },
-            "Show the line continuation and totals in plain dollars. Explain draft versus issued billing. Keep request IDs and review keys in tool state, not the human-facing confirmation text. Ask one clear confirmation such as Save this draft or Submit this application. Only after explicit confirmation save the exact reviewed payload and key, retaining the request ID for retries.",
+            "For a certificate-only revision preserve every issued fact, snapshot, evidence choice and amount; change only state, actual certification and revision reason, even when today's SOV has changed. Show the line continuation and totals in plain dollars. Explain draft versus issued billing. Keep request IDs and review keys in tool state, not the human-facing confirmation text. Ask one clear confirmation such as Save this draft or Submit this application. Only after explicit confirmation save the exact reviewed payload and key, retaining the request ID for retries.",
           );
         }
         if (!args.confirmed || !args.review_key)

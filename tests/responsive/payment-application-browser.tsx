@@ -15,12 +15,45 @@ const seed = applicationFixture();
 export const context = (): ApplicationContext => ({
   job: { number: "SYN-01", name: "Construction project" },
   currency: "USD",
-  snapshot: seed.snapshot,
+  snapshot: JSON.parse(sessionStorage.getItem("fixture-current-sov") ?? "null") ?? seed.snapshot,
   evidence: [],
   applications: JSON.parse(sessionStorage.getItem("fixture-list") ?? "[]"),
   selected: null,
 });
 const search = Object.fromEntries(new URL(location.href).searchParams);
+if (new URL(location.href).searchParams.has("certificate_fixture")) {
+  const original = applicationFixture();
+  original.state = "submitted";
+  const saved: SavedApplication = {
+    application_id: "00000000-0000-4000-8000-000000000002",
+    version: 1,
+    latest_version: 1,
+    body: original,
+    calculation: calculateApplication(original),
+    billing_version: 1,
+    recorded_at: "2026-02-01T12:00:00Z",
+    history: [{ version: 1, state: "submitted", recorded_at: "2026-02-01T12:00:00Z", reason: "" }],
+  };
+  sessionStorage.setItem(`fixture-saved:${saved.application_id}`, JSON.stringify(saved));
+  sessionStorage.setItem(
+    "fixture-list",
+    JSON.stringify([
+      {
+        id: saved.application_id,
+        number: original.number,
+        version: 1,
+        state: "submitted",
+        period_start: original.period_start,
+        period_end: original.period_end,
+      },
+    ]),
+  );
+  seed.snapshot.contract_cents = 11000000;
+  seed.snapshot.lines[0].scheduled_cents = 11000000;
+  seed.snapshot.fingerprint = "changed-current-SOV";
+  sessionStorage.setItem("fixture-current-sov", JSON.stringify(seed.snapshot));
+}
+
 (window as any).__pa_calls = [];
 export const fixtureRpc = async (_name: string, args: any) => {
   (window as any).__pa_calls.push(args);
@@ -62,7 +95,10 @@ export const fixtureRpc = async (_name: string, args: any) => {
         latest_version: p.expected_version + 1,
         body: p.application,
         calculation: calculateApplication(p.application),
-        billing_version: null,
+        billing_version: ["submitted", "certified"].includes(p.application.state)
+          ? (JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null")
+              ?.billing_version ?? 0) + 1
+          : null,
         recorded_at: "2026-02-01T12:00:00Z",
         history: [
           {

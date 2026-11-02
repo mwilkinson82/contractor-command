@@ -143,6 +143,7 @@ export function PaymentApplicationsPage({
     [pending, setPending] = useState<(SavePayload & { review_key: string }) | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [certificateMode, setCertificateMode] = useState(false);
   const [recoveredIdentity, setRecoveredIdentity] = useState<Pick<
     SavePayload,
     "id" | "request_id" | "expected_version"
@@ -150,6 +151,7 @@ export function PaymentApplicationsPage({
   const recoveryKey = `payment-application:${session?.user.id ?? ""}:${jobId}`;
   useEffect(() => {
     setEdit(null);
+    setCertificateMode(false);
     setReview(null);
     setError("");
   }, [id, version, jobId, session?.user.id]);
@@ -169,7 +171,14 @@ export function PaymentApplicationsPage({
     retry: false,
     queryFn: () => call<ApplicationContext>(jobId, "payment_application_read", { id, version }),
   });
-  const saved = data.data?.selected;
+  const saved = data.error ? undefined : data.data?.selected;
+  const knownApplications = (data.error ? [] : (data.data?.applications ?? []))
+    .filter((a) => a.id !== saved?.application_id && ["submitted", "certified"].includes(a.state))
+    .sort((a, b) => b.period_end.localeCompare(a.period_end));
+  const latestKnown = knownApplications[0];
+  const currentSovMatches =
+    !!saved && saved.body.snapshot.fingerprint === data.data?.snapshot?.fingerprint;
+  const managedPriorIds = new Set(knownApplications.map((a) => a.id));
   const downloadStarted = useRef("");
   async function download(s: SavedApplication) {
     try {
@@ -272,6 +281,11 @@ export function PaymentApplicationsPage({
         expected_version: pending.expected_version,
       });
       setEdit(pending.application);
+      setCertificateMode(
+        !!saved &&
+          ["submitted", "certified"].includes(saved.body.state) &&
+          pending.application.state === "certified",
+      );
       setReview(null);
       setPending(null);
       sessionStorage.removeItem(recoveryKey);
@@ -316,23 +330,49 @@ export function PaymentApplicationsPage({
           </button>
         </section>
       )}
-      {data.data?.snapshot_issue && (
+      {!data.error && data.data?.snapshot_issue && (
         <p role="status">
           Before preparing or revising an application: {data.data.snapshot_issue} Saved versions
-          remain readable.
+          remain readable; recording a certificate against unchanged issued facts does not require
+          the current SOV.
         </p>
       )}
-      {data.data && !invalid && (
+      {data.data && !invalid && !data.error && (
         <>
           {saved && !edit && (
             <>
               <PaymentApplicationDetail jobId={jobId} saved={saved} />
               <div className="pa-actions">
                 <button onClick={() => void download(saved)}>Download saved PDF</button>
+                {saved.version === saved.latest_version &&
+                  ["submitted", "certified"].includes(saved.body.state) && (
+                    <button
+                      disabled={!!pending}
+                      onClick={() => {
+                        setCertificateMode(true);
+                        setEdit({
+                          ...structuredClone(saved.body),
+                          state: "certified",
+                          reason: "",
+                          certification: {
+                            amount_cents: null as unknown as number,
+                            date: "",
+                            source: "",
+                          },
+                        });
+                        setReview(null);
+                      }}
+                    >
+                      {saved.body.state === "certified"
+                        ? "Correct actual certificate"
+                        : "Record actual certificate"}
+                    </button>
+                  )}
                 {saved.version === saved.latest_version && (
                   <button
-                    disabled={!!pending}
+                    disabled={!!pending || !currentSovMatches}
                     onClick={() => {
+                      setCertificateMode(false);
                       setEdit(structuredClone(saved.body));
                       setReview(null);
                     }}
@@ -341,6 +381,13 @@ export function PaymentApplicationsPage({
                   </button>
                 )}
               </div>
+              {!currentSovMatches && (
+                <p>
+                  The current SOV source differs from this saved snapshot. Reconcile it with Athena
+                  before revising application facts. An actual certificate can still be recorded
+                  against the unchanged issued request.
+                </p>
+              )}
               <h3>Version history</h3>
               <ul>
                 {saved.history.map((h) => (
@@ -379,7 +426,11 @@ export function PaymentApplicationsPage({
                   disabled={!data.data.snapshot || !!pending}
                   onClick={() => {
                     if (data.data?.snapshot) {
-                      setEdit(emptyApplication(data.data.snapshot));
+                      setCertificateMode(false);
+                      setEdit({
+                        ...emptyApplication(data.data.snapshot),
+                        ...(latestKnown ? { prior_mode: "saved" as const } : {}),
+                      });
                       setReview(null);
                     }
                   }}
@@ -391,242 +442,303 @@ export function PaymentApplicationsPage({
           )}
           {edit && (
             <section className="pa-editor">
-              <h2>{saved ? "Revise" : "Prepare"} application</h2>
-              <p>
-                Blank means Needed. Enter cumulative installed work and currently stored materials,
-                not purchases or cash. Moving stored materials into installed work must not count
-                them twice.
-              </p>
-              <div className="pa-fields">
-                <TextInput
-                  label="Application number"
-                  value={edit.number}
-                  onChange={(number) => change({ number })}
-                />
-                <TextInput
-                  label="Period start"
-                  type="date"
-                  value={edit.period_start}
-                  onChange={(period_start) => change({ period_start })}
-                />
-                <TextInput
-                  label="Period end / billing date"
-                  type="date"
-                  value={edit.period_end}
-                  onChange={(period_end) => change({ period_end })}
-                />
-                <TextInput
-                  label="Prior application cutoff"
-                  type="date"
-                  value={edit.prior_cutoff}
-                  onChange={(prior_cutoff) => change({ prior_cutoff })}
-                />
-                <label>
-                  Save state
-                  <select
-                    value={edit.state}
-                    onChange={(e) =>
-                      change({
-                        state: e.target.value as Application["state"],
-                        certification:
-                          e.target.value === "certified"
-                            ? { amount_cents: 0, date: "", source: "" }
-                            : null,
-                      })
-                    }
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="ready">Ready</option>
-                    <option value="submitted">Submitted</option>
-                    <option value="certified">Certified</option>
-                  </select>
-                </label>
-                <TextInput
-                  label="Progress/application source"
-                  value={edit.source}
-                  onChange={(source) => change({ source })}
-                />
-                <TextInput
-                  label="Revision reason"
-                  value={edit.reason}
-                  onChange={(reason) => change({ reason })}
-                />
-              </div>
-              <h3>Prior application and certificate</h3>
-              <label>
-                Prior basis
-                <select
-                  value={edit.prior_mode}
-                  onChange={(e) =>
-                    change({
-                      prior_mode: e.target.value as Application["prior_mode"],
-                      prior_application: null,
-                    })
-                  }
-                >
-                  <option value="external">External certificate</option>
-                  <option value="first">First application</option>
-                  <option value="saved">Saved certificate</option>
-                </select>
-              </label>
-              {edit.prior_mode === "saved" && (
-                <label>
-                  Saved predecessor
-                  <select
-                    value={edit.prior_application?.id ?? ""}
-                    onChange={async (e) => {
-                      try {
-                        const p = await call<ApplicationContext>(
-                          jobId,
-                          "payment_application_read",
-                          { id: e.target.value },
-                        );
-                        if (p.selected) change(carryCertificate(edit, p.selected));
-                      } catch (e) {
-                        setError((e as Error).message);
-                      }
-                    }}
-                  >
-                    <option value="">Choose the actual prior certificate</option>
-                    {data.data.applications
-                      .filter((a) => a.state === "certified" && a.id !== saved?.application_id)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.number} · version {a.version} · {a.period_end}
-                        </option>
-                      ))}
-                  </select>
-                </label>
+              <h2>
+                {certificateMode
+                  ? "Record an actual certificate"
+                  : saved
+                    ? "Revise application"
+                    : "Prepare application"}
+              </h2>
+              {certificateMode && saved && (
+                <>
+                  <p>
+                    This certificate refers to the unchanged issued request, version {saved.version}
+                    . Its period, SOV, amounts and prior sources stay frozen. No additional invoice
+                    is created.
+                  </p>
+                  <details>
+                    <summary>
+                      Issued request, version {saved.version} ·{" "}
+                      {appMoney(saved.calculation.payment_due_cents)}
+                    </summary>
+                    <PaymentApplicationDetail saved={saved} jobId={jobId} />
+                  </details>
+                  <TextInput
+                    label="Revision reason"
+                    value={edit.reason}
+                    onChange={(reason) => change({ reason })}
+                  />
+                </>
               )}
-              <div className="pa-fields">
-                <MoneyInput
-                  label="Cumulative previous actual certificates, net"
-                  value={edit.prior_certified_net_cents}
-                  onChange={(prior_certified_net_cents) => change({ prior_certified_net_cents })}
-                />
-                <TextInput
-                  label="Prior certificate source / first-application declaration"
-                  value={edit.prior_basis}
-                  onChange={(prior_basis) => change({ prior_basis })}
-                />
-                <TextInput
-                  label="Applicable retainage terms"
-                  value={edit.retainage_basis}
-                  onChange={(retainage_basis) => change({ retainage_basis })}
-                />
-              </div>
-              <h3>Continuation schedule</h3>
-              {edit.lines.map((l) => (
-                <section className="pa-line" key={l.item}>
-                  <h3>
-                    {l.item} · {edit.snapshot.lines.find((s) => s.item === l.item)?.description} ·
-                    scheduled{" "}
-                    {appMoney(edit.snapshot.lines.find((s) => s.item === l.item)?.scheduled_cents)}
-                  </h3>
+              {!certificateMode && (
+                <>
+                  <p>
+                    Blank means Needed. Enter cumulative installed work and currently stored
+                    materials, not purchases or cash. Moving stored materials into installed work
+                    must not count them twice.
+                  </p>
                   <div className="pa-fields">
-                    {(
-                      [
-                        ["prior_work_cents", "Prior installed"],
-                        ["prior_stored_cents", "Prior stored"],
-                        ["prior_retained_cents", "Prior retained"],
-                        ["work_cents", "Cumulative installed"],
-                        ["stored_cents", "Currently stored"],
-                        [
-                          "stored_to_work_cents",
-                          "Transferred from prior storage into installed work",
-                        ],
-                        ["release_cents", "Cumulative approved release"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <MoneyInput
-                        key={key}
-                        label={label}
-                        value={l[key]}
-                        onChange={(n) => lineChange(l.item, { [key]: n })}
-                      />
-                    ))}
-                    {(["work_retainage_bps", "stored_retainage_bps"] as const).map((key) => (
-                      <RateInput
-                        key={key}
-                        label={key === "work_retainage_bps" ? "Work retainage" : "Stored retainage"}
-                        value={l[key]}
-                        onChange={(n) => lineChange(l.item, { [key]: n })}
-                      />
-                    ))}
                     <TextInput
-                      label="Stored material evidence and eligibility"
-                      value={l.stored_basis}
-                      onChange={(stored_basis) => lineChange(l.item, { stored_basis })}
+                      label="Application number"
+                      value={edit.number}
+                      onChange={(number) => change({ number })}
                     />
                     <TextInput
-                      label="Retainage release approval/source"
-                      value={l.release_basis}
-                      onChange={(release_basis) => lineChange(l.item, { release_basis })}
+                      label="Period start"
+                      type="date"
+                      value={edit.period_start}
+                      onChange={(period_start) => change({ period_start })}
                     />
-                  </div>
-                </section>
-              ))}
-              <h3>Reconcile existing issued billing</h3>
-              <p>
-                Classify every record explicitly. Prior invoices, credits and cash do not
-                automatically become certificates. A prior requested amount above actual
-                certification must be reconciled before issuing another application.
-              </p>
-              {data.data.evidence.map((e) => {
-                const choice = edit.evidence.find((c) => c.id === e.id);
-                return (
-                  <section className="pa-line" key={e.id}>
-                    <p>
-                      {e.number} · {e.kind} · version {e.version} · {e.invoice_date} · net{" "}
-                      {appMoney(e.net_due_cents)}
-                    </p>
+                    <TextInput
+                      label="Period end / billing date"
+                      type="date"
+                      value={edit.period_end}
+                      onChange={(period_end) => change({ period_end })}
+                    />
+                    <TextInput
+                      label="Prior application cutoff"
+                      type="date"
+                      value={edit.prior_cutoff}
+                      onChange={(prior_cutoff) => change({ prior_cutoff })}
+                    />
                     <label>
-                      Relationship
+                      Save state
                       <select
-                        value={choice?.treatment ?? ""}
-                        onChange={(ev) =>
+                        value={edit.state}
+                        onChange={(e) =>
                           change({
-                            evidence: [
-                              ...edit.evidence.filter((c) => c.id !== e.id),
-                              ...(ev.target.value
-                                ? [
-                                    {
-                                      id: e.id,
-                                      version: e.version,
-                                      treatment: ev.target.value as "prior_billing" | "separate",
-                                      reason: choice?.reason ?? "",
-                                    },
-                                  ]
-                                : []),
-                            ],
+                            state: e.target.value as Application["state"],
+                            certification:
+                              e.target.value === "certified"
+                                ? { amount_cents: null as unknown as number, date: "", source: "" }
+                                : null,
                           })
                         }
                       >
-                        <option value="">Needed</option>
-                        <option value="prior_billing">
-                          Prior billing supporting this certificate basis
-                        </option>
-                        <option value="separate">
-                          Separate scope/evidence · explain why not carried forward
-                        </option>
+                        <option value="draft">Draft</option>
+                        <option value="ready">Ready</option>
+                        <option value="submitted">Submitted</option>
+                        <option value="certified">Certified</option>
                       </select>
                     </label>
-                    {choice && (
-                      <TextInput
-                        label="Reconciliation basis"
-                        value={choice.reason}
-                        onChange={(reason) =>
-                          change({
-                            evidence: edit.evidence.map((c) =>
-                              c.id === e.id ? { ...c, reason } : c,
-                            ),
-                          })
-                        }
-                      />
-                    )}
-                  </section>
-                );
-              })}
+                    <TextInput
+                      label="Progress/application source"
+                      value={edit.source}
+                      onChange={(source) => change({ source })}
+                    />
+                    <TextInput
+                      label="Revision reason"
+                      value={edit.reason}
+                      onChange={(reason) => change({ reason })}
+                    />
+                  </div>
+                  <h3>Prior application and certificate</h3>
+                  {latestKnown && (
+                    <p>
+                      Continue from{" "}
+                      <a href={applicationUrl(jobId, latestKnown.id, latestKnown.version)}>
+                        {latestKnown.number}, version {latestKnown.version}
+                      </a>
+                      .{" "}
+                      {latestKnown.state === "submitted"
+                        ? "Record its actual certificate before preparing the next application."
+                        : "Its actual certificate and line values must carry forward; it cannot be classified as unrelated billing."}
+                    </p>
+                  )}
+                  <label>
+                    Prior basis
+                    <select
+                      value={edit.prior_mode}
+                      onChange={(e) =>
+                        change({
+                          prior_mode: e.target.value as Application["prior_mode"],
+                          prior_application: null,
+                        })
+                      }
+                    >
+                      <option value="external" disabled={!!latestKnown}>
+                        External certificate
+                      </option>
+                      <option value="first" disabled={!!latestKnown}>
+                        First application
+                      </option>
+                      <option value="saved">Saved certificate</option>
+                    </select>
+                  </label>
+                  {edit.prior_mode === "saved" && (
+                    <label>
+                      Saved predecessor
+                      <select
+                        value={edit.prior_application?.id ?? ""}
+                        onChange={async (e) => {
+                          try {
+                            const p = await call<ApplicationContext>(
+                              jobId,
+                              "payment_application_read",
+                              { id: e.target.value },
+                            );
+                            if (p.selected) change(carryCertificate(edit, p.selected));
+                          } catch (e) {
+                            setError((e as Error).message);
+                          }
+                        }}
+                      >
+                        <option value="">Choose the actual prior certificate</option>
+                        {data.data.applications
+                          .filter((a) => a.state === "certified" && a.id === latestKnown?.id)
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.number} · version {a.version} · {a.period_end}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
+                  <div className="pa-fields">
+                    <MoneyInput
+                      label="Cumulative previous actual certificates, net"
+                      value={edit.prior_certified_net_cents}
+                      onChange={(prior_certified_net_cents) =>
+                        change({ prior_certified_net_cents })
+                      }
+                    />
+                    <TextInput
+                      label="Prior certificate source / first-application declaration"
+                      value={edit.prior_basis}
+                      onChange={(prior_basis) => change({ prior_basis })}
+                    />
+                    <TextInput
+                      label="Applicable retainage terms"
+                      value={edit.retainage_basis}
+                      onChange={(retainage_basis) => change({ retainage_basis })}
+                    />
+                  </div>
+                  <h3>Continuation schedule</h3>
+                  {edit.lines.map((l) => (
+                    <section className="pa-line" key={l.item}>
+                      <h3>
+                        {l.item} · {edit.snapshot.lines.find((s) => s.item === l.item)?.description}{" "}
+                        · scheduled{" "}
+                        {appMoney(
+                          edit.snapshot.lines.find((s) => s.item === l.item)?.scheduled_cents,
+                        )}
+                      </h3>
+                      <div className="pa-fields">
+                        {(
+                          [
+                            ["prior_work_cents", "Prior installed"],
+                            ["prior_stored_cents", "Prior stored"],
+                            ["prior_retained_cents", "Prior retained"],
+                            ["work_cents", "Cumulative installed"],
+                            ["stored_cents", "Currently stored"],
+                            [
+                              "stored_to_work_cents",
+                              "Transferred from prior storage into installed work",
+                            ],
+                            ["release_cents", "Cumulative approved release"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <MoneyInput
+                            key={key}
+                            label={label}
+                            value={l[key]}
+                            onChange={(n) => lineChange(l.item, { [key]: n })}
+                          />
+                        ))}
+                        {(["work_retainage_bps", "stored_retainage_bps"] as const).map((key) => (
+                          <RateInput
+                            key={key}
+                            label={
+                              key === "work_retainage_bps" ? "Work retainage" : "Stored retainage"
+                            }
+                            value={l[key]}
+                            onChange={(n) => lineChange(l.item, { [key]: n })}
+                          />
+                        ))}
+                        <TextInput
+                          label="Stored material evidence and eligibility"
+                          value={l.stored_basis}
+                          onChange={(stored_basis) => lineChange(l.item, { stored_basis })}
+                        />
+                        <TextInput
+                          label="Retainage release approval/source"
+                          value={l.release_basis}
+                          onChange={(release_basis) => lineChange(l.item, { release_basis })}
+                        />
+                      </div>
+                    </section>
+                  ))}
+                  <h3>Reconcile existing issued billing</h3>
+                  <p>
+                    Classify every record explicitly. Prior invoices, credits and cash do not
+                    automatically become certificates. A prior requested amount above actual
+                    certification must be reconciled before issuing another application.
+                  </p>
+                  {data.data.evidence.map((e) => {
+                    const choice = edit.evidence.find((c) => c.id === e.id);
+                    return (
+                      <section className="pa-line" key={e.id}>
+                        <p>
+                          {e.number} · {e.kind} · version {e.version} · {e.invoice_date} · net{" "}
+                          {appMoney(e.net_due_cents)}
+                        </p>
+                        <label>
+                          Relationship
+                          <select
+                            value={choice?.treatment ?? ""}
+                            onChange={(ev) =>
+                              change({
+                                evidence: [
+                                  ...edit.evidence.filter((c) => c.id !== e.id),
+                                  ...(ev.target.value
+                                    ? [
+                                        {
+                                          id: e.id,
+                                          version: e.version,
+                                          treatment: ev.target.value as
+                                            | "prior_billing"
+                                            | "separate",
+                                          reason: choice?.reason ?? "",
+                                        },
+                                      ]
+                                    : []),
+                                ],
+                              })
+                            }
+                          >
+                            <option value="">Needed</option>
+                            <option value="prior_billing">
+                              Prior billing supporting this certificate basis
+                            </option>
+                            <option
+                              value="separate"
+                              disabled={
+                                managedPriorIds.has(e.id) ||
+                                (!!e.credit_for && managedPriorIds.has(e.credit_for))
+                              }
+                            >
+                              Separate scope/evidence · explain why not carried forward
+                            </option>
+                          </select>
+                        </label>
+                        {choice && (
+                          <TextInput
+                            label="Reconciliation basis"
+                            value={choice.reason}
+                            onChange={(reason) =>
+                              change({
+                                evidence: edit.evidence.map((c) =>
+                                  c.id === e.id ? { ...c, reason } : c,
+                                ),
+                              })
+                            }
+                          />
+                        )}
+                      </section>
+                    );
+                  })}
+                </>
+              )}
               {edit.certification && (
                 <>
                   <h3>Actual certificate</h3>
@@ -667,7 +779,7 @@ export function PaymentApplicationsPage({
                   className="pa-primary"
                   onClick={() => void prepare()}
                 >
-                  Review application
+                  {certificateMode ? "Review certificate" : "Review application"}
                 </button>
                 <button
                   disabled={busy || !!pending}

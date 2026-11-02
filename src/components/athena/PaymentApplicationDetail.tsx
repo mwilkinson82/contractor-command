@@ -166,6 +166,17 @@ export function PaymentApplicationDetail({
       <details>
         <summary>Source provenance</summary>
         <p>SOV fingerprint: {a.snapshot.fingerprint}</p>
+        <p>
+          Saved fee basis: {a.snapshot.provenance.fee_pct}%. SOV source records:{" "}
+          {a.snapshot.provenance.sov_facts.length}. Contract source:{" "}
+          {String(a.snapshot.provenance.contract_fact?.source ?? "Not supplied")}.
+        </p>
+        {a.snapshot.provenance.approved_changes.map((c, i) => (
+          <p key={i}>
+            Approved change {String(c.number ?? "reference needed")} · revision{" "}
+            {String(c.revision ?? "needed")} · {String(c.state ?? "needed")}
+          </p>
+        ))}
       </details>
     </section>
   );

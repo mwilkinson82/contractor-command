@@ -180,6 +180,221 @@ async function save(p: Awaited<ReturnType<typeof payload>>) {
   return await record("payment_application_save", { ...p, review_key: r.review_key });
 }
 describe("versioned payment applications", () => {
+  it("allows a documented prior credit and partial certificate without rebilling the old request", async () => {
+    const first = await payload();
+    first.application.state = "submitted";
+    await save(first);
+    await save({
+      ...first,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      application: {
+        ...first.application,
+        state: "certified",
+        reason: "Actual partial certificate",
+        certification: { amount_cents: 1200000, date: "2026-02-02", source: "Partial certificate" },
+      },
+    });
+    const credit = invoice({
+      kind: "credit",
+      credit_for: first.id,
+      status: "posted",
+      invoice_date: "2026-01-31",
+      period_start: null,
+      period_end: null,
+      effective_date: "2026-01-31",
+      gross_cents: null,
+      withheld_cents: null,
+      released_cents: null,
+      net_due_cents: 150000,
+    });
+    await record("invoice", credit);
+    const next = await payload();
+    Object.assign(next.application, {
+      number: "Next after reconciled credit",
+      state: "submitted",
+      period_start: "2026-02-01",
+      period_end: "2026-02-28",
+      prior_cutoff: "2026-01-31",
+      prior_mode: "saved",
+      prior_application: { id: first.id, version: 2 },
+      prior_certified_net_cents: 1200000,
+      evidence: [
+        { id: first.id, version: 2, treatment: "prior_billing", reason: "Prior requested amount" },
+        {
+          id: credit.id,
+          version: 1,
+          treatment: "prior_billing",
+          reason: "Documented credit against that prior request",
+        },
+      ],
+    });
+    Object.assign(next.application.lines[0], {
+      prior_work_cents: 1000000,
+      prior_stored_cents: 500000,
+      prior_retained_cents: 150000,
+      work_cents: 1800000,
+      stored_cents: 200000,
+      stored_to_work_cents: 300000,
+    });
+    await save(next);
+    const ledger = (await get()).invoices as any[];
+    const net = ledger.reduce(
+      (n, i) => n + (i.kind === "credit" ? -1 : 1) * i.versions[0].net_due_cents,
+      0,
+    );
+    expect(net).toBe(1800000);
+    const wrong = {
+      ...next,
+      id: crypto.randomUUID(),
+      request_id: crypto.randomUUID(),
+      expected_version: 0,
+      application: {
+        ...next.application,
+        number: "Excluded managed credit",
+        evidence: next.application.evidence.map((e) =>
+          e.id === credit.id ? { ...e, treatment: "separate" as const } : e,
+        ),
+      },
+    };
+    await expect(save(wrong)).rejects.toThrow(/credits|latest/);
+  });
+  it("continues to permit explicitly unrelated external billing evidence", async () => {
+    const external = invoice({
+      kind: "invoice",
+      document_number: "Separate authorized scope",
+      invoice_date: "2025-12-01",
+    });
+    await record("invoice", external);
+    const p = await payload();
+    p.application.state = "submitted";
+    p.application.evidence = [
+      {
+        id: external.id,
+        version: 1,
+        treatment: "separate",
+        reason: "Documented independent external scope, excluded from this SOV certificate basis",
+      },
+    ];
+    await expect(save(p)).resolves.toMatchObject({ version: 1, state: "submitted" });
+  });
+
+  it("rechecks full access after the job lock before read, outcome, review and idempotent replay", async () => {
+    const p = await payload();
+    const review = await record("payment_application_review", p);
+    const completed = { ...p, review_key: review.review_key };
+    await record("payment_application_save", completed);
+    const original = (
+      await db.query<any>("SELECT pg_get_functiondef('mcp_job_scope(uuid)'::regprocedure) AS sql")
+    ).rows[0].sql;
+    await db.exec("CREATE TABLE pa_scope_probe(n integer);INSERT INTO pa_scope_probe VALUES(0)");
+    try {
+      await db.exec(
+        `CREATE OR REPLACE FUNCTION mcp_job_scope(_job uuid) RETURNS text LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public AS $$ DECLARE count_seen integer;BEGIN UPDATE pa_scope_probe SET n=n+1 RETURNING n INTO count_seen;RETURN CASE WHEN count_seen=1 THEN 'full' ELSE NULL END;END $$`,
+      );
+      for (const [action, payload] of [
+        ["payment_application_read", { id: p.id, version: 1 }],
+        ["payment_application_outcome", p],
+        ["payment_application_review", p],
+        ["payment_application_save", completed],
+      ] as const) {
+        await db.exec("UPDATE pa_scope_probe SET n=0");
+        await expect(record(action, payload)).rejects.toThrow(/full project access/);
+      }
+    } finally {
+      await db.exec(original);
+      await db.exec("DROP TABLE pa_scope_probe");
+    }
+  });
+  it("preserves authorized frozen reads when the current SOV is incomplete", async () => {
+    const p = await payload();
+    await save(p);
+    try {
+      await db.query("UPDATE mcp_job_facts SET status='unknown' WHERE job_id=$1 AND module='sov'", [
+        job,
+      ]);
+      const r = await record("payment_application_read", { id: p.id, version: 1 });
+      expect((r.selected as any).version).toBe(1);
+      expect(r.snapshot).toBeNull();
+      expect(r.snapshot_issue).toMatch(/known scheduled value/);
+    } finally {
+      await db.query("UPDATE mcp_job_facts SET status='known' WHERE job_id=$1 AND module='sov'", [
+        job,
+      ]);
+    }
+  });
+  it("cannot reset managed work through external or older saved predecessors", async () => {
+    const first = await payload();
+    first.application.state = "submitted";
+    await save(first);
+    const second = await payload();
+    second.application.number = "Reset attempt";
+    second.application.state = "submitted";
+    second.application.period_start = "2026-02-01";
+    second.application.period_end = "2026-02-28";
+    second.application.prior_cutoff = "2026-01-31";
+    second.application.prior_mode = "external";
+    second.application.evidence = [
+      { id: first.id, version: 1, treatment: "prior_billing", reason: "Known original request" },
+    ];
+    await expect(save(second)).rejects.toThrow(/latest saved certified|actual prior certificate/);
+    const cert = {
+      ...first,
+      request_id: crypto.randomUUID(),
+      expected_version: 1,
+      application: {
+        ...first.application,
+        state: "certified" as const,
+        reason: "Actual certificate",
+        certification: { amount_cents: 1350000, date: "2026-02-01", source: "Certificate 1" },
+      },
+    };
+    await save(cert);
+    second.application.prior_mode = "saved";
+    second.application.prior_application = { id: first.id, version: 2 };
+    second.application.prior_certified_net_cents = 1350000;
+    second.application.evidence[0].version = 2;
+    Object.assign(second.application.lines[0], {
+      prior_work_cents: 1000000,
+      prior_stored_cents: 500000,
+      prior_retained_cents: 150000,
+      stored_cents: 500000,
+      stored_to_work_cents: 0,
+    });
+    await save(second);
+    const third = await payload();
+    third.application.number = "Old predecessor attempt";
+    third.application.state = "submitted";
+    third.application.period_start = "2026-03-01";
+    third.application.period_end = "2026-03-31";
+    third.application.prior_cutoff = "2026-01-31";
+    third.application.prior_mode = "saved";
+    third.application.prior_application = { id: first.id, version: 2 };
+    third.application.evidence = [
+      { id: first.id, version: 2, treatment: "prior_billing", reason: "Original request" },
+      { id: second.id, version: 1, treatment: "prior_billing", reason: "Known request" },
+    ];
+    await expect(save(third)).rejects.toThrow(/latest saved certified/);
+  });
+  it("source-only contract updates invalidate pending reviews", async () => {
+    const p = await payload();
+    const r = await record("payment_application_review", p);
+    try {
+      await db.query(
+        "UPDATE mcp_job_facts SET source='document' WHERE job_id=$1 AND module='contract' AND key='contract_value'",
+        [job],
+      );
+      await expect(
+        record("payment_application_save", { ...p, review_key: r.review_key }),
+      ).rejects.toThrow(/SOV changed|Review/);
+    } finally {
+      await db.query(
+        "UPDATE mcp_job_facts SET source='member_answer' WHERE job_id=$1 AND module='contract' AND key='contract_value'",
+        [job],
+      );
+    }
+  });
+
   it("freezes the fee and an executed fee-included change without charging its fee twice", async () => {
     const sourceId = crypto.randomUUID();
     try {
@@ -208,6 +423,26 @@ describe("versioned payment applications", () => {
         ],
       );
       const c = await context();
+      expect((c.snapshot as any).provenance.approved_changes[0]).toMatchObject({
+        id: sourceId,
+        revision: 1,
+        state: "executed",
+      });
+      const pending = await payload();
+      pending.application.lines = pending.application.snapshot.lines.map((line) => ({
+        ...pending.application.lines[0],
+        item: line.item,
+        work_cents: 0,
+        stored_cents: 0,
+      }));
+      const sourceReview = await record("payment_application_review", pending);
+      await db.query(
+        "UPDATE mcp_change_orders SET details=jsonb_set(details,'{references}',$2::jsonb) WHERE submittal_id=$1",
+        [sourceId, JSON.stringify([{ kind: "drawing", source_ref: "Revised source reference" }])],
+      );
+      await expect(
+        record("payment_application_save", { ...pending, review_key: sourceReview.review_key }),
+      ).rejects.toThrow(/SOV changed|Review/);
       expect(c.snapshot).toMatchObject({
         contract_cents: 11000000,
         lines: [
@@ -591,6 +826,121 @@ describe("versioned payment applications", () => {
         "balance_including_retainage_cents",
       ])
         expect(q.rows[0].data[k]).toBe((ts as any)[k]);
+    }
+  });
+});
+
+// Release regression controls; isolated local fixture only.
+describe("independent release controls", () => {
+  it("does not issue a second first-application for already applied same SOV work", async () => {
+    const first = await payload();
+    first.application.state = "submitted";
+    await save(first);
+    const second = await payload();
+    second.application.number = "Application 2";
+    second.application.state = "submitted";
+    second.application.period_start = "2026-02-01";
+    second.application.period_end = "2026-02-28";
+    second.application.prior_cutoff = "2026-01-31";
+    second.application.evidence = [
+      { id: first.id, version: 1, treatment: "separate", reason: "Separate prior billing" },
+    ];
+    // Same SOV and exactly the same completed/stored work, but a new first-app declaration.
+    await expect(save(second)).rejects.toThrow();
+  });
+  it("does not swallow lost job authorization as a missing current SOV", async () => {
+    const p = await payload();
+    await save(p);
+    const original = (
+      await db.query<any>(
+        "select pg_get_functiondef('public.mcp_pa_snapshot(uuid)'::regprocedure) as sql",
+      )
+    ).rows[0].sql;
+    try {
+      // Model a scope revocation observed at snapshot after the dispatch job-lock boundary.
+      await db.exec(
+        `CREATE OR REPLACE FUNCTION public.mcp_pa_snapshot(_job uuid) RETURNS jsonb LANGUAGE plpgsql VOLATILE SET search_path=public AS $$ BEGIN RAISE EXCEPTION 'MCP_BAD:Billing evidence requires full project access.'; END $$;`,
+      );
+      await expect(record("payment_application_read", { id: p.id, version: 1 })).rejects.toThrow(
+        /access/,
+      );
+    } finally {
+      await db.exec(original);
+    }
+  });
+});
+
+describe("independent saved-source provenance", () => {
+  it("invalidates review when the source fact changes while its value stays the same", async () => {
+    const p = await payload();
+    const r = await record("payment_application_review", p);
+    try {
+      await db.query(
+        "UPDATE mcp_job_facts SET source='document' WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job],
+      );
+      await expect(
+        record("payment_application_save", { ...p, review_key: r.review_key }),
+      ).rejects.toThrow(/changed|stale|Review/);
+    } finally {
+      await db.query(
+        "UPDATE mcp_job_facts SET source='member_answer' WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job],
+      );
+    }
+  });
+});
+
+describe("independent issued-certificate lifecycle", () => {
+  it("can record an actual certificate for frozen issued work after a later SOV update", async () => {
+    const p = await payload();
+    p.application.state = "submitted";
+    await save(p);
+    try {
+      await db.query(
+        "UPDATE mcp_job_facts SET value='110000'::jsonb WHERE job_id=$1 AND module='contract' AND key='contract_value'",
+        [job],
+      );
+      await db.query(
+        "UPDATE mcp_job_facts SET value=jsonb_set(value,'{billable_value}','110000') WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job],
+      );
+      const cert = {
+        ...p,
+        request_id: crypto.randomUUID(),
+        expected_version: 1,
+        application: {
+          ...p.application,
+          state: "certified",
+          reason: "Received actual certificate for original issued period",
+          certification: {
+            amount_cents: 1350000,
+            date: "2026-02-02",
+            source: "Certificate against submitted January application",
+          },
+        },
+      };
+      const changed = {
+        ...cert,
+        application: {
+          ...cert.application,
+          lines: cert.application.lines.map((l) => ({ ...l, work_cents: 1100000 })),
+        },
+      };
+      await expect(save(changed as any)).rejects.toThrow(/SOV changed/);
+      await expect(save(cert as any)).resolves.toMatchObject({ version: 2, state: "certified" });
+      const ledger = (await get()).invoices as any[];
+      expect(ledger).toHaveLength(1);
+      expect(ledger[0].versions[0].net_due_cents).toBe(1350000);
+    } finally {
+      await db.query(
+        "UPDATE mcp_job_facts SET value='100000'::jsonb WHERE job_id=$1 AND module='contract' AND key='contract_value'",
+        [job],
+      );
+      await db.query(
+        "UPDATE mcp_job_facts SET value=jsonb_set(value,'{billable_value}','100000') WHERE job_id=$1 AND module='sov' AND key='01'",
+        [job],
+      );
     }
   });
 });
