@@ -251,12 +251,24 @@ export const estimatePricing = defineTool({
           );
         }
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
-        const labor = mergePricingRates(prior.labor, args.labor ?? [], state.items);
-        const material = mergePricingRates(
-          prior.material,
-          (args.material ?? []).map((m) => ({ ...m, unit_price: m.unit_price ?? null })),
-          state.items,
-        );
+        const { labor, material, pricing } = (() => {
+          try {
+            const labor = mergePricingRates(prior.labor, args.labor ?? [], state.items);
+            const material = mergePricingRates(prior.material, args.material ?? [], state.items);
+            return {
+              labor,
+              material,
+              pricing: calculateEstimatePricing(state.items, {
+                labor,
+                material,
+                sources: prior.sources,
+              }),
+            };
+          } catch (error) {
+            if (error instanceof BidError) throw new ToolError(error.message);
+            throw error;
+          }
+        })();
         const quotes = args.quotes
           ? args.quotes.map((q) => ({
               ...q,
@@ -265,11 +277,6 @@ export const estimatePricing = defineTool({
               trade: q.trade ?? null,
             }))
           : prior.quotes;
-        const pricing = calculateEstimatePricing(state.items, {
-          labor,
-          material,
-          sources: prior.sources,
-        });
         await rpc(sb, "mcp_estimate_pricing_save", {
           _job: job.job_id,
           _labor: labor,

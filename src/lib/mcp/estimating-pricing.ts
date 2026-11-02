@@ -11,7 +11,7 @@ import {
 
 export type MaterialIn = {
   ref: string;
-  unit_price: number | null;
+  unit_price?: number | null;
   confirmed?: boolean;
   apply_factor?: boolean;
   source?: RateSourceId | null;
@@ -31,8 +31,27 @@ export function mergePricingRates<T extends { ref: string }>(
     );
     return matches.length === 1 ? { ...row, ref: matches[0].ref } : row;
   };
+  // Validate a whole request before merging with saved rates. A stable ref and
+  // its unique title alias may coexist, but neither may win by array order.
+  const agreed = new Map<string, T>();
+  for (const input of incoming) {
+    const row = Object.fromEntries(
+      Object.entries(normalize(input)).filter(([, value]) => value !== undefined),
+    ) as T;
+    const previous = agreed.get(row.ref);
+    if (previous) {
+      for (const key of Object.keys(row) as (keyof T)[])
+        if (previous[key] !== undefined && previous[key] !== row[key])
+          throw new BidError(
+            `Conflicting rate inputs for ${row.ref}. Send one agreed value for each field. Nothing was saved.`,
+          );
+    }
+    // Identical values and compatible partial rows represent one update.
+    // Explicit null/false/zero remain meaningful; only undefined is omitted.
+    agreed.set(row.ref, { ...previous, ...row });
+  }
   let result = prior.map(normalize);
-  for (const row of incoming.map(normalize)) {
+  for (const row of [...agreed.values()].sort((a, b) => a.ref.localeCompare(b.ref))) {
     const existing = result.filter((value) => value.ref === row.ref);
     // An explicit update can resolve duplicate old references, but partial input
     // must not inherit arbitrary fields from one of several conflicting rows.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateEstimatePricing, type MaterialIn } from "./estimating-pricing";
+import { calculateEstimatePricing, mergePricingRates, type MaterialIn } from "./estimating-pricing";
 import { gcLineAmount, type LaborIn, type RateChoice } from "./estimating-bid";
 
 const line = {
@@ -28,6 +28,66 @@ const calculate = (lab = [labor], mat = [material], sources: RateChoice[] = []) 
   calculateEstimatePricing([line], { labor: lab, material: mat, sources });
 
 describe("canonical component pricing", () => {
+  it.each([
+    {
+      label: "confirmation",
+      first: { ...labor, confirmed: true },
+      second: { ...labor, ref: "Paint", confirmed: false },
+    },
+    {
+      label: "factor application",
+      first: { ...labor, apply_factor: true },
+      second: { ...labor, ref: "Paint", apply_factor: false },
+    },
+    {
+      label: "factor source",
+      first: { ...labor, source: "rsmeans" as const },
+      second: { ...labor, ref: "Paint", source: "neca" as const },
+    },
+    {
+      label: "explicit clearing",
+      first: labor,
+      second: { ...labor, ref: "Paint", hourly_rate: null },
+    },
+  ])("rejects conflicting incoming $label in either order", ({ first, second }) => {
+    for (const incoming of [
+      [first, second],
+      [second, first],
+    ])
+      expect(() => mergePricingRates([labor], incoming, [line])).toThrow(
+        "Conflicting rate inputs for T-1",
+      );
+  });
+  it("omits undefined fields while preserving compatible partial updates and original inputs", () => {
+    const prior = [{ ...labor }];
+    const incoming: LaborIn[] = [
+      { ref: "Paint", hourly_rate: 120 },
+      { ref: "T-1", production_per_man_hour: undefined, confirmed: true },
+    ];
+    const before = structuredClone({ prior, incoming });
+    const forward = mergePricingRates(prior, incoming, [line]);
+    expect(forward).toEqual([{ ...labor, hourly_rate: 120 }]);
+    expect(mergePricingRates(prior, [...incoming].reverse(), [line])).toEqual(forward);
+    expect({ prior, incoming }).toEqual(before);
+  });
+  it("coalesces equivalent zero duplicates and orders distinct updates consistently", () => {
+    const lines = [line, { ...line, ref: "T-2", title: "Ceiling" }];
+    const incoming = [
+      { ...labor, hourly_rate: 0 },
+      { ...labor, hourly_rate: -0 },
+      { ...labor, ref: "T-2", hourly_rate: 120 },
+    ];
+    const forward = mergePricingRates([], incoming, lines);
+    expect(forward).toHaveLength(2);
+    // Signed zero has the same monetary meaning; compare calculated amounts.
+    expect(forward.map((row) => [row.ref, row.hourly_rate! + 0])).toEqual(
+      mergePricingRates([], [...incoming].reverse(), lines).map((row) => [
+        row.ref,
+        row.hourly_rate! + 0,
+      ]),
+    );
+  });
+
   it("keeps confirmed zero costs valid while missing components block", () => {
     expect(
       calculate([{ ...labor, hourly_rate: 0 }], [{ ...material, unit_price: 0 }]),

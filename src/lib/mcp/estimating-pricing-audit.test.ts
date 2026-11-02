@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToolError } from "@lovable.dev/mcp-js";
 import type { EngineSnapshot } from "./takeoff/state";
 
 // Internal, isolated fixture. Real pricing handlers/calculators; no live client,
@@ -117,6 +118,103 @@ beforeEach(() => {
 });
 
 describe("pricing correctness regressions (isolated handlers)", () => {
+  it.each(
+    ["labor", "material"].flatMap((component) =>
+      [false, true].flatMap((alias) =>
+        [false, true].map((reverse) => ({ component, alias, reverse })),
+      ),
+    ),
+  )(
+    "rejects conflicting incoming $component rates before saving (alias=$alias, reverse=$reverse)",
+    async ({ component, alias, reverse }) => {
+      const prior = structuredClone(fixture.bid);
+      const ref = alias ? "Paint" : "T-1";
+      const rows =
+        component === "labor"
+          ? [labor, { ...labor, ref, hourly_rate: 200 }]
+          : [material, { ...material, ref, unit_price: 10 }];
+      const failure = await call(estimatePricing, {
+        [component]: reverse ? [...rows].reverse() : rows,
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(ToolError);
+      expect((failure as Error).message).toContain("Conflicting rate inputs for T-1");
+      expect(fixture.writes).toEqual([]);
+      expect(fixture.bid).toEqual(prior);
+      expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+        ready: true,
+        direct: 1500,
+        total: 1815,
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "accepts equivalent labor and material aliases once in either order ($0)",
+    async (reverse) => {
+      const laborRows = [
+        labor,
+        { confirmed: true, hourly_rate: 100, production_per_man_hour: 10, ref: "Paint" },
+      ];
+      const materialRows = [material, { confirmed: true, unit_price: 5, ref: "Paint" }];
+      expect(
+        (
+          await call(estimatePricing, {
+            labor: reverse ? [...laborRows].reverse() : laborRows,
+            material: reverse ? [...materialRows].reverse() : materialRows,
+          })
+        ).structuredContent.direct,
+      ).toBe(1500);
+      const saved = fixture.bid.pricing as { labor: unknown[]; material: unknown[] };
+      expect(saved.labor).toHaveLength(1);
+      expect(saved.material).toHaveLength(1);
+      expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+        ready: true,
+        total: 1815,
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "combines compatible partial aliases without turning omitted prices into null ($0)",
+    async (reverse) => {
+      const laborRows = [
+        { ref: "T-1", hourly_rate: 120 },
+        { ref: "Paint", production_per_man_hour: 10, confirmed: true },
+      ];
+      const materialRows = [
+        { ref: "T-1", unit_price: 6 },
+        { ref: "Paint", confirmed: true },
+      ];
+      expect(
+        (
+          await call(estimatePricing, {
+            labor: reverse ? [...laborRows].reverse() : laborRows,
+            material: reverse ? [...materialRows].reverse() : materialRows,
+          })
+        ).structuredContent.direct,
+      ).toBe(1800);
+      expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+        ready: true,
+        total: 2178,
+      });
+    },
+  );
+
+  it("allows one explicit full update to resolve conflicting historical aliases", async () => {
+    fixture.bid.pricing = {
+      labor: [labor, { ...labor, ref: "Paint", hourly_rate: 200 }],
+      material: [material],
+    };
+    expect(
+      (await call(estimatePricing, { labor: [{ ...labor, hourly_rate: 120 }] })).structuredContent
+        .direct,
+    ).toBe(1700);
+    expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+      ready: true,
+      total: 2057,
+    });
+  });
+
   it("control: complete direct prices agree across both handlers", async () => {
     const loaded = parseState(fixture.estimate);
     expect(settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup).settled).toBe(true);
