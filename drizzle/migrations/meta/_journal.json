@@ -400,6 +400,13 @@
       "when": 1793461940762,
       "tag": "0056_guarded_post_read_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793587294724,
+      "tag": "0057_sov_payment_applications",
+      "breakpoints": true
     }
   ]
 }
