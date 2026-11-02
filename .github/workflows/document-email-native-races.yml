@@ -1,0 +1,34 @@
+name: Document email native PostgreSQL races
+on:
+  pull_request:
+    branches: [codex/athena-passwordless-login-only]
+permissions:
+  contents: read
+jobs:
+  native-races:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: synthetic
+          POSTGRES_DB: athena_document_email_ci
+          POSTGRES_PASSWORD: synthetic-${{ github.run_id }}-${{ github.run_attempt }}
+        ports:
+          - 127.0.0.1:55439:5432
+        options: >-
+          --health-cmd "pg_isready -U synthetic -d athena_document_email_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install existing project verification dependencies
+        run: npm install --no-save --legacy-peer-deps @lovable.dev/mcp-js@3.0.5 zod@4.4.3
+      - name: Run synthetic native PostgreSQL races
+        env:
+          ATHENA_EMAIL_NATIVE_TEST: '1'
+          ATHENA_EMAIL_NATIVE_PASSWORD: synthetic-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node tests/native/document-email-races.mjs
