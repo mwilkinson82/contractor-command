@@ -44,7 +44,7 @@ describe("pay application cards", () => {
     expect(shown.structuredContent.html).toContain("not been independently verified");
     expect(out.structuredContent.card).toEqual(model);
     expect(out._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);
-    expect(out.structuredContent.html).toContain("G703 continuation");
+    expect(out.structuredContent.html).toContain("Reported SOV progress");
     expect(out.structuredContent.html).toContain("$1,400,000.00");
     expect(out.structuredContent.html).toContain("$70,000.00");
     expect(paletteViolations(out.structuredContent.html, false)).toEqual([]);
@@ -54,7 +54,7 @@ describe("pay application cards", () => {
       window: { openai: { toolOutput: out.structuredContent } },
       document: { getElementById: () => node },
     });
-    expect(node.innerHTML).toContain("G703 continuation");
+    expect(node.innerHTML).toContain("Reported SOV progress");
     expect(node.innerHTML).toContain("$70,000.00");
     expect(node.innerHTML).toContain("03.01 Concrete");
   });

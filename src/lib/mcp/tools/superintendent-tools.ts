@@ -323,8 +323,8 @@ export const dailyReportGet = defineTool({
 
 export const fieldPayApp = defineTool({
   name: "field_pay_app",
-  title: "Pay app from daily progress",
-  description: "Builds the next pay application from saved daily progress so it ties to the schedule of values.",
+  title: "Daily progress preview",
+  description: "Previews reported daily progress against the SOV and does not save a formal payment application or certificate; use payment_application_read and payment_application_record for that workflow.",
   inputSchema: { job_number: jobNumber, company_id: companyId, period_to: date.optional() },
   annotations: READ,
   handler: (args, ctx) =>
@@ -350,7 +350,7 @@ export const fieldPayApp = defineTool({
         const url = boardHref(await boardPages(sb, job), "payapp");
         const presented = presentPayApp(fieldPayAppCardModel(named(job), period, app, url));
         return guide(
-          { ...presented, structuredContent: { ...presented.structuredContent, period_to: period, pay_app: { ...app, previous_certificates: null, current_payment_due: null, prior_reported_progress: app.previous_certificates, calculated_progress_difference: app.current_payment_due, checks: app.checks.map((check) => check.replace(/Current payment/g, "Calculated progress difference").replace(/previous certificates/gi, "prior reported progress")), evidence_note: "Daily progress is not an issued invoice, certificate, or payment receipt." }, ties: true } },
+          { ...presented, structuredContent: { ...presented.structuredContent, period_to: period, pay_app: { ...app, previous_certificates: null, current_payment_due: null, prior_reported_progress: app.previous_certificates, calculated_progress_difference: app.current_payment_due, checks: app.checks.map((check) => check.replace(/Current payment/g, "Calculated progress difference").replace(/previous certificates/gi, "prior reported progress")), evidence_note: "Daily progress is not an issued invoice, certificate, or payment receipt." }, ties: app.completed_and_stored !== null && app.retainage !== null } },
           "Show reported progress as a calculation, not issued billing, a certificate, or payment received.",
         );
       } catch (e) {

@@ -137,7 +137,7 @@ export const reportPageLink = defineTool({
   name: "report_page_link",
   title: "Project home or report link",
   description:
-    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), page "statement" for a private Customer Statement report, other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
+    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), page "statement" for a private Customer Statement report, page "payapp" only for the separate monthly billing forecast; for a saved SOV payment application use payment_application_read, other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
   inputSchema: {
     page,
     job_number: jobNumber,

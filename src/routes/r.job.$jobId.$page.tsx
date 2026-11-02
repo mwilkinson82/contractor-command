@@ -1,3 +1,4 @@
+import { PaymentApplicationsPage } from "@/components/athena/PaymentApplicationsPage";
 import { AccountingRecordPage } from "@/components/athena/AccountingRecordPage";
 import { accountingContextDates, accountingTargetFromSearch } from "@/lib/accounting-record-target";
 import { createFileRoute, notFound } from "@tanstack/react-router";
@@ -23,7 +24,8 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
     const page = hostedPageName(params.page);
     if (
       !isUuid(params.jobId) ||
-      (page !== "home" &&
+      (page !== "payment-applications" &&
+        page !== "home" &&
         page !== "billing-records" &&
         page !== "purchase-orders" &&
         page !== "buyout" &&
@@ -40,6 +42,14 @@ function JobReportPage() {
   const { jobId, page } = Route.useParams();
   const search = Route.useSearch();
   const token = readBoardToken(search);
+  if (hostedPageName(page) === "payment-applications")
+    return (
+      <PaymentApplicationsPage
+        key={`${jobId}:${JSON.stringify(search)}`}
+        jobId={jobId}
+        search={search}
+      />
+    );
   if (hostedPageName(page) === "production")
     return (
       <ProductionReportPage jobId={jobId} from={search.from} to={search.to} range={search.range} />

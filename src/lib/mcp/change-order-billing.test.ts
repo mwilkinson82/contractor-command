@@ -20,7 +20,8 @@ describe("executed change orders preserve contract and billing arithmetic", () =
   it("preserves the entire prior certificate, including the original fee allocation", () => {
     const p = [{ item_no: "05.01", pct: 50 }];
     const before = buildFieldPayApp([base], 10, 10, p, p);
-    const after = buildFieldPayApp([base, change(100)], 10, 10, p, p);
+    const withExplicitZeroChange = [...p, {item_no:"05.002",pct:0}];
+    const after = buildFieldPayApp([base, change(100)], 10, 10, withExplicitZeroChange, withExplicitZeroChange);
     expect(before.previous_certificates).toBe(500);
     expect(after.previous_certificates).toBe(500);
     expect(after.rows[0].previous).toBe(450);

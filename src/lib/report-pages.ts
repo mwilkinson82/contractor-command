@@ -29,7 +29,7 @@ export const VIEW_PAGES = ["lookahead", "payapp", "briefing", "field", "daily", 
 export type ViewPage = (typeof VIEW_PAGES)[number];
 export type AnyPage = ReportPage | ViewPage;
 export const JOB_PAGES = ["ior", "schedule", ...VIEW_PAGES] as const;
-export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Pay App", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items", submittals: "Submittal log" };
+export const PAGE_LABEL: Record<AnyPage, string> = { ior: "IOR", schedule: "Schedule", portfolio: "Portfolio dashboard", lookahead: "Two-Week Lookahead", payapp: "Billing forecast", briefing: "Morning Briefing", field: "Field board", daily: "Daily report", photos: "Progress photos", items: "Open items", submittals: "Submittal log" };
 export const PAGE_ORIGIN = "https://app.meetathena.io";
 export const PERMANENT_LINK_ASK = "Want the job board links I keep updated? Items (/items), the IOR (/ior), the field board (/field), and the schedule.";
 export const SHARE_DEFAULT_DAYS = 30;
@@ -463,7 +463,7 @@ function lookaheadPageView(p: LookaheadPayload): string {
 
 function payAppPageView(p: PayAppPayload): string {
   const r = p.report;
-  if (!r?.found) return card(`<p style="margin:0;color:${G1}">No billing has been saved for this job yet.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> send the billed-to-date figure and the latest pay app, and Athena builds the forecast from the saved schedule.</p>`);
+  if (!r?.found) return card(`<p style="margin:0;color:${G1}">No monthly billing forecast has been saved for this job yet.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> ask Athena for a billing forecast from the saved schedule. Formal SOV payment applications are a separate saved record.</p>`);
   const m = payModel((r.data?.billing ?? null) as Billing | null, isNum(r.contract_total) ? r.contract_total : null);
   const out: string[] = [];
   if (m.tie) out.push(`<p style="margin:0 0 12px;font-weight:600;color:${m.tie.startsWith("Doesn't") ? RED : NAVY}">${esc(m.tie)}</p>`);

@@ -9,6 +9,9 @@ import {
 } from "@tanstack/react-router";
 import type { ReactElement } from "react";
 
+vi.mock("@/components/athena/PaymentApplicationsPage", () => ({
+  PaymentApplicationsPage: () => null,
+}));
 // Exercise the real file route and its component selection, without auth, RPCs or financial data.
 vi.mock("@/components/athena/AccountingRecordPage", () => ({ AccountingRecordPage: () => null }));
 vi.mock("@/components/athena/AccountingReportPage", () => ({ AccountingReportPage: () => null }));
@@ -18,6 +21,8 @@ vi.mock("@/components/athena/ProductionReportPage", () => ({ ProductionReportPag
 vi.mock("@/components/athena/BillingEvidencePage", () => ({ BillingEvidencePage: () => null }));
 vi.mock("@/components/athena/JobHome", () => ({ JobHome: () => null }));
 import { Route } from "@/routes/r.job.$jobId.$page";
+import { PaymentApplicationsPage } from "@/components/athena/PaymentApplicationsPage";
+import { applicationUrl, applicationTarget } from "./payment-applications/workflow";
 import { AccountingRecordPage } from "@/components/athena/AccountingRecordPage";
 import { AccountingReportPage } from "@/components/athena/AccountingReportPage";
 import {
@@ -57,6 +62,37 @@ function renderSelected(search: Record<string, unknown>) {
 }
 afterEach(() => vi.restoreAllMocks());
 describe("actual route search serialization and financial target selection", () => {
+  it("preserves exact application versions through real route search and history", async () => {
+    const first = applicationUrl(job, record, 2),
+      second = applicationUrl(job, record, 3);
+    const router = routerFor(first);
+    await router.load();
+    const selected = () => {
+      const search = router.state.matches.at(-1)!.search;
+      vi.spyOn(Route, "useParams").mockReturnValue({
+        jobId: job,
+        page: "payment-applications",
+      } as never);
+      vi.spyOn(Route, "useSearch").mockReturnValue(search as never);
+      const el = (Route.options.component as () => ReactElement<any>)();
+      expect(el.type).toBe(PaymentApplicationsPage);
+      return applicationTarget(el.props.search);
+    };
+    expect(selected()).toMatchObject({ id: record, version: 2 });
+    router.history.push(second);
+    router.updateLatestLocation();
+    await router.load();
+    expect(selected()).toMatchObject({ version: 3 });
+    router.history.back();
+    router.updateLatestLocation();
+    await router.load();
+    expect(selected()).toMatchObject({ version: 2 });
+    router.history.forward();
+    router.updateLatestLocation();
+    await router.load();
+    expect(selected()).toMatchObject({ version: 3 });
+  });
+
   it("covers the live failure shape: a bare version=4 is JSON-decoded to a number", () => {
     const parsed = defaultParseSearch(`?record_kind=invoice&record_id=${record}&version=4`);
     expect((parsed as Record<string, unknown>).version).toBe(4);

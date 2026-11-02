@@ -18,16 +18,16 @@ export function fieldPayAppCardModel(
   return {
     state: "result",
     show_state: false,
-    title: `G702 · Pay app through ${period}`,
+    title: `Reported progress preview · ${period}`,
     job,
     kpis: [
-      { label: "Contract sum · Reported", value: money(app.contract_sum) },
-      { label: "Completed and stored · Reported", value: money(app.completed_and_stored) },
+      { label: "Contract sum · Reported", value: amount(app.contract_sum) },
+      { label: "Completed and stored · Reported", value: amount(app.completed_and_stored) },
       { label: "Retainage", value: amount(app.retainage) },
-      { label: "Earned less retainage", value: money(app.earned_less_retainage) },
-      { label: "Prior reported progress, not certified", value: money(app.previous_certificates) },
-      { label: "Calculated progress difference, not an invoice", value: money(app.current_payment_due) },
-      { label: "Balance to finish", value: money(app.balance_to_finish) },
+      { label: "Earned less retainage", value: amount(app.earned_less_retainage) },
+      { label: "Prior reported progress, not certified", value: amount(app.previous_certificates) },
+      { label: "Calculated progress difference, not an invoice", value: amount(app.current_payment_due) },
+      { label: "Balance to finish", value: amount(app.balance_to_finish) },
     ],
     sections: [
       { heading: "Reported vs verified", kind: "list", rows: [{ cells: ["Amounts: reported from saved job records. Verified: arithmetic tie checks only. Work in place, invoices and payment certification have not been independently verified."] }] },
@@ -36,12 +36,12 @@ export function fieldPayAppCardModel(
             {
               heading: "Live board",
               kind: "list" as const,
-              rows: [{ cells: ["Open pay app"], href: pageUrl }],
+              rows: [{ cells: ["Open billing forecast (separate from this preview)"], href: pageUrl }],
             },
           ]
         : []),
       {
-        heading: "G703 continuation",
+        heading: "Reported SOV progress",
         kind: "table",
         scroll: true,
         columns: [
@@ -70,7 +70,7 @@ export function fieldPayAppCardModel(
         })),
       },
       {
-        heading: "G702 tie checks",
+        heading: "Progress calculation checks",
         kind: "list",
         rows: app.checks.map((check) => ({ cells: [check.replace(/Current payment/g, "Calculated progress difference").replace(/previous certificates/gi, "prior reported progress")] })),
       },
@@ -137,7 +137,7 @@ export function billingForecastCardModel(
             {
               heading: "Live board",
               kind: "list" as const,
-              rows: [{ cells: ["Open pay app"], href: pageUrl }],
+              rows: [{ cells: ["Open billing forecast (separate from this preview)"], href: pageUrl }],
             },
           ]
         : []),
