@@ -5338,6 +5338,8 @@ export type Database = {
           recorded_at: string
           recorded_by: string
           version: number
+          working_intent: Json
+          working_state: string | null
         }
         Insert: {
           application_id: string
@@ -5348,6 +5350,8 @@ export type Database = {
           recorded_at?: string
           recorded_by: string
           version: number
+          working_intent?: Json
+          working_state?: string | null
         }
         Update: {
           application_id?: string
@@ -5358,6 +5362,8 @@ export type Database = {
           recorded_at?: string
           recorded_by?: string
           version?: number
+          working_intent?: Json
+          working_state?: string | null
         }
         Relationships: [
           {
@@ -5383,7 +5389,7 @@ export type Database = {
           created_by: string
           id: string
           job_id: string
-          number: string
+          number: string | null
         }
         Insert: {
           company_id: string
@@ -5391,7 +5397,7 @@ export type Database = {
           created_by: string
           id: string
           job_id: string
-          number: string
+          number?: string | null
         }
         Update: {
           company_id?: string
@@ -5399,7 +5405,7 @@ export type Database = {
           created_by?: string
           id?: string
           job_id?: string
-          number?: string
+          number?: string | null
         }
         Relationships: [
           {
@@ -9553,6 +9559,10 @@ export type Database = {
       }
       mcp_pa_number: { Args: { signed?: boolean; v: Json }; Returns: number }
       mcp_pa_snapshot: { Args: { _job: string }; Returns: Json }
+      mcp_pa_working: {
+        Args: { _action: string; _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
       mcp_progress_photo_create: {

@@ -414,6 +414,13 @@
       "when": 1793624821306,
       "tag": "0058_payment_application_contract_basis",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793640921440,
+      "tag": "0059_conversational_payment_drafts",
+      "breakpoints": true
     }
   ]
 }
