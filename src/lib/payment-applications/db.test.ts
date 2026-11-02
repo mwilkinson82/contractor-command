@@ -135,12 +135,17 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/migrations/20261101120001_athena_project_billing_evidence.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("drizzle/migrations/0031_athena_sov_contract_total_guard.sql", "utf8"),
+  );
   const attributes = () =>
     db.query(
       "SELECT oid,proowner,proacl,prosecdef,provolatile,proconfig,proargtypes::text,prorettype FROM pg_proc WHERE oid='mcp_billing_evidence_record(uuid,text,jsonb)'::regprocedure",
     );
   const before = (await attributes()).rows;
   await db.exec(readFileSync("release-proposals/sov-payment-applications.sql", "utf8"));
+  expect((await attributes()).rows).toEqual(before);
+  await db.exec(readFileSync("release-proposals/payment-application-contract-basis.sql", "utf8"));
   expect((await attributes()).rows).toEqual(before);
   await db.query("UPDATE mcp_jobs SET sov_fee_pct=0 WHERE id=$1", [job]);
   await db.query(
@@ -941,6 +946,190 @@ describe("independent issued-certificate lifecycle", () => {
         "UPDATE mcp_job_facts SET value=jsonb_set(value,'{billable_value}','100000') WHERE job_id=$1 AND module='sov' AND key='01'",
         [job],
       );
+    }
+  });
+});
+
+describe("reviewed contract basis", () => {
+  const readBasis = () => record("contract_basis_read", {});
+  const proposal = async () => ({
+    request_id: crypto.randomUUID(),
+    expected_version: (await readBasis()).version,
+    original_cents: 10000000,
+    basis: "Owner-provided original contract amount",
+  });
+  it("establishes missing canonical facts through the real review/save path and enables the application snapshot", async () => {
+    await db.query("DELETE FROM mcp_job_facts WHERE job_id=$1 AND module='contract'", [job]);
+    expect((await context()).snapshot).toBeNull();
+    const p = await proposal();
+    const reviewed = await record("contract_basis_review", p);
+    expect((await context()).snapshot).toBeNull();
+    const saveRequest = { ...p, review_key: reviewed.review_key };
+    expect(await record("contract_basis_outcome", saveRequest)).toEqual({ applied: false });
+    const result = await record("contract_basis_save", saveRequest);
+    expect(result).toMatchObject({
+      saved: true,
+      original_cents: 10000000,
+      approved_cents: 10000000,
+    });
+    expect((await context()).snapshot).toMatchObject({ contract_cents: 10000000 });
+    expect(await record("contract_basis_save", saveRequest)).toMatchObject({
+      already_applied: true,
+    });
+    expect(await record("contract_basis_outcome", saveRequest)).toMatchObject({ applied: true });
+    expect(await record("contract_basis_review", p)).toMatchObject({
+      applied: true,
+      already_applied: true,
+    });
+    const facts = await db.query(
+      "SELECT key,source,value FROM mcp_job_facts WHERE job_id=$1 AND module='contract' ORDER BY key",
+      [job],
+    );
+    expect(facts.rows).toHaveLength(2);
+    expect(facts.rows.every((r: any) => r.source === "member_answer")).toBe(true);
+    expect((await get()).invoices).toEqual([]);
+    const application = await payload();
+    application.application.state = "draft";
+    await save(application);
+    expect(
+      await record("payment_application_read", { id: application.id, version: 1 }),
+    ).toMatchObject({ selected: { version: 1 } });
+    expect((await get()).invoices).toEqual([]);
+  });
+  it("rejects an absent-fact review after another amount/source appears without overwriting it", async () => {
+    await db.query("DELETE FROM mcp_job_facts WHERE job_id=$1 AND module='contract'", [job]);
+    const p = await proposal();
+    const review = await record("contract_basis_review", p);
+    await query(
+      'SELECT mcp_set_facts($1,\'contract\',\'{"contract_value":100000,"contract_value_basis":{"reference":"newer source"}}\',\'member_answer\')',
+      [job],
+    );
+    await expect(
+      record("contract_basis_save", { ...p, review_key: review.review_key }),
+    ).rejects.toThrow(/changed/);
+    expect((await readBasis()).basis).toBe("newer source");
+  });
+  it("invalidates review on same-value provenance or SOV changes, leaving all writes atomic", async () => {
+    const p = await proposal();
+    const review = await record("contract_basis_review", p);
+    await db.query(
+      "UPDATE mcp_job_facts SET source='document' WHERE job_id=$1 AND module='contract' AND key='contract_value'",
+      [job],
+    );
+    await expect(
+      record("contract_basis_save", { ...p, review_key: review.review_key }),
+    ).rejects.toThrow(/changed/);
+    const p2 = await proposal();
+    const r2 = await record("contract_basis_review", p2);
+    await db.query(
+      "UPDATE mcp_job_facts SET updated_at=now()+interval '1 second' WHERE job_id=$1 AND module='sov'",
+      [job],
+    );
+    await expect(
+      record("contract_basis_save", { ...p2, review_key: r2.review_key }),
+    ).rejects.toThrow(/changed/);
+  });
+  it("rejects mismatched amount, unknown changes, changed payload, expired review and unauthorized callers", async () => {
+    const p = await proposal();
+    await expect(record("contract_basis_review", { ...p, original_cents: 100 })).rejects.toThrow(
+      /Reconcile/,
+    );
+    const review = await record("contract_basis_review", p);
+    await expect(
+      record("contract_basis_save", {
+        ...p,
+        basis: "Different basis",
+        review_key: review.review_key,
+      }),
+    ).rejects.toThrow(/Review expired or changed/);
+    await db.query(
+      "UPDATE mcp_payment_application_reviews SET expires_at=now()-interval '1 second' WHERE id=$1",
+      [review.review_key],
+    );
+    await expect(
+      record("contract_basis_save", { ...p, review_key: review.review_key }),
+    ).rejects.toThrow(/Review expired/);
+    for (const user of [outsider, superintendent, estimator])
+      await expect(record("contract_basis_read", {}, user)).rejects.toThrow();
+  });
+  it("rolls back the fact and review consumption if the full canonical snapshot is still invalid", async () => {
+    const p = await proposal();
+    const r = await record("contract_basis_review", p);
+    await db.query(
+      "UPDATE mcp_job_facts SET key='CF' WHERE job_id=$1 AND module='sov' AND key='01'",
+      [job],
+    );
+    const p2 = await proposal();
+    const r2 = await record("contract_basis_review", p2);
+    await expect(
+      record("contract_basis_save", { ...p2, review_key: r2.review_key }),
+    ).rejects.toThrow(/Reconcile/);
+    expect(
+      (
+        await db.query<{ consumed_at: unknown }>(
+          "SELECT consumed_at FROM mcp_payment_application_reviews WHERE id=$1",
+          [r2.review_key],
+        )
+      ).rows[0].consumed_at,
+    ).toBeNull();
+    await db.query(
+      "UPDATE mcp_job_facts SET key='01' WHERE job_id=$1 AND module='sov' AND key='CF'",
+      [job],
+    );
+  });
+  it("preserves approved changes separately and stales an earlier application review after a source change", async () => {
+    const application = await payload();
+    const priorReview = await record("payment_application_review", application);
+    const p = await proposal();
+    const r = await record("contract_basis_review", p);
+    await record("contract_basis_save", { ...p, review_key: r.review_key });
+    await expect(
+      record("payment_application_save", { ...application, review_key: priorReview.review_key }),
+    ).rejects.toThrow(/SOV changed/);
+    const co = crypto.randomUUID();
+    await db.query("INSERT INTO mcp_submittals VALUES($1,$2,'CO-01',1)", [co, job]);
+    await db.query(
+      'INSERT INTO mcp_change_orders VALUES($1,$2,\'{"state":"approved","total_cents":100000}\')',
+      [co, job],
+    );
+    try {
+      const p2 = { ...(await proposal()), original_cents: 9900000 };
+      const r2 = await record("contract_basis_review", p2);
+      expect(r2.approved_cents).toBe(10000000);
+      await record("contract_basis_save", { ...p2, review_key: r2.review_key });
+      expect(await readBasis()).toMatchObject({
+        original_cents: 9900000,
+        change_cents: 100000,
+        approved_cents: 10000000,
+      });
+      await db.query(
+        'UPDATE mcp_change_orders SET details=\'{"state":"approved"}\' WHERE submittal_id=$1',
+        [co],
+      );
+      await expect(record("contract_basis_review", await proposal())).rejects.toThrow(/Reconcile/);
+    } finally {
+      await db.query("DELETE FROM mcp_change_orders WHERE submittal_id=$1", [co]);
+      await db.query("DELETE FROM mcp_submittals WHERE id=$1", [co]);
+      await query(
+        "SELECT mcp_set_facts($1,'contract','{\"contract_value\":100000}','member_answer')",
+        [job],
+      );
+    }
+  });
+  it("keeps the helper private and refuses membership-revoked cached outcomes", async () => {
+    const p = await proposal();
+    const r = await record("contract_basis_review", p);
+    const save = { ...p, review_key: r.review_key };
+    await record("contract_basis_save", save);
+    await expect(
+      query("SELECT mcp_pa_contract_basis($1,'contract_basis_read','{}')", [job]),
+    ).rejects.toThrow(/permission denied/);
+    await db.query("DELETE FROM test_active_members WHERE user_id=$1", [owner]);
+    await db.query("DELETE FROM mcp_gate_cache WHERE user_id=$1", [owner]);
+    try {
+      await expect(record("contract_basis_outcome", save)).rejects.toThrow();
+    } finally {
+      await db.query("INSERT INTO test_active_members VALUES($1)", [owner]);
     }
   });
 });

@@ -59,7 +59,7 @@ export const paymentApplicationRead = defineTool({
             ...text(
               s
                 ? `${s.body.number} · ${s.body.state} · version ${s.version}\nPeriod ${s.body.period_start} through ${s.body.period_end}.\nCurrent application: ${appMoney(s.calculation.payment_due_cents)} USD.\nOpen saved application: ${url}`
-                : `Payment applications for job ${job.job_number}.\nOpen applications: ${url}\nNo new application was saved.`,
+                : `Payment applications for job ${job.job_number}.\nOpen applications: ${url}${data.snapshot_issue ? `\nBefore preparing: ${data.snapshot_issue}` : ""}\nNo new application was saved.`,
             ),
             structuredContent: {
               ...data,
@@ -69,7 +69,7 @@ export const paymentApplicationRead = defineTool({
                 : null,
             } as never,
           },
-          "Use the exact saved application link. Ask only for missing period, prior certificate and line-level current work/stored materials/retainage facts. Known saved application work must continue from the latest actual saved certificate; never classify it or its related credits as separate billing or restart it as first/external. Cash, credits and daily progress do not prove certification. Keep missing inputs unknown. To prepare and save a formal application use payment_application_record; billing forecasts are separate. Never label this as an official proprietary form or signed certification without evidence.",
+          "Use the exact saved application link. If the approved contract basis is missing, open that page’s Contract basis section to review the original amount and owner-provided source reference; do not infer it from the SOV or claim document verification. Ask only for missing period, prior certificate and line-level current work/stored materials/retainage facts. Known saved application work must continue from the latest actual saved certificate; never classify it or its related credits as separate billing or restart it as first/external. Cash, credits and daily progress do not prove certification. Keep missing inputs unknown. To prepare and save a formal application use payment_application_record; billing forecasts are separate. Never label this as an official proprietary form or signed certification without evidence.",
         );
       },
     ),
