@@ -35,6 +35,7 @@ describe("company branding actions",()=>{
     let tree=render();nodes(tree).find(n=>n.type==="input"&&n.props.type==="file").props.onChange({target:{files:[selected]}});
     tree=render();nodes(tree).find(n=>n.type==="button"&&n.props.children==="Save company logo").props.onClick();
     await vi.waitFor(()=>expect(nodes(render()).some(n=>n.props?.role==="status"&&String(n.props.children).includes("Choose a valid"))).toBe(true));
+    expect(nodes(render()).some(n=>n.props?.role==="status"&&String(n.props.children).includes("re-export it as a plain"))).toBe(true);
     expect(m.upload).not.toHaveBeenCalled();expect(m.rpc).not.toHaveBeenCalled();
   });
 });

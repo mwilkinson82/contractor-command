@@ -16,24 +16,61 @@ export async function validatePaymentLogo(bytes: Uint8Array): Promise<"PNG" | "J
     if (format === "PNG") {
       if(bytes.length<45 || view.getUint32(8)!==13 || String.fromCharCode(...bytes.subarray(12,16))!=="IHDR") return null;
       const w=view.getUint32(16), h=view.getUint32(20); if(!safe(w,h)) return null;
-      let at=8, ended=false, sawData=false; const chunks:Uint8Array[]=[];
+      // Restrict decoding to non-interlaced, 8-bit PNGs with known row sizes.
+      const depth=bytes[24], color=bytes[25];
+      const channels:Record<number,number>={0:1,2:3,3:1,4:2,6:4};
+      if(depth!==8 || !channels[color] || bytes[26]!==0 || bytes[27]!==0 || bytes[28]!==0) return null;
+      let at=8, ended=false, sawData=false, dataEnded=false, palette=false, transparency=false;
+      let paletteEntries=0; const chunks:Uint8Array[]=[];
       while(at+12<=bytes.length){
         const n=view.getUint32(at), end=at+12+n;
         if(end>bytes.length) return null;
         const type=String.fromCharCode(...bytes.subarray(at+4,at+8));
+        if(!/^[A-Za-z]{4}$/.test(type)) return null;
+        if(type==="IHDR"){if(at!==8 || n!==13) return null;}
+        else if(at===8) return null;
         // Compressed ancillary data and animation are not needed for static logos.
         if(["iCCP","zTXt","iTXt","acTL","fdAT","fcTL"].includes(type)) return null;
-        if(type==="IDAT"){sawData=true;chunks.push(bytes.subarray(at+8,at+8+n));}
-        if(type==="IEND"){if(n!==0 || end!==bytes.length) return null; ended=true;break;}
+        if(type==="PLTE"){
+          if(palette || sawData || transparency || color===0 || color===4 || n<3 || n>768 || n%3!==0) return null;
+          palette=true;paletteEntries=n/3;
+        } else if(type==="tRNS"){
+          if(transparency || sawData || (color===3 && (!palette || n<1 || n>paletteEntries)) ||
+             (color===0 && n!==2) || (color===2 && n!==6) || color===4 || color===6) return null;
+          transparency=true;
+        } else if(type==="IDAT"){
+          if(dataEnded || (color===3 && !palette)) return null;
+          sawData=true;chunks.push(bytes.subarray(at+8,at+8+n));
+        } else if(type==="IEND"){
+          if(!sawData || n!==0 || end!==bytes.length) return null;
+          ended=true;break;
+        } else if(type!=="IHDR" && type.charCodeAt(0)>=65 && type.charCodeAt(0)<=90) return null;
+        if(sawData && type!=="IDAT") dataEnded=true;
         at=end;
       }
       if(!ended || !sawData) return null;
-      const source=new Blob(chunks.map(c=>new Uint8Array(c))).stream().pipeThrough(new DecompressionStream("deflate"));
-      const reader=source.getReader(); let inflated=0, limit=w*h*8+h*8+65536;
-      while(true){const p=await reader.read();if(p.done)break;inflated+=p.value.length;if(inflated>limit){await reader.cancel();return null;}}
+      // Use the same inflater as the PDF decoder; it can consume concatenated streams
+      // that the browser DecompressionStream silently ignores after the first one.
+      const {Inflate}=await import("pako");
+      let inflated=0; const rowLength=1+w*channels[color], expected=rowLength*h;
+      const inflater=new Inflate({chunkSize:16384});
+      let finished=false;
+      const onEnd=inflater.onEnd.bind(inflater);
+      inflater.onEnd=(status:number)=>{finished=status===0;onEnd(status);};
+      inflater.onData=(part:Uint8Array)=>{
+        if(inflated+part.length>expected) throw new Error("PNG data exceeds its dimensions");
+        for(let i=(rowLength-inflated%rowLength)%rowLength;i<part.length;i+=rowLength){
+          if(part[i]>4) throw new Error("Invalid PNG filter");
+        }
+        inflated+=part.length;
+      };
+      // Match fast-png's IDAT boundaries, including a stream ending before a later chunk.
+      for(const chunk of chunks) if(!inflater.push(chunk)) return null;
+      if(!finished || inflater.err || inflated!==expected) return null;
       const {decode}=await import("fast-png");
       const decoded=decode(bytes,{checkCrc:true});
-      return decoded.width===w && decoded.height===h && decoded.data.length>0 ? "PNG" : null;
+      if(color===3 && decoded.data.some(index=>index>=paletteEntries)) return null;
+      return decoded.width===w && decoded.height===h && decoded.data.length===w*h*channels[color] ? "PNG" : null;
     }
     if (format === "JPEG") {
       if(bytes.length<12 || bytes[bytes.length-2]!==255 || bytes[bytes.length-1]!==217) return null;

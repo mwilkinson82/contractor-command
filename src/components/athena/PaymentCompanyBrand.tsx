@@ -51,7 +51,7 @@ export function PaymentCompanyBrand({ jobId, actorId }: { jobId: string; actorId
       if (!url && file) {
         if (file.size < 1 || file.size > MAX_COMPANY_LOGO_BYTES) throw Error("Choose a PNG or JPEG no larger than 1 MB.");
         const bytes = new Uint8Array(await file.arrayBuffer()), format = await validatePaymentLogo(bytes);
-        if (!active.current || !format || (format === "PNG" ? file.type !== "image/png" : file.type !== "image/jpeg")) throw Error("Choose a valid PNG or JPEG image no larger than 2048 pixels in either dimension.");
+        if (!active.current || !format || (format === "PNG" ? file.type !== "image/png" : file.type !== "image/jpeg")) throw Error("Choose a valid PNG or JPEG no larger than 2048 pixels in either dimension. If the PNG isn't supported, re-export it as a plain, non-interlaced 8-bit PNG without extra metadata, or use JPEG.");
         let attempt = uploadAttempt.current;
         if (!attempt) {
           const path = `${actorId}/athena-${data.data.id}-${crypto.randomUUID()}.${format === "PNG" ? "png" : "jpg"}`;
