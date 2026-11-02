@@ -18,6 +18,10 @@ async (page) => {
   await page
     .getByLabel("Basis or source reference", { exact: true })
     .fill("Owner-provided original contract amount");
+  await page.getByLabel("Original contract amount (USD)",{exact:true}).fill("0");
+  await page.getByRole("button",{name:"Review amount and basis",exact:true}).click();
+  await page.getByRole("alert").filter({hasText:"Reconcile the original contract"}).waitFor();
+  await page.getByLabel("Original contract amount (USD)",{exact:true}).fill("100000");
   const widths = [];
   for (const width of [320, 375, 600, 1110]) {
     await page.setViewportSize({ width, height: 950 });

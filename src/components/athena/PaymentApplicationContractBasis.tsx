@@ -93,7 +93,7 @@ export function PaymentApplicationContractBasis({
     setError("");
     try {
       const cents = dollarsToCents(form.amount);
-      if (cents === null || cents <= 0 || !form.basis.trim())
+      if (cents === null || cents < 0 || !form.basis.trim())
         throw Error("Provide the original contract amount and its basis.");
       const result = await call<Review & { applied?: boolean }>(jobId, "contract_basis_review", {
         request_id: form.request,

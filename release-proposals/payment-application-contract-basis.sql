@@ -18,7 +18,7 @@ BEGIN
  IF _action<>'contract_basis_read' THEN
    rid:=nullif(_p->>'request_id','')::uuid;
    proposed:=public.mcp_pa_number(_p->'original_cents');
-   IF rid IS NULL OR proposed IS NULL OR proposed<=0 OR jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'string' OR jsonb_typeof(_p->'basis') IS DISTINCT FROM 'string' OR length(btrim(_p->>'basis')) NOT BETWEEN 1 AND 2000 OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p)t(k) WHERE t.k NOT IN ('request_id','original_cents','basis','expected_version','review_key')) THEN RAISE EXCEPTION 'MCP_BAD:Provide a positive original contract amount and its basis.'; END IF;
+   IF rid IS NULL OR proposed IS NULL OR proposed<0 OR jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'string' OR jsonb_typeof(_p->'basis') IS DISTINCT FROM 'string' OR length(btrim(_p->>'basis')) NOT BETWEEN 1 AND 2000 OR EXISTS(SELECT 1 FROM jsonb_object_keys(_p)t(k) WHERE t.k NOT IN ('request_id','original_cents','basis','expected_version','review_key')) THEN RAISE EXCEPTION 'MCP_BAD:Provide a non-negative original contract amount and its basis.'; END IF;
    sig:=md5(jsonb_build_object('kind','contract_basis','payload',_p-'review_key')::text);
    SELECT * INTO op FROM public.mcp_billing_operations WHERE job_id=_job AND request_id=rid;
    IF op.request_id IS NOT NULL THEN

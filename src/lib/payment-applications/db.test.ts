@@ -1103,6 +1103,14 @@ describe("reviewed contract basis", () => {
         approved_cents: 10000000,
       });
       await db.query(
+        'UPDATE mcp_change_orders SET details=\'{"state":"approved","total_cents":10000000}\' WHERE submittal_id=$1',
+        [co],
+      );
+      const zero = { ...(await proposal()), original_cents: 0 };
+      const zeroReview = await record("contract_basis_review", zero);
+      await record("contract_basis_save", { ...zero, review_key: zeroReview.review_key });
+      expect(await readBasis()).toMatchObject({ original_cents: 0, approved_cents: 10000000 });
+      await db.query(
         'UPDATE mcp_change_orders SET details=\'{"state":"approved"}\' WHERE submittal_id=$1',
         [co],
       );
