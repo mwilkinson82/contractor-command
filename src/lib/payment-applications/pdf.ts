@@ -11,8 +11,11 @@ export function applicationPdf(job: { number: string; name: string }, saved: Sav
   d.setFileId(saved.application_id.replaceAll("-", ""));
   d.setProperties({ title: `Payment application ${a.number} version ${saved.version}`, author: brand.companyName || "Payment application" });
   const clean = (s: string) => {
-    s = s.replace(/\r\n?/g, "\n");
-    if (/[^\x20-\x7E\xA0-\xFF\n]/.test(s))
+    // jsPDF's built-in Helvetica uses WinAnsi, which includes the common
+    // typographic punctuation below in addition to Latin-1. Normalize
+    // decomposed accents before checking so names render without data loss.
+    s = s.replace(/\r\n?/g, "\n").normalize("NFC");
+    if (/[^\x20-\x7E\xA0-\xFF\n\u20ac\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u017d\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u017e\u0178]/.test(s))
       throw new Error("This PDF cannot yet display some characters in the supplied name or description. No document was generated.");
     return s;
   };
