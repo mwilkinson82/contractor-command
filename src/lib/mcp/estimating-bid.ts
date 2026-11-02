@@ -277,6 +277,14 @@ export function gcLineAmount(input: {
   const qty = pos(input.qty, label);
   const rate = pos(input.rate, label);
   const duration = pos(input.duration, "Schedule duration");
+  if (input.key === "supervision" && amount != null) {
+    return {
+      amount,
+      math: `${label}: ${money(amount)} entered${qty != null ? ` for quantity ${qty}` : duration != null ? ` for ${duration} days` : ""}.${!input.confirmed ? " PLACEHOLDER." : " Confirmed by the contractor."}`,
+      missing: null,
+      placeholder: !input.confirmed,
+    };
+  }
   if (input.key === "supervision") {
     const units = qty ?? duration;
     if (units == null)
@@ -617,16 +625,20 @@ export type BidPiece = {
 const sourceLabel = (t: "sheet" | "spec" | "contract") =>
   t === "contract" ? "Contract clause" : t === "spec" ? "Spec" : "Sheet";
 
+export const QUOTE_COVERAGE_REQUIRED =
+  "Subcontract quote coverage needs review. Identify carried scope and any self-perform replacement or split before building the bid total.";
+
 export function assembleBid(input: {
   direct: number;
   directPlaceholder: boolean;
+  directBlockers?: string[];
   gc: BidPiece[];
   requirements: RequirementPrice[];
   quotes?: { sub: string; description: string; amount: number | null; ref?: string | null }[];
   overheadPct: number | null;
   profitPct: number | null;
   settled: boolean;
-}): { lines: string[]; total: number | null; ready: boolean; math: string } {
+}): { lines: string[]; total: number | null; ready: boolean; math: string; blockers: string[] } {
   const gcPriced = input.gc.filter((g) => g.amount != null);
   const reqInGc = input.requirements.filter(
     (r) => !r.excluded && r.placement === "gc" && r.amount != null,
@@ -639,9 +651,6 @@ export function assembleBid(input: {
   const ownPriced = reqOwn.filter((r) => r.amount != null);
   const ownTotal = cents(ownPriced.reduce((s, r) => s + (r.amount ?? 0), 0));
   const quotes = input.quotes ?? [];
-  const quoteTotal = cents(
-    quotes.reduce((s, q) => s + (q.amount == null ? 0 : q.amount), 0),
-  );
   const unpriced = [
     ...input.gc.filter((g) => g.amount == null).map((g) => g.label),
     ...input.requirements.filter((r) => !r.excluded && r.amount == null).map((r) => r.ref),
@@ -651,7 +660,9 @@ export function assembleBid(input: {
     input.directPlaceholder ||
     input.gc.some((g) => g.placeholder) ||
     input.requirements.some((r) => !r.excluded && r.amount != null && !r.confirmed);
-  const base = cents(input.direct + gcTotal + ownTotal + quoteTotal);
+  // Stored quotes have no carried/alternative/replacement coverage decision.
+  // Preserve them for review; never select a vendor or add ambiguous scope.
+  const base = cents(input.direct + gcTotal + ownTotal);
   const lines = [
     `Direct cost (labor and material): ${money(input.direct)}.${input.directPlaceholder ? " Includes a PLACEHOLDER." : ""}`,
     `General conditions: ${money(gcTotal)}.`,
@@ -662,7 +673,7 @@ export function assembleBid(input: {
     `Special requirements on their own line: ${money(ownTotal)}.`,
     ...(quotes.length
       ? [
-          `Sub quotes: ${money(quoteTotal)}.`,
+          "Sub quotes for scope review:",
           ...quotes.map(
             (q) =>
               `- ${q.sub} ${q.description}${q.ref ? ` (${q.ref})` : ""}: ${q.amount == null ? "Unpriced. Holds the bid." : money(q.amount) + "."}`,
@@ -678,6 +689,18 @@ export function assembleBid(input: {
         `- ${r.label} (${r.ref}) is carried in general conditions. ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${money(r.amount ?? 0)}.${r.confirmed ? "" : " PLACEHOLDER."}`,
     ),
   ];
+  const blockers = [...(input.directBlockers ?? [])];
+  if (quotes.length) blockers.push(QUOTE_COVERAGE_REQUIRED);
+  if (blockers.length) {
+    lines.push(
+      ...blockers.map((blocker) => `- ${blocker} Holds the bid.`),
+      "Not a bid yet. Resolve pricing and scope coverage before totaling.",
+    );
+    return { lines, total: null, ready: false, math: lines.join("\n"), blockers };
+  }
+  blockers.push(...unpriced.map((label) => `${label}: unpriced.`));
+  if (placeholder) blockers.push("A PLACEHOLDER is still unconfirmed.");
+  if (!input.settled) blockers.push("The takeoff is not settled.");
   if (input.overheadPct == null || input.profitPct == null) {
     lines.push(
       "Overhead and profit are not set. Send the contractor's percents. Overhead is applied first, then profit on top.",
@@ -687,7 +710,8 @@ export function assembleBid(input: {
         ? `Not a bid yet. Still open: ${unpriced.join(", ")}.`
         : "Not a bid yet. Overhead and profit are still open.",
     );
-    return { lines, total: null, ready: false, math: lines.join("\n") };
+    blockers.push("Overhead and profit are not set.");
+    return { lines, total: null, ready: false, math: lines.join("\n"), blockers };
   }
   const ohp = compoundOhp(base, input.overheadPct, input.profitPct);
   lines.push(ohp.math);
@@ -697,7 +721,7 @@ export function assembleBid(input: {
       ? `Bid total ${money(ohp.total)}.`
       : `Priced total ${money(ohp.total)}. Not a bid yet.${unpriced.length ? ` Still open: ${unpriced.join(", ")}.` : ""}${placeholder ? " A PLACEHOLDER is still unconfirmed." : ""}${input.settled ? "" : " The takeoff is not settled."}`,
   );
-  return { lines, total: ohp.total, ready, math: ohp.math };
+  return { lines, total: ohp.total, ready, math: ohp.math, blockers };
 }
 
 export function nextMove(
