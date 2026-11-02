@@ -1,7 +1,7 @@
 name: Document email server binding native PostgreSQL races
 on:
   pull_request:
-    branches: [codex/athena-passwordless-login-only]
+    branches: [codex/athena-passwordless-login-only, codex/document-email-integrated-review]
 permissions:
   contents: read
 jobs:
