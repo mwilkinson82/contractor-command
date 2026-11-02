@@ -9,7 +9,7 @@ type Prop = { format?: string; pattern?: string; description?: string };
 type Tool = {
   name: string;
   description?: string;
-  title?:string;
+  title?: string;
   inputSchema: { properties: Record<string, Prop> };
 };
 
@@ -93,7 +93,18 @@ describe("MCP manifest is in sync with source", () => {
       expect(t.description, `${t.name} description`).toBe(
         live.find((tool) => tool.name === t.name)?.description,
       );
-    for(const name of ["field_pay_app","payment_application_read","payment_application_record"]) expect(manifest.mcp.tools.find(t=>t.name===name)?.title,`${name} title`).toBe(live.find(t=>t.name===name)?.title);
+    for (const name of ["field_pay_app", "payment_application_read", "payment_application_record"])
+      expect(manifest.mcp.tools.find((t) => t.name === name)?.title, `${name} title`).toBe(
+        live.find((t) => t.name === name)?.title,
+      );
+    const prepare = live.find((tool) => tool.name === "payment_application_prepare");
+    expect(prepare?.description).toContain("never submits or certifies billing");
+    expect(prepare?.inputSchema.properties.operation).toBeDefined();
+    expect(prepare?.inputSchema.properties.expected_version).toBeDefined();
+    expect(prepare?.inputSchema.properties.changes).toBeDefined();
+    expect(
+      manifest.mcp.tools.find((tool) => tool.name === "payment_application_prepare")?.inputSchema,
+    ).toEqual(prepare?.inputSchema);
     // Assert the actual SDK discovery wire, not just our Zod object or a committed manifest.
     const pkg = live.find((t) => t.name === "submittal_package")!;
     expect(pkg.inputSchema.properties.rebuild_from_package_id).toMatchObject({

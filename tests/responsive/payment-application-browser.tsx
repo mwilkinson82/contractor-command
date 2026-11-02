@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PaymentApplicationsPage } from "../../src/components/athena/PaymentApplicationsPage";
 import { applicationFixture } from "../../src/lib/payment-applications/fixtures";
 import { calculateApplication } from "../../src/lib/payment-applications/model";
+import { deriveIntent } from "../../src/lib/payment-applications/working";
 import {
   emptyApplication,
   type ApplicationContext,
@@ -183,6 +184,81 @@ export const fixtureRpc = async (_name: string, args: any) => {
       }
       return { data: c, error: null };
     }
+    if (
+      args._action === "payment_application_working" ||
+      args._action === "payment_application_working_outcome"
+    ) {
+      const key = `fixture-working-op:${p.request_id}`;
+      const op = JSON.parse(sessionStorage.getItem(key) ?? "null");
+      if (op) {
+        if (
+          op.id !== p.id ||
+          op.request_hash !== p.request_hash ||
+          (args._action === "payment_application_working" && op.payload !== JSON.stringify(p))
+        )
+          throw Error("Draft request belongs to different content");
+        return { data: { ...op.result, applied: true, already_applied: true }, error: null };
+      }
+      if (args._action === "payment_application_working_outcome")
+        return { data: { applied: false }, error: null };
+      const previous = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
+      if ((previous?.version ?? 0) !== p.expected_version)
+        throw Error("This draft changed in chat or the form.");
+      if (p.operation === "save" && previous?.working_state === "cancelled")
+        throw Error("Resume this draft first");
+      if (p.operation !== "save" && !previous?.working_state) throw Error("Choose a working draft");
+      const body = p.operation === "save" ? deriveIntent(p.application, p.intent) : previous.body;
+      const working_intent = p.operation === "save" ? p.intent : previous.working_intent;
+      const working_state = p.operation === "cancel" ? "cancelled" : "open";
+      const version = p.expected_version + 1;
+      const saved: SavedApplication = {
+        application_id: p.id,
+        version,
+        latest_version: version,
+        body,
+        working_intent,
+        working_state,
+        calculation: calculateApplication(body, true),
+        billing_version: null,
+        recorded_at: "2026-02-01T12:00:00Z",
+        history: [
+          { version, state: "draft", reason: "", recorded_at: "2026-02-01T12:00:00Z" },
+          ...(previous?.history ?? []),
+        ],
+      };
+      sessionStorage.setItem(`fixture-saved:${p.id}`, JSON.stringify(saved));
+      sessionStorage.setItem(`fixture-version:${p.id}:${version}`, JSON.stringify(saved));
+      sessionStorage.setItem(
+        "fixture-list",
+        JSON.stringify([
+          ...context().applications.filter((a) => a.id !== p.id),
+          {
+            id: p.id,
+            version,
+            number: body.number || "Working application",
+            state: "draft",
+            working_state,
+            period_start: body.period_start,
+            period_end: body.period_end,
+          },
+        ]),
+      );
+      const result = { id: p.id, version, working_state };
+      sessionStorage.setItem(
+        key,
+        JSON.stringify({
+          id: p.id,
+          request_hash: p.request_hash,
+          payload: JSON.stringify(p),
+          result,
+        }),
+      );
+      if (sessionStorage.getItem("fixture-working-lose-response")) {
+        sessionStorage.removeItem("fixture-working-lose-response");
+        throw Error("Connection interrupted");
+      }
+      return { data: { ...result, applied: true }, error: null };
+    }
     if (args._action === "payment_application_outcome") {
       const op = JSON.parse(sessionStorage.getItem(`fixture-op:${p.request_id}`) ?? "null");
       if (!op) return { data: { applied: false }, error: null };
@@ -194,7 +270,7 @@ export const fixtureRpc = async (_name: string, args: any) => {
     if (args._action === "payment_application_review") {
       const existing = JSON.parse(sessionStorage.getItem(`fixture-saved:${p.id}`) ?? "null");
       if ((existing?.version ?? 0) !== p.expected_version) throw Error("Version changed");
-      if (existing && existing.body.number !== p.application.number)
+      if (existing && !existing.working_state && existing.body.number !== p.application.number)
         throw Error("Keep the application number");
       const calc = calculateApplication(p.application);
       if (p.application.state !== "draft" && !calc.complete) throw Error("Needed inputs remain");

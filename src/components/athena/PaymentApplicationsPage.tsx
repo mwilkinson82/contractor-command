@@ -24,6 +24,13 @@ import {
   type SavedApplication,
 } from "@/lib/payment-applications/workflow";
 import { PaymentApplicationContractBasis } from "./PaymentApplicationContractBasis";
+import {
+  deriveIntent,
+  sameWorkingValue,
+  workingApplicationSchema,
+  workingRequestHash,
+  type WorkingIntent,
+} from "@/lib/payment-applications/working";
 import "./payment-applications.css";
 const rpc = supabase.rpc.bind(supabase) as unknown as (
   name: string,
@@ -153,6 +160,33 @@ export function PaymentApplicationsPage({
     read: ApplicationContext;
     recoveryRequestId?: string;
   } | null>(null);
+  type WorkingPayload = {
+    id: string;
+    request_id: string;
+    request_hash: string;
+    expected_version: number;
+    operation: "save" | "cancel" | "resume";
+    application?: Application;
+    intent?: WorkingIntent;
+  };
+  const [intent, setIntent] = useState<WorkingIntent>({});
+  const intentRef = useRef(intent);
+  intentRef.current = intent;
+  const [workingPending, setWorkingPending] = useState<WorkingPayload | null>(null);
+  const [workingConflict, setWorkingConflict] = useState<number | null>(null);
+  const workingOpened = useRef("");
+  const workingKey = `working-application:${session?.user.id ?? ""}:${jobId}`;
+  useEffect(() => {
+    setWorkingPending(null);
+    setWorkingConflict(null);
+    if (!session) return;
+    try {
+      const x = sessionStorage.getItem(workingKey);
+      if (x) setWorkingPending(JSON.parse(x));
+    } catch {
+      /* outcome remains server guarded */
+    }
+  }, [workingKey, session?.user.id]);
   const [pendingPredecessor, setPendingPredecessor] = useState<string | null>(null);
   const editContextRef = useRef(editContext);
   const predecessorRequest = useRef(0);
@@ -184,6 +218,7 @@ export function PaymentApplicationsPage({
     queryKey: ["payment-applications", jobId, session?.user.id, id, version],
     enabled: !!session && !loading && !invalid,
     retry: false,
+    refetchInterval: editContext?.base?.working_state ? 8000 : false,
     queryFn: () => call<ApplicationContext>(jobId, "payment_application_read", { id, version }),
   });
   const saved = data.error ? undefined : data.data?.selected;
@@ -217,7 +252,7 @@ export function PaymentApplicationsPage({
     }
   }
   useEffect(() => {
-    if (target?.download && saved && data.data) {
+    if (target?.download && saved && !saved.working_state && data.data) {
       const key = `${jobId}:${saved.application_id}:${saved.version}`;
       if (downloadStarted.current !== key) {
         downloadStarted.current = key;
@@ -230,8 +265,21 @@ export function PaymentApplicationsPage({
     setReview(null);
   }
   function lineChange(item: string, p: Partial<AppLine>) {
+    let nextIntent = intent;
+    if (Object.prototype.hasOwnProperty.call(p, "work_cents")) {
+      nextIntent = {
+        ...intent,
+        [item]: { basis: "cumulative", amount_cents: p.work_cents ?? null },
+      };
+      setIntent(nextIntent);
+    }
     setEdit((a) =>
-      a ? { ...a, lines: a.lines.map((l) => (l.item === item ? { ...l, ...p } : l)) } : a,
+      a
+        ? deriveIntent(
+            { ...a, lines: a.lines.map((l) => (l.item === item ? { ...l, ...p } : l)) },
+            nextIntent,
+          )
+        : a,
     );
     setReview(null);
   }
@@ -253,7 +301,11 @@ export function PaymentApplicationsPage({
       if (editContextRef.current !== context || predecessorRequest.current !== request) return;
       setPendingPredecessor(null);
       if (p.selected)
-        setEdit((current) => (current ? carryCertificate(current, p.selected!) : current));
+        setEdit((current) =>
+          current
+            ? deriveIntent(carryCertificate(current, p.selected!), intentRef.current)
+            : current,
+        );
     } catch (e) {
       if (editContextRef.current === context && predecessorRequest.current === request) {
         setPendingPredecessor(null);
@@ -269,6 +321,7 @@ export function PaymentApplicationsPage({
       // A selected detail omits its own invoice from evidence; a new request needs the full job context.
       const read = await call<ApplicationContext>(jobId, "payment_application_read", {});
       if (!read.snapshot) throw Error(read.snapshot_issue ?? "A current saved SOV is needed.");
+      setIntent({});
       setEditContext({
         kind: "new",
         id: crypto.randomUUID(),
@@ -290,7 +343,7 @@ export function PaymentApplicationsPage({
     }
   }
   function startRevision(certificate = false) {
-    if (!saved || !data.data || busy || pending) return;
+    if (!saved || !data.data || busy || pending || workingPending) return;
     setEditContext({
       kind: certificate ? "certificate" : "revision",
       id: saved.application_id,
@@ -298,6 +351,7 @@ export function PaymentApplicationsPage({
       base: saved,
       read: data.data,
     });
+    setIntent(saved.working_intent ?? {});
     setEdit(
       certificate
         ? {
@@ -311,12 +365,175 @@ export function PaymentApplicationsPage({
     setReview(null);
     setError("");
   }
+  useEffect(() => {
+    if (
+      !saved ||
+      saved.working_state !== "open" ||
+      saved.version !== saved.latest_version ||
+      edit ||
+      pending ||
+      workingPending
+    )
+      return;
+    const k = `${saved.application_id}:${saved.version}`;
+    if (workingOpened.current === k) return;
+    workingOpened.current = k;
+    setEditContext({
+      kind: "revision",
+      id: saved.application_id,
+      expected_version: saved.version,
+      base: saved,
+      read: data.data!,
+    });
+    setIntent(saved.working_intent ?? {});
+    setEdit(structuredClone(saved.body));
+    setReview(null);
+  }, [
+    saved?.application_id,
+    saved?.version,
+    saved?.latest_version,
+    saved?.working_state,
+    edit,
+    pending,
+    workingPending,
+  ]);
+  async function commitWorking(p: WorkingPayload) {
+    setBusy(true);
+    setError("");
+    setWorkingPending(p);
+    setWorkingConflict(null);
+    try {
+      sessionStorage.setItem(workingKey, JSON.stringify(p));
+    } catch {
+      /* retain in memory */
+    }
+    try {
+      const result = await call<{ id: string; version: number }>(
+        jobId,
+        "payment_application_working",
+        p,
+      );
+      await call(jobId, "payment_application_read", { id: result.id, version: result.version });
+      sessionStorage.removeItem(workingKey);
+      setWorkingPending(null);
+      window.location.assign(applicationUrl(jobId, result.id, result.version));
+    } catch (e) {
+      setError(`${(e as Error).message} Check this same working request before starting another.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function makeWorking(operation: "save" | "cancel" | "resume") {
+    const base =
+      editContext ?? (saved ? { id: saved.application_id, expected_version: saved.version } : null);
+    if (!base || busy || pending || workingPending) return;
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        id: base.id,
+        request_id: crypto.randomUUID(),
+        expected_version: base.expected_version,
+        operation,
+        ...(operation === "save" && edit
+          ? {
+              application: workingApplicationSchema.parse({
+                ...deriveIntent(edit, intent),
+                state: "draft",
+                certification: null,
+              }),
+              intent,
+            }
+          : {}),
+      };
+      const request_hash = await workingRequestHash(payload);
+      await commitWorking({ ...payload, request_hash });
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  }
+  async function recoverWorking() {
+    if (!workingPending) return;
+    setBusy(true);
+    setError("");
+    try {
+      const found = await call<{ applied: boolean; id?: string; version?: number }>(
+        jobId,
+        "payment_application_working_outcome",
+        workingPending,
+      );
+      if (found.applied) {
+        sessionStorage.removeItem(workingKey);
+        setWorkingPending(null);
+        window.location.assign(applicationUrl(jobId, found.id, found.version));
+        return;
+      }
+      if (workingPending.operation !== "save" || !workingPending.application) {
+        sessionStorage.removeItem(workingKey);
+        setWorkingPending(null);
+        setError("No working change was applied. Read the current draft before trying again.");
+        return;
+      }
+      const read = await call<ApplicationContext>(
+        jobId,
+        "payment_application_read",
+        workingPending.expected_version
+          ? { id: workingPending.id, version: workingPending.expected_version }
+          : {},
+      );
+      if (
+        workingPending.expected_version &&
+        (!read.selected || read.selected.latest_version !== workingPending.expected_version)
+      ) {
+        if (read.selected?.latest_version) setWorkingConflict(read.selected.latest_version);
+        throw Error(
+          "This save was not applied because the draft changed. Your entries remain visible here for comparison.",
+        );
+      }
+      setEditContext({
+        kind: workingPending.expected_version ? "revision" : "new",
+        id: workingPending.id,
+        expected_version: workingPending.expected_version,
+        base: read.selected,
+        read,
+      });
+      setEdit(workingPending.application);
+      setIntent(workingPending.intent ?? {});
+      sessionStorage.removeItem(workingKey);
+      setWorkingPending(null);
+      setError("The working change was not applied. Your entries are restored for review.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function prepare() {
     if (!edit || !editContext) return;
     setBusy(true);
     setError("");
     try {
       const application = applicationSchema.parse(edit);
+      if (editContext.base?.working_state) {
+        const current = { ...application, state: "draft", certification: null };
+        if (
+          !sameWorkingValue(current, workingApplicationSchema.parse(editContext.base.body)) ||
+          !sameWorkingValue(intent, editContext.base.working_intent ?? {})
+        )
+          throw Error("Save working changes before reviewing the exact application version.");
+        if (
+          application.lines.some(
+            (line) =>
+              intent[line.item]?.basis === "this_period" &&
+              intent[line.item]?.amount_cents !== null &&
+              (line.prior_work_cents === null || line.work_cents === null),
+          )
+        )
+          throw Error(
+            "Prior installed work is Needed before reviewing this-period work. Your request remains in the working draft.",
+          );
+      }
       const payload: SavePayload = {
         id: editContext.id,
         request_id: editContext.recoveryRequestId ?? crypto.randomUUID(),
@@ -430,6 +647,38 @@ export function PaymentApplicationsPage({
       {data.isPending && !invalid && <p>Loading application records…</p>}
       {data.error && <p role="alert">{data.error.message} No other application was substituted.</p>}
       {error && <p role="alert">{error}</p>}
+      {target?.download && saved?.working_state && (
+        <p role="status">Review and save the application before downloading its document.</p>
+      )}
+      {workingPending && (
+        <section role="status">
+          <p>A working draft save may be pending. Check the outcome or retry the same request.</p>
+          <button disabled={busy} onClick={() => void recoverWorking()}>
+            Check working save
+          </button>
+          <button disabled={busy} onClick={() => void commitWorking(workingPending)}>
+            Retry working save
+          </button>
+          {workingConflict && (
+            <div>
+              <p>
+                Opening the latest version discards this unapplied attempt. Note any entries you
+                want to keep before continuing.
+              </p>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  sessionStorage.removeItem(workingKey);
+                  setWorkingPending(null);
+                  window.location.assign(applicationUrl(jobId, workingPending.id, workingConflict));
+                }}
+              >
+                Discard unapplied attempt and open latest version
+              </button>
+            </div>
+          )}
+        </section>
+      )}
       {pending && (
         <section role="status">
           <p>A reviewed save may be pending. Retry its same request to verify the saved outcome.</p>
@@ -458,7 +707,7 @@ export function PaymentApplicationsPage({
       )}
       {data.data && !invalid && !data.error && (
         <>
-          {saved && !edit && (
+          {saved && !edit && !saved.working_state && (
             <>
               <PaymentApplicationDetail jobId={jobId} saved={saved} />
               <div className="pa-actions">
@@ -500,6 +749,30 @@ export function PaymentApplicationsPage({
               </ul>
             </>
           )}
+          {saved && !edit && saved.working_state && (
+            <section>
+              <p>
+                Working draft · {saved.working_state} · version {saved.version}. No billing has been
+                issued.
+              </p>
+              {saved.version < saved.latest_version ? (
+                <a href={applicationUrl(jobId, saved.application_id, saved.latest_version)}>
+                  Open latest working version
+                </a>
+              ) : saved.working_state === "cancelled" ? (
+                <button
+                  disabled={busy || !!workingPending}
+                  onClick={() => void makeWorking("resume")}
+                >
+                  Resume working draft
+                </button>
+              ) : (
+                <button disabled={busy || !!workingPending} onClick={() => startRevision()}>
+                  Edit working draft
+                </button>
+              )}
+            </section>
+          )}
           {!edit && (
             <>
               <h2>Saved applications</h2>
@@ -508,8 +781,9 @@ export function PaymentApplicationsPage({
                   {data.data.applications.map((a) => (
                     <li key={a.id}>
                       <a href={applicationUrl(jobId, a.id, a.version)}>
-                        {a.number} · {a.state} · {a.period_start}–{a.period_end} · version{" "}
-                        {a.version}
+                        {a.number} · {a.working_state ? `working ${a.working_state}` : a.state} ·{" "}
+                        {a.period_start || "Period needed"}
+                        {a.period_end ? `–${a.period_end}` : ""} · version {a.version}
                       </a>
                     </li>
                   ))}
@@ -532,383 +806,475 @@ export function PaymentApplicationsPage({
           )}
           {edit && (
             <section className="pa-editor">
-              <h2>
-                {certificateMode
-                  ? "Record an actual certificate"
-                  : editContext?.expected_version
-                    ? "Revise application"
-                    : "Prepare application"}
-              </h2>
-              {certificateMode && editingBase && (
-                <>
-                  <p>
-                    This certificate refers to the unchanged issued request, version{" "}
-                    {editingBase.version}. Its period, SOV, amounts and prior sources stay frozen.
-                    No additional invoice is created.
-                  </p>
-                  <details>
-                    <summary>
-                      Issued request, version {editingBase.version} ·{" "}
-                      {appMoney(editingBase.calculation.payment_due_cents)}
-                    </summary>
-                    <PaymentApplicationDetail saved={editingBase} jobId={jobId} />
-                  </details>
-                  <TextInput
-                    label="Revision reason"
-                    value={edit.reason}
-                    onChange={(reason) => change({ reason })}
-                  />
-                </>
-              )}
-              {!certificateMode && (
-                <>
-                  <p>
-                    Blank means Needed. Enter cumulative installed work and currently stored
-                    materials, not purchases or cash. Moving stored materials into installed work
-                    must not count them twice.
-                  </p>
-                  <div className="pa-fields">
-                    <TextInput
-                      label="Application number"
-                      value={edit.number}
-                      onChange={(number) => change({ number })}
-                    />
-                    <TextInput
-                      label="Period start"
-                      type="date"
-                      value={edit.period_start}
-                      onChange={(period_start) => change({ period_start })}
-                    />
-                    <TextInput
-                      label="Period end / billing date"
-                      type="date"
-                      value={edit.period_end}
-                      onChange={(period_end) => change({ period_end })}
-                    />
-                    <TextInput
-                      label="Prior application cutoff"
-                      type="date"
-                      value={edit.prior_cutoff}
-                      onChange={(prior_cutoff) => change({ prior_cutoff })}
-                    />
-                    <label>
-                      Save state
-                      <select
-                        value={edit.state}
-                        onChange={(e) =>
-                          change({
-                            state: e.target.value as Application["state"],
-                            certification:
-                              e.target.value === "certified"
-                                ? { amount_cents: null as unknown as number, date: "", source: "" }
-                                : null,
-                          })
-                        }
+              <fieldset disabled={busy || !!pending || !!workingPending}>
+                {editContext?.base?.working_state &&
+                  data.data?.selected &&
+                  data.data.selected.latest_version > editContext.expected_version && (
+                    <p role="alert">
+                      This draft has newer changes. Your unsaved entries are still here.{" "}
+                      <a
+                        href={applicationUrl(
+                          jobId,
+                          editContext.id,
+                          data.data.selected.latest_version,
+                        )}
                       >
-                        <option value="draft">Draft</option>
-                        <option value="ready">Ready</option>
-                        <option value="submitted">Submitted</option>
-                        <option value="certified">Certified</option>
-                      </select>
-                    </label>
-                    <TextInput
-                      label="Progress/application source"
-                      value={edit.source}
-                      onChange={(source) => change({ source })}
-                    />
+                        Open the latest version to reconcile them.
+                      </a>
+                    </p>
+                  )}
+                <h2>
+                  {certificateMode
+                    ? "Record an actual certificate"
+                    : editContext?.expected_version
+                      ? "Revise application"
+                      : "Prepare application"}
+                </h2>
+                {certificateMode && editingBase && (
+                  <>
+                    <p>
+                      This certificate refers to the unchanged issued request, version{" "}
+                      {editingBase.version}. Its period, SOV, amounts and prior sources stay frozen.
+                      No additional invoice is created.
+                    </p>
+                    <details>
+                      <summary>
+                        Issued request, version {editingBase.version} ·{" "}
+                        {appMoney(editingBase.calculation.payment_due_cents)}
+                      </summary>
+                      <PaymentApplicationDetail saved={editingBase} jobId={jobId} />
+                    </details>
                     <TextInput
                       label="Revision reason"
                       value={edit.reason}
                       onChange={(reason) => change({ reason })}
                     />
-                  </div>
-                  <h3>Prior application and certificate</h3>
-                  {latestKnown && (
+                  </>
+                )}
+                {!certificateMode && (
+                  <>
                     <p>
-                      Continue from{" "}
-                      <a href={applicationUrl(jobId, latestKnown.id, latestKnown.version)}>
-                        {latestKnown.number}, version {latestKnown.version}
-                      </a>
-                      .{" "}
-                      {latestKnown.state === "submitted"
-                        ? "Record its actual certificate before preparing the next application."
-                        : "Its actual certificate and line values must carry forward; it cannot be classified as unrelated billing."}
+                      Blank means Needed. Choose this-period or cumulative work for each line.
+                      Stored materials are separate from purchases or cash; transfers into installed
+                      work must not be counted twice.
                     </p>
-                  )}
-                  <label>
-                    Prior basis
-                    <select
-                      value={edit.prior_mode}
-                      onChange={(e) =>
-                        change({
-                          prior_mode: e.target.value as Application["prior_mode"],
-                          prior_application: null,
-                        })
-                      }
-                    >
-                      <option value="external" disabled={!!latestKnown}>
-                        External certificate
-                      </option>
-                      <option value="first" disabled={!!latestKnown}>
-                        First application
-                      </option>
-                      <option value="saved">Saved certificate</option>
-                    </select>
-                  </label>
-                  {edit.prior_mode === "saved" && (
+                    <div className="pa-fields">
+                      <TextInput
+                        label="Application number"
+                        value={edit.number}
+                        onChange={(number) => change({ number })}
+                      />
+                      <TextInput
+                        label="Period start"
+                        type="date"
+                        value={edit.period_start}
+                        onChange={(period_start) => change({ period_start })}
+                      />
+                      <TextInput
+                        label="Period end / billing date"
+                        type="date"
+                        value={edit.period_end}
+                        onChange={(period_end) => change({ period_end })}
+                      />
+                      <TextInput
+                        label="Prior application cutoff"
+                        type="date"
+                        value={edit.prior_cutoff}
+                        onChange={(prior_cutoff) => change({ prior_cutoff })}
+                      />
+                      <label>
+                        Save state
+                        <select
+                          value={edit.state}
+                          onChange={(e) =>
+                            change({
+                              state: e.target.value as Application["state"],
+                              certification:
+                                e.target.value === "certified"
+                                  ? {
+                                      amount_cents: null as unknown as number,
+                                      date: "",
+                                      source: "",
+                                    }
+                                  : null,
+                            })
+                          }
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="ready">Ready</option>
+                          <option value="submitted">Submitted</option>
+                          <option value="certified">Certified</option>
+                        </select>
+                      </label>
+                      <TextInput
+                        label="Progress/application source"
+                        value={edit.source}
+                        onChange={(source) => change({ source })}
+                      />
+                      <TextInput
+                        label="Revision reason"
+                        value={edit.reason}
+                        onChange={(reason) => change({ reason })}
+                      />
+                    </div>
+                    <h3>Prior application and certificate</h3>
+                    {latestKnown && (
+                      <p>
+                        Continue from{" "}
+                        <a href={applicationUrl(jobId, latestKnown.id, latestKnown.version)}>
+                          {latestKnown.number}, version {latestKnown.version}
+                        </a>
+                        .{" "}
+                        {latestKnown.state === "submitted"
+                          ? "Record its actual certificate before preparing the next application."
+                          : "Its actual certificate and line values must carry forward; it cannot be classified as unrelated billing."}
+                      </p>
+                    )}
                     <label>
-                      Saved predecessor
+                      Prior basis
                       <select
-                        value={pendingPredecessor ?? edit.prior_application?.id ?? ""}
-                        onChange={(e) => void selectPredecessor(e.target.value)}
+                        value={edit.prior_mode}
+                        onChange={(e) =>
+                          change({
+                            prior_mode: e.target.value as Application["prior_mode"],
+                            prior_application: null,
+                          })
+                        }
                       >
-                        <option value="">Choose the actual prior certificate</option>
-                        {workingData!.applications
-                          .filter((a) => a.state === "certified" && a.id === latestKnown?.id)
-                          .map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.number} · version {a.version} · {a.period_end}
-                            </option>
-                          ))}
+                        <option value="external" disabled={!!latestKnown}>
+                          {edit.prior_certified_net_cents === null && !edit.prior_basis
+                            ? "External certificate · details needed"
+                            : "External certificate"}
+                        </option>
+                        <option value="first" disabled={!!latestKnown}>
+                          First application
+                        </option>
+                        <option value="saved">Saved certificate</option>
                       </select>
                     </label>
-                  )}
-                  {!!pendingPredecessor && (
-                    <p role="status">
-                      Loading the selected certificate. Current work entries will be preserved.
-                    </p>
-                  )}
-                  <div className="pa-fields">
-                    <MoneyInput
-                      label="Cumulative previous actual certificates, net"
-                      value={edit.prior_certified_net_cents}
-                      onChange={(prior_certified_net_cents) =>
-                        change({ prior_certified_net_cents })
-                      }
-                    />
-                    <TextInput
-                      label="Prior certificate source / first-application declaration"
-                      value={edit.prior_basis}
-                      onChange={(prior_basis) => change({ prior_basis })}
-                    />
-                    <TextInput
-                      label="Applicable retainage terms"
-                      value={edit.retainage_basis}
-                      onChange={(retainage_basis) => change({ retainage_basis })}
-                    />
-                  </div>
-                  <h3>Continuation schedule</h3>
-                  {edit.lines.map((l) => (
-                    <section className="pa-line" key={l.item}>
-                      <h3>
-                        {l.item} · {edit.snapshot.lines.find((s) => s.item === l.item)?.description}{" "}
-                        · scheduled{" "}
-                        {appMoney(
-                          edit.snapshot.lines.find((s) => s.item === l.item)?.scheduled_cents,
+                    {edit.prior_mode === "saved" && (
+                      <label>
+                        Saved predecessor
+                        <select
+                          value={pendingPredecessor ?? edit.prior_application?.id ?? ""}
+                          onChange={(e) => void selectPredecessor(e.target.value)}
+                        >
+                          <option value="">Choose the actual prior certificate</option>
+                          {workingData!.applications
+                            .filter((a) => a.state === "certified" && a.id === latestKnown?.id)
+                            .map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.number} · version {a.version} · {a.period_end}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
+                    {!!pendingPredecessor && (
+                      <p role="status">
+                        Loading the selected certificate. Current work entries will be preserved.
+                      </p>
+                    )}
+                    <div className="pa-fields">
+                      <MoneyInput
+                        label="Cumulative previous actual certificates, net"
+                        value={edit.prior_certified_net_cents}
+                        onChange={(prior_certified_net_cents) =>
+                          change({ prior_certified_net_cents })
+                        }
+                      />
+                      <TextInput
+                        label="Prior certificate source / first-application declaration"
+                        value={edit.prior_basis}
+                        onChange={(prior_basis) => change({ prior_basis })}
+                      />
+                      <TextInput
+                        label="Applicable retainage terms"
+                        value={edit.retainage_basis}
+                        onChange={(retainage_basis) => change({ retainage_basis })}
+                      />
+                    </div>
+                    <h3>Continuation schedule</h3>
+                    {edit.lines.map((l) => (
+                      <section className="pa-line" key={l.item}>
+                        <h3>
+                          {l.item} ·{" "}
+                          {edit.snapshot.lines.find((s) => s.item === l.item)?.description} ·
+                          scheduled{" "}
+                          {appMoney(
+                            edit.snapshot.lines.find((s) => s.item === l.item)?.scheduled_cents,
+                          )}
+                        </h3>
+                        {!certificateMode && (
+                          <div className="pa-fields">
+                            <label>
+                              Amount represents
+                              <select
+                                value={intent[l.item]?.basis ?? "this_period"}
+                                onChange={(e) => {
+                                  const next = {
+                                    ...intent,
+                                    [l.item]: {
+                                      basis: e.target.value as "this_period" | "cumulative",
+                                      amount_cents: intent[l.item]?.amount_cents ?? null,
+                                    },
+                                  };
+                                  setIntent(next);
+                                  setEdit((a) => (a ? deriveIntent(a, next) : a));
+                                  setReview(null);
+                                }}
+                              >
+                                <option value="this_period">This period</option>
+                                <option value="cumulative">Cumulative total</option>
+                              </select>
+                            </label>
+                            <MoneyInput
+                              label={`Requested work · ${l.item}`}
+                              value={intent[l.item]?.amount_cents ?? null}
+                              onChange={(amount_cents) => {
+                                const next = {
+                                  ...intent,
+                                  [l.item]: {
+                                    basis: intent[l.item]?.basis ?? "this_period",
+                                    amount_cents,
+                                  },
+                                };
+                                setIntent(next);
+                                setEdit((a) => (a ? deriveIntent(a, next) : a));
+                                setReview(null);
+                              }}
+                            />
+                          </div>
                         )}
-                      </h3>
-                      <div className="pa-fields">
-                        {(
-                          [
-                            ["prior_work_cents", "Prior installed"],
-                            ["prior_stored_cents", "Prior stored"],
-                            ["prior_retained_cents", "Prior retained"],
-                            ["work_cents", "Cumulative installed"],
-                            ["stored_cents", "Currently stored"],
-                            [
-                              "stored_to_work_cents",
-                              "Transferred from prior storage into installed work",
-                            ],
-                            ["release_cents", "Cumulative approved release"],
-                          ] as const
-                        ).map(([key, label]) => (
-                          <MoneyInput
-                            key={key}
-                            label={label}
-                            value={l[key]}
-                            onChange={(n) => lineChange(l.item, { [key]: n })}
-                          />
-                        ))}
-                        {(["work_retainage_bps", "stored_retainage_bps"] as const).map((key) => (
-                          <RateInput
-                            key={key}
-                            label={
-                              key === "work_retainage_bps" ? "Work retainage" : "Stored retainage"
-                            }
-                            value={l[key]}
-                            onChange={(n) => lineChange(l.item, { [key]: n })}
-                          />
-                        ))}
-                        <TextInput
-                          label="Stored material evidence and eligibility"
-                          value={l.stored_basis}
-                          onChange={(stored_basis) => lineChange(l.item, { stored_basis })}
-                        />
-                        <TextInput
-                          label="Retainage release approval/source"
-                          value={l.release_basis}
-                          onChange={(release_basis) => lineChange(l.item, { release_basis })}
-                        />
-                      </div>
-                    </section>
-                  ))}
-                  <h3>Reconcile existing issued billing</h3>
-                  <p>
-                    Classify every record explicitly. Prior invoices, credits and cash do not
-                    automatically become certificates. A prior requested amount above actual
-                    certification must be reconciled before issuing another application.
-                  </p>
-                  {workingData!.evidence.map((e) => {
-                    const choice = edit.evidence.find((c) => c.id === e.id);
-                    return (
-                      <section className="pa-line" key={e.id}>
-                        <p>
-                          {e.number} · {e.kind} · version {e.version} · {e.invoice_date} · net{" "}
-                          {appMoney(e.net_due_cents)}
-                        </p>
-                        <label>
-                          Relationship
-                          <select
-                            value={choice?.treatment ?? ""}
-                            onChange={(ev) =>
-                              change({
-                                evidence: [
-                                  ...edit.evidence.filter((c) => c.id !== e.id),
-                                  ...(ev.target.value
-                                    ? [
-                                        {
-                                          id: e.id,
-                                          version: e.version,
-                                          treatment: ev.target.value as
-                                            | "prior_billing"
-                                            | "separate",
-                                          reason: choice?.reason ?? "",
-                                        },
-                                      ]
-                                    : []),
+                        <details>
+                          <summary>Prior work, storage and retainage details</summary>
+                          <div className="pa-fields">
+                            {(
+                              [
+                                ["prior_work_cents", "Prior installed"],
+                                ["prior_stored_cents", "Prior stored"],
+                                ["prior_retained_cents", "Prior retained"],
+                                ["work_cents", "Cumulative installed"],
+                                ["stored_cents", "Currently stored"],
+                                [
+                                  "stored_to_work_cents",
+                                  "Transferred from prior storage into installed work",
                                 ],
-                              })
-                            }
-                          >
-                            <option value="">Needed</option>
-                            <option value="prior_billing">
-                              Prior billing supporting this certificate basis
-                            </option>
-                            <option
-                              value="separate"
-                              disabled={
-                                managedPriorIds.has(e.id) ||
-                                (!!e.credit_for && managedPriorIds.has(e.credit_for))
+                                ["release_cents", "Cumulative approved release"],
+                              ] as const
+                            ).map(([key, label]) => (
+                              <MoneyInput
+                                key={key}
+                                label={label}
+                                value={l[key]}
+                                onChange={(n) => lineChange(l.item, { [key]: n })}
+                              />
+                            ))}
+                            {(["work_retainage_bps", "stored_retainage_bps"] as const).map(
+                              (key) => (
+                                <RateInput
+                                  key={key}
+                                  label={
+                                    key === "work_retainage_bps"
+                                      ? "Work retainage"
+                                      : "Stored retainage"
+                                  }
+                                  value={l[key]}
+                                  onChange={(n) => lineChange(l.item, { [key]: n })}
+                                />
+                              ),
+                            )}
+                            <TextInput
+                              label="Stored material evidence and eligibility"
+                              value={l.stored_basis}
+                              onChange={(stored_basis) => lineChange(l.item, { stored_basis })}
+                            />
+                            <TextInput
+                              label="Retainage release approval/source"
+                              value={l.release_basis}
+                              onChange={(release_basis) => lineChange(l.item, { release_basis })}
+                            />
+                          </div>
+                        </details>
+                      </section>
+                    ))}
+                    <h3>Reconcile existing issued billing</h3>
+                    <p>
+                      Classify every record explicitly. Prior invoices, credits and cash do not
+                      automatically become certificates. A prior requested amount above actual
+                      certification must be reconciled before issuing another application.
+                    </p>
+                    {workingData!.evidence.map((e) => {
+                      const choice = edit.evidence.find((c) => c.id === e.id);
+                      return (
+                        <section className="pa-line" key={e.id}>
+                          <p>
+                            {e.number} · {e.kind} · version {e.version} · {e.invoice_date} · net{" "}
+                            {appMoney(e.net_due_cents)}
+                          </p>
+                          <label>
+                            Relationship
+                            <select
+                              value={choice?.treatment ?? ""}
+                              onChange={(ev) =>
+                                change({
+                                  evidence: [
+                                    ...edit.evidence.filter((c) => c.id !== e.id),
+                                    ...(ev.target.value
+                                      ? [
+                                          {
+                                            id: e.id,
+                                            version: e.version,
+                                            treatment: ev.target.value as
+                                              | "prior_billing"
+                                              | "separate",
+                                            reason: choice?.reason ?? "",
+                                          },
+                                        ]
+                                      : []),
+                                  ],
+                                })
                               }
                             >
-                              Separate scope/evidence · explain why not carried forward
-                            </option>
-                          </select>
-                        </label>
-                        {choice && (
-                          <TextInput
-                            label="Reconciliation basis"
-                            value={choice.reason}
-                            onChange={(reason) =>
-                              change({
-                                evidence: edit.evidence.map((c) =>
-                                  c.id === e.id ? { ...c, reason } : c,
-                                ),
-                              })
-                            }
-                          />
-                        )}
-                      </section>
-                    );
-                  })}
-                </>
-              )}
-              {edit.certification && (
-                <>
-                  <h3>Actual certificate</h3>
-                  <div className="pa-fields">
-                    <MoneyInput
-                      label="Amount certified for this application"
-                      value={edit.certification.amount_cents}
-                      onChange={(amount_cents) =>
-                        change({
-                          certification: {
-                            ...edit.certification!,
-                            amount_cents: amount_cents as number,
-                          },
-                        })
-                      }
-                    />
-                    <TextInput
-                      label="Certificate date"
-                      type="date"
-                      value={edit.certification.date}
-                      onChange={(date) =>
-                        change({ certification: { ...edit.certification!, date } })
-                      }
-                    />
-                    <TextInput
-                      label="Certificate source"
-                      value={edit.certification.source}
-                      onChange={(source) =>
-                        change({ certification: { ...edit.certification!, source } })
-                      }
-                    />
-                  </div>
-                </>
-              )}
-              <div className="pa-actions">
-                <button
-                  disabled={busy || !!pending || !!pendingPredecessor}
-                  className="pa-primary"
-                  onClick={() => void prepare()}
-                >
-                  {certificateMode ? "Review certificate" : "Review application"}
-                </button>
-                <button
-                  disabled={busy || !!pending}
-                  onClick={() => {
-                    setEdit(null);
-                    setEditContext(null);
-                    setReview(null);
-                  }}
-                >
-                  Cancel editing
-                </button>
-              </div>
-              {review && (
-                <section className="pa-review">
-                  <h2>Review only · nothing saved yet</h2>
-                  <PaymentApplicationDetail
-                    saved={{
-                      application_id: review.payload.id,
-                      version: review.payload.expected_version + 1,
-                      latest_version: review.payload.expected_version + 1,
-                      body: review.payload.application,
-                      calculation: review.calculation,
-                      billing_version: null,
-                      recorded_at: "Not saved yet",
-                      history: [],
-                    }}
-                  />
-                  <p>{review.billing_effect}</p>
-                  <p>
-                    Review valid until {review.expires_at}. Confirming saves this exact reviewed
-                    content.
-                  </p>
+                              <option value="">Needed</option>
+                              <option value="prior_billing">
+                                Prior billing supporting this certificate basis
+                              </option>
+                              <option
+                                value="separate"
+                                disabled={
+                                  managedPriorIds.has(e.id) ||
+                                  (!!e.credit_for && managedPriorIds.has(e.credit_for))
+                                }
+                              >
+                                Separate scope/evidence · explain why not carried forward
+                              </option>
+                            </select>
+                          </label>
+                          {choice && (
+                            <TextInput
+                              label="Reconciliation basis"
+                              value={choice.reason}
+                              onChange={(reason) =>
+                                change({
+                                  evidence: edit.evidence.map((c) =>
+                                    c.id === e.id ? { ...c, reason } : c,
+                                  ),
+                                })
+                              }
+                            />
+                          )}
+                        </section>
+                      );
+                    })}
+                  </>
+                )}
+                {edit.certification && (
+                  <>
+                    <h3>Actual certificate</h3>
+                    <div className="pa-fields">
+                      <MoneyInput
+                        label="Amount certified for this application"
+                        value={edit.certification.amount_cents}
+                        onChange={(amount_cents) =>
+                          change({
+                            certification: {
+                              ...edit.certification!,
+                              amount_cents: amount_cents as number,
+                            },
+                          })
+                        }
+                      />
+                      <TextInput
+                        label="Certificate date"
+                        type="date"
+                        value={edit.certification.date}
+                        onChange={(date) =>
+                          change({ certification: { ...edit.certification!, date } })
+                        }
+                      />
+                      <TextInput
+                        label="Certificate source"
+                        value={edit.certification.source}
+                        onChange={(source) =>
+                          change({ certification: { ...edit.certification!, source } })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="pa-actions">
+                  {!certificateMode &&
+                    !["submitted", "certified"].includes(editingBase?.body.state ?? "") && (
+                      <button
+                        disabled={busy || !!pending || !!workingPending}
+                        onClick={() => void makeWorking("save")}
+                      >
+                        Save working changes
+                      </button>
+                    )}
+                  {editContext?.base?.working_state === "open" && (
+                    <button
+                      disabled={busy || !!pending || !!workingPending}
+                      onClick={() => void makeWorking("cancel")}
+                    >
+                      Cancel working draft
+                    </button>
+                  )}
+                  <button
+                    disabled={busy || !!pending || !!workingPending || !!pendingPredecessor}
+                    className="pa-primary"
+                    onClick={() => void prepare()}
+                  >
+                    {certificateMode ? "Review certificate" : "Review application"}
+                  </button>
                   <button
                     disabled={busy || !!pending}
-                    className="pa-primary"
-                    onClick={() => void save({ ...review.payload, review_key: review.review_key })}
+                    onClick={() => {
+                      setEdit(null);
+                      setEditContext(null);
+                      setReview(null);
+                    }}
                   >
-                    {edit.state === "submitted"
-                      ? "Confirm submission"
-                      : edit.state === "certified"
-                        ? "Confirm actual certificate"
-                        : `Save ${edit.state === "draft" ? "draft" : "ready application"}`}
+                    Cancel editing
                   </button>
-                </section>
-              )}
+                </div>
+                {review && (
+                  <section className="pa-review">
+                    <h2>Review only · nothing saved yet</h2>
+                    <PaymentApplicationDetail
+                      saved={{
+                        application_id: review.payload.id,
+                        version: review.payload.expected_version + 1,
+                        latest_version: review.payload.expected_version + 1,
+                        body: review.payload.application,
+                        calculation: review.calculation,
+                        billing_version: null,
+                        recorded_at: "Not saved yet",
+                        history: [],
+                      }}
+                    />
+                    <p>{review.billing_effect}</p>
+                    <p>
+                      Review valid until {review.expires_at}. Confirming saves this exact reviewed
+                      content.
+                    </p>
+                    <button
+                      disabled={busy || !!pending}
+                      className="pa-primary"
+                      onClick={() =>
+                        void save({ ...review.payload, review_key: review.review_key })
+                      }
+                    >
+                      {edit.state === "submitted"
+                        ? "Confirm submission"
+                        : edit.state === "certified"
+                          ? "Confirm actual certificate"
+                          : `Save ${edit.state === "draft" ? "draft" : "ready application"}`}
+                    </button>
+                  </section>
+                )}
+              </fieldset>
             </section>
           )}
         </>
