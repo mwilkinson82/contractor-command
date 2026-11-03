@@ -25,7 +25,7 @@ async function transport(protectedServer = true) {
   const { privateKey, publicKey } = await generateKeyPair("ES256");
   const jwk = { ...await exportJWK(publicKey), kid: "synthetic" };
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({ keys: [jwk] })));
-  const token = await new SignJWT({ client_id: "synthetic-client" }).setProtectedHeader({ alg: "ES256", kid: "synthetic" })
+  const token = await new SignJWT({ client_id: "synthetic-client" }).setProtectedHeader({ alg: "ES256", kid: "synthetic", typ: "at+jwt" })
     .setIssuer(issuer).setAudience("synthetic-mcp").setSubject("synthetic-user").setIssuedAt().setExpirationTime("5m").sign(privateKey);
   const server = defineMcp({ name: "synthetic", title: "Synthetic", version: "test", instructions: "Synthetic only", metrics: false,
     tools: [estimateBidSummary], ...(protectedServer ? { auth: auth.oauth.issuer({ issuer, jwksUri: issuer + "/jwks", acceptedAudiences: "synthetic-mcp", requireOAuthClientClaim: true }) } : {}) });
@@ -73,7 +73,7 @@ describe("local estimate real SDK discovery and widget contract", () => {
   });
   it.each([{ export_delivery: "other" }, { expected_version: -1 }, { expected_version: 1.5 }, { expected_source_sha256: "invalid" }, { unknown_argument: true }])("rejects schema-invalid widget arguments %j before preparation", async (invalid) => {
     const post = await transport(); const result = await post("tools/call", { name: "estimate_bid_summary", arguments: { job_number: "SYNTHETIC", export_format: "pdf", ...invalid } });
-    expect(Boolean(result.body.error || result.body.result?.isError)).toBe(true); expect(state.prepared).not.toHaveBeenCalled();
+    expect(result.status).toBe(200); expect(Boolean(result.body.error || result.body.result?.isError)).toBe(true); expect(state.prepared).not.toHaveBeenCalled();
   });
   it("rejects unsigned transport and unauthorized jobs", async () => {
     const post = await transport();
