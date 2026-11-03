@@ -23,6 +23,10 @@ describe("local download tool authorization and no summary writes", () => {
   it("never enters the summary audit or save RPCs", async () => {
     await call(); expect(state.audit).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled(); expect(state.prepared).toHaveBeenCalledOnce();
   });
+  it("requires a file format for a local request rather than falling into summary writes", async () => {
+    await expect(call({ export_format: undefined })).rejects.toThrow(/Choose PDF or XLSX/);
+    expect(state.audit).not.toHaveBeenCalled(); expect(state.prepared).not.toHaveBeenCalled();
+  });
   it("rejects unauthenticated requests before generating bytes", async () => {
     state.authenticated = false; await expect(call()).rejects.toThrow(/authenticated/); expect(state.prepared).not.toHaveBeenCalled();
   });

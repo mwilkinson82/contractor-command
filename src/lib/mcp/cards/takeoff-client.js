@@ -351,6 +351,7 @@
         file.company_id !== expected.company_id || file.job_id !== expected.job_id ||
         (expected.snapshot_version !== undefined && file.snapshot_version !== expected.snapshot_version) ||
         (expected.source_sha256 !== undefined && file.source_sha256 !== expected.source_sha256) ||
+        typeof file.source_sha256 !== "string" || typeof file.sha256 !== "string" ||
         !/^[a-f0-9]{64}$/.test(file.source_sha256) || !/^[a-f0-9]{64}$/.test(file.sha256) ||
         !Number.isSafeInteger(file.size) || file.size < 1 || file.size > 10485760 ||
         typeof file.content_base64 !== "string" || file.content_base64.length !== Math.ceil(file.size / 3) * 4 ||
@@ -383,6 +384,7 @@
     var exportContext = sc.local_export_context || (sc.bid_summary && sc.bid_summary.local_export_context);
     if (sc.estimate_local_export) {
       var holder = node("div"); target.append(holder);
+      target.append(node("p", "Persistent export storage is unavailable. Local copies cannot be revoked and are not shared links.", "note"));
       var generation = exportGeneration;
       validateLocalExport(sc.local_export, sc.context).then(function (file) {
         if (generation !== exportGeneration) return;
