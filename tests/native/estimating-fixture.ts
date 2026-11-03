@@ -1,6 +1,6 @@
 // Synthetic fixture only. It opens no native connection and accepts no database URL.
 // The caller owns the already-authorized PGlite/native lifecycle and adapter.
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { makeBuyoutDb, ids } from "../buyout/fixture";
 import { makeDb } from "../mcp-roles/db";
@@ -227,6 +227,20 @@ export async function assertEstimatingRpcPrivileges(db: QueryDb) {
   }
 }
 
+// Test harness only. Production would pin each expected hash independently.
+export function wrapVerifiedMigration(sql: string, expected?: string): string {
+  const bytes = Buffer.from(sql, "utf8");
+  const sha = expected ?? createHash("sha256").update(bytes).digest("hex");
+  if (!/^[0-9a-f]{64}$/.test(sha)) throw new Error("Invalid pinned SHA-256");
+  const encoded = bytes.toString("base64");
+  return `DO $verified_migration$ DECLARE payload bytea := decode('${encoded}', 'base64'); BEGIN
+    IF encode(sha256(payload), 'hex') IS DISTINCT FROM '${sha}' THEN
+      RAISE EXCEPTION 'Migration payload SHA-256 mismatch';
+    END IF;
+    EXECUTE convert_from(payload, 'UTF8');
+  END $verified_migration$;`;
+}
+
 export async function installEstimatingFixture(
   createDb: FixtureFactory = makeDb as unknown as FixtureFactory,
 ): Promise<FixtureDb> {
@@ -273,7 +287,27 @@ export async function installEstimatingFixture(
        VALUES('athena-estimate-exports','athena-estimate-exports',false,10485760,
          ARRAY['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']::text[])`,
     );
-    for (const path of fixtureProposalPaths) await db.exec(read(path));
+    const good = "CREATE TABLE public.integrity_corruption_probe(n int);";
+    const changed = "CREATE TABLE public.integrity_corruption_probe(n bigint);";
+    const pinned = createHash("sha256").update(good).digest("hex");
+    let rejected = false;
+    try { await db.exec(wrapVerifiedMigration(changed, pinned)); } catch (error) {
+      if (!String(error).includes("Migration payload SHA-256 mismatch")) throw error;
+      rejected = true;
+    }
+    if (!rejected || (await db.query("SELECT to_regclass('public.integrity_corruption_probe') AS t")).rows[0].t !== null)
+      throw new Error("Corrupted payload was not rejected before execution");
+    let rolledBack = false;
+    try { await db.exec(wrapVerifiedMigration("CREATE TABLE public.integrity_rollback_probe(n int); SELECT 1/0;")); } catch (error) {
+      if (!String(error).includes("division by zero")) throw error;
+      rolledBack = true;
+    }
+    if (!rolledBack || (await db.query("SELECT to_regclass('public.integrity_rollback_probe') AS t")).rows[0].t !== null)
+      throw new Error("Failed wrapped payload was not rolled back");
+    for (let i = 0; i < fixtureProposalPaths.length; i++) {
+      const text = read(fixtureProposalPaths[i]);
+      await db.exec(i >= 1 && i <= 7 ? wrapVerifiedMigration(text) : text);
+    }
     await assertEstimatingRpcPrivileges(db);
     await readAuthorizationFingerprints(db);
     return db;
