@@ -9339,6 +9339,24 @@ export type Database = {
         Returns: Json
       }
       mcp_estimate_coverage_snapshot: { Args: { _job: string }; Returns: Json }
+      mcp_estimate_destination_save: {
+        Args: {
+          _basis?: string
+          _budget?: Json
+          _draft_basis?: string
+          _draft_fee_pct?: number
+          _expected_version: number
+          _fee_pct?: number
+          _job: string
+          _sov?: Json
+          _sov_draft?: Json
+        }
+        Returns: Json
+      }
+      mcp_estimate_destination_snapshot: {
+        Args: { _job: string }
+        Returns: Json
+      }
       mcp_estimate_gaps_save: {
         Args: { _items: Json; _job: string }
         Returns: Json
