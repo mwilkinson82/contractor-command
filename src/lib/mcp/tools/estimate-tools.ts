@@ -101,6 +101,7 @@ import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
 import type { CardModel } from "../cards/model";
 import { guide } from "../visible";
+import { CALLER_RATE_NOTICE } from "../estimate-summary-pdf";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -1472,6 +1473,14 @@ export const estimateBuild = defineTool({
           bought: r.bought ?? null,
         }));
         const view = renderSummary(`${named(job)}`, state, rates, loaded.revision);
+        // This older worksheet uses rates supplied in this call, not the saved
+        // quote coverage or canonical bid calculation. Keep that distinction
+        // in the response and every generated PDF, even if pricing changes while
+        // the PDF is being rendered.
+        view.text += `\n${CALLER_RATE_NOTICE}`;
+        view.structured.pricing_basis = "caller_unit_rates";
+        view.structured.reviewed_bid = false;
+        view.guidance.push(CALLER_RATE_NOTICE);
         if (measurement) await appendMeasuredSheets(sb, job, measurement, view);
         await rpc(sb, "mcp_estimate_setup_save", {
           _job: job.job_id,
@@ -1492,13 +1501,18 @@ export const estimateBuild = defineTool({
           const rows = view.structured.rows as
             { title: string; qty: string; rate: string; extension: string | null }[] | undefined;
           return viewEngine(sb, job, measurement, undefined, {
-            report_title: view.structured.draft ? "Estimate summary · Draft" : "Estimate summary",
+            report_title: view.structured.draft
+              ? "Caller-rate estimate summary · Draft"
+              : "Caller-rate estimate summary",
             estimate_summary: view.structured,
             downloads: view.structured.pdf_volumes,
-            report_rows: (rows ?? []).map(
-              (r) =>
-                `${r.title} · ${r.qty} · Rate ${r.rate}${r.extension ? ` · Extension ${r.extension}` : ""}`,
-            ),
+            report_rows: [
+              CALLER_RATE_NOTICE,
+              ...(rows ?? []).map(
+                (r) =>
+                  `${r.title} · ${r.qty} · Rate ${r.rate}${r.extension ? ` · Extension ${r.extension}` : ""}`,
+              ),
+            ],
           });
         }
         return reply(view);

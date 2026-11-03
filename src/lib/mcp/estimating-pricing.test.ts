@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { calculateEstimatePricing, mergePricingRates, type MaterialIn } from "./estimating-pricing";
-import { gcLineAmount, type LaborIn, type RateChoice } from "./estimating-bid";
+import {
+  calculateEstimatePricing,
+  duplicateRateSourceIds,
+  mergePricingRates,
+  type MaterialIn,
+} from "./estimating-pricing";
+import { assembleBid, gcLineAmount, type LaborIn, type RateChoice } from "./estimating-bid";
+import { parseState, settle } from "./estimating";
 
 const line = {
   ref: "T-1",
@@ -28,6 +34,195 @@ const calculate = (lab = [labor], mat = [material], sources: RateChoice[] = []) 
   calculateEstimatePricing([line], { labor: lab, material: mat, sources });
 
 describe("canonical component pricing", () => {
+  it.each([
+    { ...source, carry: "false" },
+    { ...source, carry: "true" },
+    { ...source, carry: 1 },
+    { ...source, carry: null },
+    { ...source, confirmed: "true" },
+    { ...source, confirmed: null },
+    { ...source, metro: "unknown" },
+    { ...source, work_type: 3 },
+  ])("holds malformed historical rate-source decisions rather than coercing them", (invalid) => {
+    const priced = calculate(
+      [{ ...labor, apply_factor: true }],
+      [material],
+      [invalid as unknown as RateChoice],
+    );
+    expect(priced.blockers.join(" ")).toMatch(/rate source.*invalid/i);
+    expect(priced.rows[0].labor.amount).toBeNull();
+    expect(
+      assembleBid({
+        direct: priced.direct,
+        directPlaceholder: priced.placeholder,
+        directBlockers: priced.blockers,
+        gc: [],
+        requirements: [],
+        overheadPct: 10,
+        profitPct: 10,
+        settled: true,
+      }),
+    ).toMatchObject({ ready: false, total: null });
+  });
+  it.each([
+    { ...labor, confirmed: "false" },
+    { ...labor, confirmed: "true" },
+    { ...labor, apply_factor: "false" },
+    { ...labor, apply_factor: "true" },
+    { ...labor, apply_factor: null },
+  ])(
+    "holds invalid direct labor decisions instead of treating strings as confirmation",
+    (invalid) => {
+      const priced = calculate([invalid as unknown as LaborIn]);
+      expect(priced.blockers.join(" ")).toMatch(/labor rate.*invalid/i);
+      expect(priced.rows[0].labor.amount).toBeNull();
+      expect(
+        assembleBid({
+          direct: priced.direct,
+          directPlaceholder: priced.placeholder,
+          directBlockers: priced.blockers,
+          gc: [],
+          requirements: [],
+          overheadPct: 0,
+          profitPct: 0,
+          settled: true,
+        }),
+      ).toMatchObject({ ready: false, total: null });
+    },
+  );
+  it.each([
+    { ...material, confirmed: "true" },
+    { ...material, apply_factor: "false" },
+  ])("holds invalid direct material decisions", (invalid) => {
+    const priced = calculate([labor], [invalid as unknown as MaterialIn]);
+    expect(priced.blockers.join(" ")).toMatch(/material rate.*invalid/i);
+    expect(priced.rows[0].material.amount).toBeNull();
+  });
+  it("accepts actual booleans and treats optional null factor values as absent", () => {
+    expect(
+      calculate(
+        [labor],
+        [material],
+        [{ ...source, carry: false, location_factor: null, work_factor: null }],
+      ).blockers,
+    ).toEqual([]);
+  });
+  it.each([false, true])(
+    "holds historically duplicated factor decisions even if only one carries and regardless of order (%s)",
+    (reverse) => {
+      const historical = [source, { ...source, carry: false }];
+      if (reverse) historical.reverse();
+      const priced = calculate([{ ...labor, apply_factor: true }], [material], historical);
+      expect(duplicateRateSourceIds(historical)).toEqual(["rsmeans"]);
+      expect(priced.blockers.join(" ")).toContain("Rate source rsmeans");
+      const result = assembleBid({
+        direct: priced.direct,
+        directPlaceholder: priced.placeholder,
+        directBlockers: priced.blockers,
+        gc: [],
+        requirements: [],
+        overheadPct: 10,
+        profitPct: 10,
+        settled: true,
+      });
+      expect(result).toMatchObject({ ready: false, total: null });
+    },
+  );
+  it("treats even identical or unused duplicate sources as unresolved and accepts distinct sources", () => {
+    expect(calculate([labor], [material], [source, { ...source }]).blockers.join(" ")).toContain(
+      "Rate source rsmeans",
+    );
+    expect(duplicateRateSourceIds([{ source: "RSMeans" }, { source: " rsmeans " }])).toEqual([
+      "rsmeans",
+    ]);
+    expect(
+      calculate([labor], [material], [source, { source: "neca", carry: false }]).blockers,
+    ).toEqual([]);
+  });
+  it.each([null, { source: "unknown", carry: true, location_factor: 1.2, confirmed: true }])(
+    "holds a malformed historical factor source rather than trusting it or crashing",
+    (badSource) => {
+      const priced = calculate(
+        [{ ...labor, apply_factor: true }],
+        [material],
+        [badSource as RateChoice],
+      );
+      expect(priced.blockers.join(" ")).toContain("unknown or missing identity");
+      expect(
+        assembleBid({
+          direct: priced.direct,
+          directPlaceholder: priced.placeholder,
+          directBlockers: priced.blockers,
+          gc: [],
+          requirements: [],
+          overheadPct: 10,
+          profitPct: 10,
+          settled: true,
+        }),
+      ).toMatchObject({ ready: false, total: null });
+    },
+  );
+  it.each([
+    { kind: "verify", qty: 15, line_no: null, owner: null },
+    { kind: "verify", qty: null, line_no: null, owner: "Estimator" },
+    { kind: "seen", qty: null, line_no: 1, owner: null },
+  ])("holds settled gap scope even with quantity, owner, or an apparent line link: %j", (gap) => {
+    const raw = parseState({
+      setup: { role: "gc", trades: ["09 Finishes"], in_scope: ["Paint only"] },
+      takeoff: {
+        version: 1,
+        lines: [{ line_no: 1, item: "Paint", qty: 100, unit: "SF", sheet: "A1" }],
+      },
+      gaps: [
+        {
+          ref: "G-1",
+          kind: gap.kind,
+          title: "Additional work",
+          qty: gap.qty,
+          line_no: gap.line_no,
+          sheet: "A1",
+          spec_section: "09",
+        },
+      ],
+      verdicts: gap.owner
+        ? [
+            {
+              item_kind: "gap",
+              gap_ref: "G-1",
+              item_text: "Additional work",
+              mark: "relevant",
+              owner: gap.owner,
+            },
+          ]
+        : [],
+    });
+    const state = settle(raw.lines, raw.gaps, raw.verdicts, raw.setup);
+    expect(state.settled).toBe(true);
+    const priced = calculateEstimatePricing(state.items, {
+      labor: [labor],
+      material: [material],
+      sources: [],
+    });
+    expect(priced.blockers.join(" ")).toContain("G-1");
+    const bid = assembleBid({
+      direct: priced.direct,
+      directPlaceholder: priced.placeholder,
+      directBlockers: priced.blockers,
+      gc: [],
+      requirements: [],
+      overheadPct: 10,
+      profitPct: 10,
+      settled: state.settled,
+    });
+    expect(bid).toMatchObject({ ready: false, total: null });
+    const dropped = state.items.map((item) =>
+      item.ref === "G-1" ? { ...item, status: "dropped" as const } : item,
+    );
+    expect(
+      calculateEstimatePricing(dropped, { labor: [labor], material: [material], sources: [] })
+        .blockers,
+    ).toEqual([]);
+  });
   it.each([
     {
       label: "confirmation",
