@@ -1,0 +1,72 @@
+name: Estimating native PostgreSQL acceptance
+
+# Publishing, dispatching or adding its explicit run approval label
+# needs applicable authority. Publication alone does not opt a PR into this job.
+on:
+  pull_request:
+    branches: [codex/athena-passwordless-login-only]
+    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-estimating:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'run-estimating-native'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: synthetic
+          POSTGRES_DB: athena_estimating_ci
+          POSTGRES_PASSWORD: synthetic-${{ github.run_id }}-${{ github.run_attempt }}
+        ports:
+          - 127.0.0.1:55440:5432
+        options: >-
+          --health-cmd "pg_isready -U synthetic -d athena_estimating_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.1.0'
+      - name: Fresh frozen install
+        run: |
+          node --version
+          npm --version
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          git diff --exit-code -- package.json package-lock.json bun.lock
+          mkdir -p artifacts/estimating-native
+          node -e "const fs=require('node:fs'),c=require('node:crypto'),cp=require('node:child_process');fs.writeFileSync('artifacts/estimating-native/install-receipt.json',JSON.stringify({source:process.env.GITHUB_SHA,node:process.version,npm:cp.execFileSync('npm',['--version'],{encoding:'utf8'}).trim(),command:'npm ci --legacy-peer-deps --no-audit --no-fund',completed:true,files:['package.json','package-lock.json','bun.lock'].map(path=>({path,sha256:c.createHash('sha256').update(fs.readFileSync(path)).digest('hex')}))},null,2))"
+      - name: Build and focused source controls
+        run: |
+          npm run build
+          node node_modules/typescript/bin/tsc --noEmit
+          node node_modules/typescript/bin/tsc --noEmit -p tests/native/tsconfig.json
+          node node_modules/vitest/vitest.mjs run src/lib/mcp/estimating-native-fixture.test.ts src/lib/mcp/estimating-coverage-db.test.ts src/lib/mcp/estimating-destination-versions.test.ts src/lib/mcp/estimating-facts-handoff-flow.test.ts src/lib/mcp/estimating-handoff-flow.test.ts --maxWorkers=2
+      - name: Prepare native runner from existing dependencies
+        run: node scripts/build-estimating-native.mjs
+      - name: Mask synthetic disposable-service password
+        run: echo "::add-mask::synthetic-${{ github.run_id }}-${{ github.run_attempt }}"
+      - name: Exercise native transactions and actual authorization functions
+        env:
+          ATHENA_ESTIMATING_NATIVE_TEST: '1'
+          ATHENA_ESTIMATING_NATIVE_PASSWORD: synthetic-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node artifacts/estimating-native/runner.mjs
+      - name: Retain exact native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: estimating-native-${{ github.sha }}
+          path: |
+            artifacts/estimating-native/results.json
+            artifacts/estimating-native/install-receipt.json
+          if-no-files-found: warn

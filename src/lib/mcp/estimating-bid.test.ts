@@ -62,6 +62,30 @@ describe("labor, markup, and the basis", () => {
     expect(basisCheck(1000, null, 1200).flag).toBe("open");
   });
 
+  it.each(["office", "supervision"])("holds malformed confirmation on %s", (key) => {
+    const row = gcLineAmount({ key, amount: 100, confirmed: "false" as unknown as boolean });
+    expect(row.placeholder).toBe(true);
+    expect(
+      assembleBid({
+        direct: 0,
+        directPlaceholder: false,
+        gc: [
+          {
+            label: key,
+            amount: row.amount,
+            placeholder: row.placeholder,
+            risk: false,
+            note: row.math,
+          },
+        ],
+        requirements: [],
+        overheadPct: 0,
+        profitPct: 0,
+        settled: true,
+      }),
+    ).toMatchObject({ ready: false, breakdown: null });
+  });
+
   it("leaves supervision blank until the schedule duration is known", () => {
     const open = gcLineAmount({ key: "supervision", rate: 1500 });
     expect(open.amount).toBeNull();

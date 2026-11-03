@@ -11,26 +11,75 @@ const fixture = vi.hoisted(() => ({
   measurement: null as EngineSnapshot | null,
   failSaveOnce: false,
   failAuditOnce: false,
+  concurrentQuotes: null as unknown[] | null,
+  version: 1,
+  oldSchema: false,
 }));
 vi.mock("./guard", () => ({
   run: async (_name: string, _ctx: unknown, _opts: unknown, fn: (sb: unknown) => unknown) =>
     fn({
       rpc: async (name: string, args: Record<string, unknown>) => {
+        if (name === "mcp_estimate_coverage_snapshot")
+          return fixture.oldSchema
+            ? { data: null, error: { code: "PGRST202", message: "function missing" } }
+            : {
+                data: structuredClone({
+                  version: fixture.version,
+                  estimate: fixture.estimate,
+                  takeoff: fixture.measurement,
+                  bid: fixture.bid,
+                  selection: null,
+                  // This isolated pricing unit assumes a completed empty-source
+                  // review; real scan binding is exercised by the PGlite suites.
+                  capabilities: { requirement_sources: true },
+                  requirement_sources: {
+                    schema: 1,
+                    sha256: "a".repeat(64),
+                    setup_input_sha256: "b".repeat(64),
+                    clauses: [],
+                    documents: [],
+                  },
+                  requirement_scan: { current: true, source_sha256: "a".repeat(64) },
+                }),
+                error: null,
+              };
         if (name === "mcp_estimate_get") return { data: fixture.estimate, error: null };
         if (name === "mcp_estimate_bid_get") return { data: fixture.bid, error: null };
-        if (name === "mcp_estimate_pricing_save") {
+        if (name === "mcp_estimate_pricing_save_versioned") {
           if (fixture.failSaveOnce) {
             fixture.failSaveOnce = false;
             return { data: null, error: { message: "Interrupted save" } };
           }
-          fixture.writes.push(name);
           const prior = fixture.bid.pricing as Record<string, unknown>;
+          if (fixture.concurrentQuotes) {
+            prior.quotes = structuredClone(fixture.concurrentQuotes);
+            fixture.concurrentQuotes = null;
+            fixture.version++;
+          }
+          if (args._expected_version !== fixture.version)
+            return {
+              data: null,
+              error: { message: "Estimate changed. Refresh pricing before saving." },
+            };
+          fixture.writes.push(name);
           fixture.bid.pricing = {
             ...prior,
-            labor: structuredClone(args._labor),
-            material: structuredClone(args._material),
-            quotes: structuredClone(args._quotes),
+            labor: args._labor == null ? (prior.labor ?? []) : structuredClone(args._labor),
+            material:
+              args._material == null ? (prior.material ?? []) : structuredClone(args._material),
+            quotes: args._quotes == null ? (prior.quotes ?? []) : structuredClone(args._quotes),
+            rate_sources:
+              args._sources == null ? (prior.rate_sources ?? []) : structuredClone(args._sources),
           };
+          fixture.version++;
+          return { data: {}, error: null };
+        }
+        if (name === "mcp_estimate_bid_save_versioned") {
+          if (args._expected_version !== fixture.version)
+            return { data: null, error: { message: "Estimate changed." } };
+          fixture.writes.push(name);
+          fixture.bid.bid = { overhead_pct: args._overhead, profit_pct: args._profit };
+          fixture.version++;
           return { data: {}, error: null };
         }
         if (name === "mcp_estimate_bid_save") {
@@ -44,7 +93,7 @@ vi.mock("./guard", () => ({
   dbError: (error: { message: string }) => {
     throw new Error(error.message);
   },
-  isMissingFunction: () => false,
+  isMissingFunction: (error: { code?: string }) => error.code === "PGRST202",
 }));
 vi.mock("./jobs", () => ({
   resolveJob: async () => ({
@@ -74,7 +123,11 @@ vi.mock("./takeoff/service", () => ({
   ) => ({ structuredContent: extra?.bid_summary ?? { measurement_pending: true }, content: [] }),
 }));
 
-import { estimateBidSummary, estimatePricing } from "./tools/estimate-bid-tools";
+import {
+  estimateBidSummary,
+  estimatePricing,
+  estimateRateSources,
+} from "./tools/estimate-bid-tools";
 import { GC_ITEMS, gcLineAmount } from "./estimating-bid";
 import { parseState, settle } from "./estimating";
 
@@ -95,6 +148,9 @@ beforeEach(() => {
   fixture.measurement = null;
   fixture.failSaveOnce = false;
   fixture.failAuditOnce = false;
+  fixture.concurrentQuotes = null;
+  fixture.version = 1;
+  fixture.oldSchema = false;
   fixture.estimate = {
     setup: { role: "gc", trades: ["09 Finishes"], in_scope: ["Paint only"] },
     takeoff: {
@@ -118,6 +174,128 @@ beforeEach(() => {
 });
 
 describe("pricing correctness regressions (isolated handlers)", () => {
+  it.each(["unknown", "duplicate"])(
+    "does not silently omit an %s general-condition line",
+    async (mode) => {
+      const gc = fixture.bid.general_conditions as { lines: unknown[] };
+      gc.lines.push(
+        mode === "unknown" ? { key: "other", amount: 100, confirmed: true } : gc.lines[0],
+      );
+      await expect(call(estimateBidSummary)).rejects.toThrow(
+        /general condition.*unknown or duplicated/i,
+      );
+      expect(fixture.writes).toEqual([]);
+    },
+  );
+  it.each([null, { source: "rsmeans", carry: "false" }])(
+    "does not silently discard a malformed saved pricing collection",
+    async (sources) => {
+      (fixture.bid.pricing as Record<string, unknown>).rate_sources = sources;
+      await expect(call(estimateBidSummary)).rejects.toThrow(
+        /saved pricing rate sources needs review/i,
+      );
+      expect(fixture.writes).toEqual([]);
+    },
+  );
+  it("rejects a snapshot version JavaScript cannot represent exactly", async () => {
+    fixture.version = Number.MAX_SAFE_INTEGER + 1;
+    await expect(
+      call(estimatePricing, { labor: [{ ...labor, hourly_rate: 120 }] }),
+    ).rejects.toThrow(/version is unavailable/i);
+    expect(fixture.writes).toEqual([]);
+  });
+  it("does not present a malformed saved factor carry value as selected", async () => {
+    (fixture.bid.pricing as Record<string, unknown>).rate_sources = [
+      { source: "rsmeans", carry: "false", confirmed: true, location_factor: 2 },
+    ];
+    const result = await call(estimateRateSources);
+    expect(result.content[0].text).toContain("malformed and needs review");
+    expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+      ready: false,
+      total: null,
+    });
+  });
+  it("allows old-schema reads but refuses unsafe unversioned pricing and factor writes", async () => {
+    fixture.oldSchema = true;
+    expect((await call(estimatePricing)).structuredContent.direct).toBe(1500);
+    await expect(
+      call(estimatePricing, { labor: [{ ...labor, hourly_rate: 120 }] }),
+    ).rejects.toThrow(/version-checked/i);
+    await expect(
+      call(estimateRateSources, { sources: [{ source: "rsmeans", carry: true }] }),
+    ).rejects.toThrow(/version-checked/i);
+    expect(fixture.writes).toEqual([]);
+  });
+  it("rejects duplicate factor identities before making a save", async () => {
+    await expect(
+      call(estimateRateSources, {
+        sources: [
+          { source: "rsmeans", carry: true },
+          { source: "rsmeans", carry: false },
+        ],
+      }),
+    ).rejects.toThrow(/duplicate choices/i);
+    expect(fixture.writes).toEqual([]);
+  });
+  it("can save a quote for coverage review before direct rates are known", async () => {
+    fixture.bid.pricing = { labor: [], material: [], quotes: [], rate_sources: [] };
+    await call(estimatePricing, {
+      quotes: [{ sub: "A", description: "Paint", ref: "T-1", amount: 1000 }],
+    });
+    expect((fixture.bid.pricing as { quotes: unknown[] }).quotes).toHaveLength(1);
+    expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+      ready: false,
+      total: null,
+    });
+  });
+  it("rejects quote updates that omit or alter an existing comparison before saving", async () => {
+    const existing = { sub: "A", description: "Paint", ref: "T-1", trade: null, amount: 1000 };
+    fixture.bid.pricing = {
+      labor: [labor],
+      material: [material],
+      quotes: [existing],
+      rate_sources: [],
+    };
+    await expect(
+      call(estimatePricing, {
+        quotes: [{ sub: "B", description: "Paint", ref: "T-1", amount: 1200 }],
+      }),
+    ).rejects.toThrow(/remove or change an existing quote/i);
+    await expect(
+      call(estimatePricing, { quotes: [{ ...existing, amount: 1100 }] }),
+    ).rejects.toThrow(/remove or change an existing quote/i);
+    expect(fixture.writes).toEqual([]);
+    expect((fixture.bid.pricing as { quotes: unknown[] }).quotes).toEqual([existing]);
+  });
+  it("preserves the exact legacy quote object and metadata when adding a comparison", async () => {
+    const existing = { sub: "A", description: "Paint", ref: "T-1", amount: 1000, source_doc: "Q1" };
+    fixture.bid.pricing = {
+      labor: [labor],
+      material: [material],
+      quotes: [existing],
+      rate_sources: [],
+    };
+    await call(estimatePricing, {
+      quotes: [
+        { sub: "A", description: "Paint", ref: "T-1", amount: 1000 },
+        { sub: "B", description: "Paint", ref: "T-1", amount: 1200 },
+      ],
+    });
+    expect((fixture.bid.pricing as { quotes: unknown[] }).quotes[0]).toEqual(existing);
+    expect((fixture.bid.pricing as { quotes: unknown[] }).quotes).toHaveLength(2);
+  });
+  it("does not erase quotes added after the read when saving only direct rates", async () => {
+    const quote = { sub: "Contractor", description: "Finishes", ref: "T-1", amount: 1200 };
+    fixture.concurrentQuotes = [quote];
+    await expect(
+      call(estimatePricing, { material: [{ ...material, unit_price: 6 }] }),
+    ).rejects.toThrow(/changed/i);
+    expect((fixture.bid.pricing as { quotes: unknown[] }).quotes).toEqual([quote]);
+    expect((await call(estimateBidSummary)).structuredContent).toMatchObject({
+      ready: false,
+      total: null,
+    });
+  });
   it.each(
     ["labor", "material"].flatMap((component) =>
       [false, true].flatMap((alias) =>
