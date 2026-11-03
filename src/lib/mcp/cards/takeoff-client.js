@@ -315,10 +315,12 @@
     }
   }
   var preparedExport = null;
+  var exportGeneration = 0;
   async function prepareEstimateExport(format, target, exportContext) {
     if (busy) return;
     busy = true;
     preparedExport = null;
+    var generation = ++exportGeneration;
     target.replaceChildren();
     notice("Preparing local download…");
     try {
@@ -329,7 +331,11 @@
         expected_source_sha256: exportContext.source_sha256,
       });
       if (!result || result.isError) throw Error(failureText(result));
-      await validateLocalExport(result.structuredContent && result.structuredContent.local_export, exportContext);
+      var file = result.structuredContent && result.structuredContent.local_export;
+      if (!file || !file.filename.endsWith("." + format)) throw Error("The requested export format did not match.");
+      var prepared = await validateLocalExport(file, exportContext);
+      if (generation !== exportGeneration) return;
+      preparedExport = prepared;
       addPreparedDownload(target);
       notice("Local copy ready. Persistent export storage is unavailable.");
     } catch (e) { notice(e.message); }
@@ -361,13 +367,14 @@
     var digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
     var hash = Array.from(digest, function (n) { return n.toString(16).padStart(2, "0"); }).join("");
     if (hash !== file.sha256) throw Error("The export checksum does not match.");
-    preparedExport = { blob: new Blob([bytes], { type: mime }), filename: file.filename };
+    return { blob: new Blob([bytes], { type: mime }), filename: file.filename };
   }
   function addPreparedDownload(target) {
+    var file = preparedExport, generation = exportGeneration;
     target.replaceChildren(button("Download local copy", function () {
-      if (!preparedExport) return;
-      var url = URL.createObjectURL(preparedExport.blob), a = node("a");
-      a.href = url; a.download = preparedExport.filename;
+      if (!file || generation !== exportGeneration) return;
+      var url = URL.createObjectURL(file.blob), a = node("a");
+      a.href = url; a.download = file.filename;
       document.body.append(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
     }));
@@ -376,7 +383,11 @@
     var exportContext = sc.local_export_context || (sc.bid_summary && sc.bid_summary.local_export_context);
     if (sc.estimate_local_export) {
       var holder = node("div"); target.append(holder);
-      validateLocalExport(sc.local_export, sc.context).then(function () { addPreparedDownload(holder); size(); }).catch(function (e) { notice(e.message); });
+      var generation = exportGeneration;
+      validateLocalExport(sc.local_export, sc.context).then(function (file) {
+        if (generation !== exportGeneration) return;
+        preparedExport = file; addPreparedDownload(holder); size();
+      }).catch(function (e) { notice(e.message); });
     } else if (exportContext) {
       var controls = node("div", null, "tools"), holder = node("div");
       controls.append(button("Prepare PDF", function () { prepareEstimateExport("pdf", holder, exportContext); }),
@@ -385,6 +396,7 @@
     }
   }
   function draw() {
+    exportGeneration++;
     preparedExport = null;
     refreshDrawing = null;
     if (!sc || !sc.engine) {
