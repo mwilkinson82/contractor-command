@@ -423,13 +423,19 @@
         !u.hostname.endsWith(".supabase.co") ||
         u.username ||
         u.password ||
-        u.pathname.indexOf(
-          "/storage/v1/object/sign/athena-files/" +
-            sc.context.company_id +
-            "/" +
-            sc.context.job_id +
-            "/",
-        ) !== 0
+        !["athena-files", "athena-estimate-exports"].some(function (bucket) {
+          return (
+            u.pathname.indexOf(
+              "/storage/v1/object/sign/" +
+                bucket +
+                "/" +
+                sc.context.company_id +
+                "/" +
+                sc.context.job_id +
+                "/",
+            ) === 0
+          );
+        })
       )
         return notice("Use the private download link in the conversation.");
       send({ id: ++seq, method: "ui/open-link", params: { url: u.href } });
