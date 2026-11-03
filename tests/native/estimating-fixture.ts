@@ -313,30 +313,54 @@ export async function installEstimatingFixture(
       "96f481a4ec56699b9a464df180a27941ded93f94b567694d1265f4189c6ae11c",
       "9486fb9470c2765059ab803ff3f2598096853688bc09210ef793f7e0a0cab3d3",
     ];
+    const wrapperHashes = [
+      "a260761e6b92f1d2f376e90106331b682336451804a2b4b2f59460cf0beb767f",
+      "163ee8338573d5f2ba06c8dadd7cbb509a876da2f2622180d508a260e54de6a3",
+      "92b93bfb7c6666f6ba88103b493f260acc6bafc9bbc517e2a5f3657bbc1304ba",
+      "f9738dc3b849bc570eef94d2111c03467b40bfcae4ef11042d4f1ed7a19aa27a",
+      "05b0bd79f8eb66037a6973fe7c831df753400b08d61e70fe8ffe97f92cb66cdf",
+      "ba808092099a708bde977e9405a152145bf8e5af9e123917c6ca4b1ad7826e39",
+      "74d397ba5966ee71efd918162f447e4595de16a16ae9529c7580e7c6291f0817",
+    ];
+    const fingerprint = async () => JSON.stringify((await db.query(`
+      SELECT 'function' AS kind, p.oid::regprocedure::text AS name, md5(pg_get_functiondef(p.oid)) AS body,
+             p.proacl::text AS acl FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname IN ('public','mcp_private') AND p.prokind='f'
+      UNION ALL SELECT 'relation', n.nspname||'.'||c.relname, c.relkind::text, c.relacl::text
+        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname IN ('public','mcp_private') AND c.relkind IN ('r','p','v','m','S')
+      ORDER BY kind,name`)).rows);
     for (let i = 0; i < fixtureProposalPaths.length; i++) {
       const text = read(fixtureProposalPaths[i]);
-      if (i === 1) {
-        const short = read("short-wrapper-prototype/estimating-quote-coverage.sql");
+      if (i < 1 || i > 7) { await db.exec(text); continue; }
+      if (createHash("sha256").update(text).digest("hex") !== expectedHashes[i-1])
+        throw new Error("Unexpected approved payload bytes: " + fixtureProposalPaths[i]);
+      const short = read("short-wrapper-prototype/" + fixtureProposalPaths[i].split("/").pop());
+      if (createHash("sha256").update(short).digest("hex") !== wrapperHashes[i-1])
+        throw new Error("Unexpected short wrapper bytes");
+      // Proposal 2 is already present when testing proposals 3 through 8.
+      if (i > 1) {
+        const before = await fingerprint();
         const marker = "$encoded_payload$";
         const pos = short.indexOf(marker) + marker.length;
         if (pos < marker.length || short[pos] !== "-") throw new Error("Unexpected encoded source");
         const corrupt = short.slice(0,pos) + "+" + short.slice(pos+1);
-        let corruptionRejected = false;
+        let rejected = false;
         try { await db.exec(corrupt); } catch (error) {
           if (!String(error).includes("Migration payload SHA-256 mismatch")) throw error;
-          corruptionRejected = true;
+          rejected = true;
         }
-        if (!corruptionRejected || (await db.query("SELECT to_regclass('mcp_private.estimate_revision') AS t")).rows[0].t !== null)
-          throw new Error("Short wrapper did not reject corruption before effects");
-        let failureRolledBack = false;
-        try { await db.exec(short.replace("  EXECUTE payload;", "  EXECUTE payload; PERFORM 1/0;")); } catch (error) {
+        if (!rejected || await fingerprint() !== before) throw new Error("Corruption changed schema");
+        let rolledBack = false;
+        const failed = short.replace("  EXECUTE payload;", "  EXECUTE payload; PERFORM 1/0;");
+        if (failed === short) throw new Error("Missing execution marker");
+        try { await db.exec(failed); } catch (error) {
           if (!String(error).includes("division by zero")) throw error;
-          failureRolledBack = true;
+          rolledBack = true;
         }
-        if (!failureRolledBack || (await db.query("SELECT to_regclass('mcp_private.estimate_revision') AS t")).rows[0].t !== null)
-          throw new Error("Short wrapper did not roll back the executed proposal");
-        await db.exec(short);
-      } else await db.exec(i >= 1 && i <= 7 ? wrapVerifiedMigration(text, expectedHashes[i - 1]) : text);
+        if (!rolledBack || await fingerprint() !== before) throw new Error("Failure did not roll back schema");
+      }
+      await db.exec(short);
     }
     await assertEstimatingRpcPrivileges(db);
     await readAuthorizationFingerprints(db);
