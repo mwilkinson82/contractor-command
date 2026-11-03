@@ -130,7 +130,7 @@ export const emailDraft = defineTool({
       const off = outboundEmailDisabled();
       return guide(
         {
-          ...text([EMAIL_DRAFT_ARTIFACT_LINE, "", draftCardText(d), "", ...EMAIL_DRAFT_VIEW_SPEC].join("\n")),
+          ...text([EMAIL_DRAFT_ARTIFACT_LINE, "", draftCardText(d), ...(route.kind !== "none" ? ["", "Link only. No PDF attachment."] : []), "", ...EMAIL_DRAFT_VIEW_SPEC].join("\n")),
           structuredContent: {
             draft: d,
             ...(route.kind !== "none" ? { link_fallback: { reason: args.fallback_reason }, delivery_kind: "link_only" } : {}),

@@ -24,7 +24,7 @@ describe("email and SOV presentation", () => {
   });
   it("routes supported saved attachments to review while retaining explicit confirmation", () => {
     expect(EMAIL_DRAFT_ONLY_RULE).toContain("payment_application_read");
-    expect(EMAIL_DRAFT_ONLY_RULE).toContain("document_email_delivery review");
+    expect(EMAIL_DRAFT_ONLY_RULE).toContain("document_email_delivery action review");
     expect(EMAIL_DRAFT_ONLY_RULE).toContain("explicit confirmation");
     expect(EMAIL_DRAFT_ONLY_RULE).toContain("link-only");
   });

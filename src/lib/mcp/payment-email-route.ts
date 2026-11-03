@@ -13,8 +13,8 @@ export function paymentEmailRoute(link?: string | null, body = ""): PaymentEmail
       !id || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) ||
       url.searchParams.getAll("application_id").length !== 1 || url.searchParams.getAll("version").length !== 1 ||
       !value || !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value))) { incomplete = true; continue; }
-    const reference = { job_id: job, application_id: id, version: Number(value) };
-    refs.set(`${job}/${id}/${value}`, reference);
+    const reference = { job_id: job.toLowerCase(), application_id: id.toLowerCase(), version: Number(value) };
+    refs.set(`${reference.job_id}/${reference.application_id}/${value}`, reference);
   }
   if (incomplete || refs.size > 1) return { kind: "clarify" };
   return refs.size ? { kind: "saved", reference: [...refs.values()][0] } : { kind: "none" };
@@ -22,4 +22,4 @@ export function paymentEmailRoute(link?: string | null, body = ""): PaymentEmail
 export function explicitPaymentLinkFallback(args: { delivery_mode?: string; fallback_reason?: string }): boolean {
   return args.delivery_mode === "link" && ["member_requested_link", "host_attachment_unavailable"].includes(args.fallback_reason ?? "");
 }
-export const EMAIL_CONFIRMATION_SURFACE_RULE = "Use one Athena confirmation surface. When the interactive email card provides an enabled Approve and send action, use that action and do not add another yes/no question or your own approval controls. If the card cannot approve, ask the supplied confirm_question once in ordinary text. A required connected-provider permission prompt must still be completed. Approval is not a provider receipt, and changed drafts or uncertain outcomes require review or reconciliation.";
+export const EMAIL_CONFIRMATION_SURFACE_RULE = "Use one Athena confirmation surface. When the interactive email card provides an enabled Approve and send action, wait for the member to approve using that action and do not add another yes/no question or your own approval controls. If the card cannot approve, ask the supplied confirm_question once in ordinary text. A required connected-provider permission prompt must still be completed. Approval is not a provider receipt, and changed drafts or uncertain outcomes require review or reconciliation.";
