@@ -9367,6 +9367,16 @@ export type Database = {
         Args: { _job: string }
         Returns: Json
       }
+      mcp_estimate_facts_handoff: {
+        Args: {
+          _actor: string
+          _job: string
+          _p: Json
+          _request: string
+          _step: string
+        }
+        Returns: Json
+      }
       mcp_estimate_gaps_save: {
         Args: { _items: Json; _job: string }
         Returns: Json
