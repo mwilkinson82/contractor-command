@@ -38,7 +38,10 @@ import {
   parseState,
   settle,
 } from "../estimating";
-import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
+import { dbError, guard, isMissingFunction, run, text, type Sb } from "../guard";
+import { estimatingUpgrade } from "../estimating-plan";
+import { enforceTouch, getCallSignals, securityTouch } from "../security";
+import { prepareLocalBidDownload } from "../estimating-local-export";
 import { audit, named, resolveJob } from "../jobs";
 import { money } from "../sov";
 import { guide } from "../visible";
@@ -1007,18 +1010,45 @@ export const estimateRequirements = defineTool({
 export const estimateBidSummary = defineTool({
   name: "estimate_bid_summary",
   title: "Bid summary",
-  description: "Compounds overhead and profit and returns the bid total for a job.",
+  description: "Returns the job's bid total or prepares a read-only local PDF/XLSX export by default when a format is requested; stored delivery must be explicit.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     overhead_pct: z.number().finite().min(0).max(100).optional(),
     profit_pct: z.number().finite().min(0).max(100).optional(),
     export_format: z.enum(["pdf", "xlsx"]).optional(),
+    export_delivery: z.enum(["local", "stored"]).optional(),
+    expected_version: z.number().int().safe().nonnegative().optional(),
+    expected_source_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     handoff_draft: z.boolean().optional(),
   },
   annotations: SAVE,
-  handler: (args, ctx) =>
-    run(
+  handler: async (args, ctx) => {
+    if (args.export_delivery === "local" || (args.export_format && args.export_delivery !== "stored")) {
+      if (!args.export_format) throw new ToolError("Choose PDF or XLSX before preparing a local download.");
+      if (args.overhead_pct !== undefined || args.profit_pct !== undefined || args.handoff_draft !== undefined)
+        throw new ToolError("Download requests cannot change markups or prepare handoffs. Nothing was saved.");
+      const sb = await guard(ctx);
+      const signals = getCallSignals(ctx as unknown as object);
+      enforceTouch(await securityTouch(sb, "estimate_bid_summary", args.job_number, signals?.signals ?? []));
+      if (await estimatingUpgrade(sb, args.job_number, args.company_id))
+        throw new ToolError("This company's plan does not include estimating exports.");
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      const local = await prepareLocalBidDownload(sb, job, {
+        format: args.export_format, expectedVersion: args.expected_version, expectedSource: args.expected_source_sha256,
+      }, calculateSavedBidSnapshot);
+      return {
+        content: [{ type: "text" as const, text: "Estimate file prepared, not downloaded. Use the card's download control only where the host permits it; otherwise downloading is unavailable in this host. Persistent export storage is unavailable; this is not a shared link." }],
+        structuredContent: {
+          estimate_local_export: true,
+          context: { company_id: job.company_id, job_id: job.job_id, job_number: job.job_number },
+          local_export: local,
+          card: { title: "Bid summary", sections: [] },
+        },
+        _meta: { ui: { resourceUri: "ui://athena/takeoff-v8.html" }, "openai/outputTemplate": "ui://athena/takeoff-v8.html" },
+      };
+    }
+    return run(
       "estimate_bid_summary",
       ctx,
       { jobNumber: args.job_number, companyId: args.company_id },
@@ -1199,6 +1229,10 @@ export const estimateBidSummary = defineTool({
           bid_csv: csv,
           handoff_draft: handoff,
           bid_export: artifact,
+          local_export_context: snapshot && provenance && view.ready
+            ? { company_id: job.company_id, job_id: job.job_id, job_number: job.job_number,
+                snapshot_version: snapshot.version, source_sha256: provenance.sourceSha256 }
+            : null,
         };
         if (measurement) {
           const response = await viewEngine(sb, job, measurement, undefined, {
@@ -1214,11 +1248,13 @@ export const estimateBidSummary = defineTool({
             });
           return response;
         }
-        return present("Bid summary", body, result, [
+        const response = present("Bid summary", body, result, [
           "Show direct cost, general conditions, special requirements, overhead and profit, and the total. Red only on a row that holds the bid.",
         ]);
+        return { ...response, _meta: { ui: { resourceUri: "ui://athena/takeoff-v8.html" }, "openai/outputTemplate": "ui://athena/takeoff-v8.html" } };
       },
-    ),
+    );
+  },
 });
 
 function mergeBy<T>(prior: T[], incoming: T[], key: (row: T) => string): T[] {

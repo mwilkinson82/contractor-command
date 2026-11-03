@@ -353,7 +353,7 @@ describe.sequential("quote selection through actual handlers and guarded SQL", (
     });
     expect(handoff.sha256).toMatch(/^[0-9a-f]{64}$/);
     for (const format of ["pdf", "xlsx"]) {
-      const exported = await call(estimateBidSummary, { export_format: format });
+      const exported = await call(estimateBidSummary, { export_format: format, export_delivery: "stored" });
       const file = exported.structuredContent.bid_export as {
         filename: string;
         snapshot_version: number;
@@ -419,7 +419,7 @@ describe.sequential("quote selection through actual handlers and guarded SQL", (
   it("withholds a stale upload link and retries at a newly reviewed version without overwrite", async () => {
     const previousCount = state.uploaded.length;
     state.changeDuringUpload = true;
-    await expect(call(estimateBidSummary, { export_format: "pdf" })).rejects.toThrow(
+    await expect(call(estimateBidSummary, { export_format: "pdf", export_delivery: "stored" })).rejects.toThrow(
       /changed or access/i,
     );
     expect(state.uploaded).toHaveLength(previousCount + 1);
@@ -431,7 +431,7 @@ describe.sequential("quote selection through actual handlers and guarded SQL", (
       decisions,
     });
     await call(estimateQuoteCoverage, { step: "save", request_id: request3, confirmed: true });
-    const retried = await call(estimateBidSummary, { export_format: "pdf" });
+    const retried = await call(estimateBidSummary, { export_format: "pdf", export_delivery: "stored" });
     const file = retried.structuredContent.bid_export as { url: string; snapshot_version: number };
     expect(file.url).toContain("ttl=900");
     expect(state.uploaded).toHaveLength(previousCount + 2);
@@ -452,7 +452,7 @@ describe.sequential("quote selection through actual handlers and guarded SQL", (
     const bid = await call(estimateBidSummary, {});
     expect(bid.structuredContent).toMatchObject({ ready: false, total: null, bid_csv: null });
     const beforeUpload = state.uploaded.length;
-    await expect(call(estimateBidSummary, { export_format: "pdf" })).rejects.toThrow(
+    await expect(call(estimateBidSummary, { export_format: "pdf", export_delivery: "stored" })).rejects.toThrow(
       /reconciled bid/i,
     );
     expect(state.uploaded).toHaveLength(beforeUpload);

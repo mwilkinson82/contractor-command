@@ -327,6 +327,10 @@ if (!proto[patched]) {
         : config;
     const wrapped = async (...args: unknown[]) => {
       const result = (await cb(...args)) ?? {};
+      if (name === "estimate_bid_summary" &&
+          (result.structuredContent as Record<string, unknown> | undefined)?.estimate_local_export === true)
+        return { ...result, _meta: { ...(result._meta ?? {}), ...takeoffCardMeta,
+          "openai/outputTemplate": TAKEOFF_CARD_URI } };
       if (
         (name === "file_upload" || name === "project_documents") &&
         hasFileUploadView(result.structuredContent)
