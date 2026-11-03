@@ -565,3 +565,40 @@ describe("email card on the wire", () => {
     ]);
   });
 });
+
+it("previews the exact message with concise links and keeps original text editable", () => {
+  const v = view();
+  const link = "https://app.meetathena.io/r/job/example/payment-applications?application_id=example&version=3&download=pdf";
+  const body = "Please review:\n" + link + "\nThank you.";
+  v.message({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { structuredContent: { draft: { ...draft, body, link }, draft_key: "DAAAA0001" } } });
+  const preview = v.el((e) => e.className === "message-preview");
+  const input = v.el((e) => e.id === "body");
+  expect(preview.textContent).toBe("Please review:\nDownload PDF\nThank you.");
+  expect(preview.find((e) => e.tag === "a")!.href).toBe(link);
+  expect(input.value).toBe(body);
+  expect(input.hidden).toBe(true);
+  v.el((e) => e.textContent === "Edit message").fire("click");
+  expect(input.hidden).toBe(false);
+  expect(input.value).toBe(body);
+  input.value = "Edited message";
+  input.fire("input");
+  v.el((e) => e.textContent === "Preview message").fire("click");
+  expect(preview.textContent).toBe("Edited message");
+  expect(input.value).toBe("Edited message");
+});
+
+it("shows an attachment handoff notice without a legacy approval control", () => {
+  const v = view();
+  v.message({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { structuredContent: { attachment_review_required: true, sent: false, send_allowed: false } } });
+  expect(v.app.textContent).toContain("saved PDF attachment review");
+  expect(v.app.find(e => e.tag === "button")).toBeNull();
+});
+
+it("keeps a deliberate link-only fallback through exact-draft approval", async () => {
+  const v = view();
+  v.message({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { structuredContent: { draft, draft_key: "DAAAA0001", link_fallback: { reason: "member_requested_link" } } } });
+  v.el(e => e.textContent === "Approve and send").fire("click");
+  await v.flush();
+  const call = v.requests().find(m => m.method === "tools/call")!;
+  expect(call.params).toMatchObject({ name: "email_confirm_send", arguments: { confirmed: true, draft_key: "DAAAA0001", delivery_mode: "link", fallback_reason: "member_requested_link" } });
+});

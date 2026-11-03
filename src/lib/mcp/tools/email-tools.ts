@@ -1,6 +1,7 @@
-// P0: the only email path Athena offers the host. email_draft shows the card (read-only, sends nothing);
+// General email path; saved payment applications use document_email_delivery. email_draft shows the card (read-only, sends nothing);
 // email_confirm_send is the separate, destructive confirm step that must follow an explicit yes.
 // Athena itself never sends these emails; the host's own email tool does, and only after the confirm.
+import { paymentEmailRoute, explicitPaymentLinkFallback, EMAIL_CONFIRMATION_SURFACE_RULE } from "../payment-email-route";
 import { EMAIL_DRAFT_ARTIFACT_LINE, EMAIL_DRAFT_VIEW_SPEC } from "../views";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
@@ -26,6 +27,8 @@ import {
 } from "../email-safety";
 
 const fields = {
+  delivery_mode: z.enum(["attachment", "link"]).optional(),
+  fallback_reason: z.enum(["member_requested_link", "host_attachment_unavailable"]).optional(),
   to: z
     .string()
     .trim()
@@ -76,7 +79,7 @@ const checkDeliverable = async (d: EmailDraft, sb?: Sb) => {
 export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
-  description: "Shows an email draft for review.",
+  description: "Reviews general email drafts or returns the required document_email_delivery steps for saved payment application PDFs; link-only fallback must be explicit and disclosed.",
   inputSchema: {
     ...fields,
     job_number: z.string().trim().max(40).optional(),
@@ -93,6 +96,23 @@ export const emailDraft = defineTool({
   handler: (args, ctx) =>
     run("email_draft", ctx, {}, async (sb) => {
       const job = args.job_number ? await resolveJob(sb as Sb, args.job_number, args.company_id) : null;
+      const route = paymentEmailRoute(args.link, args.body);
+      if (route.kind === "saved" && job && route.reference.job_id !== job.job_id)
+        throw new ToolError("This saved application link belongs to a different job. Choose the correct job before preparing the email. Nothing was sent.");
+      if (route.kind !== "none" && !explicitPaymentLinkFallback(args)) {
+        const clear = route.kind === "saved";
+        return guide({
+          ...text("This saved payment application needs its PDF attachment reviewed. Nothing was sent. Read the exact saved application, then prepare the document email review with the connected account."),
+          structuredContent: {
+            attachment_review_required: true, sent: false, send_allowed: false,
+            next_tool: "payment_application_read", then_tool: "document_email_delivery",
+            ...(clear ? { application_reference: route.reference } : { clarify_application: true }),
+            job_number: args.job_number ?? null, company_id: args.company_id ?? null,
+          },
+        }, "Do not draft or send a link-only substitute. Use payment_application_read to verify the member-selected job and exact saved version, then document_email_delivery action review with the recipient and actual connected account. If those tools or a compatible account are unavailable, explain the limitation and offer a clearly labeled link-only fallback. Use delivery_mode link and the actual fallback_reason only for that deliberate fallback. Clarify any ambiguous application first.");
+      }
+      if (route.kind !== "none" && args.attachment)
+        throw new ToolError("A link-only fallback cannot declare the PDF attached. Use the document attachment review to attach it.");
       let d = toDraft(args);
       let recipient = null;
       if (job && /\bdelay\b/i.test(d.subject + " " + d.body)) {
@@ -110,9 +130,10 @@ export const emailDraft = defineTool({
       const off = outboundEmailDisabled();
       return guide(
         {
-          ...text([EMAIL_DRAFT_ARTIFACT_LINE, "", draftCardText(d), "", ...EMAIL_DRAFT_VIEW_SPEC, ...(off ? [] : ["", `Confirm question: ${confirmQuestion(d)}`])].join("\n")),
+          ...text([EMAIL_DRAFT_ARTIFACT_LINE, "", draftCardText(d), ...(route.kind !== "none" ? ["", "Link only. No PDF attachment."] : []), "", ...EMAIL_DRAFT_VIEW_SPEC].join("\n")),
           structuredContent: {
             draft: d,
+            ...(route.kind !== "none" ? { link_fallback: { reason: args.fallback_reason }, delivery_kind: "link_only" } : {}),
             email_contact: recipient,
             draft_status: "Draft, not sent",
             signature: args.sign_as ?? sig?.signature ?? null,
@@ -128,7 +149,7 @@ export const emailDraft = defineTool({
         },
         EMAIL_CARD_RULE,
         ...emailRules(),
-        off ? "" : `Ask exactly: "${confirmQuestion(d)}" and stop. Send nothing in this reply.`,
+        off ? "" : EMAIL_CONFIRMATION_SURFACE_RULE,
       );
     }),
 });
@@ -164,6 +185,15 @@ export const emailConfirmSend = defineTool({
           "Sending email from Athena is turned off right now. Nothing was sent; copy the draft into your email app.",
         );
       if (args.confirmed !== true) throw new ToolError("Ask the member first. Nothing was sent.");
+      const route = paymentEmailRoute(args.link, args.body);
+      if (route.kind !== "none" && !explicitPaymentLinkFallback(args))
+        throw new ToolError("Review this saved payment application through document_email_delivery before sending its PDF. No link-only substitute was approved or sent.");
+      if (route.kind === "saved" && args.job_number) {
+        const job = await resolveJob(sb as Sb, args.job_number, args.company_id, "full");
+        if (job.job_id !== route.reference.job_id) throw new ToolError("This saved application belongs to a different job. Nothing was sent.");
+      }
+      if (route.kind !== "none" && args.attachment)
+        throw new ToolError("A link-only fallback cannot declare the PDF attached. Nothing was sent.");
       const d = toDraft(args);
       if (!d.to) throw new ToolError("The draft has no recipient. Nothing was sent.");
       await checkDeliverable(d, sb as Sb);
