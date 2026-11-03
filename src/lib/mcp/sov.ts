@@ -71,8 +71,22 @@ const cents = (n: number) => Math.round(n * 100);
 
 /** Member-facing refusal when an official SOV dollar would move without an approved change order. */
 export const SOV_TOTAL_REFUSAL = "SOV changes only by approved change order. Nothing was saved.";
+export const SOV_SOURCE_REFUSAL = "Saved SOV source flags are malformed. Review the change-order evidence before calculating or saving.";
 
 type SovMoneyLine = { billable_value?: unknown; executed_change_order?: unknown; fee_included?: unknown };
+
+function sourceFlagsProblem(line: { executed_change_order?: unknown; fee_included?: unknown }): string | null {
+  if (line.fee_included !== undefined && typeof line.fee_included !== "boolean")
+    return "fee_included must be a boolean";
+  if (line.executed_change_order !== undefined &&
+    (typeof line.executed_change_order !== "string" || !line.executed_change_order.trim()))
+    return "executed_change_order must identify the saved change order";
+  return null;
+}
+
+function feeIncludedChange(line: { executed_change_order?: unknown; fee_included?: unknown }): boolean {
+  return typeof line.executed_change_order === "string" && line.executed_change_order.trim().length > 0 && line.fee_included === true;
+}
 
 function feeNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
@@ -92,10 +106,11 @@ export function sovValueCents(lines: SovMoneyLine[], feePct: number | null): { s
   let change = 0;
   let any = false;
   for (const line of lines) {
+    if (sourceFlagsProblem(line)) return { sov: null, contract: null };
     const amount = typeof line.billable_value === "number" && Number.isFinite(line.billable_value) ? cents(line.billable_value) : null;
     if (amount == null) continue;
     any = true;
-    if (line.executed_change_order && line.fee_included) change += amount;
+    if (feeIncludedChange(line)) change += amount;
     else base += amount;
   }
   if (!any) return { sov: null, contract: null };
@@ -124,7 +139,6 @@ export function sovTotalChangeRefusal(
   const feeNow = feeNumber(currentFee);
   const feeNext = nextFee === undefined ? feeNow : feeNumber(nextFee);
   const before = new Map(existing.map((row) => [row.key, factLine(row.value)]));
-  if (![...before.values()].some((line) => lineCents(line) != null)) return null;
   const after = new Map(before);
   if (incoming) {
     for (const [key, value] of Object.entries(incoming)) {
@@ -132,6 +146,9 @@ export function sovTotalChangeRefusal(
       after.set(key, factLine(value));
     }
   }
+  if ([...before.values(), ...after.values()].some((line) => line != null && sourceFlagsProblem(line)))
+    return SOV_SOURCE_REFUSAL;
+  if (![...before.values()].some((line) => lineCents(line) != null)) return null;
   const keys = new Set([...before.keys(), ...after.keys()]);
   for (const key of keys) {
     if (lineCents(before.get(key)) !== lineCents(after.get(key))) return SOV_TOTAL_REFUSAL;
@@ -169,8 +186,10 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
   if (feePct === null || feePct === undefined) problems.push("The fee percent isn't recorded.");
   else if (!(feePct >= 0 && feePct < 100)) problems.push("The fee percent must be at least 0 and under 100.");
   for (const l of lines) {
+    const sourceProblem = sourceFlagsProblem(l);
+    if (sourceProblem) problems.push(`Line ${l.item_no}: ${sourceProblem}. Review the saved change-order evidence.`);
     if (typeof l.scheduled_value !== "number" || !Number.isFinite(l.scheduled_value)) problems.push(`Line ${l.item_no}: no scheduled value.`);
-    else if (l.scheduled_value < 0 && !(l.executed_change_order && l.fee_included)) problems.push(`Line ${l.item_no}: scheduled value can't be negative.`);
+    else if (l.scheduled_value < 0 && !feeIncludedChange(l)) problems.push(`Line ${l.item_no}: scheduled value can't be negative.`);
     else if (Math.abs(cents(l.scheduled_value) - l.scheduled_value * 100) > 1e-6) problems.push(`Line ${l.item_no}: scheduled value has more than two decimals.`);
   }
   if (problems.length) throw new SovMismatch(problems.join("\n"));
@@ -185,7 +204,7 @@ export function buildSov(lines: SovLineIn[], feePct: number | null, retPct: numb
   const subC = lines.reduce((s, l) => s + cents(l.scheduled_value!), 0);
   // Executed CO prices already include their own markup. Add them at face value,
   // on separate lines, without repricing the base contract or its prior billing.
-  const changeC = lines.filter(l=>l.executed_change_order && l.fee_included).reduce((n,l)=>n+cents(l.scheduled_value!),0);
+  const changeC = lines.filter(feeIncludedChange).reduce((n,l)=>n+cents(l.scheduled_value!),0);
   const baseC = subC-changeC;
   const baseTotalC = Math.round(baseC / (1 - feePct! / 100));
   const totalC = baseTotalC+changeC;

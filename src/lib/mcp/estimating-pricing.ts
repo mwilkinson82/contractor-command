@@ -1,12 +1,16 @@
 import type { SettledView } from "./estimating";
 import {
   BidError,
+  METROS,
+  RATE_SOURCE_IDS,
+  WORK_TYPES,
   applyFactors,
   priceLabor,
   priceMaterial,
   type LaborIn,
   type RateChoice,
   type RateSourceId,
+  type BidDirectRow,
 } from "./estimating-bid";
 
 export type MaterialIn = {
@@ -18,6 +22,71 @@ export type MaterialIn = {
 };
 type Line = Pick<SettledView, "ref" | "kind" | "status" | "title" | "qty" | "unit">;
 
+const object = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const optionalBoolean = (value: unknown) => value === undefined || typeof value === "boolean";
+const optionalNumber = (value: unknown, positive = false) =>
+  value == null ||
+  (typeof value === "number" && Number.isFinite(value) && (positive ? value > 0 : value >= 0));
+
+/** Stored rows are not guaranteed to have passed the current tool schema. A
+ * string such as "false" is not an estimator's boolean selection. */
+export function validStoredRateSource(value: unknown): value is RateChoice {
+  if (!object(value)) return false;
+  return (
+    typeof value.source === "string" &&
+    RATE_SOURCE_IDS.some((source) => source === value.source) &&
+    typeof value.carry === "boolean" &&
+    optionalBoolean(value.confirmed) &&
+    optionalNumber(value.location_factor, true) &&
+    optionalNumber(value.work_factor, true) &&
+    (value.metro == null || METROS.some((metro) => metro === value.metro)) &&
+    (value.work_type == null || WORK_TYPES.some((type) => type === value.work_type))
+  );
+}
+
+function validStoredRate(value: unknown, component: "labor" | "material"): boolean {
+  if (!object(value) || typeof value.ref !== "string" || !value.ref.trim()) return false;
+  if (!optionalBoolean(value.confirmed) || !optionalBoolean(value.apply_factor)) return false;
+  if (value.source != null && !RATE_SOURCE_IDS.some((source) => source === value.source))
+    return false;
+  const keys =
+    component === "labor"
+      ? [
+          "production_per_man_hour",
+          "man_hours",
+          "man_days",
+          "crew_size",
+          "hours_per_day",
+          "hourly_rate",
+          "crew_rate",
+        ]
+      : ["unit_price"];
+  if (!keys.every((key) => optionalNumber(value[key]))) return false;
+  if (component === "labor") {
+    for (const key of ["production_per_man_hour", "crew_size", "hours_per_day"])
+      if (value[key] === 0) return false;
+    if (typeof value.hours_per_day === "number" && value.hours_per_day > 24) return false;
+  }
+  return true;
+}
+
+/** A source identity has one carried/not-carried decision. Repeated identities
+ * cannot be resolved by filtering on `carry`, which would silently discard a
+ * conflicting not-carried row. Normalize legacy spelling for detection only;
+ * the actual source and factor values are never inferred or changed. */
+export function duplicateRateSourceIds(sources: ReadonlyArray<{ source?: unknown }>): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const row of sources) {
+    const id = typeof row?.source === "string" ? row.source.trim().toLowerCase() : "";
+    if (!id) continue;
+    if (seen.has(id)) duplicates.add(id);
+    seen.add(id);
+  }
+  return [...duplicates].sort();
+}
+
 /** A legacy title can migrate to its stable reference only when uniquely owned. */
 export function mergePricingRates<T extends { ref: string }>(
   prior: T[],
@@ -25,6 +94,10 @@ export function mergePricingRates<T extends { ref: string }>(
   lines: Line[],
 ): T[] {
   const normalize = (row: T): T => {
+    if (!row || typeof row.ref !== "string" || !row.ref.trim())
+      throw new BidError(
+        "A saved rate has no valid reference. Review the saved rate before pricing.",
+      );
     if (lines.some((line) => line.kind === "line" && line.ref === row.ref)) return row;
     const matches = lines.filter(
       (line) => line.kind === "line" && line.status !== "dropped" && line.title === row.ref,
@@ -66,13 +139,43 @@ type Component = {
   placeholder: boolean;
   missing: string | null;
 };
-export type PricedLine = { ref: string; title: string; labor: Component; material: Component };
+export type PricedLine = {
+  ref: string;
+  title: string;
+  labor: Component;
+  material: Component;
+  /** Issues attributable to this exact line; global issues remain on the calculation. */
+  blockers: string[];
+};
 export type EstimatePricing = {
   rows: PricedLine[];
   direct: number;
   placeholder: boolean;
   blockers: string[];
 };
+
+/** Export the same already-calculated direct rows without re-pricing them. */
+export function directBidRows(pricing: EstimatePricing): BidDirectRow[] | null {
+  const rows: BidDirectRow[] = [];
+  for (const row of pricing.rows) {
+    if (row.labor.amount == null || row.material.amount == null) return null;
+    const labor = Math.round(row.labor.amount * 100);
+    const material = Math.round(row.material.amount * 100);
+    const amountCents = labor + material;
+    if (
+      !Number.isSafeInteger(labor) ||
+      labor < 0 ||
+      !Number.isSafeInteger(material) ||
+      material < 0 ||
+      Math.abs(row.labor.amount * 100 - labor) >= 1e-7 ||
+      Math.abs(row.material.amount * 100 - material) >= 1e-7 ||
+      !Number.isSafeInteger(amountCents)
+    )
+      return null;
+    rows.push({ ref: row.ref, basis: "direct", amountCents, quoteId: null });
+  }
+  return rows;
+}
 const cents = (n: number) => {
   const rounded = Math.round(n * 100) / 100;
   if (!Number.isFinite(rounded))
@@ -89,9 +192,64 @@ export function calculateEstimatePricing(
   lines: Line[],
   input: { labor: LaborIn[]; material: MaterialIn[]; sources: RateChoice[] },
 ): EstimatePricing {
+  for (const [component, values] of [
+    ["labor", input.labor],
+    ["material", input.material],
+  ] as const)
+    for (const row of values) {
+      if (!object(row)) continue;
+      const stored = row as unknown as Record<string, unknown>;
+      const keys =
+        component === "labor"
+          ? [
+              "production_per_man_hour",
+              "man_hours",
+              "man_days",
+              "crew_size",
+              "hours_per_day",
+              "hourly_rate",
+              "crew_rate",
+            ]
+          : ["unit_price"];
+      if (!keys.every((key) => optionalNumber(stored[key])))
+        throw new BidError(
+          `A saved ${component} rate contains invalid numbers. Nothing was saved.`,
+        );
+      if (
+        component === "labor" &&
+        (["production_per_man_hour", "crew_size", "hours_per_day"].some(
+          (key) => stored[key] === 0,
+        ) ||
+          (typeof stored.hours_per_day === "number" && stored.hours_per_day > 24))
+      )
+        throw new BidError(
+          "A saved labor rate contains invalid production or hours. Nothing was saved.",
+        );
+    }
+  for (const row of input.sources)
+    if (
+      object(row) &&
+      (!optionalNumber(row.location_factor, true) || !optionalNumber(row.work_factor, true))
+    )
+      throw new BidError("Rate factors must be finite and greater than zero. Nothing was saved.");
   const active = lines.filter((line) => line.kind === "line" && line.status !== "dropped");
   const refs = new Set(lines.filter((line) => line.kind === "line").map((line) => line.ref));
-  const blockers: string[] = [];
+  const blockers: string[] = duplicateRateSourceIds(input.sources).map(
+    (id) => `Rate source ${id}: conflicting or duplicate choices need one reviewed decision.`,
+  );
+  if (input.sources.some((choice) => !choice || !RATE_SOURCE_IDS.includes(choice.source)))
+    blockers.push("A rate source has an unknown or missing identity. Review the saved choices.");
+  if (input.sources.some((choice) => !validStoredRateSource(choice)))
+    blockers.push("A saved rate source has invalid choices or factors. Review the saved choices.");
+  if (input.labor.some((row) => !validStoredRate(row, "labor")))
+    blockers.push("A saved labor rate has invalid values or confirmation. Review the saved rates.");
+  if (input.material.some((row) => !validStoredRate(row, "material")))
+    blockers.push(
+      "A saved material rate has invalid values or confirmation. Review the saved rates.",
+    );
+  const validSources = input.sources.filter(validStoredRateSource);
+  const validLabor = input.labor.filter((row) => validStoredRate(row, "labor"));
+  const validMaterial = input.material.filter((row) => validStoredRate(row, "material"));
   const used = new Set<object>();
   function resolve<T extends { ref: string }>(
     line: Line,
@@ -115,9 +273,9 @@ export function calculateEstimatePricing(
     return matches[0] ?? null;
   }
   function factored(value: Component, rate: LaborIn | MaterialIn | null, ref: string): Component {
-    if (!rate?.apply_factor) return value;
-    const choices = input.sources.filter(
-      (choice) => choice.carry && (!rate.source || choice.source === rate.source),
+    if (rate?.apply_factor !== true) return value;
+    const choices = validSources.filter(
+      (choice) => choice.carry === true && (!rate.source || choice.source === rate.source),
     );
     const choice = choices.length === 1 ? choices[0] : null;
     const missing = !choice
@@ -145,12 +303,13 @@ export function calculateEstimatePricing(
     };
   }
   const rows = active.map((line): PricedLine => {
+    const blockerStart = blockers.length;
     if (line.qty != null && (!Number.isFinite(line.qty) || line.qty < 0))
       throw new BidError(
         `${line.ref}: quantity must be finite and zero or more. Nothing was saved.`,
       );
-    const lab = resolve(line, input.labor, "labor");
-    const mat = resolve(line, input.material, "material");
+    const lab = resolve(line, validLabor, "labor");
+    const mat = resolve(line, validMaterial, "material");
     const laborPrice = priceLabor(line.qty, line.unit, lab ?? { ref: line.ref });
     const materialPrice = priceMaterial(line.qty, mat?.unit_price ?? null, mat?.confirmed === true);
     const labor = factored(
@@ -182,11 +341,25 @@ export function calculateEstimatePricing(
       if (component.placeholder)
         blockers.push(`${line.ref} ${line.title} ${name}: confirm the rate and applied factors.`);
     }
-    return { ref: line.ref, title: line.title, labor, material };
+    return {
+      ref: line.ref,
+      title: line.title,
+      labor,
+      material,
+      blockers: blockers.slice(blockerStart),
+    };
   });
+  // Settlement can close a gap by assigning an owner or quantity, neither of
+  // which puts its cost into the priced takeoff. SettledView does not retain
+  // the gap's line link, so even a "seen" gap cannot safely be inferred to
+  // duplicate a priced line. Keep it open until explicitly resolved.
+  for (const gap of lines.filter((line) => line.kind === "gap" && line.status !== "dropped"))
+    blockers.push(
+      `${gap.ref} ${gap.title}: review and close this gap after its scope is incorporated into a priced takeoff line or excluded.`,
+    );
   for (const [component, values] of [
-    ["labor", input.labor],
-    ["material", input.material],
+    ["labor", validLabor],
+    ["material", validMaterial],
   ] as const)
     for (const value of values) {
       if (used.has(value)) continue;
