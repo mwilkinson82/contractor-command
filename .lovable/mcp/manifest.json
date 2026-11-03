@@ -17139,6 +17139,364 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "selection_board",
+        "title": "Project selections",
+        "description": "Reads or saves a project's Good, Better and Best selections board without changing estimates, budgets or accounting.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "read",
+                "save"
+              ]
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "board": {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[A-Z]{3}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "selections": {
+                  "maxItems": 500,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "decision_due": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "allowance_cents": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 999999999999
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "options": {
+                        "type": "object",
+                        "properties": {
+                          "good": {
+                            "type": "object",
+                            "properties": {
+                              "description": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "cost_cents": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 999999999999
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "price_cents": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 999999999999
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "specifications": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "source_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "format": "uri"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "photo_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "format": "uri"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "description",
+                              "cost_cents",
+                              "price_cents",
+                              "specifications",
+                              "source_url",
+                              "photo_url"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "better": {
+                            "type": "object",
+                            "properties": {
+                              "description": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "cost_cents": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 999999999999
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "price_cents": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 999999999999
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "specifications": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "source_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "format": "uri"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "photo_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "format": "uri"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "description",
+                              "cost_cents",
+                              "price_cents",
+                              "specifications",
+                              "source_url",
+                              "photo_url"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "best": {
+                            "type": "object",
+                            "properties": {
+                              "description": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "cost_cents": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 999999999999
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "price_cents": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 999999999999
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "specifications": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "source_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "format": "uri"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "photo_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "format": "uri"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "description",
+                              "cost_cents",
+                              "price_cents",
+                              "specifications",
+                              "source_url",
+                              "photo_url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "good",
+                          "better",
+                          "best"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "selected": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "good",
+                              "better",
+                              "best"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "notes": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "decision_due",
+                      "allowance_cents",
+                      "options",
+                      "selected",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "currency",
+                "selections"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "job_number",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }
