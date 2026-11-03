@@ -4,7 +4,7 @@ import { visibleProblems } from "../../src/lib/mcp/visible";
 import { vi } from "vitest";
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import type { PGlite } from "@electric-sql/pglite";
-import { makeDb } from "./db";
+import { makeRoleDb } from "./role-db";
 import { fakeClient } from "./fake-supabase";
 
 export const ISSUER = "https://qcbbjjjxcacrscfhgfmf.supabase.co/auth/v1";
@@ -45,7 +45,7 @@ export function mockedSupabaseForUser(ctx: { getToken(): string | undefined }) {
 }
 
 export async function bootDb() {
-  const db = await makeDb();
+  const db = await makeRoleDb();
   state.db = db;
   const all = ["owner", "pm", "finance", "contracts", "estimating", "super", "pm2", "outsider"] as const;
   for (const r of all) await db.query(`INSERT INTO auth.users (id, email) VALUES ($1, $2)`, [user(r).id, user(r).email]);
