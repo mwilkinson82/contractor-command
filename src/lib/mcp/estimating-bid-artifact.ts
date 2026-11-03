@@ -43,7 +43,7 @@ export async function saveBidArtifact(
     cacheControl: "no-store",
   });
   if (uploaded.error)
-    throw new ToolError("Private bid PDF and spreadsheet downloads are unavailable right now. No download was created.");
+    throw new ToolError("Private bid PDF and spreadsheet downloads are unavailable right now. No download link was returned.");
   const signed = await bucket.createSignedUrl(path, 900);
   if (signed.error || !signed.data?.signedUrl)
     throw new ToolError("The private bid link could not be created. No download was returned.");
