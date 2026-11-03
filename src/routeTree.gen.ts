@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as CallsRouteImport } from './routes/calls'
+import { Route as CardReviewRouteImport } from './routes/card-review'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as EcosystemRouteImport } from './routes/ecosystem'
 import { Route as FieldToolsRouteImport } from './routes/field-tools'
@@ -123,6 +124,11 @@ const AccountRoute = AccountRouteImport.update({
 const CallsRoute = CallsRouteImport.update({
   id: '/calls',
   path: '/calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CardReviewRoute = CardReviewRouteImport.update({
+  id: '/card-review',
+  path: '/card-review',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityRoute = CommunityRouteImport.update({
@@ -628,6 +634,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/calls': typeof CallsRoute
+  '/card-review': typeof CardReviewRoute
   '/community': typeof CommunityRoute
   '/ecosystem': typeof EcosystemRoute
   '/field-tools': typeof FieldToolsRoute
@@ -730,6 +737,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/calls': typeof CallsRoute
+  '/card-review': typeof CardReviewRoute
   '/community': typeof CommunityRoute
   '/ecosystem': typeof EcosystemRoute
   '/field-tools': typeof FieldToolsRoute
@@ -833,6 +841,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/calls': typeof CallsRoute
+  '/card-review': typeof CardReviewRoute
   '/community': typeof CommunityRoute
   '/ecosystem': typeof EcosystemRoute
   '/field-tools': typeof FieldToolsRoute
@@ -937,6 +946,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/calls'
+    | '/card-review'
     | '/community'
     | '/ecosystem'
     | '/field-tools'
@@ -1039,6 +1049,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/calls'
+    | '/card-review'
     | '/community'
     | '/ecosystem'
     | '/field-tools'
@@ -1141,6 +1152,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/calls'
+    | '/card-review'
     | '/community'
     | '/ecosystem'
     | '/field-tools'
@@ -1244,6 +1256,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   CallsRoute: typeof CallsRoute
+  CardReviewRoute: typeof CardReviewRoute
   CommunityRoute: typeof CommunityRoute
   EcosystemRoute: typeof EcosystemRoute
   FieldToolsRoute: typeof FieldToolsRoute
@@ -1359,6 +1372,13 @@ declare module '@tanstack/react-router' {
       path: '/calls'
       fullPath: '/calls'
       preLoaderRoute: typeof CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/card-review': {
+      id: '/card-review'
+      path: '/card-review'
+      fullPath: '/card-review'
+      preLoaderRoute: typeof CardReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/community': {
@@ -2075,6 +2095,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   CallsRoute: CallsRoute,
+  CardReviewRoute: CardReviewRoute,
   CommunityRoute: CommunityRoute,
   EcosystemRoute: EcosystemRoute,
   FieldToolsRoute: FieldToolsRoute,
