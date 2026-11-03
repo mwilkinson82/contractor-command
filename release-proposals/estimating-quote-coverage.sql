@@ -121,7 +121,7 @@ BEGIN
     'selection',CASE WHEN selected.job_id IS NULL THEN NULL ELSE jsonb_build_object(
       'version',selected.version,'current',selected.version=v,'decisions',selected.decisions) END);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_coverage_snapshot(uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_coverage_snapshot(uuid) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_coverage_snapshot(uuid) TO authenticated;
 
 CREATE FUNCTION public.mcp_estimate_coverage_review(_job uuid,_request uuid,_expected_version bigint,_decisions jsonb) RETURNS jsonb
@@ -190,7 +190,7 @@ BEGIN
     VALUES(_job,_request,auth.uid(),v,_decisions,result);
   RETURN jsonb_build_object('request',_request,'version',v,'current',true,'status','review','decisions',result);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_coverage_review(uuid,uuid,bigint,jsonb) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_coverage_review(uuid,uuid,bigint,jsonb) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_coverage_review(uuid,uuid,bigint,jsonb) TO authenticated;
 
 CREATE FUNCTION public.mcp_estimate_coverage_save(_job uuid,_request uuid,_confirmed boolean) RETURNS jsonb
@@ -214,7 +214,7 @@ BEGIN
   UPDATE mcp_private.estimate_quote_review SET saved_version=v WHERE job_id=_job AND request_id=_request;
   RETURN jsonb_build_object('request',_request,'version',v,'current',true,'status','saved','decisions',r.decisions);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_coverage_save(uuid,uuid,boolean) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_coverage_save(uuid,uuid,boolean) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_coverage_save(uuid,uuid,boolean) TO authenticated;
 
 -- An unversioned request cannot distinguish an intentional replacement from a
@@ -305,7 +305,7 @@ BEGIN
   SELECT version INTO v FROM mcp_private.estimate_revision WHERE job_id=_job;
   RETURN jsonb_build_object('saved',true,'version',v);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_pricing_save_versioned(uuid,bigint,jsonb,jsonb,jsonb,jsonb) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_pricing_save_versioned(uuid,bigint,jsonb,jsonb,jsonb,jsonb) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_pricing_save_versioned(uuid,bigint,jsonb,jsonb,jsonb,jsonb) TO authenticated;
 
 CREATE FUNCTION public.mcp_estimate_bid_save_versioned(_job uuid,_expected_version bigint,_overhead numeric,_profit numeric) RETURNS jsonb
@@ -320,7 +320,7 @@ BEGIN
   SELECT version INTO v FROM mcp_private.estimate_revision WHERE job_id=_job;
   RETURN jsonb_build_object('saved',true,'version',v);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_bid_save_versioned(uuid,bigint,numeric,numeric) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_bid_save_versioned(uuid,bigint,numeric,numeric) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_bid_save_versioned(uuid,bigint,numeric,numeric) TO authenticated;
 -- Strict persisted pricing type validation, part of this local proposal.
 -- No new callable RPC, roles, policies, or permissions are added. Historical
