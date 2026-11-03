@@ -304,9 +304,18 @@ export async function installEstimatingFixture(
     }
     if (!rolledBack || (await db.query("SELECT to_regclass('public.integrity_rollback_probe') AS t")).rows[0].t !== null)
       throw new Error("Failed wrapped payload was not rolled back");
+    const expectedHashes = [
+      "373f682e84fd7f3a1488134680ae7dddff75dc3314b92f6e6e8275ae320b3dd5",
+      "a7bf053579855b71424f3e6c416e0ed2bc16c251aa450dd041c614fb6397c568",
+      "2bf04de4391a243efd1d127738356cbb81cc6d207ddfbd1764eed06b86b7ef11",
+      "251619f3d7284c04b594acd0cf87d8764bbd4b74d54ff83dfea11e064ac10bad",
+      "837ec120fa5c999a9279d79fddd77dc1edcd47b981b70ae0f714b9dcc7b1c4cb",
+      "96f481a4ec56699b9a464df180a27941ded93f94b567694d1265f4189c6ae11c",
+      "9486fb9470c2765059ab803ff3f2598096853688bc09210ef793f7e0a0cab3d3",
+    ];
     for (let i = 0; i < fixtureProposalPaths.length; i++) {
       const text = read(fixtureProposalPaths[i]);
-      await db.exec(i >= 1 && i <= 7 ? wrapVerifiedMigration(text) : text);
+      await db.exec(i >= 1 && i <= 7 ? wrapVerifiedMigration(text, expectedHashes[i - 1]) : text);
     }
     await assertEstimatingRpcPrivileges(db);
     await readAuthorizationFingerprints(db);
