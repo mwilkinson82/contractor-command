@@ -303,7 +303,7 @@ BEGIN
     'contract',coalesce((SELECT jsonb_agg(f) FROM jsonb_array_elements(facts) f WHERE f->>'module'='contract'),'[]'),
     'fact_sources',facts,'changes',changes,'capabilities',jsonb_build_object('destination_cas',true));
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_destination_snapshot(uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_destination_snapshot(uuid) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_destination_snapshot(uuid) TO authenticated;
 
 CREATE FUNCTION public.mcp_estimate_destination_save(
@@ -354,5 +354,5 @@ BEGIN
     WHERE job_id=_job AND transaction_id=txid_current() AND actor=auth.uid();
   RETURN public.mcp_estimate_destination_snapshot(_job);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_destination_save(uuid,bigint,jsonb,jsonb,jsonb,numeric,text,numeric,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_destination_save(uuid,bigint,jsonb,jsonb,jsonb,numeric,text,numeric,text) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_destination_save(uuid,bigint,jsonb,jsonb,jsonb,numeric,text,numeric,text) TO authenticated;
