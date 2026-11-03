@@ -1024,7 +1024,8 @@ export const estimateBidSummary = defineTool({
   },
   annotations: SAVE,
   handler: async (args, ctx) => {
-    if (args.export_format && args.export_delivery !== "stored") {
+    if (args.export_delivery === "local") {
+      if (!args.export_format) throw new ToolError("Choose PDF or XLSX before preparing a local download.");
       if (args.overhead_pct !== undefined || args.profit_pct !== undefined || args.handoff_draft !== undefined)
         throw new ToolError("Download requests cannot change markups or prepare handoffs. Nothing was saved.");
       const sb = await guard(ctx);

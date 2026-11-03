@@ -15,7 +15,7 @@ async function fixture(format: "pdf" | "xlsx") {
   if (!files) throw Error("fixture generation failed");
   const bytes = files[format];
   return { delivery: "local", filename: `Bid-summary-v7.${format}`, mime_type: format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    size: bytes.length, content_base64: Buffer.from(bytes).toString("base64"), sha256: Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex"), ...expected };
+    size: bytes.length, content_base64: Buffer.from(bytes).toString("base64"), sha256: Buffer.from(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes))).toString("hex"), ...expected };
 }
 describe("local download browser payload validation", () => {
   it.each(["pdf", "xlsx"] as const)("prepares real %s Blob bytes with matching MIME and filename", async (format) => {
