@@ -29,20 +29,25 @@ export function applicationPdf(job: { number: string; name: string }, saved: Sav
   };
   const rule = (x1:number,y1:number,x2:number,y2:number) => { d.setDrawColor(155,165,175); d.setLineWidth(.45); d.line(x1,y1,x2,y2); };
   const value = (v: number | null | undefined) => appMoney(v ?? null);
-  let logoDrawn = false;
+  let logoWidth = 0;
   if (brand.logo && brand.logoFormat) {
     try {
       const image = d.getImageProperties(brand.logo);
       const scale = Math.min(75 / image.width, 38 / image.height);
-      d.addImage(brand.logo, brand.logoFormat, 40, 35, image.width * scale, image.height * scale, undefined, "FAST");
-      logoDrawn = true;
+      d.addImage(brand.logo, brand.logoFormat, 40, 54 - image.height * scale / 2, image.width * scale, image.height * scale, undefined, "FAST");
+      logoWidth = image.width * scale;
     } catch { /* use company-name fallback */ }
   }
   const overflow: [string,string][] = [];
   const company = brand.companyName || "Contractor: not provided";
-  const companyLines = clip(company, 220, 11, true);
+  const companyX = logoWidth > 0 ? 40 + logoWidth + 10 : 40;
+  // The right-hand application reference can extend left to 327pt.
+  // Keep the brand within 315pt, and center its text in the logo's 38pt band.
+  const companyLines = clip(company, Math.min(220, 315 - companyX), 11, true);
   if(companyLines.length > 2) overflow.push(["Contractor", company]);
-  companyLines.slice(0,2).forEach((t,i)=>text(t,logoDrawn ? 125 : 40,45+i*13,11,true));
+  const visibleCompanyLines = companyLines.slice(0,2);
+  const companyY = logoWidth > 0 ? 54 + 11 * 0.35 - (visibleCompanyLines.length - 1) * 13 / 2 : 45;
+  visibleCompanyLines.forEach((t,i)=>text(t,companyX,companyY+i*13,11,true));
   text("PAYMENT APPLICATION", 572, 45, 16, true, {align:"right"});
   const appHeading = `${a.number}  |  Version ${saved.version}  |  ${a.state.toUpperCase()}`;
   const appLines = clip(appHeading, 245, 8, true);
