@@ -103,9 +103,9 @@ const money = (n: number, currency?: string | null) =>
     : `${(n / 100).toFixed(2)} (currency unknown)`;
 export const jobCostSubmissionRead = defineTool({
   name: "job_cost_submissions_read",
-  title: "Read job cost records",
+  title: "Read existing supplier bills and field expenses",
   description:
-    "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Receipts are retrieved separately.",
+    "Reads existing supplier bills and field expenses for full-access members, or only the assigned superintendent’s own field submissions, with receipts retrieved separately; for job cost accounting, a job accounting board or an overall report use accounting_report instead; this tool never creates or corrects a submission.",
   inputSchema: jobFields,
   annotations: {
     readOnlyHint: true,
@@ -160,9 +160,9 @@ export const jobCostSubmissionRead = defineTool({
 });
 export const jobCostSubmissionRecord = defineTool({
   name: "job_cost_submission_record",
-  title: "Review or submit job cost metadata",
+  title: "Create or correct a supplier bill or field expense",
   description:
-    "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. Receipts are attached separately. It does not move funds or post to accounting.",
+    "Use only for an explicit request to create, submit or correct a supplier bill or field expense, never to show job cost accounting, a job accounting board or report (use accounting_report); review supplied facts and obtain explicit confirmation before saving; assigned superintendents may submit only their own field expense, receipts are separate, and it does not move funds or post to accounting.",
   inputSchema: {
     ...jobFields,
     step: z.enum(["review", "save"]),
@@ -370,9 +370,9 @@ type AccountingPayload = z.infer<typeof accountingPayload>;
 /** The staged database denies accounting authority until a policy is reviewed. */
 export const jobCostAccountingRecord = defineTool({
   name: "job_cost_accounting_record",
-  title: "Review a job cost accounting action",
+  title: "Review bill or expense approval, posting or recorded payment",
   description:
-    "Stages approval, accounting posting or recorded settlement evidence after explicit review; it never makes a payment. Accounting authority is disabled pending policy.",
+    "Use only for an explicit request to approve a supplier bill or field expense, post its cost or record settlement evidence after review and confirmation, never to show job cost accounting, a job accounting board or report (use accounting_report); it never makes a payment and accounting authority remains disabled pending policy.",
   inputSchema: {
     ...jobFields,
     step: z.enum(["review", "save"]),

@@ -10699,8 +10699,8 @@
       },
       {
         "name": "job_cost_submissions_read",
-        "title": "Read job cost records",
-        "description": "Reads cost records for full-access members, or only the assigned superintendent’s own field submissions. Receipts are retrieved separately.",
+        "title": "Read existing supplier bills and field expenses",
+        "description": "Reads existing supplier bills and field expenses for full-access members, or only the assigned superintendent’s own field submissions, with receipts retrieved separately; for job cost accounting, a job accounting board or an overall report use accounting_report instead; this tool never creates or corrects a submission.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -10728,8 +10728,8 @@
       },
       {
         "name": "job_cost_submission_record",
-        "title": "Review or submit job cost metadata",
-        "description": "Reviews and submits a supplier bill or field expense. Assigned superintendents may submit their own field expense for their job. Receipts are attached separately. It does not move funds or post to accounting.",
+        "title": "Create or correct a supplier bill or field expense",
+        "description": "Use only for an explicit request to create, submit or correct a supplier bill or field expense, never to show job cost accounting, a job accounting board or report (use accounting_report); review supplied facts and obtain explicit confirmation before saving; assigned superintendents may submit only their own field expense, receipts are separate, and it does not move funds or post to accounting.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -11258,8 +11258,8 @@
       },
       {
         "name": "job_cost_accounting_record",
-        "title": "Review a job cost accounting action",
-        "description": "Stages approval, accounting posting or recorded settlement evidence after explicit review; it never makes a payment. Accounting authority is disabled pending policy.",
+        "title": "Review bill or expense approval, posting or recorded payment",
+        "description": "Use only for an explicit request to approve a supplier bill or field expense, post its cost or record settlement evidence after review and confirmation, never to show job cost accounting, a job accounting board or report (use accounting_report); it never makes a payment and accounting authority remains disabled pending policy.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -11753,8 +11753,8 @@
       },
       {
         "name": "accounting_report",
-        "title": "Job accounting evidence and accountant export",
-        "description": "Reads a job ledger, dated billing versus receipts, retainage, current posted costs, unpaid balances where supported, separate PO commitments and current budget comparison. Opens a private report with accountant CSV download. For a customer statement use report_type statement; other modes are summary, receivables, costs and evidence. Missing cost coverage stays unknown; not a complete P&L.",
+        "title": "Read job cost accounting board or report",
+        "description": "Reads job cost accounting, the job accounting board, job cost report or ledger with billing versus receipts, retainage, posted costs, supported unpaid balances, separate PO commitments and budget comparison; use for show, open or give-me accounting requests, not bill submission; opens a private report and accountant CSV, with report_type statement for a customer statement and summary, receivables, costs or evidence for other views; missing coverage stays unknown, not a complete P&L, and it never creates, corrects, approves, posts or pays a bill or expense.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
