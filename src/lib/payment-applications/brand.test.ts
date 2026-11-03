@@ -25,7 +25,7 @@ describe("shared payment branding",()=>{
     const get=vi.fn(async()=>new Response(png,{headers:{"content-length":String(png.length)}})) as unknown as typeof fetch;
     const result=await resolvePaymentBrand({companyName:"Example",logoUrl:url,backendUrl:backend},get);
     expect(result).toEqual({companyName:"Example",logo:png,logoFormat:"PNG"});
-    expect(vi.mocked(get).mock.calls[0][1]).toMatchObject({credentials:"omit",redirect:"error"});
+    expect(vi.mocked(get).mock.calls[0][1]).toMatchObject({credentials:"omit",redirect:"manual"});
     const invalid=vi.fn(async()=>new Response("not an image",{headers:{"content-length":"12"}})) as unknown as typeof fetch;
     expect(await resolvePaymentBrand({companyName:"Example",logoUrl:url,backendUrl:backend},invalid)).toEqual({companyName:"Example"});
     const oversize=vi.fn(async()=>new Response(png,{headers:{"content-length":String(MAX_COMPANY_LOGO_BYTES+1)}})) as unknown as typeof fetch;
@@ -42,6 +42,16 @@ describe("shared payment branding",()=>{
     expect(await validatePaymentLogo(oversized)).toBeNull();
     const corrupt=png.slice();corrupt[corrupt.length-1]^=1;
     expect(await validatePaymentLogo(corrupt)).toBeNull();
+  });
+  it("never follows redirects or fetches unsafe logo URLs",async()=>{
+    const redirected=vi.fn(async()=>new Response(null,{status:302,headers:{location:"https://unsafe.example/logo.png"}})) as unknown as typeof fetch;
+    expect(await resolvePaymentBrand({companyName:"Example",logoUrl:url,backendUrl:backend},redirected)).toEqual({companyName:"Example"});
+    expect(vi.mocked(redirected)).toHaveBeenCalledTimes(1);
+    const blocked=vi.fn() as unknown as typeof fetch;
+    for(const logoUrl of [`${url}?token=secret`,`${url}#fragment`,"http://backend.example/storage/v1/object/public/company-logos/x.png","https://user:password@backend.example/storage/v1/object/public/company-logos/x.png","https://other.example/storage/v1/object/public/company-logos/x.png",`${backend}/storage/v1/object/public/other/x.png`]) {
+      expect(await resolvePaymentBrand({companyName:"Example",logoUrl,backendUrl:backend},blocked)).toEqual({companyName:"Example"});
+    }
+    expect(blocked).not.toHaveBeenCalled();
   });
   it("fully decodes JPEGs and rejects a missing end marker or oversized frame",async()=>{
     const jpg=new Uint8Array(readFileSync("tests/fixtures/payment-brand/logo.jpg"));

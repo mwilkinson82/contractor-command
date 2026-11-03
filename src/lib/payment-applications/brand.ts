@@ -107,7 +107,9 @@ export async function resolvePaymentBrand(input: { companyName?: string; logoUrl
   const brand: PaymentBrand = { companyName: input.companyName };
   if (!input.logoUrl || !input.backendUrl || !isCompanyLogoUrl(input.logoUrl, input.backendUrl)) return brand;
   try {
-    const res = await fetcher(input.logoUrl, { redirect: "error", credentials: "omit", signal: AbortSignal.timeout(10000) });
+    // Workers reject redirect:"error" before fetching. Manual mode never follows
+    // redirects; the non-2xx check below rejects them in browsers and Workers.
+    const res = await fetcher(input.logoUrl, { redirect: "manual", credentials: "omit", signal: AbortSignal.timeout(10000) });
     const len = Number(res.headers.get("content-length"));
     if (!res.ok || !Number.isSafeInteger(len) || len <= 0 || len > MAX_COMPANY_LOGO_BYTES) return brand;
     if (!res.body) return brand;
