@@ -39,7 +39,7 @@ async function worker(response: () => Response) {
   let calls = 0;
   const runtime = new Miniflare({ modules: true, script: bundle.outputFiles[0].text,
     compatibilityDate: "2025-09-24", compatibilityFlags: ["nodejs_compat"], log: new Log(LogLevel.ERROR),
-    outboundService: (request) => {
+    outboundService: (request: Request) => {
       calls++;
       expect(request.url).toBe(logoUrl);
       expect(request.headers.has("authorization")).toBe(false);
@@ -54,7 +54,7 @@ describe("payment logo browser and attachment runtime parity", () => {
   it("renders the same exact saved v3 PDF with a 256px PNG in browser and server paths", async () => {
     const source = input();
     const frozen = JSON.stringify(source.context.selected);
-    const logoResponse = () => new Response(logo, { headers: { "content-length": String(logo.length) } });
+    const logoResponse = () => new Response(new Uint8Array(logo), { headers: { "content-length": String(logo.length) } });
     const browserBrand = await resolvePaymentBrand({ companyName: source.company.name, logoUrl, backendUrl: backend }, async () => logoResponse());
     expect(browserBrand.logo).toEqual(logo);
     const browserPdf = applicationPdf(source.context.job, source.context.selected, browserBrand);
@@ -65,7 +65,7 @@ describe("payment logo browser and attachment runtime parity", () => {
       const artifact = await response.json() as { content_base64: string; sha256: string; version: number };
       const attachment = Buffer.from(artifact.content_base64, "base64");
       expect(attachment).toEqual(Buffer.from(browserPdf));
-      expect(artifact.sha256).toBe(Buffer.from(await crypto.subtle.digest("SHA-256", browserPdf)).toString("hex"));
+      expect(artifact.sha256).toBe(Buffer.from(await crypto.subtle.digest("SHA-256", new Uint8Array(browserPdf))).toString("hex"));
       expect(artifact.version).toBe(3);
       expect(attachment.toString("latin1")).toMatch(/\/Subtype \/Image[\s\S]*?\/Width 256[\s\S]*?\/Height 256/);
       expect(calls()).toBe(1);
