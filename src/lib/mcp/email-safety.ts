@@ -1,3 +1,4 @@
+import { EMAIL_CONFIRMATION_SURFACE_RULE } from "./payment-email-route";
 // P0 (0.8.16 hotfix): Athena never sends email, and the host must not send one without a separate, explicit yes.
 // Live incident: in ChatGPT, "send the lookahead to <address>" made the host's own Gmail action send immediately
 // from the member's connected account, with no draft and no confirm. Athena has no Gmail/Outlook send of its own;
@@ -14,7 +15,7 @@ export function outboundEmailDisabled(
 }
 
 export const EMAIL_DRAFT_ONLY_RULE =
-  'Never send an email in the same reply as the request. For a saved payment application, when the host exposes document_email_delivery and a supported connected email account, use payment_application_read to identify the exact saved version, then document_email_delivery review to show the exact attachment and draft. Send only after explicit confirmation and the reviewed delivery claim. If this workflow or a compatible account is unavailable, say so and offer the existing link-only draft without describing it as an attachment. For other email use email_draft, show the draft, and ask “Send this email from your connected account? Yes or no?” Send only after the member says yes and email_confirm_send confirms that draft.';
+  'Never send an email in the same reply as the request. For a saved payment application, when the host exposes document_email_delivery and a supported connected email account, use payment_application_read to identify the exact saved version. For “to me”, resolve the recipient from the member’s actual connected profile; do not substitute a job contact or another inbox. Then document_email_delivery review to show the exact attachment and draft. Send only after explicit confirmation and the reviewed delivery claim. If this workflow or a compatible account is unavailable, say so and offer the existing link-only draft without describing it as an attachment. For other email use email_draft and show the draft. Only if the card cannot approve, ask “Send this email from your connected account? Yes or no?” Send only after explicit member confirmation and email_confirm_send confirms that exact draft.' + " " + EMAIL_CONFIRMATION_SURFACE_RULE;
 
 export const EMAIL_SEND_OFF_RULE =
   "Sending email is turned off. Show the draft only. Do not send it.";
@@ -151,7 +152,7 @@ export function draftCardText(
 
 /** 0.8.17: hosts showed the draft only inside their send-permission prompt. The card goes in the chat first. */
 export const EMAIL_CARD_RULE =
-  "REQUIRED: show this draft in the chat as a styled email card or artifact first (To, Cc, Subject, the full body, and an Attachment line naming the PDF, or the link), before and separately from any send or permission prompt. Never show it only inside the permission prompt. In Claude it must be an artifact built from the REQUIRED VIEW – EMAIL DRAFT spec, never a plain markdown block.";
+  "REQUIRED: show the native email review card first, with recipient, subject, exact body and the actual attachment or clearly labeled link. Do not create a second draft artifact or approval controls when that card is available. If no interactive card is available, show one static draft using the REQUIRED VIEW – EMAIL DRAFT spec and ask its confirmation question once in chat. A native provider permission may still be required; never treat a preview as approval.";
 
 /** The body must be signed as the job's PM unless the member asked to sign as someone else. */
 export function signatureProblem(

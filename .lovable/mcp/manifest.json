@@ -11807,7 +11807,7 @@
       {
         "name": "email_draft",
         "title": "Show an email draft for review",
-        "description": "Shows a general email draft for review. For a saved payment application attachment, use document_email_delivery review when available; this tool offers a link-only fallback and does not attach the saved PDF.",
+        "description": "Shows a general email draft for review. A saved payment application URL requires document_email_delivery review; this tool returns the next attachment step instead of silently substituting a link email. Explicit disclosed link-only fallback is supported.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -11815,9 +11815,25 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
+            "delivery_mode": {
+              "description": "For a saved payment application, omit for the required attachment workflow. Use link only for an explicitly disclosed fallback.",
+              "type": "string",
+              "enum": [
+                "attachment",
+                "link"
+              ]
+            },
+            "fallback_reason": {
+              "description": "Set only from an actual member request for a link or verified host attachment limitation; never infer a fallback from a tool choice.",
+              "type": "string",
+              "enum": [
+                "member_requested_link",
+                "host_attachment_unavailable"
+              ]
+            },
             "to": {
               "type": "string",
               "maxLength": 320,
@@ -11890,9 +11906,25 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
+            "delivery_mode": {
+              "description": "For a saved payment application, omit for the required attachment workflow. Use link only for an explicitly disclosed fallback.",
+              "type": "string",
+              "enum": [
+                "attachment",
+                "link"
+              ]
+            },
+            "fallback_reason": {
+              "description": "Set only from an actual member request for a link or verified host attachment limitation; never infer a fallback from a tool choice.",
+              "type": "string",
+              "enum": [
+                "member_requested_link",
+                "host_attachment_unavailable"
+              ]
+            },
             "to": {
               "type": "string",
               "maxLength": 320,

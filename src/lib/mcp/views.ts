@@ -105,14 +105,14 @@ export function reminderSource(it: SourceFields): string | null {
 /** 0.8.18: Claude showed the email_draft card as a plain markdown block. Same pattern as the schedule: a REQUIRED VIEW in the result text. */
 /** 0.8.20: first line of the email_draft result, same pattern as the schedule Gantt and the lookahead (artifact ask first). */
 export const EMAIL_DRAFT_ARTIFACT_LINE =
-  "REQUIRED VIEW: build ONE styled email-draft artifact from this result, the same way you build the schedule Gantt. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas or the host's email card. Never paste the draft below as plain text or markdown. Follow the REQUIRED VIEW – EMAIL DRAFT spec.";
+  "REQUIRED VIEW: use the native email review card when available, without a second draft artifact or approval controls. Only when that card is unavailable, show one static draft from this result (In Claude: an artifact built only from these facts, with no tool calls inside it) and ask for confirmation once in ordinary chat.";
 export const EMAIL_DRAFT_VIEW_SPEC: string[] = [
-  "REQUIRED VIEW – EMAIL DRAFT: show this draft as ONE styled email card, never a plain text or markdown block. In Claude: an artifact built only from this result (no tool calls inside it). In ChatGPT: a canvas or the host's email card. Spec:",
+  "REQUIRED VIEW – EMAIL DRAFT: prefer the native email review card. This static fallback specification applies only when the native card is unavailable. Spec:",
   "1. Compact white header with the title \"Email draft\" and a quiet gray \"Not sent\" status pill. No dark banner.",
-  "2. Rows: From (the suggested From, if given), To, Cc (only if any) and Subject, labels in gray #6B7280, values in navy.",
-  "3. The full body exactly as written, on a light-gray #F3F4F6 panel, with the signature.",
-  "4. Under the body: an attachment chip (PDF icon and the file name) only when an attachment is listed; otherwise a link row with a short descriptive link label retaining the exact download destination. Never show an attachment chip without a real attachment.",
-  "5. Footer: the confirm question word for word, then a gray line \"Answer yes or no in chat.\" No buttons of any kind (no Send, Yes or No buttons): the card cannot send, and the member answers in chat.",
-  `6. White card, dark readable text and restrained gray dividers only; ${ALERT_COLOR} only if the email itself is about a delay, risk or overdue item, and then only for that one flag. No technical notes.`,
-  "7. After the card, ask the confirm question as the last line of the reply and stop. Send nothing.",
+  "2. Rows: From (the suggested From, if given), To, Cc (only if any) and Subject, labels in gray, values in dark readable text.",
+  "3. The full body exactly as written, with the signature.",
+  "4. Under the body: an attachment chip naming the PDF only for a real reviewed attachment; otherwise a clearly labeled link with the exact destination. Never show an attachment chip without a real attachment.",
+  "5. The native card's enabled Approve and send action is the Athena confirmation surface; do not also ask its confirm question. In a static fallback, show the confirm question word for word and ask once in ordinary chat. No buttons of any kind in that static fallback. Answer yes or no in chat.",
+  `6. White card, dark readable text and restrained gray dividers only; ${ALERT_COLOR} only for an actual risk, delay or overdue flag. No technical notes.`,
+  "7. After the native card do not repeat the confirmation question or generate approval controls. After a static fallback, ask once and stop. Send nothing until the exact draft is approved; required provider permissions remain in force.",
 ];

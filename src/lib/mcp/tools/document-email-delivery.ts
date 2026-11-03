@@ -1,6 +1,7 @@
 import { defineTool, ToolError } from '@lovable.dev/mcp-js';
 import { z } from 'zod';
 import { run, dbError, text, type Sb } from '../guard';
+import { EMAIL_CONFIRMATION_SURFACE_RULE } from '../payment-email-route';
 import { resolveJob } from '../jobs';
 import { outboundEmailDisabled } from '../email-safety';
 import { paymentApplicationArtifact } from '../document-email-artifact';
@@ -43,7 +44,7 @@ export const documentEmailDelivery=defineTool({
     const stored=await call('review',{application_id:a.document_id,version:a.version,client_hash:clientHash,...(a.review_hash?{expected_review_hash:a.review_hash}:{}),payload:{email,mailbox:storedMailbox}});
     if(stored.state!=='reviewed')return outcome(stored);
     if(typeof stored.review_hash!=='string'||!/^[a-f0-9]{64}$/.test(stored.review_hash))throw new ToolError('The server could not bind this email review.');
-    return {...text('Review the sender, recipient, message and saved attachment. Nothing has been sent.'),structuredContent:{draft:{...a.draft,attachment:file.filename,link:null},document_email:{id:a.delivery_id,review_hash:stored.review_hash,version:file.version,sha256:file.sha256,size_bytes:file.size_bytes,from:a.mailbox.profileAddress,state:stored.state,mailbox:a.mailbox,document_id:a.document_id},job_number:a.job_number,company_id:a.company_id??null,send_allowed:stored.state==='reviewed'&&!outboundEmailDisabled(),sent:false,assistant_guidance:['Show the editable review card. Refresh the connected account before claiming. Send only after explicit confirmation and a single document email claim.']}};
+    return {...text('Review the sender, recipient, message and saved attachment. Nothing has been sent.'),structuredContent:{draft:{...a.draft,attachment:file.filename,link:null},document_email:{id:a.delivery_id,review_hash:stored.review_hash,version:file.version,sha256:file.sha256,size_bytes:file.size_bytes,from:a.mailbox.profileAddress,state:stored.state,mailbox:a.mailbox,document_id:a.document_id},job_number:a.job_number,company_id:a.company_id??null,send_allowed:stored.state==='reviewed'&&!outboundEmailDisabled(),sent:false,assistant_guidance:[EMAIL_CONFIRMATION_SURFACE_RULE,'Show the editable review card. Refresh the connected account before claiming. Send only after explicit confirmation and a single document email claim.']}};
    }
    const existing=await call('status',{});
    if(a.action==='status')return outcome(existing);

@@ -586,3 +586,19 @@ it("previews the exact message with concise links and keeps original text editab
   expect(preview.textContent).toBe("Edited message");
   expect(input.value).toBe("Edited message");
 });
+
+it("shows an attachment handoff notice without a legacy approval control", () => {
+  const v = view();
+  v.message({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { structuredContent: { attachment_review_required: true, sent: false, send_allowed: false } } });
+  expect(v.app.textContent).toContain("saved PDF attachment review");
+  expect(v.app.find(e => e.tag === "button")).toBeNull();
+});
+
+it("keeps a deliberate link-only fallback through exact-draft approval", async () => {
+  const v = view();
+  v.message({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { structuredContent: { draft, draft_key: "DAAAA0001", link_fallback: { reason: "member_requested_link" } } } });
+  v.el(e => e.textContent === "Approve and send").fire("click");
+  await v.flush();
+  const call = v.requests().find(m => m.method === "tools/call")!;
+  expect(call.params).toMatchObject({ name: "email_confirm_send", arguments: { confirmed: true, draft_key: "DAAAA0001", delivery_mode: "link", fallback_reason: "member_requested_link" } });
+});

@@ -136,11 +136,12 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
     expect(s).toMatch(/confirm question word for word/);
     expect(s).toMatch(/Compact white header/);
     expect(s).toMatch(/No dark banner/);
-    expect(EMAIL_CARD_RULE).toMatch(/In Claude it must be an artifact/);
+    expect(EMAIL_CARD_RULE).toMatch(/If no interactive card is available/);
+    expect(EMAIL_CARD_RULE).toMatch(/Do not create a second draft artifact/);
     expect(s).toMatch(/Never show an attachment chip without a real attachment/);
     expect(s).toMatch(/Send nothing/);
   });
-  it("email_draft result text carries the card, the view spec and the yes/no question", async () => {
+  it("email draft retains the fallback question as metadata without forcing a duplicate prompt", async () => {
     const r = await call(emailDraft, {
       to: "pm@example.test",
       cc: [],
@@ -149,11 +150,10 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
       link: L,
     });
     const t: string = r.content[0].text;
-    expect(t).toMatch(/^REQUIRED VIEW: build ONE styled email-draft artifact[^\n]*\n\nTo: pm@example.test/);
+    expect(t).toMatch(/^REQUIRED VIEW: use the native email review card[^\n]*\n\nTo: pm@example.test/);
     expect(t).toContain(EMAIL_DRAFT_VIEW_SPEC[0]);
-    expect(t).toMatch(
-      /Confirm question: Send this email to pm@example.test from your connected email account\? Yes or no\?$/,
-    );
+    expect(t).not.toContain("Confirm question:");
+    expect(r.structuredContent.confirm_question).toBe("Send this email to pm@example.test from your connected email account? Yes or no?");
     expect(t.indexOf("Ready for your review. Not sent.")).toBeLessThan(
       t.indexOf(EMAIL_DRAFT_VIEW_SPEC[0]),
     );
