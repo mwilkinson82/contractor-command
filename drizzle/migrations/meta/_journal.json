@@ -449,6 +449,13 @@
       "when": 1793714864870,
       "tag": "0063_estimating_gc_requirements_cas",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793715181954,
+      "tag": "0064_estimating_frozen_source_snapshot",
+      "breakpoints": true
     }
   ]
 }
