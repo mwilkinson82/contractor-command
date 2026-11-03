@@ -9487,7 +9487,7 @@
       {
         "name": "estimate_bid_summary",
         "title": "Bid summary",
-        "description": "Compounds overhead and profit and returns the bid total for a job.",
+        "description": "Returns the job's bid total or prepares a read-only local PDF/XLSX export by default when a format is requested; stored delivery must be explicit.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -9524,6 +9524,22 @@
                 "pdf",
                 "xlsx"
               ]
+            },
+            "export_delivery": {
+              "type": "string",
+              "enum": [
+                "local",
+                "stored"
+              ]
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "expected_source_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             },
             "handoff_draft": {
               "type": "boolean"
