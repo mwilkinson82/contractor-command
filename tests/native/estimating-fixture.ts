@@ -315,7 +315,28 @@ export async function installEstimatingFixture(
     ];
     for (let i = 0; i < fixtureProposalPaths.length; i++) {
       const text = read(fixtureProposalPaths[i]);
-      await db.exec(i >= 1 && i <= 7 ? wrapVerifiedMigration(text, expectedHashes[i - 1]) : text);
+      if (i === 1) {
+        const short = read("short-wrapper-prototype/estimating-quote-coverage.sql");
+        const marker = "$encoded_payload$";
+        const pos = short.indexOf(marker) + marker.length;
+        if (pos < marker.length || short[pos] !== "-") throw new Error("Unexpected encoded source");
+        const corrupt = short.slice(0,pos) + "+" + short.slice(pos+1);
+        let corruptionRejected = false;
+        try { await db.exec(corrupt); } catch (error) {
+          if (!String(error).includes("Migration payload SHA-256 mismatch")) throw error;
+          corruptionRejected = true;
+        }
+        if (!corruptionRejected || (await db.query("SELECT to_regclass('mcp_private.estimate_revision') AS t")).rows[0].t !== null)
+          throw new Error("Short wrapper did not reject corruption before effects");
+        let failureRolledBack = false;
+        try { await db.exec(short.replace("  EXECUTE payload;", "  EXECUTE payload; PERFORM 1/0;")); } catch (error) {
+          if (!String(error).includes("division by zero")) throw error;
+          failureRolledBack = true;
+        }
+        if (!failureRolledBack || (await db.query("SELECT to_regclass('mcp_private.estimate_revision') AS t")).rows[0].t !== null)
+          throw new Error("Short wrapper did not roll back the executed proposal");
+        await db.exec(short);
+      } else await db.exec(i >= 1 && i <= 7 ? wrapVerifiedMigration(text, expectedHashes[i - 1]) : text);
     }
     await assertEstimatingRpcPrivileges(db);
     await readAuthorizationFingerprints(db);
