@@ -9316,6 +9316,29 @@ export type Database = {
         Args: { _job: string; _overhead: number; _profit: number }
         Returns: Json
       }
+      mcp_estimate_bid_save_versioned: {
+        Args: {
+          _expected_version: number
+          _job: string
+          _overhead: number
+          _profit: number
+        }
+        Returns: Json
+      }
+      mcp_estimate_coverage_review: {
+        Args: {
+          _decisions: Json
+          _expected_version: number
+          _job: string
+          _request: string
+        }
+        Returns: Json
+      }
+      mcp_estimate_coverage_save: {
+        Args: { _confirmed: boolean; _job: string; _request: string }
+        Returns: Json
+      }
+      mcp_estimate_coverage_snapshot: { Args: { _job: string }; Returns: Json }
       mcp_estimate_gaps_save: {
         Args: { _items: Json; _job: string }
         Returns: Json
@@ -9334,6 +9357,17 @@ export type Database = {
       mcp_estimate_guard: { Args: { _job: string }; Returns: string }
       mcp_estimate_pricing_save: {
         Args: {
+          _job: string
+          _labor: Json
+          _material: Json
+          _quotes: Json
+          _sources: Json
+        }
+        Returns: Json
+      }
+      mcp_estimate_pricing_save_versioned: {
+        Args: {
+          _expected_version: number
           _job: string
           _labor: Json
           _material: Json
