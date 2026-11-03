@@ -1,5 +1,6 @@
 // ChatGPT MCP Apps card. Same shape as the team picker (ui:// resource, outputTemplate,
 // HTML stays out of the tool text). This one paints whatever card the tool put on structuredContent.card.
+import { sovCss } from "./sov-style";
 import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
 import { responsiveCardCss } from "./responsive";
 import { onboardingCss } from "./onboarding-style";
@@ -49,7 +50,7 @@ if(card.presentation==="report-link"){
 }
 var labels={intake:"Intake",progress:"What I have so far",ask:"Needed",result:"Result"};
 var state=card.state||"result";
-var h='<article class="card"'+(card.presentation==="onboarding"?' data-presentation="onboarding"':'')+' data-state="'+esc(state)+'"><header><p class="mark">Athena</p><h1>'+esc(card.title||"Athena")+'</h1>';
+var h='<article class="card"'+((card.presentation==="onboarding"||card.presentation==="sov")?' data-presentation="'+card.presentation+'"':'')+' data-state="'+esc(state)+'"><header><p class="mark">Athena</p><h1>'+esc(card.title||"Athena")+'</h1>';
 if(card.job)h+='<p class="job">'+esc(card.job)+'</p>';
 h+='</header><div class="body">';
 if(card.show_state!==false)h+='<p class="eyebrow">'+esc(labels[state]||"Result")+'</p>';
@@ -177,6 +178,7 @@ tr.alert td{border:2px solid ${alert}}
 .framed.alert h2{background:${alert};color:${white};border-bottom:0}
 ${responsiveCardCss(true)}
 ${onboardingCss}
+${sovCss}
 ${reportLinkCss}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }

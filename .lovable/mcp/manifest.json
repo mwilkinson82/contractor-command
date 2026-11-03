@@ -11792,7 +11792,7 @@
       {
         "name": "email_draft",
         "title": "Show an email draft for review",
-        "description": "Shows an email draft for review.",
+        "description": "Shows a general email draft for review. For a saved payment application attachment, use document_email_delivery review when available; this tool offers a link-only fallback and does not attach the saved PDF.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -16309,7 +16309,7 @@
       {
         "name": "document_email_delivery",
         "title": "Review and send a saved document through your email",
-        "description": "Reviews a saved payment application email, issues one send claim after confirmation, and records a host-reported provider receipt. Uses the member’s connected email account; Athena does not send email. Gmail assistant_current_gmail mode requires fresh current-profile observations and has no atomic account pinning; never invent a connection ID.",
+        "description": "Use for natural requests to email a saved payment application as a PDF attachment when a supported connected account is available. First identify the exact saved application and version with payment_application_read. Reviews a saved payment application email, issues one send claim after confirmation, and records a host-reported provider receipt. Uses the member’s connected email account; Athena does not send email. Gmail assistant_current_gmail mode requires fresh current-profile observations and has no atomic account pinning; never invent a connection ID.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,

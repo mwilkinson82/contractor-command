@@ -14,7 +14,7 @@ export function outboundEmailDisabled(
 }
 
 export const EMAIL_DRAFT_ONLY_RULE =
-  'Never send an email in the same reply as the request. Call email_draft and show the draft. Ask "Send this email to <To> from <your connected account>? Yes or no?". Send only after the member says yes and email_confirm_send confirms that draft.';
+  'Never send an email in the same reply as the request. For a saved payment application, when the host exposes document_email_delivery and a supported connected email account, use payment_application_read to identify the exact saved version, then document_email_delivery review to show the exact attachment and draft. Send only after explicit confirmation and the reviewed delivery claim. If this workflow or a compatible account is unavailable, say so and offer the existing link-only draft without describing it as an attachment. For other email use email_draft, show the draft, and ask “Send this email from your connected account? Yes or no?” Send only after the member says yes and email_confirm_send confirms that draft.';
 
 export const EMAIL_SEND_OFF_RULE =
   "Sending email is turned off. Show the draft only. Do not send it.";
@@ -41,7 +41,7 @@ export type EmailDraft = {
 
 /** 0.8.17: deliverables are a real attached PDF first; a file_share link only when the host can't attach; never HTML. */
 export const EMAIL_DELIVERABLE_RULE =
-  'Get the PDF from lookahead_pdf or file_share. Don\'t tell yourself to "build a PDF". Say attached only if your email tool attached that PDF. Otherwise put the link in the body and say link, never "attached".';
+  'For a saved payment application use document_email_delivery when available to review and send the exact versioned PDF attachment. For other deliverables: Get the PDF from lookahead_pdf or file_share. Don\'t tell yourself to "build a PDF". Say attached only if the connected email tool actually attached that PDF. Otherwise put the link in the body and say link, never "attached".';
 
 const HTML_RE = /\.(x?html?|mht(ml)?)\b/i;
 /** 0.8.18: shown on every lookahead result, so the host never "builds a PDF" it can't attach. */

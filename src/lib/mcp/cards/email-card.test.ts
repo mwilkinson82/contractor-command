@@ -565,3 +565,24 @@ describe("email card on the wire", () => {
     ]);
   });
 });
+
+it("previews the exact message with concise links and keeps original text editable", () => {
+  const v = view();
+  const link = "https://app.meetathena.io/r/job/example/payment-applications?application_id=example&version=3&download=pdf";
+  const body = "Please review:\n" + link + "\nThank you.";
+  v.message({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { structuredContent: { draft: { ...draft, body, link }, draft_key: "DAAAA0001" } } });
+  const preview = v.el((e) => e.className === "message-preview");
+  const input = v.el((e) => e.id === "body");
+  expect(preview.textContent).toBe("Please review:\nDownload PDF\nThank you.");
+  expect(preview.find((e) => e.tag === "a")!.href).toBe(link);
+  expect(input.value).toBe(body);
+  expect(input.hidden).toBe(true);
+  v.el((e) => e.textContent === "Edit message").fire("click");
+  expect(input.hidden).toBe(false);
+  expect(input.value).toBe(body);
+  input.value = "Edited message";
+  input.fire("input");
+  v.el((e) => e.textContent === "Preview message").fire("click");
+  expect(preview.textContent).toBe("Edited message");
+  expect(input.value).toBe("Edited message");
+});

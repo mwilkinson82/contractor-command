@@ -134,7 +134,8 @@ describe("Claude renders lookahead and email draft as artifacts, like the schedu
     expect(s).toMatch(/No buttons of any kind/);
     expect(s).not.toMatch(/"Yes, send" button/);
     expect(s).toMatch(/confirm question word for word/);
-    expect(s).toMatch(/navy, blue #2563EB and gray only/);
+    expect(s).toMatch(/Compact white header/);
+    expect(s).toMatch(/No dark banner/);
     expect(EMAIL_CARD_RULE).toMatch(/In Claude it must be an artifact/);
     expect(s).toMatch(/Never show an attachment chip without a real attachment/);
     expect(s).toMatch(/Send nothing/);

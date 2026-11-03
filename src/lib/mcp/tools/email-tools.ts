@@ -76,7 +76,7 @@ const checkDeliverable = async (d: EmailDraft, sb?: Sb) => {
 export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
-  description: "Shows an email draft for review.",
+  description: "Shows a general email draft for review. For a saved payment application attachment, use document_email_delivery review when available; this tool offers a link-only fallback and does not attach the saved PDF.",
   inputSchema: {
     ...fields,
     job_number: z.string().trim().max(40).optional(),

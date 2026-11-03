@@ -4,8 +4,8 @@
  *  member's connected email account sends it. Athena never sends mail from the card. */
 import { BLUE, GRAY, NAVY, WHITE } from "./palette";
 
-export const EMAIL_CARD_URI = "ui://athena/email-card-v2.html";
-export const EMAIL_CARD_URIS = new Set([EMAIL_CARD_URI, "ui://athena/email-card.html"]);
+export const EMAIL_CARD_URI = "ui://athena/email-card-v3.html";
+export const EMAIL_CARD_URIS = new Set([EMAIL_CARD_URI, "ui://athena/email-card-v2.html", "ui://athena/email-card.html"]);
 export const EMAIL_CARD_MIME = "text/html;profile=mcp-app";
 /** Tools whose result opens on the email card. The chase keeps the native card: it lists several submittals. */
 export const EMAIL_CARD_TOOLS = new Set(["email_draft", "submittal_delivery", "document_email_delivery"]);
@@ -31,10 +31,11 @@ function norm(d){d=d||{};return{to:text(d.to).trim(),cc:Array.isArray(d.cc)?d.cc
 function fields(){return{to:el.to.value.trim(),cc:list(el.cc.value),subject:el.subject.value.trim(),body:el.body.value,link:S.original.link,attachment:S.original.attachment}}
 function pill(){var p=el.pill;p.className="pill";if(S.sent){p.textContent="Sent";p.className+=" done"}else if(S.mode==="document"&&S.ctx.document&&["handoff_pending","claimed","uncertain"].indexOf(S.ctx.document.state)>=0){p.textContent="Pending"}else if(S.approved&&!edited()){p.textContent="Approved";p.className+=" done"}else if(!S.allowed){p.textContent="Sending is off"}else{p.textContent="Draft, not sent"}}
 function edited(){return S.original&&!same(fields(),S.original)}
-function refresh(){pill();var can=S.allowed&&!S.sent&&!S.busy&&!!host.serverTools&&(!S.approved||edited())&&!(S.mode==="document"&&(S.approved||!host.message));[el.to,el.cc,el.subject,el.body].forEach(function(x){x.disabled=S.busy||(S.mode==="document"&&S.approved)});el.send.disabled=!can;el.reset.hidden=!edited()||S.busy;el.send.textContent=S.approved&&!edited()?"Approved":"Approve and send";
+function messagePreview(){if(!el.preview)return;el.preview.replaceChildren();var body=el.body.value;var re=/https:\\/\\/app\\.meetathena\\.io\\/[^\\s]+/g;var pos=0,m;while((m=re.exec(body))){var before=document.createElement("span");before.textContent=body.slice(pos,m.index);el.preview.appendChild(before);var a=document.createElement("a");a.href=m[0];a.target="_blank";a.rel="noopener noreferrer";a.textContent=/[?&]download=pdf(?:&|$)/.test(m[0])?"Download PDF":"Open saved document";el.preview.appendChild(a);pos=re.lastIndex}var rest=document.createElement("span");rest.textContent=body.slice(pos);el.preview.appendChild(rest)}
+function refresh(){pill();messagePreview();var can=S.allowed&&!S.sent&&!S.busy&&!!host.serverTools&&(!S.approved||edited())&&!(S.mode==="document"&&(S.approved||!host.message));[el.to,el.cc,el.subject,el.body].forEach(function(x){x.disabled=S.busy||(S.mode==="document"&&S.approved)});el.send.disabled=!can;el.reset.hidden=!edited()||S.busy;el.send.textContent=S.approved&&!edited()?"Approved":"Approve and send";
  el.note.textContent=S.note||(S.mode==="document"&&S.ctx.document&&["handoff_pending","claimed","uncertain"].indexOf(S.ctx.document.state)>=0?"Check the provider and reconcile this email before another send.":S.mode==="document"&&!host.message?"This chat cannot continue the send. Use an available link or download.":!S.allowed?"Sending is turned off. Copy this into your email app.":!host.serverTools?"This host can't approve from the card. Answer yes in the chat instead.":S.approved?"Approved with Athena. Your connected email account sends it.":"Approving records the exact text with Athena. Your connected email account sends it.");size()}
-function grow(){el.body.style.height="auto";el.body.style.height=Math.min(600,el.body.scrollHeight+4)+"px";size()}
-function field(label,id,multi){var w=document.createElement("div");w.className="row";var l=document.createElement("label");l.textContent=label;l.htmlFor=id;var i=document.createElement(multi?"textarea":"input");i.id=id;if(!multi)i.type=id==="to"?"email":"text";i.addEventListener("input",function(){S.note="";if(multi)grow();refresh()});w.appendChild(l);w.appendChild(i);el[id]=i;return w}
+function grow(){el.body.style.height="auto";el.body.style.height=Math.min(420,el.body.scrollHeight+4)+"px";size()}
+function field(label,id,multi){var w=document.createElement("div");w.className="row";var l=document.createElement("label");l.textContent=label;l.htmlFor=id;var i=document.createElement(multi?"textarea":"input");i.id=id;if(!multi)i.type=id==="to"?"email":"text";i.addEventListener("input",function(){S.note="";if(multi)grow();refresh()});w.appendChild(l);el[id]=i;if(multi){var box=document.createElement("div");box.className="message-box";el.preview=document.createElement("div");el.preview.className="message-preview";el.preview.tabIndex=0;el.preview.role="region";el.preview.ariaLabel="Email message";box.appendChild(el.preview);i.hidden=true;box.appendChild(i);el.editBody=document.createElement("button");el.editBody.type="button";el.editBody.className="edit-message";el.editBody.textContent="Edit message";el.editBody.addEventListener("click",function(){i.hidden=!i.hidden;el.preview.hidden=!i.hidden;el.editBody.textContent=i.hidden?"Edit message":"Preview message";if(!i.hidden)grow();size()});box.appendChild(el.editBody);w.appendChild(box)}else w.appendChild(i);return w}
 function build(){var app=$("app");var card=document.createElement("article");card.className="card";
  var h=document.createElement("header");var mark=document.createElement("p");mark.className="mark";mark.textContent="Athena";var t=document.createElement("h1");t.textContent=S.mode==="delivery"?"Submittal email":"Email draft";el.pill=document.createElement("span");h.appendChild(mark);h.appendChild(t);h.appendChild(el.pill);card.appendChild(h);
  var b=document.createElement("div");b.className="body";b.appendChild(field("To","to"));b.appendChild(field("Cc","cc"));b.appendChild(field("Subject","subject"));b.appendChild(field("Body","body",true));
@@ -43,7 +44,7 @@ function build(){var app=$("app");var card=document.createElement("article");car
  el.note=document.createElement("p");el.note.className="note";b.appendChild(el.note);card.appendChild(b);app.replaceChildren(card)}
 function fill(d){el.to.value=d.to;el.cc.value=d.cc.join(", ");el.subject.value=d.subject;el.body.value=d.body;
  el.extra.replaceChildren();if(S.mode==="document"){var sender=document.createElement("p");sender.textContent="From (reported account): "+text(S.ctx.document.from)+" · Saved version "+text(S.ctx.document.version)+(S.ctx.document.mailbox&&S.ctx.document.mailbox.mode==="assistant_current_gmail"?" · Gmail account is rechecked, not locked":"");el.extra.appendChild(sender)}if(d.attachment){var a=document.createElement("span");a.className="chip";a.textContent="Attachment: "+d.attachment+(S.mode==="document"?" (exact saved PDF)":" (attach it in your email app before Send)");el.extra.appendChild(a)}
- if(d.link){var r=document.createElement("p");r.className="link";var lab=document.createElement("span");lab.textContent="Link: ";r.appendChild(lab);if(/^https:\\/\\/app\\.meetathena\\.io\\//.test(d.link)){var an=document.createElement("a");an.href=d.link;an.target="_blank";an.rel="noopener noreferrer";an.textContent=d.link;r.appendChild(an)}else{var sp=document.createElement("span");sp.textContent=d.link;r.appendChild(sp)}el.extra.appendChild(r)}}
+ if(d.link){var r=document.createElement("p");r.className="link";var lab=document.createElement("span");lab.textContent="Link: ";r.appendChild(lab);if(/^https:\\/\\/app\\.meetathena\\.io\\//.test(d.link)){var an=document.createElement("a");an.href=d.link;an.target="_blank";an.rel="noopener noreferrer";an.textContent="Open file link";r.appendChild(an)}else{var sp=document.createElement("span");sp.textContent=d.link;r.appendChild(sp)}el.extra.appendChild(r)}}
 function show(result){var sc=(result&&result.structuredContent)||{};if(!sc.draft||typeof sc.draft!=="object"){$("app").textContent=sc.claimed===true?"Approved for one send. Waiting for the connected email provider.":sc.state==="host_reported_provider_acceptance"?"Provider acceptance was reported by the assistant. Recipient delivery is not verified.":sc.state?"Email status: "+text(sc.state)+". Check the conversation for details.":"Athena could not load this email. The draft is in the conversation.";size();return}
  S.mode=sc.document_email?"document":sc.delivery_id!==undefined||sc.kind==="package"||sc.kind==="chase"?"delivery":"email";
  S.original=norm(sc.draft);S.key=sc.draft_key||null;S.deliveryId=sc.delivery_id||null;S.approved=sc.approved===true;S.sent=sc.sent===true;S.allowed=sc.send_allowed!==false;
@@ -92,27 +93,22 @@ send({id:1,method:"ui/initialize",params:{protocolVersion:"2026-01-26",appInfo:{
 
 export function emailCardHtml(): string {
   const css = [
-    `body{margin:0;background:${WHITE};color:${NAVY};font:15px/1.45 system-ui,sans-serif}`,
-    `#app{min-width:0}#app>p{margin:12px;padding:12px;border-left:4px solid ${BLUE};color:${GRAY}}`,
-    `.card{border-top:4px solid ${BLUE}}`,
-    `header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:${NAVY};color:${WHITE};padding:14px 18px}`,
-    `.mark{margin:0;width:100%;font-size:12px;letter-spacing:.08em;text-transform:uppercase}`,
-    `h1{margin:0;font-size:20px;flex:1}`,
-    `.pill{padding:3px 10px;border-radius:999px;border:1px solid ${WHITE};font-size:12px;font-weight:700}`,
-    `.pill.done{background:${BLUE};border-color:${BLUE}}`,
-    `.body{padding:14px 18px}`,
-    `.row{display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:start;margin:0 0 10px}`,
-    `label{padding-top:8px;color:${GRAY};font-size:13px}`,
-    `input,textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid ${GRAY};border-radius:8px;font:inherit;color:${NAVY};background:${WHITE}}`,
-    `input:focus,textarea:focus{outline:2px solid ${BLUE};outline-offset:0;border-color:${BLUE}}`,
-    `textarea{min-height:160px;resize:vertical;line-height:1.5}`,
-    `.extra{margin:0 0 12px 80px}.chip{display:inline-block;padding:4px 10px;border:1px solid ${GRAY};border-radius:999px;font-size:13px}.link{margin:6px 0 0;font-size:13px;color:${GRAY};overflow-wrap:anywhere}a{color:${BLUE}}`,
-    `.actions{display:flex;gap:10px;align-items:center;margin:0 0 0 80px}`,
-    `button{font:inherit;border-radius:8px;padding:9px 16px;cursor:pointer}`,
-    `.primary{background:${BLUE};color:${WHITE};border:1px solid ${BLUE};font-weight:700}.primary:disabled{background:${GRAY};border-color:${GRAY};cursor:default}`,
-    `.quiet{background:${WHITE};color:${NAVY};border:1px solid ${GRAY}}[hidden]{display:none}`,
-    `.note{margin:10px 0 0 80px;color:${GRAY};font-size:13px}`,
-    `@media (max-width:520px){.row{grid-template-columns:1fr}label{padding-top:0}.extra,.actions,.note{margin-left:0}}`,
+    `body{margin:0;background:${WHITE};color:${NAVY};font:15px/1.5 system-ui,sans-serif}`,
+    `#app{min-width:0}#app>p{margin:12px;color:${GRAY}}`,
+    `.card{box-sizing:border-box;border:1px solid ${GRAY}55;border-radius:14px;overflow:hidden;background:${WHITE}}`,
+    `header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:18px 20px 14px;border-bottom:1px solid ${GRAY}33}`,
+    `.mark{display:none}h1{margin:0;font-size:18px;flex:1;min-width:0}`,
+    `.pill{padding:3px 9px;border-radius:999px;background:${GRAY}16;color:${NAVY};font-size:12px;font-weight:600}.pill.done{background:${GRAY}20}`,
+    `.body{padding:16px 20px 20px}.row{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:start;margin:0 0 10px}`,
+    `label{padding-top:8px;color:${GRAY};font-size:13px;font-weight:600}`,
+    `input,textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid ${GRAY}66;border-radius:8px;font:inherit;color:${NAVY};background:${WHITE}}`,
+    `input:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid ${BLUE};outline-offset:2px}`,
+    `textarea{min-height:140px;resize:vertical;line-height:1.5}.message-box{min-width:0}.message-preview{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;line-height:1.6;padding:8px 0}.edit-message{background:transparent;color:${NAVY};border:0;text-decoration:underline;padding:5px 0;font-size:13px}`,
+    `.extra{margin:0 0 14px 74px;font-size:13px;color:${GRAY};overflow-wrap:anywhere}.chip{display:inline-block;padding:5px 9px;border:1px solid ${GRAY}55;border-radius:8px;color:${NAVY}}.link{margin:8px 0 0;overflow-wrap:anywhere}a{color:${NAVY};text-decoration:underline}`,
+    `.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:74px}button{font:inherit;border-radius:9px;padding:9px 15px;cursor:pointer}`,
+    `.primary{background:${NAVY};color:${WHITE};border:1px solid ${NAVY};font-weight:600}.primary:disabled{background:${GRAY}55;border-color:transparent;color:${NAVY};cursor:default}`,
+    `.quiet{background:${WHITE};color:${NAVY};border:1px solid ${GRAY}66}[hidden]{display:none}.note{margin:10px 0 0 74px;color:${GRAY};font-size:13px}`,
+    `@media (max-width:520px){header{padding:16px}.body{padding:14px 16px 16px}.row{grid-template-columns:1fr;gap:4px}label{padding-top:0}.extra,.actions,.note{margin-left:0}}`,
   ].join("");
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><main id="app" aria-live="polite"><p>Athena · Loading your email…</p></main><script>${SCRIPT}</script></body></html>`;
 }
