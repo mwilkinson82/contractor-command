@@ -73,7 +73,12 @@ async function rpc(
   method: "POST" | "GET" = "POST",
   args: unknown[] = [job],
 ) {
-  const type = name === "mcp_estimate_takeoff_save" ? "uuid,text,jsonb,jsonb" : "uuid";
+  const type =
+    name === "mcp_estimate_takeoff_save"
+      ? "uuid,text,jsonb,jsonb"
+      : name === "mcp_estimate_pricing_save"
+        ? "uuid,jsonb,jsonb,jsonb,jsonb"
+        : "uuid";
   const mode = (
     await db.query<{ volatility: string }>(
       "SELECT provolatile::text AS volatility FROM pg_proc WHERE oid=to_regprocedure($1)",
@@ -176,5 +181,27 @@ describe.sequential("estimating RPC transaction classification", () => {
     expect(read.takeoff.version).toBe(1);
     expect(Number(read.takeoff.lines[0].qty)).toBe(2);
     expect((await counts()).rows[0]).toMatchObject({ takeoffs: 1, gaps: 0, verdicts: 0 });
+  });
+  it("preserves concurrently saved quotes when the pricing RPC receives NULL for quotes", async () => {
+    const quote = { sub: "Contractor", description: "Finishes", ref: "T-1", amount: 1200 };
+    const save = (labor: unknown[] | null, material: unknown[] | null, quotes: unknown[] | null) =>
+      rpc("mcp_estimate_pricing_save", owner, "POST", [
+        job,
+        labor === null ? null : JSON.stringify(labor),
+        material === null ? null : JSON.stringify(material),
+        quotes === null ? null : JSON.stringify(quotes),
+        null,
+      ]);
+    // Session A reads an empty quote list; session B saves a quote before A saves rates.
+    const stale = (await rpc("mcp_estimate_bid_get")) as { pricing: { quotes: unknown[] } | null };
+    expect(stale.pricing?.quotes ?? []).toEqual([]);
+    await save(null, null, [quote]);
+    await save(null, [{ ref: "T-1", unit_price: 6 }], null);
+    const after = (await rpc("mcp_estimate_bid_get")) as { pricing: { quotes: unknown[] } };
+    expect(after.pricing.quotes).toEqual([quote]);
+    // The current RPC still accepts a stale explicit replacement; it has no CAS.
+    await save(null, null, stale.pricing?.quotes ?? []);
+    const lost = (await rpc("mcp_estimate_bid_get")) as { pricing: { quotes: unknown[] } };
+    expect(lost.pricing.quotes).toEqual([]);
   });
 });
