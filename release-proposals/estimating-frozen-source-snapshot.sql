@@ -65,7 +65,7 @@ BEGIN
     VALUES(_job,cid,_request,auth.uid(),ver,data,hash);
   RETURN jsonb_build_object('status','review','request',_request,'snapshot_id',NULL,'source_version',ver,'current',true,'sha256',hash,'snapshot',data);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_snapshot_review(uuid,uuid,bigint) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_snapshot_review(uuid,uuid,bigint) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_snapshot_review(uuid,uuid,bigint) TO authenticated;
 
 CREATE FUNCTION public.mcp_estimate_snapshot_save(_job uuid,_request uuid,_confirmed boolean) RETURNS jsonb
@@ -87,7 +87,7 @@ BEGIN
   UPDATE mcp_private.estimate_snapshot_review SET saved_id=saved_snapshot WHERE job_id=_job AND request_id=_request;
   RETURN jsonb_build_object('status','saved','request',_request,'snapshot_id',saved_snapshot,'source_version',r.source_version,'current',true,'sha256',r.source_sha256);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_snapshot_save(uuid,uuid,boolean) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_snapshot_save(uuid,uuid,boolean) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_snapshot_save(uuid,uuid,boolean) TO authenticated;
 
 CREATE FUNCTION public.mcp_estimate_snapshot_read(_job uuid,_snapshot uuid) RETURNS jsonb
@@ -101,5 +101,5 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'MCP_BAD:Source snapshot not found for this job.'; END IF;
   RETURN jsonb_build_object('snapshot_id',s.id,'source_version',s.source_version,'current',s.source_version=ver,'sha256',s.source_sha256,'snapshot',s.source_data,'saved_by',s.actor,'created_at',s.created_at);
 END $$;
-REVOKE ALL ON FUNCTION public.mcp_estimate_snapshot_read(uuid,uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.mcp_estimate_snapshot_read(uuid,uuid) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_estimate_snapshot_read(uuid,uuid) TO authenticated;
