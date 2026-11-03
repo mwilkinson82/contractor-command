@@ -6,6 +6,13 @@ import { applicationFixture } from "./fixtures";
 import { calculateApplication } from "./model";
 import { applicationPdf } from "./pdf";
 
+// The project's renderer declaration covers canvas rendering only; these
+// tests use PDF.js's text geometry API instead.
+type TextItem = { str: string; transform: number[]; width: number; height: number };
+const parseText = getDocument as unknown as (options: { data: Uint8Array; useSystemFonts: boolean; disableWorker: boolean; isEvalSupported: boolean }) => {
+  promise: Promise<{ getPage(n: number): Promise<{ getTextContent(): Promise<{ items: (TextItem | { type: string })[] }> }>; destroy(): Promise<void> }>;
+};
+
 function logo(width: number, height: number) {
   const data = new Uint8Array(width * height * 3);
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -28,7 +35,7 @@ function render(companyName: string, dimensions?: [number, number], invalid = fa
   return bytes;
 }
 async function header(bytes: Uint8Array) {
-  const pdf = await getDocument({ data: new Uint8Array(bytes), useSystemFonts: true }).promise;
+  const pdf = await parseText({ data: new Uint8Array(bytes), useSystemFonts: true, disableWorker: true, isEvalSupported: false }).promise;
   try {
     const page = await pdf.getPage(1);
     const content = await page.getTextContent();
