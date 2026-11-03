@@ -40,8 +40,10 @@ describe("0.8.20 /f/<token> on Cloudflare Workers", () => {
 });
 
 describe("0.8.20 wording", () => {
-  it("email_draft artifact line matches the Gantt pattern", () => {
-    expect(EMAIL_DRAFT_ARTIFACT_LINE).toMatch(/^REQUIRED VIEW: build ONE styled email-draft artifact/);
+  it("email draft prefers the native card with one static fallback", () => {
+    expect(EMAIL_DRAFT_ARTIFACT_LINE).toMatch(/^REQUIRED VIEW: use the native email review card/);
+    expect(EMAIL_DRAFT_ARTIFACT_LINE).toContain("without a second draft artifact or approval controls");
+    expect(EMAIL_DRAFT_ARTIFACT_LINE).toContain("Only when that card is unavailable");
     expect(CPM_GANTT_SPEC[0]).toMatch(/^REQUIRED VIEW/);
   });
   it("lookahead_pdf description is neutral: no imperatives to the model", () => {
