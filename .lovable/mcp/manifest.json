@@ -1325,8 +1325,8 @@
           "idempotentHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "section": {
               "type": "string",
@@ -1935,6 +1935,11 @@
                 "official",
                 "draft"
               ]
+            },
+            "destination_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             },
             "action": {
               "type": "string",
@@ -8934,7 +8939,7 @@
       {
         "name": "estimate_pricing",
         "title": "Pricing walkthrough",
-        "description": "Prices a job from the contractor's labor and material rates, and asks for those rates when none are saved.",
+        "description": "Prices a job from the contractor's rates while preserving existing quotes for separate coverage review.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -9490,8 +9495,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -9512,6 +9517,16 @@
               "type": "number",
               "minimum": 0,
               "maximum": 100
+            },
+            "export_format": {
+              "type": "string",
+              "enum": [
+                "pdf",
+                "xlsx"
+              ]
+            },
+            "handoff_draft": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -16548,6 +16563,550 @@
             "action",
             "job_number",
             "delivery_id"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_quote_coverage",
+        "title": "Review subcontract quote coverage",
+        "description": "Reads current scope and quotes, reviews which quotes replace whole takeoff lines, and separately saves the reviewed decision after explicit confirmation.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "read",
+                "review",
+                "save"
+              ]
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "decisions": {
+              "maxItems": 80,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "quote_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 79
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "carry",
+                      "compare"
+                    ]
+                  },
+                  "ref": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "replace_labor_and_material": {
+                    "type": "boolean"
+                  },
+                  "exclusive_to_line": {
+                    "type": "boolean"
+                  },
+                  "source_note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "scope_note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "exclusions_note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "quote_index",
+                  "decision"
+                ]
+              }
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_source_snapshot",
+        "title": "Review estimate source snapshot",
+        "description": "Reviews and saves an exact estimate source version without posting financial records.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save",
+                "read"
+              ]
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_handoff",
+        "title": "Review frozen estimate handoff",
+        "description": "Reads versioned destinations, reviews a frozen estimate's explicit allocation into budget, official/draft SOV or existing buyout package budget, then separately accepts it atomically. No contract award, vendor selection, commitment approval or payment.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "destination": {
+              "type": "string",
+              "enum": [
+                "buyout",
+                "budget",
+                "sov"
+              ]
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save",
+                "read",
+                "cancel"
+              ]
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "correction_of": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "package_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "allow_historical": {
+              "type": "boolean"
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "plan": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "budget"
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 300,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "cost_code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "zero": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "cost_code",
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "allocations": {
+                      "minItems": 1,
+                      "maxItems": 2000,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "component_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "splits": {
+                            "maxItems": 300,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "target_key": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "amount_cents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "target_key",
+                                "amount_cents"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "excluded_cents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "exclusion_reason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "component_id",
+                          "splits",
+                          "excluded_cents",
+                          "exclusion_reason"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "lines",
+                    "allocations"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "sov"
+                    },
+                    "copy": {
+                      "type": "string",
+                      "enum": [
+                        "official",
+                        "draft"
+                      ]
+                    },
+                    "source_basis": {
+                      "type": "string",
+                      "const": "base_contract"
+                    },
+                    "fee_pct": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMaximum": 100
+                    },
+                    "billing_basis": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "lines": {
+                      "minItems": 1,
+                      "maxItems": 300,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "line": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          },
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "cost_codes": {
+                            "minItems": 1,
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            }
+                          },
+                          "spec_section": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "zero": {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "description",
+                          "cost_codes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "allocations": {
+                      "minItems": 1,
+                      "maxItems": 2000,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "component_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "splits": {
+                            "maxItems": 300,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "target_key": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 40
+                                },
+                                "amount_cents": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "target_key",
+                                "amount_cents"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "fee_cents": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "component_id",
+                          "splits",
+                          "fee_cents"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "copy",
+                    "source_basis",
+                    "fee_pct",
+                    "billing_basis",
+                    "lines",
+                    "allocations"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "allocations": {
+              "minItems": 1,
+              "maxItems": 2000,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "component_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "include": {
+                    "type": "boolean"
+                  },
+                  "exclusion_reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "component_id",
+                  "include",
+                  "exclusion_reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "job_number",
+            "destination",
+            "step"
           ],
           "additionalProperties": false
         },

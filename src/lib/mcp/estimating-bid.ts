@@ -1,6 +1,7 @@
 // Bid walkthrough. Rates are the contractor's figures or a PLACEHOLDER they confirm.
 // RSMeans and NECA labor units are licensed: this file has no published tables and no city indexes.
 import type { Doc, DocReview, GapIn, Setup } from "./estimating";
+import type { applyReviewedQuoteCoverage } from "./estimating-quote-pricing";
 import { money } from "./sov";
 
 export class BidError extends Error {
@@ -277,12 +278,13 @@ export function gcLineAmount(input: {
   const qty = pos(input.qty, label);
   const rate = pos(input.rate, label);
   const duration = pos(input.duration, "Schedule duration");
+  const placeholder = input.confirmed !== true;
   if (input.key === "supervision" && amount != null) {
     return {
       amount,
-      math: `${label}: ${money(amount)} entered${qty != null ? ` for quantity ${qty}` : duration != null ? ` for ${duration} days` : ""}.${!input.confirmed ? " PLACEHOLDER." : " Confirmed by the contractor."}`,
+      math: `${label}: ${money(amount)} entered${qty != null ? ` for quantity ${qty}` : duration != null ? ` for ${duration} days` : ""}.${placeholder ? " PLACEHOLDER." : " Confirmed by the contractor."}`,
       missing: null,
-      placeholder: !input.confirmed,
+      placeholder,
     };
   }
   if (input.key === "supervision") {
@@ -302,7 +304,6 @@ export function gcLineAmount(input: {
         placeholder: false,
       };
     const value = amount ?? cents(units * (rate as number));
-    const placeholder = !input.confirmed;
     const basis =
       qty != null
         ? `${qty} × ${money(rate as number)}`
@@ -320,18 +321,18 @@ export function gcLineAmount(input: {
   if (amount != null) {
     return {
       amount,
-      math: `${label}: ${money(amount)}.${!input.confirmed ? " PLACEHOLDER until the contractor confirms it." : " Confirmed by the contractor."}`,
+      math: `${label}: ${money(amount)}.${placeholder ? " PLACEHOLDER until the contractor confirms it." : " Confirmed by the contractor."}`,
       missing: null,
-      placeholder: !input.confirmed,
+      placeholder,
     };
   }
   if (qty != null && rate != null) {
     const value = cents(qty * rate);
     return {
       amount: value,
-      math: `${label}: ${qty} × ${money(rate)} = ${money(value)}.${!input.confirmed ? " PLACEHOLDER until the contractor confirms it." : " Confirmed by the contractor."}`,
+      math: `${label}: ${qty} × ${money(rate)} = ${money(value)}.${placeholder ? " PLACEHOLDER until the contractor confirms it." : " Confirmed by the contractor."}`,
       missing: null,
-      placeholder: !input.confirmed,
+      placeholder,
     };
   }
   return {
@@ -628,17 +629,47 @@ const sourceLabel = (t: "sheet" | "spec" | "contract") =>
 export const QUOTE_COVERAGE_REQUIRED =
   "Subcontract quote coverage needs review. Identify carried scope and any self-perform replacement or split before building the bid total.";
 
+export type BidDirectRow = {
+  ref: string;
+  basis: "direct" | "quote";
+  amountCents: number;
+  quoteId: string | null;
+};
+export type BidBreakdown = {
+  direct: BidDirectRow[];
+  directCents: number;
+  generalConditions: { label: string; ref: string | null; placement: "gc"; amountCents: number }[];
+  requirements: { label: string; ref: string; placement: "own_line"; amountCents: number }[];
+  generalConditionsCents: number;
+  requirementsCents: number;
+  overheadCents: number;
+  profitCents: number;
+  totalCents: number;
+};
+
 export function assembleBid(input: {
   direct: number;
   directPlaceholder: boolean;
   directBlockers?: string[];
+  /** Source review applies to the entire bid, even when quotes replace direct rates. */
+  sourceBlockers?: string[];
   gc: BidPiece[];
   requirements: RequirementPrice[];
   quotes?: { sub: string; description: string; amount: number | null; ref?: string | null }[];
+  /** Internal result built from a guarded snapshot, never a host-supplied decision. */
+  quoteCoverage?: ReturnType<typeof applyReviewedQuoteCoverage>;
+  directRows?: BidDirectRow[] | null;
   overheadPct: number | null;
   profitPct: number | null;
   settled: boolean;
-}): { lines: string[]; total: number | null; ready: boolean; math: string; blockers: string[] } {
+}): {
+  lines: string[];
+  total: number | null;
+  ready: boolean;
+  math: string;
+  blockers: string[];
+  breakdown: BidBreakdown | null;
+} {
   const gcPriced = input.gc.filter((g) => g.amount != null);
   const reqInGc = input.requirements.filter(
     (r) => !r.excluded && r.placement === "gc" && r.amount != null,
@@ -651,20 +682,25 @@ export function assembleBid(input: {
   const ownPriced = reqOwn.filter((r) => r.amount != null);
   const ownTotal = cents(ownPriced.reduce((s, r) => s + (r.amount ?? 0), 0));
   const quotes = input.quotes ?? [];
+  const coverage = quotes.length && input.quoteCoverage?.accepted ? input.quoteCoverage : null;
+  const direct = coverage?.direct ?? input.direct;
+  const directPlaceholder = coverage ? coverage.directPlaceholder : input.directPlaceholder;
   const unpriced = [
     ...input.gc.filter((g) => g.amount == null).map((g) => g.label),
     ...input.requirements.filter((r) => !r.excluded && r.amount == null).map((r) => r.ref),
-    ...quotes.filter((q) => q.amount == null).map((q) => `${q.sub} ${q.description}`.trim()),
+    ...(coverage
+      ? []
+      : quotes.filter((q) => q.amount == null).map((q) => `${q.sub} ${q.description}`.trim())),
   ];
   const placeholder =
-    input.directPlaceholder ||
+    directPlaceholder ||
     input.gc.some((g) => g.placeholder) ||
     input.requirements.some((r) => !r.excluded && r.amount != null && !r.confirmed);
-  // Stored quotes have no carried/alternative/replacement coverage decision.
-  // Preserve them for review; never select a vendor or add ambiguous scope.
-  const base = cents(input.direct + gcTotal + ownTotal);
+  // Legacy quotes remain held. Only a reviewed, current whole-line selection
+  // may replace direct costs; other quotes remain visible for comparison.
+  const base = cents(direct + gcTotal + ownTotal);
   const lines = [
-    `Direct cost (labor and material): ${money(input.direct)}.${input.directPlaceholder ? " Includes a PLACEHOLDER." : ""}`,
+    `${coverage ? "Direct and selected subcontract cost" : "Direct cost (labor and material)"}: ${coverage && coverage.direct == null ? "Unresolved pending review." : money(direct) + "."}${directPlaceholder ? " Includes a PLACEHOLDER." : ""}`,
     `General conditions: ${money(gcTotal)}.`,
     ...input.gc.map(
       (g) =>
@@ -674,10 +710,17 @@ export function assembleBid(input: {
     ...(quotes.length
       ? [
           "Sub quotes for scope review:",
-          ...quotes.map(
-            (q) =>
-              `- ${q.sub} ${q.description}${q.ref ? ` (${q.ref})` : ""}: ${q.amount == null ? "Unpriced. Holds the bid." : money(q.amount) + "."}`,
-          ),
+          ...quotes.map((q, index) => {
+            const carried = coverage?.rows.find((row) => row.quoteId === String(index));
+            const selection = !coverage
+              ? ""
+              : coverage.blockers.length
+                ? " Coverage needs review."
+                : carried
+                  ? ` Carried for ${carried.ref}, replacing that line's direct labor and material.`
+                  : " Comparison only.";
+            return `- ${q.sub} ${q.description}${q.ref ? ` (${q.ref})` : ""}: ${q.amount == null ? (coverage ? "Unpriced." : "Unpriced. Holds the bid.") : money(q.amount) + "."}${selection}`;
+          }),
         ]
       : []),
     ...reqOwn.map(
@@ -689,14 +732,37 @@ export function assembleBid(input: {
         `- ${r.label} (${r.ref}) is carried in general conditions. ${sourceLabel(r.sourceType)} ${r.sourceRef}. ${money(r.amount ?? 0)}.${r.confirmed ? "" : " PLACEHOLDER."}`,
     ),
   ];
-  const blockers = [...(input.directBlockers ?? [])];
-  if (quotes.length) blockers.push(QUOTE_COVERAGE_REQUIRED);
+  const blockers = [
+    ...(coverage ? coverage.blockers : (input.directBlockers ?? [])),
+    ...(input.sourceBlockers ?? []),
+  ];
+  if (quotes.length && !coverage) blockers.push(QUOTE_COVERAGE_REQUIRED);
+  const validMoney = (value: number) =>
+    Number.isFinite(value) &&
+    value >= 0 &&
+    Number.isSafeInteger(Math.round(value * 100)) &&
+    Math.abs(value * 100 - Math.round(value * 100)) < 1e-7;
+  if (
+    !validMoney(direct) ||
+    !validMoney(gcTotal) ||
+    !validMoney(ownTotal) ||
+    !validMoney(base) ||
+    gcPriced.some((piece) => !validMoney(piece.amount!)) ||
+    [...reqInGc, ...ownPriced].some((piece) => !validMoney(piece.amount!))
+  )
+    blockers.push("The bid contains an invalid amount or exceeds the supported cent range.");
+  if (
+    [input.overheadPct, input.profitPct].some(
+      (percent) => percent != null && (!Number.isFinite(percent) || percent < 0 || percent > 100),
+    )
+  )
+    blockers.push("Overhead and profit must be finite percentages from 0 to 100.");
   if (blockers.length) {
     lines.push(
       ...blockers.map((blocker) => `- ${blocker} Holds the bid.`),
       "Not a bid yet. Resolve pricing and scope coverage before totaling.",
     );
-    return { lines, total: null, ready: false, math: lines.join("\n"), blockers };
+    return { lines, total: null, ready: false, math: lines.join("\n"), blockers, breakdown: null };
   }
   blockers.push(...unpriced.map((label) => `${label}: unpriced.`));
   if (placeholder) blockers.push("A PLACEHOLDER is still unconfirmed.");
@@ -711,9 +777,14 @@ export function assembleBid(input: {
         : "Not a bid yet. Overhead and profit are still open.",
     );
     blockers.push("Overhead and profit are not set.");
-    return { lines, total: null, ready: false, math: lines.join("\n"), blockers };
+    return { lines, total: null, ready: false, math: lines.join("\n"), blockers, breakdown: null };
   }
   const ohp = compoundOhp(base, input.overheadPct, input.profitPct);
+  if (![ohp.overhead, ohp.profit, ohp.total].every(validMoney)) {
+    blockers.push("The bid exceeds the supported cent range.");
+    lines.push("The bid exceeds the supported cent range. Resolve amounts before totaling.");
+    return { lines, total: null, ready: false, math: lines.join("\n"), blockers, breakdown: null };
+  }
   lines.push(ohp.math);
   const ready = input.settled && unpriced.length === 0 && !placeholder;
   lines.push(
@@ -721,7 +792,62 @@ export function assembleBid(input: {
       ? `Bid total ${money(ohp.total)}.`
       : `Priced total ${money(ohp.total)}. Not a bid yet.${unpriced.length ? ` Still open: ${unpriced.join(", ")}.` : ""}${placeholder ? " A PLACEHOLDER is still unconfirmed." : ""}${input.settled ? "" : " The takeoff is not settled."}`,
   );
-  return { lines, total: ohp.total, ready, math: ohp.math, blockers };
+  const pieces = coverage ? coverage.rows : input.directRows;
+  const centValue = (n: number) => {
+    const value = Math.round(n * 100);
+    return Number.isSafeInteger(value) ? value : null;
+  };
+  const directRows = pieces?.filter(
+    (row): row is BidDirectRow => row.amountCents != null && Number.isSafeInteger(row.amountCents),
+  );
+  const gcRows = [
+    ...gcPriced.map((g) => ({
+      label: g.label,
+      ref: null,
+      placement: "gc" as const,
+      amountCents: centValue(g.amount!),
+    })),
+    ...reqInGc.map((r) => ({
+      label: r.label,
+      ref: r.ref,
+      placement: "gc" as const,
+      amountCents: centValue(r.amount!),
+    })),
+  ];
+  const reqRows = ownPriced.map((r) => ({
+    label: r.label,
+    ref: r.ref,
+    placement: "own_line" as const,
+    amountCents: centValue(r.amount!),
+  }));
+  const amounts = [
+    centValue(gcTotal),
+    centValue(ownTotal),
+    centValue(ohp.overhead),
+    centValue(ohp.profit),
+    centValue(ohp.total),
+  ];
+  const breakdown =
+    ready &&
+    pieces &&
+    directRows?.length === pieces.length &&
+    directRows.reduce((sum, row) => sum + row.amountCents, 0) === centValue(direct) &&
+    gcRows.every((row) => row.amountCents != null) &&
+    reqRows.every((row) => row.amountCents != null) &&
+    amounts.every((amount) => amount != null)
+      ? {
+          direct: directRows,
+          directCents: centValue(direct)!,
+          generalConditions: gcRows as BidBreakdown["generalConditions"],
+          requirements: reqRows as BidBreakdown["requirements"],
+          generalConditionsCents: amounts[0]!,
+          requirementsCents: amounts[1]!,
+          overheadCents: amounts[2]!,
+          profitCents: amounts[3]!,
+          totalCents: amounts[4]!,
+        }
+      : null;
+  return { lines, total: ohp.total, ready, math: ohp.math, blockers, breakdown };
 }
 
 export function nextMove(

@@ -1,9 +1,9 @@
 import {loadJobSourceClauses} from "../source-clauses";
 import {clauseKinds,literalClauseCard} from "../literal-clauses";
 import { companyProjectSoftware, companyScopeDefaults, scopeAlias, SECTOR_ALIASES, PRICING_ALIASES, POSITION_ALIASES } from "../scope-defaults";
-import { SovMismatch, SOV_SPECS_MISSING_NOTE, SOV_TOTAL_REFUSAL, buildSov, sovItemProblems, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
+import { SovMismatch, SOV_SPECS_MISSING_NOTE, buildSov, sovItemProblems, sovSpecsMissing, sovTotalChangeRefusal, retainagePct, sovLayout, sovLineRows, sovNotes, sovSummaryText, money, type SovBrand, type SovView } from "../sov";
 import { draftSovText, nextDraftFacts } from "../sov-draft";
-import { storedModule } from "../record-copy";
+import { readIntakeDestination, saveIntakeDestination, effectiveDraftTerms } from "../estimating-destination-client";
 import type { SovLineIn } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
@@ -398,6 +398,9 @@ export const intake = defineTool({
     fee_pct: z.number().optional(),
     sov_basis: z.string().trim().max(200).optional(),
     sov_copy: z.enum(["official", "draft"]).optional(),
+    // Caller-observed revision for replacements; retry rules belong in the
+    // assistant-only result guidance, not schema description text.
+    destination_version: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
     // Open item
     action: short("open_item: what has to happen"), kind: z.enum(["general", "commercial", "warranty"]).optional(),
     commercial_type: z.enum(["co", "rea", "claim", "retainage"]).optional(), owner: short("open_item: accountable named person"), needed_by: date.optional(),
@@ -737,36 +740,143 @@ export const intake = defineTool({
       if (args.section === "budget") {
         const itemProblems = sovItemProblems((args.sov_lines ?? []).map((line) => line.line));
         if (itemProblems.length) throw new ToolError(`${itemProblems.join("\n")} Nothing was saved.`);
-        if (args.fee_pct !== undefined && !(args.fee_pct >= 0 && args.fee_pct < 100)) throw new ToolError("The fee percent must be at least 0 and under 100.");
-        const budget: Record<string, unknown> = {};
-        for (const b of args.budget_lines ?? []) budget[b.cost_code] = { description: b.description ?? null, amount: b.amount ?? null };
-        const savedOfficial = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", "sov");
-        if (savedOfficial.error) dbError(savedOfficial.error);
-        const officialRows = (savedOfficial.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
+        if (
+          new Set((args.budget_lines ?? []).map((line) => line.cost_code)).size !==
+          (args.budget_lines ?? []).length
+        )
+          throw new ToolError("Each budget cost code must occur once. Nothing was saved.");
+        if (
+          args.fee_pct !== undefined &&
+          (!(args.fee_pct >= 0 && args.fee_pct < 100) ||
+            Math.round(args.fee_pct * 10000) / 10000 !== args.fee_pct)
+        )
+          throw new ToolError(
+            "The fee percent must be at least 0 and under 100, with at most four decimal places.",
+          );
+        if (args.sov_copy === "draft" && args.budget_lines?.length)
+          throw new ToolError(
+            "A draft SOV does not change the official budget. Save the intended budget separately, then review the draft SOV.",
+          );
+        const explicitWrite = Boolean(
+          args.budget_lines?.length ||
+          args.sov_lines?.length ||
+          args.fee_pct !== undefined ||
+          args.sov_basis?.trim(),
+        );
+        const observed = await readIntakeDestination(
+          sb,
+          job,
+          explicitWrite || args.destination_version !== undefined,
+        );
+        if (args.destination_version !== undefined && args.destination_version !== observed.version)
+          throw new ToolError(
+            "The destination changed. Read and review its current version before saving.",
+          );
+        const rowsOf = (values: Record<string, unknown>) =>
+          Object.entries(values).map(([key, value]) => ({
+            key,
+            value: value as Record<string, unknown> | null,
+          }));
+        const officialRows = rowsOf(observed.sov);
         const officialByKey = new Map(officialRows.map((row) => [row.key, row.value ?? {}]));
+        const mergeLines = (
+          rows: {
+            line: string;
+            description?: string;
+            billable_value?: number;
+            cost_codes?: string[];
+            spec_section?: string;
+          }[],
+          base: Map<string, Record<string, unknown>>,
+        ) => {
+          const patch: Record<string, unknown> = {};
+          for (const row of rows) {
+            const old = base.get(row.line) ?? {};
+            patch[row.line] = {
+              ...old,
+              description: row.description !== undefined ? row.description : (old.description ?? null),
+              cost_codes: row.cost_codes ?? (Array.isArray(old.cost_codes) ? old.cost_codes : []),
+              ...(row.spec_section ? { spec_section: row.spec_section } : {}),
+              ...(row.billable_value !== undefined ? { billable_value: row.billable_value } : {}),
+            };
+          }
+          return patch;
+        };
         if (args.sov_copy === "draft") {
-          const savedDraft = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", storedModule("sov", "draft"));
-          if (savedDraft.error) dbError(savedDraft.error);
-          const draftRows = (savedDraft.data ?? []) as { key: string; value: Record<string, unknown> | null }[];
-          const incoming: Record<string, unknown> = {};
-          for (const s of args.sov_lines ?? []) incoming[s.line] = { description: s.description ?? null, billable_value: s.billable_value ?? null, cost_codes: s.cost_codes ?? [], ...(s.spec_section ? { spec_section: s.spec_section } : {}) };
-          const step = nextDraftFacts(officialRows, draftRows, Object.keys(incoming).length ? incoming : null);
-          if (step.copy) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: storedModule("sov", "draft"), _facts: step.copy, _source: "member_answer" });
-          if (step.edits) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: storedModule("sov", "draft"), _facts: step.edits, _source: "member_answer" });
-          const shown = await sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", storedModule("sov", "draft"));
-          if (shown.error) dbError(shown.error);
-          const lines = ((shown.data ?? []) as { key: string; value: { description?: string | null; billable_value?: number | null; cost_codes?: string[] } }[]).map((row) => ({
-            item_no: row.key,
-            description: row.value?.description ?? null,
-            scheduled_value: typeof row.value?.billable_value === "number" ? row.value.billable_value : null,
-            cost_codes: row.value?.cost_codes,
-          })) satisfies SovLineIn[];
-          const { data: terms } = await sb.from("mcp_jobs").select("sov_fee_pct, sov_basis").eq("id", job.job_id).maybeSingle();
-          const cpm = await sb.rpc("mcp_living_report_get", { _job: job.job_id, _type: "cpm", _version: null });
-          const activities = ((cpm.data as { data?: { activities?: { start?: string | null; finish?: string | null }[] } } | null)?.data?.activities ?? []);
-          const starts = activities.map((row) => row.start?.slice(0, 10)).filter((day): day is string => !!day).sort();
-          const finishes = activities.map((row) => row.finish?.slice(0, 10)).filter((day): day is string => !!day).sort();
-          const { data: company } = await sb.from("mcp_companies").select("name, logo_url, license_number, contact_name, contact_phone, website").eq("id", job.company_id).maybeSingle();
+          const draftRows = rowsOf(observed.sov_draft);
+          const base = new Map(
+            (draftRows.length ? draftRows : officialRows).map((row) => [row.key, row.value ?? {}]),
+          );
+          for (const [key, value] of base) {
+            if (value.fee_included != null && typeof value.fee_included !== "boolean")
+              throw new ToolError(`Draft SOV line ${key} has malformed source flags. Review its saved evidence before changing it.`);
+          }
+          const incoming = mergeLines(args.sov_lines ?? [], base);
+          const step = nextDraftFacts(
+            officialRows,
+            draftRows,
+            Object.keys(incoming).length ? incoming : null,
+          );
+          const patch = { ...(step.copy ?? {}), ...(step.edits ?? {}) };
+          const needsSave = explicitWrite || Object.keys(patch).length > 0;
+          const inheritedTerms = effectiveDraftTerms(observed);
+          const shown = needsSave
+            ? await saveIntakeDestination(
+                sb, job, observed,
+                {
+                  ...(Object.keys(patch).length ? { draft: patch } : {}),
+                  draftFee: args.fee_pct ?? inheritedTerms.fee_pct,
+                  draftBasis: args.sov_basis?.trim() || inheritedTerms.basis,
+                },
+                args.destination_version,
+              )
+            : observed;
+          const terms = effectiveDraftTerms(shown);
+          const lines = rowsOf(shown.sov_draft).map((row) => {
+            const value = row.value as {
+              description?: string | null;
+              billable_value?: number | null;
+              cost_codes?: string[];
+              spec_section?: string | null;
+              executed_change_order?: string;
+              fee_included?: boolean;
+            } | null;
+            if (value?.fee_included != null && typeof value.fee_included !== "boolean")
+              throw new ToolError(`Draft SOV line ${row.key} has malformed source flags. Review its saved evidence before rendering.`);
+            return {
+              item_no: row.key,
+              description: value?.description ?? null,
+              scheduled_value: typeof value?.billable_value === "number" ? value.billable_value : null,
+              cost_codes: value?.cost_codes,
+              spec_section: value?.spec_section ?? null,
+              executed_change_order: value?.executed_change_order,
+              fee_included: value?.fee_included === true,
+            };
+          }) satisfies SovLineIn[];
+          const cpm = await sb.rpc("mcp_living_report_get", {
+            _job: job.job_id,
+            _type: "cpm",
+            _version: null,
+          });
+          const activities =
+            (
+              cpm.data as {
+                data?: { activities?: { start?: string | null; finish?: string | null }[] };
+              } | null
+            )?.data?.activities ?? [];
+          const starts = activities
+            .map((row) => row.start?.slice(0, 10))
+            .filter((day): day is string => !!day)
+            .sort();
+          const finishes = activities
+            .map((row) => row.finish?.slice(0, 10))
+            .filter((day): day is string => !!day)
+            .sort();
+          const { data: company } = await sb
+            .from("mcp_companies")
+            .select("name, logo_url, license_number, contact_name, contact_phone, website")
+            .eq("id", job.company_id)
+            .maybeSingle();
           const brand: SovBrand = {
             company_name: company?.name ?? "",
             logo_url: company?.logo_url ?? null,
@@ -775,68 +885,140 @@ export const intake = defineTool({
             contact_phone: company?.contact_phone ?? null,
             website: company?.website ?? null,
           };
-          const textBody = draftSovText(lines, terms?.sov_fee_pct == null ? null : Number(terms.sov_fee_pct), terms?.sov_basis ?? null, brand, { start: starts[0] ?? null, finish: finishes.at(-1) ?? null });
-          return text(`${prefix(job)}Saved in Athena (draft copy only; the official SOV did not change).\n${textBody}`);
+          const textBody = draftSovText(lines, terms.fee_pct, terms.basis, brand, {
+            start: starts[0] ?? null,
+            finish: finishes.at(-1) ?? null,
+          });
+          const acknowledgement = needsSave
+            ? "Saved in Athena (draft copy only; the official SOV did not change)."
+            : "Draft copy loaded (the official SOV did not change).";
+          return guide(
+            {
+              ...text(`${prefix(job)}${acknowledgement}\n${textBody}`),
+              structuredContent: {
+                destination_version: shown.version,
+                sov_copy: "draft",
+                saved: needsSave,
+                destination: {
+                  budget: shown.budget,
+                  sov: shown.sov,
+                  sov_draft: shown.sov_draft,
+                  terms: shown.terms,
+                  draft_terms: shown.draft_terms,
+                },
+              },
+            },
+            "Show the saved draft values and terms for review. Use the returned destination_version for a later correction. After an uncertain save, read current records and ask for fresh review before changing the original payload or version; never automatically rebase a retry.",
+          );
         }
-        const sov: Record<string, unknown> = {};
-        for (const s of args.sov_lines ?? []) {
-          const old = officialByKey.get(s.line) ?? {};
-          sov[s.line] = {
+        const budget: Record<string, unknown> = {};
+        for (const row of args.budget_lines ?? []) {
+          const old = (observed.budget[row.cost_code] ?? {}) as Record<string, unknown>;
+          budget[row.cost_code] = {
             ...old,
-            description: s.description !== undefined ? s.description : old.description ?? null,
-            cost_codes: s.cost_codes ?? (Array.isArray(old.cost_codes) ? old.cost_codes : []),
-            ...(s.spec_section ? { spec_section: s.spec_section } : {}),
-            ...(s.billable_value !== undefined ? { billable_value: s.billable_value } : {}),
+            description: row.description !== undefined ? row.description : (old.description ?? null),
+            amount: row.amount !== undefined ? row.amount : (old.amount ?? null),
           };
         }
+        const sov = mergeLines(args.sov_lines ?? [], officialByKey);
         if (Object.keys(sov).length || args.fee_pct !== undefined) {
-          const [savedSov, savedJob] = await Promise.all([
-            sb.from("mcp_job_facts").select("key, value").eq("job_id", job.job_id).eq("module", "sov"),
-            sb.from("mcp_jobs").select("sov_fee_pct").eq("id", job.job_id).maybeSingle(),
-          ]);
-          if (savedSov.error) dbError(savedSov.error);
-          if (savedJob.error) dbError(savedJob.error);
           const refusal = sovTotalChangeRefusal(
-            (savedSov.data ?? []) as { key: string; value: unknown }[],
-            (savedJob.data as { sov_fee_pct?: number | null } | null)?.sov_fee_pct ?? null,
+            officialRows,
+            observed.terms.fee_pct,
             Object.keys(sov).length ? sov : null,
             args.fee_pct,
           );
-          if (refusal) throw new ToolError(SOV_TOTAL_REFUSAL);
+          if (refusal) throw new ToolError(refusal);
         }
-        if (Object.keys(budget).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "budget", _facts: budget, _source: "member_answer" });
-        if (Object.keys(sov).length) await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "sov", _facts: sov, _source: "member_answer" });
-        if (args.fee_pct !== undefined || args.sov_basis) await rpc(sb, "mcp_job_sov_terms", { _job: job.job_id, _fee_pct: args.fee_pct ?? null, _basis: args.sov_basis ?? null });
-        const { data: terms } = await sb.from("mcp_jobs").select("sov_fee_pct, sov_basis").eq("id", job.job_id).maybeSingle();
-        const { data: all } = await sb.from("mcp_job_facts").select("module, key, value").eq("job_id", job.job_id).in("module", ["budget", "sov"]);
-        const codes = new Set((all ?? []).filter((f) => f.module === "budget").map((f) => f.key));
-        const sovRows = (all ?? []).filter((f) => f.module === "sov");
+        const saved = explicitWrite
+          ? await saveIntakeDestination(
+              sb, job, observed,
+              {
+                ...(Object.keys(budget).length ? { budget } : {}),
+                ...(Object.keys(sov).length ? { sov } : {}),
+                fee: args.fee_pct,
+                basis: args.sov_basis?.trim() || undefined,
+              },
+              args.destination_version,
+            )
+          : observed;
+        const codes = new Set(Object.keys(saved.budget));
+        const sovRows = rowsOf(saved.sov);
         const mapped = new Set<string>();
         const unmappedLines: string[] = [];
         const badRefs: string[] = [];
-        for (const s of sovRows) {
-          const cc = (((s.value ?? {}) as { cost_codes?: string[] }).cost_codes ?? []);
-          if (!cc.length) unmappedLines.push(s.key);
-          for (const c of cc) (codes.has(c) ? mapped.add(c) : badRefs.push(`${s.key}→${c}`));
+        for (const row of sovRows) {
+          const cc = ((row.value ?? {}) as { cost_codes?: string[] }).cost_codes ?? [];
+          if (!cc.length) unmappedLines.push(row.key);
+          for (const code of cc) {
+            if (codes.has(code)) mapped.add(code);
+            else badRefs.push(`${row.key}→${code}`);
+          }
         }
-        const unmappedCodes = [...codes].filter((c) => !mapped.has(c));
+        const unmappedCodes = [...codes].filter((code) => !mapped.has(code));
         let note = "";
-        if (unmappedLines.length || unmappedCodes.length || badRefs.length) {
-          const r = await rpc<ItemResult>(sb, "mcp_add_item", {
-            _job: job.job_id,
-            _f: { check_key: "budget:unmapped", action: "Map SOV lines to cost codes", detail: `SOV lines without codes: ${unmappedLines.join(", ") || "none"}; codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}; SOV codes not in budget: ${badRefs.join(", ") || "none"}`, section: "budget", category: "Budget", internal_only: true, tool: "intake" },
-          });
-          note = itemNote(r);
-        } else {
-          // Everything maps now: close the open "Map SOV lines to cost codes" item a previous save opened.
-          const { data: open } = await sb.from("mcp_open_items").select("id").eq("job_id", job.job_id).eq("check_key", "budget:unmapped").eq("status", "open");
-          for (const it of open ?? [])
-            await rpc(sb, "mcp_resolve_item", { _item: it.id, _kind: "verified", _evidence: `Budget and SOV saved: every SOV line maps to a cost code, every cost code is on an SOV line, and every SOV code is in the budget.`, _stated_by: null, _stated_on: null, _reason: null, _approval: null, _billing: null, _collection: null });
-          if (open?.length) note = "\nClosed the open item to map SOV lines to cost codes: everything maps now.";
+        if (explicitWrite) {
+          try {
+            if (unmappedLines.length || unmappedCodes.length || badRefs.length) {
+              const result = await rpc<ItemResult>(sb, "mcp_add_item", {
+                _job: job.job_id,
+                _f: {
+                  check_key: "budget:unmapped",
+                  action: "Map SOV lines to cost codes",
+                  detail: `SOV lines without codes: ${unmappedLines.join(", ") || "none"}; codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}; SOV codes not in budget: ${badRefs.join(", ") || "none"}`,
+                  section: "budget",
+                  category: "Budget",
+                  internal_only: true,
+                  tool: "intake",
+                },
+              });
+              note = itemNote(result);
+            } else {
+              const { data: open, error } = await sb
+                .from("mcp_open_items")
+                .select("id")
+                .eq("job_id", job.job_id)
+                .eq("check_key", "budget:unmapped")
+                .eq("status", "open");
+              if (error) dbError(error);
+              for (const item of open ?? [])
+                await rpc(sb, "mcp_resolve_item", {
+                  _item: item.id,
+                  _kind: "verified",
+                  _evidence:
+                    "Budget and SOV saved: every SOV line maps to a cost code, every cost code is on an SOV line, and every SOV code is in the budget.",
+                  _stated_by: null,
+                  _stated_on: null,
+                  _reason: null,
+                  _approval: null,
+                  _billing: null,
+                  _collection: null,
+                });
+              if (open?.length)
+                note = "\nClosed the open item to map SOV lines to cost codes: everything maps now.";
+            }
+          } catch {
+            note =
+              "\nThe budget and SOV were saved. The mapping follow-up could not be updated; read the current records before retrying that follow-up.";
+          }
         }
-        return text(
-          `${P}Budget and SOV saved. Budget is internal only.\nCost codes: ${codes.size} | SOV lines: ${sovRows.length}\nSOV lines not mapped to a cost code: ${unmappedLines.join(", ") || "none"}\nCost codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}\nSOV codes missing from the budget: ${badRefs.join(", ") || "none"}\nFee: ${terms?.sov_fee_pct == null ? "not recorded" : `${Number(terms.sov_fee_pct).toFixed(2)}% of contract total`} | Basis: ${terms?.sov_basis ?? "not recorded"}${note}`,
-        );
+        return guide({
+          ...text(
+            `${P}Budget and SOV ${explicitWrite ? "saved" : "loaded"}. Budget is internal only.\nCost codes: ${codes.size} | SOV lines: ${sovRows.length}\nSOV lines not mapped to a cost code: ${unmappedLines.join(", ") || "none"}\nCost codes not on any SOV line: ${unmappedCodes.join(", ") || "none"}\nSOV codes missing from the budget: ${badRefs.join(", ") || "none"}\nFee: ${saved.terms.fee_pct == null ? "not recorded" : `${saved.terms.fee_pct.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}% of contract total`} | Basis: ${saved.terms.basis ?? "not recorded"}${note}`,
+          ),
+          structuredContent: {
+            destination_version: saved.version,
+            sov_copy: "official",
+            saved: explicitWrite,
+            destination: {
+              budget: saved.budget,
+              sov: saved.sov,
+              sov_draft: saved.sov_draft,
+              terms: saved.terms,
+              draft_terms: saved.draft_terms,
+            },
+          },
+        }, "Show current saved lines and terms so the member can review the intended correction. Bind replacements to this returned destination_version and exact requested values. After an uncertain save, read current records and ask for fresh review before changing the original payload or version; never automatically rebase a retry.");
       }
 
       if (args.section === "open_item") {

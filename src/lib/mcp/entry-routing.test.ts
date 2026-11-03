@@ -38,6 +38,34 @@ async function rpc(method: string, id: number, params?: unknown) {
 }
 
 describe("published Athena entry routing contract", () => {
+  it("routes the owner's exact takeoff and drawing request as an estimating task", async () => {
+    const result = await rpc("initialize", 8, {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "estimate-entry-test", version: "1" },
+    });
+    expect(result.instructions).toContain(
+      "Hey Athena, I want to do a takeoff, create an estimate, and attach the drawings",
+    );
+    expect(result.instructions).toContain("start the estimating workflow");
+    expect(result.instructions).toContain("never guess the company or job");
+    expect(result.instructions).toContain("Confirm the contractor's role, trades and scope");
+    expect(result.instructions).toContain("A drawing attached in chat goes to drawing_set_import");
+    const discovered = await rpc("tools/list", 9);
+    for (const name of [
+      "estimate_intake",
+      "drawing_set_import",
+      "estimate_takeoff_save",
+      "sheet_calibrate",
+      "takeoff_geometry",
+    ])
+      expect(discovered.tools.some((tool: { name: string }) => tool.name === name)).toBe(true);
+    for (const name of ["estimate_intake", "drawing_set_import"]) {
+      const tool = discovered.tools.find((entry: { name: string }) => entry.name === name);
+      expect(tool.inputSchema.required).toContain("job_number");
+      expect(tool.inputSchema.required ?? []).not.toContain("company_id");
+    }
+  });
   it("emits unambiguous entry priority and preserves explicit morning requests", async () => {
     const result = await rpc("initialize", 1, {
       protocolVersion: "2025-06-18",
