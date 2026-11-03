@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+import ts from "typescript";
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 import { defineMcp } from "@lovable.dev/mcp-js";
 import {
@@ -165,7 +166,64 @@ async function toolsList(tools: unknown[]) {
   return json.result.tools as { name: string; description: string; inputSchema: unknown }[];
 }
 
+// The read-only local export deliberately avoids run()'s writes; verify its two
+// handler branches structurally instead of silently excluding it from guard coverage.
+function assertGuardedLocalBidExport(source: string) {
+  const file = ts.createSourceFile("estimate-bid-tools.ts", source, ts.ScriptTarget.Latest, true);
+  const declaration = file.statements.filter(ts.isVariableStatement)
+    .flatMap(statement => [...statement.declarationList.declarations])
+    .find(item => ts.isIdentifier(item.name) && item.name.text === "estimateBidSummary");
+  const initializer = declaration?.initializer;
+  if (!initializer || !ts.isCallExpression(initializer) || !ts.isObjectLiteralExpression(initializer.arguments[0]))
+    throw new Error("Missing bid tool configuration");
+  const handlerProperty = initializer.arguments[0].properties.find(item =>
+    ts.isPropertyAssignment(item) && item.name.getText(file) === "handler");
+  if (!handlerProperty || !ts.isPropertyAssignment(handlerProperty) || !ts.isArrowFunction(handlerProperty.initializer) || !ts.isBlock(handlerProperty.initializer.body))
+    throw new Error("Missing structured bid handler");
+  const statements = handlerProperty.initializer.body.statements;
+  expect(statements).toHaveLength(2);
+  const local = statements[0], legacy = statements[1];
+  if (!ts.isIfStatement(local) || !ts.isBlock(local.thenStatement) || local.elseStatement || !ts.isReturnStatement(legacy) || !legacy.expression || !ts.isCallExpression(legacy.expression))
+    throw new Error("Bid handler must split into local guards or run");
+  const compact = (node: ts.Node) => node.getText(file).replace(/\s+/g, "");
+  expect(compact(local.expression)).toBe('args.export_delivery==="local"||(args.export_format&&args.export_delivery!=="stored")');
+  const body = [...local.thenStatement.statements];
+  const auth = body.findIndex(node => compact(node) === "constsb=awaitguard(ctx);");
+  const security = body.findIndex(node => /^enforceTouch\(awaitsecurityTouch\(sb,["']estimate_bid_summary["'],/.test(compact(node)));
+  const entitlement = body.findIndex(node => ts.isIfStatement(node) &&
+    compact(node.expression) === "awaitestimatingUpgrade(sb,args.job_number,args.company_id)" && ts.isThrowStatement(node.thenStatement));
+  const scope = body.findIndex(node => compact(node) === 'constjob=awaitresolveJob(sb,args.job_number,args.company_id,"write");');
+  const preparation = body.findIndex(node => compact(node).startsWith("constlocal=awaitprepareLocalBidDownload(sb,job,"));
+  expect(auth).toBeGreaterThanOrEqual(0);
+  expect(security).toBeGreaterThan(auth);
+  expect(entitlement).toBeGreaterThan(security);
+  expect(scope).toBeGreaterThan(entitlement);
+  expect(preparation).toBeGreaterThan(scope);
+  const returns: ts.ReturnStatement[] = [];
+  const visit = (node: ts.Node) => { if (ts.isReturnStatement(node)) returns.push(node); ts.forEachChild(node, visit); };
+  visit(local.thenStatement);
+  expect(returns).toHaveLength(1);
+  expect(body.indexOf(returns[0])).toBeGreaterThan(preparation);
+  const call = legacy.expression;
+  expect(call.expression.getText(file)).toBe("run");
+  expect(call.arguments[0].getText(file)).toMatch(/^["']estimate_bid_summary["']$/);
+  expect(call.arguments[1].getText(file)).toBe("ctx");
+}
+
 describe("0.8.22 (0) every tool goes through run() and guard()", () => {
+  it.each([
+    ["authentication", "const sb = await guard(ctx);", "const sb = null;"],
+    ["security touch", 'enforceTouch(await securityTouch(sb, "estimate_bid_summary", args.job_number, signals?.signals ?? []));', ""],
+    ["plan entitlement", 'if (await estimatingUpgrade(sb, args.job_number, args.company_id))', "if (false)"],
+    ["job scope", 'resolveJob(sb, args.job_number, args.company_id, "write")', 'resolveJob(sb, args.job_number, args.company_id, "none")'],
+    ["early return", "const sb = await guard(ctx);", "return {}; const sb = await guard(ctx);"],
+  ])("does not allow a local export to bypass %s", (_label, before, after) => {
+    const original = src("./tools/estimate-bid-tools.ts");
+    expect(original).toContain(before);
+    const at = original.indexOf("export const estimateBidSummary");
+    const changed = original.slice(0, at) + original.slice(at).replace(before, after);
+    expect(() => assertGuardedLocalBidExport(changed)).toThrow();
+  });
   it("every tool goes through run() and guard()", () => {
     expect(ALL).toHaveLength(70);
     const files = readdirSync(new URL("./tools/", import.meta.url)).filter((f) =>
@@ -181,6 +239,10 @@ describe("0.8.22 (0) every tool goes through run() and guard()", () => {
         expect(seen.has(m[1]), `duplicate guarded tool ${m[1]}`).toBe(false);
         seen.add(m[1]);
       }
+    }
+    if (!seen.has("estimate_bid_summary")) {
+      assertGuardedLocalBidExport(src("./tools/estimate-bid-tools.ts"));
+      seen.add("estimate_bid_summary");
     }
     // Request tools share two guarded factories instead of literal tool names.
     const requests = src("./tools/request-tools.ts");

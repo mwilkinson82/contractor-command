@@ -42,7 +42,7 @@ export type CardKpi = {
 
 export type CardModel = {
   /** Presentation variant confined to the existing first-use surface. */
-  presentation?: "onboarding" | "report-link";
+  presentation?: "onboarding" | "report-link" | "sov";
   state: CardState;
   title: string;
   /** Omit the state pill (Result, Intake, Needed, What I have so far). */

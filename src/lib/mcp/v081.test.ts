@@ -29,15 +29,15 @@ const sov = buildSov(
 );
 
 describe("0.8.1 SOV table style", () => {
-  it("blue header with white bold text, gray bands, bold total with blue top rule, in both the recipe and the host instruction", () => {
+  it("preserves the export recipe and uses a restrained inline card", () => {
     expect(SOV_TABLE_STYLE).toContain("Header row blue #2563EB with white bold text");
     expect(SOV_TABLE_STYLE).toContain("alternating light-gray");
     expect(SOV_TABLE_STYLE).toContain("bold total row with a blue #2563EB top rule");
     expect(sovLayout(BRAND).table_style).toBe(SOV_TABLE_STYLE);
-    expect(HOST_DISPLAY_BLOCK).toContain("header row blue #2563EB with white bold text");
+    expect(HOST_DISPLAY_BLOCK).toContain("Inline card style: compact white header");
     expect(
       readFileSync(new URL("./tools/workflow-tools.ts", import.meta.url), "utf8"),
-    ).toContain("Table style: ${SOV_TABLE_STYLE}");
+    ).toContain("Inline card style: a compact white header");
   });
   it("nothing after the table in the visible SOV; footer and roll-up only on request", () => {
     const txt = sovSummaryText("", sov, BRAND, "Exhibit B", ["license number"], "internal");

@@ -212,6 +212,7 @@ export function sovCard(input: {
   return {
     state: "result",
     title: "Schedule of values",
+    presentation: "sov",
     show_state: false,
     job: input.job,
     kpis: [

@@ -62,7 +62,8 @@ describe("0.8.12 required views", () => {
     for (const v of ALL_VIEWS) {
       expect(v[0]).toMatch(/^REQUIRED VIEW – /);
       const all = v.join("\n");
-      expect(all).toContain("#2563EB");
+      if (v === EMAIL_VIEW_SPEC) expect(all).toContain("subtle gray dividers");
+      else expect(all).toContain("#2563EB");
       expect(all).not.toMatch(/lovable|supabase|fragment|orange #/i);
     }
     expect(EMAIL_VIEW_SPEC.join("\n")).toContain("Ready for your review");
