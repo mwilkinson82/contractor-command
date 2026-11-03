@@ -27,8 +27,8 @@ import {
 } from "../email-safety";
 
 const fields = {
-  delivery_mode: z.enum(["attachment", "link"]).optional().describe("For a saved payment application, omit for the required attachment workflow. Use link only for an explicitly disclosed fallback."),
-  fallback_reason: z.enum(["member_requested_link", "host_attachment_unavailable"]).optional().describe("Set only from an actual member request for a link or verified host attachment limitation; never infer a fallback from a tool choice."),
+  delivery_mode: z.enum(["attachment", "link"]).optional(),
+  fallback_reason: z.enum(["member_requested_link", "host_attachment_unavailable"]).optional(),
   to: z
     .string()
     .trim()
@@ -79,7 +79,7 @@ const checkDeliverable = async (d: EmailDraft, sb?: Sb) => {
 export const emailDraft = defineTool({
   name: "email_draft",
   title: "Show an email draft for review",
-  description: "Shows a general email draft for review. A saved payment application URL requires document_email_delivery review; this tool returns the next attachment step instead of silently substituting a link email. Explicit disclosed link-only fallback is supported.",
+  description: "Reviews general email drafts or returns the required document_email_delivery steps for saved payment application PDFs; link-only fallback must be explicit and disclosed.",
   inputSchema: {
     ...fields,
     job_number: z.string().trim().max(40).optional(),

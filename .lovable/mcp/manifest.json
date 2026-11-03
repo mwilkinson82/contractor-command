@@ -11807,7 +11807,7 @@
       {
         "name": "email_draft",
         "title": "Show an email draft for review",
-        "description": "Shows a general email draft for review. A saved payment application URL requires document_email_delivery review; this tool returns the next attachment step instead of silently substituting a link email. Explicit disclosed link-only fallback is supported.",
+        "description": "Reviews general email drafts or returns the required document_email_delivery steps for saved payment application PDFs; link-only fallback must be explicit and disclosed.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -11819,7 +11819,6 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "delivery_mode": {
-              "description": "For a saved payment application, omit for the required attachment workflow. Use link only for an explicitly disclosed fallback.",
               "type": "string",
               "enum": [
                 "attachment",
@@ -11827,7 +11826,6 @@
               ]
             },
             "fallback_reason": {
-              "description": "Set only from an actual member request for a link or verified host attachment limitation; never infer a fallback from a tool choice.",
               "type": "string",
               "enum": [
                 "member_requested_link",
@@ -11910,7 +11908,6 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "delivery_mode": {
-              "description": "For a saved payment application, omit for the required attachment workflow. Use link only for an explicitly disclosed fallback.",
               "type": "string",
               "enum": [
                 "attachment",
@@ -11918,7 +11915,6 @@
               ]
             },
             "fallback_reason": {
-              "description": "Set only from an actual member request for a link or verified host attachment limitation; never infer a fallback from a tool choice.",
               "type": "string",
               "enum": [
                 "member_requested_link",
@@ -16356,7 +16352,7 @@
       {
         "name": "document_email_delivery",
         "title": "Review and send a saved document through your email",
-        "description": "Use for natural requests to email a saved payment application as a PDF attachment when a supported connected account is available. First identify the exact saved application and version with payment_application_read. Reviews a saved payment application email, issues one send claim after confirmation, and records a host-reported provider receipt. Uses the member’s connected email account; Athena does not send email. Gmail assistant_current_gmail mode requires fresh current-profile observations and has no atomic account pinning; never invent a connection ID.",
+        "description": "Reviews a saved payment application PDF email through a supported connected account and claims one send after confirmation; use payment_application_read for the exact version and refresh the sender profile, with current-Gmail mode unpinned and no invented connection ID.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
