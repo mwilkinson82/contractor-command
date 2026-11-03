@@ -442,6 +442,13 @@
       "when": 1793713221548,
       "tag": "0062_estimating_quote_coverage",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793714864870,
+      "tag": "0063_estimating_gc_requirements_cas",
+      "breakpoints": true
     }
   ]
 }
