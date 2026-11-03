@@ -24,6 +24,27 @@ beforeEach(async()=>{
 afterEach(async()=>{await db.close()});
 const review=()=>call('review',{application_id:app,version:1,review_hash:hash,payload:{email:{from:'a@example.test',attachment:{sha256:'b'.repeat(64)}},mailbox:{provider:'gmail',connectionId:'one'}}});
 describe('durable email claim proposal',()=>{
+ it('records an observed Gmail receipt without fabricating a connection ID',async()=>{
+  const payload={email:{from:'a@example.test',attachment:{sha256:'b'.repeat(64)}},mailbox:{provider:'gmail',mode:'assistant_current_gmail',profileAddress:'a@example.test',canSendMime:true}};
+  await call('review',{application_id:app,version:1,review_hash:hash,payload});await call('handoff',{review_hash:hash,confirmed:true});
+  expect((await call('claim',{review_hash:hash,confirmed:true})).claimed).toBe(true);
+  const receipt={provider:'gmail',from:'a@example.test',review_hash:hash,attachment_sha256:'b'.repeat(64),message_id:'fixture',sent_at:'2026-01-01T00:00:00Z'};
+  await expect(call('receipt',{review_hash:hash,receipt:{...receipt,from:'other@example.test'}})).rejects.toThrow(/does not match/);
+  await expect(call('receipt',{review_hash:hash,receipt:{...receipt,connection_id:'invented'}})).rejects.toThrow(/does not match/);
+  expect((await call('receipt',{review_hash:hash,receipt})).state).toBe('host_reported_provider_acceptance');
+  expect((await call('receipt',{review_hash:hash,receipt})).already_recorded).toBe(true);
+  expect((await call('claim',{review_hash:hash,confirmed:true})).claimed).toBe(false);
+ });
+ it('cancels a pending observed review and never reclaims its old identity',async()=>{
+  const payload={email:{from:'a@example.test',attachment:{sha256:'b'.repeat(64)}},mailbox:{provider:'gmail',mode:'assistant_current_gmail',profileAddress:'a@example.test',canSendMime:true}};
+  await call('review',{application_id:app,version:1,review_hash:hash,payload});await call('handoff',{review_hash:hash,confirmed:true});
+  await expect(call('cancel',{review_hash:'c'.repeat(64),confirmed:true})).rejects.toThrow(/changed/);
+  expect((await call('cancel',{review_hash:hash,confirmed:true})).state).toBe('cancelled');
+  expect((await call('claim',{review_hash:hash,confirmed:true})).claimed).toBe(false);
+  expect((await call('review',{application_id:app,version:1,review_hash:hash,payload})).state).toBe('cancelled');
+  const fresh='77777777-7777-4777-8777-777777777777';
+  expect((await call('review',{delivery_id:fresh,application_id:app,version:1,review_hash:hash,payload})).state).toBe('reviewed');
+ });
  it('claims once and records a provider receipt idempotently',async()=>{
   expect((await review()).state).toBe('reviewed');expect((await review()).already_exists).toBe(true);
   expect((await call('handoff',{review_hash:hash,confirmed:true})).handoff).toBe(true);

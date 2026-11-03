@@ -144,7 +144,7 @@ const emailResult = {
 };
 
 describe("document email card", () => {
-  const doc={id:"66666666-6666-4666-8666-666666666666",document_id:"55555555-5555-4555-8555-555555555555",version:2,review_hash:"b".repeat(64),sha256:"a".repeat(64),size_bytes:123,from:"owner@example.test",state:"reviewed",mailbox:{provider:"gmail",connectionId:"one",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
+  const doc={id:"66666666-6666-4666-8666-666666666666",document_id:"55555555-5555-4555-8555-555555555555",version:2,review_hash:"b".repeat(64),sha256:"a".repeat(64),size_bytes:123,from:"owner@example.test",state:"reviewed",mailbox:{mode:"pinned",provider:"gmail",connectionId:"one",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
   const result={structuredContent:{draft:{...draft,attachment:"application-v2.pdf"},document_email:doc,job_number:"2701",company_id:"company-a",send_allowed:true}};
   it("shows exact saved version and hands confirmation to host without declaring sent",async()=>{
     const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});
@@ -153,6 +153,15 @@ describe("document email card", () => {
     expect(m.method).toBe("ui/message");expect(JSON.stringify(m.params)).toContain(doc.id);expect(v.app.textContent).not.toContain("Sent");
     v.answer(m.id,{});await v.flush();expect(v.app.textContent).toContain("Waiting for the connected account and a provider response");
     const input=v.el(e=>e.id==="body");input.value="changed after handoff";input.fire("input");expect(v.el(e=>e.className==="primary").disabled).toBe(true);
+  });
+  it("discloses an unpinned Gmail account and asks the host to recheck before sending",async()=>{
+    const observed={...doc,mailbox:{mode:"assistant_current_gmail",provider:"gmail",profileAddress:"owner@example.test",observedAt:1,canSendMime:true}};
+    const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:{structuredContent:{...result.structuredContent,document_email:observed}}});
+    expect(v.app.textContent).toContain("Gmail account is rechecked, not locked");
+    v.el(e=>e.className==="primary").fire("click");await v.flush();const h=v.requests().at(-1)!;v.answer(h.id,{structuredContent:{handoff:true}});await v.flush();
+    const m=v.requests().at(-1)!;expect(m.method).toBe("ui/message");const text=JSON.stringify(m.params);
+    expect(text).toContain("without inventing a connection ID");expect(text).toContain("Immediately before sending");expect(text).toContain("do not send");expect(text).toContain("not atomically pinned");
+    v.answer(m.id,{});await v.flush();
   });
   it("re-reviews edits before handing them to the host",async()=>{
     const v=view();v.message({jsonrpc:"2.0",method:"ui/notifications/tool-result",params:result});

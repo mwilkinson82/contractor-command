@@ -3,22 +3,29 @@ import type { DocumentEmailArtifact } from "./document-email-artifact";
 
 /** Observations supplied by the host after reading the selected account profile.
  * They are not server-verified OAuth claims, and cannot grant account access. */
-export type HostMailbox = {
+type MailboxObservation = {
   provider: string;
-  connectionId: string;
   profileAddress: string;
   observedAt: number;
   canSendMime: boolean;
 };
+export type HostMailbox = MailboxObservation & (
+  | { mode: "pinned"; connectionId: string }
+  | { mode: "assistant_current_gmail"; provider: "gmail"; connectionId?: never }
+);
 export type HostReadiness =
   | { status: "connect_email"; message: string }
   | { status: "unsupported_attachment"; message: string }
   | { status: "ready"; mailbox: HostMailbox };
 
 export function mailboxReadiness(mailbox: HostMailbox | null, now = Date.now()): HostReadiness {
-  if (!mailbox || !mailbox.provider.trim() || !mailbox.connectionId.trim() ||
+  const observed = mailbox?.mode === "assistant_current_gmail";
+  const modeValid = !!mailbox && (observed
+    ? mailbox.provider === "gmail" && mailbox.connectionId === undefined
+    : mailbox.mode === "pinned" && typeof mailbox.connectionId === "string" && !!mailbox.connectionId.trim());
+  if (!mailbox || !mailbox.provider.trim() || !modeValid ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailbox.profileAddress) ||
-      !Number.isFinite(mailbox.observedAt) || mailbox.observedAt > now || now - mailbox.observedAt > 300_000)
+      !Number.isFinite(mailbox.observedAt) || mailbox.observedAt > now || now - mailbox.observedAt > (observed ? 30_000 : 300_000))
     return { status: "connect_email", message: "Connect an email account or refresh its sender identity." };
   if (!mailbox.canSendMime)
     return { status: "unsupported_attachment", message: "This connected email tool has not confirmed PDF attachment support." };
@@ -30,13 +37,16 @@ async function digest(value: string) {
   return Array.from(new Uint8Array(hash), n => n.toString(16).padStart(2, "0")).join("");
 }
 
-/** The sender connection is part of the reviewed identity, not just an editable From label. */
+/** Pinned mode preserves its legacy digest. Observed mode binds the sender without claiming account pinning. */
 export async function hostReviewHash(email: ReviewedEmail, artifact: DocumentEmailArtifact, mailbox: HostMailbox, now = Date.now()) {
   const ready = mailboxReadiness(mailbox, now);
   if (ready.status !== "ready") throw new Error(ready.message);
   if (mailbox.profileAddress.toLowerCase() !== email.from.toLowerCase())
     throw new Error("The connected sender changed. Review the email again.");
-  return digest(JSON.stringify([await reviewEmail(email, artifact), mailbox.provider, mailbox.connectionId, mailbox.profileAddress.toLowerCase()]));
+  const reviewed=await reviewEmail(email, artifact);
+  return digest(JSON.stringify(mailbox.mode === "assistant_current_gmail"
+    ? [reviewed, mailbox.provider, null, mailbox.profileAddress.toLowerCase(), "assistant_current_gmail"]
+    : [reviewed, mailbox.provider, mailbox.connectionId, mailbox.profileAddress.toLowerCase()]));
 }
 
 export type GmailMimeRequest = {

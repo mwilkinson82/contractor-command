@@ -3,7 +3,7 @@ import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { applicationFixture } from "./fixtures";
-import { calculateApplication } from "./model";
+import { appMoney, calculateApplication } from "./model";
 import { applicationPdf } from "./pdf";
 import { validatePaymentLogo } from "./brand";
 import type { ApplicationContext, SavedApplication } from "./workflow";
@@ -181,6 +181,23 @@ describe("saved application view and document", () => {
       const raw=Buffer.from(applicationPdf(f.job,f.selected!,{companyName:"Example Builders",logo,logoFormat:logoFormat!})).toString("latin1");
       expect(raw).toContain("/Subtype /Image");
     }
+  });
+  it("renders the saved project title and ordinary WinAnsi punctuation without changing names", () => {
+    const f=fixture();
+    const originalDue=f.selected!.calculation.payment_due_cents;
+    f.job.name="Willow Creek Community Center — Electrical";
+    f.selected!.body.snapshot.lines[0].description="Instalação ‘elétrica’ – revisão “final” • 50%";
+    f.selected!.calculation=calculateApplication(f.selected!.body);
+    const bytes=applicationPdf(f.job,f.selected!,{companyName:"Construc\u0327a\u0303o São José"});
+    const raw=Buffer.from(bytes).toString("latin1");
+    expect(raw).toContain("Willow Creek Community Center \x97 Electrical");
+    expect(raw).toContain("Instalação \x91elétrica\x92 \x96");
+    expect(raw).toContain("Construção São José");
+    expect(f.selected!.calculation.payment_due_cents).toBe(originalDue);
+    expect(raw).toContain(appMoney(originalDue));
+    expect(f.job.name).toBe("Willow Creek Community Center — Electrical");
+    const dir=process.env.ATHENA_PAYMENT_APP_ARTIFACTS;
+    if(dir) writeFileSync(`${dir}/business-punctuation.pdf`,bytes);
   });
   it("paginates every line of a maximum-length description and rejects unsupported characters", () => {
     const f=fixture(), a=f.selected!.body;
