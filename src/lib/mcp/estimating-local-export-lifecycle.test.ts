@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { webcrypto } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { canonicalBidFiles } from "./estimating-bid-files";
 import type { BidBreakdown } from "./estimating-bid";
 class Element {
@@ -25,7 +25,7 @@ async function fixture(format: "pdf" | "xlsx") {
   return { delivery: "local", filename: `Bid-summary-v7.${format}`, mime_type: format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     size: bytes.length, content_base64: Buffer.from(bytes).toString("base64"), sha256: Buffer.from(await webcrypto.subtle.digest("SHA-256", new Uint8Array(bytes))).toString("hex"), ...context };
 }
-function viewer(permission: "top" | "blocked" | "opaque" = "top", digest = webcrypto.subtle.digest.bind(webcrypto.subtle)) {
+export function syntheticExportViewer(permission: "top" | "blocked" | "opaque" = "top", digest = webcrypto.subtle.digest.bind(webcrypto.subtle)) {
   let anchors = 0, anchorFailure = false;
   const make = (tag: string) => new Element(tag, () => { if (anchorFailure) throw Error("blocked"); anchors++; });
   const root = make("root"), status = make("status"), body = make("body");
@@ -53,6 +53,7 @@ function viewer(permission: "top" | "blocked" | "opaque" = "top", digest = webcr
     reply: (id: number | undefined, result: unknown) => send({ jsonrpc: "2.0", id, result }),
     teardown: () => send({ jsonrpc: "2.0", id: 99, method: "ui/resource-teardown" }) };
 }
+const viewer = syntheticExportViewer;
 async function flush() { for (let i = 0; i < 10; i++) await new Promise((resolve) => setTimeout(resolve, 0)); }
 describe("synthetic complete local-export card lifecycle", () => {
   it.each(["pdf", "xlsx"] as const)("sends the real %s widget request, suppresses repeated clicks, and revokes URLs on teardown", async (format) => {
@@ -93,8 +94,15 @@ describe("synthetic complete local-export card lifecycle", () => {
     let release: ((value: ArrayBuffer) => void) | undefined;
     const v = viewer("top", (() => new Promise<ArrayBuffer>((resolve) => { release = resolve; })) as typeof webcrypto.subtle.digest);
     const file = await fixture("pdf"); v.load({ estimate_local_export: true, local_export: file, context, card: { title: "Bid", sections: [] } }); await flush();
-    v.teardown(); release?.(Buffer.from(file.sha256, "hex").buffer.slice(Buffer.from(file.sha256, "hex").byteOffset)); await flush();
+    const hash = Uint8Array.from(Buffer.from(file.sha256, "hex"));
+    v.teardown(); release?.(hash.buffer); await flush();
     expect(v.root.children).toHaveLength(0); expect(v.urls.size).toBe(0);
     v.load(); expect(v.root.children).toHaveLength(0);
+  });
+  it.each(["pdf", "xlsx"] as const)("clears a prepared %s Blob and pending RPC on teardown", async (format) => {
+    const v = viewer(); v.button(format === "pdf" ? "Prepare PDF" : "Prepare XLSX").click();
+    const call = v.messages.find((m) => m.method === "tools/call");
+    v.teardown(); v.reply(call?.id, { structuredContent: { local_export: await fixture(format) } }); await flush();
+    expect(v.root.children).toHaveLength(0); expect(v.anchors()).toBe(0); expect(v.urls.size).toBe(0);
   });
 });
