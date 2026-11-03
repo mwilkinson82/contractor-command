@@ -17,9 +17,9 @@ import { accountingIO, readAccountingReport } from "../../accounting-report-read
 
 export const accountingReport = defineTool({
   name: "accounting_report",
-  title: "Job accounting evidence and accountant export",
+  title: "Read job cost accounting board or report",
   description:
-    "Reads a job ledger, dated billing versus receipts, retainage, current posted costs, unpaid balances where supported, separate PO commitments and current budget comparison. Opens a private report with accountant CSV download. For a customer statement use report_type statement; other modes are summary, receivables, costs and evidence. Missing cost coverage stays unknown; not a complete P&L.",
+    "Reads job cost accounting, the job accounting board, job cost report or ledger with billing versus receipts, retainage, posted costs, supported unpaid balances, separate PO commitments and budget comparison; use for show, open or give-me accounting requests, not bill submission; opens a private report and accountant CSV, with report_type statement for a customer statement and summary, receivables, costs or evidence for other views; missing coverage stays unknown, not a complete P&L, and it never creates, corrects, approves, posts or pays a bill or expense.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40).optional(),
     company_id: z.string().uuid().optional(),
