@@ -291,7 +291,7 @@ describe.sequential("version-bound requirement source scan and final readiness",
     await expect(scan()).rejects.toThrow(/source storage is unavailable/i);
     const read = await call(estimateBidSummary);
     expect(read.structuredContent).toMatchObject({ ready: false, total: null, bid_csv: null });
-    await expect(call(estimateBidSummary, { export_format: "pdf" })).rejects.toThrow(
+    await expect(call(estimateBidSummary, { export_format: "pdf", export_delivery: "stored" })).rejects.toThrow(
       /reconciled bid/i,
     );
     await expect(
@@ -408,7 +408,7 @@ describe.sequential("version-bound requirement source scan and final readiness",
       ready: false,
       bid_csv: null,
     });
-    await expect(call(estimateBidSummary, { export_format: "pdf" })).rejects.toThrow(
+    await expect(call(estimateBidSummary, { export_format: "pdf", export_delivery: "stored" })).rejects.toThrow(
       /reconciled bid/i,
     );
     await scan([{ ref: "R-1", amount: 0, confirmed: true }]);
@@ -610,7 +610,7 @@ describe.sequential("version-bound requirement source scan and final readiness",
     });
     expect(calculateSavedBidSnapshot(changed).view.ready).toBe(false);
     for (const format of ["pdf", "xlsx"])
-      await expect(call(estimateBidSummary, { export_format: format })).rejects.toThrow(
+      await expect(call(estimateBidSummary, { export_format: format, export_delivery: "stored" })).rejects.toThrow(
         /reconciled bid/i,
       );
     await scan([{ ref: "R-1", confirmed: true }]);
