@@ -34,7 +34,7 @@ export function applicationPdf(job: { number: string; name: string }, saved: Sav
     try {
       const image = d.getImageProperties(brand.logo);
       const scale = Math.min(75 / image.width, 38 / image.height);
-      d.addImage(brand.logo, brand.logoFormat, 40, 35, image.width * scale, image.height * scale, undefined, "FAST");
+      d.addImage(brand.logo, brand.logoFormat, 40, 54 - image.height * scale / 2, image.width * scale, image.height * scale, undefined, "FAST");
       logoWidth = image.width * scale;
     } catch { /* use company-name fallback */ }
   }

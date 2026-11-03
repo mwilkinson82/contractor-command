@@ -48,6 +48,13 @@ describe("payment PDF brand geometry", () => {
     expect(company?.x).toBeCloseTo(40 + renderedWidth + 10, 4);
     expect(company?.y).toBeCloseTo(57.85, 4);
     expect((company?.x ?? 0) + (company?.width ?? 0)).toBeLessThanOrEqual(315);
+    const matrix = Buffer.from(bytes).toString("latin1").match(/([\d.]+) 0 0 ([\d.]+) 40\.  ([\d.]+) cm/)
+      ?? Buffer.from(bytes).toString("latin1").match(/([\d.]+) 0 0 ([\d.]+) 40\. ([\d.]+) cm/);
+    expect(matrix).not.toBeNull();
+    if (matrix) {
+      expect(Number(matrix[1])).toBeCloseTo(renderedWidth, 4);
+      expect(792 - Number(matrix[3]) - Number(matrix[2]) / 2).toBeCloseTo(54, 4);
+    }
     if (_shape === "square" && process.env.ATHENA_PAYMENT_LAYOUT_PDF) writeFileSync(process.env.ATHENA_PAYMENT_LAYOUT_PDF, bytes);
   });
   it.each([false, true])("uses the original text origin when logo is absent or invalid (%s)", async invalid => {
