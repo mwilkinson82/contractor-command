@@ -318,7 +318,7 @@ export async function installEstimatingFixture(
       "163ee8338573d5f2ba06c8dadd7cbb509a876da2f2622180d508a260e54de6a3",
       "92b93bfb7c6666f6ba88103b493f260acc6bafc9bbc517e2a5f3657bbc1304ba",
       "f9738dc3b849bc570eef94d2111c03467b40bfcae4ef11042d4f1ed7a19aa27a",
-      "05b0bd79f8eb66037a6973fe7c831df753400b08d61e70fe8ffe97f92cb66cdf",
+      "d1ddb7c576759c3b96dbcaac487189ac25f109698a5867e7f875902da84b72bd",
       "ba808092099a708bde977e9405a152145bf8e5af9e123917c6ca4b1ad7826e39",
       "74d397ba5966ee71efd918162f447e4595de16a16ae9529c7580e7c6291f0817",
     ];
@@ -335,7 +335,8 @@ export async function installEstimatingFixture(
       if (i < 1 || i > 7) { await db.exec(text); continue; }
       if (createHash("sha256").update(text).digest("hex") !== expectedHashes[i-1])
         throw new Error("Unexpected approved payload bytes: " + fixtureProposalPaths[i]);
-      const short = read("short-wrapper-prototype/" + fixtureProposalPaths[i].split("/").pop());
+      const wrapperName = i === 5 ? "estimating-destination-versions-digit-safe.sql" : fixtureProposalPaths[i].split("/").pop();
+      const short = read("short-wrapper-prototype/" + wrapperName);
       if (createHash("sha256").update(short).digest("hex") !== wrapperHashes[i-1])
         throw new Error("Unexpected short wrapper bytes");
       // Proposal 2 is already present when testing proposals 3 through 8.
