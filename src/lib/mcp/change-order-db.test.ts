@@ -6,6 +6,7 @@ import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 import type { RequestRow } from "./request-log";
 import type { PackageContext } from "./submittal-package";
 import { tokenHash } from "./file-share";
+import { buildSov, type SovLineIn } from "./sov";
 type Reply = {
   id: string;
   draft_key: string;
@@ -145,6 +146,8 @@ beforeAll(async () => {
   await load("20261025153000_athena_change_execution_tie");
   await load("20261030130000_athena_submittal_log_approval_only");
   await load("20261030140000_athena_sov_contract_total_guard");
+  await load("20261030150000_athena_sov_official_lock");
+  await db.exec(readFileSync("release-proposals/estimating-destination-versions.sql", "utf8"));
 });
 afterAll(async () => {
   await db?.close();
@@ -308,5 +311,130 @@ describe("commercial packages on the shared engine", () => {
          AND position('NOT IN (''rfi'',''rfc'',''change_order'')' IN pg_get_functiondef(p.oid)) = 0`,
     );
     expect(guards.rows[0].n).toBe(0);
+  });
+  it("executes approved changes and compensating credits through the destination guards exactly once", async () => {
+    const destination = async () =>
+      (await query("SELECT mcp_estimate_destination_snapshot($1) AS data", [job])).rows[0]
+        .data as { version: number; sov: Record<string, Record<string, unknown>> };
+    const before = await destination();
+    await query("SELECT mcp_estimate_destination_save($1,$2,NULL,$3,NULL,10,$4)", [
+      job,
+      before.version,
+      JSON.stringify({
+        "05.01": { description: "Base steel", billable_value: 900, cost_codes: [] },
+      }),
+      "Executed base agreement",
+    ]);
+    await query("SELECT mcp_set_facts($1,'contract',$2,'member_answer')", [
+      job,
+      JSON.stringify({ contract_value: 1000 }),
+    ]);
+    const evidence = async (reference: string) => ({
+      by: "Fixture signing authority",
+      at: (await db.query<{at:string}>("SELECT clock_timestamp()::text AS at")).rows[0].at,
+      reference,
+    });
+    const approvedChange = async (credit: boolean) => {
+      const saved = await change("create", {
+        ...coContent(),
+        title: credit ? "Approved compensating credit" : "Approved connection change",
+      });
+      await change("price", {
+        request_id: crypto.randomUUID(),
+        submittal_id: saved.saved_id,
+        expected_version: 1,
+        lines: credit
+          ? [{
+              category: "material",
+              description: "Compensating connection credit",
+              quantity: 1,
+              unit: "LS",
+              unit_rate_cents: -11000,
+              source: "Separately approved credit agreement",
+            }]
+          : costs,
+      });
+      // A synthetic prior submission receipt supplies the delivery prerequisite.
+      // No provider or external message is called; approval/execution use the real RPC.
+      const packageId = crypto.randomUUID();
+      const receiptId = crypto.randomUUID();
+      const hash = crypto.randomUUID().replace(/-/g, "").repeat(2);
+      await db.query(
+        `INSERT INTO mcp_submittal_packages
+         (id,company_id,job_id,submittal_id,fingerprint,path,filename,size_bytes,sha256,
+          page_count,cover_date,manifest,token_hash,signed_url,download_url,expires_at)
+         VALUES($1,$2,$3,$4,$5,$6,'fixture.pdf',1,$7,1,current_date,'{}',$7,
+          'https://fixture.invalid/signed','https://fixture.invalid/download',now()+interval '1 hour')`,
+        [packageId, company, job, saved.saved_id, receiptId, `${packageId}/fixture.pdf`, hash],
+      );
+      await db.query(
+        `INSERT INTO mcp_submittal_mail
+         (company_id,job_id,submittal_id,package_id,kind,draft,draft_key,context_key,
+          approved_at,sent_at,provider,message_id)
+         VALUES($1,$2,$3,$4,'package','{}',$5,$5,now(),now(),'fixture',$5)`,
+        [company, job, saved.saved_id, packageId, receiptId],
+      );
+      await change("approve", {
+        request_id: crypto.randomUUID(),
+        submittal_id: saved.saved_id,
+        expected_version: 2,
+        confirmed: true,
+        evidence: await evidence(credit ? "Signed credit approval" : "Signed change approval"),
+      });
+      expect((await changes()).records.find((row) => row.id === saved.saved_id)!
+        .change_order_details.state).toBe("approved");
+      return saved.saved_id;
+    };
+    const execute = async (id: string) => {
+      const payload = {
+        request_id: crypto.randomUUID(),
+        submittal_id: id,
+        expected_version: 3,
+        confirmed: true,
+        sov_division: "05",
+        evidence: await evidence("Signed execution authority"),
+      };
+      expect((await change("execute", payload)).already_applied).toBe(false);
+      const applied = await destination();
+      expect((await change("execute", payload)).already_applied).toBe(true);
+      expect(await destination()).toEqual(applied);
+      return applied;
+    };
+    const total = (sov: Record<string, Record<string, unknown>>) =>
+      buildSov(Object.entries(sov).map(([key, value]) => ({
+        item_no: key,
+        description: value.description,
+        scheduled_value: value.billable_value,
+        executed_change_order: value.executed_change_order,
+        fee_included: value.fee_included,
+      })) as SovLineIn[], 10, null).summary.contract_total;
+
+    const positiveId = await approvedChange(false);
+    const positive = await execute(positiveId);
+    expect(Object.values(positive.sov).filter((line) => line.executed_change_order === positiveId))
+      .toEqual([expect.objectContaining({ billable_value: 110, fee_included: true })]);
+    expect(total(positive.sov)).toBe(1110);
+    await expect(change("reopen", {
+      request_id: crypto.randomUUID(), submittal_id: positiveId, expected_version: 4, confirmed: true,
+    })).rejects.toThrow("compensating change");
+
+    const creditId = await approvedChange(true);
+    const compensated = await execute(creditId);
+    expect(Object.values(compensated.sov).filter((line) => line.executed_change_order === creditId))
+      .toEqual([expect.objectContaining({ billable_value: -110, fee_included: true })]);
+    expect(compensated.sov["05.01"]).toEqual(positive.sov["05.01"]);
+    expect(Object.values(compensated.sov).filter((line) => line.executed_change_order === positiveId))
+      .toEqual(Object.values(positive.sov).filter((line) => line.executed_change_order === positiveId));
+    expect(total(compensated.sov)).toBe(1000);
+    const contract = await db.query<{ key: string; value: number }>(
+      "SELECT key,value FROM mcp_job_facts WHERE job_id=$1 AND module='contract' ORDER BY key", [job],
+    );
+    expect(contract.rows).toEqual([
+      { key: "contract_value", value: 1000 },
+      { key: "executed_change_orders", value: 0 },
+    ]);
+    for (const id of [positiveId, creditId])
+      expect((await changes()).records.find((row) => row.id === id)!
+        .change_order_details.state).toBe("executed");
   });
 });

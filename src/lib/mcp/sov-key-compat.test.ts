@@ -31,13 +31,18 @@ const lines = [
 const db = vi.hoisted(() => ({
   facts: [] as Record<string, unknown>[],
   fee: null as number | null,
+  basis: "Contract includes all fee",
+  draftFee: null as number | null,
+  draftBasis: null as string | null,
+  version: 0,
+  storageAvailable: true,
   writes: [] as string[],
 }));
 const job = {
-  job_id: "job-2810",
+  job_id: "job-900071",
   company_id: "company-1",
-  job_number: "2810",
-  name: "Willow Creek Community Center",
+  job_number: "900071",
+  name: "Synthetic Example Community Center",
   scope: "full",
 };
 
@@ -50,18 +55,18 @@ vi.mock("./guard", () => ({
   dbError: (error: { message: string }) => {
     throw new Error(error.message);
   },
-  isMissingFunction: () => false,
+  isMissingFunction: (error: { code?: string }) => error.code === "PGRST202",
 }));
 vi.mock("./jobs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./jobs")>()),
   resolveJob: async () => job,
-  prefix: () => "2810 · ",
-  named: () => "2810 · Willow Creek Community Center",
+  prefix: () => "900071 · ",
+  named: () => "900071 · Synthetic Example Community Center",
   audit: async () => {},
 }));
 vi.mock("./board-url", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./board-url")>()),
-  signedJobPages: async () => ({ payapp: "https://app.meetathena.io/r/job/job-2810/payapp" }),
+  signedJobPages: async () => ({ payapp: "https://app.meetathena.io/r/job/job-900071/payapp" }),
 }));
 
 function query(table: string) {
@@ -71,7 +76,13 @@ function query(table: string) {
       table === "mcp_job_facts"
         ? db.facts
         : table === "mcp_jobs"
-          ? [{ id: job.job_id, sov_fee_pct: db.fee, sov_basis: "Contract includes all fee" }]
+          ? [
+              {
+                id: job.job_id,
+                sov_fee_pct: db.fee,
+                sov_basis: db.basis,
+              },
+            ]
           : table === "mcp_daily_reports"
             ? [
                 { id: "day-28", job_id: job.job_id, report_date: "2026-10-28" },
@@ -88,7 +99,10 @@ function query(table: string) {
     return all.filter((row) => filters.every((test) => test(row)));
   };
   const builder = {
-    select: () => builder,
+    select: (columns: string) => {
+      if (table === "mcp_jobs") expect(columns).not.toContain("sov_draft");
+      return builder;
+    },
     eq: (key: string, value: unknown) => {
       filters.push((row) => row[key] === value);
       return builder;
@@ -105,20 +119,56 @@ function query(table: string) {
   return builder;
 }
 function fakeSb() {
+  const snapshot = () => ({
+    company_id: job.company_id,
+    job_id: job.job_id,
+    version: db.version,
+    budget: Object.fromEntries(
+      db.facts.filter((row) => row.module === "budget").map((row) => [row.key, row.value]),
+    ),
+    sov: Object.fromEntries(
+      db.facts.filter((row) => row.module === "sov").map((row) => [row.key, row.value]),
+    ),
+    sov_draft: Object.fromEntries(
+      db.facts.filter((row) => row.module === "sov_draft").map((row) => [row.key, row.value]),
+    ),
+    terms: { fee_pct: db.fee, basis: db.basis },
+    draft_terms: { fee_pct: db.draftFee, basis: db.draftBasis },
+    capabilities: { destination_cas: true },
+  });
   return {
     from: query,
     rpc: async (name: string, args: Record<string, unknown>) => {
+      if (name === "mcp_estimate_destination_snapshot")
+        return db.storageAvailable
+          ? { data: snapshot(), error: null }
+          : { data: null, error: { code: "PGRST202", message: "Missing versioned storage" } };
       db.writes.push(name);
-      if (name === "mcp_set_facts") {
-        for (const [key, value] of Object.entries(args._facts as Record<string, unknown>)) {
-          const old = db.facts.findIndex((row) => row.module === args._module && row.key === key);
-          const row = { job_id: job.job_id, module: args._module, key, value, status: "known" };
-          if (old < 0) db.facts.push(row);
-          else db.facts[old] = row;
+      if (name === "mcp_estimate_destination_save") {
+        if (!db.storageAvailable)
+          return { data: null, error: { code: "PGRST202", message: "Missing versioned storage" } };
+        if (args._expected_version !== db.version)
+          return { data: null, error: { message: "Destination changed" } };
+        for (const [argument, module] of [
+          ["_budget", "budget"],
+          ["_sov", "sov"],
+          ["_sov_draft", "sov_draft"],
+        ]) {
+          if (args[argument] == null) continue;
+          for (const [key, value] of Object.entries(args[argument] as Record<string, unknown>)) {
+            const old = db.facts.findIndex((row) => row.module === module && row.key === key);
+            const row = { job_id: job.job_id, module, key, value, status: "known" };
+            if (old < 0) db.facts.push(row);
+            else db.facts[old] = row;
+          }
         }
-      } else if (name === "mcp_job_sov_terms") db.fee = args._fee_pct as number;
-      else throw new Error(`Unexpected write: ${name}`);
-      return { data: null, error: null };
+        if (args._fee_pct != null) db.fee = args._fee_pct as number;
+        if (args._basis != null) db.basis = args._basis as string;
+        if (args._draft_fee_pct != null) db.draftFee = args._draft_fee_pct as number;
+        if (args._draft_basis != null) db.draftBasis = args._draft_basis as string;
+        db.version++;
+        return { data: snapshot(), error: null };
+      } else throw new Error(`Unexpected write: ${name}`);
     },
   };
 }
@@ -140,6 +190,11 @@ describe("saved sequential SOV keys", () => {
   beforeEach(() => {
     db.facts = [];
     db.fee = null;
+    db.basis = "Contract includes all fee";
+    db.draftFee = null;
+    db.draftBasis = null;
+    db.version = 0;
+    db.storageAvailable = true;
     db.writes = [];
   });
 
@@ -193,7 +248,7 @@ describe("saved sequential SOV keys", () => {
       balance_to_finish: null,
     });
     expect(forecast.rows.find((row) => row.item_no === "03")?.total_completed).toBeNull();
-    expect(forecast.checks.some(check=>check.startsWith("Needed:"))).toBe(true);
+    expect(forecast.checks.some((check) => check.startsWith("Needed:"))).toBe(true);
   });
 
   it("runs actual intake to pay-app handlers with the original keys, without billing writes", async () => {
@@ -201,7 +256,7 @@ describe("saved sequential SOV keys", () => {
     const { fieldPayApp } = await import("./tools/superintendent-tools");
     await invoke(intake, {
       section: "budget",
-      job_number: "2810",
+      job_number: "900071",
       fee_pct: 0,
       sov_basis: "Contract includes all fee",
       sov_lines: lines.map((line) => ({
@@ -223,13 +278,14 @@ describe("saved sequential SOV keys", () => {
       "05",
     ]);
     const saved = structuredClone(db.facts);
+    expect(db.writes).toEqual(["mcp_estimate_destination_save"]);
     expect(
       saved
         .filter((row) => row.module === "budget")
         .reduce((sum, row) => sum + (row.value as { amount: number }).amount, 0),
     ).toBe(375_000);
     db.writes = [];
-    const result = await invoke(fieldPayApp, { job_number: "2810", period_to: "2026-10-29" });
+    const result = await invoke(fieldPayApp, { job_number: "900071", period_to: "2026-10-29" });
     expect(result.structuredContent).toMatchObject({
       ties: false,
       pay_app: {
@@ -242,6 +298,35 @@ describe("saved sequential SOV keys", () => {
     expect(db.facts).toEqual(saved);
     expect(db.writes).toEqual([]);
   });
+  it("fails closed on unavailable versioned writes and permits a read-only legacy view", async () => {
+    const { intake } = await import("./tools/workflow-tools");
+    db.storageAvailable = false;
+    await expect(
+      invoke(intake, {
+        section: "budget",
+        job_number: "900071",
+        budget_lines: [{ cost_code: "26.01", amount: 1 }],
+      }),
+    ).rejects.toThrow(/unavailable/i);
+    expect(db.writes).toEqual([]);
+    expect(db.facts).toEqual([]);
+    const loaded = await invoke(intake, { section: "budget", job_number: "900071" });
+    expect(loaded.structuredContent).toMatchObject({ saved: false, destination_version: null });
+    expect(db.writes).toEqual([]);
+  });
+  it("rejects an explicitly stale destination version before any save", async () => {
+    const { intake } = await import("./tools/workflow-tools");
+    await expect(
+      invoke(intake, {
+        section: "budget",
+        job_number: "900071",
+        destination_version: 1,
+        budget_lines: [{ cost_code: "26.01", amount: 1 }],
+      }),
+    ).rejects.toThrow(/destination changed/i);
+    expect(db.writes).toEqual([]);
+    expect(db.facts).toEqual([]);
+  });
 
   it.each([{ keys: ["bad"] }, { keys: ["01", "01"] }])(
     "refuses unreadable or duplicate keys before any budget/SOV write: $keys",
@@ -250,7 +335,7 @@ describe("saved sequential SOV keys", () => {
       await expect(
         invoke(intake, {
           section: "budget",
-          job_number: "2810",
+          job_number: "900071",
           budget_lines: [{ cost_code: "26.01", amount: 100 }],
           sov_lines: keys.map((line) => ({ line, billable_value: 100 })),
         }),
