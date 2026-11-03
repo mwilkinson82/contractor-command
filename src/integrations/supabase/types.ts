@@ -9325,6 +9325,16 @@ export type Database = {
         }
         Returns: Json
       }
+      mcp_estimate_buyout_handoff: {
+        Args: {
+          _actor: string
+          _job: string
+          _p: Json
+          _request: string
+          _step: string
+        }
+        Returns: Json
+      }
       mcp_estimate_coverage_review: {
         Args: {
           _decisions: Json
