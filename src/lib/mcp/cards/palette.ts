@@ -36,11 +36,13 @@ const OFF_MARKER = new RegExp([0x26a0, 0x1f69a, 0x1f4cb, 0x1f6a9, 0x1f7e1, 0x1f7
 /**
  * Off-palette colors and markers. Pass alertAllowed only when the card has a
  * delay, risk, or overdue alert or row. Red with alertAllowed false is a failure.
+ * `extra` widens the palette for one card that has its own scheme (the email card).
  */
-export function paletteViolations(text: string, alertAllowed: boolean): string[] {
+export function paletteViolations(text: string, alertAllowed: boolean, extra: readonly string[] = []): string[] {
   const bad: string[] = [];
+  const allowed = extra.length ? new Set([...ALLOWED, ...extra.map((h) => h.toUpperCase())]) : ALLOWED;
   for (const h of hexesIn(text)) {
-    if (!ALLOWED.has(h)) bad.push(`off-palette ${h}`);
+    if (!allowed.has(h)) bad.push(`off-palette ${h}`);
     else if (h === ALERT.toUpperCase() && !alertAllowed) bad.push(`red ${h} outside delay, risk, or overdue`);
   }
   if (OFF_MARKER.test(text) || /\bamber\b/i.test(text)) bad.push("off-palette marker");
