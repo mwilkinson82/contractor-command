@@ -7,6 +7,8 @@ import { scrubProducer, pdfText } from "./lookahead-pdf";
 const NAVY: [number, number, number] = [30, 58, 95];
 const BLUE: [number, number, number] = [30, 95, 237];
 const GRAY: [number, number, number] = [107, 114, 128];
+export const CALLER_RATE_NOTICE =
+  "Caller-provided unit-rate extensions only. This is separate from the reviewed bid summary.";
 
 function logoData(): string | null {
   try {
@@ -58,18 +60,35 @@ export function estimateSummaryPdf(input: {
   d.setFont("helvetica", "bold");
   d.setFontSize(18);
   d.setTextColor(...NAVY);
-  d.text(pdfText(input.draft ? `${input.job} · Estimate summary, draft` : `${input.job} · Estimate Summary`), X, y);
+  d.text(
+    pdfText(
+      input.draft ? `${input.job} · Estimate summary, draft` : `${input.job} · Estimate Summary`,
+    ),
+    X,
+    y,
+  );
   y += 16;
   d.setFont("helvetica", "normal");
   d.setFontSize(10);
   d.setTextColor(...GRAY);
   d.text(pdfText(input.revision), X, y);
-  y += 22;
+  y += 18;
+  const pricingNotice = () => {
+    d.setFont("helvetica", "bold");
+    d.setFontSize(10);
+    d.setTextColor(...NAVY);
+    d.text(CALLER_RATE_NOTICE, X, y);
+    y += 20;
+    d.setFont("helvetica", "normal");
+    d.setFontSize(10);
+  };
+  pricingNotice();
   const paint = (line: string) => {
     const wrapped = d.splitTextToSize(pdfText(line), W - 2 * X - 60) as string[];
     if (y + wrapped.length * 12 > H - 36) {
       d.addPage();
       y = 48;
+      pricingNotice();
     }
     d.text(wrapped, X, y);
     y += wrapped.length * 12 + 4;
@@ -87,14 +106,20 @@ export function estimateSummaryPdf(input: {
       paint(trade);
       d.setFont("helvetica", "normal");
     }
-    paint(`${row.ref} ${row.title}. Qty ${row.qty}. Rate ${row.rate}.${row.extension ? ` Extension ${row.extension}.` : ""}`);
+    paint(
+      `${row.ref} ${row.title}. Qty ${row.qty}. Rate ${row.rate}.${row.extension ? ` Extension ${row.extension}.` : ""}`,
+    );
   }
   y += 8;
   for (const note of input.notes) paint(note);
   d.setFontSize(8);
   d.setTextColor(...GRAY);
   d.text("Athena by ALP", W - X - 70, H - 24);
-  d.setProperties({ title: pdfText(`${input.job} Estimate Summary`), creator: "Athena", author: "Athena" });
+  d.setProperties({
+    title: pdfText(`${input.job} Estimate Summary`),
+    creator: "Athena",
+    author: "Athena",
+  });
   return scrubProducer(new Uint8Array(d.output("arraybuffer")));
 }
 
