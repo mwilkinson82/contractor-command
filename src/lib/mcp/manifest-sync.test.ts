@@ -88,6 +88,11 @@ describe("MCP manifest is in sync with source", () => {
       Object.keys(byName(live)).sort(),
     );
     const lv = byName(live);
+    const bid = live.find((tool) => tool.name === "estimate_bid_summary");
+    expect(bid?.inputSchema.properties.export_delivery).toMatchObject({ type: "string", enum: ["local", "stored"] });
+    expect(bid?.inputSchema.properties.expected_version).toMatchObject({ type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER });
+    expect(bid?.inputSchema.properties.expected_source_sha256).toMatchObject({ type: "string", pattern: "^[a-f0-9]{64}$" });
+    expect(bid?.inputSchema).toMatchObject({ additionalProperties: false, required: ["job_number"] });
     for (const t of manifest.mcp.tools) expect(t.inputSchema, t.name).toEqual(lv[t.name]);
     for (const t of manifest.mcp.tools)
       expect(t.description, `${t.name} description`).toBe(
