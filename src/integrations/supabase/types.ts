@@ -9389,6 +9389,18 @@ export type Database = {
         Args: { _job: string; _patch: Json }
         Returns: Json
       }
+      mcp_estimate_snapshot_read: {
+        Args: { _job: string; _snapshot: string }
+        Returns: Json
+      }
+      mcp_estimate_snapshot_review: {
+        Args: { _expected_version: number; _job: string; _request: string }
+        Returns: Json
+      }
+      mcp_estimate_snapshot_save: {
+        Args: { _confirmed: boolean; _job: string; _request: string }
+        Returns: Json
+      }
       mcp_estimate_takeoff_save: {
         Args: { _job: string; _lines: Json; _revision: string; _scales: Json }
         Returns: Json
