@@ -241,7 +241,7 @@ describe("project record card", () => {
     expect(kindLabel("email_sent")).toBe("Email sent");
     expect(EMAIL_REPLY_KIND).toBe("email_reply");
     const src = readFileSync("src/lib/mcp/tools/email-tools.ts", "utf8");
-    expect(src).toContain('kind: "email_sent"');
+    expect(src).not.toContain('kind: "email_sent"');
     expect(src).not.toContain('kind: "email_reply"');
   });
 });

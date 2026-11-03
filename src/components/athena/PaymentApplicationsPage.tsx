@@ -24,6 +24,8 @@ import {
   type SavedApplication,
 } from "@/lib/payment-applications/workflow";
 import { PaymentApplicationContractBasis } from "./PaymentApplicationContractBasis";
+import { PaymentCompanyBrand } from "./PaymentCompanyBrand";
+import { resolvePaymentBrand } from "@/lib/payment-applications/brand";
 import {
   deriveIntent,
   displayIntent,
@@ -241,7 +243,18 @@ export function PaymentApplicationsPage({
   async function download(s: SavedApplication) {
     try {
       const { applicationPdf } = await import("@/lib/payment-applications/pdf");
-      const bytes = applicationPdf(data.data!.job, s);
+      // Resolve the company through the same job-scoped, RLS-protected path used by purchase orders.
+      let brand: Awaited<ReturnType<typeof resolvePaymentBrand>> = {};
+      try {
+        const j = await supabase.from("mcp_jobs").select("id,company_id").eq("id", jobId).single();
+        if (!j.error && j.data?.id === jobId && j.data.company_id) {
+          const c = await supabase.from("mcp_companies").select("id,name,logo_url").eq("id", j.data.company_id).single();
+          if (!c.error && c.data?.id === j.data.company_id) {
+            brand = await resolvePaymentBrand({ companyName: c.data.name, logoUrl: c.data.logo_url, backendUrl: import.meta.env.VITE_SUPABASE_URL });
+          }
+        }
+      } catch { /* A missing or inaccessible logo must not prevent the saved document. */ }
+      const bytes = applicationPdf(data.data!.job, s, brand);
       const url = URL.createObjectURL(
         new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
       );
@@ -699,6 +712,9 @@ export function PaymentApplicationsPage({
           remain readable; recording a certificate against unchanged issued facts does not require
           the current SOV.
         </p>
+      )}
+      {data.data && !invalid && !data.error && !edit && !pending && (
+        <PaymentCompanyBrand key={`${session.user.id}:${jobId}`} jobId={jobId} actorId={session.user.id} />
       )}
       {data.data && !invalid && !data.error && !edit && !pending && (
         <PaymentApplicationContractBasis
