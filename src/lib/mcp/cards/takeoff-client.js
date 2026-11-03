@@ -316,11 +316,36 @@
   }
   var preparedExport = null;
   var exportGeneration = 0;
+  var exportDisposed = false;
+  var exportBusyGeneration = null;
+  var exportUrls = new Map();
+  function clearEstimateExport() {
+    exportGeneration++;
+    preparedExport = null;
+    if (exportBusyGeneration !== null) busy = false;
+    exportBusyGeneration = null;
+    exportUrls.forEach(function (timer, url) { clearTimeout(timer); URL.revokeObjectURL(url); });
+    exportUrls.clear();
+  }
+  function permitsLocalDownload() {
+    try {
+      var current = window;
+      while (current !== current.top) {
+        var frame = current.frameElement;
+        if (!frame) return false;
+        if (frame.hasAttribute("sandbox") && !frame.sandbox.contains("allow-downloads")) return false;
+        current = current.parent;
+      }
+      return typeof URL.createObjectURL === "function";
+    } catch (_) { return false; }
+  }
   async function prepareEstimateExport(format, target, exportContext) {
-    if (busy) return;
+    if (busy || exportDisposed) return;
     busy = true;
     preparedExport = null;
     var generation = ++exportGeneration;
+    exportBusyGeneration = generation;
+    root.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
     target.replaceChildren();
     notice("Preparing local download…");
     try {
@@ -334,15 +359,20 @@
       var file = result.structuredContent && result.structuredContent.local_export;
       if (!file || !file.filename.endsWith("." + format)) throw Error("The requested export format did not match.");
       var prepared = await validateLocalExport(file, exportContext);
-      if (generation !== exportGeneration) return;
+      if (exportDisposed || generation !== exportGeneration) return;
       preparedExport = prepared;
       addPreparedDownload(target);
-      notice("Local copy ready. Persistent export storage is unavailable.");
-    } catch (e) { notice(e.message); }
-    finally { busy = false; root.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); size(); }
+      notice(permitsLocalDownload() ? "File prepared, not downloaded. Persistent export storage is unavailable." :
+        "File prepared, but downloading is unavailable or unverified in this host. Nothing was downloaded.");
+    } catch (e) { if (!exportDisposed && generation === exportGeneration) notice(e.message); }
+    finally {
+      if (!exportDisposed && generation === exportGeneration && exportBusyGeneration === generation) {
+        exportBusyGeneration = null; busy = false;
+        root.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); size();
+      }
+    }
   }
   async function validateLocalExport(file, expected) {
-    preparedExport = null;
     var format = file && file.mime_type === "application/pdf" ? "pdf" : "xlsx";
     var mime = format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     if (!file || file.delivery !== "local" || file.mime_type !== mime ||
@@ -372,12 +402,27 @@
   }
   function addPreparedDownload(target) {
     var file = preparedExport, generation = exportGeneration;
+    if (!permitsLocalDownload()) {
+      target.replaceChildren(node("p", "File prepared, but downloading is unavailable or unverified in this host. Nothing was downloaded.", "note"));
+      return;
+    }
+    var requested = false;
     target.replaceChildren(button("Download local copy", function () {
-      if (!file || generation !== exportGeneration) return;
-      var url = URL.createObjectURL(file.blob), a = node("a");
-      a.href = url; a.download = file.filename;
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+      if (!file || exportDisposed || generation !== exportGeneration || requested) return;
+      if (!permitsLocalDownload()) return notice("Downloading is unavailable in this host. Nothing was downloaded.");
+      var url, a;
+      try {
+        requested = true;
+        url = URL.createObjectURL(file.blob); a = node("a");
+        exportUrls.set(url, setTimeout(function () { URL.revokeObjectURL(url); exportUrls.delete(url); }, 30000));
+        a.href = url; a.download = file.filename;
+        document.body.append(a); a.click();
+        notice("Download requested. This host does not confirm whether the file was saved.");
+      } catch (_) {
+        requested = false;
+        if (url) { clearTimeout(exportUrls.get(url)); exportUrls.delete(url); URL.revokeObjectURL(url); }
+        notice("Download request failed. Nothing was confirmed; you can retry.");
+      } finally { if (a) a.remove(); }
     }));
   }
   function estimateDownloadControls(target) {
@@ -387,9 +432,9 @@
       target.append(node("p", "Persistent export storage is unavailable. Local copies cannot be revoked and are not shared links.", "note"));
       var generation = exportGeneration;
       validateLocalExport(sc.local_export, sc.context).then(function (file) {
-        if (generation !== exportGeneration) return;
+        if (exportDisposed || generation !== exportGeneration) return;
         preparedExport = file; addPreparedDownload(holder); size();
-      }).catch(function (e) { notice(e.message); });
+      }).catch(function (e) { if (!exportDisposed && generation === exportGeneration) notice(e.message); });
     } else if (exportContext) {
       var controls = node("div", null, "tools"), holder = node("div");
       controls.append(button("Prepare PDF", function () { prepareEstimateExport("pdf", holder, exportContext); }),
@@ -398,8 +443,8 @@
     }
   }
   function draw() {
-    exportGeneration++;
-    preparedExport = null;
+    if (exportDisposed) return;
+    clearEstimateExport();
     refreshDrawing = null;
     if (!sc || !sc.engine) {
       root.replaceChildren(node("header", (sc && sc.card && sc.card.title) || "Drawing takeoff"));
@@ -1943,6 +1988,9 @@
       }
     } else if (m.method === "ping" && m.id != null) send({ id: m.id, result: {} });
     else if (m.method === "ui/resource-teardown") {
+      exportDisposed = true;
+      clearEstimateExport();
+      root.replaceChildren();
       pending.forEach(function (t) {
         clearTimeout(t.timer);
         t.reject(Error("Viewer closed. Reload to confirm saved state."));

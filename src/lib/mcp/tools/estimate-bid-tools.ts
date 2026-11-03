@@ -1010,7 +1010,7 @@ export const estimateRequirements = defineTool({
 export const estimateBidSummary = defineTool({
   name: "estimate_bid_summary",
   title: "Bid summary",
-  description: "Compounds overhead and profit and returns the bid total for a job.",
+  description: "Returns the job's bid total or prepares a read-only local PDF/XLSX export by default when a format is requested; stored delivery must be explicit.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1024,7 +1024,7 @@ export const estimateBidSummary = defineTool({
   },
   annotations: SAVE,
   handler: async (args, ctx) => {
-    if (args.export_delivery === "local") {
+    if (args.export_delivery === "local" || (args.export_format && args.export_delivery !== "stored")) {
       if (!args.export_format) throw new ToolError("Choose PDF or XLSX before preparing a local download.");
       if (args.overhead_pct !== undefined || args.profit_pct !== undefined || args.handoff_draft !== undefined)
         throw new ToolError("Download requests cannot change markups or prepare handoffs. Nothing was saved.");
@@ -1038,7 +1038,7 @@ export const estimateBidSummary = defineTool({
         format: args.export_format, expectedVersion: args.expected_version, expectedSource: args.expected_source_sha256,
       }, calculateSavedBidSnapshot);
       return {
-        content: [{ type: "text" as const, text: "Local estimate download prepared. Persistent export storage is unavailable; this is not a shared link." }],
+        content: [{ type: "text" as const, text: "Estimate file prepared, not downloaded. Use the card's download control only where the host permits it; otherwise downloading is unavailable in this host. Persistent export storage is unavailable; this is not a shared link." }],
         structuredContent: {
           estimate_local_export: true,
           context: { company_id: job.company_id, job_id: job.job_id, job_number: job.job_number },
