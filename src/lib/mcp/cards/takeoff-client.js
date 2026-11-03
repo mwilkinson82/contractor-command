@@ -103,7 +103,7 @@
   }
   function takeoffData(result) {
     var data = result && result.structuredContent;
-    if (!data || !data.engine) return null;
+    if (!data || (!data.engine && !data.estimate_local_export && !data.local_export_context)) return null;
     var view = result._meta && result._meta["athena/takeoffView"];
     return Object.assign(
       {},
@@ -314,7 +314,92 @@
       return "Complete the geometry";
     }
   }
+  var preparedExport = null;
+  var exportGeneration = 0;
+  async function prepareEstimateExport(format, target, exportContext) {
+    if (busy) return;
+    busy = true;
+    preparedExport = null;
+    var generation = ++exportGeneration;
+    target.replaceChildren();
+    notice("Preparing local download…");
+    try {
+      var result = await call("estimate_bid_summary", {
+        job_number: exportContext.job_number, company_id: exportContext.company_id,
+        export_format: format, export_delivery: "local",
+        expected_version: exportContext.snapshot_version,
+        expected_source_sha256: exportContext.source_sha256,
+      });
+      if (!result || result.isError) throw Error(failureText(result));
+      var file = result.structuredContent && result.structuredContent.local_export;
+      if (!file || !file.filename.endsWith("." + format)) throw Error("The requested export format did not match.");
+      var prepared = await validateLocalExport(file, exportContext);
+      if (generation !== exportGeneration) return;
+      preparedExport = prepared;
+      addPreparedDownload(target);
+      notice("Local copy ready. Persistent export storage is unavailable.");
+    } catch (e) { notice(e.message); }
+    finally { busy = false; root.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); size(); }
+  }
+  async function validateLocalExport(file, expected) {
+    preparedExport = null;
+    var format = file && file.mime_type === "application/pdf" ? "pdf" : "xlsx";
+    var mime = format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    if (!file || file.delivery !== "local" || file.mime_type !== mime ||
+        !Number.isSafeInteger(file.snapshot_version) || file.snapshot_version < 0 ||
+        file.filename !== "Bid-summary-v" + file.snapshot_version + "." + format ||
+        file.company_id !== expected.company_id || file.job_id !== expected.job_id ||
+        (expected.snapshot_version !== undefined && file.snapshot_version !== expected.snapshot_version) ||
+        (expected.source_sha256 !== undefined && file.source_sha256 !== expected.source_sha256) ||
+        typeof file.source_sha256 !== "string" || typeof file.sha256 !== "string" ||
+        !/^[a-f0-9]{64}$/.test(file.source_sha256) || !/^[a-f0-9]{64}$/.test(file.sha256) ||
+        !Number.isSafeInteger(file.size) || file.size < 1 || file.size > 10485760 ||
+        typeof file.content_base64 !== "string" || file.content_base64.length !== Math.ceil(file.size / 3) * 4 ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(file.content_base64))
+      throw Error("The local export is invalid. No download was prepared.");
+    var binary = atob(file.content_base64);
+    if (binary.length !== file.size || btoa(binary) !== file.content_base64) throw Error("The export bytes are invalid.");
+    var bytes = Uint8Array.from(binary, function (c) { return c.charCodeAt(0); });
+    var text = new TextDecoder().decode(bytes);
+    if (format === "pdf" ? !(text.startsWith("%PDF-") && /%%EOF\s*$/.test(text)) :
+        !(bytes[0] === 80 && bytes[1] === 75 && bytes[2] === 3 && bytes[3] === 4 &&
+          text.includes("[Content_Types].xml") && text.includes("xl/workbook.xml") && text.includes("xl/worksheets/sheet1.xml") &&
+          !/<(?:\w+:)?f(?:\s|>)/i.test(text))) throw Error("The export content is invalid.");
+    var digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    var hash = Array.from(digest, function (n) { return n.toString(16).padStart(2, "0"); }).join("");
+    if (hash !== file.sha256) throw Error("The export checksum does not match.");
+    return { blob: new Blob([bytes], { type: mime }), filename: file.filename };
+  }
+  function addPreparedDownload(target) {
+    var file = preparedExport, generation = exportGeneration;
+    target.replaceChildren(button("Download local copy", function () {
+      if (!file || generation !== exportGeneration) return;
+      var url = URL.createObjectURL(file.blob), a = node("a");
+      a.href = url; a.download = file.filename;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+    }));
+  }
+  function estimateDownloadControls(target) {
+    var exportContext = sc.local_export_context || (sc.bid_summary && sc.bid_summary.local_export_context);
+    if (sc.estimate_local_export) {
+      var holder = node("div"); target.append(holder);
+      target.append(node("p", "Persistent export storage is unavailable. Local copies cannot be revoked and are not shared links.", "note"));
+      var generation = exportGeneration;
+      validateLocalExport(sc.local_export, sc.context).then(function (file) {
+        if (generation !== exportGeneration) return;
+        preparedExport = file; addPreparedDownload(holder); size();
+      }).catch(function (e) { notice(e.message); });
+    } else if (exportContext) {
+      var controls = node("div", null, "tools"), holder = node("div");
+      controls.append(button("Prepare PDF", function () { prepareEstimateExport("pdf", holder, exportContext); }),
+        button("Prepare XLSX", function () { prepareEstimateExport("xlsx", holder, exportContext); }));
+      target.append(controls, holder);
+    }
+  }
   function draw() {
+    exportGeneration++;
+    preparedExport = null;
     refreshDrawing = null;
     if (!sc || !sc.engine) {
       root.replaceChildren(node("header", (sc && sc.card && sc.card.title) || "Drawing takeoff"));
@@ -334,6 +419,7 @@
           ),
         );
       root.append(fallback);
+      estimateDownloadControls(fallback);
       size();
       return;
     }
@@ -361,6 +447,7 @@
       );
     var main = node("main");
     root.append(main);
+    estimateDownloadControls(main);
     var kpis = node("div", null, "kpis");
     (sc.card.kpis || []).forEach(function (k) {
       var d = node("div");
