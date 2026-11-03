@@ -1,6 +1,7 @@
 # Roadmap
 
 - [x] Implement and verify estimate-only local PDF/XLSX downloads with synthetic tests; storage and publication remain deferred.
+- [ ] Correct local export default routing, canonical discovery and widget contracts, lifecycle cleanup, and sandbox compatibility reporting; preserve unrelated manifest entries during extraction and later email-description integration.
 
 - [ ] Stage PR #56 (codex/athena-passwordless-login-only @ 6515e5f1) in this project's preview, then run private HMAC and sign-in acceptance checks. Blocked: the owner has to switch branches in the editor.
 - [ ] Paused: date sweep / item types / role tests (resume later)
