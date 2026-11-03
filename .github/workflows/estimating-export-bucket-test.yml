@@ -1,0 +1,44 @@
+name: Estimating export bucket native PostgreSQL
+on:
+  pull_request:
+    branches: [codex/athena-passwordless-login-only]
+permissions:
+  contents: read
+jobs:
+  bucket-proposal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: synthetic
+          POSTGRES_DB: bucket_test
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports:
+          - 127.0.0.1:55439:5432
+        options: >-
+          --health-cmd "pg_isready -U synthetic -d bucket_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise creation, replay, and mismatch rejection
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '55439'
+          PGUSER: synthetic
+          PGDATABASE: bucket_test
+          PGPASSWORD: synthetic-ci-only
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -c "CREATE SCHEMA storage; CREATE TABLE storage.buckets (id text PRIMARY KEY, name text UNIQUE NOT NULL, public boolean, file_size_limit bigint, allowed_mime_types text[]); INSERT INTO storage.buckets VALUES ('other', 'other', true, 50, ARRAY['text/plain']);"
+          proposal=release-proposals/estimating-export-bucket.sql
+          psql -v ON_ERROR_STOP=1 -f "$proposal"
+          psql -v ON_ERROR_STOP=1 -f "$proposal"
+          psql -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF (SELECT count(*) FROM storage.buckets) <> 2 OR NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id='other' AND public=true AND file_size_limit=50 AND allowed_mime_types=ARRAY['text/plain']) THEN RAISE EXCEPTION 'unexpected bucket mutation'; END IF; END \$\$;"
+          for change in "public=true" "public=NULL" "file_size_limit=1" "file_size_limit=NULL" "allowed_mime_types=ARRAY['application/pdf']" "allowed_mime_types=NULL" "name='unexpected'"; do
+            psql -v ON_ERROR_STOP=1 -c "UPDATE storage.buckets SET name='athena-estimate-exports', public=false, file_size_limit=10485760, allowed_mime_types=ARRAY['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'] WHERE id='athena-estimate-exports'; UPDATE storage.buckets SET $change WHERE id='athena-estimate-exports';"
+            before=$(psql -At -c "SELECT row_to_json(b) FROM storage.buckets b WHERE id='athena-estimate-exports'")
+            if psql -v ON_ERROR_STOP=1 -f "$proposal"; then echo "ERROR: accepted $change"; exit 1; fi
+            after=$(psql -At -c "SELECT row_to_json(b) FROM storage.buckets b WHERE id='athena-estimate-exports'")
+            test "$before" = "$after"
+          done
