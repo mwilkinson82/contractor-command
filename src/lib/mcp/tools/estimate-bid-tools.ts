@@ -1018,7 +1018,7 @@ export const estimateBidSummary = defineTool({
     profit_pct: z.number().finite().min(0).max(100).optional(),
     export_format: z.enum(["pdf", "xlsx"]).optional(),
     export_delivery: z.enum(["local", "stored"]).optional(),
-    expected_version: z.number().int().nonnegative().safe().optional(),
+    expected_version: z.number().int().safe().nonnegative().optional(),
     expected_source_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     handoff_draft: z.boolean().optional(),
   },
