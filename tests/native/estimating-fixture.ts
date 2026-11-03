@@ -190,6 +190,43 @@ export const fixtureProposalPaths = [
   "estimating-bid-artifact-storage.sql",
 ].map((name) => `release-proposals/${name}`);
 
+// Exact exposed RPC inventory; exercise actual inherited privileges as well as direct ACLs.
+export const memberEstimateRpcs = [
+  "public.mcp_estimate_coverage_snapshot(uuid)",
+  "public.mcp_estimate_coverage_review(uuid,uuid,bigint,jsonb)",
+  "public.mcp_estimate_coverage_save(uuid,uuid,boolean)",
+  "public.mcp_estimate_pricing_save_versioned(uuid,bigint,jsonb,jsonb,jsonb,jsonb)",
+  "public.mcp_estimate_bid_save_versioned(uuid,bigint,numeric,numeric)",
+  "public.mcp_estimate_snapshot_review(uuid,uuid,bigint)",
+  "public.mcp_estimate_snapshot_save(uuid,uuid,boolean)",
+  "public.mcp_estimate_snapshot_read(uuid,uuid)",
+  "public.mcp_estimate_destination_snapshot(uuid)",
+  "public.mcp_estimate_destination_save(uuid,bigint,jsonb,jsonb,jsonb,numeric,text,numeric,text)",
+] as const;
+export const serviceEstimateRpcs = [
+  "public.mcp_estimate_buyout_handoff(uuid,uuid,text,uuid,jsonb)",
+  "public.mcp_estimate_facts_handoff(uuid,uuid,text,uuid,jsonb)",
+] as const;
+
+export async function assertEstimatingRpcPrivileges(db: QueryDb) {
+  for (const [signatures, expected] of [
+    [memberEstimateRpcs, { member: true, service: false }],
+    [serviceEstimateRpcs, { member: false, service: true }],
+  ] as const) {
+    for (const signature of signatures) {
+      const row = (await db.query<{ member: boolean; service: boolean; anon: boolean; owner: boolean }>(
+        `SELECT has_function_privilege('authenticated',$1::regprocedure,'EXECUTE') AS member,
+                has_function_privilege('service_role',$1::regprocedure,'EXECUTE') AS service,
+                has_function_privilege('anon',$1::regprocedure,'EXECUTE') AS anon,
+                has_function_privilege(pg_get_userbyid(p.proowner),p.oid,'EXECUTE') AS owner
+         FROM pg_proc p WHERE p.oid=$1::regprocedure`, [signature],
+      )).rows[0];
+      if (!row || row.member !== expected.member || row.service !== expected.service || row.anon || !row.owner)
+        throw new Error(`Unexpected effective RPC privileges for ${signature}: ${JSON.stringify(row)}`);
+    }
+  }
+}
+
 export async function installEstimatingFixture(
   createDb: FixtureFactory = makeDb as unknown as FixtureFactory,
 ): Promise<FixtureDb> {
@@ -237,6 +274,7 @@ export async function installEstimatingFixture(
          ARRAY['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']::text[])`,
     );
     for (const path of fixtureProposalPaths) await db.exec(read(path));
+    await assertEstimatingRpcPrivileges(db);
     await readAuthorizationFingerprints(db);
     return db;
   } catch (error) {
