@@ -23,6 +23,10 @@ describe("local download tool authorization and no summary writes", () => {
   it("never enters the summary audit or save RPCs", async () => {
     await call(); expect(state.audit).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled(); expect(state.prepared).toHaveBeenCalledOnce();
   });
+  it.each(["pdf", "xlsx"])("defaults a format-only %s request to read-only local delivery", async (format) => {
+    await call({ export_format: format, export_delivery: undefined });
+    expect(state.prepared).toHaveBeenCalledOnce(); expect(state.audit).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+  });
   it("requires a file format for a local request rather than falling into summary writes", async () => {
     await expect(call({ export_format: undefined })).rejects.toThrow(/Choose PDF or XLSX/);
     expect(state.audit).not.toHaveBeenCalled(); expect(state.prepared).not.toHaveBeenCalled();
