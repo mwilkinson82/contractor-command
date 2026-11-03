@@ -49,8 +49,8 @@ beforeEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); state.allowed = tr
 describe("local estimate real SDK discovery and widget contract", () => {
   it.each(["pdf", "xlsx"] as const)("carries an actual card %s click through authenticated SDK validation and back to the card", async (format) => {
     const files = canonicalBidFiles({ job: "Synthetic", version: 7, ready: true, breakdown: {
-      direct: [], directCents: 0, generalConditions: [], requirements: [], generalConditionsCents: 0,
-      requirementsCents: 0, overheadCents: 0, profitCents: 0, totalCents: 0,
+      direct: [{ ref: "T-1", basis: "direct", quoteId: null, amountCents: 10000 }], directCents: 10000, generalConditions: [], requirements: [], generalConditionsCents: 0,
+      requirementsCents: 0, overheadCents: 0, profitCents: 0, totalCents: 10000,
     } });
     if (!files) throw Error("Synthetic export unavailable");
     const bytes = files[format];
