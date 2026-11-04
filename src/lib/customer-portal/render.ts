@@ -3,6 +3,7 @@
 import { optionNames } from "../selections/model";
 import { CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from "../client-brand";
 import { displayPrice } from "../selections/format";
+import { ATHENA_SUPPORT_MAILTO } from "../login-copy";
 import {
   approvalStatement,
   maskEmail,
@@ -278,7 +279,8 @@ const SIGNIN_CSS = `
 .as-co span{margin-top:5px;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#1D4ED8}
 .as-card{margin-top:36px;background:#fff;border:1px solid #2563EB33;border-radius:16px;box-shadow:0 1px 2px #0F1E3D0F;padding:24px}
 .as-rule{width:40px;height:4px;background:#2563EB;margin-bottom:24px}
-.as h1{margin:0;font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:30px;line-height:1.12;letter-spacing:-.01em;color:#1F2329;text-wrap:balance}
+.as-hi{margin:0 0 8px;font-size:14px;line-height:1.5;color:#5B5F68}
+.as h1{margin:0;font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:27px;line-height:1.15;letter-spacing:-.01em;color:#1F2329;text-wrap:balance}
 .as-sub{margin:12px 0 0;font-size:14px;line-height:1.6;color:#5B5F68}
 .as-job{margin-top:22px;padding:14px 16px;border:1px solid #E4E1D6;border-radius:12px;background:#F8FAFF;display:grid;gap:4px}
 .as-label{display:block;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#76736B}
@@ -297,9 +299,9 @@ const SIGNIN_CSS = `
 .as-err{margin:20px 0 0;padding:11px 14px;border:1px solid #F3C8D0;border-radius:10px;background:#FFF3F5;color:#B91C1C;font-size:13px;font-weight:600}
 .as-foot{margin-top:28px;padding-top:18px;border-top:1px solid #E4E1D6;display:flex;align-items:center;gap:8px;font-size:12px;color:#76736B}
 .as-foot svg{width:22px;height:16px;flex:none;overflow:visible}
-.as-help{margin:22px 0 0;text-align:center;font-size:12px;color:#3F434B}
-@media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:32px}}
-@media (max-width:380px){.as-co b{font-size:19px}.as h1{font-size:27px}}
+.as-help{margin:22px 0 0;text-align:center;font-size:12px;line-height:1.7;color:#3F434B}.as-help a{color:#1D4ED8;text-decoration:underline;text-underline-offset:3px}
+@media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:29px}}
+@media (max-width:380px){.as-co b{font-size:19px}.as h1{font-size:24px}}
 `;
 
 // The Athena A for the "Powered by Athena" corner line, inlined so the page needs no image request. Solid Athena
@@ -317,11 +319,12 @@ export const safeLogo = (url: string | null | undefined): string | null =>
 function signinShell(company: string | null, inner: string, logo: string | null = null): string {
   const src = safeLogo(logo);
   const brand = company
-    ? `<div class="as-brand">${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : `<span class="as-co"><b>${esc(company)}</b></span>`}<span class="as-co"><span>Customer page</span></span></div>`
-    : `<div class="as-brand"><span class="as-co"><span>Customer page</span></span></div>`;
+    ? `<div class="as-brand">${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : `<span class="as-co"><b>${esc(company)}</b></span>`}<span class="as-co"><span>Client page</span></span></div>`
+    : `<div class="as-brand"><span class="as-co"><span>Client page</span></span></div>`;
+  const support = `Trouble signing in? <a href="${esc(ATHENA_SUPPORT_MAILTO)}">Email Athena support</a>.`;
   const help = company
-    ? `<p class="as-help">Questions about your project? Contact ${esc(company)}.</p>`
-    : "";
+    ? `<p class="as-help">Questions about your project? Contact ${esc(company)}.<br>${support}</p>`
+    : `<p class="as-help">${support}</p>`;
   return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
 }
 
@@ -336,7 +339,7 @@ function doc(title: string, body: string, kind: "portal" | "signin" = "portal"):
 }
 
 /** The contractor up top: their saved logo when there is one, else an initials badge and their name. */
-const logo = (company: string, sub = "Customer page", image: string | null = null) => {
+const logo = (company: string, sub = "Client page", image: string | null = null) => {
   const src = safeLogo(image);
   return src
     ? `<div class="logo"><img class="logo-img" src="${esc(src)}" alt="${esc(company)}"><span class="logo-word"><span>${esc(sub)}</span></span></div>`
@@ -356,7 +359,7 @@ export function renderInvite(
   const masked = esc(maskEmail(info.email));
   const inner =
     step === "start"
-      ? `<h1>Hi ${esc(info.name.split(/\s+/)[0])}, here's your project page</h1><p class="as-sub">${esc(info.company)} shares updates, photos, the schedule and anything that needs your decision here.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button><p class="as-note">We'll send a 6-digit code to ${masked}. No password needed.</p></form>`
+      ? `<p class="as-hi">Hi ${esc(info.name.split(/\s+/)[0])},</p><h1>${esc(info.company)} invites you to your ${esc(info.job_name)} project page</h1><p class="as-sub">It's private to you. You'll find weekly updates, photos, the schedule and anything that needs your decision.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button><p class="as-note">We'll send a 6-digit code to ${masked}. No password needed.</p></form>`
       : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent" : "Enter"} a 6-digit code to ${masked}. It works for 10 minutes.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="verify"><div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><p class="as-note">No code? Check your spam folder, or <button class="as-link" type="submit">send a new one</button>.</p></form>`;
   return doc(
     `${info.job_name} · Sign in`,
@@ -388,7 +391,13 @@ export function renderGone(
   company: string | null = null,
   logo: string | null = null,
 ): string {
-  const [h, p] = GONE[kind] ?? GONE.unknown!;
+  const [h, raw] = GONE[kind] ?? GONE.unknown!;
+  // Name the contractor when we know them, so the client knows exactly who to call.
+  const p = company
+    ? raw
+        .replace(/\b([Yy])our contractor\b/g, company)
+        .replace(/\bContact them\b/g, `Contact ${company}`)
+    : raw;
   return doc(
     h,
     signinShell(company, `<h1>${esc(h)}</h1><p class="as-sub">${esc(p)}</p>`, logo),

@@ -142,11 +142,11 @@ export function inviteEmail(a: {
     to: a.to,
     key: `portal-invite:${a.nonce}`,
     fromName: customerFromName(a.company),
-    subject: `Your project page for ${a.jobName}`,
+    subject: `${a.company} invites you to your ${a.jobName} project page`,
     text: [
       `Hi ${a.name},`,
       "",
-      `${from} set up a private page for ${a.jobName}. You'll find weekly updates, photos, the schedule and anything that needs your decision.`,
+      `${a.company} invites you to your ${a.jobName} project page. ${from} set it up for you. You'll find weekly updates, photos, the schedule and anything that needs your decision.`,
       "",
       `Open it here: ${a.link}`,
       "",
@@ -156,12 +156,12 @@ export function inviteEmail(a: {
     ].join("\n"),
     html: frame({
       brand: { contractor: a.company, logo: a.logo },
-      tagline: "Customer page",
-      preview: `${from} set up a private page for ${a.jobName}.`,
-      heading: "Your project page is ready",
+      tagline: "Client page",
+      preview: `${from} set up a private page for you. Sign in with a 6-digit code.`,
+      heading: `${a.company} invites you to your ${a.jobName} project page`,
       lines: [
         `Hi ${esc(firstName(a.name))},`,
-        `${esc(from)} set up a private page for <strong style="color:${EMAIL_NAVY}">${esc(a.jobName)}</strong>. You'll find weekly updates, photos, the schedule and anything that needs your decision.`,
+        `${esc(from)} set up this private page for you. You'll find weekly updates, photos, the schedule and anything that needs your decision.`,
       ],
       button: { label: "Open your project page", href: a.link },
       after: `We'll email you a 6-digit code to sign in. No password needed. This invite link works until ${esc(a.expires)}.`,
@@ -193,8 +193,8 @@ export function codeEmail(a: {
     fromName: customerFromName(a.company),
     subject:
       a.purpose === "sign_in"
-        ? `${a.code} is your sign-in code`
-        : `${a.code} is your confirmation code`,
+        ? `${a.code} is your ${a.company} sign-in code`
+        : `${a.code} is your ${a.company} confirmation code`,
     text: [
       `Hi ${a.name},`,
       "",
@@ -206,7 +206,7 @@ export function codeEmail(a: {
     ].join("\n"),
     html: frame({
       brand: { contractor: a.company, logo: a.logo },
-      tagline: "Customer page",
+      tagline: "Client page",
       preview: `Use ${a.code} to ${why}.`,
       heading: a.purpose === "sign_in" ? "Your sign-in code" : "Your confirmation code",
       lines: [
@@ -242,8 +242,8 @@ export function noticeEmail(a: {
     fromName: customerFromName(a.company),
     subject:
       a.kind === "update"
-        ? `New update on ${a.jobName}`
-        : `Needs your decision: ${a.label ?? a.jobName}`,
+        ? `${a.company} posted an update on ${a.jobName}`
+        : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
     text: [
       `Hi ${a.name},`,
       "",
@@ -255,12 +255,12 @@ export function noticeEmail(a: {
     ].join("\n"),
     html: frame({
       brand: { contractor: a.company, logo: a.logo },
-      tagline: "Customer page",
+      tagline: "Client page",
       preview: line,
       heading: a.kind === "update" ? "New update on your project" : "Something needs your decision",
       lines: [`Hi ${esc(firstName(a.name))},`, esc(line)],
       button: { label: "Open your project page", href: a.link },
-      foot: "You get these emails because your contractor invited you to this project page.",
+      foot: `You get these emails because ${esc(a.company)} invited you to this project page.`,
       legal: CUSTOMER_LEGAL,
     }),
   };
