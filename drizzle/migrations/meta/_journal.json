@@ -498,6 +498,13 @@
       "when": 1793760587410,
       "tag": "0070_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1793762393469,
+      "tag": "0071_gbb_part3_board_functions",
+      "breakpoints": true
     }
   ]
 }

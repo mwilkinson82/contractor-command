@@ -9865,6 +9865,11 @@ export type Database = {
         Returns: Json
       }
       mcp_request_rows: { Args: { _job: string; _kind: string }; Returns: Json }
+      mcp_residential_selections_get: { Args: { _job: string }; Returns: Json }
+      mcp_residential_selections_save: {
+        Args: { _board: Json; _expected_version: number; _job: string }
+        Returns: Json
+      }
       mcp_resolve_item: {
         Args: {
           _approval: string
