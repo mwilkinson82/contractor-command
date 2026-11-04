@@ -101,7 +101,7 @@ import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
 import type { CardModel } from "../cards/model";
 import { guide } from "../visible";
-import { readEstimateOptions, withEstimateOptions } from "../estimate-options";
+import { readEstimateOptions, SAVE_OFFER_GUIDANCE, withEstimateOptions } from "../estimate-options";
 import { CALLER_RATE_NOTICE } from "../estimate-summary-pdf";
 
 const jobNumber = z.string().trim().min(1).max(40);
@@ -1062,11 +1062,14 @@ export const estimateTakeoffGet = defineTool({
         await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
         const measurement = await engineSnapshot(sb, job.job_id);
         if (measurement)
-          return viewEngine(
-            sb,
-            job,
-            measurement,
-            args.sheet ? await loadStoredPage(sb, job, args.sheet, args.source_id) : undefined,
+          return guide(
+            await viewEngine(
+              sb,
+              job,
+              measurement,
+              args.sheet ? await loadStoredPage(sb, job, args.sheet, args.source_id) : undefined,
+            ),
+            SAVE_OFFER_GUIDANCE,
           );
         const withPages = async <R extends { content?: { type: string; text?: string }[] }>(
           result: R,
@@ -1092,6 +1095,7 @@ export const estimateTakeoffGet = defineTool({
           reply({
             ...view,
             structured: { ...view.structured, found: true, version: loaded.version },
+            guidance: [...view.guidance, SAVE_OFFER_GUIDANCE],
           }),
           loaded.lines,
         );

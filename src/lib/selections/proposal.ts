@@ -9,6 +9,7 @@ import {
   type OptionName,
   type Selection,
 } from "./model";
+import { isProvisional } from "./line-checks";
 
 export const TIER_LABEL: Record<OptionName, string> = {
   good: "Good",
@@ -26,6 +27,11 @@ export function proposalBlockers(input: Board): string[] {
   else if (board.proposal.base_reviewed_on === null)
     blockers.push("Review the base proposal price.");
   if (board.selections.length === 0) blockers.push("Add at least one selection.");
+  for (const selection of board.selections)
+    if (isProvisional(selection.notes))
+      blockers.push(
+        `${selection.title}: provisional until its open drawing conflict is answered. Confirm the options still fit the answer, then take PROVISIONAL off its notes.`,
+      );
   for (const selection of board.selections)
     for (const tier of optionNames) {
       const option = selection.options[tier];

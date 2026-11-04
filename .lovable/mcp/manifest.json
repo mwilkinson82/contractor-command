@@ -17229,6 +17229,7 @@
                 "review_price",
                 "apply_markup",
                 "set_proposal",
+                "remove_selection",
                 "save"
               ]
             },
@@ -17761,6 +17762,12 @@
                 "better",
                 "best"
               ]
+            },
+            "basis": {
+              "description": "Only when an estimate line has an open drawing conflict: the basis the member chose to run on, for example \"E1 schedule, pending RFI-001\". The options are saved marked provisional and the customer view stays locked until the conflict is settled.",
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 300
             },
             "assumptions": {
               "type": "string",

@@ -4,13 +4,15 @@ import { emptyBoard, type Board } from "../selections/model";
 import { estimateLineOptions, lineOptionsFlag } from "../selections/estimate-options";
 import { withEstimateOptions } from "./estimate-options";
 import { looksLikeOptionsComparison } from "./file-share";
-import { customerProposal } from "../selections/proposal";
+import { customerProposal, proposalBlockers } from "../selections/proposal";
 
 const fixture = vi.hoisted(() => ({
   calls: [] as { name: string; args: Record<string, unknown> }[],
   board: null as unknown,
   version: 0,
   lines: [] as unknown[],
+  gaps: [] as unknown[],
+  verdicts: [] as unknown[],
 }));
 vi.mock("./guard", () => ({
   run: async (_n: string, _c: unknown, _o: unknown, fn: (sb: unknown) => unknown) =>
@@ -18,7 +20,14 @@ vi.mock("./guard", () => ({
       rpc: async (name: string, args: Record<string, unknown>) => {
         fixture.calls.push({ name, args });
         if (name === "mcp_estimate_get")
-          return { data: { takeoff: { lines: fixture.lines } }, error: null };
+          return {
+            data: {
+              takeoff: { lines: fixture.lines },
+              gaps: fixture.gaps,
+              verdicts: fixture.verdicts,
+            },
+            error: null,
+          };
         if (name === "mcp_residential_selections_save")
           return {
             data: {
@@ -81,7 +90,10 @@ beforeEach(() => {
   fixture.calls = [];
   fixture.board = emptyBoard();
   fixture.version = 0;
+  fixture.gaps = [];
+  fixture.verdicts = [];
   fixture.lines = [
+    { line_no: 1, item: "Type E 24x48 lay-in LED fixtures", qty: 6, unit: "ea", sheet: "E1" },
     { line_no: 3, item: "Type A black track heads", qty: 9, unit: "ea", sheet: "E1" },
     { line_no: 4, item: "Type A1 white track heads", qty: 18, unit: "ea", sheet: "E1" },
   ];
@@ -124,6 +136,16 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     expect(good.price_cents).toBeNull();
     expect(good.price_reviewed_on).toBeNull();
     expect(r.content[0].text).toContain("saved");
+
+    // Every option's links are in the text, so a host that draws no card still shows them.
+    const text = r.content[0].text;
+    expect(text).toContain(
+      "Good Juno R600L G2: Product page: https://www.acuitybrands.com/products/detail/R600L%20G2 · Photo: none saved",
+    );
+    expect(text).toContain("Price read on (internal): https://www.example-supply.com/R600L");
+    expect(text).toMatch(
+      /Missing links: Good has no photo; Better has no photo; Best has no photo/,
+    );
   });
 
   it("refuses a line that is not on the saved takeoff", async () => {
@@ -270,6 +292,15 @@ describe("showing a line's options", () => {
     expect((r.structuredContent.line_options as unknown[]).length).toBe(1);
   });
 
+  it("tells the host to offer the save after any comparison, even on an empty board", async () => {
+    const r = await callBoard({ action: "read" });
+    const guidance = (r.structuredContent.assistant_guidance as string[]).join(" ");
+    expect(guidance).toContain("asking the member whether to save it to the estimate");
+    expect(guidance).toContain("never end it as review only");
+    expect(guidance).toContain("save_comparison");
+    expect(guidance).toContain("apply_markup");
+  });
+
   it("says when a line has no options yet", async () => {
     const r = await callBoard({ action: "options", estimate_line_ref: "T-9" });
     expect(r.content[0].text).toContain("Estimate line T-9 has no Good, Better, Best options");
@@ -330,5 +361,165 @@ describe("hand-made customer comparisons are not shared", () => {
     expect(looksLikeOptionsComparison("SOV draft.xlsx", new TextEncoder().encode("PK"))).toBe(
       false,
     );
+  });
+});
+
+const g03 = {
+  ref: "G-3",
+  kind: "verify",
+  category: "conflict",
+  severity: "hard",
+  title: "G03 Track colour, output and control discrepancies",
+  reasoning:
+    "E1 schedules 9 black Type A and 18 white Type A1 heads, 13W, 90 CRI. A4.1 schedules all 27 heads black, 10W, 80 CRI.",
+  sheet: "E1",
+  detail: null,
+  spec_section: "E1 schedule; A4.1",
+  holds_bid: true,
+  qty: null,
+  unit: null,
+  element: null,
+  line_no: 3,
+};
+
+describe("keeping options on the right takeoff line", () => {
+  it("refuses a track lighting selection on the Type E lay-in line and names the track lines", async () => {
+    await expect(
+      callBoard({
+        action: "start",
+        expected_version: 0,
+        estimate_line_ref: "T-1",
+        title: "Type A / A1 Track Lighting",
+      }),
+    ).rejects.toThrow(
+      /doesn't match estimate line T-1.*T-3 Type A black track heads.*T-4 Type A1/s,
+    );
+    expect(saves()).toHaveLength(0);
+  });
+
+  it("refuses the same mismatch in a saved comparison", async () => {
+    await expect(
+      callBoard({
+        action: "save_comparison",
+        confirmed: true,
+        comparison: [
+          { estimate_line_ref: "T-1", title: "Type A track heads", options: trackOptions },
+        ],
+      }),
+    ).rejects.toThrow(/doesn't match estimate line T-1/);
+    expect(saves()).toHaveLength(0);
+  });
+
+  it("says which line it linked to", async () => {
+    const r = await callBoard({ action: "start", expected_version: 0, estimate_line_ref: "T-3" });
+    expect(r.content[0].text).toContain("Linked to T-3 Type A black track heads, 9 ea.");
+  });
+});
+
+describe("an open drawing conflict on the line", () => {
+  beforeEach(() => {
+    fixture.gaps = [g03];
+  });
+
+  it("stops before saving and offers provisional or hold", async () => {
+    await expect(
+      callBoard({ action: "save_comparison", confirmed: true, comparison }),
+    ).rejects.toThrow(/open drawing conflict[\s\S]*G-3[\s\S]*provisional[\s\S]*hold/);
+    expect(saves()).toHaveLength(0);
+  });
+
+  it("also covers the Type A1 line the conflict names in its text", async () => {
+    await expect(
+      callBoard({ action: "save_comparison", confirmed: true, comparison: [comparison[1]] }),
+    ).rejects.toThrow(/T-4 has an open drawing conflict/);
+  });
+
+  it("saves on the member's basis, marked provisional, and keeps the customer view locked", async () => {
+    const r = await callBoard({
+      action: "save_comparison",
+      confirmed: true,
+      basis: "E1 schedule, pending RFI-001",
+      comparison,
+    });
+    const board = lastSaved();
+    for (const s of board.selections)
+      expect(s.notes).toMatch(/^PROVISIONAL\. Basis: E1 schedule, pending RFI-001\. Open: G-3\./);
+    expect(r.content[0].text).toContain("provisional on E1 schedule, pending RFI-001");
+    expect(proposalBlockers(board).join(" ")).toMatch(
+      /provisional until its open drawing conflict/,
+    );
+  });
+
+  it("no longer asks once a verdict settles the conflict", async () => {
+    fixture.verdicts = [
+      {
+        item_kind: "gap",
+        line_no: null,
+        gap_ref: "G-3",
+        item_text: "G03",
+        mark: "relevant",
+        note: "RFI-001 answered: E1 governs",
+        corrected_qty: null,
+        owner: "PM",
+        created_at: "2026-11-05T12:00:00Z",
+      },
+    ];
+    await callBoard({ action: "save_comparison", confirmed: true, comparison });
+    expect(lastSaved().selections.every((s) => s.notes === "")).toBe(true);
+  });
+});
+
+const blank = () => ({
+  description: "",
+  manufacturer: "",
+  model: "",
+  specifications: "",
+  included: [],
+  product_url: null,
+  source_url: null,
+  photo_url: null,
+  found_price_cents: null,
+  found_at: "",
+  found_on: null,
+  cost_cents: null,
+  price_cents: null,
+  price_reviewed_on: null,
+  assumptions: "",
+});
+
+describe("removing a selection", () => {
+  const stray = () => ({
+    ...emptyBoard(),
+    selections: [
+      {
+        id: "7ea9043c-e4cc-4b2a-9363-04104c7c8e21",
+        title: "Type A / A1 Track Lighting",
+        decision_due: null,
+        allowance_cents: null,
+        quantity: 6,
+        unit: "ea",
+        estimate_line_ref: "T-1",
+        options: { good: blank(), better: blank(), best: blank() },
+        selected: null,
+        notes: "",
+      },
+    ],
+  });
+
+  it("needs the member's yes, then removes only that selection", async () => {
+    fixture.board = stray();
+    fixture.version = 4;
+    const args = {
+      action: "remove_selection",
+      expected_version: 4,
+      selection_id: "7ea9043c-e4cc-4b2a-9363-04104c7c8e21",
+    };
+    await expect(callBoard(args)).rejects.toThrow(
+      /remove "Type A \/ A1 Track Lighting" from estimate line T-1/,
+    );
+    expect(saves()).toHaveLength(0);
+    const r = await callBoard({ ...args, confirmed: true });
+    expect(lastSaved().selections).toHaveLength(0);
+    expect(r.content[0].text).toContain('Removed "Type A / A1 Track Lighting" from T-1.');
   });
 });
