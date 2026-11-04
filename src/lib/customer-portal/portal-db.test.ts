@@ -1,0 +1,714 @@
+// Customer page on a local database: the real migration chain plus the customer page SQL. Members act through
+// their own role; the customer acts only through the service-role functions the page server calls.
+import { readFileSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { PGlite } from "@electric-sql/pglite";
+import { makeDb } from "../../../tests/mcp-roles/db";
+import { asUser, fakeClient } from "../../../tests/mcp-roles/fake-supabase";
+import { gbbSql } from "../../../tests/selections/sql";
+import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
+import { tokenHash } from "../mcp/file-share";
+import { codeHash } from "./server";
+import { portalViewSchema } from "./model";
+
+const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
+vi.mock("../mcp/guard", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../mcp/guard")>();
+  return {
+    ...actual,
+    run: async (_tool: string, _ctx: unknown, _opts: unknown, fn: (sb: unknown) => unknown) =>
+      fn(
+        fakeClient(who.db as PGlite, {
+          sub: who.user,
+          email: "member@example.com",
+          role: "authenticated",
+        }),
+      ),
+  };
+});
+import { customerPortal } from "../mcp/tools/customer-portal-tools";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- tool results are read field by field
+type ToolResult = { content: { text: string }[]; structuredContent?: Record<string, any> };
+const tool = (args: Record<string, unknown>, user = owner) => {
+  who.user = user;
+  return (
+    customerPortal as unknown as { handler: (a: unknown, c: unknown) => Promise<ToolResult> }
+  ).handler({ job_number: "2715", company_id: company, ...args }, {});
+};
+
+const owner = "00000000-0000-4000-8000-000000000c01";
+const pm = "00000000-0000-4000-8000-000000000c02";
+const outsider = "00000000-0000-4000-8000-000000000c03";
+const company = "00000000-0000-4000-8000-000000000c10";
+const job = "00000000-0000-4000-8000-000000000c20";
+let db: PGlite;
+
+type Row = Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- results are read field by field
+type J = any;
+const as =
+  (user: string | null) =>
+  (sql: string, values: unknown[] = []) =>
+    asUser(
+      db,
+      user
+        ? { sub: user, role: "authenticated", email: `${user.slice(-2)}@example.com` }
+        : ({ role: "service_role" } as never),
+      (tx) => tx.query(sql, values) as Promise<{ rows: Row[] }>,
+    );
+const call = async (user: string | null, fn: string, values: unknown[]) =>
+  (
+    await as(user)(
+      `SELECT public.${fn}(${values.map((_, i) => `$${i + 1}`).join(",")}) AS data`,
+      values,
+    )
+  ).rows[0]!.data as J;
+const member = (fn: string, values: unknown[], user = owner) => call(user, fn, values);
+const server = (fn: string, values: unknown[]) => call(null, fn, values);
+
+const hex = (n: number) => n.toString(16).padStart(64, "0");
+const inviteToken = "A".repeat(43);
+const sessionToken = "S".repeat(43);
+let inviteHash = "";
+let sessionHash = "";
+let access = "";
+
+beforeAll(async () => {
+  db = await makeDb();
+  who.db = db;
+  const load = (f: string) => db.exec(readFileSync(`supabase/migrations/${f}.sql`, "utf8"));
+  const pages = readFileSync("supabase/migrations/20261021120000_athena_report_pages.sql", "utf8");
+  const leaderStart = pages.indexOf("CREATE OR REPLACE FUNCTION public.mcp_is_company_leader");
+  await db.exec(
+    pages.slice(
+      leaderStart,
+      pages.indexOf("TO authenticated;", leaderStart) + "TO authenticated;".length,
+    ),
+  );
+  await load("20261023070000_athena_board_links");
+  await load("20261023220000_athena_submittal_log");
+  await load("20261024010000_athena_submittal_chase");
+  await db.exec(
+    "CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text); ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY; GRANT USAGE ON SCHEMA storage TO authenticated; GRANT ALL ON storage.objects TO authenticated;",
+  );
+  await load("20261021000000_athena_file_shares");
+  await load("20261028120000_athena_submittal_packages");
+  await load("20261029120000_athena_submittal_record_page");
+  await load("20261030120000_athena_package_build_identity");
+  const drawings = readFileSync(
+    "supabase/migrations/20261027130000_athena_drawing_versions.sql",
+    "utf8",
+  );
+  await db.exec(drawings.slice(0, drawings.indexOf("CREATE FUNCTION public.mcp_drawing_records")));
+  await db.exec(
+    "CREATE TABLE test_company_plans(company_id uuid PRIMARY KEY,plan text); CREATE FUNCTION public.mcp_company_tier(_company uuid) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$ SELECT plan FROM test_company_plans WHERE company_id=_company $$;",
+  );
+  await load("20261025140000_athena_request_package_records");
+  await load("20261025150000_athena_change_order_packages");
+  await load("20261025153000_athena_change_execution_tie");
+  await load("20261022200000_athena_estimating");
+  await load("20261022230000_athena_estimating_bid");
+  await db.exec("ALTER FUNCTION public.mcp_estimate_guard(uuid) VOLATILE");
+  for (const sql of gbbSql()) await db.exec(sql);
+  await load("20261020213000_athena_living_reports");
+  await load("20261023020000_athena_superintendent");
+  await load("20261104130000_athena_progress_photo_remove");
+  await load("20261104170000_athena_customer_portal");
+
+  for (const user of [owner, pm, outsider]) {
+    await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
+      user,
+      `${user.slice(-2)}@example.com`,
+    ]);
+    await db.query("INSERT INTO test_active_members VALUES ($1)", [user]);
+  }
+  await db.query(
+    "INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'Northline Builders',$2)",
+    [company, owner],
+  );
+  await db.query(
+    "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'owner','Owner'),($1,$3,'pm','PM')",
+    [company, owner, pm],
+  );
+  await db.query(
+    "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone,pm_name,pm_email,pm_user_id) VALUES($1,$2,$3,'2715','Harbor Point Dental','America/Chicago','Pat Lee','pat@example.com',$4)",
+    [job, owner, company, pm],
+  );
+  await db.query("INSERT INTO test_company_plans VALUES($1,'circle')", [company]);
+  // Field records: a daily with private notes and two photos, one not customer-safe.
+  const d = await db.query<{ id: string }>(
+    `INSERT INTO mcp_daily_reports(job_id,company_id,report_date,weather,manpower,subs_on_site,deliveries,issues,delays,safety,transcript)
+     VALUES($1,$2,'2026-11-03','Clear, 58F','8','Acme Drywall','Light fixtures','PRIVATE ISSUE','PRIVATE DELAY','PRIVATE SAFETY','PRIVATE TRANSCRIPT') RETURNING id`,
+    [job, company],
+  );
+  await db.query(
+    `INSERT INTO mcp_daily_work_lines(daily_id,job_id,company_id,line_no,work,sov_item,activity_id,qty,unit,crew,hours)
+     VALUES($1,$2,$3,1,'Hung drywall in exam rooms 1 to 4','09.100','A100',400,'sf',4,8)`,
+    [d.rows[0]!.id, job, company],
+  );
+  await db.query(
+    `INSERT INTO mcp_progress_photos(id,job_id,company_id,taken_on,area,work,client_safe,storage_path,mime_type,size_bytes) VALUES
+     (gen_random_uuid(),$1,$2,'2026-11-03','Exam room 2','Drywall hung',true,'safe.jpg','image/jpeg',100),
+     (gen_random_uuid(),$1,$2,'2026-11-03','Back room','Internal',false,'internal.jpg','image/jpeg',100)`,
+    [job, company],
+  );
+  await db.query(
+    `INSERT INTO mcp_living_reports(job_id,report_type,version,data,change_what,updated_by) VALUES($1,'cpm',1,$2,'Baseline',$3)`,
+    [
+      job,
+      JSON.stringify({
+        activities: [
+          {
+            id: "M1",
+            name: "Rough-in inspection",
+            duration: 0,
+            start: "2026-11-10",
+            finish: "2026-11-10",
+          },
+          { id: "A1", name: "Drywall", duration: 5, start: "2026-11-02", finish: "2026-11-06" },
+          {
+            id: "M2",
+            name: "Ready to move in",
+            activity_type: "milestone-finish",
+            finish: "2026-12-18",
+          },
+        ],
+      }),
+      owner,
+    ],
+  );
+  inviteHash = await tokenHash(inviteToken);
+  sessionHash = await tokenHash(sessionToken);
+});
+afterAll(async () => {
+  await db?.close();
+});
+
+describe.sequential("customer page", () => {
+  it("only full-access members invite, and the customer tables stay closed to everyone else", async () => {
+    await expect(
+      member(
+        "mcp_portal_invite",
+        [
+          job,
+          "rosa@example.com",
+          "Rosa Delgado",
+          inviteHash,
+          new Date(Date.now() + 86_400_000).toISOString(),
+        ],
+        outsider,
+      ),
+    ).rejects.toThrow();
+    const r = await member("mcp_portal_invite", [
+      job,
+      "Rosa@Example.com",
+      "Rosa Delgado",
+      inviteHash,
+      new Date(Date.now() + 86_400_000).toISOString(),
+    ]);
+    expect(r).toMatchObject({
+      email: "rosa@example.com",
+      reinvited: false,
+      company: "Northline Builders",
+    });
+    access = r.access_id;
+    for (const t of [
+      "mcp_portal_access",
+      "mcp_portal_sessions",
+      "mcp_portal_codes",
+      "mcp_portal_items",
+      "mcp_portal_decisions",
+    ])
+      await expect(as(owner)(`SELECT * FROM public.${t}`)).rejects.toThrow(/permission denied/);
+    // Customer-side functions are server-only.
+    await expect(member("mcp_portal_invite_open", [inviteHash])).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(member("mcp_portal_view", [access, sessionHash, null, null])).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+
+  it("signs in only with the emailed code, and locks a code after five wrong tries", async () => {
+    expect(await server("mcp_portal_invite_open", [hex(1)])).toEqual({ status: "unknown" });
+    expect(await server("mcp_portal_invite_open", [inviteHash])).toMatchObject({
+      status: "ok",
+      access_id: access,
+      job_number: "2715",
+    });
+    expect(
+      await server("mcp_portal_sign_in", [
+        inviteHash,
+        hex(2),
+        sessionHash,
+        false,
+        "203.0.113.5",
+        "test",
+      ]),
+    ).toEqual({ status: "expired" });
+    const good = await codeHash(access, "123456");
+    expect(
+      (await server("mcp_portal_code_issue", [access, "sign_in", good, hex(9), null, null])).status,
+    ).toBe("unknown");
+    expect(
+      (await server("mcp_portal_code_issue", [access, "sign_in", good, inviteHash, null, null]))
+        .status,
+    ).toBe("ok");
+    for (let i = 0; i < 4; i++)
+      expect(
+        (await server("mcp_portal_sign_in", [inviteHash, hex(3), sessionHash, false, null, null]))
+          .status,
+      ).toBe("wrong");
+    expect(
+      (await server("mcp_portal_sign_in", [inviteHash, hex(3), sessionHash, false, null, null]))
+        .status,
+    ).toBe("locked");
+    expect(
+      (await server("mcp_portal_sign_in", [inviteHash, good, sessionHash, false, null, null]))
+        .status,
+    ).toBe("locked");
+    const fresh = await codeHash(access, "654321");
+    await server("mcp_portal_code_issue", [access, "sign_in", fresh, inviteHash, null, null]);
+    expect(
+      (
+        await server("mcp_portal_sign_in", [
+          inviteHash,
+          fresh,
+          sessionHash,
+          true,
+          "203.0.113.5",
+          "test",
+        ])
+      ).status,
+    ).toBe("ok");
+    // A used code doesn't work twice.
+    expect(
+      (
+        await server("mcp_portal_sign_in", [
+          inviteHash,
+          fresh,
+          await tokenHash("x".repeat(43)),
+          false,
+          null,
+          null,
+        ])
+      ).status,
+    ).toBe("expired");
+  });
+
+  it("rate-limits codes", async () => {
+    // 2 issued above; 3 more fit in 15 minutes, the next is refused.
+    for (let i = 0; i < 3; i++)
+      expect(
+        (
+          await server("mcp_portal_code_issue", [
+            access,
+            "sign_in",
+            hex(100 + i),
+            inviteHash,
+            null,
+            null,
+          ])
+        ).status,
+      ).toBe("ok");
+    expect(
+      (await server("mcp_portal_code_issue", [access, "sign_in", hex(200), inviteHash, null, null]))
+        .status,
+    ).toBe("slow_down");
+    await db.query(
+      "UPDATE mcp_portal_codes SET created_at = now() - interval '1 hour' WHERE access_id = $1",
+      [access],
+    );
+  });
+
+  it("shows only what is shared, with no private daily fields or unsafe photos", async () => {
+    expect(await server("mcp_portal_view", [access, hex(4), null, null])).toEqual({
+      status: "signed_out",
+    });
+    await member("mcp_portal_post_update", [
+      job,
+      "2026-11-02",
+      "Drywall is going up",
+      "Exam rooms 1 to 4 are hung.",
+    ]);
+    const v = await server("mcp_portal_view", [access, sessionHash, "203.0.113.5", "test"]);
+    expect(portalViewSchema.safeParse(v).success).toBe(true);
+    const s = JSON.stringify(v);
+    for (const secret of ["PRIVATE", "internal.jpg", "Acme Drywall", "Light fixtures"])
+      expect(s).not.toContain(secret);
+    expect(v.photos.map((p: J) => p.storage_path)).toEqual(["safe.jpg"]);
+    expect(v.dailies[0]).toEqual({
+      date: "2026-11-03",
+      weather: "Clear, 58F",
+      manpower: "8",
+      work: ["Hung drywall in exam rooms 1 to 4"],
+    });
+    expect(v.milestones.map((m: J) => m.name)).toEqual(["Rough-in inspection", "Ready to move in"]);
+    expect(v.updates[0].title).toBe("Drywall is going up");
+    expect(v.contractor).toEqual({
+      name: "Northline Builders",
+      pm_name: "Pat Lee",
+      pm_title: null,
+      pm_email: "pat@example.com",
+    });
+  });
+
+  let submittal = "";
+  let item = "";
+  it("shares a priced change order without cost lines, and approval needs a fresh decision code", async () => {
+    const created = await member("mcp_change_record", [
+      job,
+      "create",
+      JSON.stringify({
+        request_id: crypto.randomUUID(),
+        title: "Exam room light upgrade",
+        condition: "Owner asked for brighter exam lights.",
+        scope: "Swap 12 exam room fixtures for 5000 lumen models.",
+        references: [{ kind: "condition", citation: "Owner email Nov 2" }],
+        recipient_name: "Rosa Delgado",
+        recipient_email: "rosa@example.com",
+        origin: "owner",
+        schedule_days: 2,
+      }),
+    ]);
+    submittal = created.saved_id;
+    await expect(member("mcp_portal_share_change_order", [job, submittal, 1])).rejects.toThrow(
+      /priced/,
+    );
+    await member("mcp_change_record", [
+      job,
+      "price",
+      JSON.stringify({
+        request_id: crypto.randomUUID(),
+        submittal_id: submittal,
+        expected_version: 1,
+        lines: [
+          {
+            category: "material",
+            description: "SECRET FIXTURE COST",
+            quantity: 12,
+            unit: "EA",
+            unit_rate_cents: 30000,
+            source: "Quote 7",
+          },
+          {
+            category: "markup",
+            description: "SECRET MARKUP",
+            rate_basis_points: 3500,
+            source: "Contract 7",
+          },
+        ],
+      }),
+    ]);
+    await expect(member("mcp_portal_share_change_order", [job, submittal, 1])).rejects.toThrow(
+      /changed/,
+    );
+    const shared = await member("mcp_portal_share_change_order", [job, submittal, 2]);
+    item = shared.item_id;
+    expect(shared.view).toEqual({
+      number: "PCO-001",
+      title: "Exam room light upgrade",
+      why: "Owner asked for brighter exam lights.",
+      scope: "Swap 12 exam room fixtures for 5000 lumen models.",
+      price_cents: 486000,
+      schedule_days: 2,
+      due_on: null,
+    });
+    expect(shared.recipients).toEqual([
+      { access_id: access, email: "rosa@example.com", name: "Rosa Delgado" },
+    ]);
+    const v = await server("mcp_portal_view", [access, sessionHash, null, null]);
+    expect(JSON.stringify(v)).not.toContain("SECRET");
+    expect(v.items[0]).toMatchObject({
+      id: item,
+      kind: "change_order",
+      decision: null,
+      fingerprint: shared.fingerprint,
+    });
+
+    const approve = (code: string | null, fp = shared.fingerprint) =>
+      server("mcp_portal_decide", [
+        access,
+        sessionHash,
+        item,
+        "approved",
+        null,
+        code,
+        "Rosa Delgado",
+        "I approve PCO-001.",
+        fp,
+        null,
+        "203.0.113.5",
+        "test",
+      ]);
+    expect((await approve(null)).status).toBe("expired");
+    const code = await codeHash(access, "111111");
+    expect(
+      (await server("mcp_portal_code_issue", [access, "decide", code, null, hex(5), item])).status,
+    ).toBe("signed_out");
+    expect(
+      (await server("mcp_portal_code_issue", [access, "decide", code, null, sessionHash, item]))
+        .status,
+    ).toBe("ok");
+    expect((await approve(code, hex(6))).status).toBe("changed");
+    const ok = await approve(code);
+    expect(ok).toMatchObject({
+      status: "ok",
+      pm_email: "pat@example.com",
+      label: "PCO-001 · Exam room light upgrade",
+    });
+    expect((await approve(code)).status).toBe("not_open");
+
+    const co = (
+      await db.query<{ details: J }>(
+        "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
+        [submittal],
+      )
+    ).rows[0]!.details;
+    expect(co.state).toBe("approved");
+    expect(co.co_number).toBe("CO-001");
+    expect(co.record_version).toBe(3);
+    expect(co.decision).toMatchObject({
+      by: "Rosa Delgado <rosa@example.com>",
+      channel: "customer_page",
+      reference: `Customer page decision ${ok.decision_id}`,
+      email_code_verified: true,
+      fingerprint: shared.fingerprint,
+    });
+    const hist = await db.query<{ action: string; actor_id: string }>(
+      "SELECT action, actor_id FROM mcp_change_history WHERE submittal_id=$1 ORDER BY record_version",
+      [submittal],
+    );
+    expect(hist.rows.at(-1)).toEqual({ action: "approve", actor_id: owner });
+    const listed = await member("mcp_portal_list", [job]);
+    expect(listed.items[0].decision).toMatchObject({
+      decision: "approved",
+      typed_name: "Rosa Delgado",
+      email: "rosa@example.com",
+    });
+  });
+
+  it("hides a shared change order once it is edited, and a decline needs no code", async () => {
+    const created = await member("mcp_change_record", [
+      job,
+      "create",
+      JSON.stringify({
+        request_id: crypto.randomUUID(),
+        title: "Add outlet",
+        condition: "Owner asked.",
+        scope: "One outlet.",
+        references: [{ kind: "condition", citation: "Owner call" }],
+        origin: "owner",
+      }),
+    ]);
+    await member("mcp_change_record", [
+      job,
+      "price",
+      JSON.stringify({
+        request_id: crypto.randomUUID(),
+        submittal_id: created.saved_id,
+        expected_version: 1,
+        lines: [
+          {
+            category: "material",
+            description: "Outlet",
+            quantity: 1,
+            unit: "EA",
+            unit_rate_cents: 20000,
+            source: "Quote",
+          },
+        ],
+      }),
+    ]);
+    const shared = await member("mcp_portal_share_change_order", [job, created.saved_id, 2]);
+    let v = await server("mcp_portal_view", [access, sessionHash, null, null]);
+    expect(v.items.map((i: J) => i.id)).toContain(shared.item_id);
+    await member("mcp_change_record", [
+      job,
+      "price",
+      JSON.stringify({
+        request_id: crypto.randomUUID(),
+        submittal_id: created.saved_id,
+        expected_version: 2,
+        lines: [
+          {
+            category: "material",
+            description: "Outlet",
+            quantity: 2,
+            unit: "EA",
+            unit_rate_cents: 20000,
+            source: "Quote",
+          },
+        ],
+      }),
+    ]);
+    v = await server("mcp_portal_view", [access, sessionHash, null, null]);
+    expect(v.items.map((i: J) => i.id)).not.toContain(shared.item_id);
+    expect(
+      (
+        await server("mcp_portal_decide", [
+          access,
+          sessionHash,
+          shared.item_id,
+          "declined",
+          null,
+          null,
+          "Rosa Delgado",
+          "I decline.",
+          shared.fingerprint,
+          null,
+          null,
+          null,
+        ])
+      ).status,
+    ).toBe("changed");
+    const again = await member("mcp_portal_share_change_order", [job, created.saved_id, 3]);
+    const declined = await server("mcp_portal_decide", [
+      access,
+      sessionHash,
+      again.item_id,
+      "declined",
+      null,
+      null,
+      "Rosa Delgado",
+      "I decline.",
+      again.fingerprint,
+      "Too pricey",
+      null,
+      null,
+    ]);
+    expect(declined.status).toBe("ok");
+    const co = (
+      await db.query<{ details: J }>(
+        "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
+        [created.saved_id],
+      )
+    ).rows[0]!.details;
+    expect(co.state).toBe("rejected");
+    expect(co.co_number).toBeUndefined();
+    expect(co.decision.email_code_verified).toBe(false);
+  });
+
+  it("shares the Good, Better, Best proposal and records the customer's choice on the board", async () => {
+    const saved = await member("mcp_residential_selections_save", [
+      job,
+      0,
+      JSON.stringify(willowCreekTypeE(true)),
+    ]);
+    const shared = await member("mcp_portal_share_selection", [job, saved.version]);
+    expect(shared.view.proposal.packages).toHaveLength(3);
+    expect(JSON.stringify(shared.view)).not.toMatch(/cost_cents|found_price|assumptions/);
+    const code = await codeHash(access, "222222");
+    await server("mcp_portal_code_issue", [
+      access,
+      "decide",
+      code,
+      null,
+      sessionHash,
+      shared.item_id,
+    ]);
+    const r = await server("mcp_portal_decide", [
+      access,
+      sessionHash,
+      shared.item_id,
+      "chosen",
+      "better",
+      code,
+      "Rosa Delgado",
+      "I choose Better.",
+      shared.fingerprint,
+      null,
+      null,
+      null,
+    ]);
+    expect(r.status).toBe("ok");
+    const board = await member("mcp_residential_selections_get", [job]);
+    expect(board.board.accepted).toMatchObject({ tier: "better" });
+    expect(board.board.accepted.evidence).toContain("customer page");
+    const v = await server("mcp_portal_view", [access, sessionHash, null, null]);
+    expect(v.items.find((i: J) => i.id === shared.item_id).decision).toMatchObject({
+      decision: "chosen",
+      choice: "better",
+      code_verified: true,
+    });
+  });
+
+  it("closes the page when the inviter loses full access, and when access is revoked", async () => {
+    await db.query("UPDATE mcp_company_members SET role='estimating' WHERE user_id=$1", [owner]);
+    expect(await server("mcp_portal_view", [access, sessionHash, null, null])).toEqual({
+      status: "closed",
+    });
+    expect(await server("mcp_portal_invite_open", [inviteHash])).toEqual({ status: "closed" });
+    await db.query("UPDATE mcp_company_members SET role='owner' WHERE user_id=$1", [owner]);
+    expect((await server("mcp_portal_view", [access, sessionHash, null, null])).status).toBe("ok");
+    await expect(member("mcp_portal_revoke", [job, access], outsider)).rejects.toThrow();
+    await member("mcp_portal_revoke", [job, access]);
+    expect(await server("mcp_portal_view", [access, sessionHash, null, null])).toEqual({
+      status: "signed_out",
+    });
+    expect(await server("mcp_portal_invite_open", [inviteHash])).toEqual({ status: "revoked" });
+  });
+});
+
+describe.sequential("customer_portal tool", () => {
+  it("asks for the member's yes before any write", async () => {
+    await expect(
+      tool({ action: "invite", email: "sam@example.com", name: "Sam Owner" }),
+    ).rejects.toThrow(/confirm/);
+    await expect(tool({ action: "post_update", title: "T", body: "B" })).rejects.toThrow(/confirm/);
+  });
+
+  it("won't invite while customer email is off, then invites and hands back the link when the email fails", async () => {
+    const before = process.env.ATHENA_PORTAL_EMAIL_ENABLED;
+    try {
+      delete process.env.ATHENA_PORTAL_EMAIL_ENABLED;
+      await expect(
+        tool({ action: "invite", email: "sam@example.com", name: "Sam Owner", confirmed: true }),
+      ).rejects.toThrow(/turned off/);
+      process.env.ATHENA_PORTAL_EMAIL_ENABLED = "true";
+      const key = process.env.RESEND_API_KEY;
+      delete process.env.RESEND_API_KEY;
+      const r = await tool({
+        action: "invite",
+        email: "sam@example.com",
+        name: "Sam Owner",
+        confirmed: true,
+      });
+      if (key !== undefined) process.env.RESEND_API_KEY = key;
+      expect(r.structuredContent).toMatchObject({
+        email: "sam@example.com",
+        invited: true,
+        email_sent: false,
+      });
+      expect(r.content[0]!.text).toMatch(/https:\/\/app\.meetathena\.io\/c\/i\/[A-Za-z0-9_-]{43}/);
+    } finally {
+      if (before === undefined) delete process.env.ATHENA_PORTAL_EMAIL_ENABLED;
+      else process.env.ATHENA_PORTAL_EMAIL_ENABLED = before;
+    }
+  });
+
+  it("lists customers and every decision", async () => {
+    const r = await tool({ action: "list" });
+    const text = r.content[0]!.text;
+    expect(text).toContain("Sam Owner <sam@example.com>");
+    expect(text).toContain("approved by Rosa Delgado <rosa@example.com>");
+    expect(text).toContain("chose better by Rosa Delgado");
+    expect(text).not.toContain("Rosa Delgado <rosa@example.com> ·");
+  });
+
+  it("posts an update without emailing when notify is false", async () => {
+    const r = await tool({
+      action: "post_update",
+      title: "Paint starts Monday",
+      body: "Walls get primer.",
+      week_of: "2026-11-09",
+      notify: false,
+      confirmed: true,
+    });
+    expect(r.content[0]!.text).toContain('Posted "Paint starts Monday"');
+  });
+
+  it("refuses members without full job access", async () => {
+    await expect(tool({ action: "list" }, outsider)).rejects.toThrow();
+  });
+});
