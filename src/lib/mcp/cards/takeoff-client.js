@@ -86,6 +86,121 @@
   function args(extra) {
     return Object.assign(context(), extra);
   }
+  // Good, Better, Best options saved on the selections board for a takeoff line.
+  // Contractor-only: this workspace is the estimator's view, never the customer's.
+  var TIER = { good: "Good", better: "Better", best: "Best" };
+  function cents(v, code) {
+    if (v == null) return "Unknown";
+    var n = (Math.abs(v) / 100).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return (v < 0 ? "-" : "") + (code === "USD" ? "$" + n : code ? code + " " + n : n);
+  }
+  function lineOptions(lineNo) {
+    return (
+      ((sc && sc.estimate_options) || []).find(function (o) {
+        return o.line_no === Number(lineNo);
+      }) || null
+    );
+  }
+  async function showOptions(o) {
+    var ask =
+      "Show the Good, Better and Best options for estimate line " +
+      o.ref +
+      " (" +
+      o.title +
+      ") with cost, sell price and margin side by side.";
+    if (!host.message) return notice("Ask in chat: " + ask);
+    try {
+      await rpc("ui/message", {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text:
+              ask +
+              " Use Athena selection_board action options with " +
+              JSON.stringify({
+                job_number: sc.context.job_number,
+                company_id: sc.context.company_id,
+                estimate_line_ref: o.ref,
+              }) +
+              ".",
+          },
+        ],
+      });
+      notice("Sent to your connected AI.");
+    } catch (_) {
+      notice("Ask in chat: " + ask);
+    }
+  }
+  function optionsBlock(lineNo) {
+    var o = lineOptions(lineNo);
+    if (!o) return null;
+    var wrap = node("div", null, "gbb"),
+      panel = node("div", null, "gbb-panel");
+    panel.hidden = true;
+    o.tiers.forEach(function (t) {
+      if (!t.product) return;
+      var r = node("div", null, "gbb-row");
+      var price =
+        t.price_unit_cents != null && t.price_reviewed_on
+          ? "Sell " +
+            cents(t.price_unit_cents, o.currency) +
+            " per " +
+            o.unit +
+            " · " +
+            cents(t.price_cents, o.currency) +
+            " for " +
+            o.quantity +
+            " " +
+            o.unit +
+            (t.margin_bp != null ? " · margin " + (t.margin_bp / 100).toFixed(1) + "%" : "")
+          : t.found_unit_cents != null
+            ? "Found " +
+              cents(t.found_unit_cents, o.currency) +
+              " per " +
+              o.unit +
+              " · a cost lead, not priced yet"
+            : "Not priced yet";
+      r.append(
+        node(
+          "strong",
+          TIER[t.tier] + (t.tier === o.base_tier ? " (base)" : "") + " · " + t.product,
+        ),
+        node("p", price, "small"),
+      );
+      panel.append(r);
+    });
+    panel.append(
+      node("p", "Saved alternates. The estimate total is unchanged.", "note small"),
+      button("Show full comparison in chat", function () {
+        showOptions(o);
+      }),
+    );
+    var label =
+      o.tiers_with_product
+        .map(function (t) {
+          return TIER[t];
+        })
+        .join("/") +
+      " options" +
+      (o.selected ? " · customer chose " + TIER[o.selected] : "");
+    var toggle = button(
+      label,
+      function () {
+        panel.hidden = !panel.hidden;
+        toggle.setAttribute("aria-expanded", String(!panel.hidden));
+        size();
+      },
+      "gbb-flag",
+    );
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.title = "See this line's Good, Better, Best options";
+    wrap.append(toggle, panel);
+    return wrap;
+  }
   function failureText(result) {
     return (
       ((result && result.content) || [])
@@ -359,6 +474,13 @@
           sc.source ? "Ready to open " + sc.source.sheet : "Choose a drawing in the workspace.",
           "small",
         ),
+      );
+      (sc.estimate_options || []).forEach(function (o) {
+        var row = node("div", null, "gbb-line");
+        row.append(node("p", "L" + o.line_no + " · " + o.title, "small"), optionsBlock(o.line_no));
+        compact.append(row);
+      });
+      compact.append(
         button("Open drawing workspace", async function () {
           if ((hostContext.availableDisplayModes || []).includes("fullscreen")) {
             try {
@@ -569,6 +691,8 @@
       }
       sc.engine.summary.lines.forEach(function (l) {
         main.append(node("p", "L" + l.line_no + " · " + l.item + " · " + l.status));
+        var gbb = optionsBlock(l.line_no);
+        if (gbb) main.append(gbb);
       });
       size();
       return;
@@ -1768,6 +1892,8 @@
             ),
             node("p", l.status.replace("_", " ") + (l.reason ? " · " + l.reason : ""), "small"),
           );
+          var gbb = optionsBlock(l.line_no);
+          if (gbb) r.append(gbb);
           sc.engine.geometry
             .filter(function (g) {
               return (

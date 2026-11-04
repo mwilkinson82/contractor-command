@@ -42,6 +42,7 @@ function client(
       const q = {
         select: () => q,
         eq: (col: string, v: unknown) => (call.filters.push(["eq", col, v]), q),
+        is: (col: string, v: unknown) => (call.filters.push(["is", col, v]), q),
         in: (col: string, v: unknown) => (call.filters.push(["in", col, v]), q),
         gte: (col: string, v: unknown) => (call.filters.push(["gte", col, v]), q),
         lte: (col: string, v: unknown) => (call.filters.push(["lte", col, v]), q),
@@ -53,11 +54,13 @@ function client(
             rows = rows.filter((r) =>
               op === "eq"
                 ? r[col] === v
-                : op === "in"
-                  ? (v as unknown[]).includes(r[col])
-                  : op === "gte"
-                    ? String(r[col]) >= String(v)
-                    : String(r[col]) <= String(v),
+                : op === "is"
+                  ? (r[col] ?? null) === v
+                  : op === "in"
+                    ? (v as unknown[]).includes(r[col])
+                    : op === "gte"
+                      ? String(r[col]) >= String(v)
+                      : String(r[col]) <= String(v),
             );
           return Promise.resolve({ data: rows, error: null }).then(ok);
         },
@@ -235,6 +238,9 @@ describe("daily reports for a date range", () => {
       { name: "mcp_report_page_get", args: { _page: "field", _job: JOB, _company: null } },
     ]);
     for (const call of calls) expect(call.filters).toContainEqual(["eq", "job_id", JOB]);
+    // Removed and replaced photos stay in the record but out of the report.
+    for (const call of calls.filter((c) => c.table === "mcp_progress_photos"))
+      expect(call.filters).toContainEqual(["is", "removed_at", null]);
     expect(r.dailies_count).toBe(2);
     expect(r.days.map((d) => [d.date, !!d.daily, d.photos.length])).toEqual([
       ["2026-11-02", true, 0],

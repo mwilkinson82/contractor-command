@@ -179,7 +179,7 @@ function pdf(label = "S-100 original"): Uint8Array {
   const d = new jsPDF({ unit: "pt", format: [400, 250] });
   d.text("Cover", 20, 40);
   d.addPage();
-  d.setDrawColor("#6B7280");
+  d.setDrawColor("#65788E");
   d.rect(20, 30, 180, 130);
   d.text(label, 30, 80);
   return new Uint8Array(d.output("arraybuffer"));
@@ -419,8 +419,8 @@ describe("stored drawing markup tool", () => {
     expect(result.content[0].text).toContain("Test footing");
     expect(result.content[0].text).toContain("<");
     const card = attachAthenaCard("drawing_markup", result);
-    expect(card.structuredContent.html).toContain("#1E5FED");
-    expect(card.structuredContent.html).not.toContain("#DC2626");
+    expect(card.structuredContent.html).toContain("#2465CB");
+    expect(card.structuredContent.html).not.toContain("#9F243A");
     expect(card.content[0].text).not.toMatch(/lovable/i);
   });
   it("a second ask saves version 2 with a different object; neither original nor version 1 is overwritten", async () => {
@@ -446,7 +446,7 @@ describe("stored drawing markup tool", () => {
     expect(r2.path).not.toBe(r1.path);
     expect(state.objects.get(r1.path)).toEqual(bytes1);
     expect(state.objects.get(legacy)).toEqual(original);
-    expect(second.structuredContent.html).toContain("#DC2626");
+    expect(second.structuredContent.html).toContain("#9F243A");
   });
   it("prepare exposes the actual stored page without creating a markup", async () => {
     await seed();

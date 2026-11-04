@@ -167,7 +167,7 @@ describe("PM meeting readiness uses evidence, not absence of issues", () => {
     expect(card.kpis?.find((k) => k.label === "On schedule")).toMatchObject({ value: "No", flag: "delay" });
     expect(card.alerts).toContainEqual({ level: "delay", text: "Off the lookahead." });
     const html = renderHtml(card);
-    expect(html).toContain("#DC2626");
+    expect(html).toContain("#9F243A");
     expect(paletteViolations(html, true)).toEqual([]);
   });
 

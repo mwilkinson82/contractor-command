@@ -88,7 +88,7 @@ describe("PM tools become cards", () => {
     expect(clauses.find((r) => r.cells[0].includes("§4.1"))?.flag).toBeNull();
     expect(after.structuredContent.html).toContain('data-alert="risk"');
     expect(after.structuredContent.html).toContain('<div class="flag-head">Risk</div>');
-    expect(after.structuredContent.html).toContain("border:2px solid #DC2626");
+    expect(after.structuredContent.html).toContain("border:1px solid #F3C8D0");
     expect(after.structuredContent.html).toContain("- §6.3 Liquidated Damages");
     expect(after.structuredContent.html).not.toContain('data-alert="risk">- §4.1');
     expect(after.structuredContent.card.sections?.some((s) => s.heading === "Incomplete terms")).toBe(true);

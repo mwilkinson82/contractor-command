@@ -118,10 +118,10 @@ describe("native card view lifecycle", () => {
     expect(result._meta).toEqual(cardWidgetMeta);
     expect(result.content[0].text).toContain(result.structuredContent.html);
     expect(result.content[0].text).toContain("<!doctype html");
-    expect(result.content[0].text).toContain("#1E5FED");
-    expect(result.content[0].text).toContain("#1E3A5F");
-    expect(result.content[0].text).toContain("#6B7280");
-    expect(result.content[0].text).not.toContain("#DC2626");
+    expect(result.content[0].text).toContain("#2465CB");
+    expect(result.content[0].text).toContain("#18314F");
+    expect(result.content[0].text).toContain("#65788E");
+    expect(result.content[0].text).not.toContain("#9F243A");
     expect(result.content[0].text).toContain("Inspect work");
   });
 });

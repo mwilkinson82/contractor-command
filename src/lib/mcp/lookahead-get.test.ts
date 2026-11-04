@@ -106,10 +106,10 @@ describe("normal lookahead read", () => {
       expect(body).not.toMatch(/REQUIRED VIEW/);
       expect(body).not.toMatch(/Card shown/);
       expect(body).not.toMatch(/\bUse it and this window\b/);
-      expect(body).toContain("| Saved items |");
+      expect(body).toContain("**Saved items:**");
       expect(returned.structuredContent.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
       expect(returned.structuredContent.html).not.toContain("REQUIRED: the data date");
-      expect(returned.structuredContent.html).toContain("#1E5FED");
+      expect(returned.structuredContent.html).toContain("#2465CB");
       if (claude) {
         expect(body).not.toContain("<!doctype html");
         expect(body).not.toMatch(/sees this result as an Athena card/);
@@ -230,7 +230,7 @@ describe("normal lookahead read", () => {
     expect(reply).toContain("<!doctype html");
     expect(sc.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
     expect(sc.html).not.toContain("REQUIRED: the data date");
-    expect(reply).toContain("#1E5FED");
+    expect(reply).toContain("#2465CB");
     expect(reply).not.toContain("PRIVATE OTHER JOB");
     expect(reply).not.toContain("OTHER LOOKAHEAD");
     expect(reply).not.toContain("Hidden");

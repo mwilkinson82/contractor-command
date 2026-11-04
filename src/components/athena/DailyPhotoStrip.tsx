@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isIsoDate, photosHref, shortDay } from "@/lib/progress-photos";
@@ -14,6 +15,7 @@ type LooseQuery = PromiseLike<{
   count?: number | null;
 }> & {
   eq: (c: string, v: unknown) => LooseQuery;
+  is: (c: string, v: null) => LooseQuery;
   order: (c: string, o: { ascending: boolean }) => LooseQuery;
   limit: (n: number) => LooseQuery;
 };
@@ -36,6 +38,7 @@ export function DailyPhotoStrip({
   memberId?: string;
 }) {
   const valid = isIsoDate(date);
+  const [broken, setBroken] = useState<Record<string, true>>({});
   const q = useQuery({
     queryKey: ["daily-photo-strip", jobId, date, memberId ?? null],
     enabled: valid && !!memberId,
@@ -47,6 +50,7 @@ export function DailyPhotoStrip({
         .select("id,area,storage_path", { count: "exact" })
         .eq("job_id", jobId)
         .eq("taken_on", date)
+        .is("removed_at", null)
         .order("created_at", { ascending: true })
         .limit(SHOWN);
       if (error) throw error;
@@ -77,7 +81,16 @@ export function DailyPhotoStrip({
           {photos.map((p) => (
             <li key={p.id}>
               <a href={photosHref(jobId, { date, token, photoId: p.id })} title={p.area}>
-                {p.url ? <img src={p.url} alt={p.area} loading="lazy" /> : <span>{p.area}</span>}
+                {p.url && !broken[p.id] ? (
+                  <img
+                    src={p.url}
+                    alt={p.area}
+                    loading="lazy"
+                    onError={() => setBroken((b) => ({ ...b, [p.id]: true }))}
+                  />
+                ) : (
+                  <span className="dr-photo-missing">Photo file can't be shown</span>
+                )}
               </a>
             </li>
           ))}
@@ -91,6 +104,12 @@ export function DailyPhotoStrip({
         </a>
         <span aria-hidden="true"> · </span>
         <a href={allHref}>All progress photos</a>
+        {memberId && (
+          <>
+            <span aria-hidden="true"> · </span>
+            <a href={photosHref(jobId, { date, add: true })}>Add photos for {day}</a>
+          </>
+        )}
       </p>
       {q.error && (
         <p role="alert">Photo thumbnails couldn't be read. The links above still work.</p>

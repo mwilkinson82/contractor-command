@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TEXT_CARD_TOOLS } from "./native";
 import { CARD_TOOLS, attachAthenaCard } from "./attach";
-import { NAVY } from "./palette";
+import { CARD } from "./palette";
 import { CARD_WIDGET_URI } from "./widget";
 import { CARD_SHOWN, CARD_SHOWN_PICK, sealCardReply } from "./silence";
 import { HOST_DISPLAY_BLOCK } from "../visible";
@@ -38,7 +38,7 @@ function assertCardContract(result: CardResult, closing: string) {
   expect(JSON.stringify(result)).not.toContain("toolInvocation");
   expect(JSON.stringify(result.content)).not.toContain("skybridge");
   expect(result.structuredContent.card.title.length).toBeGreaterThan(0);
-  expect(result.structuredContent.html).toContain(NAVY);
+  expect(result.structuredContent.html).toContain(CARD.ink);
   expect(result.structuredContent.html).toContain("<!doctype html>");
   expect(result.structuredContent["openai/outputTemplate"]).toBeUndefined();
   expect(result._meta["openai/outputTemplate"]).toBe(CARD_WIDGET_URI);

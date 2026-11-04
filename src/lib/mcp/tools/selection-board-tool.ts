@@ -27,6 +27,11 @@ import {
 } from "../../selections/proposal";
 import { money, percent, signed } from "../../selections/format";
 import { canonical, enforceReviews, type ReviewGrant } from "../../selections/reviews";
+import {
+  estimateLineOptions,
+  lineOptionsText,
+  selectionLineOptions,
+} from "../../selections/estimate-options";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { jobTimeZone, named, resolveJob } from "../jobs";
 import { todayIn } from "../deadlines";
@@ -275,6 +280,43 @@ const proposalPatch = z
   .partial()
   .strict();
 
+const comparisonLineSchema = z
+  .object({
+    estimate_line_ref: z.string().regex(ESTIMATE_LINE_REF),
+    title: z.string().trim().min(1).max(160).optional(),
+    notes: z.string().trim().max(2000).optional(),
+    options: z
+      .object({ good: candidateSchema, better: candidateSchema, best: candidateSchema })
+      .strict(),
+  })
+  .strict();
+
+const sameProduct = (a: Option, b: Option) => {
+  const key = (o: Option) =>
+    [o.manufacturer, o.model, o.description].map((v) => v.trim().toLowerCase()).join("|");
+  return key(a) === key(b);
+};
+
+/** Puts a comparison's product on one tier; keeps the contractor's cost and price when it's the same product. */
+function placeCandidate(
+  s: Selection,
+  tier: OptionName,
+  candidate: z.infer<typeof candidateSchema>,
+) {
+  const old = s.options[tier];
+  const next: Option = {
+    ...blankOption(),
+    ...candidateSchema.parse(candidate),
+    assumptions: old.assumptions,
+  };
+  if (old.description && sameProduct(old, next)) {
+    next.cost_cents = old.cost_cents;
+    next.price_cents = old.price_cents;
+    next.price_reviewed_on = old.price_reviewed_on;
+  } else if (s.selected === tier) s.selected = null;
+  s.options[tier] = next;
+}
+
 const findSelection = (board: Board, id: string) => {
   const s = board.selections.find((x) => x.id.toLowerCase() === id.toLowerCase());
   if (!s)
@@ -289,16 +331,73 @@ const needVersion = (v: number | undefined) => {
   return v;
 };
 
+async function lineOptionsReply(
+  sb: Sb,
+  job: Awaited<ReturnType<typeof resolveJob>>,
+  ref: string | undefined,
+) {
+  const saved = await readBoard(sb, job.job_id);
+  const lines = ref
+    ? saved.board.selections
+        .filter((s) => s.estimate_line_ref === ref)
+        .slice(0, 1)
+        .map((s) => selectionLineOptions(saved.board, s)!)
+    : [...estimateLineOptions(saved.board).values()];
+  if (!lines.length)
+    return guide(
+      {
+        ...text(
+          `${named(job)} · ${ref ? `Estimate line ${ref} has` : "No estimate line has"} no Good, Better, Best options saved yet.`,
+        ),
+        structuredContent: {
+          version: saved.version,
+          line_options: [],
+          internal: true,
+        } as unknown as JsonValueInput,
+      },
+      "To add options, prepare a Good, Better, Best comparison for the line, then ask the member whether to save it with selection_board save_comparison.",
+    );
+  return guide(
+    {
+      ...text(
+        [
+          `${named(job)} · Good, Better, Best options (board v${saved.version})`,
+          ...lines.flatMap((l) => ["", ...lineOptionsText(l)]),
+          "",
+          "Saved options do not change the estimate total.",
+        ].join("\n"),
+      ),
+      structuredContent: {
+        version: saved.version,
+        line_options: lines,
+        internal: true,
+      } as unknown as JsonValueInput,
+    },
+    "This view is internal: cost, found price, margin and markup are for the contractor only. Show the three options side by side for each line, with product, sell price, cost, margin and markup, and say which are not priced yet.",
+    "To price an option, ask for its unit cost and either its markup or sell price, then call review_price with confirmed true after the member says yes.",
+  );
+}
+
 /** This is a contractor's record, not evidence of a client approval. */
 export const selectionBoard = defineTool({
   name: "selection_board",
   title: "Good, Better, Best selections",
   description:
-    "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, and records the contractor's reviewed cost and price, without writing estimates, budgets or accounting.",
+    "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
-    action: z.enum(["read", "start", "propose_option", "review_price", "set_proposal", "save"]),
+    action: z.enum([
+      "read",
+      "options",
+      "start",
+      "propose_option",
+      "save_comparison",
+      "review_price",
+      "apply_markup",
+      "set_proposal",
+      "save",
+    ]),
     expected_version: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
     estimate_line_ref: z.string().regex(ESTIMATE_LINE_REF).optional(),
     title: z.string().trim().min(1).max(160).optional(),
@@ -309,6 +408,10 @@ export const selectionBoard = defineTool({
     candidate: candidateSchema.optional(),
     cost_cents: z.number().int().min(0).max(100_000_000_000).optional(),
     price_cents: z.number().int().min(0).max(100_000_000_000).optional(),
+    markup_pct: z.number().min(0).max(1000).optional(),
+    cost_basis: z.enum(["entered", "found"]).optional(),
+    comparison: z.array(comparisonLineSchema).min(1).max(20).optional(),
+    base_tier: z.enum(optionNames).optional(),
     assumptions: z.string().trim().max(1000).optional(),
     currency: z
       .string()
@@ -333,22 +436,32 @@ export const selectionBoard = defineTool({
       async (sb) => {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const today = todayIn(await jobTimeZone(sb, job.job_id));
-        const writes = args.action !== "read";
-        if (!writes && (args.board || args.expected_version !== undefined || args.candidate))
+        const writes = args.action !== "read" && args.action !== "options";
+        if (
+          !writes &&
+          (args.board || args.expected_version !== undefined || args.candidate || args.comparison)
+        )
           throw new ToolError("Read requests cannot include changes.");
+        if (args.action === "options") return lineOptionsReply(sb, job, args.estimate_line_ref);
         if (args.action === "save" && (!args.board || args.expected_version === undefined))
           throw new ToolError(
             "Read the current board first and provide its version and the complete updated board.",
           );
 
         const current = writes ? await readBoard(sb, job.job_id) : null;
-        if (current && current.version !== needVersion(args.expected_version))
+        // A comparison only touches the lines it names, so it can save on the version read here.
+        const expected =
+          args.action === "save_comparison" && args.expected_version === undefined
+            ? current?.version
+            : args.expected_version;
+        if (current && current.version !== needVersion(expected))
           throw new ToolError(
             "Selections changed since you read them. Read the board again. Nothing was saved.",
           );
         let next: Board | null = current ? structuredClone(current.board) : null;
         let brief: string[] = [];
         let grant: ReviewGrant = {};
+        const skipped: string[] = [];
 
         if (args.action === "start") {
           if (!args.estimate_line_ref && !args.title)
@@ -405,15 +518,71 @@ export const selectionBoard = defineTool({
             assumptions: s.options[args.tier].assumptions,
           };
           if (s.selected === args.tier) s.selected = null;
+        } else if (args.action === "save_comparison") {
+          if (!args.comparison?.length)
+            throw new ToolError(
+              "Send the comparison: each estimate line with its Good, Better and Best products. Nothing was saved.",
+            );
+          if (args.confirmed !== true)
+            throw new ToolError(
+              "Ask the member whether to save these Good, Better and Best options to the estimate lines, and pass confirmed true only after they say yes. Nothing was saved.",
+            );
+          const refs = args.comparison.map((c) => c.estimate_line_ref);
+          if (new Set(refs).size !== refs.length)
+            throw new ToolError(
+              "Each estimate line can appear once in a comparison. Nothing was saved.",
+            );
+          const lines = new Map(
+            (await takeoffLines(sb, job.job_id)).map((l) => [`T-${l.line_no}`, l]),
+          );
+          for (const c of args.comparison) {
+            const line = lines.get(c.estimate_line_ref);
+            if (!line)
+              throw new ToolError(
+                `Estimate line ${c.estimate_line_ref} was not found on the saved takeoff. Nothing was saved.`,
+              );
+            let s = next!.selections.find((x) => x.estimate_line_ref === c.estimate_line_ref);
+            if (!s) {
+              const quantity = line.qty ?? null;
+              if (quantity === null || !(Math.round(quantity * 1000) > 0))
+                throw new ToolError(
+                  `Takeoff line ${c.estimate_line_ref} has no quantity yet. Settle it first. Nothing was saved.`,
+                );
+              s = {
+                id: crypto.randomUUID(),
+                title: (c.title ?? line.item ?? "").slice(0, 160) || "Selection",
+                decision_due: null,
+                allowance_cents: null,
+                quantity: Math.round(quantity * 1000) / 1000,
+                unit: (line.unit ?? "ea").slice(0, 20) || "ea",
+                estimate_line_ref: c.estimate_line_ref,
+                options: { good: blankOption(), better: blankOption(), best: blankOption() },
+                selected: null,
+                notes: "",
+              };
+              next!.selections.push(s);
+            } else if (c.title) s.title = c.title;
+            if (c.notes !== undefined) s.notes = c.notes;
+            for (const tier of optionNames) placeCandidate(s, tier, c.options[tier]);
+          }
+          if (args.base_tier) next!.proposal.base_tier = args.base_tier;
+          if (args.currency && !next!.currency) next!.currency = args.currency;
         } else if (args.action === "review_price") {
+          // A markup on cost sets the sell price; a stated sell price wins.
+          const priceCents =
+            args.price_cents ??
+            (args.markup_pct !== undefined && args.cost_cents !== undefined
+              ? Math.round((args.cost_cents * (100 + args.markup_pct)) / 100)
+              : undefined);
           if (
             !args.selection_id ||
             !args.tier ||
             args.cost_cents === undefined ||
-            args.price_cents === undefined
+            priceCents === undefined ||
+            priceCents > 100_000_000_000
           )
             throw new ToolError(
-              "Send selection_id, tier, cost_cents and price_cents. Nothing was saved.",
+              "Send selection_id, tier, cost_cents and either price_cents or markup_pct. Nothing was saved.",
             );
           if (args.confirmed !== true)
             throw new ToolError(
@@ -426,10 +595,59 @@ export const selectionBoard = defineTool({
               "Add a product for this option before pricing it. Nothing was saved.",
             );
           o.cost_cents = args.cost_cents;
-          o.price_cents = args.price_cents;
+          o.price_cents = priceCents;
           o.price_reviewed_on = today;
           if (args.assumptions !== undefined) o.assumptions = args.assumptions;
           grant = { option: { id: s.id, tier: args.tier } };
+        } else if (args.action === "apply_markup") {
+          if (args.markup_pct === undefined)
+            throw new ToolError("Send markup_pct, the markup on cost. Nothing was saved.");
+          if (args.confirmed !== true)
+            throw new ToolError(
+              `Show the member which options get a ${args.markup_pct}% markup on ${args.cost_basis === "found" ? "the found web price as their cost" : "their entered cost"} and the resulting sell prices, and ask them to confirm. Nothing was saved.`,
+            );
+          const targets = next!.selections.filter(
+            (s) => !args.estimate_line_ref || s.estimate_line_ref === args.estimate_line_ref,
+          );
+          if (!targets.length)
+            throw new ToolError(
+              `${args.estimate_line_ref ? `Estimate line ${args.estimate_line_ref} has` : "The board has"} no Good, Better, Best options to price. Nothing was saved.`,
+            );
+          const reviewed: { id: string; tier: OptionName }[] = [];
+          for (const s of targets)
+            for (const tier of args.tier ? [args.tier] : optionNames) {
+              const o = s.options[tier];
+              if (!o.description) continue;
+              const cost =
+                args.cost_basis === "found" ? (o.cost_cents ?? o.found_price_cents) : o.cost_cents;
+              if (cost === null) {
+                skipped.push(
+                  `${s.title} (${tierLabel(tier)}): no ${args.cost_basis === "found" ? "cost or found price" : "cost"}`,
+                );
+                continue;
+              }
+              const price = Math.round((cost * (100 + args.markup_pct)) / 100);
+              if (price > 100_000_000_000) {
+                skipped.push(`${s.title} (${tierLabel(tier)}): sell price out of range`);
+                continue;
+              }
+              o.cost_cents = cost;
+              o.price_cents = price;
+              o.price_reviewed_on = today;
+              if (args.assumptions !== undefined) o.assumptions = args.assumptions;
+              else if (
+                args.cost_basis === "found" &&
+                cost === o.found_price_cents &&
+                !o.assumptions
+              )
+                o.assumptions = `Cost is the found web price${o.found_at ? ` at ${o.found_at}` : ""}; ${args.markup_pct}% markup.`;
+              reviewed.push({ id: s.id, tier });
+            }
+          if (!reviewed.length)
+            throw new ToolError(
+              `No option could be priced: ${skipped.join("; ")}. Ask the member for each option's cost. Nothing was saved.`,
+            );
+          grant = { options: reviewed };
         } else if (args.action === "set_proposal") {
           if (!args.proposal && !args.currency && !args.review_base_price)
             throw new ToolError("Send the proposal details to change. Nothing was saved.");
@@ -477,6 +695,7 @@ export const selectionBoard = defineTool({
                     ]
                   : []),
                 ...(brief.length ? [...brief, ""] : []),
+                ...(skipped.length ? [`Not priced: ${skipped.join("; ")}.`, ""] : []),
                 ...contractorText(result.board, result.version, today),
                 "",
                 `A recorded choice is not owner approval or a contract change. ${NO_RECORD_CHANGE}`,
@@ -496,8 +715,13 @@ export const selectionBoard = defineTool({
           },
           "This board is internal: cost, found price, margin, markup, assumptions and notes are for the contractor only. Never put them in a customer message; use selection_proposal preview for the customer view.",
           "To source products, use your own web search to find real products, read each product page, then call propose_option once per tier with what the page shows. If you can't search the web, ask the member to paste product links and read those. Never invent a product, link, photo or price.",
-          "A found price is a lead. Call review_price with confirmed true only after the member states or confirms the unit cost and the customer unit price for that option.",
+          "A found price is a lead, never a customer price. Call review_price with confirmed true only after the member states or confirms the unit cost and the sell price or markup for that option. For one markup across options (a line, a tier or the whole board), use apply_markup with markup_pct, and cost_basis found only when the member says to use the found web price as their cost.",
           "Save only the changes the member asked for, using the version you just read. A save cannot mark a price reviewed; use review_price or review_base_price. Saving does not share anything or change the estimate, contract, budget or billing.",
+          ...(args.action === "save_comparison" && saved
+            ? [
+                "Tell the member the options are saved on those estimate lines, which now show Good/Better/Best options, and that the estimate total did not change. Found prices are leads: to compare margin, ask for each option's cost and markup or sell price and record them with review_price after their yes.",
+              ]
+            : []),
         );
       },
     ),

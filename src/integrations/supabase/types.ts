@@ -5838,6 +5838,10 @@ export type Database = {
           id: string
           job_id: string
           mime_type: string
+          removed_at: string | null
+          removed_by: string | null
+          removed_reason: string | null
+          replaced_by: string | null
           size_bytes: number
           sov_item: string | null
           storage_path: string
@@ -5855,6 +5859,10 @@ export type Database = {
           id: string
           job_id: string
           mime_type: string
+          removed_at?: string | null
+          removed_by?: string | null
+          removed_reason?: string | null
+          replaced_by?: string | null
           size_bytes: number
           sov_item?: string | null
           storage_path: string
@@ -5872,6 +5880,10 @@ export type Database = {
           id?: string
           job_id?: string
           mime_type?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          removed_reason?: string | null
+          replaced_by?: string | null
           size_bytes?: number
           sov_item?: string | null
           storage_path?: string
@@ -5891,6 +5903,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_progress_photos_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "mcp_progress_photos"
             referencedColumns: ["id"]
           },
         ]
@@ -9723,6 +9742,10 @@ export type Database = {
           _taken: string
           _work: string
         }
+        Returns: Json
+      }
+      mcp_progress_photo_remove: {
+        Args: { _id: string; _reason: string; _replaced_by?: string }
         Returns: Json
       }
       mcp_progress_photos_list: {

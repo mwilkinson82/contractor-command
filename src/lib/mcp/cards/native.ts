@@ -1,10 +1,13 @@
+import { CARD } from "./palette";
 /** Standard MCP Apps view for Claude. The existing ChatGPT resource is separate. */
 // A new resource identity makes hosts fetch the revised resource delivery instead of
 // replaying the old cached stream. Existing conversations can still read the old URI.
-export const NATIVE_CARD_URI = "ui://athena/native-card-v3.html";
-export const PREVIOUS_NATIVE_CARD_URI = "ui://athena/native-card-v2.html";
+// v4: the clean accounting-style card (no navy band, no filled table header).
+export const NATIVE_CARD_URI = "ui://athena/native-card-v4.html";
+export const PREVIOUS_NATIVE_CARD_URI = "ui://athena/native-card-v3.html";
+export const OLDER_NATIVE_CARD_URI = "ui://athena/native-card-v2.html";
 export const LEGACY_NATIVE_CARD_URI = "ui://athena/native-card.html";
-export const NATIVE_CARD_URIS = new Set([NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI]);
+export const NATIVE_CARD_URIS = new Set([NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI, OLDER_NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI]);
 export const NATIVE_CARD_MIME = "text/html;profile=mcp-app";
 export const NATIVE_CARD_TOOLS = new Set(["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record", "drawing_sets_list", "report_page_share", "resolve_item", "lookahead_get", "lookahead_list", "list_open_items", "contract_terms", "field_pay_app", "morning_brief", "athena_hello", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery"]);
 /** Replies whose text is the styled markdown, plus HTML only for a host that can show a card. */
@@ -65,5 +68,5 @@ send({id:1,method:"ui/initialize",params:{protocolVersion:"2026-01-26",appInfo:{
 })();`;
 
 export function nativeCardHtml(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style id="card-style"></style><style>body{margin:0;background:#FFFFFF;color:#1E3A5F;font:15px/1.45 system-ui,sans-serif}#app{min-width:0}#app>.card{border-top:4px solid #1E5FED}#app>p,#link-notice{margin:12px;padding:12px;border-left:4px solid #1E5FED;color:#6B7280}#link-notice:empty{display:none}table{width:100%;border-collapse:collapse}td,th{overflow-wrap:anywhere}</style></head><body><main id="app" aria-live="polite"><p>Athena · Loading your card…</p></main><p id="link-notice" role="status"></p><script>${SCRIPT}</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style id="card-style"></style><style>body{margin:0;background:${CARD.white};color:${CARD.ink};font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}#app{min-width:0}#app>.card{margin-top:0}#app>p,#link-notice{margin:12px;padding:12px 14px;border:1px solid ${CARD.line};border-radius:10px;color:${CARD.muted}}#link-notice:empty{display:none}table{width:100%;border-collapse:collapse}td,th{overflow-wrap:break-word}</style></head><body><main id="app" aria-live="polite"><p>Athena · Loading your card…</p></main><p id="link-notice" role="status"></p><script>${SCRIPT}</script></body></html>`;
 }

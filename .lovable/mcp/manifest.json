@@ -10189,7 +10189,7 @@
       {
         "name": "progress_photo_save",
         "title": "Save a progress photo",
-        "description": "Stores the original progress photo attached in chat, passed unchanged as file, after its date and place on site are confirmed.",
+        "description": "Stores the original progress photo attached in chat, passed as file, after its date and place on site are confirmed, or returns a link to add the original photo when the chat can't pass the file.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -10236,11 +10236,6 @@
               "minLength": 1,
               "maxLength": 120
             },
-            "content_base64": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 12000000
-            },
             "recognized": {
               "type": "boolean"
             },
@@ -10272,6 +10267,18 @@
             },
             "client_safe": {
               "type": "boolean"
+            },
+            "replaces_photo_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "replace_confirmed": {
+              "type": "boolean"
+            },
+            "replace_reason": {
+              "type": "string",
+              "maxLength": 400
             }
           },
           "required": [
@@ -17190,7 +17197,7 @@
       {
         "name": "selection_board",
         "title": "Good, Better, Best selections",
-        "description": "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, and records the contractor's reviewed cost and price, without writing estimates, budgets or accounting.",
+        "description": "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -17215,9 +17222,12 @@
               "type": "string",
               "enum": [
                 "read",
+                "options",
                 "start",
                 "propose_option",
+                "save_comparison",
                 "review_price",
+                "apply_markup",
                 "set_proposal",
                 "save"
               ]
@@ -17374,6 +17384,383 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 100000000000
+            },
+            "markup_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "cost_basis": {
+              "type": "string",
+              "enum": [
+                "entered",
+                "found"
+              ]
+            },
+            "comparison": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "estimate_line_ref": {
+                    "type": "string",
+                    "pattern": "^T-[1-9][0-9]{0,5}$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "good": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "manufacturer": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "model": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "specifications": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "included": {
+                            "default": [],
+                            "maxItems": 12,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "product_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "source_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "photo_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "found_price_cents": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "found_at": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "found_on": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "better": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "manufacturer": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "model": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "specifications": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "included": {
+                            "default": [],
+                            "maxItems": 12,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "product_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "source_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "photo_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "found_price_cents": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "found_at": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "found_on": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "best": {
+                        "type": "object",
+                        "properties": {
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "manufacturer": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "model": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "specifications": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "included": {
+                            "default": [],
+                            "maxItems": 12,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "product_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "source_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "photo_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048,
+                                "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "found_price_cents": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100000000000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "found_at": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "found_on": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "good",
+                      "better",
+                      "best"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "estimate_line_ref",
+                  "options"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "base_tier": {
+              "type": "string",
+              "enum": [
+                "good",
+                "better",
+                "best"
+              ]
             },
             "assumptions": {
               "type": "string",
@@ -18229,6 +18616,51 @@
           "required": [
             "job_number",
             "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "progress_photo_remove",
+        "title": "Remove a progress photo",
+        "description": "Removes a saved progress photo from the job's gallery and dailies after the member confirms, keeping it in the job's record with who removed it, when and why.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "photo_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 400
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "photo_id"
           ],
           "additionalProperties": false
         },

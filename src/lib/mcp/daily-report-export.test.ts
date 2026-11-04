@@ -17,6 +17,7 @@ function query(table: string) {
   const q = {
     select: () => q,
     eq: (c: string, v: unknown) => (filters.push(["eq", c, v]), q),
+    is: (c: string, v: unknown) => (filters.push(["is", c, v]), q),
     in: (c: string, v: unknown) => (filters.push(["in", c, v]), q),
     gte: (c: string, v: unknown) => (filters.push(["gte", c, v]), q),
     lte: (c: string, v: unknown) => (filters.push(["lte", c, v]), q),
@@ -28,11 +29,13 @@ function query(table: string) {
         rows = rows.filter((r) =>
           op === "eq"
             ? r[c] === v
-            : op === "in"
-              ? (v as unknown[]).includes(r[c])
-              : op === "gte"
-                ? String(r[c]) >= String(v)
-                : String(r[c]) <= String(v),
+            : op === "is"
+              ? (r[c] ?? null) === v
+              : op === "in"
+                ? (v as unknown[]).includes(r[c])
+                : op === "gte"
+                  ? String(r[c]) >= String(v)
+                  : String(r[c]) <= String(v),
         );
       return Promise.resolve({ data: rows, error: null }).then(ok);
     },

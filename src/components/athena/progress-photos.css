@@ -25,6 +25,10 @@
 }
 .pp-top,
 .pp-heading,
+.pp-show-removed,
+.pp-add,
+.pp-add-open,
+.pp-add-signin,
 .pp-day,
 .pp-empty,
 .pp-status,
@@ -234,6 +238,204 @@
   margin-top: 16px;
 }
 
+/* Add photos */
+.pp-add-open {
+  margin-bottom: 20px;
+}
+.pp-page .pp-primary {
+  background: #2465cb;
+  border-color: #2465cb;
+  color: white;
+  font-weight: 600;
+}
+.pp-page .pp-primary:disabled {
+  background: #9db6dc;
+  border-color: #9db6dc;
+  cursor: not-allowed;
+}
+.pp-add-signin {
+  color: #65788e;
+  margin-bottom: 20px;
+}
+.pp-add {
+  background: white;
+  border: 1px solid #d7e2ef;
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 28px;
+}
+.pp-add-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pp-add-head h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.pp-add-note {
+  color: #65788e;
+  margin: 6px 0 16px;
+}
+.pp-add-fields {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 14px 16px;
+}
+.pp-add-fields label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #65788e;
+}
+.pp-add-fields .pp-add-wide,
+.pp-add-fields .pp-add-check {
+  grid-column: 1 / -1;
+}
+.pp-add-fields input[type="text"],
+.pp-add-fields input[type="date"] {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #bbcee7;
+  border-radius: 6px;
+  font: inherit;
+  color: #18314f;
+  background: white;
+  width: 100%;
+}
+.pp-add-files {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #65788e;
+}
+/* Hidden but still in the page, so the button below can open its picker. */
+.pp-add-fields .pp-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pp-add-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.pp-page .pp-pick {
+  border-color: #2465cb;
+  color: #2465cb;
+  font-weight: 600;
+}
+.pp-add-picked {
+  font-size: 14px;
+  color: #18314f;
+  overflow-wrap: anywhere;
+}
+.pp-add-fields .pp-add-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #18314f;
+}
+.pp-add-check input {
+  width: 20px;
+  height: 20px;
+}
+.pp-add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  color: #65788e;
+}
+.pp-add-results {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.pp-add-results .ok {
+  color: #1d6b3a;
+}
+.pp-add-results .bad {
+  color: #8a3b00;
+}
+
+.pp-show-removed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #65788e;
+  margin-bottom: 20px;
+}
+.pp-show-removed input {
+  width: 18px;
+  height: 18px;
+}
+.pp-page .pp-card.pp-removed {
+  opacity: 0.7;
+  border-style: dashed;
+}
+.pp-badge.pp-badge-removed {
+  background: #eef1f5;
+  color: #4d6582;
+}
+.pp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.pp-page .pp-danger {
+  background: #b42318;
+  border-color: #b42318;
+  color: white;
+  font-weight: 600;
+}
+.pp-page .pp-danger:disabled {
+  background: #e3a39d;
+  border-color: #e3a39d;
+  cursor: not-allowed;
+}
+.pp-remove {
+  border: 1px solid #f0c9c4;
+  background: #fff6f5;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+.pp-remove label {
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+}
+.pp-remove textarea {
+  font: inherit;
+  padding: 8px;
+  border: 1px solid #bbcee7;
+  border-radius: 6px;
+  resize: vertical;
+}
+.pp-remove p {
+  color: #65788e;
+  margin: 8px 0 10px;
+}
+.pp-remove [role="alert"] {
+  color: #8a3b00;
+  margin: 8px 0 0;
+}
+
 /* Full-size viewer */
 .pp-viewer {
   position: fixed;
@@ -303,6 +505,12 @@
   object-fit: contain;
   image-orientation: from-image;
   background: #1a2638;
+}
+/* A small stored file is shown large enough to see, even if soft. */
+.pp-viewer-image img.pp-small {
+  width: min(100%, 720px);
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
 }
 .pp-viewer-missing {
   display: grid;
@@ -389,6 +597,12 @@
   }
 }
 @media (max-width: 540px) {
+  .pp-add-fields {
+    grid-template-columns: 1fr;
+  }
+  .pp-add {
+    padding: 16px;
+  }
   .pp-heading h1 {
     font-size: 22px;
   }
