@@ -123,7 +123,10 @@ export function resolveStoredSource(
   if (!holder && looseNames.size > 1)
     throw new ToolError(
       `More than one stored sheet could be ${sheet}: ${looseHolders
-        .map((s) => `${s.sheets[sheetPageIndex(s.sheets, sheet)!]} in ${s.filename} (source_id ${s.id})`)
+        .map(
+          (s) =>
+            `${s.sheets[sheetPageIndex(s.sheets, sheet)!]} in ${s.filename} (source_id ${s.id})`,
+        )
         .join(" and ")}. Name the exact sheet or pass source_id. No sheet was guessed.`,
     );
   if (holder) return holder;
@@ -534,13 +537,13 @@ export async function viewEngine(
   const highlighted = !modelImage
     ? null
     : page
-    ? pageGeometry(state, page, includeRejected).length
-      ? await cachedHighlighted(
-          `${pageKey(job, page.source, page.page - 1)}:${includeRejected}:${await stateFingerprint(state)}`,
-          () => highlightedPreview(page, state, includeRejected),
-        )
-      : preview
-    : null;
+      ? pageGeometry(state, page, includeRejected).length
+        ? await cachedHighlighted(
+            `${pageKey(job, page.source, page.page - 1)}:${includeRejected}:${await stateFingerprint(state)}`,
+            () => highlightedPreview(page, state, includeRejected),
+          )
+        : preview
+      : null;
   if (extra.export && typeof (extra.export as { url?: unknown }).url === "string")
     card.sections?.push({
       heading: "Dated measured PDF",

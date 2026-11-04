@@ -188,7 +188,10 @@ export function drawingOwned(path: string, companyId: string, jobId: string): bo
 
 /** "E1", "E-1" and "E 1" spell the same sheet. */
 export const looseSheetName = (name: string) =>
-  name.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
 
 /** Exact (case-insensitive) sheet name only. */
 export function exactSheetIndex(sheets: string[] | undefined, sheet: string): number | null {
