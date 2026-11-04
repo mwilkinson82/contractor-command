@@ -52,11 +52,9 @@
   padding: 22px 28px;
   border-bottom: 1px solid #d4dfed;
 }
-.jh-brand {
-  font-size: 21px;
-  letter-spacing: 0.05em;
-  font-weight: 800;
-  text-decoration: none;
+.jh-foot {
+  max-width: 1600px;
+  margin: 0 auto;
 }
 .jh-project {
   flex: 1;
@@ -398,6 +396,9 @@
   .jh-shell {
     border-radius: 0;
     border: 0;
+  }
+  .jh-foot {
+    padding: 0 16px;
   }
   .jh-top {
     padding: 16px;

@@ -26,7 +26,6 @@
   justify-content: space-between;
   gap: 18px;
 }
-.dr-top span,
 .dr-kicker {
   font-size: 11px;
   font-weight: 700;
@@ -342,6 +341,10 @@
   .dr-actions {
     flex-direction: column;
   }
+}
+.dr-brand-foot {
+  max-width: 1280px;
+  margin: 0 auto;
 }
 .dr-top nav {
   display: flex;

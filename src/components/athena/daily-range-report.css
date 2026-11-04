@@ -20,11 +20,18 @@
   max-width: 1280px;
   margin: 0 auto;
 }
+.drr-brandbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 18px;
+}
 .drr-nav {
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
-  margin-bottom: 18px;
   font-size: 14px;
 }
 .drr-toolbar {

@@ -7,6 +7,7 @@ import { productionClient } from "@/lib/production-report";
 import { dailyDisplayText, dailyReportHeading } from "@/lib/mcp/superintendent";
 import { DailyReportCapture } from "./DailyReportCapture";
 import { DailyPhotoStrip } from "./DailyPhotoStrip";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import "./daily-report-workspace.css";
 
 export function DailyReportReview({
@@ -42,13 +43,13 @@ export function DailyReportReview({
   return (
     <main className="dr-workspace">
       <header className="dr-top">
+        <AthenaBrand jobId={jobId} token={token} company={payload.company} />
         <nav aria-label="Project navigation">
           <a href={`/r/job/${jobId}/home${token ? `?t=${encodeURIComponent(token)}` : ""}`}>
             ← Project home
           </a>
           <a href="/today">Morning brief</a>
         </nav>
-        <span>ATHENA · DAILY REPORTS</span>
       </header>
       <div className="dr-heading">
         <div>
@@ -265,6 +266,9 @@ export function DailyReportReview({
           </article>
         </div>
       )}
+      <div className="dr-brand-foot">
+        <AthenaFooter jobId={jobId} token={token} />
+      </div>
     </main>
   );
 }

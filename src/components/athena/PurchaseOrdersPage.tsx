@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { BoardSignIn } from "./BoardSignIn";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import { PurchaseOrderDetails, SupplierContext, TermsEvidence } from "./PurchaseOrderDetails";
 import { PurchaseOrderBuyout } from "./PurchaseOrderBuyout";
 import { PurchaseOrderRevision } from "./PurchaseOrderRevision";
@@ -52,18 +53,12 @@ function Shell({
   return (
     <main className="po-workspace">
       <header className="po-topbar">
-        <a className="po-brand" href={`/r/job/${jobId}/home`} aria-label="Athena project home">
-          ATHENA
-        </a>
+        <AthenaBrand jobId={jobId} company={context?.companyName} />
         <div className="po-project-context">
           {context ? (
-            <>
-              <span>{context.companyName}</span>
-              <span aria-hidden="true">/</span>
-              <strong>
-                {context.jobNumber} - {context.jobName}
-              </strong>
-            </>
+            <strong>
+              {context.jobNumber} - {context.jobName}
+            </strong>
           ) : (
             <span>Project purchase orders</span>
           )}
@@ -83,7 +78,10 @@ function Shell({
             ))}
           </nav>
         </aside>
-        <div className="po-main">{children}</div>
+        <div className="po-main">
+          {children}
+          <AthenaFooter jobId={jobId} />
+        </div>
       </div>
     </main>
   );

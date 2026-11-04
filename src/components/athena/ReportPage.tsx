@@ -67,6 +67,13 @@ export function signSiblingLinks(body: string, token: string): string {
   });
 }
 
+/** The company name a page payload already carries, so the top bar needs no extra read. */
+function payloadCompany(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object" || !("company" in payload)) return undefined;
+  const company = (payload as { company?: unknown }).company;
+  return typeof company === "string" && company.trim() ? company : undefined;
+}
+
 export function ReportPageView({ page, jobId, companyId, token, reportDate }: { page: AnyPage; jobId?: string; companyId?: string; token?: string; reportDate?: string }) {
   const openLink = useServerFn(openBoardPage);
   const { session, loading: authLoading } = useAuth();
@@ -128,7 +135,7 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate }: { 
   }, [payload, token, jobId]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
-    <AthenaPage jobId={jobId} token={token}>
+    <AthenaPage jobId={jobId} token={token} company={payloadCompany(payload)}>
       {page === "portfolio" && memberPayload ? (
         <div className="ath-page-bar">
           <MorningBriefPushBar />

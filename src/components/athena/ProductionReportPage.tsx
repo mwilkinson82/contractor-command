@@ -12,6 +12,7 @@ import {
 import { productionRef } from "@/lib/mcp/production-summary";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 import { BoardSignIn } from "./BoardSignIn";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import { ProjectReadUnavailable } from "./ProjectReadUnavailable";
 
 const number = (value: number | string) =>
@@ -225,22 +226,20 @@ export function ProductionReportPage({
   return (
     <main className="min-h-screen min-w-0 [overflow-wrap:anywhere] [&_*]:min-w-0 bg-[#F6F8FB] px-4 py-7 text-[#183453] sm:px-6">
       <div className="mx-auto max-w-[1440px] rounded-2xl border border-[#DCE3EC] bg-white px-5 py-6 sm:px-8 sm:py-8">
-        <nav
-          aria-label="Project navigation"
-          className="mb-6 flex flex-wrap gap-5 text-sm font-semibold text-[#2465cb]"
-        >
-          <a href={`/r/job/${jobId}/home`} className="hover:underline">
-            Project home
-          </a>
-          <a href={`/r/job/${jobId}/daily`} className="hover:underline">
-            Daily reports
-          </a>
-        </nav>
-        {report?.company ? (
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
-            {report.company}
-          </p>
-        ) : null}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <AthenaBrand jobId={jobId} company={report?.company} />
+          <nav
+            aria-label="Project navigation"
+            className="flex flex-wrap gap-5 text-sm font-semibold text-[#2465cb]"
+          >
+            <a href={`/r/job/${jobId}/home`} className="hover:underline">
+              Project home
+            </a>
+            <a href={`/r/job/${jobId}/daily`} className="hover:underline">
+              Daily reports
+            </a>
+          </nav>
+        </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Production</h1>
         {report ? (
           <p className="mt-2 text-base text-[#52647A]">
@@ -301,6 +300,9 @@ export function ProductionReportPage({
         ) : !query.isFetching ? (
           <p className="mt-5">Production report unavailable.</p>
         ) : null}
+      </div>
+      <div className="mx-auto max-w-[1440px]">
+        <AthenaFooter jobId={jobId} />
       </div>
     </main>
   );

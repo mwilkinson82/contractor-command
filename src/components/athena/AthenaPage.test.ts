@@ -54,6 +54,19 @@ describe("Athena web page shell", () => {
     expect(html).toContain('data-alert="overdue"');
     expect(html).not.toContain("Open live RFI log");
     expect(html).not.toContain('class="card"');
+    // Athena icon top left and the big Athena word in the footer, never the typed word.
+    expect(html).toContain('src="/brand/athena/athena-mark-blue.svg"');
+    expect(html).toContain('class="ath-footer-word" src="/brand/athena/athena-wordmark-blue.svg"');
+    expect(html).not.toContain(">Athena</span>");
+  });
+
+  it("shows the contractor's company name beside the icon, as text and never their logo", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(AthenaPage, { jobId: job, company: "ALP Construction" }),
+    );
+    expect(html).toContain('<span class="ath-brand-name">ALP Construction</span>');
+    expect(html).not.toContain("company-logos");
+    expect(html).not.toContain("powered by ALP");
   });
 
   it("shows an empty log as a message, not a row of dashes", () => {

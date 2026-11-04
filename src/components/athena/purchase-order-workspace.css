@@ -46,13 +46,6 @@
   gap: 36px;
   align-items: center;
 }
-.po-brand {
-  font-size: 23px;
-  font-weight: 800;
-  text-decoration: none;
-  letter-spacing: 0.02em;
-  min-width: 152px;
-}
 .po-project-context {
   display: flex;
   gap: 10px;
@@ -654,9 +647,6 @@
   .po-topbar {
     gap: 22px;
   }
-  .po-brand {
-    min-width: 120px;
-  }
   .po-workspace-grid {
     grid-template-columns: 220px minmax(0, 1fr);
     gap: 18px;
@@ -747,9 +737,6 @@
     gap: 8px;
     align-items: flex-start;
     flex-direction: column;
-  }
-  .po-brand {
-    font-size: 19px;
   }
   .po-project-context {
     font-size: 11px;

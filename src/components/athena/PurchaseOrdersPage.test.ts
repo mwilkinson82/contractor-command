@@ -177,7 +177,11 @@ describe("saved PO version amounts", () => {
 describe("PO workspace state and permission boundaries", () => {
   it("shows company/job identity and actual tabs without fabricated source rows", () => {
     const html = render();
-    expect(plain(html)).toContain("ALP Construction / 2810 - Willow Creek");
+    // Company name sits beside the Athena icon in the top bar; the job follows it.
+    expect(html).toContain('<span class="ath-brand-name">ALP Construction</span>');
+    expect(html).toContain('src="/brand/athena/athena-mark-blue.svg"');
+    expect(plain(html)).toContain("ALP Construction 2810 - Willow Creek");
+    expect(html).not.toContain(">ATHENA<");
     expect(html).toContain('role="tablist"');
     expect(html).toContain("Search orders or suppliers");
     expect(html).toContain("<table");
