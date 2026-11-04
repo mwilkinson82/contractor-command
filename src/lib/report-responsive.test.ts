@@ -409,16 +409,21 @@ describe("responsive generated report sources", () => {
   });
 });
 
-describe("endorsement line under the big Athena footer", () => {
+describe("client branding on report pages", () => {
   const p = { page: "schedule", ...common, report, today } as unknown as PagePayload;
 
-  it("drops 'Athena powered by ALP' inside the app, where the big Athena word closes the page", () => {
-    const html = renderReportBody(p, { inApp: true });
+  it("has no ALP endorsement line inside the app, where the big Athena word closes the page", () => {
+    const html = renderReportBody(p);
     expect(html).toContain("Private to your company · updates when Athena saves a new version</p>");
     expect(html).not.toContain("powered by ALP");
   });
 
-  it("keeps it on the standalone share page, which has no big footer", () => {
-    expect(renderReportDocument(p)).toContain("Athena powered by ALP");
+  it("leads the share page with the contractor and keeps Athena to one small corner line", () => {
+    const html = renderReportDocument({ ...p, company: "ALP Construction" } as PagePayload);
+    expect(html).not.toContain("powered by ALP");
+    expect(html).toContain("ALP Construction");
+    expect(html).toContain("Powered by Athena");
+    expect(html).toMatch(/<title>[^<]*ALP Construction<\/title>/);
+    expect(html).not.toMatch(/<title>[^<]*Athena[^<]*<\/title>/);
   });
 });

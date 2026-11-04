@@ -147,6 +147,8 @@ const post = async (
   opts: { cookie?: boolean; origin?: string | null } = {},
 ) => req(path, { method: "POST", body: new URLSearchParams(body).toString(), ...opts });
 const BLUE = /#0071e3|#2563eb|#2997ff|#1d4ed8|#3b82f6|\bblue\b/i;
+/** The page's own UI has no blue. The one exception is the small blue Athena A in the "Powered by Athena" footer. */
+const withoutAthenaMark = (html: string) => html.replace(/<span class="ath-cb-powered"[\s\S]*?<\/span>/g, "");
 
 describe("invite link", () => {
   it("refuses bad tokens and shows a sign-in start without the full address", async () => {
@@ -160,7 +162,7 @@ describe("invite link", () => {
     expect(html).toContain("r***@example.com");
     expect(html).not.toContain("rosa@example.com");
     expect(html).not.toMatch(/<script/i);
-    expect(html).not.toMatch(BLUE);
+    expect(withoutAthenaMark(html)).not.toMatch(BLUE);
   });
 
   it("emails a code whose hash is what the database stores, then signs in with a cookie scoped to the page", async () => {
@@ -228,7 +230,8 @@ describe("customer page", () => {
       const html = await r.text();
       expect(r.status, s).toBe(200);
       expect(html, s).not.toMatch(/<script/i);
-      expect(html, s).not.toMatch(BLUE);
+      expect(withoutAthenaMark(html), s).not.toMatch(BLUE);
+      expect(html, s).toContain("Powered by Athena</span></footer>");
       expect(html, s).not.toContain("secret-path");
       expect(html, s).toContain('aria-current="page"');
       expect(html, s).toContain("@media (max-width:640px)");

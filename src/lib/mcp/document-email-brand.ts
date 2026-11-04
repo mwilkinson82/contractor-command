@@ -1,4 +1,4 @@
-import { resolvePaymentBrand } from '../payment-applications/brand';
+import { resolvePaymentBrand, type PaymentBrand } from '../payment-applications/brand';
 import type { Sb } from './guard';
 
 /** The caller must already resolve the job with full access. Never substitute the account profile. */
@@ -7,4 +7,9 @@ export async function documentEmailBrand(sb: Sb, companyId: string) {
   if (error || !data || data.id !== companyId || !data.name)
     throw new Error('The project company branding could not be verified. Try again.');
   return resolvePaymentBrand({companyName:data.name,logoUrl:data.logo_url,backendUrl:import.meta.env.VITE_SUPABASE_URL});
+}
+
+/** The contractor's brand for the top of a client PDF. A lookup that fails leaves the corner blank; the file still builds. */
+export async function pdfContractorBrand(sb: Sb, companyId: string): Promise<PaymentBrand> {
+  try { return await documentEmailBrand(sb, companyId); } catch { return {}; }
 }

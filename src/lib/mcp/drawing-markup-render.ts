@@ -14,6 +14,7 @@ import {
   type DrawingStore,
 } from "./drawing-set";
 import { FILE_BUCKET, FILE_MAX_BYTES, safeFilename, sha256Hex, storagePath } from "./file-share";
+import { drawPoweredByAthena } from "../client-brand";
 
 export type Point = { x: number; y: number };
 export type DrawingAnnotation = {
@@ -85,7 +86,7 @@ export async function renderDrawingMarkup(
   const heading = (detail: string) => {
     doc.setTextColor(NAVY);
     doc.setFontSize(20);
-    doc.text(pdfText(`${source.sheet} | Athena drawing markup`), 24, 30);
+    doc.text(pdfText(`${source.sheet} | Drawing markup`), 24, 30);
     doc.setTextColor(GRAY);
     doc.setFontSize(9);
     doc.text(
@@ -178,6 +179,11 @@ export async function renderDrawingMarkup(
     }
     y += 15;
   });
+  // Athena co-brands in the bottom-right corner only; this sheet goes to the contractor's own clients.
+  for (let p = 1; p <= doc.getNumberOfPages(); p++) {
+    doc.setPage(p);
+    drawPoweredByAthena(doc, 1200, 766);
+  }
   const pdf = new Uint8Array(doc.output("arraybuffer"));
   if (pdf.length > FILE_MAX_BYTES)
     throw new ToolError(

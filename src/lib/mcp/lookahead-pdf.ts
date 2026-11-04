@@ -3,6 +3,7 @@
 // called neither file_share nor email_draft, and the Gmail draft went out with nothing attached.
 import { jsPDF } from "jspdf";
 import { lookaheadModel, lookaheadAlert, shortDate, dayHead, type LaItem, type SAct } from "./styled-views";
+import { drawContractorBrand, drawPoweredByAthena, type ContractorBrand } from "../client-brand";
 
 const BLUE: [number, number, number] = [30, 95, 237], GRAY: [number, number, number] = [156, 163, 175], NAVY: [number, number, number] = [30, 58, 95];
 const RED: [number, number, number] = [220, 38, 38], G1: [number, number, number] = [107, 114, 128], G3: [number, number, number] = [209, 213, 219];
@@ -12,15 +13,17 @@ export const pdfText = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(
 const plural = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
 export const lookaheadPdfName = (jobNumber: string, start: string, end: string) => `${jobNumber} Two-Week Lookahead ${start} to ${end}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
 
-export function lookaheadPdf(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; today?: string | null }): Uint8Array {
+export function lookaheadPdf(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; today?: string | null; brand?: ContractorBrand }): Uint8Array {
   const m = lookaheadModel(v.start, v.end, v.acts, v.items, { today: v.today, dataDate: v.dataDate });
   const d = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
   const W = d.internal.pageSize.getWidth(), H = d.internal.pageSize.getHeight(), X = 36;
   let y = 44;
   const color = (c: [number, number, number]) => d.setTextColor(c[0], c[1], c[2]);
   const newPageIfNeeded = (need: number) => { if (y + need > H - 40) { d.addPage(); y = 44; } };
+  // Client branding: the contractor leads in the top-right corner, Athena is one small line at the bottom.
+  drawContractorBrand(d, v.brand, { x: W - X, y: 24, maxWidth: 170, maxHeight: 28, align: "right" });
   d.setFont("helvetica", "bold"); d.setFontSize(18); color(NAVY);
-  d.text(pdfText(`Two-Week Lookahead - ${v.title}`), X, y); y += 18;
+  d.text(d.splitTextToSize(pdfText(`Two-Week Lookahead - ${v.title}`), W - 2 * X - 190)[0] ?? "", X, y); y += 18;
   d.setFont("helvetica", "normal"); d.setFontSize(10); color(G1);
   d.text(pdfText(`Window ${shortDate(v.start)} - ${shortDate(v.end)}${v.dataDate ? ` - Data date ${shortDate(v.dataDate)}` : ""} - Ref ${v.ref}`), X, y); y += 14;
   const c = m.counts;
@@ -99,8 +102,8 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   section("RISKS", m.risks, true, (e) => `${e.overdue ? "OVERDUE - " : ""}${e.label} - Impact: ${e.a!.id} ${e.a!.name}${e.a!.total_float != null ? ` (float ${e.a!.total_float} WD)` : ""}. ${who(e)}`);
   section("OPEN FOLLOW-UPS", m.callouts, false, (e) => `${e.label} - ${who(e)}`);
   section("DATES TO CHECK", m.flagged, false, (e) => `${e.label.slice(0, 90)}: ${e.flags.map((f) => f.text).join("; ")}`);
-  d.setFontSize(7); color(GRAY); d.text("Athena by ALP", W - X - 50, H - 20);
-  d.setProperties({ title: pdfText(`${v.title} Two-Week Lookahead`), creator: "Athena", author: "Athena" });
+  for (let p = 1; p <= d.getNumberOfPages(); p++) { d.setPage(p); drawPoweredByAthena(d, W - X, H - 20); }
+  d.setProperties({ title: pdfText(`${v.title} Two-Week Lookahead`), creator: "Athena", author: pdfText(v.brand?.companyName ?? "") || "Athena" });
   return scrubProducer(new Uint8Array(d.output("arraybuffer")));
 }
 

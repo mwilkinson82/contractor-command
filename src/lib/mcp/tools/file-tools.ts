@@ -6,6 +6,7 @@ import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveJob } from "../jobs";
 import { guide } from "../visible";
 import { lookaheadPdf, lookaheadPdfName } from "../lookahead-pdf";
+import { pdfContractorBrand } from "../document-email-brand";
 import { lookaheadData } from "./workflow-tools";
 import { LOOKAHEAD_PDF_EMAIL_RULE } from "../email-safety";
 import {
@@ -174,7 +175,8 @@ export const lookaheadPdfTool = defineTool({
       if (!kindAllowed("schedule", job.scope)) throw new ToolError(FULL_ACCESS_MESSAGE);
       const data = await lookaheadData(sb, job, args.lookahead_id ?? "latest");
       if (!data.win) throw new ToolError(`${prefix(job)}There's no lookahead window or saved schedule to put in a PDF yet. Send the schedule export (or save the CPM) first. Nothing was made.`);
-      const bytes = lookaheadPdf({ title: named(job), ref: data.ref, start: data.win.start, end: data.win.end, dataDate: data.dataDate, acts: data.acts, items: data.items, today: data.today });
+      const brand = await pdfContractorBrand(sb, job.company_id);
+      const bytes = lookaheadPdf({ title: named(job), ref: data.ref, start: data.win.start, end: data.win.end, dataDate: data.dataDate, acts: data.acts, items: data.items, today: data.today, brand });
       let f: ReturnType<typeof validateFile>;
       try { f = validateFile(bytes, lookaheadPdfName(job.job_number, data.win.start, data.win.end)); } catch (e) { if (e instanceof FileRejected) throw new ToolError(e.message); throw e; }
       const { id, link, exp } = await storeFile(sb, job, "schedule", f, bytes, args.expires_in_days);

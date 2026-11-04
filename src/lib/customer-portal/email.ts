@@ -3,9 +3,21 @@
 import { outboundEmailDisabled } from "../mcp/email-safety";
 import { postResendEmail } from "../support/resend-send";
 import { esc } from "./render";
+import { ATHENA_EMAIL_MARK_URL, poweredByAthenaEmailHtml } from "../client-brand";
 
 export const PORTAL_FROM_DEFAULT = "Athena <team@meetathena.io>";
-export type PortalEmail = { to: string; subject: string; text: string; html: string; key: string };
+/**
+ * `fromName` is the sender's display name. Customer emails lead with the contractor ("ALP Construction via
+ * Athena"); the address stays Athena's sending address. Without it the configured sender is used as is.
+ */
+export type PortalEmail = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  key: string;
+  fromName?: string;
+};
 export type PortalSender = (m: PortalEmail & { from: string }) => Promise<void>;
 type Env = Record<string, string | undefined>;
 
@@ -15,17 +27,55 @@ export function portalEmailEnabled(env: Env = runtimeEnv()): boolean {
   return env.ATHENA_PORTAL_EMAIL_ENABLED === "true" && !outboundEmailDisabled(env);
 }
 
+/** Display name for a customer email: the contractor first, Athena as the carrier. */
+export const customerFromName = (company: string) => `${company} via Athena`;
+
+/**
+ * The From header for a display name and the configured sender. Keeps the configured address and drops
+ * characters that could break out of a quoted display name or add a header.
+ */
+export function portalFrom(configured: string, fromName?: string): string {
+  if (!fromName) return configured;
+  const address = /<([^<>\s]+@[^<>\s]+)>\s*$/.exec(configured)?.[1] ?? configured.trim();
+  const name = fromName
+    .replace(/[\r\n]/g, " ")
+    .replace(/["\\<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return name ? `"${name}" <${address}>` : configured;
+}
+
+const INK = "#18314f";
+const MUTED = "#65788e";
+const WHITE = "#ffffff";
+const PAGE = "#f3f6fa";
+/**
+ * Keeps a color when a mail app forces dark mode. Gmail's phone app repaints plain backgrounds; it leaves a
+ * gradient image alone. Same light-only approach as the support emails (color-scheme light, bgcolor tables).
+ */
+const keep = (c: string) => `background-color:${c};background-image:linear-gradient(${c},${c})`;
+
 function frame(
   company: string,
   lines: string[],
   button?: { label: string; href: string },
   foot?: string,
+  powered = true,
 ): string {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#18314f;max-width:520px;line-height:1.55">
-<p style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#65788e;margin:0 0 14px">${esc(company)}</p>
-${lines.map((l) => `<p style="margin:0 0 12px">${l}</p>`).join("\n")}
-${button ? `<p style="margin:18px 0"><a href="${esc(button.href)}" style="background:#18314f;color:#ffffff;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">${esc(button.label)}</a></p>` : ""}
-${foot ? `<p style="color:#65788e;font-size:12px;margin:18px 0 0">${foot}</p>` : ""}</div>`;
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><style>:root{color-scheme:light;supported-color-schemes:light}</style></head>
+<body style="margin:0;padding:0;${keep(PAGE)}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${PAGE}" style="${keep(PAGE)}"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" bgcolor="${WHITE}" style="width:100%;max-width:560px;${keep(WHITE)};border:1px solid #dfe7f0;border-radius:12px"><tr><td style="padding:26px 28px;font-family:Arial,Helvetica,sans-serif;color:${INK};line-height:1.55;font-size:15px">
+<p style="font-size:17px;font-weight:700;color:#111827;margin:0 0 16px">${esc(company)}</p>
+${lines.map((l) => `<p style="margin:0 0 12px;color:${INK}">${l}</p>`).join("\n")}
+${button ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0"><tr><td bgcolor="${INK}" style="${keep(INK)};border-radius:8px"><a href="${esc(button.href)}" style="display:inline-block;padding:11px 18px;color:${WHITE};text-decoration:none;font-weight:600">${esc(button.label)}</a></td></tr></table>` : ""}
+${foot ? `<p style="color:${MUTED};font-size:12px;margin:18px 0 0">${foot}</p>` : ""}
+${powered ? poweredByAthenaEmailHtml(ATHENA_EMAIL_MARK_URL) : ""}
+</td></tr></table>
+</td></tr></table>
+</body></html>`;
 }
 
 export function inviteEmail(a: {
@@ -42,6 +92,7 @@ export function inviteEmail(a: {
   return {
     to: a.to,
     key: `portal-invite:${a.nonce}`,
+    fromName: customerFromName(a.company),
     subject: `Your project page for ${a.jobName}`,
     text: [
       `Hi ${a.name},`,
@@ -81,6 +132,7 @@ export function codeEmail(a: {
   return {
     to: a.to,
     key: `portal-code:${a.nonce}`,
+    fromName: customerFromName(a.company),
     subject:
       a.purpose === "sign_in"
         ? `${a.code} is your sign-in code`
@@ -123,6 +175,7 @@ export function noticeEmail(a: {
   return {
     to: a.to,
     key: `portal-notice:${a.nonce}`,
+    fromName: customerFromName(a.company),
     subject:
       a.kind === "update"
         ? `New update on ${a.jobName}`
@@ -164,11 +217,17 @@ export function decisionEmail(a: {
       "",
       `Reference: ${a.reference}. Ask Athena for the customer page list on this job to see the record.`,
     ].join("\n"),
-    html: frame("Athena", [
-      esc(line),
-      ...(a.note ? [`Their note: ${esc(a.note)}`] : []),
-      `Reference: ${esc(a.reference)}. Ask Athena for the customer page list on this job to see the record.`,
-    ]),
+    html: frame(
+      "Athena",
+      [
+        esc(line),
+        ...(a.note ? [`Their note: ${esc(a.note)}`] : []),
+        `Reference: ${esc(a.reference)}. Ask Athena for the customer page list on this job to see the record.`,
+      ],
+      undefined,
+      undefined,
+      false,
+    ),
   };
 }
 
@@ -190,9 +249,10 @@ export async function sendPortalEmail(
   const env = opts.env ?? runtimeEnv();
   if (!portalEmailEnabled(env)) return "off";
   try {
+    const { fromName, ...email } = m;
     await (opts.sender ?? resendPortalSender)({
-      ...m,
-      from: env.ATHENA_PORTAL_FROM || PORTAL_FROM_DEFAULT,
+      ...email,
+      from: portalFrom(env.ATHENA_PORTAL_FROM || PORTAL_FROM_DEFAULT, fromName),
     });
     return "sent";
   } catch {

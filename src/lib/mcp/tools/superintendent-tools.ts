@@ -12,6 +12,7 @@ import { drawingFile } from "../drawing-file-input";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, named, prefix, resolveJob, type Job } from "../jobs";
 import { photoLogPdf } from "../photo-pdf";
+import { pdfContractorBrand } from "../document-email-brand";
 import { dailyRangePdf, type PdfPhoto, type PdfPhotoSkip } from "../../daily-range-pdf";
 import { DAILY_RANGE_MAX_DAYS, PHOTO_MODES, dailyRangeClient, dailyRangePdfName, dailyRangeUrl, readDailyRange } from "../../daily-range-report";
 import { FILE_MAX_BYTES, FileRejected, decodeBase64, fmtDate, kindAllowed, validateFile } from "../file-share";
@@ -530,7 +531,7 @@ export const dailyReportExport = defineTool({
         );
       }
       const embed = await serverPdfPhotos(sb, report.days.flatMap((d) => d.photos));
-      const bytes = dailyRangePdf(report, embed.photos);
+      const bytes = dailyRangePdf(report, embed.photos, await pdfContractorBrand(sb, job.company_id));
       let f: ReturnType<typeof validateFile>;
       try { f = validateFile(bytes, dailyRangePdfName(job.job_number, report.period.from, report.period.to)); }
       catch (e) { if (e instanceof FileRejected) throw new ToolError(`${e.message} Use the report page's Download PDF instead: ${page}`); throw e; }
@@ -754,7 +755,7 @@ export const progressPhotos = defineTool({
       const url = gallery;
       let pdf: string | null = null;
       if ((args.format ?? "gallery") === "pdf") {
-        const bytes = photoLogPdf(`${job.job_number} progress photos`, photos);
+        const bytes = photoLogPdf(`${job.job_number} progress photos`, photos, await pdfContractorBrand(sb, job.company_id));
         const id = crypto.randomUUID();
         const path = `${job.company_id}/${job.job_id}/${id}/photo-log.pdf`;
         const up = await sb.storage.from(PHOTO_BUCKET).upload(path, bytes, { contentType: "application/pdf", upsert: false, cacheControl: "no-store" });

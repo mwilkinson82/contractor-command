@@ -1,6 +1,7 @@
 // Customer page HTML. Server-rendered, no scripts: every button is a plain form post, so it works on any phone
 // and nothing on the page can run code. Look: the accounting suite's light cards and navy ink (approved Nov 4).
 import { optionNames } from "../selections/model";
+import { CLIENT_BRAND_FONTS, CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from "../client-brand";
 import { displayPrice } from "../selections/format";
 import {
   approvalStatement,
@@ -98,7 +99,7 @@ a{color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-col
 .logo{display:flex;align-items:center;gap:10px;min-width:0}
 .logo-mark{width:34px;height:34px;border-radius:8px;background:var(--ink);color:var(--white);display:grid;place-items:center;flex:none;font-weight:700;font-size:13px;letter-spacing:.04em}
 .logo-word{display:grid;line-height:1.15;min-width:0}
-.logo-word b{font-size:13.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.logo-word b{font-family:${CLIENT_BRAND_NAME_FONT};font-size:15.5px;font-weight:600;letter-spacing:-.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .logo-word span{font-size:11px;color:var(--muted)}
 .who{display:flex;align-items:center;gap:14px;font-size:13px;color:var(--body)}
 .who-name{display:flex;align-items:center;gap:8px}
@@ -276,7 +277,7 @@ h4:first-child{margin-top:0}
 `;
 
 function doc(title: string, body: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"><style>${CSS}</style></head><body>${body}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title>${CLIENT_BRAND_FONTS}<style>${CSS}</style></head><body>${body}</body></html>`;
 }
 
 const logo = (company: string, sub = "Customer page") =>
@@ -615,7 +616,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
       : "";
   const top = `<header class="pt-top">${logo(p.contractor.name)}<div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></header>`;
   const job = `<div class="wrap pt-job"><div><p class="eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1></div>${status}</div>`;
-  const foot = `<footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span>Powered by Athena</span></footer>`;
+  const foot = `<footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span>${poweredByAthenaHtml()}</footer>`;
   return doc(
     `${p.job.name} · ${SECTION_LABEL[o.section]}`,
     `<div class="pt">${top}${job}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main>${foot}</div>`,

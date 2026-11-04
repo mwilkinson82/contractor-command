@@ -4,6 +4,8 @@
 // or is turned off. Only a SHA-256 of the token is stored. Link/validation helpers are pure;
 // drawing-source imports use a separate bounded downloader without widening file_share's host policy.
 
+import { poweredByAthenaHtml } from "../client-brand";
+
 export const FILE_BUCKET = "athena-files";
 export const FILE_LINK_BASE = "https://app.meetathena.io/f/";
 /** 10 MB decoded. Practical inline base64 limit is lower (the host model has to write the base64 out). */
@@ -274,7 +276,7 @@ export function goneHtml(): string {
     `<main style="box-sizing:border-box;width:calc(100% - 32px);max-width:480px;margin:15vh auto;background:#FFFFFF;border:1px solid #D1D5DB;border-radius:12px;padding:32px">` +
     `<h1 style="margin:0 0 12px;font-size:20px;color:#2563EB">This link isn't available</h1>` +
     `<p style="margin:0;line-height:1.5">It has expired or was turned off. Ask the sender for a new link.</p>` +
-    `<p style="margin:24px 0 0;font-size:12px;color:#9CA3AF">Athena powered by ALP</p></main></body></html>`
+    `<p style="margin:24px 0 0">${poweredByAthenaHtml()}</p></main></body></html>`
   );
 }
 

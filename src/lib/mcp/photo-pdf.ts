@@ -2,6 +2,7 @@
 import { jsPDF } from "jspdf";
 import { scrubProducer, pdfText } from "./lookahead-pdf";
 import { shortDate } from "./styled-views";
+import { drawContractorBrand, drawPoweredByAthena, type ContractorBrand } from "../client-brand";
 
 const NAVY: [number, number, number] = [30, 58, 95];
 const GRAY: [number, number, number] = [107, 114, 128];
@@ -15,11 +16,13 @@ export type PhotoLogRow = {
   client_safe?: boolean;
 };
 
-export function photoLogPdf(title: string, rows: PhotoLogRow[]): Uint8Array {
+export function photoLogPdf(title: string, rows: PhotoLogRow[], brand?: ContractorBrand): Uint8Array {
   const d = new jsPDF({ unit: "pt", format: "a6" });
   const W = d.internal.pageSize.getWidth();
   const X = 24;
-  let y = 36;
+  // Client branding: the contractor leads at the top, Athena is one small line at the bottom.
+  const brandHeight = drawContractorBrand(d, brand, { x: X, y: 18, maxWidth: 150, maxHeight: 22, align: "left" });
+  let y = brandHeight ? 18 + brandHeight + 20 : 36;
   d.setFont("helvetica", "bold");
   d.setFontSize(14);
   d.setTextColor(...NAVY);
@@ -54,9 +57,10 @@ export function photoLogPdf(title: string, rows: PhotoLogRow[]): Uint8Array {
     d.text(pdfText(tags).slice(0, 90), X + 8, y + 44);
     y += 66;
   }
-  d.setFontSize(8);
-  d.setTextColor(...GRAY);
-  d.text("Athena by ALP", X, d.internal.pageSize.getHeight() - 16);
-  d.setProperties({ title: pdfText(title || "Progress photos"), creator: "Athena", author: "Athena" });
+  for (let p = 1; p <= d.getNumberOfPages(); p++) {
+    d.setPage(p);
+    drawPoweredByAthena(d, W - X, d.internal.pageSize.getHeight() - 16);
+  }
+  d.setProperties({ title: pdfText(title || "Progress photos"), creator: "Athena", author: pdfText(brand?.companyName ?? "") || "Athena" });
   return scrubProducer(new Uint8Array(d.output("arraybuffer")));
 }
