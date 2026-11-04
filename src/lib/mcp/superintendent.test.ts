@@ -33,6 +33,7 @@ import {
   shouldShowDailyCard,
 } from "./field-reminder";
 import { paletteViolations } from "./cards/palette";
+import { brokenJpeg, testJpeg } from "../photo-fixtures.test-helpers";
 
 const state = vi.hoisted(() => ({
   scope: "full" as "full" | "super" | "contract",
@@ -137,7 +138,8 @@ import {
 type H = (a: Record<string, unknown>, c: unknown) => Promise<{ content: { text: string }[]; structuredContent: Record<string, unknown> }>;
 const handle = (tool: unknown, args: Record<string, unknown>) => (tool as { handler: H }).handler(args, {});
 
-const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xff, 0xd9]);
+// A whole JPEG (frame, tables, scan) at phone-photo size; the save refuses damaged files and small previews.
+const JPEG = testJpeg(1600, 1200);
 const dailyOk = {
   job_number: "2701",
   report_date: "2026-10-21",
@@ -546,6 +548,12 @@ describe("photos", () => {
     });
     expect(saved.structuredContent.saved).toBe(true);
     expect(saved.structuredContent.client_safe).toBe(false);
+    expect(saved.structuredContent).toMatchObject({ width: 1600, height: 1200 });
+    const ok = { job_number: "2701", filename: "slab.jpg", recognized: true, date_confirmed: true, confirmed: true, area: "North footing" };
+    const uploads = state.uploads.length;
+    await expect(handle(progressPhotoSave, { ...ok, content_base64: Buffer.from(brokenJpeg()).toString("base64") })).rejects.toThrow(/damaged or incomplete/);
+    await expect(handle(progressPhotoSave, { ...ok, content_base64: Buffer.from(testJpeg(120, 160)).toString("base64") })).rejects.toThrow(/small preview/);
+    expect(state.uploads.length).toBe(uploads);
     expect(state.uploads[0]).toMatch(/^22222222-2222-4222-8222-222222222222\/11111111-1111-4111-8111-111111111111\/[0-9a-f-]{36}\/progress\.jpg$/);
     expect(saved.content[0].text).not.toMatch(/files\.example|supabase/i);
     const pdf = new TextDecoder("latin1").decode(photoLogPdf("2701", [{ taken_on: "2026-10-21", area: "North footing", client_safe: false }]));

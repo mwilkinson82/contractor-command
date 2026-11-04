@@ -230,6 +230,27 @@ describe("board link page without a session", () => {
     }
   });
 
+  it("shows the photos as a responsive gallery, narrowed to one day, with links to its daily", () => {
+    state.session = { user: { id: "member-1" } };
+    const photo = (id: string, taken_on: string, area: string) => ({ id, taken_on, area, work: "Linear LED strips", client_safe: false, url: `https://files.example/${id}.jpg?sig=1` });
+    state.pageQuery = {
+      data: { payload: { page: "photos", job_number: "2810", job_name: "Willow Creek", photos: [photo("aaaaaaaa-1111-4111-8111-111111111111", "2026-11-03", "Interior office / ceiling"), photo("bbbbbbbb-2222-4222-8222-222222222222", "2026-11-02", "North duct bank")] } },
+      isLoading: false,
+      error: null,
+    };
+    const day = renderToStaticMarkup(createElement(ReportPageView, { page: "photos", jobId: JOB, token: "fixture-key", reportDate: "2026-11-03" }));
+    expect(day).toContain("Progress photos · Tuesday, November 3, 2026");
+    expect(day).toContain("Interior office / ceiling");
+    expect(day).not.toContain("North duct bank");
+    expect(day).toContain(`href="/r/job/${JOB}/daily?date=2026-11-03&amp;t=fixture-key"`);
+    expect(day).toContain(`href="/r/job/${JOB}/photos?t=fixture-key"`);
+    expect(day).toContain('class="pp-grid"');
+    const all = renderToStaticMarkup(createElement(ReportPageView, { page: "photos", jobId: JOB, token: "fixture-key" }));
+    expect(all).toContain("North duct bank");
+    expect(all).toContain(`href="/r/job/${JOB}/photos?date=2026-11-02&amp;t=fixture-key"`);
+    expect(all).toContain('aria-label="Open Interior office / ceiling"');
+  });
+
   it("retains the existing subscription controls outside job report pages", () => {
     state.session = { user: { id: "member-1" } };
     state.pageQuery = {
