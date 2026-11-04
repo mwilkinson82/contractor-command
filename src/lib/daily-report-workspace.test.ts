@@ -166,4 +166,24 @@ describe("daily capture workflow", () => {
     ).rejects.toThrow("unavailable");
     expect(from).not.toHaveBeenCalled();
   });
+  it("saves a daily for a job with no SOV or CPM when the lines say none", async () => {
+    const noLinks: DailySections = {
+      ...draft,
+      work: [{ ...draft.work[0], sov_item: "none", activity_id: "None" }],
+    };
+    expect(() =>
+      validateDailyCapture("2026-10-30", { ...draft, work: [{ ...draft.work[0], sov_item: null, activity_id: null }] }),
+    ).toThrow(/Say none if this job has no schedule of values/);
+    expect(validateDailyCapture("2026-10-30", noLinks).work[0]).toMatchObject({ sov_item: "none", activity_id: "none" });
+    expect(() =>
+      validateDailyCapture("2026-10-30", { ...draft, work: [{ ...draft.work[0], sov_item: "twenty six" }] }),
+    ).toThrow(/SOV item/);
+    const review = reviewDailyCapture("job", "2026-10-30", noLinks);
+    const rpc = vi.fn().mockResolvedValue({
+      data: { saved: true, id: "daily", creation_only: true, request_id: review.requestId, replayed: false },
+      error: null,
+    });
+    await saveDailyCapture({ rpc } as unknown as ProductionClient, "job", "2026-10-30", noLinks, true, review);
+    expect(rpc.mock.calls[0][1]._lines).toEqual([{ ...draft.work[0], sov_item: null, activity_id: null }]);
+  });
 });

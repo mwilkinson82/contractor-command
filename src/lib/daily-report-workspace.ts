@@ -1,5 +1,5 @@
 import { accountingDate } from "./accounting-report";
-import { assembleDaily, type DailySections } from "./mcp/superintendent";
+import { NO_LINK, assembleDaily, savedLink, type DailySections } from "./mcp/superintendent";
 import { readProductionDaily, type ProductionClient } from "./production-report";
 
 export const DAILY_FIELDS = [
@@ -19,8 +19,9 @@ export function validateDailyCapture(date: string, input: DailySections) {
   for (const [key, label, max] of DAILY_FIELDS)
     if ((draft[key]?.length ?? 0) > max) throw new Error(`${label} exceeds ${max} characters.`);
   for (const line of draft.work) {
+    // "none" is an answer: the job has no schedule of values or no CPM schedule.
     if (
-      !/^\d{2}\.\d{2,3}$/.test(line.sov_item ?? "") ||
+      (line.sov_item !== NO_LINK && !/^\d{2}\.\d{2,3}$/.test(line.sov_item ?? "")) ||
       !line.work.trim() ||
       line.work.length > 400 ||
       !line.activity_id ||
@@ -29,7 +30,7 @@ export function validateDailyCapture(date: string, input: DailySections) {
       line.unit.length > 12
     )
       throw new Error(
-        "Each work line needs a description, SOV item (for example 26.04), activity and unit.",
+        "Each work line needs a description, SOV item (for example 26.04, or none), CPM activity (or none) and unit.",
       );
     if ([line.qty, line.crew, line.hours].some((v) => v === null || !Number.isFinite(v) || v <= 0))
       throw new Error("Quantity, crew and hours must be positive numbers.");
@@ -121,7 +122,11 @@ export async function saveDailyCapture(
       _issues: draft.issues,
       _delays: draft.delays,
       _safety: draft.safety,
-      _lines: draft.work,
+      _lines: draft.work.map((line) => ({
+        ...line,
+        sov_item: savedLink(line.sov_item),
+        activity_id: savedLink(line.activity_id),
+      })),
     });
   } catch {
     throw new DailyCaptureSaveError(

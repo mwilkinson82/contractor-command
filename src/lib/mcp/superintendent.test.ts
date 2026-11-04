@@ -15,6 +15,7 @@ import {
   payAppPercentCard,
   photoGate,
   photoPageHtml,
+  progressByItem,
   projectField,
   rateFromLine,
   scheduleProposals,
@@ -651,5 +652,113 @@ describe("percent card", () => {
     const card = payAppPercentCard("2701 – ", "2026-10-21", [{ item_no: "03.01", pct: 30, qty: 40, unit: "cy" }]);
     expect(card).not.toContain("$");
     expect(card).toContain("30% complete");
+  });
+});
+
+describe("daily on a job with no SOV or no CPM", () => {
+  const noLinks = { ...dailyOk, work: [{ work: "Pulled wire", sov_item: "none", activity_id: "none", qty: 400, unit: "LF", crew: 2, hours: 8 }] };
+
+  it("still asks for the SOV item and CPM activity, and says none is an answer", () => {
+    const draft = assembleDaily({ ...dailyOk, work: [{ work: "Pulled wire", qty: 400, unit: "LF", crew: 2, hours: 8 }] });
+    expect(draft.ready).toBe(false);
+    expect(draft.follow_ups).toEqual([
+      'Which SOV item covers "Pulled wire"? Say none if this job has no schedule of values.',
+      'Which CPM activity covers "Pulled wire"? Say none if this job has no CPM schedule.',
+    ]);
+  });
+
+  it.each([
+    ["none", "none"],
+    ["N/A", "n/a"],
+    ["No SOV", "No CPM"],
+    ["no schedule of values", "no cpm schedule"],
+  ])("takes %s / %s as answered", (sov, cpm) => {
+    const draft = assembleDaily({ ...dailyOk, work: [{ work: "Pulled wire", sov_item: sov, activity_id: cpm, qty: 400, unit: "LF", crew: 2, hours: 8 }] });
+    expect(draft.ready).toBe(true);
+    expect(draft.work[0]).toMatchObject({ sov_item: "none", activity_id: "none" });
+  });
+
+  it("takes one job-level no SOV / no CPM answer for every work line", () => {
+    const lines = [{ work: "Pulled wire", qty: 400, unit: "LF", crew: 2, hours: 8 }, { work: "Set boxes", qty: 30, unit: "ea", crew: 2, hours: 4 }];
+    expect(assembleDaily({ ...dailyOk, work: lines }).ready).toBe(false);
+    expect(assembleDaily({ ...dailyOk, work: lines, no_sov: true }).follow_ups).toHaveLength(2);
+    const both = assembleDaily({ ...dailyOk, work: lines, no_sov: true, no_cpm: true });
+    expect(both.ready).toBe(true);
+    expect(both.work.every((w) => w.sov_item === "none" && w.activity_id === "none")).toBe(true);
+    const keepsGiven = assembleDaily({ ...dailyOk, work: [{ ...lines[0], sov_item: "26.04" }], no_sov: true, no_cpm: true });
+    expect(keepsGiven.work[0]).toMatchObject({ sov_item: "26.04", activity_id: "none" });
+  });
+
+  it("reads no SOV and no CPM from a spoken daily", () => {
+    const draft = assembleDaily({
+      transcript: [
+        "Weather: Clear", "Manpower: 2 electricians", "Subs: none",
+        "Work performed:", "- Pulled wire 400 LF crew 2 8 hours",
+        "Deliveries: none", "Issues: none", "Delays: none", "Safety: none",
+        "This job has no SOV and no CPM.",
+      ].join("\n"),
+    });
+    expect(draft.follow_ups).toEqual([]);
+    expect(draft.work[0]).toMatchObject({ work: "Pulled wire", qty: 400, unit: "LF", sov_item: "none", activity_id: "none" });
+    expect(parseWorkLine("Pulled wire 400 LF crew 2 8 hours, SOV: none, CPM none")).toMatchObject({ work: "Pulled wire", sov_item: "none", activity_id: "none", qty: 400 });
+  });
+
+  it("does not take a schedule remark as no CPM", () => {
+    const draft = assembleDaily({ ...dailyOk, delays: "none, no schedule impact", work: [{ work: "Pulled wire", sov_item: "none", qty: 400, unit: "LF", crew: 2, hours: 8 }], transcript: "Delays: none, no schedule impact" });
+    expect(draft.follow_ups).toEqual(['Which CPM activity covers "Pulled wire"? Say none if this job has no CPM schedule.']);
+  });
+
+  it("saves the daily with no SOV item and no CPM activity", async () => {
+    state.rpc.mcp_daily_report_save = { id: "d1", lines: 1, saved: true };
+    const r = await handle(dailyReportSave, noLinks);
+    expect(r.structuredContent.saved).toBe(true);
+    const [fn, args] = state.rpcs[0];
+    expect(fn).toBe("mcp_daily_report_save");
+    expect(args._lines).toEqual([{ work: "Pulled wire", sov_item: null, activity_id: null, qty: 400, unit: "LF", crew: 2, hours: 8, pct_complete: null }]);
+    expect(r.structuredContent.rates).toEqual([expect.objectContaining({ sov_item: null, activity_id: null, man_hours: 16, qty_per_man_hour: 25 })]);
+  });
+
+  it("saves through the job-level flags too, and drafts as ready", async () => {
+    const flagged = { ...dailyOk, no_sov: true, no_cpm: true, work: [{ work: "Pulled wire", qty: 400, unit: "LF", crew: 2, hours: 8 }] };
+    const draft = await handle(dailyReportDraft, { ...flagged, confirmed: undefined });
+    expect(draft.structuredContent.ready).toBe(true);
+    state.rpc.mcp_daily_report_save = { id: "d1", lines: 1, saved: true };
+    await handle(dailyReportSave, flagged);
+    expect((state.rpcs.find((r) => r[0] === "mcp_daily_report_save")![1]._lines as { sov_item: unknown }[])[0]).toMatchObject({ sov_item: null, activity_id: null });
+  });
+
+  it("keeps the SOV item and CPM activity when the job has them", async () => {
+    state.rpc.mcp_daily_report_save = { id: "d1", lines: 1, saved: true };
+    await handle(dailyReportSave, dailyOk);
+    expect((state.rpcs[0][1]._lines as unknown[])[0]).toMatchObject({ sov_item: "03.01", activity_id: "A1000", pct_complete: 30 });
+    const mixed = { ...dailyOk, work: [{ work: "Pulled wire", sov_item: "26.04", activity_id: "none", qty: 400, unit: "LF", crew: 2, hours: 8 }] };
+    state.rpcs = [];
+    await handle(dailyReportSave, mixed);
+    expect((state.rpcs[0][1]._lines as unknown[])[0]).toMatchObject({ sov_item: "26.04", activity_id: null });
+  });
+
+  it("saves a progress photo with no SOV or CPM link, and with one when given", async () => {
+    state.rpc.mcp_progress_photo_create = { linked_daily: false, client_safe: false };
+    const photo = { job_number: "2701", filename: "wire.jpg", content_base64: Buffer.from(JPEG).toString("base64"), recognized: true, date_confirmed: true, confirmed: true, area: "Level 2 corridor", work: "Pulled wire" };
+    const saved = await handle(progressPhotoSave, { ...photo, sov_item: "none", activity_id: "No CPM" });
+    expect(saved.structuredContent.saved).toBe(true);
+    const create = state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1];
+    expect(create).toMatchObject({ _sov: null, _activity: null, _area: "Level 2 corridor" });
+    expect(saved.content[0].text).toContain("It joins that day's daily when the daily is saved.");
+    state.rpcs = [];
+    await handle(progressPhotoSave, { ...photo, sov_item: "26.04", activity_id: "E090" });
+    expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1]).toMatchObject({ _sov: "26.04", _activity: "E090" });
+    state.rpcs = [];
+    await handle(progressPhotoSave, photo);
+    expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1]).toMatchObject({ _sov: null, _activity: null });
+  });
+
+  it("leaves unlinked work out of the pay app and the schedule feed", () => {
+    const lines = [
+      { report_date: "2026-10-21", sov_item: null, activity_id: null, qty: 400, pct_complete: 50 },
+      { report_date: "2026-10-21", sov_item: "03.01", activity_id: "A1000", qty: 40, pct_complete: 30 },
+    ];
+    expect(progressByItem(lines)).toEqual([{ item_no: "03.01", pct: 30, qty: 40, as_of: "2026-10-21" }]);
+    expect(scheduleProposals([], lines)).toEqual([{ activity_id: "A1000", from_pct: null, to_pct: 30, report_date: "2026-10-21" }]);
   });
 });

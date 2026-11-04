@@ -216,8 +216,8 @@ export function DailyReportCapture({
             <div className="dr-entry-grid">
               {(
                 [
-                  ["sov_item", "SOV item", "text"],
-                  ["activity_id", "CPM activity", "text"],
+                  ["sov_item", "SOV item (or none)", "text"],
+                  ["activity_id", "CPM activity (or none)", "text"],
                   ["qty", "Quantity", "number"],
                   ["unit", "Unit", "text"],
                   ["crew", "Crew size", "number"],

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { productionPeriod, summarizeProduction } from "./production-summary";
+import { productionPeriod, productionRef, summarizeProduction } from "./production-summary";
 vi.mock("./supabase", async () => ({ supabaseForUser: (await import("../../../tests/mcp-roles/harness")).mockedSupabaseForUser }));
 vi.mock("./allowlist", async () => { const h = await import("../../../tests/mcp-roles/harness"); return { MCP_ALLOWED_EMAILS: new Set([h.user("owner").email, h.user("super").email, h.user("estimating").email, h.user("pm2").email]) }; });
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
@@ -40,4 +40,17 @@ describe("production summary from saved daily rows", () => {
   it("limits oversized report results and explicitly marks coverage incomplete", async () => {const out=await call("owner",{...period,from_date:"2026-10-28",to_date:"2026-10-28"}); expect(out.isError,out.text).toBe(false); expect(out.structured).toMatchObject({complete:false}); expect((out.structured!.rows as unknown[])).toHaveLength(80); expect(out.text).toContain("incomplete");});
   it("respects daily source scopes and cross-company access", async () => { expect((await call("super",period)).isError).toBe(false); expect((await call("estimating",period)).isError).toBe(true); expect((await call("pm2",period)).isError).toBe(true); });
   it("rejects invalid or excessive periods and does not silently mix units", () => {expect(()=>productionPeriod("2026-02-30","2026-03-02","2026-03-02")).toThrow(); expect(()=>productionPeriod("2026-01-01","2026-03-02","2026-03-02")).toThrow(); expect(()=>productionPeriod("2026-01-01",undefined,"2026-03-02")).toThrow(); expect(productionPeriod(undefined,undefined,"2026-10-28","this_week")).toEqual({from:"2026-10-26",to:"2026-11-01"}); expect(()=>productionPeriod("2026-10-26","2026-10-28","2026-10-28","this_week")).toThrow(); expect(summarizeProduction([])).toEqual([]);});
+  it("keeps work saved with no SOV item or CPM activity, grouped by its description", () => {
+    const row = (work: string, sov: string | null, activity: string | null, qty: number, man_hours: number) => ({ id: work + qty, daily_id: "d", report_date: "2026-10-26", created_at: "", work, sov_item: sov, activity_id: activity, unit: "LF", qty, crew: 2, hours: man_hours / 2, man_hours, qty_per_man_hour: qty / man_hours });
+    const groups = summarizeProduction([row("Pulled wire", null, null, 400, 16), row("pulled wire ", null, null, 200, 16), row("Conduit", null, null, 100, 8), row("Conduit", "26.04", "E090", 50, 8)]);
+    expect(groups).toEqual([
+      expect.objectContaining({ sov_item: null, activity_id: null, work: "Pulled wire", quantity: 600, reported_person_hours: 32, records: 2 }),
+      expect.objectContaining({ sov_item: null, activity_id: null, work: "Conduit", quantity: 100 }),
+      expect.objectContaining({ sov_item: "26.04", activity_id: "E090", work: null, quantity: 50 }),
+    ]);
+    expect(productionRef("26.04", "E090")).toBe("SOV 26.04, activity E090");
+    expect(productionRef(null, "E090")).toBe("No SOV item, activity E090");
+    expect(productionRef("26.04", null)).toBe("SOV 26.04, no CPM activity");
+    expect(productionRef(null, null)).toBe("No SOV item or CPM activity");
+  });
 });

@@ -133,6 +133,25 @@ function splitLabeledTranscript(transcript: string): string {
     .replace(new RegExp(`([.!?])\\s+(?=${label}\\b)`, "gi"), "$1\n");
 }
 
+/**
+ * The member's answer that a job has no schedule of values or no CPM schedule.
+ * Kept as "none" on the draft so the question counts as answered; saved as no link.
+ */
+export const NO_LINK = "none";
+const NO_LINK_ANSWER = /^(?:none|n\/?a|na|no|nope|not applicable|no\s+(?:sov|schedule\s+of\s+values|cpm|cpm\s+schedule|schedule|activity|activities|cpm\s+activity)(?:\s+on\s+this\s+job)?|-+)$/i;
+const NO_SOV_RE = /\b(?:no\s+(?:sov|schedule\s+of\s+values)|sov\s*[:\-–]?\s*(?:none|n\/a))\b/i;
+const NO_CPM_RE = /\b(?:no\s+cpm(?:\s+(?:schedule|activit(?:y|ies)))?|(?:cpm|activity)\s*[:\-–]?\s*(?:none|n\/a))\b/i;
+
+/** A work line's SOV item or CPM activity as answered: a value, "none", or still unanswered (null). */
+export function linkAnswer(v: unknown): string | null {
+  const t = text(v);
+  if (!t) return null;
+  return NO_LINK_ANSWER.test(t) ? NO_LINK : t;
+}
+
+/** What is stored: "none" saves as no link. */
+export const savedLink = (v: string | null | undefined): string | null => (!v || v === NO_LINK ? null : v);
+
 const SOV_RE = /\b(?:SOV\s*)?(\d{2}\.\d{2,3})\b/i;
 const ACT_RE = /\b([A-Za-z]{1,4}-?\d{2,5})\b/;
 const PCT_RE = /\b(\d+(?:\.\d+)?)\s*%/;
@@ -142,6 +161,10 @@ const QTY_RE = /\b(\d+(?:\.\d+)?)\s*([A-Za-z]{1,12})\b/;
 
 export function parseWorkLine(raw: string): WorkLine {
   let rest = raw.replace(/^[-*•]\s*/, "").trim();
+  const noSov = rest.match(NO_SOV_RE);
+  if (noSov) rest = rest.replace(noSov[0], " ");
+  const noCpm = rest.match(NO_CPM_RE);
+  if (noCpm) rest = rest.replace(noCpm[0], " ");
   const sov = rest.match(SOV_RE);
   const pct = rest.match(PCT_RE);
   const crew = rest.match(CREW_RE);
@@ -157,8 +180,8 @@ export function parseWorkLine(raw: string): WorkLine {
   const work = rest.replace(/\s{2,}/g, " ").replace(/^[,.\s]+|[,.\s]+$/g, "").trim() || raw.replace(/^[-*•]\s*/, "").trim();
   return {
     work,
-    sov_item: sov ? sov[1] : null,
-    activity_id: activity ? activity[1].toUpperCase() : null,
+    sov_item: sov ? sov[1] : noSov ? NO_LINK : null,
+    activity_id: activity ? activity[1].toUpperCase() : noCpm ? NO_LINK : null,
     qty: qty ? Number(qty[1]) : null,
     unit: qty ? qty[2] : null,
     crew: crew ? Number(crew[1]) : null,
@@ -262,8 +285,8 @@ export function parseTranscript(transcript: string): DailySections {
 function lineFollowUps(line: WorkLine): string[] {
   const name = line.work || "this work";
   const q: string[] = [];
-  if (!line.sov_item) q.push(`Which SOV item covers "${name}"?`);
-  if (!line.activity_id) q.push(`Which CPM activity covers "${name}"?`);
+  if (!line.sov_item) q.push(`Which SOV item covers "${name}"? Say none if this job has no schedule of values.`);
+  if (!line.activity_id) q.push(`Which CPM activity covers "${name}"? Say none if this job has no CPM schedule.`);
   if (line.qty == null || !line.unit) q.push(`How much of "${name}" was installed, and in what unit?`);
   if (line.crew == null || line.hours == null) q.push(`How many people were on "${name}", and for how many hours?`);
   return q;
@@ -289,6 +312,10 @@ export function assembleDaily(input: {
   delays?: string | null;
   safety?: string | null;
   work?: Partial<WorkLine>[] | null;
+  /** The member said this job has no schedule of values. */
+  no_sov?: boolean | null;
+  /** The member said this job has no CPM schedule. */
+  no_cpm?: boolean | null;
 }): DailyDraft {
   const parsed = input.transcript?.trim() ? parseTranscript(input.transcript) : {
     weather: null, manpower: null, subs_on_site: null, deliveries: null, issues: null, delays: null, safety: null, work: [] as WorkLine[],
@@ -297,8 +324,8 @@ export function assembleDaily(input: {
   const work: WorkLine[] = input.work?.length
     ? input.work.map((w) => ({
         work: text(w.work) ?? "",
-        sov_item: text(w.sov_item),
-        activity_id: text(w.activity_id)?.toUpperCase() ?? null,
+        sov_item: linkAnswer(w.sov_item),
+        activity_id: ((a) => (a && a !== NO_LINK ? a.toUpperCase() : a))(linkAnswer(w.activity_id)),
         qty: num(w.qty),
         unit: text(w.unit),
         crew: num(w.crew),
@@ -306,6 +333,13 @@ export function assembleDaily(input: {
         pct_complete: num(w.pct_complete),
       }))
     : parsed.work;
+  const said = input.transcript ?? "";
+  const noSov = input.no_sov === true || NO_SOV_RE.test(said);
+  const noCpm = input.no_cpm === true || NO_CPM_RE.test(said);
+  for (const line of work) {
+    if (noSov && !line.sov_item) line.sov_item = NO_LINK;
+    if (noCpm && !line.activity_id) line.activity_id = NO_LINK;
+  }
   const draft: DailySections = {
     weather: pick("weather"),
     manpower: pick("manpower"),
@@ -357,8 +391,8 @@ export function dailyCard(jobLabel: string, date: string, d: DailyDraft, saved: 
 // ---------- production rates and schedule feed ----------
 export type RateLine = {
   work: string;
-  sov_item: string;
-  activity_id: string;
+  sov_item: string | null;
+  activity_id: string | null;
   qty: number;
   unit: string;
   crew: number;
@@ -369,14 +403,14 @@ export type RateLine = {
 
 /** Hours times crew is the man-hours. Quantity over man-hours is the rate estimating can reuse. */
 export function rateFromLine(line: WorkLine): RateLine | null {
-  if (!line.sov_item || !line.activity_id || line.qty == null || !line.unit || line.crew == null || line.hours == null) return null;
+  if (line.qty == null || !line.unit || line.crew == null || line.hours == null) return null;
   if (!(line.qty > 0) || !(line.crew > 0) || !(line.hours > 0)) return null;
   const man_hours = round2(line.crew * line.hours);
   if (!(man_hours > 0)) return null;
   return {
     work: line.work,
-    sov_item: line.sov_item,
-    activity_id: line.activity_id,
+    sov_item: savedLink(line.sov_item),
+    activity_id: savedLink(line.activity_id),
     qty: line.qty,
     unit: line.unit,
     crew: line.crew,
@@ -391,11 +425,11 @@ export type ScheduleProposal = { activity_id: string; from_pct: number | null; t
 /** Latest stated percent per activity. This does not write the saved schedule. */
 export function scheduleProposals(
   activities: { id: string; pct_complete?: number | null }[],
-  lines: { activity_id: string; report_date: string; pct_complete: number | null }[],
+  lines: { activity_id: string | null; report_date: string; pct_complete: number | null }[],
 ): ScheduleProposal[] {
   const latest = new Map<string, { pct: number; report_date: string }>();
   for (const line of [...lines].sort((a, b) => a.report_date.localeCompare(b.report_date))) {
-    if (line.pct_complete == null) continue;
+    if (line.pct_complete == null || !line.activity_id) continue;
     latest.set(line.activity_id, { pct: line.pct_complete, report_date: line.report_date });
   }
   const ids = new Set<string>([...activities.map((a) => a.id), ...latest.keys()]);
@@ -411,13 +445,15 @@ export type ProgressSnap = { item_no: string; pct: number | null; qty: number; a
 
 /** Cumulative percent: the latest stated percent, otherwise installed quantity over the takeoff quantity. */
 export function progressByItem(
-  lines: { report_date: string; sov_item: string; qty: number | null; pct_complete: number | null }[],
+  lines: { report_date: string; sov_item: string | null; qty: number | null; pct_complete: number | null }[],
   totals: { sov_item: string; qty: number | null }[] = [],
   asOf?: string | null,
 ): ProgressSnap[] {
   const use = asOf ? lines.filter((l) => l.report_date <= asOf) : lines;
   const by = new Map<string, ProgressSnap>();
   for (const line of [...use].sort((a, b) => a.report_date.localeCompare(b.report_date))) {
+    // Work saved with no SOV item has no pay-app line to roll into.
+    if (!line.sov_item) continue;
     const cur = by.get(line.sov_item) ?? { item_no: line.sov_item, pct: null, qty: 0, as_of: null };
     if (line.qty != null) cur.qty = round2(cur.qty + line.qty);
     if (line.pct_complete != null) cur.pct = line.pct_complete;

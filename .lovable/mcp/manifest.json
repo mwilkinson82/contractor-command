@@ -9693,8 +9693,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -9757,7 +9757,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 20
+                        "maxLength": 40
                       },
                       {
                         "type": "null"
@@ -9768,7 +9768,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 20
+                        "maxLength": 40
                       },
                       {
                         "type": "null"
@@ -9833,6 +9833,12 @@
                   "work"
                 ]
               }
+            },
+            "no_sov": {
+              "type": "boolean"
+            },
+            "no_cpm": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false
@@ -9850,8 +9856,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -9914,7 +9920,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 20
+                        "maxLength": 40
                       },
                       {
                         "type": "null"
@@ -9925,7 +9931,7 @@
                     "anyOf": [
                       {
                         "type": "string",
-                        "maxLength": 20
+                        "maxLength": 40
                       },
                       {
                         "type": "null"
@@ -9990,6 +9996,12 @@
                   "work"
                 ]
               }
+            },
+            "no_sov": {
+              "type": "boolean"
+            },
+            "no_cpm": {
+              "type": "boolean"
             },
             "confirmed": {
               "type": "boolean"
@@ -10185,8 +10197,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -10231,11 +10243,11 @@
             },
             "sov_item": {
               "type": "string",
-              "maxLength": 20
+              "maxLength": 40
             },
             "activity_id": {
               "type": "string",
-              "maxLength": 20
+              "maxLength": 40
             },
             "client_safe": {
               "type": "boolean"

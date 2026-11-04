@@ -9,6 +9,7 @@ import {
   type ProductionReport,
   type ProductionOptions,
 } from "@/lib/production-report";
+import { productionRef } from "@/lib/mcp/production-summary";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 import { BoardSignIn } from "./BoardSignIn";
 import { ProjectReadUnavailable } from "./ProjectReadUnavailable";
@@ -73,7 +74,7 @@ export function ProductionReportView({ report }: { report: ProductionReport }) {
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {report.groups.map((group) => (
             <article
-              key={JSON.stringify([group.sov_item, group.activity_id, group.unit])}
+              key={JSON.stringify([group.sov_item, group.activity_id, group.work, group.unit])}
               className="rounded-xl border border-[#DCE3EC] bg-white p-5"
             >
               <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
@@ -89,7 +90,10 @@ export function ProductionReportView({ report }: { report: ProductionReport }) {
                 </span>
               </p>
               <p className="mt-3 border-t border-[#E6EBF1] pt-3 text-xs text-[#64748B]">
-                Reported SOV {group.sov_item} · Activity {group.activity_id} · {group.records} work{" "}
+                {group.sov_item || group.activity_id
+                  ? `Reported ${productionRef(group.sov_item, group.activity_id)}`
+                  : `${group.work ?? "Work"} · no SOV item or CPM activity`}{" "}
+                · {group.records} work{" "}
                 {group.records === 1 ? "line" : "lines"}
               </p>
             </article>
@@ -139,7 +143,7 @@ export function ProductionReportView({ report }: { report: ProductionReport }) {
                   </div>
                 </dl>
                 <p className="mt-3 text-xs text-[#64748B]">
-                  Reported SOV {row.sov_item} · Activity {row.activity_id}
+                  Reported {productionRef(row.sov_item, row.activity_id)}
                 </p>
               </article>
             ))}
