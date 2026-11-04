@@ -33,6 +33,37 @@
     if (cls) e.className = cls;
     return e;
   }
+  // Trade sheets first, then the rest as coordination. Option values stay the exact
+  // stored names; only their order, labels and grouping change. No sheet is preselected.
+  function appendSheetOptions(select, source, names) {
+    var tags = (source && source.sheet_tags) || [];
+    var groups = { trade: [], other: [], coordination: [] };
+    names.forEach(function (n, i) {
+      var tag = tags[i] || {};
+      var o = node("option", tag.discipline ? n + " · " + tag.discipline : n);
+      o.value = n;
+      groups[tag.focus === "trade" ? "trade" : tag.focus === "coordination" ? "coordination" : "other"].push(o);
+    });
+    if (!groups.trade.length && !groups.coordination.length) {
+      groups.other.forEach(function (o) {
+        select.append(o);
+      });
+      return;
+    }
+    [
+      ["trade", "Your trade"],
+      ["other", "Other sheets"],
+      ["coordination", "Coordination only"],
+    ].forEach(function (g) {
+      if (!groups[g[0]].length) return;
+      var group = node("optgroup");
+      group.label = g[1];
+      groups[g[0]].forEach(function (o) {
+        group.append(o);
+      });
+      select.append(group);
+    });
+  }
   function send(m) {
     window.parent.postMessage(
       Object.assign({ jsonrpc: "2.0" }, m),
@@ -633,11 +664,7 @@
         var s = (sc.available_sources || []).find(function (s) {
           return s.id === pick.value;
         });
-        ((s && s.sheets) || []).forEach(function (n) {
-          var o = node("option", n);
-          o.value = n;
-          sheetPick.append(o);
-        });
+        appendSheetOptions(sheetPick, s, (s && s.sheets) || []);
       }
       pick.addEventListener("change", populate);
       populate();
@@ -721,11 +748,7 @@
       var s = (sc.available_sources || []).find(function (s) {
         return s.id === sourceSelect.value;
       });
-      ((s && s.sheets) || [sc.source.sheet]).forEach(function (n) {
-        var o = node("option", n);
-        o.value = n;
-        sheetSelect.append(o);
-      });
+      appendSheetOptions(sheetSelect, s && s.sheets ? s : null, (s && s.sheets) || [sc.source.sheet]);
       // A different revision may not hold the open sheet; never send a stale name.
       if (sourceSelect.value === sc.source.id) sheetSelect.value = sc.source.sheet;
       else {

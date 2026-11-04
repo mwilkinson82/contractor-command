@@ -83,6 +83,7 @@ import {
   keepDrawingPaths,
   indexStoredDrawingSet,
   readStoredDrawingSet,
+  readStoredDrawingBytes,
   loadSheetPages,
   storedSheet,
   sheetsForMarkup,
@@ -103,6 +104,8 @@ import type { CardModel } from "../cards/model";
 import { guide } from "../visible";
 import { readEstimateOptions, withEstimateOptions } from "../estimate-options";
 import { CALLER_RATE_NOTICE } from "../estimate-summary-pdf";
+import { proposeSheetIndex, sheetFocus } from "../sheet-index";
+import { cachedSource } from "../takeoff/cache";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -1651,7 +1654,7 @@ function storedDrawingReply(
       ...(needsIndex
         ? {
             ask: {
-              prompt: `What are the ${stored.pageCount ?? "PDF"} sheet names, in PDF page order? Save the answer once below; this PDF is already stored.`,
+              prompt: `Athena can read the sheet numbers from the title blocks for you to confirm, or give the ${stored.pageCount ?? "PDF"} sheet names in PDF page order. This PDF is already stored.`,
             },
           }
         : {}),
@@ -1669,9 +1672,124 @@ function storedDrawingReply(
       page_count: stored.pageCount ?? null,
       drawing_source_context: context,
       ...(needsIndex
-        ? { sheet_index_context: { ...context, page_count: stored.pageCount ?? null } }
+        ? {
+            sheet_index_context: { ...context, page_count: stored.pageCount ?? null },
+            // Next call: drawing_set_import with this source_id and read_title_blocks true.
+            title_block_read: { ...context, read_title_blocks: true },
+          }
         : {}),
       ...(requestedSheet ? { requested_sheet: requestedSheet } : {}),
+    },
+  );
+}
+
+const TITLE_BLOCK_MAX_PAGES = 400;
+const TITLE_BLOCK_BUDGET_MS = 9_000;
+
+/** Reads each page's title block and proposes the sheet index. Saves nothing: the member
+ *  confirms the list, then the host saves it with source_id and sheets in page order. */
+async function titleBlockReply(
+  sb: Sb,
+  job: { job_number: string; company_id: string; job_id: string; name: string },
+  record: Awaited<ReturnType<typeof drawingRecords>>[number],
+  setup: { role: string | null; trades: string[] },
+) {
+  const bytes = await cachedSource(
+    `${job.company_id}:${job.job_id}:${record.id}:${record.content_hash}`,
+    () => readStoredDrawingBytes(sb, job, record),
+  );
+  const { readPdfiumTitleBlockRuns } = await import("../pdf-renderer");
+  let read: Awaited<ReturnType<typeof readPdfiumTitleBlockRuns>>;
+  try {
+    read = await readPdfiumTitleBlockRuns(bytes, {
+      maxPages: TITLE_BLOCK_MAX_PAGES,
+      budgetMs: TITLE_BLOCK_BUDGET_MS,
+    });
+  } catch {
+    throw new ToolError(
+      "Athena could not read this PDF's title blocks. Give the sheet names in PDF page order instead; nothing was changed.",
+    );
+  }
+  const proposal = proposeSheetIndex(read.pages);
+  const unread = read.total_pages - read.pages.length;
+  const complete = proposal.complete && unread === 0;
+  const namedCount = proposal.pages.filter((p) => p.sheet).length;
+  const context = {
+    job_number: job.job_number,
+    company_id: job.company_id,
+    source_id: record.id,
+  };
+  const focusLabel = (sheet: string | null) => {
+    const focus = sheet ? sheetFocus(sheet, setup.role, setup.trades) : null;
+    return focus === "trade" ? "Your trade" : focus === "coordination" ? "Coordination" : "";
+  };
+  const showFocus = proposal.pages.some((p) => focusLabel(p.sheet));
+  return drawingReply(
+    {
+      state: "ask",
+      title: complete ? "Sheet index read from the title blocks" : "Sheet index: some pages need a name",
+      job: named(job),
+      kpis: [
+        { label: "PDF pages", value: String(read.total_pages) },
+        { label: "Named from title blocks", value: String(namedCount) },
+        ...(complete ? [] : [{ label: "Need a name", value: String(read.total_pages - namedCount) }]),
+      ],
+      sections: [
+        {
+          heading: "Proposed sheet index",
+          kind: "table",
+          columns: ["Page", "Sheet", "Title", "Discipline", ...(showFocus ? ["Takeoff"] : [])],
+          rows: proposal.pages.map((p) => ({
+            cells: [
+              String(p.page),
+              p.sheet ?? "Needs a name",
+              p.sheet ? (p.title ?? "") : (p.note ?? ""),
+              p.discipline ?? "",
+              ...(showFocus ? [focusLabel(p.sheet)] : []),
+            ],
+            ...(p.sheet ? {} : { tone: "unknown" as const }),
+          })),
+        },
+        ...(unread
+          ? [
+              {
+                heading: "Not read",
+                kind: "list" as const,
+                rows: [
+                  {
+                    cells: [
+                      `Pages ${read.pages.length + 1} to ${read.total_pages} were not read in this pass. Give their names, or ask Athena to read the set again.`,
+                    ],
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
+      ask: {
+        prompt: complete
+          ? "Is this sheet index right? Confirm it once, or correct any row. Nothing is saved until you confirm."
+          : "Name the pages marked Needs a name, then confirm the index once. Nothing is saved until you confirm.",
+      },
+      next_move:
+        "On confirmation Athena saves these names in PDF page order. Takeoff then lists your trade's sheets first. No re-upload is needed.",
+    },
+    {
+      stored: true,
+      source: record as unknown as JsonValueInput,
+      source_id: record.id,
+      sheet_index_required: true,
+      page_count: read.total_pages,
+      drawing_source_context: context,
+      sheet_index_context: { ...context, page_count: read.total_pages },
+      sheet_index_proposal: {
+        complete,
+        total_pages: read.total_pages,
+        pages_read: read.pages.length,
+        pages: proposal.pages as unknown as JsonValueInput,
+      },
+      // After the member confirms (or corrects), save with drawing_set_import { source_id, sheets }.
+      ...(complete ? { confirm_with: { ...context, sheets: proposal.sheets as string[] } } : {}),
     },
   );
 }
@@ -1730,7 +1848,7 @@ export const drawingSetImport = defineTool({
   name: "drawing_set_import",
   title: "Store a drawing set",
   description:
-    "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional.",
+    "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional. When sheet names are missing, call again with source_id and read_title_blocks true: Athena reads each page's title block and proposes the sheet index without saving it; show it, and after the member confirms or corrects it, save it with source_id and sheets in PDF page order.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1739,6 +1857,7 @@ export const drawingSetImport = defineTool({
     stored_filename: z.string().trim().min(1).max(200).optional(),
     source_id: z.string().uuid().optional(),
     sheets: z.array(z.string().trim().min(1).max(40)).min(1).max(400).optional(),
+    read_title_blocks: z.boolean().optional(),
   },
   annotations: { ...SAVE, openWorldHint: true },
   handler: (args, ctx) =>
@@ -1755,6 +1874,28 @@ export const drawingSetImport = defineTool({
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         uploadContext = { job_number: job.job_number, company_id: job.company_id };
         const prior = await load(sb, job.job_id);
+        if (args.read_title_blocks) {
+          if (
+            !args.source_id ||
+            args.drawing ||
+            args.file ||
+            args.stored_filename ||
+            args.sheets?.length
+          )
+            throw new ToolError(
+              "To read the title blocks, pass only the stored source_id. Nothing was changed.",
+            );
+          const record = (await drawingRecords(sb, job)).find((row) => row.id === args.source_id);
+          if (!record || !drawingOwned(record.path, job.company_id, job.job_id))
+            throw new ToolError(
+              "That drawing source is not stored on this job. No other set was selected.",
+            );
+          selectedStored = { job, source: record };
+          return await titleBlockReply(sb, job, record, {
+            role: prior.setup.role,
+            trades: prior.setup.trades ?? [],
+          });
+        }
         const upload = await withStagedDrawing(
           sb,
           job,

@@ -175,3 +175,131 @@ export function mapPdfiumTextPages<T>(
   );
   return result;
 }
+
+type NativeTextModule = {
+  HEAPU8: Uint8Array;
+  wasmExports: { malloc(n: number): number; free(p: number): void };
+  [name: `_${string}`]: (...args: number[]) => number;
+};
+
+/** Positioned text runs near each page's title block, read from the PDF's own vector text.
+ *  One document load for the whole set, on the shared native queue; no raster, no network.
+ *  Coordinates are 0..1 from the displayed top-left, so rotated sheets read the same way.
+ *  Stops at maxPages or when the time budget is spent; `pages` then holds only the pages read. */
+export function readPdfiumTitleBlockRuns(
+  bytes: Uint8Array,
+  limits: { maxPages: number; budgetMs: number; maxRunsPerPage?: number },
+): Promise<{
+  total_pages: number;
+  pages: { page: number; runs: { text: string; x: number; y: number; w: number; h: number }[] }[];
+}> {
+  const result = queue.then(async () => {
+    const started = Date.now();
+    const document = await (await getLibrary()).loadDocument(bytes);
+    try {
+      const total_pages = document.getPageCount();
+      const pages: {
+        page: number;
+        runs: { text: string; x: number; y: number; w: number; h: number }[];
+      }[] = [];
+      for (let index = 0; index < Math.min(total_pages, limits.maxPages); index++) {
+        if (Date.now() - started > limits.budgetMs) break;
+        const page = document.getPage(index);
+        try {
+          const native = page as unknown as { module: NativeTextModule; pageIdx: number };
+          const m = native.module;
+          const { originalWidth: width, originalHeight: height } = page.getOriginalSize();
+          const sx = Math.round(width * 1000),
+            sy = Math.round(height * 1000);
+          if (!(sx > 0 && sy > 0)) {
+            pages.push({ page: index + 1, runs: [] });
+            continue;
+          }
+          const scratch = m.wasmExports.malloc(48);
+          const textPage = m._FPDFText_LoadPage(native.pageIdx);
+          const runs: { text: string; x: number; y: number; w: number; h: number }[] = [];
+          try {
+            const view = () => new DataView(m.HEAPU8.buffer);
+            const device = (x: number, y: number) => {
+              if (
+                !m._FPDF_PageToDevice(
+                  native.pageIdx,
+                  0,
+                  0,
+                  sx,
+                  sy,
+                  0,
+                  x,
+                  y,
+                  scratch + 32,
+                  scratch + 36,
+                )
+              )
+                return null;
+              return {
+                x: view().getInt32(scratch + 32, true) / sx,
+                y: view().getInt32(scratch + 36, true) / sy,
+              };
+            };
+            const count = textPage ? m._FPDFText_CountRects(textPage, 0, -1) : 0;
+            for (let i = 0; i < count && runs.length < (limits.maxRunsPerPage ?? 4000); i++) {
+              if (
+                !m._FPDFText_GetRect(textPage, i, scratch, scratch + 8, scratch + 16, scratch + 24)
+              )
+                continue;
+              const v = view();
+              const left = v.getFloat64(scratch, true),
+                top = v.getFloat64(scratch + 8, true),
+                right = v.getFloat64(scratch + 16, true),
+                bottom = v.getFloat64(scratch + 24, true);
+              const a = device(left, top),
+                b = device(right, bottom);
+              if (!a || !b) continue;
+              const x = Math.min(a.x, b.x),
+                y = Math.min(a.y, b.y),
+                w = Math.abs(a.x - b.x),
+                h = Math.abs(a.y - b.y);
+              // Title blocks sit on the right edge or along the bottom.
+              if (!(x + w / 2 >= 0.7 || y + h / 2 >= 0.6)) continue;
+              const length = m._FPDFText_GetBoundedText(textPage, left, top, right, bottom, 0, 0);
+              if (length <= 0 || length > 2000) continue;
+              const buf = m.wasmExports.malloc((length + 1) * 2);
+              try {
+                const got = m._FPDFText_GetBoundedText(
+                  textPage,
+                  left,
+                  top,
+                  right,
+                  bottom,
+                  buf,
+                  length + 1,
+                );
+                const text = new TextDecoder("utf-16le")
+                  .decode(m.HEAPU8.slice(buf, buf + Math.max(0, got) * 2))
+                  .replace(/\0/g, "")
+                  .trim();
+                if (text) runs.push({ text, x, y, w, h });
+              } finally {
+                m.wasmExports.free(buf);
+              }
+            }
+          } finally {
+            if (textPage) m._FPDFText_ClosePage(textPage);
+            m.wasmExports.free(scratch);
+          }
+          pages.push({ page: index + 1, runs });
+        } finally {
+          page.close();
+        }
+      }
+      return { total_pages, pages };
+    } finally {
+      document.destroy();
+    }
+  });
+  queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
