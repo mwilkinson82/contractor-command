@@ -283,6 +283,8 @@
 .ath-page-table {
   width: 100%;
   border-collapse: collapse;
+  /* Words break only when they must, so narrow columns never shrink to one letter a line. */
+  overflow-wrap: break-word;
   font-size: 13px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
@@ -362,7 +364,7 @@
 /* Tablet: tables keep a readable width and pan sideways inside their frame. */
 @media (max-width: 1024px) {
   .ath-page-table {
-    min-width: 760px;
+    min-width: 860px;
   }
   .ath-page-head {
     align-items: flex-start;
@@ -390,7 +392,7 @@
     width: 100%;
   }
   .ath-page-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 10px;
   }
   .ath-page-kpi {
