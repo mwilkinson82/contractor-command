@@ -3386,7 +3386,7 @@ export type Database = {
       }
       mcp_daily_work_lines: {
         Row: {
-          activity_id: string
+          activity_id: string | null
           company_id: string
           crew: number
           daily_id: string
@@ -3396,12 +3396,12 @@ export type Database = {
           line_no: number
           pct_complete: number | null
           qty: number
-          sov_item: string
+          sov_item: string | null
           unit: string
           work: string
         }
         Insert: {
-          activity_id: string
+          activity_id?: string | null
           company_id: string
           crew: number
           daily_id: string
@@ -3411,12 +3411,12 @@ export type Database = {
           line_no: number
           pct_complete?: number | null
           qty: number
-          sov_item: string
+          sov_item?: string | null
           unit: string
           work: string
         }
         Update: {
-          activity_id?: string
+          activity_id?: string | null
           company_id?: string
           crew?: number
           daily_id?: string
@@ -3426,7 +3426,7 @@ export type Database = {
           line_no?: number
           pct_complete?: number | null
           qty?: number
-          sov_item?: string
+          sov_item?: string | null
           unit?: string
           work?: string
         }
@@ -5732,7 +5732,7 @@ export type Database = {
       }
       mcp_production_rates: {
         Row: {
-          activity_id: string
+          activity_id: string | null
           company_id: string
           created_at: string
           crew: number
@@ -5743,12 +5743,12 @@ export type Database = {
           man_hours: number
           qty: number
           qty_per_man_hour: number
-          sov_item: string
+          sov_item: string | null
           unit: string
           work: string
         }
         Insert: {
-          activity_id: string
+          activity_id?: string | null
           company_id: string
           created_at?: string
           crew: number
@@ -5759,12 +5759,12 @@ export type Database = {
           man_hours: number
           qty: number
           qty_per_man_hour: number
-          sov_item: string
+          sov_item?: string | null
           unit: string
           work: string
         }
         Update: {
-          activity_id?: string
+          activity_id?: string | null
           company_id?: string
           created_at?: string
           crew?: number
@@ -5775,7 +5775,7 @@ export type Database = {
           man_hours?: number
           qty?: number
           qty_per_man_hour?: number
-          sov_item?: string
+          sov_item?: string | null
           unit?: string
           work?: string
         }
