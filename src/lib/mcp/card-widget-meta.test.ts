@@ -38,9 +38,9 @@ async function rpc(method: string, id: number, params?: Record<string, unknown>)
 }
 
 describe("ChatGPT card widget stays off tools/list", () => {
-  it("advertises top-level host attachment inputs on all three drawing intake tools", async () => {
+  it("advertises top-level host attachment inputs on the drawing intake tools and photo save", async () => {
     const listed = await rpc("tools/list", 40);
-    for (const name of ["drawing_set_import", "estimate_intake", "estimate_takeoff_save"]) {
+    for (const name of ["drawing_set_import", "estimate_intake", "estimate_takeoff_save", "progress_photo_save"]) {
       const tool = listed.tools.find((tool: { name: string }) => tool.name === name);
       expect(tool._meta["openai/fileParams"]).toEqual(["file"]);
       expect(Object.keys(tool.inputSchema.properties.file.properties).sort()).toEqual(["download_url", "file_id", "file_name", "mime_type"]);

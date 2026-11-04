@@ -753,6 +753,28 @@ describe("daily on a job with no SOV or no CPM", () => {
     expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1]).toMatchObject({ _sov: null, _activity: null });
   });
 
+  it("saves a photo attached in the chat, read from the host file link", async () => {
+    state.rpc.mcp_progress_photo_create = { linked_daily: true, client_safe: false };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JPEG, { status: 200 }));
+    const base = { job_number: "2701", recognized: true, date_confirmed: true, confirmed: true, area: "Northeast duct bank", work: "Duct bank" };
+    // ChatGPT names attachments loosely, so the bytes decide the type.
+    const file = { download_url: "https://files.oaiusercontent.com/synthetic-photo", file_id: "file_1", file_name: "image", mime_type: "image/jpeg" };
+    const saved = await handle(progressPhotoSave, { ...base, file, sov_item: "none", activity_id: "none" });
+    expect(saved.structuredContent).toMatchObject({ saved: true, linked_daily: true });
+    expect(fetchSpy).toHaveBeenCalledWith("https://files.oaiusercontent.com/synthetic-photo", expect.objectContaining({ redirect: "manual" }));
+    expect(state.uploads.at(-1)).toMatch(/\/progress\.jpg$/);
+    expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1]).toMatchObject({ _sov: null, _activity: null, _mime: "image/jpeg" });
+    expect(saved.content[0].text).toContain("Linked to that day's daily.");
+    fetchSpy.mockClear();
+    await expect(handle(progressPhotoSave, { ...base, file: { ...file, download_url: "https://unapproved.example/photo" } })).rejects.toThrow(/can't fetch that link/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await expect(handle(progressPhotoSave, { ...base, file, content_base64: Buffer.from(JPEG).toString("base64") })).rejects.toThrow(/not both/);
+    await expect(handle(progressPhotoSave, base)).rejects.toThrow(/Attach the photo first/);
+    fetchSpy.mockResolvedValue(new Response(new TextEncoder().encode("<html>not a photo</html>"), { status: 200 }));
+    await expect(handle(progressPhotoSave, { ...base, file })).rejects.toThrow(/JPEG, PNG or WebP/);
+    fetchSpy.mockRestore();
+  });
+
   it("leaves unlinked work out of the pay app and the schedule feed", () => {
     const lines = [
       { report_date: "2026-10-21", sov_item: null, activity_id: null, qty: 400, pct_complete: 50 },

@@ -8,6 +8,8 @@ import { productionPeriod, productionRef } from "../production-summary";
 import { productionClient, productionReportUrl, readSavedProduction } from "../../production-report";
 import { previewDailyReminderCard, type ReminderStatus } from "../field-reminder";
 import { FileRejected, decodeBase64 } from "../file-share";
+import { fetchAllowedFile } from "../file-upload";
+import { drawingFile } from "../drawing-file-input";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, named, prefix, resolveJob, type Job } from "../jobs";
 import { photoLogPdf } from "../photo-pdf";
@@ -32,6 +34,7 @@ import {
   rateFromLine,
   scheduleProposals,
   sniffPhoto,
+  PHOTO_MAX_BYTES,
   type FieldSource,
 } from "../superintendent";
 import { guide } from "../visible";
@@ -297,7 +300,7 @@ export const dailyReportSave = defineTool({
       const url = boardHref(await boardPages(sb, job), "daily");
       return guide(
         { ...text([...(url ? [`Styled daily (private to your company): ${url}`] : []), dailyCard(`${named(job)} `, day, { ...draft, follow_ups: [], ready: true }, true)].join("\n")), structuredContent: { saved: true, id: saved.id, report_date: day, lines: saved.lines, rates: draft.work.map(rateFromLine).filter(Boolean) } },
-        "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save.",
+        "Saved. Production rates are available to estimating. Percent complete is ready for the pay app and the schedule update. The saved schedule is not changed by this save. If the superintendent shared progress photos for this day that are not saved yet, save each one with progress_photo_save using the attached file; the daily alone does not store them.",
       );
     }),
 });
@@ -446,12 +449,14 @@ export const fieldProductionSummary = defineTool({
 export const progressPhotoSave = defineTool({
   name: "progress_photo_save",
   title: "Save a progress photo",
-  description: "Stores a progress photo after its date and place on site are confirmed.",
+  description: "Stores a progress photo attached in chat after its date and place on site are confirmed.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    filename: z.string().trim().min(1).max(120),
-    content_base64: z.string().min(1).max(12_000_000),
+    // A photo attached in chat arrives as file; other callers send the bytes.
+    file: drawingFile,
+    filename: z.string().trim().min(1).max(120).optional(),
+    content_base64: z.string().min(1).max(12_000_000).optional(),
     recognized: z.boolean().optional(),
     date_confirmed: z.boolean().optional(),
     confirmed: z.boolean().optional(),
@@ -478,9 +483,18 @@ export const progressPhotoSave = defineTool({
           "Do not store the photo until the date and the place are confirmed. The date defaults to the upload time because the camera date is not available.",
         );
       }
+      if (args.file && args.content_base64) throw new ToolError("Send the attached photo or the photo data, not both. Nothing was saved.");
+      if (!args.file && !args.content_base64) throw new ToolError("Attach the photo first. Nothing was saved.");
+      const filename = args.filename ?? args.file?.file_name ?? "progress.jpg";
       let bytes: Uint8Array;
-      try { bytes = decodeBase64(args.content_base64); } catch (e) { throw new ToolError(e instanceof FileRejected ? "The photo data isn't valid. Nothing was saved." : "The photo data isn't valid. Nothing was saved."); }
-      const sniffed = sniffPhoto(bytes, args.filename);
+      if (args.file) {
+        try { bytes = await fetchAllowedFile(args.file.download_url, PHOTO_MAX_BYTES); }
+        catch (e) { throw new ToolError(e instanceof FileRejected ? e.message.replace(/Nothing was stored\.?$/, "Nothing was saved.") : "Athena couldn't read the attached photo. Nothing was saved."); }
+      } else {
+        try { bytes = decodeBase64(args.content_base64!); } catch { throw new ToolError("The photo data isn't valid. Nothing was saved."); }
+      }
+      // A chat attachment's name may not carry the real type, so trust its bytes.
+      const sniffed = sniffPhoto(bytes, filename) ?? (args.file ? (sniffPhoto(bytes, "a.jpg") ?? sniffPhoto(bytes, "a.png") ?? sniffPhoto(bytes, "a.webp")) : null);
       if (!sniffed) throw new ToolError("Use a JPEG, PNG or WebP photo under 8 MB. Nothing was saved.");
       const id = crypto.randomUUID();
       const path = `${job.company_id}/${job.job_id}/${id}/progress.${sniffed.ext}`;
