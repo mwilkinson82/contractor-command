@@ -54,6 +54,22 @@ async (page) => {
   await page.waitForTimeout(1000);
   const calls = await page.locator("#calls").innerText();
   assert(calls.includes("viewer_tile_only"), "zoom requested high-resolution detail");
+  // Click and drag on the zoomed sheet pans it and never adds a point.
+  const viewport = frame.locator(".viewport");
+  const panBox = await svg.boundingBox();
+  const startScroll = await viewport.evaluate((v) => v.scrollLeft);
+  await page.mouse.move(panBox.x + 200, panBox.y + 120);
+  await page.mouse.down();
+  await page.mouse.move(panBox.x + 120, panBox.y + 120, { steps: 6 });
+  await page.mouse.up();
+  assert(
+    (await viewport.evaluate((v) => v.scrollLeft)) > startScroll,
+    "mouse drag pans the zoomed sheet",
+  );
+  assert(
+    (await frame.getByText(/Adding \w+: [1-9]\d* unsaved point/).count()) === 0,
+    "drag added no point",
+  );
   assert(!calls.includes('"operation":"save"'), "no geometry save");
   await frame.getByRole("button", { name: "Back to chat" }).click();
   await frame.getByRole("button", { name: "Open drawing workspace" }).waitFor();
