@@ -40,6 +40,13 @@ export const CARD_ALERT = new Set(
   [CARD.alertInk, CARD.alertSoft, CARD.alertLine].map((h) => h.toUpperCase()),
 );
 
+/**
+ * Drawing ink for takeoff marks, one color per takeoff line so lines tell apart on a
+ * busy sheet (the way takeoff tools color items). Legal only on marks drawn over a
+ * drawing, never on card chrome, and never red so a mark is not read as an alert.
+ */
+export const MARKUP_INK = ["#1E5FED", "#0F7B5F", "#B45309", "#7C3AED", "#0E7490"] as const;
+
 /** Markdown markers. Blue, white/gray, and red. Nothing else. */
 export const MARK = { action: "🔵", neutral: "⚪", alert: "🔴" } as const;
 

@@ -6,7 +6,7 @@ import {
   TAKEOFF_CARD_URIS,
   takeoffResourceMeta,
 } from "../cards/takeoff-card";
-import { paletteViolations } from "../cards/palette";
+import { MARKUP_INK, paletteViolations } from "../cards/palette";
 import { nativeCardVisit, nativeCardPayload } from "../native-card-transport";
 describe("measurement resource and viewer safety", () => {
   it("offers physically checked low-confidence proposals for explicit review while keeping pass/scope safeguards", () => {
@@ -137,7 +137,10 @@ describe("measurement resource and viewer safety", () => {
     const html = takeoffCardHtml(),
       script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
     expect(() => new Script(script)).not.toThrow();
-    expect(paletteViolations(html, true)).toEqual([]);
+    // Line ink appears once, in the drawing ink list; everything else keeps the house palette.
+    const ink = script.match(/var LINE_INK = (\[[^\]]*\]);/)![1];
+    expect(JSON.parse(ink)).toEqual([...MARKUP_INK]);
+    expect(paletteViolations(html.replace(ink, ""), true)).toEqual([]);
     expect(html).not.toMatch(/fetch\(|XMLHttpRequest|innerHTML|eval\(/);
     expect(html).not.toContain("window.confirm");
     expect(takeoffResourceMeta.ui.csp.connectDomains).toEqual([]);
