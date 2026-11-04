@@ -1,6 +1,12 @@
--- Owner share links lead with the contractor's brand: return the company's saved logo address with the shared
--- report, so the page can show the logo instead of the name. Same function as 20261021120000_athena_report_pages,
--- with one added field (company_logo_url). The page reads the logo only from the public company-logos bucket.
+-- Client-facing pages lead with the contractor's saved logo (Marshall, Nov 4 2026). Two changes, no new tables:
+--
+-- 1. Owner share links: mcp_report_share_open also returns the company's logo address (company_logo_url). Same
+--    function as 20261021120000_athena_report_pages with that one added field and the same grants.
+-- 2. Customer page: mcp_portal_brand gives the server the contractor's name and logo address for one customer's
+--    access, so sign-in screens, the page header and code emails can show the logo. Service role only, like the
+--    other customer page functions.
+--
+-- Both pages read the logo only from the public company-logos bucket on our own backend.
 CREATE OR REPLACE FUNCTION public.mcp_report_share_open(_token_hash text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 DECLARE s public.mcp_report_shares; j public.mcp_jobs; r public.mcp_living_reports; co text; logo text;
@@ -24,3 +30,12 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_report_share_open(text) FROM public;
 GRANT EXECUTE ON FUNCTION public.mcp_report_share_open(text) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.mcp_portal_brand(_access uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT jsonb_build_object('name', co.name, 'logo_url', co.logo_url)
+  FROM public.mcp_portal_access a JOIN public.mcp_companies co ON co.id = a.company_id
+  WHERE a.id = _access;
+$$;
+REVOKE ALL ON FUNCTION public.mcp_portal_brand(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mcp_portal_brand(uuid) TO service_role;

@@ -392,11 +392,13 @@ describe("share page leads with the contractor's logo", () => {
   });
 
   it("migration returns the logo address with the shared report and keeps the same grants", () => {
-    const sql = readFileSync("supabase/migrations/20261104233000_athena_report_share_logo.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20261104233000_athena_client_logos.sql", "utf8");
     expect(sql).toContain("SELECT name, logo_url INTO co, logo FROM public.mcp_companies WHERE id = s.company_id;");
     expect(sql.match(/'company_logo_url', logo/g)).toHaveLength(2);
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.mcp_report_share_open(text) TO anon, authenticated;");
     expect(sql).not.toMatch(/^\s*(BEGIN|COMMIT)\s*;/m);
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.mcp_portal_brand(uuid) TO service_role;");
+    expect(sql).toContain("REVOKE ALL ON FUNCTION public.mcp_portal_brand(uuid) FROM PUBLIC, anon, authenticated;");
   });
 });
 

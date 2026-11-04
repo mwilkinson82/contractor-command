@@ -154,7 +154,8 @@ const post = async (
 ) => req(path, { method: "POST", body: new URLSearchParams(body).toString(), ...opts });
 const BLUE = /#0071e3|#2563eb|#2997ff|#1d4ed8|#3b82f6|\bblue\b/i;
 /** The page's own UI has no blue. The one exception is the small blue Athena A in the "Powered by Athena" footer. */
-const withoutAthenaMark = (html: string) => html.replace(/<span class="ath-cb-powered"[\s\S]*?<\/span>/g, "");
+const withoutAthenaMark = (html: string) =>
+  html.replace(/<span class="ath-cb-powered"[\s\S]*?<\/span>/g, "");
 
 describe("same-origin posts", () => {
   const at = (h: Record<string, string>) =>
@@ -589,5 +590,39 @@ describe("sign-in screens", () => {
     const bad = renderGone("expired", "ALP Construction", "http://cdn.example.com/alp.png");
     expect(bad).not.toContain(`class="as-logo"`);
     expect(bad).toContain("<b>ALP Construction</b>");
+  });
+});
+
+describe("the contractor's saved logo on the customer page", () => {
+  const LOGO = "https://x.supabase.co/storage/v1/object/public/company-logos/northline.png";
+
+  it("leads the sign-in screen, the page header and the code email when the contractor has one", async () => {
+    const { d, mail } = deps();
+    const asked: string[] = [];
+    d.logo = async (a) => {
+      asked.push(a);
+      return LOGO;
+    };
+    const invite = await (await handleInvite(req(`/c/i/${TOKEN}`), TOKEN, d)).text();
+    expect(invite).toContain(`class="as-logo" src="${LOGO}"`);
+    await handleInvite(await post(`/c/i/${TOKEN}`, { action: "send_code" }), TOKEN, d);
+    expect(mail.at(-1)!.html).toContain(`src="${LOGO}"`);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain(`<img class="logo-img" src="${LOGO}" alt="Northline Builders">`);
+    expect(asked.every((a) => a === ACCESS)).toBe(true);
+  });
+
+  it("keeps the initials and name when there is no logo or the lookup fails", async () => {
+    const { d } = deps();
+    d.logo = async () => {
+      throw new Error("down");
+    };
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).not.toContain(`class="logo-img"`);
+    expect(page).toContain("<b>Northline Builders</b>");
   });
 });

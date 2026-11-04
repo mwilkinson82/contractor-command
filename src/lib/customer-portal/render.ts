@@ -97,6 +97,7 @@ a{color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-col
 .pt{min-height:100vh;display:flex;flex-direction:column}
 .pt-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px max(16px,env(safe-area-inset-left)) 14px max(16px,env(safe-area-inset-right));background:var(--white);border-bottom:1px solid var(--line)}
 .logo{display:flex;align-items:center;gap:10px;min-width:0}
+.logo-img{display:block;height:36px;width:auto;max-width:min(200px,46vw);object-fit:contain;flex:none}
 .logo-mark{width:34px;height:34px;border-radius:8px;background:var(--ink);color:var(--white);display:grid;place-items:center;flex:none;font-weight:700;font-size:13px;letter-spacing:.04em}
 .logo-word{display:grid;line-height:1.15;min-width:0}
 .logo-word b{font-family:${CLIENT_BRAND_NAME_FONT};font-size:15.5px;font-weight:600;letter-spacing:-.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -334,8 +335,13 @@ function doc(title: string, body: string, kind: "portal" | "signin" = "portal"):
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap"><style>${css}</style></head><body>${body}</body></html>`;
 }
 
-const logo = (company: string, sub = "Customer page") =>
-  `<div class="logo"><span class="logo-mark" aria-hidden="true">${esc(initials(company))}</span><span class="logo-word"><b>${esc(company)}</b><span>${esc(sub)}</span></span></div>`;
+/** The contractor up top: their saved logo when there is one, else an initials badge and their name. */
+const logo = (company: string, sub = "Customer page", image: string | null = null) => {
+  const src = safeLogo(image);
+  return src
+    ? `<div class="logo"><img class="logo-img" src="${esc(src)}" alt="${esc(company)}"><span class="logo-word"><span>${esc(sub)}</span></span></div>`
+    : `<div class="logo"><span class="logo-mark" aria-hidden="true">${esc(initials(company))}</span><span class="logo-word"><b>${esc(company)}</b><span>${esc(sub)}</span></span></div>`;
+};
 
 // ---------- sign-in ----------
 
@@ -399,6 +405,8 @@ export type PortalOpts = {
   choice?: string | null;
   flash?: string | null;
   error?: string | null;
+  /** The contractor's saved logo, an https URL. Their initials and name show when there is none. */
+  logo?: string | null;
 };
 
 const open = (i: PortalItem) => i.decision === null;
@@ -675,7 +683,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
     : o.flash
       ? `<p class="flash" role="status">${esc(o.flash)}</p>`
       : "";
-  const top = `<header class="pt-top">${logo(p.contractor.name)}<div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></header>`;
+  const top = `<header class="pt-top">${logo(p.contractor.name, undefined, o.logo ?? null)}<div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></header>`;
   const job = `<div class="wrap pt-job"><div><p class="eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1></div>${status}</div>`;
   const foot = `<footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span>${poweredByAthenaHtml()}</footer>`;
   return doc(
