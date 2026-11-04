@@ -283,8 +283,8 @@
 .ath-page-table {
   width: 100%;
   border-collapse: collapse;
-  /* Words break only when they must, so narrow columns never shrink to one letter a line. */
-  overflow-wrap: break-word;
+  /* Cells wrap at words, so narrow columns never shrink to a few letters a line. */
+  overflow-wrap: normal;
   font-size: 13px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
@@ -336,6 +336,8 @@
 }
 .ath-page-table td.is-long {
   min-width: 16rem;
+  /* Long file names and references may break anywhere; the column keeps its minimum width. */
+  overflow-wrap: anywhere;
 }
 .ath-page-table td.is-blank::after {
   content: "–";
@@ -458,6 +460,9 @@
   }
   .ath-page-table td.is-long {
     min-width: 0;
+  }
+  .ath-page-table td {
+    overflow-wrap: anywhere;
   }
   .ath-page-table td::before {
     content: attr(data-label);
