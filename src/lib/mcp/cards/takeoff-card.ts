@@ -1,9 +1,10 @@
 import takeoffClient from "./takeoff-client.js?raw";
 /** Self-contained MCP Apps measurement viewer. No fetch, external scripts or model display commands. */
 // Bumped when the viewer changes so hosts that cache templates load the new card.
-export const TAKEOFF_CARD_URI = "ui://athena/takeoff-v10.html";
+export const TAKEOFF_CARD_URI = "ui://athena/takeoff-v11.html";
 export const TAKEOFF_CARD_URIS = new Set([
   TAKEOFF_CARD_URI,
+  "ui://athena/takeoff-v10.html",
   "ui://athena/takeoff-v9.html",
   "ui://athena/takeoff-v8.html",
   "ui://athena/takeoff-v7.html",

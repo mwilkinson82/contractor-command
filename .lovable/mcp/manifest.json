@@ -5988,7 +5988,7 @@
       {
         "name": "drawing_set_import",
         "title": "Store a drawing set",
-        "description": "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional.",
+        "description": "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional. When sheet names are missing, call again with source_id and read_title_blocks true: Athena reads each page's title block and proposes the sheet index without saving it; show it, and after the member confirms or corrects it, save it with source_id and sheets in PDF page order.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -5996,8 +5996,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -6106,6 +6106,9 @@
                 "minLength": 1,
                 "maxLength": 40
               }
+            },
+            "read_title_blocks": {
+              "type": "boolean"
             }
           },
           "required": [

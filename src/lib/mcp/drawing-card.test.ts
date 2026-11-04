@@ -129,6 +129,32 @@ function payload(
 }
 
 describe("drawing card view", () => {
+  it("reads the title blocks into the sheet names, refuses an unnamed page, and saves only on Save", async () => {
+    const v = view(); v.ready({ serverTools: {} });
+    const context = { job_number: "CCW-003", company_id: "company" };
+    const stored = { structuredContent: { stored: true, sheet_index_required: true, page_count: 3, source: { id: "unindexed", filename: "set.pdf", sheets: [] }, drawing_source_context: { ...context, source_id: "unindexed" }, sheet_index_context: { ...context, source_id: "unindexed" }, card: { title: "Drawing stored — sheet names needed" } } };
+    v.result(stored);
+    const reading = v.all().find(e => e.textContent === "Read title blocks")!.handlers.click();
+    const readCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
+    expect(readCall).toMatchObject({ params: { name: "drawing_set_import", arguments: { ...context, source_id: "unindexed", read_title_blocks: true } } });
+    expect((readCall.params as { arguments: object }).arguments).not.toHaveProperty("sheets");
+    const proposal = { structuredContent: { stored: true, sheet_index_proposal: { complete: false, total_pages: 3, pages_read: 3, pages: [{ page: 1, sheet: "C1.0" }, { page: 2, sheet: "E1" }, { page: 3, sheet: null }] } } };
+    v.message({ jsonrpc: "2.0", id: readCall.id, result: proposal }); await reading;
+    const input = v.all().find(e => e.tagName === "INPUT") as unknown as { value: string };
+    expect(input.value).toBe("C1.0, E1, ?");
+    expect(v.status.textContent).toContain("Athena read 2 of 3 sheet names");
+    const calls = v.sent.filter(e => e.data.method === "tools/call").length;
+    await v.all().find(e => e.textContent === "Save sheet names")!.handlers.click();
+    expect(v.sent.filter(e => e.data.method === "tools/call").length).toBe(calls);
+    expect(v.status.textContent).toContain("Replace each ?");
+    input.value = "C1.0, E1, E2";
+    const saving = v.all().find(e => e.textContent === "Save sheet names")!.handlers.click();
+    const saveCall = v.sent.filter(e => e.data.method === "tools/call").at(-1)!.data;
+    expect(saveCall).toMatchObject({ params: { name: "drawing_set_import", arguments: { ...context, source_id: "unindexed", sheets: ["C1.0", "E1", "E2"] } } });
+    v.message({ jsonrpc: "2.0", id: saveCall.id, result: { structuredContent: { stored: true, sheet_index_required: false, source: { id: "unindexed", filename: "set.pdf", sheets: ["C1.0", "E1", "E2"] }, drawing_source_context: { ...context, source_id: "unindexed" }, card: { title: "Drawing set recognized" } } } }); await saving;
+    expect(v.app.textContent).toContain("Drawing set recognized");
+  });
+
   it("enables a dated save after one finding is placed while other findings stay explicitly key-only", async () => {
     const v = view(); v.ready({ serverTools: {} });
     const p = payload();

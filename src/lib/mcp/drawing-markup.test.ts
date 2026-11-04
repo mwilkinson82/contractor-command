@@ -1,3 +1,4 @@
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { jsPDF } from "jspdf";
 import { bytesToBase64 } from "./estimating-sheet";
@@ -211,6 +212,36 @@ async function seed() {
 }
 
 describe("stored drawing markup tool", () => {
+  it("reads sheet numbers from the title blocks without saving, then saves only the confirmed list", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    for (const [name, title] of [["E1", "LIGHTING PLAN"], ["E2", "POWER PLAN"]]) {
+      const page = doc.addPage([2592, 1728]);
+      page.drawText("SEE A4.1", { x: 600, y: 900, size: 10, font });
+      page.drawText(title, { x: 2180, y: 150, size: 14, font });
+      page.drawText("SHEET NO.", { x: 2180, y: 110, size: 8, font });
+      page.drawText(name, { x: 2180, y: 50, size: 36, font });
+    }
+    const bytes = new Uint8Array(await doc.save());
+    const stored = await call(drawingSetImport, { job_number: "2701", drawing: { filename: "E-set.pdf", content_base64: bytesToBase64(bytes) } });
+    const source = stored.structuredContent.source as DrawingRecord;
+    expect(stored.structuredContent).toMatchObject({ sheet_index_required: true, title_block_read: { source_id: source.id, read_title_blocks: true } });
+    const refused = await call(drawingSetImport, { job_number: "2701", source_id: source.id, read_title_blocks: true, sheets: ["E1", "E2"] });
+    expect(JSON.stringify(refused)).toContain("pass only the stored source_id");
+    const read = await call(drawingSetImport, { job_number: "2701", source_id: source.id, read_title_blocks: true });
+    expect(read.structuredContent).toMatchObject({
+      stored: true,
+      sheet_index_required: true,
+      sheet_index_proposal: { complete: true, total_pages: 2, pages_read: 2 },
+      confirm_with: { source_id: source.id, sheets: ["E1", "E2"] },
+    });
+    expect(read.content[0].text).toContain("LIGHTING PLAN");
+    expect(state.records.every((r) => !((r.sheets as string[] | undefined) ?? []).length)).toBe(true);
+    const saved = await call(drawingSetImport, { job_number: "2701", source_id: source.id, sheets: ["E1", "E2"] });
+    expect(saved.structuredContent).toMatchObject({ sheet_index_required: false });
+    expect((saved.structuredContent.source as DrawingRecord).sheets).toEqual(["E1", "E2"]);
+  });
+
   it("stores a new five-sheet PDF without names, asks once, then indexes and marks up by source ID despite a renamed host filename", async () => {
     await seed();
     await call(drawingMarkup, { job_number: "2701", sheet: "S-100", operation: "prepare" });

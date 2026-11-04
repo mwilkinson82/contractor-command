@@ -144,9 +144,9 @@ describe("drawing direct upload", () => {
     expect(start.indexOf("isDrawingUploadPut(method")).toBeLessThan(start.indexOf("Cross-origin request blocked"));
   });
 
-  it("card v8 uploads by fetch, falls back to a chat attachment, allows only the app origin, and keeps old URIs", () => {
-    expect(DRAWING_CARD_URI).toBe("ui://athena/drawing-card-v8.html");
-    for (const v of ["v7", "v6", "v5", "v4", "v3", "v2"]) expect(DRAWING_CARD_URIS.has(`ui://athena/drawing-card-${v}.html`)).toBe(true);
+  it("card v9 uploads by fetch, falls back to a chat attachment, allows only the app origin, and keeps old URIs", () => {
+    expect(DRAWING_CARD_URI).toBe("ui://athena/drawing-card-v9.html");
+    for (const v of ["v8", "v7", "v6", "v5", "v4", "v3", "v2"]) expect(DRAWING_CARD_URIS.has(`ui://athena/drawing-card-${v}.html`)).toBe(true);
     expect(drawingResourceMeta.ui.csp.connectDomains).toEqual(["https://app.meetathena.io"]);
     expect(drawingResourceMeta["openai/widgetCSP"].connect_domains).toEqual(["https://app.meetathena.io"]);
     const html = drawingCardHtml("https://example.supabase.co");
