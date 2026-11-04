@@ -146,6 +146,8 @@ export function decisionEmail(a: {
   choice: string | null;
   note: string | null;
   reference: string;
+  /** What the choice means for the job: a drafted change order under contract, a proposal approval before. */
+  next?: string | null;
 }): PortalEmail {
   const what =
     a.decision === "approved"
@@ -161,12 +163,14 @@ export function decisionEmail(a: {
     text: [
       line,
       ...(a.note ? ["", `Their note: ${a.note}`] : []),
+      ...(a.next ? ["", a.next] : []),
       "",
       `Reference: ${a.reference}. Ask Athena for the customer page list on this job to see the record.`,
     ].join("\n"),
     html: frame("Athena", [
       esc(line),
       ...(a.note ? [`Their note: ${esc(a.note)}`] : []),
+      ...(a.next ? [esc(a.next)] : []),
       `Reference: ${esc(a.reference)}. Ask Athena for the customer page list on this job to see the record.`,
     ]),
   };

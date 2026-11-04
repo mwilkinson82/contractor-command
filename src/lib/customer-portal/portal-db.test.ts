@@ -114,6 +114,8 @@ beforeAll(async () => {
   await load("20261023020000_athena_superintendent");
   await load("20261104130000_athena_progress_photo_remove");
   await load("20261104170000_athena_customer_portal");
+  await load("20261104200000_athena_proposal_choice_stage");
+  await load("20261104200100_athena_portal_choice_stage");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -622,6 +624,17 @@ describe.sequential("customer page", () => {
       null,
     ]);
     expect(r.status).toBe("ok");
+    // No contract value on file: the choice is a proposal approval, never a change order.
+    expect(r.under_contract).toBe(false);
+    expect(r.change_order_number).toBeNull();
+    expect(
+      (
+        await db.query(
+          "SELECT count(*)::int AS n FROM mcp_change_orders WHERE job_id=$1 AND details ? 'customer_choice'",
+          [job],
+        )
+      ).rows[0],
+    ).toMatchObject({ n: 0 });
     const board = await member("mcp_residential_selections_get", [job]);
     expect(board.board.accepted).toMatchObject({ tier: "better" });
     expect(board.board.accepted.evidence).toContain("customer page");
@@ -631,6 +644,75 @@ describe.sequential("customer page", () => {
       choice: "better",
       code_verified: true,
     });
+  });
+
+  it("under contract, a package upgrade drafts a change order carrying the signed choice", async () => {
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'contract','contract_value','1250000','known','member_answer',$2)",
+      [job, owner],
+    );
+    // Test setup only: clear the earlier test's recorded choice so the same board can be chosen again.
+    await db.query(
+      "UPDATE mcp_private.residential_selection_boards SET body = jsonb_set(body, '{accepted}', 'null') WHERE job_id=$1",
+      [job],
+    );
+    const before = await member("mcp_residential_selections_get", [job]);
+    const saved = await member("mcp_residential_selections_save", [
+      job,
+      before.version,
+      JSON.stringify(willowCreekTypeE(true)),
+    ]);
+    const shared = await member("mcp_portal_share_selection", [job, saved.version]);
+    const v0 = await server("mcp_portal_view", [access, sessionHash, null, null]);
+    expect(v0.job.under_contract).toBe(true);
+    const code = await codeHash(access, "333333");
+    await server("mcp_portal_code_issue", [
+      access,
+      "decide",
+      code,
+      null,
+      sessionHash,
+      shared.item_id,
+    ]);
+    const r = await server("mcp_portal_decide", [
+      access,
+      sessionHash,
+      shared.item_id,
+      "chosen",
+      "best",
+      code,
+      "Rosa Delgado",
+      "I choose Best.",
+      shared.fingerprint,
+      null,
+      null,
+      null,
+    ]);
+    expect(r).toMatchObject({ status: "ok", under_contract: true });
+    const best = shared.view.proposal.packages.find((k: J) => k.tier === "best");
+    expect(r.difference_cents).toBe(best.difference_cents);
+    expect(r.change_order_number).toMatch(/^PCO-\d{3}$/);
+    const co = (
+      await db.query<{ details: J }>(
+        "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
+        [r.change_order_id],
+      )
+    ).rows[0]!.details as J;
+    expect(co).toMatchObject({
+      state: "draft",
+      origin: "owner",
+      customer_choice: {
+        tier: "best",
+        by: expect.stringContaining("Rosa Delgado"),
+        email_code_verified: true,
+      },
+    });
+    expect(co.customer_choice.difference_cents).toBe(best.difference_cents);
+    expect(JSON.stringify(co)).not.toMatch(/cost_cents|found_price|assumptions/);
+    const hist = await db.query("SELECT action FROM mcp_change_history WHERE submittal_id=$1", [
+      r.change_order_id,
+    ]);
+    expect(hist.rows).toEqual([{ action: "create" }]);
   });
 
   it("closes the page when the inviter loses full access, and when access is revoked", async () => {
