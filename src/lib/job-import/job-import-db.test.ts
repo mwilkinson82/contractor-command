@@ -155,7 +155,7 @@ describe("job import save", () => {
       already_applied: false,
     });
     jobId = String(result.job_id);
-    const facts = await db.query(
+    const facts = await db.query<{ module: string; key: string; value: unknown }>(
       "SELECT module, key, value FROM mcp_job_facts WHERE job_id=$1 ORDER BY module, key",
       [jobId],
     );
@@ -205,7 +205,7 @@ describe("job import save", () => {
   });
 
   it("returns the first result on a replay of the same batch", async () => {
-    const batch = await db.query(
+    const batch = await db.query<{ id: string; package_hash: string }>(
       "SELECT id, package_hash FROM mcp_import_batches WHERE status='applied'",
     );
     const again = await rpc<Record<string, unknown>>("mcp_job_import_apply", [
@@ -231,7 +231,7 @@ describe("job import save", () => {
       [batch_id],
     );
     const hash = (
-      await db.query("SELECT package_hash FROM mcp_import_batches WHERE id=$1", [batch_id])
+      await db.query<{ package_hash: string }>("SELECT package_hash FROM mcp_import_batches WHERE id=$1", [batch_id])
     ).rows[0].package_hash;
     expect(hash).not.toBe(package_hash);
     await expect(rpc("mcp_job_import_apply", [batch_id, hash, true])).rejects.toThrow(/work line/);
