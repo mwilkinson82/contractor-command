@@ -897,8 +897,8 @@ export { PHOTO_MAX_BYTES, PHOTO_MIN_EDGE, sniffPhoto, photoImageInfo, photoQuali
 export type { PhotoImageInfo } from "../photo-file";
 
 // ---------- mobile pages ----------
-const shell = (title: string, body: string) =>
-  `<div style="max-width:${FIELD_MOBILE_PX}px;margin:0 auto;padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${FIELD_NAVY}"><h1 style="margin:0 0 12px;font-size:20px;color:${FIELD_NAVY}">${esc(title)}</h1>${body}<p style="margin:20px 0 0;font-size:12px;color:${FIELD_GRAY}">Private to your company · Athena powered by ALP</p></div>`;
+const shell = (title: string, body: string, wide = false) =>
+  `<div class="ath-field-page${wide ? " ath-field-wide" : ""}" style="max-width:${FIELD_MOBILE_PX}px;margin:0 auto;padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${FIELD_NAVY}"><h1 style="margin:0 0 12px;font-size:20px;color:${FIELD_NAVY}">${esc(title)}</h1>${body}<p style="margin:20px 0 0;font-size:12px;color:${FIELD_GRAY}">Private to your company · Athena powered by ALP</p></div>`;
 
 const card = (inner: string, alert = false) =>
   `<section style="background:#fff;border:1px solid ${alert ? FIELD_RED : FIELD_LINE};border-left:4px solid ${alert ? FIELD_RED : FIELD_BLUE};border-radius:12px;padding:12px;margin:0 0 12px">${inner}</section>`;
@@ -938,7 +938,7 @@ export function fieldPageHtml(src: FieldSource & { job_number?: string; job_name
     return `<section id="${esc(anchor)}"${i.id ? ` data-id="${esc(i.id)}"` : ""}>${card(`${label(late ? "Overdue" : notice ? "Delay" : "Lookahead")}${value(itemName(i.action || "Item"), alert)}<div style="font-size:12px;color:${alert ? FIELD_RED : FIELD_GRAY}">${esc(i.owner ?? "Needed")}${due ? ` · ${esc(shortDate(due))}` : ""}</div>`, alert)}</section>`;
   }).join("");
   const allItems = `<p style="margin:4px 0 12px"><a href="../items" style="color:${FIELD_BLUE};font-weight:700;text-decoration:none">View all open items</a></p>`;
-  return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p>${rows || card(`${value("No activities in this lookahead yet.")}`)}${items}${allItems}`);
+  return shell(`${title} · Field`, `<p style="margin:0 0 12px;color:${FIELD_GRAY};font-size:13px">Lookahead ${esc(win)}</p><div class="ath-field-grid">${rows || card(`${value("No activities in this lookahead yet.")}`)}</div>${items ? `<div class="ath-field-grid">${items}</div>` : ""}${allItems}`, true);
 }
 
 // Owner-approved display cleanup for two saved training reports only. The native

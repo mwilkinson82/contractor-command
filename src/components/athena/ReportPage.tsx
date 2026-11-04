@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  jobHomePath,
   renderReportBody,
   reportPageQuery,
   type PagePayload,
@@ -21,6 +20,7 @@ import { boardReturnForVisit } from "@/lib/board-sign-in";
 import { BOARD_PAGES } from "@/lib/mcp/board-link";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { ProjectReadUnavailable } from "@/components/athena/ProjectReadUnavailable";
+import { AthenaPage } from "@/components/athena/AthenaPage";
 import { productionClient, readProductionDaily } from "@/lib/production-report";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 
@@ -126,34 +126,19 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate }: { 
   }, [payload, token, jobId]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
-    <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
-      {page === "portfolio" && memberPayload ? <MorningBriefPushBar /> : null}
-      {jobId ? (
-        <nav
-          aria-label="Project navigation"
-          style={{
-            maxWidth: 1100,
-            margin: "0 auto",
-            padding: "16px 16px 0",
-            display: "flex",
-            gap: 20,
-            font: "13px system-ui, sans-serif",
-          }}
-        >
-          <a
-            href={`${jobHomePath(jobId)}${token ? `?t=${encodeURIComponent(token)}` : ""}`}
-            style={{ color: "#1E5FED" }}
-          >
-            Project home
-          </a>
-          <a href="/today" style={{ color: "#1E5FED" }}>
-            Morning brief
-          </a>
-        </nav>
+    <AthenaPage jobId={jobId} token={token}>
+      {page === "portfolio" && memberPayload ? (
+        <div className="ath-page-bar">
+          <MorningBriefPushBar />
+        </div>
       ) : null}
-      {page === "field" && jobId ? <FieldPushBar jobId={jobId} jobNumber={jobNumber} /> : null}
-      <div dangerouslySetInnerHTML={{ __html: html }} />
-    </div>
+      {page === "field" && jobId ? (
+        <div className="ath-page-bar">
+          <FieldPushBar jobId={jobId} jobNumber={jobNumber} />
+        </div>
+      ) : null}
+      <div className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
+    </AthenaPage>
   );
   if (authLoading || (!payload && ((session && q.isLoading) || (token && jobId && tokenPage && linked.isLoading)))) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   // Either the scoped member read or the validated key can open the live board.

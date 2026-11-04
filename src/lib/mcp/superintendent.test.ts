@@ -525,7 +525,8 @@ describe("field board", () => {
     const calm = fieldPageHtml({ ...src, activities: [src.activities[0]], items: [], job_number: "2701", job_name: "Harbor" });
     expect(calm).not.toContain("#DC2626");
     expect(renderReportBody({ page: "field", job_number: "2701", job_name: "Harbor", activities: [] })).toContain("max-width:420px");
-    expect(renderReportBody({ page: "schedule", job_number: "2701", job_name: "Harbor", report: { found: false } })).toContain("max-width:1100px");
+    expect(renderReportBody({ page: "schedule", job_number: "2701", job_name: "Harbor", report: { found: false } })).toContain('class="ath-report-page"');
+    expect(renderReportBody({ page: "schedule", job_number: "2701", job_name: "Harbor", report: { found: false } })).toContain(".ath-report-page{max-width:1440px");
   });
 });
 

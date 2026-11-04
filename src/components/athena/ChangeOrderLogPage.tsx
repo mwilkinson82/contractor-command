@@ -4,9 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { changeLogCard, type ChangeLogPayload } from "@/lib/mcp/change-orders";
-import { renderHtml } from "@/lib/mcp/cards/html";
 import { openChangeLog } from "@/lib/change-log.functions";
 import { BoardSignIn } from "./BoardSignIn";
+import { AthenaPage, CardModelPage } from "./AthenaPage";
 import { boundedRequestRead } from "@/lib/request-log-read";
 import { readChangeLog, type ChangeLogRpc } from "@/lib/change-log-read";
 
@@ -43,52 +43,53 @@ export function ChangeOrderLogPage({ jobId, token }: { jobId: string; token?: st
   const path = `/r/job/${jobId}/cos`;
   const board = `https://app.meetathena.io/r/job/${jobId}/submittals${token ? `?t=${encodeURIComponent(token)}` : ""}`;
   if (payload) {
-    const rendered = renderHtml(
-      changeLogCard(payload, board, { state: state === "all" ? undefined : state, overdue }).card,
-    );
-    const style = rendered.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
-    const body = rendered.match(/<body>([\s\S]*?)<\/body>/)?.[1] ?? "";
+    const { card } = changeLogCard(payload, board, {
+      state: state === "all" ? undefined : state,
+      overdue,
+    });
     return (
-      <main style={{ padding: 16, minWidth: 0, overflowWrap: "anywhere" }}>
-        {session?.user.email && (
-          <p style={{ color: "#6B7280", fontSize: 12 }}>Browser account: {session.user.email}</p>
-        )}
-        <div
-          style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 16, color: "#1E3A5F" }}
-        >
-          <label>
-            Status{" "}
-            <select
-              value={state}
-              onChange={(event) => setState(event.target.value as typeof state)}
-            >
-              <option value="all">All</option>
-              <option value="draft">Draft, not sent</option>
-              <option value="priced">Priced</option>
-              <option value="submitted">Submitted</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="executed">Executed</option>
-            </select>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={overdue}
-              onChange={(event) => setOverdue(event.target.checked)}
-            />{" "}
-            Overdue targets only
-          </label>
-        </div>
-        <div dangerouslySetInnerHTML={{ __html: `<style>${style}</style>${body}` }} />
-      </main>
+      <AthenaPage jobId={jobId} token={token} account={session?.user.email}>
+        <CardModelPage
+          card={card}
+          skip={["Live log"]}
+          filters={
+            <>
+              <label>
+                Status
+                <select
+                  value={state}
+                  onChange={(event) => setState(event.target.value as typeof state)}
+                >
+                  <option value="all">All</option>
+                  <option value="draft">Draft, not sent</option>
+                  <option value="priced">Priced</option>
+                  <option value="submitted">Submitted</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="executed">Executed</option>
+                </select>
+              </label>
+              <label className="ath-page-check">
+                <input
+                  type="checkbox"
+                  checked={overdue}
+                  onChange={(event) => setOverdue(event.target.checked)}
+                />
+                Overdue targets only
+              </label>
+            </>
+          }
+        />
+      </AthenaPage>
     );
   }
   if (loading || member.isFetching || linked.isFetching)
     return (
-      <p role="status" style={{ padding: 24, color: "#1E3A5F" }}>
-        Loading your change-order log…
-      </p>
+      <AthenaPage jobId={jobId} token={token}>
+        <p role="status" className="ath-page-status">
+          Loading your change-order log…
+        </p>
+      </AthenaPage>
     );
   return (
     <main>
