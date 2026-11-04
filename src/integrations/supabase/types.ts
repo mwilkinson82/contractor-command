@@ -5895,6 +5895,382 @@ export type Database = {
           },
         ]
       }
+      mcp_portal_access: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          email: string
+          id: string
+          invite_expires_at: string
+          invite_hash: string
+          job_id: string
+          last_seen_at: string | null
+          name: string
+          revoked_at: string | null
+          revoked_by: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          email: string
+          id?: string
+          invite_expires_at: string
+          invite_hash: string
+          job_id: string
+          last_seen_at?: string | null
+          name: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          email?: string
+          id?: string
+          invite_expires_at?: string
+          invite_hash?: string
+          job_id?: string
+          last_seen_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_access_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_portal_codes: {
+        Row: {
+          access_id: string
+          attempts: number
+          code_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          item_id: string | null
+          purpose: string
+          used_at: string | null
+        }
+        Insert: {
+          access_id: string
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          item_id?: string | null
+          purpose: string
+          used_at?: string | null
+        }
+        Update: {
+          access_id?: string
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          item_id?: string | null
+          purpose?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_codes_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_portal_decisions: {
+        Row: {
+          access_id: string
+          choice: string | null
+          code_verified: boolean
+          decided_at: string
+          decision: string
+          email: string
+          fingerprint: string
+          id: string
+          ip: string | null
+          item_id: string
+          note: string | null
+          statement: string
+          typed_name: string
+          user_agent: string | null
+        }
+        Insert: {
+          access_id: string
+          choice?: string | null
+          code_verified: boolean
+          decided_at?: string
+          decision: string
+          email: string
+          fingerprint: string
+          id?: string
+          ip?: string | null
+          item_id: string
+          note?: string | null
+          statement: string
+          typed_name: string
+          user_agent?: string | null
+        }
+        Update: {
+          access_id?: string
+          choice?: string | null
+          code_verified?: boolean
+          decided_at?: string
+          decision?: string
+          email?: string
+          fingerprint?: string
+          id?: string
+          ip?: string | null
+          item_id?: string
+          note?: string | null
+          statement?: string
+          typed_name?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_decisions_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_decisions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_portal_events: {
+        Row: {
+          access_id: string | null
+          at: string
+          detail: Json
+          id: string
+          ip: string | null
+          job_id: string
+          kind: string
+          user_agent: string | null
+        }
+        Insert: {
+          access_id?: string | null
+          at?: string
+          detail?: Json
+          id?: string
+          ip?: string | null
+          job_id: string
+          kind: string
+          user_agent?: string | null
+        }
+        Update: {
+          access_id?: string | null
+          at?: string
+          detail?: Json
+          id?: string
+          ip?: string | null
+          job_id?: string
+          kind?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_events_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_portal_items: {
+        Row: {
+          company_id: string
+          due_on: string | null
+          fingerprint: string
+          id: string
+          job_id: string
+          kind: string
+          ref_id: string
+          ref_version: number
+          shared_at: string
+          shared_by: string
+          view: Json
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        Insert: {
+          company_id: string
+          due_on?: string | null
+          fingerprint: string
+          id?: string
+          job_id: string
+          kind: string
+          ref_id: string
+          ref_version: number
+          shared_at?: string
+          shared_by: string
+          view: Json
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          due_on?: string | null
+          fingerprint?: string
+          id?: string
+          job_id?: string
+          kind?: string
+          ref_id?: string
+          ref_version?: number
+          shared_at?: string
+          shared_by?: string
+          view?: Json
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_portal_sessions: {
+        Row: {
+          access_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+          last_seen_at: string | null
+          revoked_at: string | null
+          token_hash: string
+          user_agent: string | null
+        }
+        Insert: {
+          access_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+          last_seen_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          user_agent?: string | null
+        }
+        Update: {
+          access_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+          last_seen_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_sessions_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_portal_updates: {
+        Row: {
+          body: string
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string
+          title: string
+          week_of: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          body: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          job_id: string
+          title: string
+          week_of: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          body?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string
+          title?: string
+          week_of?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_updates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_updates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_production_rates: {
         Row: {
           activity_id: string | null
@@ -9906,6 +10282,90 @@ export type Database = {
       }
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
+      mcp_portal_code_issue: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _invite_hash: string
+          _item: string
+          _purpose: string
+          _session_hash: string
+        }
+        Returns: Json
+      }
+      mcp_portal_decide: {
+        Args: {
+          _access: string
+          _choice: string
+          _code_hash: string
+          _decision: string
+          _fingerprint: string
+          _ip: string
+          _item: string
+          _note: string
+          _session_hash: string
+          _statement: string
+          _typed_name: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_portal_invite: {
+        Args: {
+          _email: string
+          _expires_at: string
+          _invite_hash: string
+          _job: string
+          _name: string
+        }
+        Returns: Json
+      }
+      mcp_portal_invite_open: { Args: { _invite_hash: string }; Returns: Json }
+      mcp_portal_list: { Args: { _job: string }; Returns: Json }
+      mcp_portal_post_update: {
+        Args: { _body: string; _job: string; _title: string; _week_of: string }
+        Returns: Json
+      }
+      mcp_portal_revoke: {
+        Args: { _access: string; _job: string }
+        Returns: Json
+      }
+      mcp_portal_share_change_order: {
+        Args: { _expected_version: number; _job: string; _submittal: string }
+        Returns: Json
+      }
+      mcp_portal_share_selection: {
+        Args: { _expected_version: number; _job: string }
+        Returns: Json
+      }
+      mcp_portal_sign_in: {
+        Args: {
+          _code_hash: string
+          _invite_hash: string
+          _ip: string
+          _remember: boolean
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_portal_sign_out: {
+        Args: { _access: string; _session_hash: string }
+        Returns: Json
+      }
+      mcp_portal_view: {
+        Args: {
+          _access: string
+          _ip: string
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_portal_withdraw: {
+        Args: { _item: string; _job: string }
+        Returns: Json
+      }
       mcp_progress_photo_create: {
         Args: {
           _activity: string
