@@ -10189,7 +10189,7 @@
       {
         "name": "progress_photo_save",
         "title": "Save a progress photo",
-        "description": "Stores a progress photo after its date and place on site are confirmed.",
+        "description": "Stores a progress photo attached in chat after its date and place on site are confirmed.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -10209,6 +10209,27 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
             },
             "filename": {
               "type": "string",
@@ -10254,9 +10275,7 @@
             }
           },
           "required": [
-            "job_number",
-            "filename",
-            "content_base64"
+            "job_number"
           ],
           "additionalProperties": false
         },
