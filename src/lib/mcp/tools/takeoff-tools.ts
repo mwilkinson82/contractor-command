@@ -241,9 +241,14 @@ export const takeoffGeometry = defineTool({
       { jobNumber: args.job_number, companyId: args.company_id },
       async (sb) => {
         try {
-          const job = await resolveJob(sb, args.job_number, args.company_id, "write"),
-            state = await requiredSnapshot(sb, job);
+          const job = await resolveJob(sb, args.job_number, args.company_id, "write");
           const operation = args.operation ?? "list";
+          // A viewer's sharp-region request returns before reading the takeoff, so it
+          // skips loading the snapshot. Job access and source ownership still run.
+          const viewerTile = operation === "tile" && args.viewer_tile_only === true;
+          const state = viewerTile
+            ? (undefined as unknown as Awaited<ReturnType<typeof requiredSnapshot>>)
+            : await requiredSnapshot(sb, job);
           const extra: Record<string, unknown> = {
             include_rejected: args.include_rejected === true,
           };

@@ -27,6 +27,11 @@
     lastWidth = 0,
     statusFilter = "all";
   var inlineWorkspace = false;
+  // Sharp 200-dpi regions: at most DETAIL_CAP drawn at once, and the fetched
+  // images kept across redraws so a selection or save does not blur the sheet.
+  var DETAIL_CAP = 24,
+    DETAIL_CACHE_CAP = 48,
+    detailCache = new Map();
   function node(tag, text, cls) {
     var e = document.createElement(tag);
     if (text != null) e.textContent = String(text);
@@ -42,7 +47,9 @@
       var tag = tags[i] || {};
       var o = node("option", tag.discipline ? n + " · " + tag.discipline : n);
       o.value = n;
-      groups[tag.focus === "trade" ? "trade" : tag.focus === "coordination" ? "coordination" : "other"].push(o);
+      groups[
+        tag.focus === "trade" ? "trade" : tag.focus === "coordination" ? "coordination" : "other"
+      ].push(o);
     });
     if (!groups.trade.length && !groups.coordination.length) {
       groups.other.forEach(function (o) {
@@ -748,7 +755,11 @@
       var s = (sc.available_sources || []).find(function (s) {
         return s.id === sourceSelect.value;
       });
-      appendSheetOptions(sheetSelect, s && s.sheets ? s : null, (s && s.sheets) || [sc.source.sheet]);
+      appendSheetOptions(
+        sheetSelect,
+        s && s.sheets ? s : null,
+        (s && s.sheets) || [sc.source.sheet],
+      );
       // A different revision may not hold the open sheet; never send a stale name.
       if (sourceSelect.value === sc.source.id) sheetSelect.value = sc.source.sheet;
       else {
@@ -804,7 +815,8 @@
     viewport.ariaLabel = "Drawing. Zoom, then drag or scroll to pan.";
     var detailReady = false,
       detailTimer = null,
-      detailLoading = false,
+      detailInFlight = 0,
+      detailRequested = new Set(),
       detailImages = new Map(),
       detailSource = sc.source.id,
       detailHash = sc.source.content_hash,
@@ -868,55 +880,186 @@
       overlay();
     });
     tools.append(marksButton);
-    left.append(tools, modeNote, viewport);
-    // Request only the visible 200-dpi regions after zooming. Keep the
-    // low-resolution page underneath as an immediate, non-blocking fallback.
-    function scheduleDetail() {
-      clearTimeout(detailTimer);
-      if (zoom <= 1 || !host.serverTools || !svg.isConnected) return;
-      detailTimer = setTimeout(loadVisibleDetail, 180);
+    // The selected mark is named right above the drawing, so a click on a pin
+    // says what it is without scrolling the side panel.
+    var selectionBar = node("div", null, "selbar");
+    selectionBar.setAttribute("aria-live", "polite");
+    function showSelectionBar() {
+      selectionBar.replaceChildren();
+      var g = selectedGeometry
+        ? rows().find(function (g) {
+            return g.geometry_id === selectedGeometry;
+          })
+        : null;
+      var line =
+        g &&
+        sc.engine.lines.find(function (l) {
+          return l.id === g.line_id;
+        });
+      var listRows =
+        typeof list !== "undefined" && list ? list.querySelectorAll(".row[data-line]") : [];
+      Array.prototype.forEach.call(listRows, function (r) {
+        var on = !!line && r.dataset.line === String(line.line_no);
+        r.classList.toggle("selected", on);
+        // Scroll only the review list, never the page, to the selected line.
+        if (on && list.scrollHeight > list.clientHeight) {
+          var top = r.offsetTop - list.offsetTop;
+          if (top < list.scrollTop || top + r.offsetHeight > list.scrollTop + list.clientHeight)
+            list.scrollTop = Math.max(0, top - 8);
+        }
+      });
+      if (!g) return;
+      var label = node("strong", line ? "L" + line.line_no + " · " + line.item : "Selected mark");
+      var facts = [];
+      if (g.shape.kind === "pins" && selectedPoint >= 0) {
+        var before = 0;
+        rows().some(function (other) {
+          if (other.geometry_id === g.geometry_id) return true;
+          if (other.line_id === g.line_id && other.shape.kind === "pins")
+            before += other.shape.points.length;
+          return false;
+        });
+        facts.push("count " + (before + selectedPoint + 1));
+      }
+      facts.push(g.status, Number(g.measured).toFixed(2) + " " + g.unit);
+      selectionBar.append(
+        label,
+        node("span", facts.join(" · "), "note"),
+        button("Clear", function () {
+          selectedGeometry = null;
+          selectedPoint = -1;
+          showSelected();
+          overlay();
+        }),
+      );
     }
-    async function loadVisibleDetail() {
-      if (detailLoading || zoom <= 1 || !svg.isConnected) return;
+    left.append(tools, modeNote, selectionBar, viewport);
+    // Request the visible 200-dpi regions after zooming, then the regions just
+    // outside the view so a pan lands on sharp detail. The low-resolution page
+    // stays underneath as an immediate, non-blocking fallback.
+    function scheduleDetail() {
+      if (zoom <= 1 || !host.serverTools || !svg.isConnected) return;
+      // Throttle rather than debounce, so detail keeps arriving during a long pan.
+      if (detailTimer) return;
+      detailTimer = setTimeout(function () {
+        detailTimer = null;
+        loadVisibleDetail();
+      }, 100);
+    }
+    function viewBounds(margin) {
       var w = surface.clientWidth,
         h = surface.clientHeight;
-      if (!w || !h) return;
-      var visible = {
+      if (!w || !h) return null;
+      var v = {
         x: viewport.scrollLeft / w,
         y: viewport.scrollTop / h,
         width: viewport.clientWidth / w,
         height: viewport.clientHeight / h,
       };
-      var cx = visible.x + visible.width / 2,
-        cy = visible.y + visible.height / 2;
-      var candidates = (sc.tiles || [])
-        .filter(function (tile) {
-          var b = tile.bounds;
-          return (
-            b &&
-            b.x < visible.x + visible.width &&
-            b.x + b.width > visible.x &&
-            b.y < visible.y + visible.height &&
-            b.y + b.height > visible.y
-          );
-        })
-        .sort(function (a, b) {
-          function distance(tile) {
-            return Math.hypot(
-              tile.bounds.x + tile.bounds.width / 2 - cx,
-              tile.bounds.y + tile.bounds.height / 2 - cy,
-            );
+      return {
+        x: v.x - v.width * margin,
+        y: v.y - v.height * margin,
+        width: v.width * (1 + 2 * margin),
+        height: v.height * (1 + 2 * margin),
+        cx: v.x + v.width / 2,
+        cy: v.y + v.height / 2,
+      };
+    }
+    function overlaps(tile, v) {
+      var b = tile.bounds;
+      return (
+        b &&
+        b.x < v.x + v.width &&
+        b.x + b.width > v.x &&
+        b.y < v.y + v.height &&
+        b.y + b.height > v.y
+      );
+    }
+    function tileDistance(tile, v) {
+      return Math.hypot(
+        tile.bounds.x + tile.bounds.width / 2 - v.cx,
+        tile.bounds.y + tile.bounds.height / 2 - v.cy,
+      );
+    }
+    function placeDetail(index, png) {
+      if (detailImages.has(index)) return;
+      var t = (sc.tiles || []).find(function (tile) {
+        return tile.index === index;
+      });
+      if (!t || !t.bounds) return;
+      var detail = svgNode("image", {
+        href: png,
+        x: t.bounds.x * viewWidth,
+        y: t.bounds.y * viewHeight,
+        width: t.bounds.width * viewWidth,
+        height: t.bounds.height * viewHeight,
+        preserveAspectRatio: "none",
+        "pointer-events": "none",
+      });
+      svg.insertBefore(detail, svg.firstChild);
+      detailImages.set(index, detail);
+    }
+    // Keep the regions nearest the view; drop the farthest when over the cap.
+    function trimDetail() {
+      var v = viewBounds(0);
+      if (!v) return;
+      while (detailImages.size > DETAIL_CAP) {
+        var far = null,
+          farDistance = -1;
+        detailImages.forEach(function (_, index) {
+          var t = (sc.tiles || []).find(function (tile) {
+            return tile.index === index;
+          });
+          var d = t && t.bounds ? tileDistance(t, v) : Infinity;
+          if (d > farDistance) {
+            farDistance = d;
+            far = index;
           }
-          return distance(a) - distance(b);
-        })
-        .slice(0, 12)
-        .filter(function (tile) {
-          return !detailImages.has(tile.index);
         });
-      if (!candidates.length) return;
-      // Two regions per request so the centre sharpens first; the rest follow.
-      var wanted = candidates.slice(0, 2);
-      detailLoading = true;
+        if (far == null) return;
+        detailImages.get(far).remove();
+        detailImages.delete(far);
+      }
+    }
+    function detailKey(index) {
+      return detailSource + ":" + detailHash + ":" + detailSheet + ":" + index;
+    }
+    // After a redraw (selection, save, reload) put back regions already fetched.
+    (sc.tiles || []).forEach(function (tile) {
+      var png = detailCache.get(detailKey(tile.index));
+      if (png) placeDetail(tile.index, png);
+    });
+    trimDetail();
+    async function loadVisibleDetail() {
+      if (detailInFlight >= 2 || zoom <= 1 || !svg.isConnected) return;
+      var visible = viewBounds(0),
+        near = viewBounds(0.6);
+      if (!visible) return;
+      function missing(v) {
+        return (sc.tiles || [])
+          .filter(function (tile) {
+            return (
+              overlaps(tile, v) && !detailImages.has(tile.index) && !detailRequested.has(tile.index)
+            );
+          })
+          .sort(function (a, b) {
+            return tileDistance(a, visible) - tileDistance(b, visible);
+          });
+      }
+      // Visible regions first; then a ring around the view, within the cap.
+      var wanted = missing(visible);
+      if (!wanted.length && detailImages.size < DETAIL_CAP) wanted = missing(near);
+      wanted = wanted.slice(0, 4);
+      if (!wanted.length) return;
+      wanted.forEach(function (tile) {
+        detailRequested.add(tile.index);
+      });
+      detailInFlight++;
+      // Start a second request alongside this one when more regions are waiting.
+      scheduleDetail();
+      var source = detailSource,
+        hash = detailHash,
+        sheet = detailSheet;
       try {
         var result = await call(
           "takeoff_geometry",
@@ -926,8 +1069,8 @@
               return tile.index;
             }),
             viewer_tile_only: true,
-            source_id: detailSource,
-            sheet: detailSheet,
+            source_id: source,
+            sheet: sheet,
           }),
         );
         var data = result && result.structuredContent;
@@ -937,9 +1080,9 @@
           !data ||
           !Array.isArray(data.tiles) ||
           data.tiles.length !== wanted.length ||
-          data.source_id !== detailSource ||
-          data.source_hash !== detailHash ||
-          data.sheet !== detailSheet ||
+          data.source_id !== source ||
+          data.source_hash !== hash ||
+          data.sheet !== sheet ||
           !data.tiles.every(function (tile, index) {
             return (
               tile.index === wanted[index].index &&
@@ -949,38 +1092,31 @@
           })
         )
           throw Error("Drawing detail could not be loaded.");
+        data.tiles.forEach(function (tile) {
+          detailCache.set(source + ":" + hash + ":" + sheet + ":" + tile.index, tile.png);
+        });
+        while (detailCache.size > DETAIL_CACHE_CAP)
+          detailCache.delete(detailCache.keys().next().value);
         if (
           !svg.isConnected ||
           !sc.source ||
-          sc.source.id !== detailSource ||
-          sc.source.content_hash !== detailHash ||
-          sc.source.sheet !== detailSheet
+          sc.source.id !== source ||
+          sc.source.content_hash !== hash ||
+          sc.source.sheet !== sheet
         )
           return;
-        data.tiles.forEach(function (tile, index) {
-          var b = wanted[index].bounds;
-          var detail = svgNode("image", {
-            href: tile.png,
-            x: b.x * viewWidth,
-            y: b.y * viewHeight,
-            width: b.width * viewWidth,
-            height: b.height * viewHeight,
-            preserveAspectRatio: "none",
-            "pointer-events": "none",
-          });
-          svg.insertBefore(detail, svg.firstChild);
-          detailImages.set(tile.index, detail);
-          if (detailImages.size > 12) {
-            var first = detailImages.keys().next().value;
-            detailImages.get(first).remove();
-            detailImages.delete(first);
-          }
+        data.tiles.forEach(function (tile) {
+          placeDetail(tile.index, tile.png);
         });
+        trimDetail();
       } catch (_) {
         // The original preview remains available; a later scroll or zoom can retry.
         return;
       } finally {
-        detailLoading = false;
+        detailInFlight--;
+        wanted.forEach(function (tile) {
+          detailRequested.delete(tile.index);
+        });
       }
       scheduleDetail();
     }
@@ -1220,6 +1356,7 @@
     }
     function overlay() {
       panCursor();
+      showSelectionBar();
       if (marksHidden) {
         svg.querySelectorAll("circle,path,text").forEach(function (e) {
           e.remove();
@@ -1992,6 +2129,7 @@
         })
         .forEach(function (l) {
           var r = node("div", null, "row");
+          r.dataset.line = String(l.line_no);
           r.append(
             node("strong", "L" + l.line_no + " · " + l.item),
             node(
