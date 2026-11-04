@@ -208,11 +208,7 @@ export function SubmittalRecordView({
                   <p>{q.error.diagnostic.message}</p>
                 </details>
               ) : null}
-              <button
-                type="button"
-                onClick={() => void q.refetch()}
-                className="my-3"
-              >
+              <button type="button" onClick={() => void q.refetch()} className="my-3">
                 Retry upload access
               </button>
               <BoardSignIn returnTo={returnTo} />

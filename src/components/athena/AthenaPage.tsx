@@ -33,7 +33,7 @@ export function AthenaPage({
   jobId?: string;
   token?: string;
   account?: string | null;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <main className="ath-page">
@@ -41,7 +41,11 @@ export function AthenaPage({
         <div className="ath-page-top">
           <span className="ath-page-mark">Athena</span>
           <div className="ath-page-nav">
-            {account ? <span className="ath-page-account" role="status">Browser account: {account}</span> : null}
+            {account ? (
+              <span className="ath-page-account" role="status">
+                Browser account: {account}
+              </span>
+            ) : null}
             <AthenaPageNav jobId={jobId} token={token} />
           </div>
         </div>
@@ -87,7 +91,11 @@ function emptyMessage(section: CardSection): string | null {
 function TableSection({ section }: { section: CardSection }) {
   const empty = emptyMessage(section);
   if (empty) return <p className="ath-page-empty">{empty}</p>;
-  const width = Math.max(section.columns?.length ?? 0, ...section.rows.map((r) => r.cells.length), 1);
+  const width = Math.max(
+    section.columns?.length ?? 0,
+    ...section.rows.map((r) => r.cells.length),
+    1,
+  );
   const columns = Array.from({ length: width }, (_, i) => section.columns?.[i] ?? "");
   return (
     <div className="ath-page-table-wrap" tabIndex={0} role="region" aria-label={section.heading}>
@@ -105,7 +113,7 @@ function TableSection({ section }: { section: CardSection }) {
           {section.rows.map((row, r) => {
             const flag = isAlertLevel(row.flag) ? flagLabel(row.flag) : null;
             return (
-              <tr key={r} data-alert={flag ? row.flag ?? undefined : undefined}>
+              <tr key={r} data-alert={flag ? (row.flag ?? undefined) : undefined}>
                 {columns.map((label, i) => {
                   const text = cellText(row.cells[i] ?? "");
                   const kind = cellClass(text);
@@ -131,7 +139,9 @@ function ListSection({ section }: { section: CardSection }) {
     <ul>
       {section.rows.map((row, r) => (
         <li key={r} className={row.tone === "literal" ? "ath-page-literal" : undefined}>
-          {isAlertLevel(row.flag) ? <span className="ath-page-flag">{flagLabel(row.flag)}</span> : null}
+          {isAlertLevel(row.flag) ? (
+            <span className="ath-page-flag">{flagLabel(row.flag)}</span>
+          ) : null}
           {row.tone === "literal" ? (
             row.cells.join("\n")
           ) : row.raw ? (
