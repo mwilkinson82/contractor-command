@@ -5,6 +5,7 @@ import { dbError, type Sb } from "../guard";
 import { estimateOptionsPayload, readEstimateOptions } from "../estimate-options";
 import { lineOptionsFlag } from "../../selections/estimate-options";
 import { type Job, named } from "../jobs";
+import { sheetTags } from "../sheet-index";
 import {
   drawingRecords,
   readStoredDrawingBytes,
@@ -578,6 +579,8 @@ export async function viewEngine(
         },
       ],
     });
+  // The contractor's own trade sheets come first in the sheet pickers; the rest are coordination.
+  const scope = state.estimate_scope ?? { role: state.role, trades: state.trades ?? [] };
   const availableSources = allSources.map((s) => ({
     id: s.id,
     filename: s.filename,
@@ -585,6 +588,7 @@ export async function viewEngine(
     content_hash: s.content_hash,
     sheets: s.sheets,
     source_key: s.source_key,
+    sheet_tags: sheetTags(s.sheets, scope.role, scope.trades),
   }));
   const structuredContent = {
     foundation_scope: settled.foundationScope,
