@@ -98,6 +98,9 @@ async function notify(
   return out;
 }
 
+export const CUSTOMER_PORTAL_RULE =
+  " To invite a job's customer, owner or homeowner to their private customer page, call customer_portal with action invite, the job number and their email; never use team_invite or a team role for a customer, and never say Athena has no customer access. Pass confirmed true only after the member says yes to that invite.";
+
 export const customerPortal = defineTool({
   name: "customer_portal",
   title: "Customer page",

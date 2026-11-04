@@ -84,7 +84,7 @@ export const teamList = defineTool({
 export const teamInvite = defineTool({
   name: "team_invite",
   title: "Invite a person to the team",
-  description: "Invites a person to the company.",
+  description: "Invites a person to the company team; a job's customer, owner or homeowner is invited with customer_portal instead.",
   inputSchema: {
     company_id: companyId,
     email: z.string().trim().email().max(320),
