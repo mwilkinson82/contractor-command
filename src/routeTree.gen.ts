@@ -84,6 +84,7 @@ import { Route as ApiAthenaMorningBriefRouteImport } from './routes/api/athena/m
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/brand.athena.athena-icon-64[.]png'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as PSTokenRouteImport } from './routes/p.s.$token'
 import { Route as RDrawingUploadTokenRouteImport } from './routes/r.drawing-upload.$token'
 import { Route as RFileUploadTokenRouteImport } from './routes/r.file-upload.$token'
 import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$companyId'
@@ -490,6 +491,11 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PSTokenRoute = PSTokenRouteImport.update({
+  id: '/p/s/$token',
+  path: '/p/s/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RDrawingUploadTokenRoute = RDrawingUploadTokenRouteImport.update({
   id: '/r/drawing-upload/$token',
   path: '/r/drawing-upload/$token',
@@ -700,6 +706,7 @@ export interface FileRoutesByFullPath {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/p/s/$token': typeof PSTokenRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
@@ -802,6 +809,7 @@ export interface FileRoutesByTo {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/p/s/$token': typeof PSTokenRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
@@ -905,6 +913,7 @@ export interface FileRoutesById {
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/p/s/$token': typeof PSTokenRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
@@ -1009,6 +1018,7 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
+    | '/p/s/$token'
     | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/portfolio/$companyId'
@@ -1111,6 +1121,7 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
+    | '/p/s/$token'
     | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/portfolio/$companyId'
@@ -1213,6 +1224,7 @@ export interface FileRouteTypes {
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
     | '/lovable/email/suppression'
+    | '/p/s/$token'
     | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/portfolio/$companyId'
@@ -1312,6 +1324,7 @@ export interface RootRouteChildren {
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   BrandAthenaAthenaIcon64DotpngRoute: typeof BrandAthenaAthenaIcon64DotpngRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  PSTokenRoute: typeof PSTokenRoute
   RDrawingUploadTokenRoute: typeof RDrawingUploadTokenRoute
   RFileUploadTokenRoute: typeof RFileUploadTokenRoute
   RPortfolioCompanyIdRoute: typeof RPortfolioCompanyIdRoute
@@ -1865,6 +1878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/p/s/$token': {
+      id: '/p/s/$token'
+      path: '/p/s/$token'
+      fullPath: '/p/s/$token'
+      preLoaderRoute: typeof PSTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/drawing-upload/$token': {
       id: '/r/drawing-upload/$token'
       path: '/r/drawing-upload/$token'
@@ -2147,6 +2167,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   BrandAthenaAthenaIcon64DotpngRoute: BrandAthenaAthenaIcon64DotpngRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  PSTokenRoute: PSTokenRoute,
   RDrawingUploadTokenRoute: RDrawingUploadTokenRoute,
   RFileUploadTokenRoute: RFileUploadTokenRoute,
   RPortfolioCompanyIdRoute: RPortfolioCompanyIdRoute,
