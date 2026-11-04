@@ -66,7 +66,7 @@ describe("Athena web page shell", () => {
     const css = readFileSync(join(__dirname, "athena-page.css"), "utf8");
     expect(css).toContain("max-width: 1440px");
     expect(css).toMatch(/@media \(max-width: 1024px\)[\s\S]*min-width: 860px/);
-    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*content: attr\(data-label\)/);
+    expect(css).toMatch(/@media \(max-width: 820px\)[\s\S]*content: attr\(data-label\)/);
     expect(css).not.toMatch(/#1e5fed/i);
   });
 });

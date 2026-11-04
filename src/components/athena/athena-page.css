@@ -363,7 +363,7 @@
   color: var(--ath-muted);
 }
 
-/* Tablet: tables keep a readable width and pan sideways inside their frame. */
+/* Landscape tablet and small laptop: tables keep a readable width and pan sideways inside their frame. */
 @media (max-width: 1024px) {
   .ath-page-table {
     min-width: 860px;
@@ -373,8 +373,8 @@
   }
 }
 
-/* Phone: each row becomes a card with the column name beside each value. */
-@media (max-width: 720px) {
+/* Phone and portrait tablet: each row becomes a card with the column name beside each value. */
+@media (max-width: 820px) {
   .ath-page {
     padding: 18px 14px 40px;
   }
