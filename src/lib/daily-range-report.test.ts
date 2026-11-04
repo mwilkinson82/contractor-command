@@ -294,6 +294,34 @@ describe("daily reports for a date range", () => {
     expect(reported("Ceiling grid not ready")).toBe(true);
   });
 
+  it("prints long crew notes and photo captions in full instead of cutting them off", async () => {
+    const long = {
+      ...DATA,
+      mcp_daily_reports: [
+        daily("d-2", "2026-11-03", {
+          manpower:
+            "Electrical: 2 workers x 8 hours = 16 person-hours; carpentry: 3 workers x 8 hours = 24 person-hours; plumbing: 1 worker x 6 hours = 6 person-hours. Total: 6 workers, 46 person-hours ENDOFCREW.",
+        }),
+      ],
+      mcp_progress_photos: [
+        {
+          ...DATA.mcp_progress_photos[0],
+          area: "Interior office viewed through glass / ceiling",
+          work: "Progress photo showing linear LED strip lights and recessed fixtures through glass; documentation only, not evidence of November 3 duct-bank, sheetrock, or plumbing quantities ENDOFCAPTION.",
+        },
+      ],
+    };
+    const r = await readDailyRange(client(long).c, JOB, { from: "2026-11-03", to: "2026-11-03" });
+    const text = Buffer.from(
+      dailyRangePdf(
+        r,
+        new Map([[long.mcp_progress_photos[0].id, { data: png(40, 30), format: "PNG" as const }]]),
+      ),
+    ).toString("latin1");
+    expect(text).toContain("ENDOFCREW");
+    expect(text).toContain("ENDOFCAPTION");
+  });
+
   it("builds a paged PDF with a summary, one daily per day, and photos drawn or listed", async () => {
     const r = await readDailyRange(
       client(DATA).c,

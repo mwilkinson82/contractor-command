@@ -74,6 +74,10 @@ export function dailyRangePdf(
   };
   const wrap = (s: string, width: number) =>
     lines(s).flatMap((l) => (l ? (d.splitTextToSize(l, width) as string[]) : [""]));
+  // Text wraps in full. Only a field far longer than any real daily entry is cut, and then
+  // visibly, with an ellipsis, so a printed record never stops mid-sentence without a mark.
+  const clip = (ls: string[], max: number) =>
+    ls.length <= max ? ls : [...ls.slice(0, max - 1), `${ls[max - 1].replace(/\s*\S*$/, "")} ...`];
   const title = `${r.job_number}${r.job_name ? ` - ${r.job_name}` : ""}`;
   const span =
     r.period.from === r.period.to
@@ -155,7 +159,7 @@ export function dailyRangePdf(
       daily ? (reported(daily.issues) || reported(daily.delays) ? "See daily" : "None") : "",
     ];
     font(8, false);
-    const wrapped = cells.map((c, j) => wrap(c, cols[j].w - 10).slice(0, 3) as string[]);
+    const wrapped = cells.map((c, j) => clip(wrap(c, cols[j].w - 10), 30));
     const h = Math.max(...wrapped.map((w) => w.length)) * 10 + 8;
     if (room(h)) header();
     if (i % 2) {
@@ -245,9 +249,9 @@ export function dailyRangePdf(
       const pair = list.slice(i, i + 2);
       const caps = pair.map((p) => {
         font(8, true);
-        const title = wrap(photoCaption(p), pw).slice(0, 3);
+        const title = clip(wrap(photoCaption(p), pw), 20);
         font(7, false);
-        return { title, facts: wrap(photoFacts(p, r.time_zone_used).join(" - "), pw).slice(0, 3) };
+        return { title, facts: clip(wrap(photoFacts(p, r.time_zone_used).join(" - "), pw), 6) };
       });
       const capH = Math.max(...caps.map((c) => c.title.length * 10 + c.facts.length * 9)) + 6;
       room(ph + capH + 10);
