@@ -11,6 +11,7 @@ type Result = { data: unknown; error: ReadError | null };
 interface Query extends PromiseLike<Result> {
   select(columns: string): Query;
   eq(column: string, value: unknown): Query;
+  is(column: string, value: null): Query;
   in(column: string, values: readonly unknown[]): Query;
   gte(column: string, value: string): Query;
   lte(column: string, value: string): Query;
@@ -224,6 +225,7 @@ export async function readDailyRange(
         "id, daily_id, taken_on, area, work, sov_item, activity_id, client_safe, storage_path, mime_type, size_bytes, created_at",
       )
       .eq("job_id", jobId)
+      .is("removed_at", null)
       .gte("taken_on", period.from)
       .lte("taken_on", period.to);
     if (mode === "client_safe") q = q.eq("client_safe", true);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { photoImageInfo, photoQualityProblem, PHOTO_MIN_EDGE } from "./mcp/superintendent";
-import { photoPageHref } from "./mcp/tools/superintendent-tools";
+import { photoAddHref, photoPageHref } from "./mcp/tools/superintendent-tools";
 import { readPhotoExif } from "./photo-exif";
 import { brokenJpeg, testJpeg } from "./photo-fixtures.test-helpers";
 import {
@@ -111,6 +111,24 @@ describe("photo page links", () => {
       "https://app.meetathena.io/r/job/x/photos?t=tok",
     );
     expect(photoPageHref(null, "2026-11-03")).toBeNull();
+  });
+
+  it("links to the Add photos form with the confirmed date and place filled in", () => {
+    expect(
+      photoAddHref(
+        "https://app.meetathena.io/r/job/x/photos?t=tok",
+        "2026-11-03",
+        " Office / ceiling ",
+      ),
+    ).toBe(
+      "https://app.meetathena.io/r/job/x/photos?t=tok&date=2026-11-03&add=1&area=Office+%2F+ceiling",
+    );
+    expect(photoAddHref(null, "2026-11-03", "Office")).toBeNull();
+    const job = "f568fe39-26d1-4c49-9d93-a9072a896c46";
+    expect(photosHref(job, { date: "2026-11-03", add: true, area: "Level 1 & 2" })).toBe(
+      `/r/job/${job}/photos?date=2026-11-03&add=1&area=Level%201%20%26%202`,
+    );
+    expect(photosHref(job, { area: "ignored without add" })).toBe(`/r/job/${job}/photos`);
   });
 
   it("opens a photo from its link", () => {

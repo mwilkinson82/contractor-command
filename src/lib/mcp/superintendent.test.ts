@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { visibleProblems } from "./visible";
 import { pageAllowed, renderReportBody } from "../report-pages";
@@ -131,6 +131,7 @@ import {
   dailyReportSave,
   fieldPayApp,
   fieldProductionRates,
+  progressPhotoRemove,
   progressPhotoSave,
   superintendentView,
 } from "./tools/superintendent-tools";
@@ -528,7 +529,14 @@ describe("field board", () => {
   });
 });
 
+// A chat attachment as ChatGPT passes it: the tool reads the bytes from the host file link.
+const photoFile = (bytes: Uint8Array<ArrayBuffer>, name = "slab.jpg") => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(bytes, { status: 200 }));
+  return { download_url: "https://files.oaiusercontent.com/synthetic-photo", file_id: `file_${name}`, file_name: name, mime_type: "image/jpeg" };
+};
+
 describe("photos", () => {
+  afterEach(() => vi.restoreAllMocks());
   it("defaults the date to the upload time and will not store until the place is confirmed", async () => {
     const gate = photoGate({ uploaded_at: "2026-10-21T18:00:00Z", time_zone: "America/New_York" });
     expect(gate.ok).toBe(false);
@@ -539,11 +547,11 @@ describe("photos", () => {
     expect(yes).toMatchObject({ ok: true, taken_on: "2026-10-21" });
     expect(sniffPhoto(JPEG, "slab.jpg")?.mime).toBe("image/jpeg");
     expect(sniffPhoto(Uint8Array.from([0x3c, 0x68, 0x74, 0x6d, 0x6c, 0, 0, 0, 0, 0, 0, 0]), "x.jpg")).toBeNull();
-    await expect(handle(progressPhotoSave, { job_number: "2701", filename: "slab.jpg", content_base64: Buffer.from(JPEG).toString("base64") })).resolves.toMatchObject({ structuredContent: { saved: false, client_safe: false } });
+    await expect(handle(progressPhotoSave, { job_number: "2701", filename: "slab.jpg" })).resolves.toMatchObject({ structuredContent: { saved: false, client_safe: false } });
     expect(state.uploads).toEqual([]);
     state.rpc.mcp_progress_photo_create = { linked_daily: true, client_safe: false };
     const saved = await handle(progressPhotoSave, {
-      job_number: "2701", filename: "slab.jpg", content_base64: Buffer.from(JPEG).toString("base64"),
+      job_number: "2701", filename: "slab.jpg", file: photoFile(JPEG),
       recognized: true, date_confirmed: true, confirmed: true, area: "North footing",
     });
     expect(saved.structuredContent.saved).toBe(true);
@@ -551,8 +559,8 @@ describe("photos", () => {
     expect(saved.structuredContent).toMatchObject({ width: 1600, height: 1200 });
     const ok = { job_number: "2701", filename: "slab.jpg", recognized: true, date_confirmed: true, confirmed: true, area: "North footing" };
     const uploads = state.uploads.length;
-    await expect(handle(progressPhotoSave, { ...ok, content_base64: Buffer.from(brokenJpeg()).toString("base64") })).rejects.toThrow(/damaged or incomplete/);
-    await expect(handle(progressPhotoSave, { ...ok, content_base64: Buffer.from(testJpeg(120, 160)).toString("base64") })).rejects.toThrow(/small preview/);
+    await expect(handle(progressPhotoSave, { ...ok, file: photoFile(brokenJpeg()) })).rejects.toThrow(/damaged or incomplete/);
+    await expect(handle(progressPhotoSave, { ...ok, file: photoFile(testJpeg(120, 160)) })).rejects.toThrow(/small preview/);
     expect(state.uploads.length).toBe(uploads);
     expect(state.uploads[0]).toMatch(/^22222222-2222-4222-8222-222222222222\/11111111-1111-4111-8111-111111111111\/[0-9a-f-]{36}\/progress\.jpg$/);
     expect(saved.content[0].text).not.toMatch(/files\.example|supabase/i);
@@ -747,17 +755,17 @@ describe("daily on a job with no SOV or no CPM", () => {
 
   it("saves a progress photo with no SOV or CPM link, and with one when given", async () => {
     state.rpc.mcp_progress_photo_create = { linked_daily: false, client_safe: false };
-    const photo = { job_number: "2701", filename: "wire.jpg", content_base64: Buffer.from(JPEG).toString("base64"), recognized: true, date_confirmed: true, confirmed: true, area: "Level 2 corridor", work: "Pulled wire" };
-    const saved = await handle(progressPhotoSave, { ...photo, sov_item: "none", activity_id: "No CPM" });
+    const photo = { job_number: "2701", filename: "wire.jpg", recognized: true, date_confirmed: true, confirmed: true, area: "Level 2 corridor", work: "Pulled wire" };
+    const saved = await handle(progressPhotoSave, { ...photo, file: photoFile(JPEG), sov_item: "none", activity_id: "No CPM" });
     expect(saved.structuredContent.saved).toBe(true);
     const create = state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1];
     expect(create).toMatchObject({ _sov: null, _activity: null, _area: "Level 2 corridor" });
     expect(saved.content[0].text).toContain("It joins that day's daily when the daily is saved.");
     state.rpcs = [];
-    await handle(progressPhotoSave, { ...photo, sov_item: "26.04", activity_id: "E090" });
+    await handle(progressPhotoSave, { ...photo, file: photoFile(JPEG), sov_item: "26.04", activity_id: "E090" });
     expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1]).toMatchObject({ _sov: "26.04", _activity: "E090" });
     state.rpcs = [];
-    await handle(progressPhotoSave, photo);
+    await handle(progressPhotoSave, { ...photo, file: photoFile(JPEG) });
     expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_create")![1]).toMatchObject({ _sov: null, _activity: null });
   });
 
@@ -776,11 +784,55 @@ describe("daily on a job with no SOV or no CPM", () => {
     fetchSpy.mockClear();
     await expect(handle(progressPhotoSave, { ...base, file: { ...file, download_url: "https://unapproved.example/photo" } })).rejects.toThrow(/can't fetch that link/);
     expect(fetchSpy).not.toHaveBeenCalled();
-    await expect(handle(progressPhotoSave, { ...base, file, content_base64: Buffer.from(JPEG).toString("base64") })).rejects.toThrow(/not both/);
-    await expect(handle(progressPhotoSave, base)).rejects.toThrow(/Attach the photo first/);
+    // No file (Claude, or a chat that only saw the picture): nothing is stored and the member gets the add-photo link.
+    const uploads = state.uploads.length;
+    const needs = await handle(progressPhotoSave, base);
+    expect(needs.structuredContent).toMatchObject({ saved: false, needs_upload: true, area: "Northeast duct bank" });
+    expect(state.uploads.length).toBe(uploads);
+    expect(needs.content[0].text).toMatch(/didn't pass the photo file/);
     fetchSpy.mockResolvedValue(new Response(new TextEncoder().encode("<html>not a photo</html>"), { status: 200 }));
     await expect(handle(progressPhotoSave, { ...base, file })).rejects.toThrow(/JPEG, PNG or WebP/);
     fetchSpy.mockRestore();
+  });
+
+  it("replaces a saved photo only after the member confirms, keeping the old one in the record", async () => {
+    const OLD = "33333333-3333-4333-8333-333333333333";
+    state.tables.mcp_progress_photos = [{ id: OLD, job_id: "11111111-1111-4111-8111-111111111111", taken_on: "2026-11-03", area: "Office / ceiling", work: null, removed_at: null }];
+    state.rpc.mcp_progress_photo_create = { linked_daily: true, client_safe: false };
+    state.rpc.mcp_progress_photo_remove = { removed: true };
+    const base = { job_number: "2701", recognized: true, date_confirmed: true, confirmed: true, area: "Office / ceiling", replaces_photo_id: OLD };
+    const uploads = state.uploads.length;
+    state.rpcs = [];
+    const ask = await handle(progressPhotoSave, { ...base, file: { download_url: "https://files.oaiusercontent.com/x", file_id: "f" } });
+    expect(ask.structuredContent).toMatchObject({ saved: false, replace_question: true, replaces: { id: OLD } });
+    expect(ask.content[0].text).toMatch(/Replace the Office \/ ceiling \(2026-11-03\) photo/);
+    expect(state.uploads.length).toBe(uploads);
+    expect(state.rpcs).toEqual([]);
+    const done = await handle(progressPhotoSave, { ...base, file: photoFile(testJpeg(4032, 3024), "IMG_0412.JPG"), replace_confirmed: true });
+    expect(done.structuredContent).toMatchObject({ saved: true, width: 4032, height: 3024, replaced: true, replaced_photo_id: OLD });
+    const newId = done.structuredContent.id;
+    expect(state.rpcs.find((r) => r[0] === "mcp_progress_photo_remove")![1]).toEqual({ _id: OLD, _reason: "Replaced with the original photo file", _replaced_by: newId });
+    expect(done.content[0].text).toMatch(/kept in the job's record/);
+    await expect(handle(progressPhotoSave, { ...base, replaces_photo_id: "44444444-4444-4444-8444-444444444444", replace_confirmed: true, file: photoFile(JPEG) })).rejects.toThrow(/isn't on this job/);
+    state.tables.mcp_progress_photos = [];
+  });
+
+  it("removes a photo only with the member's yes and a reason", async () => {
+    const ID = "33333333-3333-4333-8333-333333333333";
+    state.tables.mcp_progress_photos = [{ id: ID, job_id: "11111111-1111-4111-8111-111111111111", taken_on: "2026-11-03", area: "Office / ceiling", work: null, removed_at: null }];
+    state.rpc.mcp_progress_photo_remove = { removed: true };
+    state.rpcs = [];
+    const ask = await handle(progressPhotoRemove, { job_number: "2701", photo_id: ID });
+    expect(ask.structuredContent).toMatchObject({ removed: false, question: true });
+    expect(ask.content[0].text).toMatch(/Why is it being removed/);
+    expect(await handle(progressPhotoRemove, { job_number: "2701", photo_id: ID, confirmed: true })).toMatchObject({ structuredContent: { removed: false } });
+    expect(state.rpcs).toEqual([]);
+    const done = await handle(progressPhotoRemove, { job_number: "2701", photo_id: ID, confirmed: true, reason: "Blurry copy, re-saved from original" });
+    expect(done.structuredContent).toMatchObject({ removed: true, id: ID });
+    expect(state.rpcs).toEqual([["mcp_progress_photo_remove", { _id: ID, _reason: "Blurry copy, re-saved from original", _replaced_by: null }]]);
+    state.tables.mcp_progress_photos = [{ id: ID, job_id: "11111111-1111-4111-8111-111111111111", taken_on: "2026-11-03", area: "Office / ceiling", work: null, removed_at: "2026-11-04T13:00:00Z" }];
+    await expect(handle(progressPhotoRemove, { job_number: "2701", photo_id: ID, confirmed: true, reason: "again" })).rejects.toThrow(/already removed/);
+    state.tables.mcp_progress_photos = [];
   });
 
   it("leaves unlinked work out of the pay app and the schedule feed", () => {

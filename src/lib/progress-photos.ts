@@ -21,6 +21,11 @@ export type GalleryPhoto = {
   created_by: string | null;
   saved_by: string | null;
   daily_linked: boolean | null;
+  /** Set when the photo was removed or replaced; it stays in the record. */
+  removed_at?: string | null;
+  removed_reason?: string | null;
+  removed_by_name?: string | null;
+  replaced_by?: string | null;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -70,9 +75,23 @@ const tokenQuery = (token?: string | null) => (token ? `t=${encodeURIComponent(t
 /** The photos page, optionally narrowed to one day. Keeps a board token when the visitor came in with one. */
 export function photosHref(
   jobId: string,
-  opts: { date?: string | null; token?: string | null; photoId?: string | null } = {},
+  opts: {
+    date?: string | null;
+    token?: string | null;
+    photoId?: string | null;
+    /** Opens the Add photos form, with where on site filled in when given. */
+    add?: boolean;
+    area?: string | null;
+  } = {},
 ): string {
-  const query = [isIsoDate(opts.date) ? `date=${opts.date}` : "", tokenQuery(opts.token)]
+  const query = [
+    isIsoDate(opts.date) ? `date=${opts.date}` : "",
+    tokenQuery(opts.token),
+    opts.add ? "add=1" : "",
+    opts.add && opts.area?.trim()
+      ? `area=${encodeURIComponent(opts.area.trim().slice(0, 160))}`
+      : "",
+  ]
     .filter(Boolean)
     .join("&");
   return `/r/job/${jobId}/photos${query ? `?${query}` : ""}${opts.photoId ? `#photo-${opts.photoId}` : ""}`;

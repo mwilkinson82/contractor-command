@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { PhotoPagePayload } from "@/lib/report-pages";
 import { readPhotoExif, type PhotoExif } from "@/lib/photo-exif";
@@ -16,6 +16,7 @@ import {
   shortDay,
   type GalleryPhoto,
 } from "@/lib/progress-photos";
+import { AddProgressPhotos } from "./AddProgressPhotos";
 import "./progress-photos.css";
 
 const PAGE = 60;
@@ -36,6 +37,10 @@ type Row = {
   created_at: string | null;
   created_by: string | null;
   daily_id: string | null;
+  removed_at?: string | null;
+  removed_by?: string | null;
+  removed_reason?: string | null;
+  replaced_by?: string | null;
 };
 
 type Loose = {
@@ -45,6 +50,7 @@ type Loose = {
 };
 type LooseQuery = PromiseLike<{ data: unknown; error: { message: string } | null }> & {
   eq: (c: string, v: unknown) => LooseQuery;
+  is: (c: string, v: null) => LooseQuery;
   in: (c: string, v: unknown[]) => LooseQuery;
   order: (c: string, o: { ascending: boolean }) => LooseQuery;
   range: (a: number, b: number) => LooseQuery;
@@ -52,14 +58,21 @@ type LooseQuery = PromiseLike<{ data: unknown; error: { message: string } | null
 const db = supabase as unknown as Loose;
 
 /** Signed-in members read the photo rows directly (RLS: full and super job access) for the extra metadata. */
-async function readMemberPhotos(jobId: string, date: string | null, limit: number, userId: string) {
+async function readMemberPhotos(
+  jobId: string,
+  date: string | null,
+  limit: number,
+  userId: string,
+  showRemoved: boolean,
+) {
   let q = db
     .from("mcp_progress_photos")
     .select(
-      "id,company_id,taken_on,area,work,sov_item,activity_id,client_safe,storage_path,mime_type,size_bytes,created_at,created_by,daily_id",
+      "id,company_id,taken_on,area,work,sov_item,activity_id,client_safe,storage_path,mime_type,size_bytes,created_at,created_by,daily_id,removed_at,removed_by,removed_reason,replaced_by",
     )
     .eq("job_id", jobId);
   if (date) q = q.eq("taken_on", date);
+  if (!showRemoved) q = q.is("removed_at", null);
   const { data, error } = await q
     .order("taken_on", { ascending: false })
     .order("created_at", { ascending: false })
@@ -69,7 +82,9 @@ async function readMemberPhotos(jobId: string, date: string | null, limit: numbe
   const more = rows.length > limit;
   const shown = rows.slice(0, limit);
   const names = new Map<string, string>();
-  const people = [...new Set(shown.map((r) => r.created_by).filter((v): v is string => !!v))];
+  const people = [
+    ...new Set(shown.flatMap((r) => [r.created_by, r.removed_by]).filter((v): v is string => !!v)),
+  ];
   if (people.length) {
     const members = await db
       .from("mcp_company_members")
@@ -81,7 +96,13 @@ async function readMemberPhotos(jobId: string, date: string | null, limit: numbe
         display_name: string;
         company_id: string;
       }[]) ?? [])
-        if (shown.some((r) => r.created_by === m.user_id && r.company_id === m.company_id))
+        if (
+          shown.some(
+            (r) =>
+              (r.created_by === m.user_id || r.removed_by === m.user_id) &&
+              r.company_id === m.company_id,
+          )
+        )
           names.set(m.user_id, m.display_name);
   }
   const photos: GalleryPhoto[] = await Promise.all(
@@ -108,6 +129,15 @@ async function readMemberPhotos(jobId: string, date: string | null, limit: numbe
               ? (names.get(r.created_by) ?? "A company member")
               : null,
         daily_linked: r.daily_id != null,
+        removed_at: r.removed_at ?? null,
+        removed_reason: r.removed_reason ?? null,
+        removed_by_name:
+          r.removed_by === userId
+            ? "You"
+            : r.removed_by
+              ? (names.get(r.removed_by) ?? "A company member")
+              : null,
+        replaced_by: r.replaced_by ?? null,
       };
     }),
   );
@@ -153,14 +183,21 @@ export function ProgressPhotosPage({
 }) {
   const date = isIsoDate(rawDate) ? rawDate : null;
   const [limit, setLimit] = useState(PAGE);
+  const [showRemoved, setShowRemoved] = useState(false);
+  const [replacing, setReplacing] = useState<GalleryPhoto | null>(null);
+  const queryClient = useQueryClient();
+  const refresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["athena-progress-photos", jobId] });
+    void queryClient.invalidateQueries({ queryKey: ["daily-photo-strip", jobId] });
+  }, [queryClient, jobId]);
   const member = useQuery({
-    queryKey: ["athena-progress-photos", jobId, memberId ?? null, date, limit],
+    queryKey: ["athena-progress-photos", jobId, memberId ?? null, date, limit, showRemoved],
     enabled: !!memberId,
     retry: false,
     staleTime: 30_000,
     // Keep the shown photos while "Show more" reads the next page.
     placeholderData: (previous) => previous,
-    queryFn: () => readMemberPhotos(jobId, date, limit, memberId!),
+    queryFn: () => readMemberPhotos(jobId, date, limit, memberId!, showRemoved),
   });
   // The member read adds file size, saved time, saved by and the daily link. The page payload is the fallback.
   const fallback = useMemo(() => fromPayload(payload, date), [payload, date]);
@@ -233,6 +270,35 @@ export function ProgressPhotosPage({
         </form>
       </div>
 
+      {memberId ? (
+        <>
+          <AddProgressPhotos
+            key={replacing?.id ?? "add"}
+            jobId={jobId}
+            date={date}
+            onSaved={refresh}
+            replaces={replacing}
+            onCancelReplace={() => setReplacing(null)}
+          />
+          <label className="pp-show-removed">
+            <input
+              type="checkbox"
+              checked={showRemoved}
+              onChange={(e) => setShowRemoved(e.target.checked)}
+            />
+            Show removed and replaced photos
+          </label>
+        </>
+      ) : (
+        <p className="pp-add-signin">
+          To add photos,{" "}
+          <a href={`/login?redirect=${encodeURIComponent(photosHref(jobId, { date, add: true }))}`}>
+            sign in to Athena
+          </a>{" "}
+          with an account that has access to this job.
+        </p>
+      )}
+
       {member.isLoading ? (
         <p className="pp-status" role="status">
           Loading photos…
@@ -281,7 +347,7 @@ export function ProgressPhotosPage({
                   <li key={photo.id} id={`photo-${photo.id}`} data-id={photo.id}>
                     <button
                       type="button"
-                      className="pp-card"
+                      className={photo.removed_at ? "pp-card pp-removed" : "pp-card"}
                       onClick={() => show(photo.id)}
                       aria-label={`Open ${photoTitle(photo)}`}
                     >
@@ -299,7 +365,13 @@ export function ProgressPhotosPage({
                             {photo.url ? "Photo file can't be shown" : "Photo file not available"}
                           </span>
                         )}
-                        {low && <span className="pp-badge">Low resolution</span>}
+                        {photo.removed_at ? (
+                          <span className="pp-badge pp-badge-removed">
+                            {photo.replaced_by ? "Replaced" : "Removed"}
+                          </span>
+                        ) : (
+                          low && <span className="pp-badge">Low resolution</span>
+                        )}
                       </span>
                       <span className="pp-caption">
                         <strong>{photoTitle(photo)}</strong>
@@ -331,6 +403,7 @@ export function ProgressPhotosPage({
       <p className="pp-foot">Private to your company · Athena powered by ALP</p>
       {open && (
         <PhotoViewer
+          key={open.id}
           photo={open}
           jobId={jobId}
           token={token}
@@ -342,6 +415,16 @@ export function ProgressPhotosPage({
           onNext={index < photos.length - 1 ? () => show(photos[index + 1].id) : undefined}
           onMeasured={(img) => measured(open.id, img)}
           onBroken={() => broken(open.id)}
+          canEdit={!!memberId && !open.removed_at}
+          onReplace={() => {
+            setReplacing(open);
+            show(null);
+          }}
+          onRemoved={() => {
+            show(null);
+            refresh();
+          }}
+          onOpen={show}
         />
       )}
     </main>
@@ -360,6 +443,10 @@ function PhotoViewer({
   onNext,
   onMeasured,
   onBroken,
+  canEdit,
+  onReplace,
+  onRemoved,
+  onOpen,
 }: {
   photo: GalleryPhoto;
   jobId: string;
@@ -372,7 +459,40 @@ function PhotoViewer({
   onNext?: () => void;
   onMeasured: (img: HTMLImageElement) => void;
   onBroken: () => void;
+  canEdit: boolean;
+  onReplace: () => void;
+  onRemoved: () => void;
+  onOpen: (id: string) => void;
 }) {
+  const [removing, setRemoving] = useState(false);
+  const [reason, setReason] = useState("");
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  async function remove() {
+    setRemoveBusy(true);
+    setRemoveError(null);
+    const { error } = await (
+      supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => PromiseLike<{ error: { message: string } | null }>;
+      }
+    ).rpc("mcp_progress_photo_remove", {
+      _id: photo.id,
+      _reason: reason.trim(),
+      _replaced_by: null,
+    });
+    setRemoveBusy(false);
+    if (error) {
+      setRemoveError(
+        /MCP_BAD:(.+)$/.exec(error.message)?.[1]?.trim() ??
+          "Athena couldn't remove it. Nothing was changed.",
+      );
+      return;
+    }
+    onRemoved();
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -454,7 +574,41 @@ function PhotoViewer({
       [savedAt, photo.saved_by ? `by ${photo.saved_by}` : null].filter(Boolean).join(" ") ||
         "Not shown on this link",
     ],
-    ["Source", "Saved through Athena in chat"],
+    ["Source", "Saved through Athena"],
+    ...(photo.removed_at
+      ? ([
+          [
+            photo.replaced_by ? "Replaced" : "Removed",
+            [
+              new Date(photo.removed_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+              photo.removed_by_name ? `by ${photo.removed_by_name}` : null,
+            ]
+              .filter(Boolean)
+              .join(" "),
+          ],
+          ["Reason", photo.removed_reason || "Not recorded"],
+          ...(photo.replaced_by
+            ? ([
+                [
+                  "Replaced by",
+                  <a
+                    key="replacement"
+                    href={`#photo-${photo.replaced_by}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onOpen(photo.replaced_by!);
+                    }}
+                  >
+                    The replacement photo
+                  </a>,
+                ],
+              ] as [string, ReactNode][])
+            : []),
+        ] as [string, ReactNode][])
+      : []),
   ];
   return (
     <div
@@ -495,6 +649,7 @@ function PhotoViewer({
                 key={photo.id}
                 src={photo.url}
                 alt={photoTitle(photo)}
+                className={low ? "pp-small" : undefined}
                 onLoad={(e) => onMeasured(e.currentTarget)}
                 onError={onBroken}
               />
@@ -520,12 +675,64 @@ function PhotoViewer({
           </div>
           <aside className="pp-meta" aria-label="Photo details">
             <h2>{photoTitle(photo)}</h2>
-            {low && size && (
+            {photo.removed_at && (
+              <p className="pp-warn">
+                {photo.replaced_by ? "This photo was replaced." : "This photo was removed."} It's no
+                longer in the gallery or the daily, and is kept here for the job's record.
+              </p>
+            )}
+            {!photo.removed_at && low && size && (
               <p className="pp-warn">
                 Low resolution: the stored file is only {size.w} × {size.h} pixels, a small preview
-                rather than the original photo. Save it again from the original file for a sharp
-                record.
+                rather than the original photo.{" "}
+                {canEdit
+                  ? "Use Replace with original below to swap in the full-size file."
+                  : "Save it again from the original file for a sharp record."}
               </p>
+            )}
+            {!photo.removed_at && dims === "broken" && canEdit && (
+              <p className="pp-warn">Use Replace with original below to swap in the photo file.</p>
+            )}
+            {canEdit && !removing && (
+              <div className="pp-actions">
+                <button type="button" className="pp-primary" onClick={onReplace}>
+                  Replace with original
+                </button>
+                <button type="button" onClick={() => setRemoving(true)}>
+                  Remove
+                </button>
+              </div>
+            )}
+            {canEdit && removing && (
+              <div className="pp-remove">
+                <label>
+                  Why remove this photo?
+                  <textarea
+                    value={reason}
+                    maxLength={400}
+                    rows={2}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                </label>
+                <p>
+                  It leaves the gallery and the daily. Athena keeps it in the job's record with who
+                  removed it, when and why.
+                </p>
+                <div className="pp-actions">
+                  <button
+                    type="button"
+                    className="pp-danger"
+                    disabled={removeBusy || reason.trim().length < 3}
+                    onClick={() => void remove()}
+                  >
+                    {removeBusy ? "Removing…" : "Remove photo"}
+                  </button>
+                  <button type="button" onClick={() => setRemoving(false)} disabled={removeBusy}>
+                    Cancel
+                  </button>
+                </div>
+                {removeError && <p role="alert">{removeError}</p>}
+              </div>
             )}
             <dl>
               {rows.map(([label, value]) => (
