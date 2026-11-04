@@ -10189,7 +10189,7 @@
       {
         "name": "progress_photo_save",
         "title": "Save a progress photo",
-        "description": "Stores the original progress photo attached in chat, passed unchanged as file, after its date and place on site are confirmed.",
+        "description": "Stores the original progress photo attached in chat, passed as file, after its date and place on site are confirmed, or returns a link to add the original photo when the chat can't pass the file.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -10236,11 +10236,6 @@
               "minLength": 1,
               "maxLength": 120
             },
-            "content_base64": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 12000000
-            },
             "recognized": {
               "type": "boolean"
             },
@@ -10272,6 +10267,18 @@
             },
             "client_safe": {
               "type": "boolean"
+            },
+            "replaces_photo_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "replace_confirmed": {
+              "type": "boolean"
+            },
+            "replace_reason": {
+              "type": "string",
+              "maxLength": 400
             }
           },
           "required": [
@@ -18609,6 +18616,51 @@
           "required": [
             "job_number",
             "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "progress_photo_remove",
+        "title": "Remove a progress photo",
+        "description": "Removes a saved progress photo from the job's gallery and dailies after the member confirms, keeping it in the job's record with who removed it, when and why.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "photo_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 400
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "photo_id"
           ],
           "additionalProperties": false
         },

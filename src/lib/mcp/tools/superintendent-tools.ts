@@ -99,6 +99,17 @@ export function photoPageHref(url: string | null, date?: string | null, id?: str
   return anchor ? `${path}#${anchor}` : path;
 }
 
+/** The photos page with the Add photos form open for that date and place, for a chat that can't pass the file. */
+export function photoAddHref(url: string | null, date?: string | null, area?: string | null): string | null {
+  const page = photoPageHref(url, date);
+  if (!page) return null;
+  const [base] = page.split("#");
+  const parsed = new URL(base, "https://athena.invalid");
+  parsed.searchParams.set("add", "1");
+  if (area?.trim()) parsed.searchParams.set("area", area.trim().slice(0, 160));
+  return base.startsWith("http") ? parsed.toString() : `${parsed.pathname}${parsed.search}`;
+}
+
 const FIELD_TITLE = "Superintendent field board";
 const FIELD_DESCRIPTION =
   'Shows the explicitly requested superintendent field board, also called the field board, the super board, or the superintendent board, including the super\'s plan and what the crew is doing; generic "give me the job board" or "open the project board" requests use report_page_link with page "home" instead.';
@@ -541,19 +552,41 @@ export const dailyReportExport = defineTool({
     }),
 });
 
+type StoredPhoto = { id: string; taken_on: string; area: string; work: string | null; removed_at: string | null };
+type LoosePhotos = {
+  from: (t: string) => {
+    select: (c: string) => {
+      eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { maybeSingle: () => PromiseLike<{ data: unknown; error: { message: string } | null }> } };
+    };
+  };
+};
+
+/** One progress photo on this job, removed or not, or null. */
+async function photoOnJob(sb: Sb, jobId: string, id: string): Promise<StoredPhoto | null> {
+  const { data, error } = await (sb as unknown as LoosePhotos)
+    .from("mcp_progress_photos")
+    .select("id,taken_on,area,work,removed_at")
+    .eq("job_id", jobId)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new ToolError("Athena couldn't read that photo. Nothing was changed.");
+  return (data as StoredPhoto | null) ?? null;
+}
+
+const photoLabel = (p: StoredPhoto) => `${p.area} (${p.taken_on})`;
+const photoId = z.string().trim().uuid();
+
 export const progressPhotoSave = defineTool({
   name: "progress_photo_save",
   title: "Save a progress photo",
-  description: "Stores the original progress photo attached in chat, passed unchanged as file, after its date and place on site are confirmed.",
+  description: "Stores the original progress photo attached in chat, passed as file, after its date and place on site are confirmed, or returns a link to add the original photo when the chat can't pass the file.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
-    // A photo attached in chat arrives as file; other callers send the bytes.
+    // A photo attached in ChatGPT arrives as file (openai/fileParams), the original as uploaded. There is no
+    // photo-bytes field: a model can't hand over a phone photo's bytes, only a small or broken copy of it.
     file: drawingFile,
     filename: z.string().trim().min(1).max(120).optional(),
-    // Only for callers that hold the original file's exact bytes. A chat attachment goes in file; a
-    // re-encoded or shrunk copy is refused by the size and structure check below.
-    content_base64: z.string().min(1).max(12_000_000).optional(),
     recognized: z.boolean().optional(),
     date_confirmed: z.boolean().optional(),
     confirmed: z.boolean().optional(),
@@ -563,6 +596,10 @@ export const progressPhotoSave = defineTool({
     sov_item: z.string().trim().max(40).optional(),
     activity_id: z.string().trim().max(40).optional(),
     client_safe: z.boolean().optional(),
+    // Replacing a saved photo: its id from progress_photos, and the member's yes after Athena asks.
+    replaces_photo_id: photoId.optional(),
+    replace_confirmed: z.boolean().optional(),
+    replace_reason: z.string().trim().max(400).optional(),
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -580,23 +617,36 @@ export const progressPhotoSave = defineTool({
           "Do not store the photo until the date and the place are confirmed. The date defaults to the upload time because the camera date is not available.",
         );
       }
-      if (args.file && args.content_base64) throw new ToolError("Send the attached photo or the photo data, not both. Nothing was saved.");
-      if (!args.file && !args.content_base64) throw new ToolError("Attach the photo first. Nothing was saved.");
-      const filename = args.filename ?? args.file?.file_name ?? "progress.jpg";
-      let bytes: Uint8Array;
-      if (args.file) {
-        try { bytes = await fetchAllowedFile(args.file.download_url, PHOTO_MAX_BYTES); }
-        catch (e) { throw new ToolError(e instanceof FileRejected ? e.message.replace(/Nothing was stored\.?$/, "Nothing was saved.") : "Athena couldn't read the attached photo. Nothing was saved."); }
-      } else {
-        try { bytes = decodeBase64(args.content_base64!); } catch { throw new ToolError("The photo data isn't valid. Nothing was saved."); }
+      // A replacement is checked and confirmed before anything is stored.
+      const old = args.replaces_photo_id ? await photoOnJob(sb, job.job_id, args.replaces_photo_id) : null;
+      if (args.replaces_photo_id && !old) throw new ToolError("The photo to replace isn't on this job. Nothing was saved.");
+      if (old?.removed_at) throw new ToolError(`The ${photoLabel(old)} photo was already removed. Nothing was saved.`);
+      if (old && args.replace_confirmed !== true) {
+        return guide(
+          { ...text([`${prefix(job)}Photo not saved yet.`, `- Replace the ${photoLabel(old)} photo with this one? The old photo is kept in the job's record, marked as replaced, and leaves the gallery and the daily.`].join("\n")), structuredContent: { saved: false, replace_question: true, replaces: { id: old.id, taken_on: old.taken_on, area: old.area }, client_safe: false } },
+          "Ask the member to confirm the replacement in their own words, then call again with replace_confirmed true. Never confirm it for them.",
+        );
       }
+      const photosPage = boardHref(await boardPages(sb, job), "photos");
+      const addHref = photoAddHref(photosPage, gate.taken_on, args.area);
+      const addInstead = addHref ? ` Add the original photo from the phone here instead: ${addHref}` : "";
+      if (!args.file) {
+        return guide(
+          { ...text([`${prefix(job)}Photo not saved: this chat didn't pass the photo file to Athena.`, ...(addHref ? [`Add the original photo from the phone here (sign in with project access): ${addHref}`] : []), "The date and place you confirmed are filled in on that page."].join("\n")), structuredContent: { saved: false, needs_upload: true, upload_url: addHref, taken_on: gate.taken_on, area: args.area, client_safe: false } },
+          "Give the member the link to add the original photo. Don't describe, recreate or re-encode the picture, and don't say it was saved.",
+        );
+      }
+      const filename = args.filename ?? args.file.file_name ?? "progress.jpg";
+      let bytes: Uint8Array;
+      try { bytes = await fetchAllowedFile(args.file.download_url, PHOTO_MAX_BYTES); }
+      catch (e) { throw new ToolError((e instanceof FileRejected ? e.message.replace(/Nothing was stored\.?$/, "Nothing was saved.") : "Athena couldn't read the attached photo. Nothing was saved.") + addInstead); }
       // A chat attachment's name may not carry the real type, so trust its bytes.
-      const sniffed = sniffPhoto(bytes, filename) ?? (args.file ? (sniffPhoto(bytes, "a.jpg") ?? sniffPhoto(bytes, "a.png") ?? sniffPhoto(bytes, "a.webp")) : null);
-      if (!sniffed) throw new ToolError("Use a JPEG, PNG or WebP photo under 8 MB. Nothing was saved.");
+      const sniffed = sniffPhoto(bytes, filename) ?? sniffPhoto(bytes, "a.jpg") ?? sniffPhoto(bytes, "a.png") ?? sniffPhoto(bytes, "a.webp");
+      if (!sniffed) throw new ToolError("Use a JPEG, PNG or WebP photo under 8 MB. Nothing was saved." + addInstead);
       // The first bytes alone can look like a photo. Check the whole picture is there and is the original size.
       const image = photoImageInfo(bytes, sniffed.ext);
       const problem = photoQualityProblem(image);
-      if (problem) throw new ToolError(problem);
+      if (problem) throw new ToolError(problem + addInstead);
       const id = crypto.randomUUID();
       const path = `${job.company_id}/${job.job_id}/${id}/progress.${sniffed.ext}`;
       const up = await sb.storage.from(PHOTO_BUCKET).upload(path, bytes, { contentType: sniffed.mime, upsert: false, cacheControl: "no-store" });
@@ -608,15 +658,60 @@ export const progressPhotoSave = defineTool({
         });
         const signed = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
         await audit(sb, job, "progress_photo_save", "save_photo", id);
-        const url = photoPageHref(boardHref(await boardPages(sb, job), "photos"), gate.taken_on, id);
+        const url = photoPageHref(photosPage, gate.taken_on, id);
+        let replaced: string | null = null;
+        if (old) {
+          const why = args.replace_reason?.trim() || "Replaced with the original photo file";
+          try {
+            await call(sb, "mcp_progress_photo_remove", { _id: old.id, _reason: why, _replaced_by: id });
+            replaced = `Replaced the ${photoLabel(old)} photo. The old one is kept in the job's record, marked as replaced.`;
+          } catch (e) {
+            replaced = `The new photo is saved, but the ${photoLabel(old)} photo wasn't replaced: ${e instanceof Error ? e.message : "Athena couldn't change it."}`;
+          }
+        }
         return guide(
-          { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area} (${image!.width} × ${image!.height} pixels).`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet. It joins that day's daily when the daily is saved.", args.client_safe === true ? "Marked client-safe." : "Internal only."].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, width: image!.width, height: image!.height, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600 } },
+          { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area} (${image!.width} × ${image!.height} pixels).`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet. It joins that day's daily when the daily is saved.", args.client_safe === true ? "Marked client-safe." : "Internal only.", ...(replaced ? [replaced] : [])].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, width: image!.width, height: image!.height, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600, ...(old ? { replaced: replaced?.startsWith("Replaced ") === true, replaced_photo_id: old.id } : {}) } },
           "The picture link is private and expires. Client-safe is off unless they asked for it.",
         );
       } catch (e) {
         await sb.storage.from(PHOTO_BUCKET).remove([path]);
         throw e;
       }
+    }),
+});
+
+export const progressPhotoRemove = defineTool({
+  name: "progress_photo_remove",
+  title: "Remove a progress photo",
+  description: "Removes a saved progress photo from the job's gallery and dailies after the member confirms, keeping it in the job's record with who removed it, when and why.",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    photo_id: photoId,
+    reason: z.string().trim().max(400).optional(),
+    confirmed: z.boolean().optional(),
+  },
+  annotations: SAVE,
+  handler: (args, ctx) =>
+    run("progress_photo_remove", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id);
+      assertField(job);
+      const photo = await photoOnJob(sb, job.job_id, args.photo_id);
+      if (!photo) throw new ToolError("That photo isn't on this job. Nothing was changed.");
+      if (photo.removed_at) throw new ToolError(`The ${photoLabel(photo)} photo was already removed. Nothing was changed.`);
+      const why = args.reason?.trim() ?? "";
+      if (args.confirmed !== true || why.length < 3) {
+        return guide(
+          { ...text([`${prefix(job)}Photo not removed yet.`, `- Remove the ${photoLabel(photo)} photo from the gallery and the daily? It stays in the job's record, marked as removed.`, ...(why.length < 3 ? ["- Why is it being removed?"] : [])].join("\n")), structuredContent: { removed: false, question: true, photo: { id: photo.id, taken_on: photo.taken_on, area: photo.area } } },
+          "Ask the member to confirm the removal and say why, in their own words, then call again with confirmed true and the reason. Never confirm it for them.",
+        );
+      }
+      await call(sb, "mcp_progress_photo_remove", { _id: photo.id, _reason: why, _replaced_by: null });
+      await audit(sb, job, "progress_photo_remove", "remove_photo", photo.id);
+      return guide(
+        { ...text([`${prefix(job)}Removed the ${photoLabel(photo)} photo from the gallery and the daily.`, "It's kept in the job's record with who removed it, when and why."].join("\n")), structuredContent: { removed: true, id: photo.id, taken_on: photo.taken_on, area: photo.area } },
+        "Say it was removed from the gallery and daily and is kept in the record; don't say it was deleted.",
+      );
     }),
 });
 

@@ -39,3 +39,6 @@
 .dr-evidence .dr-photos + p {
   margin-top: 12px;
 }
+.dr-photo-strip .dr-photo-missing {
+  color: #8a5a00;
+}
