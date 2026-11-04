@@ -302,7 +302,11 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     held.push(
       `${plural(job.schedule.length, "schedule activity", "schedule activities")}: the CPM comes in through Athena's schedule step, which ties activities to the SOV.`,
     );
-  for (const h of job.held) held.push(`${plural(h.count, h.kind)}: ${h.why}`);
+  // Held kinds are already plural ("exposures", "Earlier pay applications").
+  for (const h of job.held) {
+    const kind = h.kind.toLowerCase();
+    held.push(`${plural(h.count, kind.replace(/s$/, ""), kind)}: ${h.why}`);
+  }
 
   const pkg: ImportPackage = {
     version: 1,

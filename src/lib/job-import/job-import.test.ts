@@ -117,6 +117,15 @@ describe("Overwatch export", () => {
     expect(zeroed.sov.every((l) => l.budget_cents === null)).toBe(true);
     expect(planImport(zeroed, { job_exists: false }).counts.budget_lines).toBe(0);
   });
+
+  it("names what stays behind without doubling the plural", () => {
+    const x = sample();
+    x.counts = { exposures: 8, decisions: 1 };
+    const held = planImport(fromOverwatch(x), { job_exists: false }).held.join(" ");
+    expect(held).toMatch(/8 exposures:/);
+    expect(held).toMatch(/1 decision:/);
+    expect(held).not.toMatch(/ss:/);
+  });
 });
 
 describe("spreadsheet export", () => {
