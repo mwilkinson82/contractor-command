@@ -408,3 +408,17 @@ describe("responsive generated report sources", () => {
     expect(docs["submittal-detail"]).toContain(long + ".pdf");
   });
 });
+
+describe("endorsement line under the big Athena footer", () => {
+  const p = { page: "schedule", ...common, report, today } as unknown as PagePayload;
+
+  it("drops 'Athena powered by ALP' inside the app, where the big Athena word closes the page", () => {
+    const html = renderReportBody(p, { inApp: true });
+    expect(html).toContain("Private to your company · updates when Athena saves a new version</p>");
+    expect(html).not.toContain("powered by ALP");
+  });
+
+  it("keeps it on the standalone share page, which has no big footer", () => {
+    expect(renderReportDocument(p)).toContain("Athena powered by ALP");
+  });
+});

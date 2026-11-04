@@ -245,7 +245,7 @@ export function CardModelPage({
           </p>
         ) : null}
       </div>
-      {footer ?? <p className="ath-page-foot">Private to your company · Athena powered by ALP</p>}
+      {footer ?? <p className="ath-page-foot">Private to your company</p>}
     </>
   );
 }
