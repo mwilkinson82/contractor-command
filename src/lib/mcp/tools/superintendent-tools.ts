@@ -38,6 +38,8 @@ import {
   rateFromLine,
   scheduleProposals,
   sniffPhoto,
+  photoImageInfo,
+  photoQualityProblem,
   PHOTO_MAX_BYTES,
   type FieldSource,
 } from "../superintendent";
@@ -85,6 +87,17 @@ async function boardPages(sb: Sb, job: Job): Promise<Partial<Record<BoardPage, s
 }
 
 const boardHref = (pages: Partial<Record<BoardPage, string>>, page: BoardPage) => pages[page] ?? null;
+
+/** Photos page narrowed to one day and/or opened on one photo. Keeps the page's own query (its access token). */
+export function photoPageHref(url: string | null, date?: string | null, id?: string | null): string | null {
+  if (!url) return null;
+  const [base, hash] = url.split("#");
+  const parsed = new URL(base, "https://athena.invalid");
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) parsed.searchParams.set("date", date);
+  const path = base.startsWith("http") ? parsed.toString() : `${parsed.pathname}${parsed.search}`;
+  const anchor = id ? `photo-${id}` : hash;
+  return anchor ? `${path}#${anchor}` : path;
+}
 
 const FIELD_TITLE = "Superintendent field board";
 const FIELD_DESCRIPTION =
@@ -531,13 +544,15 @@ export const dailyReportExport = defineTool({
 export const progressPhotoSave = defineTool({
   name: "progress_photo_save",
   title: "Save a progress photo",
-  description: "Stores a progress photo attached in chat after its date and place on site are confirmed.",
+  description: "Stores the original progress photo attached in chat, passed unchanged as file, after its date and place on site are confirmed.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     // A photo attached in chat arrives as file; other callers send the bytes.
     file: drawingFile,
     filename: z.string().trim().min(1).max(120).optional(),
+    // Only for callers that hold the original file's exact bytes. A chat attachment goes in file; a
+    // re-encoded or shrunk copy is refused by the size and structure check below.
     content_base64: z.string().min(1).max(12_000_000).optional(),
     recognized: z.boolean().optional(),
     date_confirmed: z.boolean().optional(),
@@ -578,6 +593,10 @@ export const progressPhotoSave = defineTool({
       // A chat attachment's name may not carry the real type, so trust its bytes.
       const sniffed = sniffPhoto(bytes, filename) ?? (args.file ? (sniffPhoto(bytes, "a.jpg") ?? sniffPhoto(bytes, "a.png") ?? sniffPhoto(bytes, "a.webp")) : null);
       if (!sniffed) throw new ToolError("Use a JPEG, PNG or WebP photo under 8 MB. Nothing was saved.");
+      // The first bytes alone can look like a photo. Check the whole picture is there and is the original size.
+      const image = photoImageInfo(bytes, sniffed.ext);
+      const problem = photoQualityProblem(image);
+      if (problem) throw new ToolError(problem);
       const id = crypto.randomUUID();
       const path = `${job.company_id}/${job.job_id}/${id}/progress.${sniffed.ext}`;
       const up = await sb.storage.from(PHOTO_BUCKET).upload(path, bytes, { contentType: sniffed.mime, upsert: false, cacheControl: "no-store" });
@@ -589,9 +608,9 @@ export const progressPhotoSave = defineTool({
         });
         const signed = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
         await audit(sb, job, "progress_photo_save", "save_photo", id);
-        const url = boardHref(await boardPages(sb, job), "photos");
+        const url = photoPageHref(boardHref(await boardPages(sb, job), "photos"), gate.taken_on, id);
         return guide(
-          { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area}.`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet. It joins that day's daily when the daily is saved.", args.client_safe === true ? "Marked client-safe." : "Internal only."].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600 } },
+          { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area} (${image!.width} × ${image!.height} pixels).`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet. It joins that day's daily when the daily is saved.", args.client_safe === true ? "Marked client-safe." : "Internal only."].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, width: image!.width, height: image!.height, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600 } },
           "The picture link is private and expires. Client-safe is off unless they asked for it.",
         );
       } catch (e) {
@@ -629,14 +648,15 @@ export const progressPhotos = defineTool({
       }));
       await audit(sb, job, "progress_photos", "view_photos", null);
       const pages = await boardPages(sb, job);
-      const gallery = boardHref(pages, "photos");
+      const oneDay = args.date_from && args.date_from === args.date_to ? args.date_from : null;
+      const gallery = photoPageHref(boardHref(pages, "photos"), oneDay);
       const captions = photos.length ? photos.map((p) => {
         const label = [p.area, p.work].filter(Boolean).join(" · ") || "Progress photo";
-        const href = gallery ? `${gallery}#photo-${p.id}` : null;
+        const href = photoPageHref(gallery, oneDay, p.id);
         const linked = href ? `[${label}](${href})` : label;
         return `- ${p.taken_on} · ${linked}${p.client_safe ? " · Client-safe" : " · Internal"}`;
       }) : ["No progress photos in this view."];
-      const url = boardHref(pages, "photos");
+      const url = gallery;
       let pdf: string | null = null;
       if ((args.format ?? "gallery") === "pdf") {
         const bytes = photoLogPdf(`${job.job_number} progress photos`, photos);

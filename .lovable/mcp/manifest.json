@@ -10189,7 +10189,7 @@
       {
         "name": "progress_photo_save",
         "title": "Save a progress photo",
-        "description": "Stores a progress photo attached in chat after its date and place on site are confirmed.",
+        "description": "Stores the original progress photo attached in chat, passed unchanged as file, after its date and place on site are confirmed.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
