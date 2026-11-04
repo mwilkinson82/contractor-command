@@ -306,6 +306,7 @@
   gap: 8px;
   font-size: 13px;
   color: var(--ath-soft);
+  white-space: nowrap;
 }
 .op-sort select {
   min-height: 36px;
@@ -655,6 +656,10 @@
     width: 100%;
     justify-content: space-between;
   }
+  .op-sort select {
+    flex: 1;
+    min-width: 0;
+  }
   .op-tablewrap {
     overflow: visible;
     border: 0;
@@ -688,9 +693,11 @@
   }
   .op-tablewrap td::before {
     content: attr(data-l);
+    flex: none;
     color: var(--ath-muted);
     font-weight: 500;
     text-align: left;
+    white-space: nowrap;
   }
   .op-tablewrap td:first-child {
     font-weight: 650;
