@@ -104,7 +104,7 @@ async function reportedDailyEarned(sb: Sb, job: Job, retainageTerm: string | nul
     });
   if (!lines.length) return null;
   const dateOf = new Map(((daysRes.data ?? []) as { id: string; report_date: string }[]).map((d) => [d.id, d.report_date]));
-  const saved = ((linesRes.data ?? []) as { daily_id: string; sov_item: string; qty: number | null; pct_complete: number | null }[])
+  const saved = ((linesRes.data ?? []) as { daily_id: string; sov_item: string | null; qty: number | null; pct_complete: number | null }[])
     .map((line) => ({
       sov_item: line.sov_item,
       qty: line.qty == null ? null : Number(line.qty),

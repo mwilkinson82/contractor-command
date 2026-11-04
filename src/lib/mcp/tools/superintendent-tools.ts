@@ -4,7 +4,7 @@ import { fieldPayAppCardModel, presentPayApp } from "../pay-app-card";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { DEFAULT_TZ, todayIn } from "../deadlines";
-import { productionPeriod } from "../production-summary";
+import { productionPeriod, productionRef } from "../production-summary";
 import { productionClient, productionReportUrl, readSavedProduction } from "../../production-report";
 import { previewDailyReminderCard, type ReminderStatus } from "../field-reminder";
 import { FileRejected, decodeBase64 } from "../file-share";
@@ -18,6 +18,8 @@ import { retainagePct, type SovLineIn } from "../sov";
 import {
   PayAppMismatch,
   assembleDaily,
+  linkAnswer,
+  savedLink,
   buildFieldPayApp,
   dailyCard,
   fieldAccess,
@@ -48,8 +50,8 @@ const PHOTO_BUCKET = "athena-progress";
 
 const workIn = z.object({
   work: z.string().trim().min(1).max(400),
-  sov_item: z.string().trim().max(20).nullable().optional(),
-  activity_id: z.string().trim().max(20).nullable().optional(),
+  sov_item: z.string().trim().max(40).nullable().optional(),
+  activity_id: z.string().trim().max(40).nullable().optional(),
   qty: z.number().nullable().optional(),
   unit: z.string().trim().max(20).nullable().optional(),
   crew: z.number().nullable().optional(),
@@ -119,7 +121,7 @@ async function showFieldBoard(tool: "superintendent_view" | "field_board", sb: S
   );
 }
 
-type SavedLine = { sov_item: string; activity_id: string; qty: number | null; unit: string | null; pct_complete: number | null; report_date: string };
+type SavedLine = { sov_item: string | null; activity_id: string | null; qty: number | null; unit: string | null; pct_complete: number | null; report_date: string };
 
 async function savedLines(sb: Sb, jobId: string): Promise<SavedLine[]> {
   const [days, lines] = await Promise.all([
@@ -129,7 +131,7 @@ async function savedLines(sb: Sb, jobId: string): Promise<SavedLine[]> {
   if (days.error) throw new Error(days.error.message);
   if (lines.error) throw new Error(lines.error.message);
   const dateOf = new Map(((days.data ?? []) as { id: string; report_date: string }[]).map((d) => [d.id, d.report_date]));
-  return ((lines.data ?? []) as { daily_id: string; sov_item: string; activity_id: string; qty: number | null; unit: string | null; pct_complete: number | null }[])
+  return ((lines.data ?? []) as { daily_id: string; sov_item: string | null; activity_id: string | null; qty: number | null; unit: string | null; pct_complete: number | null }[])
     .map((l) => ({ ...l, qty: l.qty == null ? null : Number(l.qty), pct_complete: l.pct_complete == null ? null : Number(l.pct_complete), report_date: dateOf.get(l.daily_id) ?? "" }))
     .filter((l) => l.report_date);
 }
@@ -244,6 +246,9 @@ const dailyFields = {
   delays: z.string().trim().max(2000).optional(),
   safety: z.string().trim().max(1000).optional(),
   work: z.array(workIn).max(80).optional(),
+  // The member said this job has no schedule of values / no CPM schedule: lines save without that link.
+  no_sov: z.boolean().optional(),
+  no_cpm: z.boolean().optional(),
 };
 
 export const dailyReportDraft = defineTool({
@@ -286,7 +291,7 @@ export const dailyReportSave = defineTool({
         _job: job.job_id, _date: day, _confirmed: true,
         _weather: draft.weather, _manpower: draft.manpower, _subs: draft.subs_on_site, _deliveries: draft.deliveries,
         _issues: draft.issues, _delays: draft.delays, _safety: draft.safety, _transcript: args.transcript ?? null,
-        _lines: draft.work.map((w) => ({ work: w.work, sov_item: w.sov_item, activity_id: w.activity_id, qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete })),
+        _lines: draft.work.map((w) => ({ work: w.work, sov_item: savedLink(w.sov_item), activity_id: savedLink(w.activity_id), qty: w.qty, unit: w.unit, crew: w.crew, hours: w.hours, pct_complete: w.pct_complete })),
       });
       await audit(sb, job, "daily_report_save", "save_daily", saved.id);
       const url = boardHref(await boardPages(sb, job), "daily");
@@ -431,8 +436,8 @@ export const fieldProductionSummary = defineTool({
       const reportUrl = productionReportUrl(job.job_id, period);
       await audit(sb, job, "field_production_summary", "view_production_summary", null);
       const shown = (n: number | string) => String(Math.round(Number(n) * 100) / 100);
-      const body = rows.length ? rows.map((r) => `- ${r.report_date} · ${r.work} · SOV ${r.sov_item}, activity ${r.activity_id}: ${shown(r.qty)} ${r.unit}, crew ${shown(r.crew)}, ${shown(r.man_hours)} reported person-hours, ${shown(r.qty_per_man_hour)} ${r.unit} per person-hour (saved daily).`) : ["No saved production rows for this period."];
-      const totals = groups.map((g) => `- SOV ${g.sov_item}, activity ${g.activity_id}: ${shown(g.quantity)} ${g.unit} / ${shown(g.reported_person_hours)} reported person-hours = ${shown(g.actual_rate)} ${g.unit} per person-hour.`);
+      const body = rows.length ? rows.map((r) => `- ${r.report_date} · ${r.work} · ${productionRef(r.sov_item, r.activity_id)}: ${shown(r.qty)} ${r.unit}, crew ${shown(r.crew)}, ${shown(r.man_hours)} reported person-hours, ${shown(r.qty_per_man_hour)} ${r.unit} per person-hour (saved daily).`) : ["No saved production rows for this period."];
+      const totals = groups.map((g) => `- ${productionRef(g.sov_item, g.activity_id)}${g.sov_item || g.activity_id ? "" : ` (${g.work})`}: ${shown(g.quantity)} ${g.unit} / ${shown(g.reported_person_hours)} reported person-hours = ${shown(g.actual_rate)} ${g.unit} per person-hour.`);
       const notes = [complete ? "Coverage: saved rate rows for all daily reports in the selected period, read at request time." : "Coverage is incomplete: at least one daily has more than 80 rate rows; totals cover only the rows shown.", "References are reported, not approved mappings. Person-hours are summed work-line hours and can overlap. Corrections replace earlier saved rows; prior revisions are not available. Planned rates and earned value are unknown."];
       return guide({ ...text([`${prefix(job)}Production from ${period.from} through ${period.to} (${timeZone})`, ...notes, `Production report (sign in with project access): ${reportUrl}`, ...body, ...(totals.length ? ["Reported work-line totals:", ...totals] : [])].join("\n")), structuredContent: { period, time_zone_used: timeZone, complete, reports_count, rows, groups, report_url: reportUrl, planned_rate: null, earned_value: null, source: "current_saved_dailies", references: "reported_unverified" } }, "Show the period and coverage, keep unlike units separate, and explain reported person-hours may overlap. Do not infer prior revisions, planned rates, earned value, invoices or payments.");
     }),
@@ -453,8 +458,8 @@ export const progressPhotoSave = defineTool({
     taken_on: date.optional(),
     area: z.string().trim().max(160).optional(),
     work: z.string().trim().max(400).optional(),
-    sov_item: z.string().trim().max(20).optional(),
-    activity_id: z.string().trim().max(20).optional(),
+    sov_item: z.string().trim().max(40).optional(),
+    activity_id: z.string().trim().max(40).optional(),
     client_safe: z.boolean().optional(),
   },
   annotations: SAVE,
@@ -462,6 +467,9 @@ export const progressPhotoSave = defineTool({
     run("progress_photo_save", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       assertField(job);
+      // "none" means the job has no SOV or CPM; the photo saves without that link.
+      const sovItem = savedLink(linkAnswer(args.sov_item));
+      const activityId = savedLink(linkAnswer(args.activity_id));
       const zone = await jobTimeZone(sb, job.job_id);
       const gate = photoGate({ ...args, uploaded_at: new Date().toISOString(), time_zone: zone });
       if (!gate.ok) {
@@ -480,14 +488,14 @@ export const progressPhotoSave = defineTool({
       if (up.error) throw new ToolError("The photo wasn't stored. Nothing was saved.");
       try {
         const row = await call<{ linked_daily: boolean; client_safe: boolean }>(sb, "mcp_progress_photo_create", {
-          _id: id, _job: job.job_id, _taken: gate.taken_on, _area: args.area, _work: args.work ?? null, _sov: args.sov_item ?? null,
-          _activity: args.activity_id ?? null, _client_safe: args.client_safe === true, _path: path, _mime: sniffed.mime, _size: bytes.length,
+          _id: id, _job: job.job_id, _taken: gate.taken_on, _area: args.area, _work: args.work ?? null, _sov: sovItem,
+          _activity: activityId, _client_safe: args.client_safe === true, _path: path, _mime: sniffed.mime, _size: bytes.length,
         });
         const signed = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
         await audit(sb, job, "progress_photo_save", "save_photo", id);
         const url = boardHref(await boardPages(sb, job), "photos");
         return guide(
-          { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area}.`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet.", args.client_safe === true ? "Marked client-safe." : "Internal only."].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600 } },
+          { ...text([...(url ? [`Styled photo gallery (private to your company): ${url}`] : []), `${prefix(job)}Photo saved for ${gate.taken_on} at ${args.area}.`, row.linked_daily ? "Linked to that day's daily." : "No daily is saved for that date yet. It joins that day's daily when the daily is saved.", args.client_safe === true ? "Marked client-safe." : "Internal only."].join("\n")), structuredContent: { saved: true, id, taken_on: gate.taken_on, area: args.area, client_safe: row.client_safe, linked_daily: row.linked_daily, url: signed.data?.signedUrl ?? null, expires_in: 3600 } },
           "The picture link is private and expires. Client-safe is off unless they asked for it.",
         );
       } catch (e) {
