@@ -68,7 +68,10 @@ function ballFor(status: ImportSubmittal["status"]): ImportSubmittal["ball_in_co
 
 const BILLED = new Set(["submitted", "partial", "paid"]);
 
-export function fromOverwatch(input: unknown, opts: { dailyDays?: number } = {}): ImportJob {
+export function fromOverwatch(
+  input: unknown,
+  opts: { dailyDays?: number; jobNumber?: string; jobName?: string } = {},
+): ImportJob {
   if (!input || typeof input !== "object")
     throw new ImportInputError("The Overwatch export must be one JSON object.");
   const x = input as Row;
@@ -81,8 +84,9 @@ export function fromOverwatch(input: unknown, opts: { dailyDays?: number } = {})
   out.source.exported_at = str(x.exported_at) || null;
   out.job = {
     source_id: str(p.id) || "project",
-    job_number: clip(p.job_number, 40),
-    name: clip(p.name, 200),
+    // A number or name given at import time wins over the export's.
+    job_number: clip(opts.jobNumber, 40) || clip(p.job_number, 40),
+    name: clip(opts.jobName, 200) || clip(p.name, 200),
     customer: clip(p.client, 200) || null,
     pm_name: clip(p.project_manager, 120) || null,
     pm_email: null,

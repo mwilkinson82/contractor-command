@@ -127,6 +127,15 @@ describe("Overwatch export", () => {
     expect(held).not.toMatch(/ss:/);
   });
 
+  it("drops the missing-job-number warning once a number is given at import", () => {
+    const x = sample();
+    x.project.job_number = "";
+    expect(fromOverwatch(x).problems.join(" ")).toMatch(/no job number/);
+    const named = fromOverwatch(x, { jobNumber: "2712" });
+    expect(named.job.job_number).toBe("2712");
+    expect(named.problems.join(" ")).not.toMatch(/no job number/);
+  });
+
   it("brings the baseline completion date in as the contract completion, not the forecast", () => {
     const x = sample();
     x.project.baseline_completion_date = "2027-01-19";
