@@ -96,3 +96,33 @@ describe("authorized zoom-tile cache", () => {
     expect(load).toHaveBeenCalledTimes(6);
   });
 });
+
+describe("zoom-tile cache under concurrent requests", () => {
+  it("drops a failed load even when a second request joined it mid-flight", async () => {
+    const cached = pageLru<Uint8Array>(4, 100, (v) => v.length);
+    let fail!: (e: Error) => void;
+    const first = cached("t", () => new Promise<Uint8Array>((_, reject) => (fail = reject)), 1);
+    const joined = cached("t", async () => new Uint8Array(1), 2);
+    await Promise.resolve();
+    fail(Error("oom"));
+    await expect(first).rejects.toThrow("oom");
+    await expect(joined).rejects.toThrow("oom");
+    const retry = vi.fn(async () => new Uint8Array(1));
+    await cached("t", retry, 3);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+  it("counts the bytes of a tile that a joined request kept warm", async () => {
+    const cached = pageLru<Uint8Array>(10, 5, (v) => v.length);
+    let done!: (v: Uint8Array) => void;
+    const first = cached("a", () => new Promise<Uint8Array>((resolve) => (done = resolve)), 1);
+    void cached("a", async () => new Uint8Array(0), 2);
+    await Promise.resolve();
+    done(new Uint8Array(4));
+    await first;
+    const other = vi.fn(async () => new Uint8Array(4));
+    await cached("b", other, 3); // 4 + 4 > 5 bytes: "a" is evicted
+    const again = vi.fn(async () => new Uint8Array(4));
+    await cached("a", again, 4);
+    expect(again).toHaveBeenCalledTimes(1);
+  });
+});

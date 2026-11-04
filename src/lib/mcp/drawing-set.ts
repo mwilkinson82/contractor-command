@@ -186,16 +186,26 @@ export function drawingOwned(path: string, companyId: string, jobId: string): bo
   return parts[0] === companyId && parts[1] === jobId && parts[2].startsWith("drawing-");
 }
 
-/** Sheet order on the document entry is the page order. The first sheet is page 1. */
-export function sheetPageIndex(sheets: string[] | undefined, sheet: string): number | null {
+/** "E1", "E-1" and "E 1" spell the same sheet. */
+export const looseSheetName = (name: string) =>
+  name.trim().toLowerCase().replace(/[\s_-]+/g, "");
+
+/** Exact (case-insensitive) sheet name only. */
+export function exactSheetIndex(sheets: string[] | undefined, sheet: string): number | null {
   const want = sheet.trim().toLowerCase();
   if (!want || !sheets?.length) return null;
   const index = sheets.findIndex((name) => name.trim().toLowerCase() === want);
-  if (index >= 0) return index;
-  // "E1", "E-1" and "E 1" name the same sheet. Accept the spelling only when exactly
-  // one stored sheet matches; never pick between two candidates.
-  const loose = (name: string) => name.trim().toLowerCase().replace(/[\s_-]+/g, "");
-  const key = loose(want);
+  return index >= 0 ? index : null;
+}
+
+/** Sheet order on the document entry is the page order. The first sheet is page 1. */
+export function sheetPageIndex(sheets: string[] | undefined, sheet: string): number | null {
+  const exact = exactSheetIndex(sheets, sheet);
+  if (exact != null || !sheets?.length) return exact;
+  // Accept another spelling only when exactly one stored sheet matches; never pick
+  // between two candidates.
+  const loose = looseSheetName;
+  const key = loose(sheet);
   if (!key) return null;
   const matches = sheets.flatMap((name, i) => (loose(name) === key ? [i] : []));
   return matches.length === 1 ? matches[0] : null;

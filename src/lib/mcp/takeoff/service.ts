@@ -6,6 +6,8 @@ import { type Job, named } from "../jobs";
 import {
   drawingRecords,
   readStoredDrawingBytes,
+  exactSheetIndex,
+  looseSheetName,
   sheetPageIndex,
   type DrawingRecord,
 } from "../drawing-set";
@@ -55,7 +57,7 @@ const cachedInspection = pageCache<SheetInspection>(
 );
 const cachedPreview = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
 const cachedHighlighted = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
-const cachedTiles = pageLru<Uint8Array>(24, 12_000_000, (value) => value.length);
+const cachedTiles = pageLru<Uint8Array>(16, 8_000_000, (value) => value.length);
 const pageKey = (job: Job, source: DrawingRecord, page: number) =>
   `${job.company_id}:${job.job_id}:${source.id}:${source.content_hash}:${page}`;
 async function stateFingerprint(state: EngineSnapshot): Promise<string> {
@@ -108,7 +110,22 @@ export function resolveStoredSource(
     return selected;
   }
   // Records arrive newest first, so the first set holding the sheet is its newest revision.
-  const holder = sources.find((s) => sheetPageIndex(s.sheets, sheet) != null);
+  // An exact name in any set wins over another spelling in a newer set.
+  // Another spelling is used only when every set that holds it spells it the same way
+  // (revisions of one sheet), never to choose between differently named sheets.
+  const looseHolders = sources.filter((s) => sheetPageIndex(s.sheets, sheet) != null);
+  const looseNames = new Set(
+    looseHolders.map((s) => s.sheets[sheetPageIndex(s.sheets, sheet)!].trim().toLowerCase()),
+  );
+  const holder =
+    sources.find((s) => exactSheetIndex(s.sheets, sheet) != null) ??
+    (looseNames.size === 1 ? looseHolders[0] : undefined);
+  if (!holder && looseNames.size > 1)
+    throw new ToolError(
+      `More than one stored sheet could be ${sheet}: ${looseHolders
+        .map((s) => `${s.sheets[sheetPageIndex(s.sheets, sheet)!]} in ${s.filename} (source_id ${s.id})`)
+        .join(" and ")}. Name the exact sheet or pass source_id. No sheet was guessed.`,
+    );
   if (holder) return holder;
   if (!sources.length)
     throw new ToolError(
@@ -198,17 +215,12 @@ export async function viewEngine(
       }
     : null;
   const allSources = await drawingRecords(sb, job);
-  const storedSheets = new Set(
-    allSources.flatMap((s) => s.sheets.map((name) => name.trim().toLowerCase())),
-  );
+  const storedSheets = new Set(allSources.flatMap((s) => s.sheets.map(looseSheetName)));
   // A line whose sheet is not in any stored set is not a drawing line the engine can locate: it is
   // shown as such instead of padding the unlocated count (general conditions, allowances, typos).
   const noSheet = (l: { line_no: number }) => {
-    const sheet = state.lines
-      .find((row) => row.line_no === l.line_no)
-      ?.sheet?.trim()
-      .toLowerCase();
-    return !sheet || !storedSheets.has(sheet);
+    const sheet = state.lines.find((row) => row.line_no === l.line_no)?.sheet;
+    return !sheet?.trim() || !storedSheets.has(looseSheetName(sheet));
   };
   const unlocatedOnSheets = summary.lines.filter((l) => l.status === "unlocated" && !noSheet(l));
   const noStoredSheet = summary.lines.filter((l) => l.status === "unlocated" && noSheet(l));

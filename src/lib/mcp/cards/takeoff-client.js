@@ -830,6 +830,8 @@
     }
     viewport.addEventListener("scroll", scheduleDetail, { passive: true });
     detailReady = true;
+    // After a save or reload the svg is rebuilt; restore detail at the current zoom.
+    scheduleDetail();
     if (sc.tile && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(sc.tile.png)) {
       var tileImg = svgNode("image", {
         href: sc.tile.png,
@@ -892,6 +894,8 @@
               })
             ) {
               notice("Finish or discard the unsaved drawing before inspecting a saved pin.");
+              // Capture so the release always reaches the svg and clears the guard.
+              svg.setPointerCapture(e.pointerId);
               return;
             }
             // Repeated clicks cycle coincident saved pins instead of adding a count.
@@ -1145,7 +1149,7 @@
       overlay();
       showPreview();
     });
-    svg.addEventListener("pointerup", function () {
+    function endPress() {
       if (drag) {
         drag = null;
         showSelected();
@@ -1155,7 +1159,11 @@
       setTimeout(function () {
         suppressPinClick = false;
       }, 0);
-    });
+    }
+    svg.addEventListener("pointerup", endPress);
+    // A touch pan or lost capture ends the press without a pointerup.
+    svg.addEventListener("pointercancel", endPress);
+    svg.addEventListener("lostpointercapture", endPress);
     var edit = node("div", null, "desktop drawer"),
       lineSelect = node("select");
     lineSelect.ariaLabel = "Takeoff line";

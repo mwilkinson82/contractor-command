@@ -59,8 +59,10 @@ export function pageLru<T>(maxEntries: number, maxBytes: number, measure: (value
   return async (key: string, load: () => Promise<T>, now = Date.now()): Promise<T> => {
     const hit = entries.get(key);
     if (hit && hit.expires > now) {
+      // Same object, moved to newest: an in-flight load still finds and settles it.
+      hit.expires = now + TTL;
       entries.delete(key);
-      entries.set(key, { ...hit, expires: now + TTL });
+      entries.set(key, hit);
       return hit.value;
     }
     entries.delete(key);

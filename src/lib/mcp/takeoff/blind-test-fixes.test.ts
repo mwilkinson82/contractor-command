@@ -27,6 +27,17 @@ describe("stored set resolution for measure and scale (blind test item 1)", () =
     expect(resolveStoredSource(sets, "s-101 ").id).toBe("22222222-2222-4222-8222-222222222222");
     expect(resolveStoredSource(sets, "C-101").id).toBe("33333333-3333-4333-8333-333333333333");
   });
+  it("prefers an exact sheet name in an older set over another spelling in a newer one", () => {
+    const spelled = [
+      set("44444444-4444-4444-8444-444444444444", "Lighting.pdf", 2, ["E-1"]),
+      set("55555555-5555-4555-8555-555555555555", "Electrical.pdf", 1, ["E1"]),
+    ];
+    expect(resolveStoredSource(spelled, "E1").id).toBe("55555555-5555-4555-8555-555555555555");
+    expect(() => resolveStoredSource(spelled, "E 1")).toThrow(
+      /More than one stored sheet could be E 1/,
+    );
+    expect(resolveStoredSource(sets, "S100").id).toBe("22222222-2222-4222-8222-222222222222");
+  });
   it("honours an explicit source_id and names where the sheet actually is", () => {
     expect(resolveStoredSource(sets, "S-100", "11111111-1111-4111-8111-111111111111").version).toBe(
       1,
