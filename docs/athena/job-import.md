@@ -81,8 +81,8 @@ in the Overwatch repo.
 
 ## Database
 
-`supabase/migrations/20261104170000_athena_job_import.sql` (stage only; apply
+`supabase/migrations/20261104160000_athena_job_import.sql` (stage only; apply
 through Lovable). Adds `mcp_import_batches`, `mcp_import_records`,
 `mcp_import_opening_balances` and the functions `mcp_job_import_context`,
 `mcp_job_import_stage`, `mcp_job_import_apply`, `mcp_job_import_cancel`.
-Rollback: `supabase/rollbacks/20261104170000_athena_job_import.rollback.sql`.
+Rollback: `supabase/rollbacks/20261104160000_athena_job_import.rollback.sql`.

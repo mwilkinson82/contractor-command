@@ -1,4 +1,4 @@
--- Rollback for 20261104170000_athena_job_import.sql. Removes the job import functions.
+-- Rollback for 20261104160000_athena_job_import.sql. Removes the job import functions.
 -- The three tables are KEPT on purpose: they record what was imported, from where, and
 -- the opening billing balances a job's pay apps rely on. Drop them only with Marshall's
 -- word (last lines, commented). Rows already written into jobs, SOVs, change orders,

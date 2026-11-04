@@ -86,7 +86,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("release-proposals/estimating-destination-versions.sql", "utf8"));
   await load("20261023020000_athena_superintendent");
   await db.exec(readFileSync("drizzle/migrations/0074_migration.sql", "utf8"));
-  await load("20261104170000_athena_job_import");
+  await load("20261104160000_athena_job_import");
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
