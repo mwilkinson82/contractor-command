@@ -180,8 +180,15 @@ export type AccountingRow = {
   source: string;
 };
 export type Metric = { key: string; label: string; cents: number | null; basis: string };
+/** Original contract plus approved and executed change orders, as the billing evidence read records it (cents). */
+export type RecordedContract = {
+  original_cents: number | null;
+  recorded_change_cents: number | null;
+  approved_cents: number | null;
+};
 export type AccountingReport = {
   ap?: ApVersionReport;
+  recordedContract?: RecordedContract | null;
   jobId: string;
   companyId?: string;
   capturedAt: string;

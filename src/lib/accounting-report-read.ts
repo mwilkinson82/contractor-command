@@ -7,6 +7,7 @@ import {
   poReportSchema,
   type AccountingOptions,
   type BudgetFact,
+  type RecordedContract,
   type Dependency,
 } from "./accounting-report";
 
@@ -81,6 +82,7 @@ export async function readAccountingReport(
       "Accounting reports require active membership and full access to this project. The source could not be read.",
     );
   const billingData = billingReportSchema.parse(bounded(billing.data));
+  const recordedContract = readRecordedContract(billing.data);
   const budgets: BudgetFact[] = [];
   for (let start = 0; ; start += BUDGET_PAGE_SIZE) {
     const r = await io.budgetPage(jobId, start, start + BUDGET_PAGE_SIZE - 1);
@@ -128,7 +130,23 @@ export async function readAccountingReport(
     { jobId, companyId, capturedAt, billing: billingData, budgets, costs, orders },
     options,
   );
-  return versioned ? attachVersionedAp(report, versioned) : report;
+  const withContract = { ...report, recordedContract };
+  return versioned ? attachVersionedAp(withContract, versioned) : withContract;
+}
+/** The contract value the billing read records; a missing or malformed figure stays null, never zero. */
+export function readRecordedContract(data: unknown): RecordedContract | null {
+  const c =
+    data && typeof data === "object"
+      ? (data as { recorded_contract?: unknown }).recorded_contract
+      : null;
+  if (!c || typeof c !== "object") return null;
+  const n = (v: unknown) => (typeof v === "number" && Number.isSafeInteger(v) ? v : null);
+  const r = c as Record<string, unknown>;
+  return {
+    original_cents: n(r.original_cents),
+    recorded_change_cents: n(r.recorded_change_cents),
+    approved_cents: n(r.approved_cents),
+  };
 }
 /** Bridge for the existing Supabase query builder, always the signed-in user's client; never an admin. */
 export function accountingIO(client: unknown): AccountingIO {
