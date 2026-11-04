@@ -69,6 +69,7 @@ import { Route as AskIndexRouteImport } from './routes/ask.index'
 import { Route as AskThreadIdRouteImport } from './routes/ask.$threadId'
 import { Route as AskNewRouteImport } from './routes/ask.new'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as CAccessRouteImport } from './routes/c.$access'
 import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as FTokenRouteImport } from './routes/f.$token'
@@ -83,6 +84,7 @@ import { Route as ApiAthenaFieldPushRouteImport } from './routes/api/athena/fiel
 import { Route as ApiAthenaMorningBriefRouteImport } from './routes/api/athena/morning-brief'
 import { Route as ApiPublicAosFpRouteImport } from './routes/api/public/aos-fp'
 import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/brand.athena.athena-icon-64[.]png'
+import { Route as CITokenRouteImport } from './routes/c.i.$token'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as PSTokenRouteImport } from './routes/p.s.$token'
 import { Route as RDrawingUploadTokenRouteImport } from './routes/r.drawing-upload.$token'
@@ -414,6 +416,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CAccessRoute = CAccessRouteImport.update({
+  id: '/c/$access',
+  path: '/c/$access',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ControlPlanPacketIdRoute = ControlPlanPacketIdRouteImport.update({
   id: '/control-plan/$packetId',
   path: '/control-plan/$packetId',
@@ -486,6 +493,11 @@ const BrandAthenaAthenaIcon64DotpngRoute =
     path: '/brand/athena/athena-icon-64.png',
     getParentRoute: () => rootRouteImport,
   } as any)
+const CITokenRoute = CITokenRouteImport.update({
+  id: '/c/i/$token',
+  path: '/c/i/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -688,6 +700,7 @@ export interface FileRoutesByFullPath {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/c/$access': typeof CAccessRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/f/$token': typeof FTokenRoute
@@ -705,6 +718,7 @@ export interface FileRoutesByFullPath {
   '/api/athena/morning-brief': typeof ApiAthenaMorningBriefRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
+  '/c/i/$token': typeof CITokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/p/s/$token': typeof PSTokenRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
@@ -791,6 +805,7 @@ export interface FileRoutesByTo {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/c/$access': typeof CAccessRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/f/$token': typeof FTokenRoute
@@ -808,6 +823,7 @@ export interface FileRoutesByTo {
   '/api/athena/morning-brief': typeof ApiAthenaMorningBriefRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
+  '/c/i/$token': typeof CITokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/p/s/$token': typeof PSTokenRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
@@ -895,6 +911,7 @@ export interface FileRoutesById {
   '/ask/$threadId': typeof AskThreadIdRoute
   '/ask/new': typeof AskNewRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/c/$access': typeof CAccessRoute
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/f/$token': typeof FTokenRoute
@@ -912,6 +929,7 @@ export interface FileRoutesById {
   '/api/athena/morning-brief': typeof ApiAthenaMorningBriefRoute
   '/api/public/aos-fp': typeof ApiPublicAosFpRoute
   '/brand/athena/athena-icon-64.png': typeof BrandAthenaAthenaIcon64DotpngRoute
+  '/c/i/$token': typeof CITokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/p/s/$token': typeof PSTokenRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
@@ -1000,6 +1018,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/auth/callback'
+    | '/c/$access'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/f/$token'
@@ -1017,6 +1036,7 @@ export interface FileRouteTypes {
     | '/api/athena/morning-brief'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
+    | '/c/i/$token'
     | '/lovable/email/suppression'
     | '/p/s/$token'
     | '/r/drawing-upload/$token'
@@ -1103,6 +1123,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/auth/callback'
+    | '/c/$access'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/f/$token'
@@ -1120,6 +1141,7 @@ export interface FileRouteTypes {
     | '/api/athena/morning-brief'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
+    | '/c/i/$token'
     | '/lovable/email/suppression'
     | '/p/s/$token'
     | '/r/drawing-upload/$token'
@@ -1206,6 +1228,7 @@ export interface FileRouteTypes {
     | '/ask/$threadId'
     | '/ask/new'
     | '/auth/callback'
+    | '/c/$access'
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/f/$token'
@@ -1223,6 +1246,7 @@ export interface FileRouteTypes {
     | '/api/athena/morning-brief'
     | '/api/public/aos-fp'
     | '/brand/athena/athena-icon-64.png'
+    | '/c/i/$token'
     | '/lovable/email/suppression'
     | '/p/s/$token'
     | '/r/drawing-upload/$token'
@@ -1310,6 +1334,7 @@ export interface RootRouteChildren {
   AskThreadIdRoute: typeof AskThreadIdRoute
   AskNewRoute: typeof AskNewRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  CAccessRoute: typeof CAccessRoute
   ControlPlanPacketIdRoute: typeof ControlPlanPacketIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   FTokenRoute: typeof FTokenRoute
@@ -1323,6 +1348,7 @@ export interface RootRouteChildren {
   ApiAthenaMorningBriefRoute: typeof ApiAthenaMorningBriefRoute
   ApiPublicAosFpRoute: typeof ApiPublicAosFpRoute
   BrandAthenaAthenaIcon64DotpngRoute: typeof BrandAthenaAthenaIcon64DotpngRoute
+  CITokenRoute: typeof CITokenRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   PSTokenRoute: typeof PSTokenRoute
   RDrawingUploadTokenRoute: typeof RDrawingUploadTokenRoute
@@ -1773,6 +1799,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/c/$access': {
+      id: '/c/$access'
+      path: '/c/$access'
+      fullPath: '/c/$access'
+      preLoaderRoute: typeof CAccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/control-plan/$packetId': {
       id: '/control-plan/$packetId'
       path: '/control-plan/$packetId'
@@ -1869,6 +1902,13 @@ declare module '@tanstack/react-router' {
       path: '/brand/athena/athena-icon-64.png'
       fullPath: '/brand/athena/athena-icon-64.png'
       preLoaderRoute: typeof BrandAthenaAthenaIcon64DotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/c/i/$token': {
+      id: '/c/i/$token'
+      path: '/c/i/$token'
+      fullPath: '/c/i/$token'
+      preLoaderRoute: typeof CITokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/suppression': {
@@ -2152,6 +2192,7 @@ const rootRouteChildren: RootRouteChildren = {
   AskThreadIdRoute: AskThreadIdRoute,
   AskNewRoute: AskNewRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  CAccessRoute: CAccessRoute,
   ControlPlanPacketIdRoute: ControlPlanPacketIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   FTokenRoute: FTokenRoute,
@@ -2166,6 +2207,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAthenaMorningBriefRoute: ApiAthenaMorningBriefRoute,
   ApiPublicAosFpRoute: ApiPublicAosFpRoute,
   BrandAthenaAthenaIcon64DotpngRoute: BrandAthenaAthenaIcon64DotpngRoute,
+  CITokenRoute: CITokenRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   PSTokenRoute: PSTokenRoute,
   RDrawingUploadTokenRoute: RDrawingUploadTokenRoute,
