@@ -304,11 +304,37 @@
   background: white;
   width: 100%;
 }
-.pp-add-fields input[type="file"] {
-  min-height: 44px;
-  padding: 8px 0;
-  font: inherit;
+.pp-add-files {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #65788e;
+}
+/* Hidden but still in the page, so the button below can open its picker. */
+.pp-add-fields .pp-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pp-add-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.pp-page .pp-pick {
+  border-color: #2465cb;
+  color: #2465cb;
+  font-weight: 600;
+}
+.pp-add-picked {
+  font-size: 14px;
   color: #18314f;
+  overflow-wrap: anywhere;
 }
 .pp-add-fields .pp-add-check {
   display: flex;
