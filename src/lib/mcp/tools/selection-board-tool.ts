@@ -31,6 +31,7 @@ import {
   estimateLineOptions,
   lineOptionsText,
   optionLinks,
+  optionNameLink,
   selectionLineOptions,
 } from "../../selections/estimate-options";
 import { SAVE_OFFER_GUIDANCE } from "../estimate-options";
@@ -148,7 +149,7 @@ function contractorText(board: Board, version: number, today: string): string[] 
       const o = s.options[tier];
       const m = row.options[tier];
       lines.push(
-        `${tierLabel(tier)}: ${productName(o)}${o.description ? ` · ${o.description}` : ""}`,
+        `${tierLabel(tier)}: ${o.description || o.model ? optionNameLink(productName(o), o) : productName(o)}${o.description ? ` · ${o.description}` : ""}`,
         `  Specs: ${o.specifications || "Unknown"} · Included: ${o.included.length ? o.included.join("; ") : "None listed"}`,
         `  Product page (contractor only, never shown to the customer): ${o.product_url ?? "None"} · Photo: ${o.photo_url ?? "Unknown"} · Price read on (internal): ${o.source_url ?? "Unknown"}`,
         `  Found: ${money(o.found_price_cents, code)} per ${s.unit}${o.found_at ? ` at ${o.found_at}` : ""}${o.found_on ? ` on ${o.found_on}` : ""} (a web lead, not a price)`,
@@ -297,7 +298,7 @@ async function takeoffLine(sb: Sb, jobId: string, ref: string) {
 
 /** Hosts that draw no card still show where each option can be seen. */
 const OPTION_LINKS_GUIDANCE =
-  "When you show the options, give each one a link the member can click: its product page, or the seller page its price was read on when no product page is saved. Use only the links in this result.";
+  "When you show the options, give each one a link the member can click: its product page, or the seller page its price was read on when no product page is saved. In a table, put the option's product name as the markdown link this result gives it, so the link stays in the table. Use only the links in this result.";
 
 /**
  * Each saved option's links, listed in the reply text so a host that draws no

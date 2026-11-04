@@ -146,8 +146,11 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     expect(text).toMatch(
       /Missing links: Good has no photo; Better has no photo; Best has no photo/,
     );
+    expect(text).toContain(
+      "Good: [Juno R600L G2](https://www.acuitybrands.com/products/detail/R600L%20G2)",
+    );
     expect(JSON.stringify(r.structuredContent)).toContain(
-      "give each one a link the member can click",
+      "put the option's product name as the markdown link",
     );
   });
 

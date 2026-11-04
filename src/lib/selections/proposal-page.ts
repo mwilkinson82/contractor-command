@@ -54,7 +54,7 @@ export function renderProposalDocument(p: ProposalPagePayload): string {
     eyebrow: null,
     note: chosen
       ? null
-      : `Ready to choose? Sign your choice on your customer page from ${company}, or ask ${company} for an invite.`,
+      : `Ready to choose? Sign your choice on your client page from ${company}, or ask ${company} for an invite.`,
   });
   const fine = [
     chosen ? `Chosen on ${longDate(v.accepted!.recorded_on)}.` : "",
