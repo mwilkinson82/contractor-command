@@ -316,3 +316,33 @@ export function iorFlags(m: IorModel, r: IorRollup, today: string): IorFlag[] {
   if (accepted > r.originalContract * 0.01) out.push({ high: false, title: "Accepted risk is over 1% of the contract.", detail: `${dollars(accepted)} is marked accept. Confirm it can't be eliminated, recovered or offset.` });
   return out;
 }
+
+/** Athena's numbers for chat, the same figures the IOR page shows. */
+export function iorModelText(m: IorModel, today: string): string[] {
+  const r = iorRollup(m);
+  const pct = (n: number) => `${n.toFixed(1)}%`;
+  const signedAmt = (c: number) => (Math.round(c / 100) === 0 ? "$0" : `${c > 0 ? "+" : "−"}${dollars(Math.abs(c))}`);
+  const lines = ["Indicated outcome (dollar risk × probability)"];
+  lines.push(`Contract incl. approved change orders: ${dollars(r.signedContract)}`);
+  if (r.costKnown) {
+    lines.push(
+      `Signed gross profit: ${dollars(r.signedGP)} · ${pct(r.signedPct)}`,
+      `Indicated gross profit: ${dollars(r.indicatedGP)} · ${pct(r.indicatedPct)} of risk-adjusted contract ${dollars(r.forecastContract)}`,
+      `Gap to signed: ${signedAmt(r.gap)}`,
+      `Bridge: cost growth ${signedAmt(-r.costGrowth)}, pending change orders weighted ${signedAmt(r.weightedPendingContract - r.weightedPendingCost)}, E-holds ${signedAmt(-r.eHold)}, C-holds ${signedAmt(-r.cHold)}`,
+    );
+  } else lines.push("Gross profit: Not available, no cost budget is saved.");
+  lines.push(`E-holds: ${dollars(r.eHold)} (guide ${r.ePct}% of remaining cost: ${dollars(r.eTarget)}) · C-holds: ${dollars(r.cHold)} (guide ${r.cPct}%: ${dollars(r.cTarget)})`);
+  if (m.baseline_completion && m.forecast_completion) {
+    const slip = daysBetween(m.baseline_completion, m.forecast_completion);
+    lines.push(`Finish: forecast ${m.forecast_completion}, baseline ${m.baseline_completion} (${slip > 0 ? `${slip} days late` : slip < 0 ? `${-slip} days early` : "on baseline"})`);
+  }
+  if (m.exposures.length) {
+    lines.push("Risks");
+    for (const e of [...m.exposures].sort((a, b) => heldCents(b) - heldCents(a)))
+      lines.push(`- ${e.title} · ${e.hold}-hold · ${dollars(Math.round(e.dollar_risk * 100))} × ${e.probability}% = ${dollars(heldCents(e))} held · ${e.response}${e.owner ? ` · ${e.owner}` : ""}${e.next_review ? ` · next review ${e.next_review}` : " · no review date"}${e.next_move ? ` · next move: ${e.next_move}` : ""}`);
+  }
+  const flags = iorFlags(m, r, today);
+  if (flags.length) lines.push("Warnings", ...flags.map((f) => `- ${f.title} ${f.detail}`));
+  return lines;
+}

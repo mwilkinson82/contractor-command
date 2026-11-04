@@ -38,11 +38,12 @@ export const IOR_VIEW_SPEC: string[] = [
   "1. Header: job name and the saved report version and data date.",
   `2. Lead with contract value, planned GP dollars and margin, and indicated GP dollars and margin (${ALERT_COLOR} if down). Use the provided owner-confirmed outcome only when present; show unavailable for missing values.`,
   "3. Put the contract, planned GP and indicated GP with their margins first. Show the stated basis and as-of date; show unavailable when a verified value is missing.",
-  `4. Show E-holds and C-holds, amounts, owner, treatment and next action. ${ALERT_COLOR} flags apply to stated risks. Do not probability-weight holds.`,
-  "5. Show supported change-order details without inventing amounts or probability weighting.",
+  `4. Show E-holds and C-holds as dollar risk × probability = held, with owner, response and next move. ${ALERT_COLOR} flags apply to stated risks.`,
+  "5. Weight pending change orders by their stated probability and show face value beside it; never invent an amount or a probability.",
   "6. Billing strip: billed, % billed, retainage held, paid, and left to bill.",
   "7. Use Athena's numbers exactly; never recompute them with other math.",
-  `8. ${SHARED}`,
+  "8. Save the IOR as details.ior_model on living_report_save so the IOR page shows it: original_contract, original_cost_budget (null if none), cost_growth, actual_cost_to_date, phase (Early, Middle or Late), percent_complete, baseline_completion, forecast_completion, last_forecast_completion, change_orders [{number, description, status Approved, Pending or Denied, contract_amount, cost_amount, probability 0-100}], exposures [{title, short, category (procurement, owner_decision, design_drift, trade_performance, schedule_compression, allowance_overrun, field_change, closeout_punch or other), response eliminate, recover, offset or accept, hold E or C, dollar_risk, probability 0-100, owner, opened, next_review, next_move}]. Ask the PM for any cost amount or probability you don't have; never guess one.",
+  `9. ${SHARED}`,
 ];
 
 export const PORTFOLIO_VIEW_SPEC: string[] = [

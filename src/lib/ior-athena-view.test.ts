@@ -126,3 +126,14 @@ describe("Athena's IOR view", () => {
     expect(old).not.toContain("class=\"ath-ior\"");
   });
 });
+
+describe("IOR in chat", () => {
+  it("gives the same numbers as the page", async () => {
+    const { iorSectionsText } = await import("./mcp/living");
+    const text = iorSectionsText({ ior_model: harbor }).join("\n");
+    expect(text).toContain("Indicated gross profit: $414,100 · 11.7%");
+    expect(text).toContain("Gap to signed: −$107,900");
+    expect(text).toContain("Window and door delivery running late · E-hold · $52,000 × 60% = $31,200 held");
+    expect(text).not.toContain("Ior Model");
+  });
+});
