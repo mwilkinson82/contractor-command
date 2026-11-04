@@ -9,6 +9,7 @@ import { ProductionReportPage } from "@/components/athena/ProductionReportPage";
 import { AccountingReportPage } from "@/components/athena/AccountingReportPage";
 import { BillingEvidencePage } from "@/components/athena/BillingEvidencePage";
 import { JobHome } from "@/components/athena/JobHome";
+import { DailyRangeReportPage } from "@/components/athena/DailyRangeReportPage";
 import { readBoardToken } from "@/lib/mcp/board-url";
 
 export const Route = createFileRoute("/r/job/$jobId/$page")({
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
         page !== "buyout" &&
         page !== "accounting" &&
         page !== "production" &&
+        page !== "daily-log" &&
         !(JOB_PAGES as readonly string[]).includes(page))
     )
       throw notFound();
@@ -53,6 +55,15 @@ function JobReportPage() {
   if (hostedPageName(page) === "production")
     return (
       <ProductionReportPage jobId={jobId} from={search.from} to={search.to} range={search.range} />
+    );
+  if (hostedPageName(page) === "daily-log")
+    return (
+      <DailyRangeReportPage
+        jobId={jobId}
+        from={search.from}
+        to={search.to}
+        photos={search.photos}
+      />
     );
   if (hostedPageName(page) === "accounting") {
     let selected = null;

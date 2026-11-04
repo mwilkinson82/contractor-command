@@ -109,6 +109,9 @@ export function DailyReportReview({
             )}
             <a href={fieldHref}>Field board</a>
             <a href={`/r/job/${jobId}/production`}>Production review</a>
+            {memberId && (
+              <a href={`/r/job/${jobId}/daily-log`}>Export a date range (print or PDF)</a>
+            )}
           </aside>
           <article className="dr-document">
             <header>
