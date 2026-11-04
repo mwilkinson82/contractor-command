@@ -133,7 +133,7 @@ describe("submittal log read", () => {
     }
     expect(log?.rows[0].flag).toBe("overdue");
     expect(text).toContain("#18314F");
-    expect(text).toContain("#2465CB");
+    expect(text).toContain("#183B63");
     expect(paletteViolations(result.structuredContent.html, true)).toEqual([]);
     expect(result.structuredContent.html).toContain("#9F243A");
   });

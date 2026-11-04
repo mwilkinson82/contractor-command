@@ -23,7 +23,7 @@ export function responsiveCardCss(hasAlerts: boolean): string {
 .card .table-wrap td[data-label]::before{display:block;content:attr(data-label);margin-bottom:2px;color:${c.muted};font-size:11px;font-weight:600}
 .card .table-wrap td:first-child::before,.card .table-wrap td.blank{display:none}
 ${hasAlerts ? `.card .table-wrap tr.alert{border-color:${c.alertLine};background:${c.alertSoft};box-shadow:inset 3px 0 0 ${c.alertInk}}` : ""}
-.card .table-wrap tr.callout{border-left:3px solid ${c.action}}
+.card .table-wrap tr.callout{border-left:3px solid ${c.strong}}
 .card .table-wrap .flag-head{display:inline-block;max-width:100%;padding:0;font-size:11px;line-height:1.4;vertical-align:top}
 .card .table-wrap .flag-body{margin-top:4px;padding:0;color:${c.ink}}
 }`;

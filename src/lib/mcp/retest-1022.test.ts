@@ -210,6 +210,6 @@ describe("board link card palette", () => {
     });
     expect(paletteViolations(html, false)).toEqual([]);
     expect(html).toContain("#18314F");
-    expect(html).toContain("#2465CB");
+    expect(html).toContain("#183B63");
   });
 });

@@ -269,7 +269,7 @@ describe("stored sheet page", () => {
     expect(result.content[0].text).toContain("Grid A");
     const markup = result.structuredContent?.markup as { html: string }[];
     expect(markup[0].html).not.toContain("#9F243A");
-    expect(markup[0].html).toContain("#2465CB");
+    expect(markup[0].html).toContain("#183B63");
   });
 
   it("returns nothing for another company's drawing", async () => {

@@ -142,7 +142,7 @@ describe("morning card styling", () => {
     expect(superHtml).toContain(todayBoardUrl());
     expect(pmHtml).toContain("https://app.meetathena.io/today");
     expect(superHtml).toContain("#18314F");
-    expect(superHtml).toContain("#2465CB");
+    expect(superHtml).toContain("#183B63");
     expect(superHtml).not.toMatch(/\$/);
     expect(superHtml).not.toMatch(/pay app|\bIOR\b/i);
     expect(pmHtml).toContain("$420,000.00");

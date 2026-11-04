@@ -57,7 +57,7 @@ describe("ordinary callouts and real alerts", () => {
   it("keeps an S-100 saved markup reference navy/blue in HTML, markdown and the widget", () => {
     const { card, html } = drawingMarkupCard("S-100", [{ label: "Grid A" }]);
     expect(html).toContain('class="callout"');
-    expect(html).toContain("color:#18314F;border-left:3px solid #2465CB");
+    expect(html).toContain("color:#18314F;border-left:3px solid #183B63");
     expect(html).not.toContain('data-alert="');
     expect(paletteViolations(html, false)).toEqual([]);
     expect(renderMarkdown(card)).not.toContain("🔴");
@@ -90,7 +90,7 @@ describe("ordinary callouts and real alerts", () => {
           },
         ],
       }),
-    ).toContain(".card .callout{color:#18314F;border-left:3px solid #2465CB}");
+    ).toContain(".card .callout{color:#18314F;border-left:3px solid #183B63}");
   });
 
   it("does not count an ordinary linked item or a date check as a risk", () => {
@@ -219,7 +219,7 @@ describe("delay notices render red", () => {
       expect(shown.widget).toContain('data-alert="delay"');
       expect(paletteViolations(shown.html, true)).toEqual([]);
     }
-    expect(ordinary.html).toContain("#2465CB");
+    expect(ordinary.html).toContain("#183B63");
     expect(ordinary.html).not.toContain("#9F243A");
     expect(ordinary.html).not.toContain("data-alert=");
     expect(ordinary.markdown).toContain("Confirm the conduit");

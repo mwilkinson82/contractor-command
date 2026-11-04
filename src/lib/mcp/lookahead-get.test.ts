@@ -109,7 +109,7 @@ describe("normal lookahead read", () => {
       expect(body).toContain("**Saved items:**");
       expect(returned.structuredContent.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
       expect(returned.structuredContent.html).not.toContain("REQUIRED: the data date");
-      expect(returned.structuredContent.html).toContain("#2465CB");
+      expect(returned.structuredContent.html).toContain("#183B63");
       if (claude) {
         expect(body).not.toContain("<!doctype html");
         expect(body).not.toMatch(/sees this result as an Athena card/);
@@ -230,7 +230,7 @@ describe("normal lookahead read", () => {
     expect(reply).toContain("<!doctype html");
     expect(sc.html).toContain("Data date: 2026-10-19 (saved CPM v3)");
     expect(sc.html).not.toContain("REQUIRED: the data date");
-    expect(reply).toContain("#2465CB");
+    expect(reply).toContain("#183B63");
     expect(reply).not.toContain("PRIVATE OTHER JOB");
     expect(reply).not.toContain("OTHER LOOKAHEAD");
     expect(reply).not.toContain("Hidden");

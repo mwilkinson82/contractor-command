@@ -250,7 +250,7 @@ describe("morning brief builder", () => {
     expect(before).not.toContain(">Result<");
     expect(emptyCssValues(before)).toEqual([]);
     expect(before).toContain("#18314F");
-    expect(before).toContain("#2465CB");
+    expect(before).toContain("#183B63");
     expect(before).toContain(INBOX_HOST_LINE);
     expect(before).toContain("Gmail and Calendar");
     expect(before).not.toContain("leave the section out");
@@ -303,7 +303,7 @@ describe("a second good morning", () => {
       expect(text).not.toMatch(/already shown|Your brief is above|short reply/i);
       expect(text.match(/<!doctype html/gi)).toHaveLength(1);
       expect(text).toContain("#18314F");
-      expect(text).toContain("#2465CB");
+      expect(text).toContain("#183B63");
     }
     expect(calls.filter((fn) => fn === "mcp_morning_brief_shows")).toEqual([]);
     expect(calls.filter((fn) => fn === "mcp_morning_brief_mark_shown")).toHaveLength(2);

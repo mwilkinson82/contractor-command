@@ -58,7 +58,7 @@ describe("submittal chase", () => {
     }).card);
     expect(paletteViolations(quiet, false)).toEqual([]);
     const sealed = attachAthenaCard("submittal_chase", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as { content: { text?: string }[] };
-    expect(sealed.content[0].text).toContain("#2465CB");
+    expect(sealed.content[0].text).toContain("#183B63");
     expect(chaseDraft("2701", chase()).body).not.toMatch(/\battached\b/i);
   });
 

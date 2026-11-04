@@ -26,19 +26,26 @@ export const CARD = {
   rule: "#E8EDF4",
   soft: "#F8FAFD",
   head: "#F5F8FC",
-  action: "#2465CB",
+  /** Buttons and the active progress fill: dark ink, never blue (Marshall: no blue in cards). */
+  action: "#18314F",
+  /** Link underline: a quiet line under strong-ink link text. */
+  underline: "#9AABBF",
   white: "#FFFFFF",
   alertInk: "#9F243A",
   alertSoft: "#FFF3F5",
   alertLine: "#F3C8D0",
 } as const;
 /** The alert tokens. Legal only on delay, risk and overdue, like ALERT. */
-export const CARD_ALERT = new Set([CARD.alertInk, CARD.alertSoft, CARD.alertLine].map((h) => h.toUpperCase()));
+export const CARD_ALERT = new Set(
+  [CARD.alertInk, CARD.alertSoft, CARD.alertLine].map((h) => h.toUpperCase()),
+);
 
 /** Markdown markers. Blue, white/gray, and red. Nothing else. */
 export const MARK = { action: "🔵", neutral: "⚪", alert: "🔴" } as const;
 
-const ALLOWED = new Set([NAVY, BLUE, GRAY, WHITE, ALERT, ...Object.values(CARD)].map((h) => h.toUpperCase()));
+const ALLOWED = new Set(
+  [NAVY, BLUE, GRAY, WHITE, ALERT, ...Object.values(CARD)].map((h) => h.toUpperCase()),
+);
 
 export type AlertLevel = "risk" | "delay" | "overdue";
 export function isAlertLevel(value: unknown): value is AlertLevel {
@@ -54,7 +61,12 @@ export function hexesIn(text: string): string[] {
   });
 }
 
-const OFF_MARKER = new RegExp([0x26a0, 0x1f69a, 0x1f4cb, 0x1f6a9, 0x1f7e1, 0x1f7e0].map((n) => String.fromCodePoint(n)).join("|"), "u");
+const OFF_MARKER = new RegExp(
+  [0x26a0, 0x1f69a, 0x1f4cb, 0x1f6a9, 0x1f7e1, 0x1f7e0]
+    .map((n) => String.fromCodePoint(n))
+    .join("|"),
+  "u",
+);
 
 /**
  * Off-palette colors and markers. Pass alertAllowed only when the card has a
@@ -64,10 +76,12 @@ export function paletteViolations(text: string, alertAllowed: boolean): string[]
   const bad: string[] = [];
   for (const h of hexesIn(text)) {
     if (!ALLOWED.has(h)) bad.push(`off-palette ${h}`);
-    else if ((h === ALERT.toUpperCase() || CARD_ALERT.has(h)) && !alertAllowed) bad.push(`red ${h} outside delay, risk, or overdue`);
+    else if ((h === ALERT.toUpperCase() || CARD_ALERT.has(h)) && !alertAllowed)
+      bad.push(`red ${h} outside delay, risk, or overdue`);
   }
   if (OFF_MARKER.test(text) || /\bamber\b/i.test(text)) bad.push("off-palette marker");
-  if (!alertAllowed && text.includes(MARK.alert)) bad.push("red marker outside delay, risk, or overdue");
+  if (!alertAllowed && text.includes(MARK.alert))
+    bad.push("red marker outside delay, risk, or overdue");
   return bad;
 }
 
