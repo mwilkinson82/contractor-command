@@ -592,11 +592,19 @@ export function renderReportBody(p: PagePayload, context?: ReportContext): strin
  * Full document for the public share page an owner or client opens. The contractor leads: their
  * name tops the page and the tab; Athena is the small A icon and "Powered by Athena" in the corner.
  */
-export function renderReportDocument(p: PagePayload): string {
+/**
+ * `logo` is the contractor's saved logo as a data: URI (PNG or JPEG, already validated server-side), so the page
+ * keeps its strict image policy. Without it the contractor's name leads in type.
+ */
+export function renderReportDocument(p: PagePayload, brand: { logo?: string | null } = {}): string {
   const t = p.page === "portfolio" ? `${p.company ?? ""} portfolio` : `${p.job_number ?? ""} ${PAGE_LABEL[p.page]}`;
   const company = p.company?.trim();
+  const logo = company && brand.logo && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(brand.logo) ? brand.logo : null;
+  const mark = logo
+    ? `<img src="${logo}" alt="${esc(company)}" style="display:block;height:40px;width:auto;max-width:min(240px,60vw);object-fit:contain">`
+    : `<span style="display:block;font:600 17px/1.25 ${CLIENT_BRAND_NAME_FONT};letter-spacing:-.011em;color:#111827;overflow-wrap:anywhere">${esc(company ?? "")}</span>`;
   const head = company
-    ? `<header style="background:#fff;border-bottom:1px solid ${G3}"><div style="max-width:1440px;margin:0 auto;padding:16px clamp(16px,3vw,40px)"><span style="display:block;font:600 17px/1.25 ${CLIENT_BRAND_NAME_FONT};letter-spacing:-.011em;color:#111827;overflow-wrap:anywhere">${esc(company)}</span></div></header>`
+    ? `<header style="background:#fff;border-bottom:1px solid ${G3}"><div style="max-width:1440px;margin:0 auto;padding:${logo ? "12px" : "16px"} clamp(16px,3vw,40px)">${mark}</div></header>`
     : "";
   const foot = `<footer style="max-width:1440px;margin:0 auto;padding:0 clamp(16px,3vw,40px) 28px;display:flex;justify-content:flex-end">${poweredByAthenaHtml()}</footer>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(t)}${company ? ` · ${esc(company)}` : ""}</title>${CLIENT_BRAND_FONTS}</head><body style="margin:0;background:${G4}">${head}${renderReportBody(p)}${foot}</body></html>`;
