@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import { tokenHash } from "../mcp/file-share";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 import { customerProposal } from "../selections/proposal";
-import type { PortalEmail } from "./email";
+import {
+  ATHENA_BLUE,
+  ATHENA_EMAIL_LOGO_URL,
+  ATHENA_NAVY,
+} from "../email-templates/athena-auth-email";
+import { codeEmail, inviteEmail, type PortalEmail } from "./email";
 import {
   codeHash,
   csrfFor,
   handleInvite,
   handlePortal,
+  sameOrigin,
   sixDigits,
   type PortalDeps,
 } from "./server";
-import { PORTAL_SECTIONS } from "./render";
+import { PORTAL_SECTIONS, renderGone } from "./render";
 
 const ACCESS = "00000000-0000-4000-8000-0000000000aa";
 const CO = "00000000-0000-4000-8000-0000000000c1";
@@ -150,6 +156,29 @@ const BLUE = /#0071e3|#2563eb|#2997ff|#1d4ed8|#3b82f6|\bblue\b/i;
 /** The page's own UI has no blue. The one exception is the small blue Athena A in the "Powered by Athena" footer. */
 const withoutAthenaMark = (html: string) => html.replace(/<span class="ath-cb-powered"[\s\S]*?<\/span>/g, "");
 
+describe("same-origin posts", () => {
+  const at = (h: Record<string, string>) =>
+    new Request(`${ORIGIN}/c/i/${TOKEN}`, { method: "POST", headers: h });
+  it("takes a null origin only when the browser says the post came from the same site", () => {
+    // Chrome sends `Origin: null` on a same-origin form post under a no-referrer policy.
+    expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "same-origin" }))).toBe(true);
+    expect(sameOrigin(at({ origin: "null" }))).toBe(false);
+    expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "cross-site" }))).toBe(false);
+    expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "none" }))).toBe(false);
+    expect(sameOrigin(at({ origin: ORIGIN }))).toBe(true);
+    expect(
+      sameOrigin(at({ origin: "https://evil.example", "sec-fetch-site": "same-origin" })),
+    ).toBe(false);
+  });
+
+  it("sends a same-origin referrer policy so the browser keeps the real origin on its own forms", async () => {
+    const { d } = deps();
+    const r = await handleInvite(req(`/c/i/${TOKEN}`), TOKEN, d);
+    expect(r.headers.get("referrer-policy")).toBe("same-origin");
+    expect(await r.text()).toContain('<meta name="referrer" content="same-origin">');
+  });
+});
+
 describe("invite link", () => {
   it("refuses bad tokens and shows a sign-in start without the full address", async () => {
     const { d } = deps();
@@ -162,7 +191,14 @@ describe("invite link", () => {
     expect(html).toContain("r***@example.com");
     expect(html).not.toContain("rosa@example.com");
     expect(html).not.toMatch(/<script/i);
-    expect(withoutAthenaMark(html)).not.toMatch(BLUE);
+    // Sign-in wears Athena's own sign-in card: pale blue ground, blue rule and button, the mark beside the contractor.
+    expect(html).toContain('class="as-card"');
+    expect(html).toContain("#DBEAFE");
+    // Client-facing: the contractor leads up top in Inter; Athena is the small A and line in the card footer.
+    expect(html).toMatch(/<div class="as-brand"><span class="as-co"><b>[^<]+<\/b>/);
+    expect(html).toMatch(/class="as-foot"><svg[^>]*>.*<\/svg><span>Powered by Athena<\/span>/);
+    expect(html.match(/<svg/g)).toHaveLength(1);
+    expect(html).toContain("family=Inter");
   });
 
   it("emails a code whose hash is what the database stores, then signs in with a cookie scoped to the page", async () => {
@@ -457,5 +493,101 @@ describe("codes", () => {
     const seq = [4_294_967_295, 4_294_000_000, 7];
     expect(sixDigits(() => seq.shift()!)).toBe("000007");
     expect(sixDigits(() => 999_999)).toBe("999999");
+  });
+});
+
+describe("customer emails", () => {
+  const invite = inviteEmail({
+    to: "rosa@example.com",
+    name: "Rosa Diaz",
+    company: "ALP Construction",
+    jobName: "Harbor Residence",
+    pmName: "Sam Lee",
+    link: "https://app.meetathena.io/c/i/x",
+    expires: "Nov 18",
+    nonce: "n",
+  });
+  const code = codeEmail({
+    to: "rosa@example.com",
+    name: "Rosa Diaz",
+    company: "ALP Construction",
+    jobName: "Harbor Residence",
+    code: "123456",
+    purpose: "sign_in",
+    nonce: "n",
+  });
+  it("match Athena's sign-in emails with the contractor up top and Athena small underneath", () => {
+    for (const m of [invite, code]) {
+      expect(m.html).toContain(ATHENA_BLUE);
+      expect(m.html).toContain(ATHENA_NAVY);
+      expect(m.html).toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
+      expect(m.html).toContain(">Customer page</p>");
+      // The A is only the 16px corner mark beside "Powered by Athena".
+      expect(m.html).toContain(`<img src="${ATHENA_EMAIL_LOGO_URL}" width="16"`);
+      expect(m.html).not.toContain('width="56"');
+      expect(m.html).toContain("Powered by Athena</p>");
+    }
+    expect(invite.html).toContain(">Your project page is ready</h1>");
+    expect(invite.html).toContain('href="https://app.meetathena.io/c/i/x"');
+    expect(code.html).toContain(">Your sign-in code</h1>");
+    expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
+  });
+  it("keep their blue and white in the Gmail phone apps' dark mode", () => {
+    expect(invite.html).toContain('<meta name="supported-color-schemes" content="light">');
+    expect(invite.html).toContain('<body class="body"');
+    expect(invite.html).toContain("background-image:linear-gradient(#FFFFFF,#FFFFFF)");
+    expect(invite.html).toContain(
+      `background-image:linear-gradient(${ATHENA_BLUE},${ATHENA_BLUE})`,
+    );
+    expect(invite.html).toMatch(/u \+ \.body \.gm-screen\{[^}]*mix-blend-mode:screen/);
+    expect(invite.html).toContain(
+      '<span class="gm-screen"><span class="gm-diff">Open your project page</span></span>',
+    );
+    expect(code.html).toContain("background-image:linear-gradient(#F2F6FF,#F2F6FF)");
+  });
+  it("show the contractor's saved logo when there is one, and only an https one", () => {
+    const base = {
+      to: "a@b.co",
+      name: "Rosa",
+      company: "ALP Construction",
+      jobName: "J",
+      code: "123456",
+      purpose: "sign_in" as const,
+      nonce: "n",
+    };
+    const withLogo = codeEmail({ ...base, logo: "https://cdn.example.com/alp.png" });
+    expect(withLogo.html).toContain(
+      '<img src="https://cdn.example.com/alp.png" height="48" alt="ALP Construction"',
+    );
+    expect(withLogo.html).not.toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
+    const bad = codeEmail({ ...base, logo: 'javascript:alert(1)"' });
+    expect(bad.html).not.toContain("javascript:");
+    expect(bad.html).toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
+  });
+  it("escape what the contractor and customer typed", () => {
+    const m = inviteEmail({
+      to: "a@b.co",
+      name: "<b>x</b>",
+      company: "A & B <Build>",
+      jobName: "J",
+      pmName: null,
+      link: "https://app.meetathena.io/c/i/x",
+      expires: "Nov 18",
+      nonce: "n",
+    });
+    expect(m.html).toContain("A &amp; B &lt;Build&gt;");
+    expect(m.html).not.toContain("<b>x</b>");
+  });
+});
+
+describe("sign-in screens", () => {
+  it("show the contractor's saved https logo up top, and their name otherwise", () => {
+    const withLogo = renderGone("expired", "ALP Construction", "https://cdn.example.com/alp.png");
+    expect(withLogo).toContain(
+      '<img class="as-logo" src="https://cdn.example.com/alp.png" alt="ALP Construction">',
+    );
+    const bad = renderGone("expired", "ALP Construction", "http://cdn.example.com/alp.png");
+    expect(bad).not.toContain(`class="as-logo"`);
+    expect(bad).toContain("<b>ALP Construction</b>");
   });
 });

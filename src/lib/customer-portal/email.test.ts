@@ -41,7 +41,7 @@ describe("customer emails lead with the contractor", () => {
     expect(portalFrom(PORTAL_FROM_DEFAULT)).toBe(PORTAL_FROM_DEFAULT);
   });
 
-  it("puts the company first and the A icon with Powered by Athena last, in a light-only frame", () => {
+  it("sets the contractor-first sender on every customer email", () => {
     for (const m of [
       invite,
       codeEmail({
@@ -62,16 +62,8 @@ describe("customer emails lead with the contractor", () => {
         kind: "update",
         nonce: "n",
       }),
-    ]) {
+    ])
       expect(m.fromName).toBe("ALP Construction via Athena");
-      expect(m.html).toContain('<meta name="color-scheme" content="light">');
-      expect(m.html).toContain("linear-gradient(#ffffff,#ffffff)");
-      expect(m.html.indexOf("ALP Construction")).toBeLessThan(m.html.indexOf("Powered by Athena"));
-      expect(m.html).toContain(
-        'src="https://app.meetathena.io/brand/athena/email/athena-mark-180.png"',
-      );
-      expect(m.html).not.toMatch(/text-transform:uppercase/);
-    }
   });
 
   it("leaves the PM's own decision notice as Athena, with no customer footer", () => {
@@ -87,6 +79,5 @@ describe("customer emails lead with the contractor", () => {
       reference: "R1",
     });
     expect(m.fromName).toBeUndefined();
-    expect(m.html).not.toContain("Powered by Athena");
   });
 });

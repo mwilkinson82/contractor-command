@@ -75,7 +75,7 @@ beforeEach(() => {
   fixture.viewOptions = [];
 });
 describe("lightweight viewer tiles", () => {
-  it("checks the gate and job scope, preserves source identity, and avoids a full-page view", async () => {
+  it("checks the gate, job scope and source, skips the takeoff snapshot, and avoids a full-page view", async () => {
     const result = await call({ viewer_tile_only: true, tile_indices: [2, 3, 2] });
     expect(result.structuredContent).toMatchObject({
       source_id: "source",
@@ -83,14 +83,7 @@ describe("lightweight viewer tiles", () => {
       sheet: "E1",
       tiles: [{ index: 2 }, { index: 3 }],
     });
-    expect(fixture.calls).toEqual([
-      "gate",
-      "scope:write",
-      "snapshot",
-      "source:source:E1",
-      "tile:2",
-      "tile:3",
-    ]);
+    expect(fixture.calls).toEqual(["gate", "scope:write", "source:source:E1", "tile:2", "tile:3"]);
   });
   it("does not read a source when the gate rejects the caller", async () => {
     fixture.deny = true;
