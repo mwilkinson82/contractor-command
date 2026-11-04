@@ -801,7 +801,7 @@
     surface.append(img, svg);
     viewport.append(surface);
     viewport.tabIndex = 0;
-    viewport.ariaLabel = "Drawing. Zoom then scroll to pan.";
+    viewport.ariaLabel = "Drawing. Zoom, then drag or scroll to pan.";
     var detailReady = false,
       detailTimer = null,
       detailLoading = false,
@@ -811,8 +811,17 @@
       detailSheet = sc.source.sheet;
     var marksHidden = false;
     function setZoom(v) {
+      // Keep the middle of the view in place so zooming does not jump to the corner.
+      var before = surface.getBoundingClientRect(),
+        cx = before.width ? (viewport.scrollLeft + viewport.clientWidth / 2) / before.width : 0.5,
+        cy = before.height ? (viewport.scrollTop + viewport.clientHeight / 2) / before.height : 0.5;
       zoom = Math.max(1, Math.min(8, v));
       surface.style.width = zoom * 100 + "%";
+      var after = surface.getBoundingClientRect();
+      if (after.width) {
+        viewport.scrollLeft = cx * after.width - viewport.clientWidth / 2;
+        viewport.scrollTop = cy * after.height - viewport.clientHeight / 2;
+      }
       if (svg.isConnected) overlay();
       if (detailReady) scheduleDetail();
       size();
@@ -1020,15 +1029,32 @@
         unit = viewWidth / Math.max(1, surface.getBoundingClientRect().width);
       if (shape.kind === "pins")
         ps.forEach(function (p, i) {
+          // A white halo under a bolder ring keeps each pin easy to pick out on busy
+          // linework while the centre stays open so the symbol shows through.
+          var chosen = id && id === selectedGeometry && i === selectedPoint,
+            radius = (chosen ? 12 : 10) * unit;
+          svg.append(
+            svgNode("circle", {
+              cx: p.x * viewWidth,
+              cy: p.y * viewHeight,
+              r: radius,
+              stroke: "white",
+              fill: "none",
+              "stroke-width": chosen ? 7 : 5.5,
+              "stroke-opacity": 0.9,
+              "vector-effect": "non-scaling-stroke",
+              "pointer-events": "none",
+            }),
+          );
           var c = svgNode("circle", {
             cx: p.x * viewWidth,
             cy: p.y * viewHeight,
-            r: 8 * unit,
+            r: radius,
             stroke: color,
             fill: "transparent",
-            "stroke-width": 1.3,
+            "stroke-width": chosen ? 3.5 : 2.5,
             "vector-effect": "non-scaling-stroke",
-            "stroke-dasharray": fill === "white" ? "4 2" : "none",
+            "stroke-dasharray": fill === "white" ? "5 2.5" : "none",
           });
           function selectPin(e) {
             if (!id) return;
@@ -1105,9 +1131,10 @@
             return surface.getBoundingClientRect().height;
           }
           var number = svgNode("text", {
-            x: p.x * viewWidth + 10 * unit,
-            y: p.y * viewHeight - (10 + overlapIndex * 12) * unit,
-            "font-size": 10 * unit,
+            x: p.x * viewWidth + (radius + 3 * unit),
+            y: p.y * viewHeight - (radius + overlapIndex * 13 * unit),
+            "font-size": 11 * unit,
+            "font-weight": 600,
             "dominant-baseline": "central",
             fill: color,
             stroke: "white",
@@ -1192,6 +1219,7 @@
       }
     }
     function overlay() {
+      panCursor();
       if (marksHidden) {
         svg.querySelectorAll("circle,path,text").forEach(function (e) {
           e.remove();
@@ -1261,6 +1289,73 @@
         y: Math.max(0, Math.min(1, (e.clientY - b.top) / b.height)),
       };
     }
+    // Click and drag on the sheet pans the zoomed drawing with a mouse or pen. A
+    // drag never adds a point or selects a mark; a click without movement still
+    // does. Touch keeps the browser's own scrolling.
+    var pan = null,
+      panConsumedClick = false;
+    function panCursor() {
+      svg.style.cursor = pan && pan.moved ? "grabbing" : mode === "inspect" ? "grab" : "crosshair";
+    }
+    svg.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "touch" || e.button !== 0 || drag) return;
+      pan = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        left: viewport.scrollLeft,
+        top: viewport.scrollTop,
+        moved: false,
+      };
+    });
+    svg.addEventListener("pointermove", function (e) {
+      if (!pan || e.pointerId !== pan.id) return;
+      var dx = e.clientX - pan.x,
+        dy = e.clientY - pan.y;
+      if (!pan.moved) {
+        if (Math.hypot(dx, dy) < 5) return;
+        pan.moved = true;
+        try {
+          svg.setPointerCapture(e.pointerId);
+        } catch (err) {
+          // The pointer may already be released; panning still follows moves.
+        }
+        panCursor();
+      }
+      e.preventDefault();
+      viewport.scrollLeft = pan.left - dx;
+      viewport.scrollTop = pan.top - dy;
+    });
+    function endPan() {
+      if (pan && pan.moved) {
+        panConsumedClick = true;
+        // Clear after the click that follows this release, even if none comes.
+        setTimeout(function () {
+          panConsumedClick = false;
+        }, 0);
+      }
+      pan = null;
+      panCursor();
+    }
+    svg.addEventListener("pointerup", endPan);
+    svg.addEventListener("pointercancel", endPan);
+    svg.addEventListener("lostpointercapture", function () {
+      if (pan && pan.moved) endPan();
+    });
+    // Capture phase runs before a mark's own click, so a drag that ends on a
+    // line or area does not select it either.
+    svg.addEventListener(
+      "click",
+      function (e) {
+        if (!panConsumedClick) return;
+        panConsumedClick = false;
+        // Also stops the sheet's own add-point listener on this same element.
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      },
+      true,
+    );
+    panCursor();
     svg.addEventListener("click", function (e) {
       if (suppressPinClick) {
         suppressPinClick = false;
