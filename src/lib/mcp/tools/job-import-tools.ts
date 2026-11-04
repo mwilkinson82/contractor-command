@@ -92,10 +92,11 @@ export function readExport(args: {
         "The Overwatch export isn't valid JSON. Export the job again and attach the file as it came.",
       );
     }
-    const job = fromOverwatch(parsed, { dailyDays: args.daily_days });
-    if (args.job_number) job.job.job_number = args.job_number;
-    if (args.job_name) job.job.name = args.job_name;
-    return job;
+    return fromOverwatch(parsed, {
+      dailyDays: args.daily_days,
+      jobNumber: args.job_number,
+      jobName: args.job_name,
+    });
   }
   const sheets = args.sheets?.length
     ? args.sheets
