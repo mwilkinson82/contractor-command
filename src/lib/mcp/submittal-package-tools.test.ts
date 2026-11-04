@@ -821,7 +821,7 @@ describe("real package handlers with local DB and immutable storage", () => {
       const current = await saved(sid);
       expect(current.package.id).not.toBe(previous.package.id);
       expect(rebuilt.structuredContent.package).toMatchObject({ id: current.package.id, filename: current.package.filename });
-      expect(rebuilt.structuredContent.card.kpis?.[0].value).toBe(`T-${current.transmittal_number}`);
+      expect(rebuilt.structuredContent.card.kpis?.[0].value).toBe(`${current.transmittal_number}`);
       expect(JSON.stringify(rebuilt.structuredContent.card.sections[0])).not.toContain(previous.package.filename);
     } finally { state.sb = original; }
   });
@@ -837,7 +837,7 @@ describe("real package handlers with local DB and immutable storage", () => {
       const transformed = nativeCardPayload({jsonrpc:"2.0",id:73,result:got},visit).value as {result: typeof got};
       expect(transformed.result.structuredContent.package?.id).toBe(artifact.id);
       expect(JSON.stringify(transformed.result)).toContain(open);
-      expect(transformed.result.structuredContent.card.kpis?.[0].value).toBe(`T-${(await saved(sid)).transmittal_number}`);
+      expect(transformed.result.structuredContent.card.kpis?.[0].value).toBe(`${(await saved(sid)).transmittal_number}`);
     }
     expect(new URL(open).searchParams.get("package_id")).toBe(artifact.id);
     expect((await query("SELECT preview_hash,preview_expires_at FROM mcp_submittal_packages WHERE id=$1", [artifact.id]))[0]).toEqual(before);

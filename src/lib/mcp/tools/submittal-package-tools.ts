@@ -78,7 +78,7 @@ export function packageCard(
     show_state: false,
     job: `${ctx.job_number} – ${ctx.job_name}`,
     kpis: [
-      { label: "Transmittal", value: `T-${ctx.transmittal_number}` },
+      { label: "Transmittal", value: `${ctx.transmittal_number}` },
       { label: "Revision", value: String(ctx.submittal.revision) },
       { label: "Delivery", value: sent ? "Sent · receipt recorded" : "Draft, not sent" },
     ],
@@ -114,7 +114,7 @@ export function packageCard(
         rows: [
           {
             cells: [
-              `T-${ctx.transmittal_number} · Revision ${ctx.submittal.revision}`,
+              `Transmittal ${ctx.transmittal_number} · Revision ${ctx.submittal.revision}`,
               sent ? "Sent · receipt recorded" : "Draft, not sent",
             ],
           },
@@ -146,7 +146,7 @@ export function packageCard(
       ...(history?.length ? [{ heading: "Package history", kind: "table" as const,
         columns: ["Package version", "Status"],
         rows: history.map((p) => ({
-          cells: [`${buildOrder.get(p.id)} · ${p.transmittal_number ? `T-${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${p.built_at_display ?? submittalBuildTime(p.created_at)} · Copy ${p.id.slice(0, 8)}`,
+          cells: [`${buildOrder.get(p.id)} · ${p.transmittal_number ? `Transmittal ${p.transmittal_number}` : "Transmittal not recorded"} · Revision ${p.revision} · ${p.filename} · Built ${p.built_at_display ?? submittalBuildTime(p.created_at)} · Copy ${p.id.slice(0, 8)}`,
             p.revoked ? "Link turned off" : p.current ? "Current package" : "Superseded"],
           href: p.open_url,
         })) }] : []),

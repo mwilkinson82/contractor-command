@@ -146,6 +146,9 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     expect(text).toMatch(
       /Missing links: Good has no photo; Better has no photo; Best has no photo/,
     );
+    expect(JSON.stringify(r.structuredContent)).toContain(
+      "give each one a link the member can click",
+    );
   });
 
   it("refuses a line that is not on the saved takeoff", async () => {

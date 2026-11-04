@@ -293,7 +293,7 @@ function ballLabel(row: SubmittalRecord): string {
 
 function rowLine(row: SubmittalRecord, today: string, recordUrl: string | null = null): string {
   const overdue = submittalOverdue(row, today);
-  return `- ${row.number}. ${recordUrl ? `[${row.title}](${recordUrl})` : row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${submittalDisplayStatus(row)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)}${row.built_package ? ` Package: ${row.built_package.filename}.` : ""}${packageDelivery(row) ? ` ${packageDelivery(row)}.` : ""}`;
+  return `- ${row.number}. ${recordUrl ? `[${row.title}](${recordUrl})` : row.title}. Spec ${row.spec_section}. ${row.transmittal_number > 0 ? `Transmittal ${row.transmittal_number}` : "Transmittal not recorded"}, revision ${row.revision}. ${submittalDisplayStatus(row)}. Ball in court: ${ballLabel(row)}. Due ${dueLabel(row)}. Overdue: ${overdue ? "Yes" : "No"}. Source: ${sourceLine(row)}${row.built_package ? ` Package: ${row.built_package.filename}.` : ""}${packageDelivery(row) ? ` ${packageDelivery(row)}.` : ""}`;
 }
 
 /** One status label for the log and the record page: a built, unsent package reads as a draft, never as submitted or in review. */
@@ -376,7 +376,7 @@ export function presentSubmittalLog(input: {
   const tableRows: CardRow[] = rows.map((row) => {
     const late = submittalOverdue(row, input.today);
     return {
-      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `T-${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), submittalDisplayStatus(row), ballLabel(row), dueLabel(row), late ? "Yes" : "No", packageDelivery(row), sourceLine(row), row.built_package?.filename ?? (row.has_package ? "Rebuild needed" : "")],
+      cells: [row.number, row.title, row.spec_section, row.transmittal_number > 0 ? `Transmittal ${row.transmittal_number}` : "Transmittal not recorded", String(row.revision), submittalDisplayStatus(row), ballLabel(row), dueLabel(row), late ? "Yes" : "No", packageDelivery(row), sourceLine(row), row.built_package?.filename ?? (row.has_package ? "Rebuild needed" : "")],
       flag: late ? "overdue" : null,
       href: submittalRecordUrl(input.boardUrl, row.number),
       linkCell: 1,
