@@ -221,6 +221,8 @@ export const takeoffGeometry = defineTool({
     confirm: z.boolean().optional(),
     crop_point: point.optional(),
     tile_index: z.number().int().min(0).optional(),
+    tile_indices: z.array(z.number().int().min(0)).min(1).max(4).optional(),
+    viewer_tile_only: z.boolean().optional(),
     observations: hostObservationsSchema.optional(),
     line_nos: z.array(z.number().int().min(1).max(9999)).min(1).max(200).optional(),
     sheet_observations: sheetObservationsSchema.optional(),
@@ -358,6 +360,28 @@ export const takeoffGeometry = defineTool({
               reason: args.reason,
             });
           } else if (operation === "tile") {
+            // The viewer requests a source-backed tile while zooming. Avoid
+            // rebuilding the full takeoff and two full-page rasters per tile.
+            // The normal job, membership, source and revision checks above
+            // still run for every request.
+            if (args.viewer_tile_only === true) {
+              const indices = [...new Set(args.tile_indices ?? [args.tile_index ?? 0])];
+              const tiles = [];
+              // PDFium uses a shared native heap; render sequentially.
+              for (const index of indices) {
+                const tile = await readTile(sb, job, page!, index);
+                tiles.push({ ...tile.tile, png: tile.png });
+              }
+              return {
+                content: [{ type: "text" as const, text: "Drawing region loaded." }],
+                structuredContent: {
+                  source_id: page!.source.id,
+                  source_hash: page!.source.content_hash,
+                  sheet: page!.sheet,
+                  tiles,
+                },
+              };
+            }
             const tile = await readTile(sb, job, page!, args.tile_index ?? 0);
             const view = await viewEngine(sb, job, state, page, {
               tile: { ...tile.tile, png: tile.png },

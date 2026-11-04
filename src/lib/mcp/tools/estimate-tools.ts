@@ -1045,7 +1045,7 @@ export const estimateTakeoffGet = defineTool({
   name: "estimate_takeoff_get",
   title: "Read a takeoff",
   description:
-    "Returns the saved takeoff for a job and includes a stored drawing page when a sheet is named or a line names a markup.",
+    "Returns the saved takeoff for a job. When the user names a drawing sheet, pass that exact sheet in the sheet argument so the viewer opens it directly; pass source_id as well when the user specifies a particular drawing set or revision. If the sheet is not specified, do not guess one.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,

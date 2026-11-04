@@ -12,10 +12,10 @@ import {
 
 import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
-import { cachedSource } from "./cache";
+import { cachedSource, pageCache } from "./cache";
 import { automaticCalibration, scaleLock } from "./calibration";
 import { drawingReferences, drawingReferenceSection } from "./drawing-references";
-import { highlightedPreview } from "./render";
+import { highlightedPreview, pageGeometry } from "./render";
 import { renderMarkdown } from "../cards/markdown";
 import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
@@ -49,6 +49,19 @@ export type StoredPage = {
   inspection: SheetInspection;
   space: ReturnType<typeof sheetSpace>;
 };
+const cachedInspection = pageCache<SheetInspection>(
+  2_000_000,
+  (value) => JSON.stringify(value).length,
+);
+const cachedPreview = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
+const cachedHighlighted = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
+const pageKey = (job: Job, source: DrawingRecord, page: number) =>
+  `${job.company_id}:${job.job_id}:${source.id}:${source.content_hash}:${page}`;
+async function stateFingerprint(state: EngineSnapshot): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(state));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 /** One line per stored set, so a host can pass source_id on the next call. */
 export function describeStoredSets(sources: DrawingRecord[]): string {
   if (!sources.length) return "No drawing set is stored on this job.";
@@ -123,7 +136,9 @@ export async function loadStoredPage(
     `${job.company_id}:${job.job_id}:${source.id}:${source.content_hash}`,
     () => readStoredDrawingBytes(sb, job, source),
   );
-  const inspection = await inspectSheet(bytes, index);
+  const inspection = await cachedInspection(pageKey(job, source, index), () =>
+    inspectSheet(bytes, index),
+  );
   return {
     source,
     sheet: source.sheets[index],
@@ -410,12 +425,12 @@ export async function viewEngine(
   );
   // Only agreed foundation requirements become checklist gaps. Unknown scope stays a question;
   // work outside the fixed list still needs its own source/quantity evidence.
-  const uncovered = settled.foundationGaps.filter(
-    (g) => !takeoffLineFor(review.lines, g.title),
-  );
+  const uncovered = settled.foundationGaps.filter((g) => !takeoffLineFor(review.lines, g.title));
   if (uncovered.length)
     card.sections?.push({
-      heading: settled.foundationScope.clarification ? "Foundation scope needs clarification" : "Included foundation requirements with no takeoff line",
+      heading: settled.foundationScope.clarification
+        ? "Foundation scope needs clarification"
+        : "Included foundation requirements with no takeoff line",
       kind: "list",
       rows: [
         ...uncovered.map((g) => ({
@@ -495,9 +510,19 @@ export async function viewEngine(
           ],
         })),
     });
-  const preview = page ? await renderPdfiumPage(page.bytes, page.page - 1) : null;
+  const preview = page
+    ? await cachedPreview(pageKey(job, page.source, page.page - 1), () =>
+        renderPdfiumPage(page.bytes, page.page - 1),
+      )
+    : null;
+  const includeRejected = extra.include_rejected === true;
   const highlighted = page
-    ? await highlightedPreview(page, state, extra.include_rejected === true)
+    ? pageGeometry(state, page, includeRejected).length
+      ? await cachedHighlighted(
+          `${pageKey(job, page.source, page.page - 1)}:${includeRejected}:${await stateFingerprint(state)}`,
+          () => highlightedPreview(page, state, includeRejected),
+        )
+      : preview
     : null;
   if (extra.export && typeof (extra.export as { url?: unknown }).url === "string")
     card.sections?.push({
@@ -510,7 +535,7 @@ export async function viewEngine(
         },
       ],
     });
-  const availableSources = (await drawingRecords(sb, job)).map((s) => ({
+  const availableSources = allSources.map((s) => ({
     id: s.id,
     filename: s.filename,
     revision: s.version,
