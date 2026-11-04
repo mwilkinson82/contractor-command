@@ -9,7 +9,14 @@ describe("Athena sign-in shell colors", () => {
   it("re-points the raw tokens the @theme inline utilities read (not the --color-* aliases)", () => {
     const css = readFileSync("src/styles.css", "utf8");
     expect(css).toMatch(/@theme inline/);
-    for (const raw of ["--signal", "--clay", "--ring", "--ink", "--primary", "--primary-foreground"]) {
+    for (const raw of [
+      "--signal",
+      "--clay",
+      "--ring",
+      "--ink",
+      "--primary",
+      "--primary-foreground",
+    ]) {
       expect(tokens[raw], raw).toBeTruthy();
     }
     expect(Object.keys(tokens).some((k) => k.startsWith("--color-"))).toBe(false);
@@ -31,5 +38,17 @@ describe("Athena sign-in shell colors", () => {
     expect(s).toMatch(/data-brand="athena"[\s\S]*style=\{\{ \.\.\.ATHENA_ACCENTS/);
     expect(s.match(/ATHENA_ACCENTS/g)?.length).toBe(2);
     expect(s).toMatch(/\[&_\.bg-signal:hover\]:bg-\[#1D4ED8\]/);
+  });
+});
+
+describe("Athena sign-in help link", () => {
+  it("mails Athena support, while the Circle hub keeps the Circle inbox", async () => {
+    const { ATHENA_SUPPORT_MAILTO } = await import("@/lib/login-copy");
+    expect(ATHENA_SUPPORT_MAILTO).toBe(
+      "mailto:support@meetathena.io?subject=Help%20signing%20in%20to%20Athena",
+    );
+    const s = readFileSync("src/components/auth/auth-card.tsx", "utf8");
+    expect(s).toMatch(/href=\{ATHENA_SUPPORT_MAILTO\}[\s\S]{0,200}Need help signing in\?/);
+    expect(s.match(/support@alpcontractorcircle\.com/g)).toHaveLength(1);
   });
 });

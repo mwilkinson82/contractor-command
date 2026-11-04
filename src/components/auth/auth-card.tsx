@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { ContractorCircleBrand } from "@/components/brand/contractor-circle-brand";
-import { ATHENA_LOGIN_COLORS as C, ATHENA_LOGIN_LOGO } from "@/lib/login-copy";
+import {
+  ATHENA_LOGIN_COLORS as C,
+  ATHENA_LOGIN_LOGO,
+  ATHENA_SUPPORT_MAILTO,
+} from "@/lib/login-copy";
 
 const GATEWAY_SECTIONS = [
   {
@@ -90,10 +94,10 @@ export function AuthCard({
             </div>
           </section>
           <a
-            href="mailto:support@alpcontractorcircle.com"
+            href={ATHENA_SUPPORT_MAILTO}
             className="mt-6 block text-center text-xs text-[#1D4ED8] underline underline-offset-4"
           >
-            Need help?
+            Need help signing in?
           </a>
         </div>
       </main>
