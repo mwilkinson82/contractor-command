@@ -444,7 +444,7 @@ function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
         ? events.map(eventLine).join("")
         : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`),
   );
-  const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes · Athena powered by ALP</p>`;
+  const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes</p>`;
   return `<div class="ath-report-page" style="color:${NAVY}"><h1 class="ath-report-title" style="margin:0 0 8px;color:${NAVY}">${title}</h1><div class="ath-record-grid"><div class="ath-record-main">${head}${what}${requestBody}${changeBody}${changeHistory}${piecesHtml(items, p.read_only === true)}${filesHtml(p.packages ?? [], p.transmittals ?? [], p.time_zone_context ?? { job: p.time_zone })}</div><div class="ath-record-side">${mailHtml(p.mail ?? [])}${revisionsHtml(p.revisions ?? [])}${timeline}</div></div>${foot}</div>`;
 }
 
