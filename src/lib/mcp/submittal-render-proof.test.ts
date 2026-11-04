@@ -101,7 +101,7 @@ it("renders a complete submittal cover and every row through the real native res
   }).card;
   const html = renderHtml(card);
   expect(paletteViolations(html, true)).toEqual([]);
-  expect(html).toContain("T-27");
+  expect(html).toContain("Transmittal 27");
   expect(html).toContain("Overdue");
   expect(built.pageCount).toBe(3);
   expect(built.manifest.every((m) => m.sha256 === built.manifest[0].sha256)).toBe(true);

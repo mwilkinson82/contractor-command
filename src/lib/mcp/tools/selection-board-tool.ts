@@ -295,6 +295,10 @@ async function takeoffLine(sb: Sb, jobId: string, ref: string) {
   );
 }
 
+/** Hosts that draw no card still show where each option can be seen. */
+const OPTION_LINKS_GUIDANCE =
+  "When you show the options, give each one a link the member can click: its product page, or the seller page its price was read on when no product page is saved. Use only the links in this result.";
+
 /**
  * Each saved option's links, listed in the reply text so a host that draws no
  * card (Claude) still shows them, and a note for any option missing one.
@@ -455,6 +459,7 @@ async function lineOptionsReply(
       } as unknown as JsonValueInput,
     },
     "This view is internal: cost, found price, margin and markup are for the contractor only. Show the three options side by side for each line, with product, sell price, cost, margin and markup, and say which are not priced yet.",
+    OPTION_LINKS_GUIDANCE,
     "To price an option, ask for its unit cost and either its markup or sell price, then call review_price with confirmed true after the member says yes.",
   );
 }
@@ -867,6 +872,7 @@ export const selectionBoard = defineTool({
             } as unknown as JsonValueInput,
           },
           "This board is internal: cost, found price, margin, markup, assumptions and notes are for the contractor only. Never put them in a customer message; use selection_proposal preview for the customer view.",
+          OPTION_LINKS_GUIDANCE,
           "To source products, use your own web search to find real products, read each product page, then call propose_option once per tier with what the page shows. If you can't search the web, ask the member to paste product links and read those. Never invent a product, link, photo or price.",
           "A found price is a lead, never a customer price. Call review_price with confirmed true only after the member states or confirms the unit cost and the sell price or markup for that option. For one markup across options (a line, a tier or the whole board), use apply_markup with markup_pct, and cost_basis found only when the member says to use the found web price as their cost.",
           SAVE_OFFER_GUIDANCE,

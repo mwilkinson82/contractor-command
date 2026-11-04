@@ -49,7 +49,7 @@ describe("Athena web page shell", () => {
     expect(html).toContain('data-label="Ball in court"');
     expect(html).toContain(`/r/job/${job}/home?t=board`);
     expect(html).toContain("Browser account: pm@example.com");
-    expect(html).toContain(">RFI-001 · Revision 0 · T-1</a>");
+    expect(html).toContain(">RFI-001 · Revision 0 · Transmittal 1</a>");
     // Overdue rows keep the one alert color as a flag, and the self link to this page is dropped.
     expect(html).toContain('data-alert="overdue"');
     expect(html).not.toContain("Open live RFI log");
