@@ -1,0 +1,10 @@
+-- Rollback for 20261105090000_athena_job_import_whole_job.sql. Puts the job
+-- import functions back as 20261104160000 left them: re-run the three
+-- CREATE OR REPLACE FUNCTION blocks (mcp_job_import_context, mcp_job_import_stage,
+-- mcp_job_import_apply) from supabase/migrations/20261104160000_athena_job_import.sql.
+-- The archive table is KEPT on purpose: it is the only copy in Athena of the
+-- source records. Drop it only with Marshall's word (last line, commented).
+-- IOR living reports already saved stay; they are ordinary Athena records.
+-- The widened source_kind check stays too: narrowing it would fail once any
+-- 'ior' or 'archive' ledger row exists.
+-- DROP TABLE IF EXISTS public.mcp_import_archive;

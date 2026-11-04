@@ -8,6 +8,7 @@ import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 import { fromOverwatch } from "./overwatch";
 import { planImport, type ImportContext } from "./plan";
+import { readIorModel } from "../ior-model";
 
 const owner = "00000000-0000-4000-8000-000000000a01";
 const outsider = "00000000-0000-4000-8000-000000000a02";
@@ -32,6 +33,8 @@ const rpc = async <T = Record<string, unknown>>(fn: string, values: unknown[], u
 
 const sample = () =>
   JSON.parse(readFileSync("src/lib/job-import/fixtures/overwatch-sample.json", "utf8"));
+const v2 = () =>
+  JSON.parse(readFileSync("src/lib/job-import/fixtures/overwatch-v2-sample.json", "utf8"));
 async function stage(exportJson: unknown, user = owner) {
   const imported = fromOverwatch(exportJson);
   const ctx = await rpc<ImportContext>(
@@ -51,6 +54,7 @@ async function stage(exportJson: unknown, user = owner) {
 beforeAll(async () => {
   db = await makeDb();
   const load = (f: string) => db.exec(readFileSync(`supabase/migrations/${f}.sql`, "utf8"));
+  await load("20261020213000_athena_living_reports");
   const pages = readFileSync("supabase/migrations/20261021120000_athena_report_pages.sql", "utf8");
   const leaderStart = pages.indexOf("CREATE OR REPLACE FUNCTION public.mcp_is_company_leader");
   await db.exec(
@@ -87,6 +91,11 @@ beforeAll(async () => {
   await load("20261023020000_athena_superintendent");
   await db.exec(readFileSync("drizzle/migrations/0074_migration.sql", "utf8"));
   await load("20261104160000_athena_job_import");
+  await load("20261105090000_athena_job_import_whole_job");
+  // The two copies of the migration must stay identical.
+  expect(readFileSync("drizzle/migrations/0079_athena_job_import_whole_job.sql", "utf8")).toBe(
+    readFileSync("supabase/migrations/20261105090000_athena_job_import_whole_job.sql", "utf8"),
+  );
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
@@ -152,6 +161,8 @@ describe("job import save", () => {
       change_orders: 1,
       submittals: 2,
       dailies: 1,
+      ior: 0,
+      archive_rows: 29,
       already_applied: false,
     });
     jobId = String(result.job_id);
@@ -257,6 +268,139 @@ describe("job import save", () => {
     await expect(
       rpc("mcp_job_import_apply", [second.batch_id, second.package_hash, true]),
     ).rejects.toThrow(/expired/);
+  });
+
+  it("re-runs a version 2 export onto the job: only the IOR and new archive rows are added", async () => {
+    const before = await db.query<{ kind: string; n: number }>(
+      "SELECT source_kind AS kind, count(*)::int AS n FROM mcp_import_records WHERE job_id=$1 GROUP BY 1 ORDER BY 1",
+      [jobId],
+    );
+    expect(before.rows.map((r) => r.kind)).toEqual(
+      expect.arrayContaining(["job", "change_order", "submittal", "daily", "archive"]),
+    );
+    const archivedBefore = (
+      await db.query<{ n: number }>(
+        "SELECT count(*)::int AS n FROM mcp_import_archive WHERE job_id=$1",
+        [jobId],
+      )
+    ).rows[0].n;
+    const { plan, batch_id, package_hash } = await stage(v2());
+    expect(plan.counts).toMatchObject({
+      job: 0,
+      contract_facts: 0,
+      sov_lines: 0,
+      opening_balances: 0,
+      budget_lines: 0,
+      change_orders: 0,
+      submittals: 0,
+      dailies: 0,
+      ior: 1,
+    });
+    const result = await rpc<Record<string, unknown>>("mcp_job_import_apply", [
+      batch_id,
+      package_hash,
+      true,
+    ]);
+    expect(result).toMatchObject({
+      job_created: false,
+      contract_facts: 0,
+      sov_lines: 0,
+      budget_lines: 0,
+      change_orders: 0,
+      submittals: 0,
+      dailies: 0,
+      ior: 1,
+      ior_risks: 4,
+      archive_rows: plan.counts.archive_rows,
+    });
+    expect(plan.counts.archive_rows).toBeGreaterThan(0);
+    const archivedAfter = (
+      await db.query<{ n: number }>(
+        "SELECT count(*)::int AS n FROM mcp_import_archive WHERE job_id=$1",
+        [jobId],
+      )
+    ).rows[0].n;
+    expect(archivedAfter).toBe(archivedBefore + plan.counts.archive_rows);
+    // The first copy of a row already archived is kept.
+    const co = await db.query<{ row: Record<string, unknown> }>(
+      "SELECT row FROM mcp_import_archive WHERE job_id=$1 AND source_table='change_orders' AND source_id='c3'",
+      [jobId],
+    );
+    expect(co.rows[0].row).not.toHaveProperty("cost_amount");
+    // Version 1 of the IOR, readable by Athena's IOR page.
+    const report = await rpc<{ found: boolean; version: number; data: Record<string, unknown> }>(
+      "mcp_living_report_get",
+      [jobId, "ior", null],
+    );
+    expect(report).toMatchObject({ found: true, version: 1 });
+    const read = readIorModel(report.data);
+    expect(read.problems).toEqual([]);
+    expect(read.model?.exposures).toHaveLength(4);
+    const ledger = await db.query<{ kind: string; n: number }>(
+      "SELECT source_kind AS kind, count(*)::int AS n FROM mcp_import_records WHERE job_id=$1 AND batch_id=$2 GROUP BY 1 ORDER BY 1",
+      [jobId, batch_id],
+    );
+    expect(ledger.rows.map((r) => r.kind)).toEqual(["archive", "ior"]);
+    // And once more: nothing new at all.
+    const again = await stage(v2());
+    expect(Object.values(again.plan.counts).every((n) => n === 0)).toBe(true);
+  });
+
+  it("keeps Athena's own IOR when the job already has one", async () => {
+    const x = v2();
+    x.project.job_number = "3104";
+    x.project.id = "p-4";
+    const first = await stage(x);
+    const made = await rpc<{ job_id: string }>("mcp_job_import_apply", [
+      first.batch_id,
+      first.package_hash,
+      true,
+    ]);
+    // Simulate a PM's own IOR v2 on the job, then the export runs from scratch on a copy.
+    await rpc("mcp_living_report_save", [
+      made.job_id,
+      "ior",
+      1,
+      JSON.stringify({ note: "PM's own" }),
+      null,
+      null,
+      null,
+      null,
+      "PM update",
+      null,
+      "QA Owner",
+    ]);
+    await db.query("DELETE FROM mcp_import_records WHERE job_id=$1 AND source_kind='ior'", [
+      made.job_id,
+    ]);
+    const { plan } = await stage(x);
+    expect(plan.package.ior ?? null).toBeNull();
+    expect(plan.kept.join(" ")).toMatch(/already has an IOR/);
+    const latest = await rpc<{ version: number }>("mcp_living_report_get", [
+      made.job_id,
+      "ior",
+      null,
+    ]);
+    expect(latest.version).toBe(2);
+  });
+
+  it("lets full-access members read the archive and nobody write it", async () => {
+    const mine = await query("SELECT count(*)::int AS n FROM mcp_import_archive WHERE job_id=$1", [
+      jobId,
+    ]);
+    expect((mine.rows[0] as { n: number }).n).toBeGreaterThan(0);
+    const theirs = await query(
+      "SELECT count(*)::int AS n FROM mcp_import_archive WHERE job_id=$1",
+      [jobId],
+      outsider,
+    );
+    expect(theirs.rows[0]).toEqual({ n: 0 });
+    await expect(query("DELETE FROM mcp_import_archive WHERE job_id=$1", [jobId])).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(
+      query("UPDATE mcp_import_archive SET row='{}' WHERE job_id=$1", [jobId]),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it("does not let another company read the destination", async () => {

@@ -31,6 +31,10 @@ export const importChangeOrder = z.object({
   status: z.enum(["approved", "pending", "rejected", "void"]),
   date: day.nullable(),
   schedule_days: z.number().int().min(-3650).max(3650).nullable(),
+  /** Our cost of the change, when the source keeps one (Overwatch v2). Never sent to the owner. */
+  cost_cents: cents.nullable(),
+  /** Chance a pending change is approved, 0 to 100, when the source keeps one. */
+  probability: z.number().min(0).max(100).nullable(),
 });
 
 export const importRfi = z.object({
@@ -104,11 +108,81 @@ export const importDaily = z.object({
   lines: z.array(importDailyLine).max(80),
 });
 
+// IOR: the shape Athena's IOR page reads as data.ior_model (src/lib/ior-model.ts).
+// Money here is DOLLARS, as ior_model keeps it, not cents.
+const dollarAmount = z.number().min(-90_000_000_000).max(90_000_000_000);
+export const importIorChangeOrder = z.object({
+  number: text(40),
+  description: text(300),
+  status: z.enum(["Approved", "Pending"]),
+  contract_amount: dollarAmount,
+  cost_amount: dollarAmount,
+  probability: z.number().min(0).max(100),
+});
+export const IOR_CATEGORIES = [
+  "owner_decision",
+  "design_drift",
+  "trade_performance",
+  "procurement",
+  "schedule_compression",
+  "allowance_overrun",
+  "field_change",
+  "closeout_punch",
+  "other",
+] as const;
+export const importIorExposure = z.object({
+  source_id: sourceId,
+  title: text(300),
+  category: z.enum(IOR_CATEGORIES),
+  response: z.enum(["eliminate", "recover", "offset", "accept"]),
+  hold: z.enum(["E", "C"]),
+  dollar_risk: z.number().min(0).max(90_000_000_000),
+  probability: z.number().min(0).max(100),
+  owner: text(80).nullable(),
+  opened: day.nullable(),
+  next_review: day.nullable(),
+  next_move: text(300).nullable(),
+  status: text(40).nullable(),
+});
+export const importIor = z.object({
+  source_id: sourceId,
+  original_contract: z.number().positive().max(90_000_000_000),
+  original_cost_budget: z.number().min(0).max(90_000_000_000).nullable(),
+  cost_growth: dollarAmount,
+  cost_growth_note: text(300).nullable(),
+  actual_cost_to_date: z.number().min(0).max(90_000_000_000),
+  phase: z.enum(["Early", "Middle", "Late"]),
+  percent_complete: z.number().min(0).max(100),
+  baseline_completion: day.nullable(),
+  forecast_completion: day.nullable(),
+  change_orders: z.array(importIorChangeOrder).max(500),
+  exposures: z.array(importIorExposure).max(1000),
+});
+
+/**
+ * The archive: every source row, as the source stored it, keyed by source table
+ * and then by the row's own id. Kept read-only on the job so nothing is lost,
+ * including rows Athena also mapped into its own records.
+ */
+export const ARCHIVE_TABLE = /^[a-z][a-z0-9_]{0,62}$/;
+export const ARCHIVE_MAX_ROWS = 50_000;
+export const importArchive = z
+  .record(
+    z.string().regex(ARCHIVE_TABLE),
+    z.record(z.string().min(1).max(200), z.record(z.string(), z.unknown())),
+  )
+  .refine(
+    (a) => Object.values(a).reduce((n, t) => n + Object.keys(t).length, 0) <= ARCHIVE_MAX_ROWS,
+    `The archive holds more than ${ARCHIVE_MAX_ROWS} rows.`,
+  );
+
 /** What the source holds that this import does not bring in, said plainly. */
 export const importHeld = z.object({
   kind: text(60),
   count: z.number().int().min(0),
   why: text(400),
+  /** True when the rows themselves are kept in the job's read-only archive. */
+  archived: z.boolean().optional(),
 });
 
 export const importJob = z.object({
@@ -140,6 +214,8 @@ export const importJob = z.object({
   submittals: z.array(importSubmittal).max(1000),
   schedule: z.array(importActivity).max(400),
   dailies: z.array(importDaily).max(1000),
+  ior: importIor.nullable(),
+  archive: importArchive,
   held: z.array(importHeld).max(40),
   problems: z.array(text(400)).max(200),
 });
@@ -151,6 +227,9 @@ export type ImportSubmittal = z.infer<typeof importSubmittal>;
 export type ImportDaily = z.infer<typeof importDaily>;
 export type ImportActivity = z.infer<typeof importActivity>;
 export type ImportRfi = z.infer<typeof importRfi>;
+export type ImportIor = z.infer<typeof importIor>;
+export type ImportIorExposure = z.infer<typeof importIorExposure>;
+export type ImportArchive = z.infer<typeof importArchive>;
 
 export class ImportInputError extends Error {}
 
@@ -210,6 +289,8 @@ export function emptyImport(system: ImportSource, label: string): ImportJob {
     submittals: [],
     schedule: [],
     dailies: [],
+    ior: null,
+    archive: {},
     held: [],
     problems: [],
   };

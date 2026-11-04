@@ -1,0 +1,469 @@
+{
+  "format": "overwatch.job_export",
+  "format_version": 2,
+  "exported_at": "2026-11-04T12:00:00Z",
+  "project": {
+    "id": "p-1",
+    "job_number": "3101",
+    "name": "Fictional Clinic Renovation",
+    "client": "Example Health",
+    "project_manager": "Pat Example",
+    "original_contract": 250000,
+    "original_cost_budget": 210000,
+    "default_retainage_pct": 10,
+    "baseline_completion_date": "2027-03-31",
+    "forecast_completion_date": "2027-04-15",
+    "phase": "Middle",
+    "percent_complete": 42
+  },
+  "cost_buckets": [
+    {
+      "id": "b1",
+      "cost_code": "01-000",
+      "bucket": "General conditions",
+      "contract_value": 50000,
+      "original_budget": 42000,
+      "sort_order": 1,
+      "actual_to_date": 20000,
+      "ftc": 24000
+    },
+    {
+      "id": "b2",
+      "cost_code": "09-200",
+      "bucket": "Drywall",
+      "contract_value": 120000,
+      "original_budget": 100000,
+      "sort_order": 2,
+      "actual_to_date": 45000,
+      "ftc": 60000
+    },
+    {
+      "id": "b3",
+      "cost_code": "26-000",
+      "bucket": "Electrical",
+      "contract_value": 80000,
+      "original_budget": 68000,
+      "sort_order": 3,
+      "actual_to_date": 30000,
+      "ftc": 40000
+    },
+    {
+      "id": "b4",
+      "cost_code": "99-999",
+      "bucket": "Old bucket",
+      "contract_value": 0,
+      "sort_order": 4,
+      "archived_at": "2026-09-01T00:00:00Z",
+      "actual_to_date": 0,
+      "ftc": 0
+    }
+  ],
+  "change_orders": [
+    {
+      "id": "c1",
+      "number": "CO-01",
+      "description": "Added outlets in exam rooms",
+      "contract_amount": 6000,
+      "status": "Approved",
+      "date_initiated": "2026-09-10",
+      "client_decided_at": "2026-09-20",
+      "cost_amount": 4500,
+      "probability": 100,
+      "owner": "Pat Example",
+      "linked_exposure_id": null
+    },
+    {
+      "id": "c2",
+      "number": "CO-02",
+      "description": "Owner credit for paint",
+      "contract_amount": -1500,
+      "status": "Approved",
+      "date_initiated": "2026-09-12",
+      "cost_amount": -1200,
+      "probability": 100,
+      "owner": "Pat Example",
+      "linked_exposure_id": null
+    },
+    {
+      "id": "c3",
+      "number": "CO-03",
+      "description": "Relocate nurse station wall",
+      "contract_amount": 8750.5,
+      "status": "Pending",
+      "date_initiated": "2026-10-20",
+      "schedule_impact_days": 3,
+      "cost_amount": 6100,
+      "probability": 60,
+      "owner": "Pat Example",
+      "linked_exposure_id": null
+    },
+    {
+      "id": "c4",
+      "number": "CO-04",
+      "description": "Upgraded ceiling tile",
+      "contract_amount": 2200,
+      "status": "Denied",
+      "date_initiated": "2026-10-01",
+      "cost_amount": 1800,
+      "probability": 100,
+      "owner": "Pat Example",
+      "linked_exposure_id": null
+    },
+    {
+      "id": "c5",
+      "number": "CO-05",
+      "description": "Entered twice",
+      "contract_amount": 999,
+      "status": "Pending",
+      "entered_in_error_at": "2026-10-02T00:00:00Z",
+      "cost_amount": 700,
+      "probability": 100,
+      "owner": "Pat Example",
+      "linked_exposure_id": null
+    }
+  ],
+  "change_order_allocations": [
+    {
+      "change_order_id": "c1",
+      "cost_bucket_id": "b3",
+      "contract_amount": 6000,
+      "id": "ca1"
+    },
+    {
+      "change_order_id": "c2",
+      "cost_bucket_id": "b2",
+      "contract_amount": -1500,
+      "id": "ca2"
+    }
+  ],
+  "billing_applications": [
+    {
+      "id": "a1",
+      "application_number": "1",
+      "status": "paid",
+      "submitted_date": "2026-09-30",
+      "sort_order": 1
+    },
+    {
+      "id": "a2",
+      "application_number": "2",
+      "status": "submitted",
+      "submitted_date": "2026-10-31",
+      "sort_order": 2
+    },
+    {
+      "id": "a3",
+      "application_number": "3",
+      "status": "draft",
+      "sort_order": 3
+    }
+  ],
+  "billing_line_items": [
+    {
+      "billing_application_id": "a2",
+      "cost_bucket_id": "b1",
+      "scheduled_value_cents": 5000000,
+      "change_order_value_cents": 0,
+      "work_completed_to_date_cents": 2000000,
+      "materials_stored_to_date_cents": 0,
+      "retainage_held_cents": 200000
+    },
+    {
+      "billing_application_id": "a2",
+      "cost_bucket_id": "b2",
+      "scheduled_value_cents": 12000000,
+      "change_order_value_cents": -150000,
+      "work_completed_to_date_cents": 3000000,
+      "materials_stored_to_date_cents": 500000,
+      "retainage_held_cents": 350000
+    },
+    {
+      "billing_application_id": "a2",
+      "cost_bucket_id": "b3",
+      "scheduled_value_cents": 8000000,
+      "change_order_value_cents": 600000,
+      "work_completed_to_date_cents": 1000000,
+      "materials_stored_to_date_cents": 0,
+      "retainage_held_cents": 100000
+    }
+  ],
+  "submittal_log_entries": [
+    {
+      "id": "s1",
+      "kind": "submittal",
+      "number": "092900-01",
+      "item": "Gypsum board product data",
+      "spec_section": "09 29 00",
+      "sub_rev": "0",
+      "status": "a",
+      "date_submitted": "2026-09-15",
+      "date_returned": "2026-09-25",
+      "mfgr_supplier": "Example Gypsum"
+    },
+    {
+      "id": "s2",
+      "kind": "submittal",
+      "number": "260519-01",
+      "item": "Wire and cable",
+      "spec_section": "26 05 19",
+      "sub_rev": "1",
+      "status": "rar",
+      "date_submitted": "2026-10-01",
+      "date_returned": "2026-10-10"
+    },
+    {
+      "id": "s3",
+      "kind": "submittal",
+      "number": "LOOSE-1",
+      "item": "Door hardware",
+      "spec_section": "",
+      "status": "pending"
+    },
+    {
+      "id": "r1",
+      "kind": "rfi",
+      "number": "RFI-001",
+      "item": "Ceiling height at corridor",
+      "description": "Plans show 9 ft, RCP shows 8 ft 6 in.",
+      "status": "pending",
+      "date_submitted": "2026-10-05",
+      "due_date": "2026-10-12"
+    }
+  ],
+  "schedule_activities": [
+    {
+      "id": "t1",
+      "activity_id": "A100",
+      "name": "Demo",
+      "start_date": "2026-09-01",
+      "finish_date": "2026-09-14",
+      "planned_duration_days": 10,
+      "percent_complete": 100,
+      "predecessor_activity_ids": []
+    },
+    {
+      "id": "t2",
+      "activity_id": "A200",
+      "name": "Framing",
+      "start_date": "2026-09-15",
+      "finish_date": "2026-10-15",
+      "planned_duration_days": 22,
+      "percent_complete": 60,
+      "predecessor_activity_ids": ["A100"]
+    }
+  ],
+  "daily_reports": [
+    {
+      "id": "d1",
+      "report_date": "2026-11-02",
+      "weather": "Clear, 68F",
+      "crew_count": 6,
+      "work_performed": "Hung board level 1",
+      "safety_notes": "Toolbox talk on ladders"
+    },
+    {
+      "id": "d2",
+      "report_date": "2026-11-03",
+      "weather": "Rain",
+      "work_performed": "Inside work only"
+    },
+    {
+      "id": "d3",
+      "report_date": "2026-08-01",
+      "weather": "Hot",
+      "work_performed": "Mobilized"
+    }
+  ],
+  "daily_wip_entries": [
+    {
+      "entry_date": "2026-11-02",
+      "activity": "Hang drywall",
+      "crew_count": 2,
+      "people_per_crew": 3,
+      "hours": 8,
+      "quantity": 2400,
+      "unit": "SF",
+      "field_percent_complete": 45
+    },
+    {
+      "entry_date": "2026-11-02",
+      "activity": "Voided line",
+      "crew_count": 1,
+      "hours": 8,
+      "quantity": 10,
+      "unit": "SF",
+      "voided_at": "2026-11-02T20:00:00Z"
+    }
+  ],
+  "exposures": [
+    {
+      "id": "e1",
+      "title": "Owner finish selections late",
+      "description": "",
+      "category": "owner_decision",
+      "dollar_exposure": 12000,
+      "probability": 50,
+      "owner": "Pat Example",
+      "response_path": "recover",
+      "release_condition": "Owner signs finish schedule",
+      "hold_class": "E-Hold",
+      "status": "active",
+      "opened_at": "2026-09-01T12:00:00Z",
+      "next_review_at": "2026-11-15",
+      "released_amount": 0,
+      "notes": ""
+    },
+    {
+      "id": "e2",
+      "title": "Drywall crew productivity",
+      "category": "trade_performance",
+      "dollar_exposure": 8000,
+      "probability": 25,
+      "owner": "",
+      "response_path": "offset",
+      "release_condition": "",
+      "hold_class": "C-Hold",
+      "status": "escalated",
+      "opened_at": "2026-10-01T12:00:00Z",
+      "next_review_at": null,
+      "released_amount": 0
+    },
+    {
+      "id": "e3",
+      "title": "Switchgear lead time",
+      "category": "procurement",
+      "dollar_exposure": 10000,
+      "probability": 40,
+      "owner": "Pat Example",
+      "response_path": "eliminate",
+      "release_condition": "Gear ships",
+      "hold_class": "Both",
+      "status": "active",
+      "opened_at": "2026-10-05T12:00:00Z",
+      "next_review_at": "2026-11-20",
+      "released_amount": 1000
+    },
+    {
+      "id": "e4",
+      "title": "Punch list allowance",
+      "category": "closeout_punch",
+      "dollar_exposure": 3000,
+      "probability": 100,
+      "owner": "",
+      "response_path": "accept",
+      "release_condition": "",
+      "hold_class": "None",
+      "status": "active",
+      "opened_at": "2026-10-05T12:00:00Z",
+      "next_review_at": null,
+      "released_amount": 0
+    },
+    {
+      "id": "e5",
+      "title": "Asbestos survey",
+      "category": "design_drift",
+      "dollar_exposure": 5000,
+      "probability": 100,
+      "owner": "",
+      "response_path": "eliminate",
+      "release_condition": "",
+      "hold_class": "E-Hold",
+      "status": "eliminated",
+      "opened_at": "2026-08-05T12:00:00Z",
+      "next_review_at": null,
+      "released_amount": 0
+    }
+  ],
+  "exposure_allocations": [],
+  "decisions": [
+    {
+      "id": "d1",
+      "decision": "Choose nurse station finish",
+      "impact": "Schedule",
+      "owner": "Example Health",
+      "due_date": "2026-11-20",
+      "status": "open",
+      "linked_exposure_id": "e1",
+      "linked_co_id": null,
+      "notes": ""
+    }
+  ],
+  "project_claims": [],
+  "project_inspections": [
+    {
+      "id": "i1",
+      "inspection_type": "Framing",
+      "status": "passed"
+    }
+  ],
+  "cost_actuals": [
+    {
+      "id": "ca-1",
+      "cost_bucket_id": "b2",
+      "amount": 45000,
+      "status": "posted",
+      "vendor": "Board Supply"
+    }
+  ],
+  "subcontracts": [
+    {
+      "id": "sc1",
+      "subcontractor_id": "sub1",
+      "amount": 60000
+    }
+  ],
+  "subcontractors": [
+    {
+      "id": "sub1",
+      "name": "Example Drywall Co"
+    }
+  ],
+  "billing_forecast_settings": [
+    {
+      "project_id": "p-1",
+      "method": "straight_line"
+    }
+  ],
+  "schedule_milestones": [
+    {
+      "id": "m1",
+      "name": "Substantial completion",
+      "date": "2027-03-31"
+    }
+  ],
+  "project_documents": [
+    {
+      "id": "doc1",
+      "name": "Contract.pdf",
+      "storage_path": "p-1/contract.pdf"
+    }
+  ],
+  "counts": {
+    "cost_buckets": 4,
+    "change_orders": 5,
+    "change_order_allocations": 2,
+    "billing_applications": 3,
+    "billing_line_items": 3,
+    "submittal_log_entries": 4,
+    "schedule_activities": 2,
+    "daily_reports": 3,
+    "daily_wip_entries": 2,
+    "exposures": 5,
+    "exposure_allocations": 0,
+    "decisions": 1,
+    "project_claims": 0,
+    "project_inspections": 1,
+    "cost_actuals": 1,
+    "subcontracts": 1,
+    "subcontractors": 1,
+    "billing_forecast_settings": 1,
+    "schedule_milestones": 1,
+    "project_documents": 1
+  },
+  "left_out": [
+    {
+      "kind": "estimates",
+      "why": "Estimates belong to the deal, not the job."
+    }
+  ]
+}

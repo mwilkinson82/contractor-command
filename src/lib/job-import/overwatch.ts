@@ -1,16 +1,23 @@
 // Overwatch job export -> Athena import shape.
 //
-// Overwatch has no whole-job export of its own yet. This reads the export
-// format defined in docs/athena/job-import.md: one JSON object holding the
-// job's rows from Overwatch's own tables, keyed by table name, exactly as
-// Overwatch stores them (dollars as numeric, G703 lines in cents).
+// Reads Overwatch's "Export for Athena" file (format defined in
+// docs/athena/job-import.md): one JSON object holding the job's rows from
+// Overwatch's own tables, keyed by table name, exactly as Overwatch stores them
+// (dollars as numeric, G703 lines in cents). Format version 1 carried a few
+// tables; version 2 carries every job table as full rows plus `counts` and
+// `left_out`. Both read here.
 import {
+  ARCHIVE_TABLE,
   clip,
   emptyImport,
+  IOR_CATEGORIES,
   ImportInputError,
   toCents,
   toDay,
+  type ImportArchive,
   type ImportChangeOrder,
+  type ImportIor,
+  type ImportIorExposure,
   type ImportJob,
   type ImportSovLine,
   type ImportSubmittal,
@@ -26,7 +33,12 @@ const num = (v: unknown): number => {
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim());
 const live = (r: Row) => !r.voided_at && !r.entered_in_error_at && !r.archived_at;
 
-/** Tables the export may carry counts for, and why the import leaves them behind for now. */
+/**
+ * Tables the export may carry counts for, and why the import leaves them
+ * behind. A version 1 file carries only counts for these; a version 2 file
+ * carries their rows, which go to the job's read-only archive (ARCHIVED_HELD
+ * says what is still not live in Athena).
+ */
 const HELD_TABLES: Record<string, string> = {
   cost_actuals:
     "Actual costs and AP invoices stay in Overwatch; Athena's cost review path takes them one reviewed submission at a time.",
@@ -42,7 +54,322 @@ const HELD_TABLES: Record<string, string> = {
   schedule_milestones: "Milestones come with the schedule step.",
 };
 
+/** Rows the archive keeps, but that are not live Athena records yet (phase B). */
+const ARCHIVED_HELD: Record<string, string> = {
+  decisions: "Kept read-only in the job's archive; owner decisions are not a live Athena log yet.",
+  project_claims: "Kept read-only in the job's archive; claims are not a live Athena log yet.",
+  project_inspections:
+    "Kept read-only in the job's archive; inspections are not a live Athena log yet.",
+  project_documents:
+    "Each file's name and storage path is kept in the job's archive; the files themselves copy in a later file step.",
+};
+
 export const OVERWATCH_FORMAT = "overwatch.job_export";
+export const OVERWATCH_VERSIONS = [1, 2] as const;
+
+/** Overwatch export tables by the group the review card counts them under. */
+const TABLE_GROUP: Record<string, string> = {
+  projects: "Job",
+  ...Object.fromEntries(
+    [
+      "cost_buckets",
+      "cost_budget_items",
+      "budget_line_overrides",
+      "project_financial_overrides",
+      "billing_forecast_settings",
+      "change_orders",
+      "change_order_allocations",
+      "change_order_approvals",
+      "change_order_documents",
+      "billing_applications",
+      "billing_line_items",
+      "billing_line_change_order_allocations",
+      "billing_application_events",
+      "billing_invoices",
+      "payment_ledger",
+      "payment_refund_events",
+      "sov_imports",
+      "cost_actuals",
+      "cost_actual_payments",
+      "cost_actual_import_batches",
+      "subcontracts",
+      "subcontract_allocations",
+      "subcontract_change_orders",
+      "subcontract_payments",
+      "subcontract_payment_allocations",
+      "subcontract_payment_backups",
+      "subcontract_documents",
+      "insurance_certificates",
+      "lien_waivers",
+      "subcontractors",
+    ].map((t) => [t, "Commercial"]),
+  ),
+  ...Object.fromEntries(
+    [
+      "schedule_wbs_sections",
+      "schedule_activities",
+      "schedule_milestones",
+      "schedule_updates",
+      "schedule_activity_updates",
+      "schedule_milestone_updates",
+      "schedule_delay_fragments",
+      "schedule_risks",
+      "schedule_activity_progress_controls",
+      "schedule_activity_progress_reviews",
+      "schedule_cpm_templates",
+    ].map((t) => [t, "Schedule"]),
+  ),
+  ...Object.fromEntries(
+    [
+      "exposures",
+      "exposure_allocations",
+      "project_claims",
+      "project_claim_events",
+      "project_claim_documents",
+      "reviews",
+    ].map((t) => [t, "IOR, risk and claims"]),
+  ),
+  ...Object.fromEntries(
+    [
+      "decisions",
+      "project_selections",
+      "project_selection_options",
+      "project_selection_decisions",
+    ].map((t) => [t, "Decisions and selections"]),
+  ),
+  ...Object.fromEntries(
+    ["submittal_log_entries", "submittal_rounds", "transmittals"].map((t) => [
+      t,
+      "RFIs and submittals",
+    ]),
+  ),
+  ...Object.fromEntries(
+    [
+      "daily_reports",
+      "daily_wip_entries",
+      "daily_wip_entry_events",
+      "tomorrow_plan_items",
+      "project_inspections",
+      "production_sov_certifications",
+      "production_sov_certification_invalidations",
+      "production_sov_billing_handoffs",
+    ].map((t) => [t, "Field"]),
+  ),
+  ...Object.fromEntries(
+    ["project_client_access", "project_memberships", "project_documents", "client_contacts"].map(
+      (t) => [t, "Team, client portal and files"],
+    ),
+  ),
+  ...Object.fromEntries(
+    ["crm_onboarding_plans", "crm_onboarding_tasks"].map((t) => [t, "Kickoff"]),
+  ),
+};
+export const archiveGroup = (table: string) => TABLE_GROUP[table] ?? "Other";
+
+/** Tables keyed by something other than id (Overwatch's export sort keys). */
+const ROW_KEY: Record<string, string[]> = {
+  billing_forecast_settings: ["project_id"],
+  billing_line_change_order_allocations: ["billing_line_item_id", "change_order_allocation_id"],
+  schedule_activity_progress_controls: ["schedule_activity_id"],
+};
+const NOT_TABLES = new Set(["format", "format_version", "exported_at", "counts", "left_out"]);
+
+/** Stable FNV-1a hash of a row with sorted keys, for rows with no id of their own. */
+function rowHash(r: Row): string {
+  const canon = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(canon)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v as Row)
+              .sort()
+              .map((k) => [k, canon((v as Row)[k])]),
+          )
+        : v;
+  const s = JSON.stringify(canon(r));
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ c, 0x5bd1e995) >>> 0;
+  }
+  return `row:${h1.toString(16).padStart(8, "0")}${h2.toString(16).padStart(8, "0")}`;
+}
+
+function archiveKey(table: string, r: Row): string {
+  const cols = ROW_KEY[table];
+  const key = cols ? cols.map((c) => str(r[c])).join(":") : str(r.id) || str(r.uuid) || "";
+  return key && key.length <= 200 && (!cols || cols.every((c) => str(r[c]))) ? key : rowHash(r);
+}
+
+/** Every row the file carries, as Overwatch stored it, by table and row id. */
+function buildArchive(x: Row): ImportArchive {
+  const out: ImportArchive = {};
+  const add = (table: string, list: Row[]) => {
+    if (!ARCHIVE_TABLE.test(table) || !list.length) return;
+    const t = (out[table] ??= {});
+    for (const r of list) t[archiveKey(table, r)] = r;
+  };
+  if (x.project && typeof x.project === "object") add("projects", [x.project as Row]);
+  for (const [k, v] of Object.entries(x))
+    if (!NOT_TABLES.has(k) && k !== "project") add(k, rows(v));
+  return out;
+}
+
+// Overwatch IOR -> Athena ior_model. Overwatch and Athena share the category
+// and response enums word for word (Overwatch public.exposure_category and
+// public.response_path; Athena IorCategory and IorResponse), so they map 1:1;
+// anything unknown becomes "other". Holds differ:
+//   Overwatch hold_class  ->  Athena hold
+//   'E-Hold'              ->  E
+//   'C-Hold'              ->  C
+//   'Both'                ->  two risks, one E and one C. Overwatch's IOR
+//                             rollup (builder-clarity src/lib/ior.ts
+//                             computeRollup) counts a 'Both' exposure in the
+//                             E-holds AND the C-holds; splitting it keeps
+//                             Athena's indicated gross profit equal to the one
+//                             the PM saw in Overwatch. (Overwatch's cost-code
+//                             ledger puts 'Both' in At Risk only; that is the
+//                             budget view, not the IOR.)
+//   'None'                ->  left off the IOR: Overwatch holds nothing for
+//                             it. The row stays in the archive.
+// Closed exposures (recovered, eliminated, released; Overwatch
+// isClosedExposure) drop off the IOR, as they do in Overwatch. 'accepted'
+// still carries money there, so it carries here.
+const CLOSED_EXPOSURE = new Set(["recovered", "eliminated", "released"]);
+const RESPONSES = new Set(["eliminate", "recover", "offset", "accept"]);
+
+function iorExposures(list: Row[]): { exposures: ImportIorExposure[]; noHold: number } {
+  const out: ImportIorExposure[] = [];
+  let noHold = 0;
+  for (const e of list) {
+    const status = str(e.status).toLowerCase();
+    if (CLOSED_EXPOSURE.has(status)) continue;
+    const hold = str(e.hold_class);
+    const holds: ("E" | "C")[] =
+      hold === "Both" ? ["E", "C"] : hold === "C-Hold" ? ["C"] : hold === "None" ? [] : ["E"];
+    if (!holds.length) {
+      noHold++;
+      continue;
+    }
+    const probability = Math.min(100, Math.max(0, num(e.probability)));
+    const exposure = Math.max(0, num(e.dollar_exposure));
+    // Overwatch's released_amount is a part of the weighted hold already let
+    // go (remaining = exposure x probability - released). Athena holds
+    // dollar_risk x probability, so the risk carried is reduced to match.
+    const released = Math.max(0, num(e.released_amount));
+    const dollarRisk =
+      released > 0 && probability > 0
+        ? Math.max(0, Math.round((exposure - released / (probability / 100)) * 100) / 100)
+        : Math.round(exposure * 100) / 100;
+    const category = (IOR_CATEGORIES as readonly string[]).includes(str(e.category))
+      ? (str(e.category) as ImportIorExposure["category"])
+      : "other";
+    const response = RESPONSES.has(str(e.response_path))
+      ? (str(e.response_path) as ImportIorExposure["response"])
+      : "accept";
+    const title =
+      clip(e.title, 300) || clip(e.description, 300) || `Risk ${clip(e.id, 20) || out.length + 1}`;
+    for (const h of holds)
+      out.push({
+        source_id: `exposure:${str(e.id) || out.length}${holds.length > 1 ? `:${h}` : ""}`,
+        title: holds.length > 1 ? clip(`${title} (${h}-hold side)`, 300) : title,
+        category,
+        response,
+        hold: h,
+        dollar_risk: dollarRisk,
+        probability,
+        owner: clip(e.owner, 80) || null,
+        opened: toDay(e.opened_at),
+        next_review: toDay(e.next_review_at),
+        next_move: clip(e.release_condition, 300)
+          ? clip(`Release when: ${str(e.release_condition)}`, 300)
+          : null,
+        status: clip(status, 40) || null,
+      });
+  }
+  return { exposures: out, noHold };
+}
+
+/**
+ * The IOR as Athena's ior_model, from the Overwatch project header, its cost
+ * buckets, change orders and exposures. Null, with the reason, when the file
+ * doesn't carry what ior_model needs (a version 1 file has no change-order cost
+ * or project phase). Nothing is guessed: a missing number stops the IOR.
+ */
+function buildIor(
+  x: Row,
+  p: Row,
+  liveBuckets: Row[],
+): { ior: ImportIor | null; why: string | null; noHold: number } {
+  const cos = rows(x.change_orders).filter((c) => !c.entered_in_error_at && !c.voided_at);
+  const contract = num(p.original_contract);
+  if (!(contract > 0))
+    return { ior: null, why: "the Overwatch project has no original contract.", noHold: 0 };
+  const phase = str(p.phase);
+  if (phase !== "Early" && phase !== "Middle" && phase !== "Late")
+    return {
+      ior: null,
+      why: "this export doesn't carry the project's phase. Export the job again from Overwatch.",
+      noHold: 0,
+    };
+  const live = cos.filter((c) => /^(approved|pending)$/i.test(str(c.status)));
+  if (live.some((c) => c.cost_amount == null || c.cost_amount === ""))
+    return {
+      ior: null,
+      why: "this export doesn't carry change-order cost. Export the job again from Overwatch.",
+      noHold: 0,
+    };
+  const { exposures, noHold } = iorExposures(rows(x.exposures));
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const cost = num(p.original_cost_budget);
+  // Actual cost to date: Overwatch keeps it per cost code (cost_buckets.actual_to_date,
+  // rolled up from its cost actuals), and its IOR sums the live buckets. Same here.
+  const actual = round(liveBuckets.reduce((t, b) => t + Math.max(0, num(b.actual_to_date)), 0));
+  // Cost growth: Overwatch's IOR projects cost as actual to date plus forecast to
+  // complete across the cost codes (a finished code forecasts 0), against the
+  // original cost budget. Athena keeps that difference as cost_growth. Only when
+  // every live bucket carries its forecast; otherwise 0 and the note says why.
+  // Overwatch's subcontract buyout layer is not included.
+  const forecastKnown =
+    liveBuckets.length > 0 && cost > 0 && liveBuckets.every((b) => b.ftc != null && b.ftc !== "");
+  const projected = liveBuckets.reduce(
+    (t, b) => t + Math.max(0, num(b.actual_to_date)) + (b.finished_at ? 0 : num(b.ftc)),
+    0,
+  );
+  const growth = forecastKnown ? round(projected - cost) : 0;
+  return {
+    ior: {
+      source_id: str(p.id) || "project",
+      original_contract: round(contract),
+      original_cost_budget: cost > 0 ? round(cost) : null,
+      cost_growth: growth,
+      cost_growth_note: forecastKnown
+        ? `Overwatch cost to date plus forecast to complete across ${liveBuckets.length} cost codes, less the original cost budget. Subcontract buyout not included.`
+        : "Overwatch export has no forecast to complete per cost code; cost growth starts at 0.",
+      actual_cost_to_date: actual,
+      phase,
+      percent_complete: Math.min(100, Math.max(0, num(p.percent_complete))),
+      baseline_completion: toDay(p.baseline_completion_date),
+      forecast_completion: toDay(p.forecast_completion_date),
+      change_orders: live.map((c) => {
+        const approved = /^approved$/i.test(str(c.status));
+        return {
+          number: clip(c.number, 40) || "CO",
+          description: clip(c.description, 300) || "Change order",
+          status: approved ? ("Approved" as const) : ("Pending" as const),
+          contract_amount: round(num(c.contract_amount)),
+          cost_amount: round(num(c.cost_amount)),
+          probability: approved ? 100 : Math.min(100, Math.max(0, num(c.probability ?? 100))),
+        };
+      }),
+      exposures,
+    },
+    why: null,
+    noHold,
+  };
+}
 
 const coStatus = (r: Row): ImportChangeOrder["status"] => {
   if (r.entered_in_error_at) return "void";
@@ -78,6 +405,11 @@ export function fromOverwatch(
   if (x.format !== OVERWATCH_FORMAT)
     throw new ImportInputError(
       `This is not an Overwatch job export (format should be "${OVERWATCH_FORMAT}").`,
+    );
+  const version = x.format_version == null ? 1 : Number(x.format_version);
+  if (!(OVERWATCH_VERSIONS as readonly number[]).includes(version))
+    throw new ImportInputError(
+      `This Overwatch export is format version ${clip(x.format_version, 10)}; Athena reads versions 1 and 2. Update Athena or export again.`,
     );
   const p = (x.project ?? {}) as Row;
   const out = emptyImport("overwatch", `Overwatch job ${str(p.job_number) || str(p.name)}`);
@@ -146,7 +478,8 @@ export function fromOverwatch(
       out.held.push({
         kind: "Earlier pay applications",
         count: older,
-        why: "Billing history comes in as the opening balance from the latest sent application, so nothing is billed twice.",
+        why: "Billing history comes in as the opening balance from the latest sent application, so nothing is billed twice. Every application is kept in the job's archive.",
+        archived: true,
       });
   }
 
@@ -201,6 +534,12 @@ export function fromOverwatch(
       c.schedule_impact_days == null || c.schedule_impact_days === ""
         ? null
         : Math.trunc(num(c.schedule_impact_days)),
+    // Version 2 carries Overwatch's cost side and probability (dollars, 0-100).
+    cost_cents: c.cost_amount == null || c.cost_amount === "" ? null : toCents(c.cost_amount),
+    probability:
+      c.probability == null || c.probability === ""
+        ? null
+        : Math.min(100, Math.max(0, num(c.probability))),
   }));
   // An approved change with no SOV allocation still adds to the contract: give it its own line.
   for (const c of out.change_orders.filter((c) => c.status === "approved")) {
@@ -297,7 +636,8 @@ export function fromOverwatch(
     out.held.push({
       kind: "Older daily reports",
       count: reports.length - recent.length,
-      why: `Only the last ${windowDays} days of dailies come in; older ones stay in Overwatch as the record.`,
+      why: `Only the last ${windowDays} days of dailies come in as Athena dailies; older ones are kept in the job's archive.`,
+      archived: rows(x.daily_reports).length > 0,
     });
   const notRecorded = "Not recorded in Overwatch";
   out.dailies = recent.map((d) => {
@@ -344,10 +684,44 @@ export function fromOverwatch(
     };
   });
 
+  out.archive = buildArchive(x);
+  const liveBuckets = rows(x.cost_buckets).filter(live);
+  const ior = rows(x.exposures).length || version >= 2 ? buildIor(x, p, liveBuckets) : null;
+  out.ior = ior?.ior ?? null;
+
   const counts = (x.counts ?? {}) as Row;
   for (const [table, why] of Object.entries(HELD_TABLES)) {
-    const n = Math.max(rows(x[table]).length, Math.trunc(num(counts[table])));
-    if (n > 0) out.held.push({ kind: table.replace(/_/g, " "), count: n, why });
+    const inFile = rows(x[table]).length;
+    const n = Math.max(inFile, Math.trunc(num(counts[table])));
+    if (n <= 0) continue;
+    const kind = table.replace(/_/g, " ");
+    if (table === "exposures") {
+      if (out.ior) {
+        if (ior?.noHold)
+          out.held.push({
+            kind: "exposures with no hold",
+            count: ior.noHold,
+            why: "Hold class None carries nothing on Overwatch's IOR, so these stay off Athena's IOR; they are kept in the job's archive.",
+            archived: true,
+          });
+        continue;
+      }
+      out.held.push({
+        kind,
+        count: n,
+        why: ior?.why
+          ? `The IOR can't come in because ${ior.why}${inFile ? " The rows are kept in the job's archive." : ""}`
+          : why,
+        archived: inFile > 0,
+      });
+      continue;
+    }
+    if (inFile > 0) {
+      // In the file: the archive keeps every row. Only what is still not live says so.
+      if (ARCHIVED_HELD[table]) out.held.push({ kind, count: inFile, why: ARCHIVED_HELD[table] });
+      continue;
+    }
+    out.held.push({ kind, count: n, why });
   }
   return out;
 }
