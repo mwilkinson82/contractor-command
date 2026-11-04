@@ -4498,6 +4498,171 @@ export type Database = {
           },
         ]
       }
+      mcp_import_batches: {
+        Row: {
+          actor_id: string
+          applied_at: string | null
+          company_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          job_id: string | null
+          job_number: string
+          package: Json
+          package_hash: string
+          result: Json | null
+          source_system: string
+          status: string
+        }
+        Insert: {
+          actor_id: string
+          applied_at?: string | null
+          company_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          job_id?: string | null
+          job_number: string
+          package: Json
+          package_hash: string
+          result?: Json | null
+          source_system: string
+          status?: string
+        }
+        Update: {
+          actor_id?: string
+          applied_at?: string | null
+          company_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          job_id?: string | null
+          job_number?: string
+          package?: Json
+          package_hash?: string
+          result?: Json | null
+          source_system?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_import_batches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_import_batches_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_import_opening_balances: {
+        Row: {
+          batch_id: string
+          created_at: string
+          job_id: string
+          period_to: string | null
+          retained_cents: number
+          scheduled_cents: number
+          source_system: string
+          sov_key: string
+          stored_to_date_cents: number
+          through_application: string | null
+          work_to_date_cents: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          job_id: string
+          period_to?: string | null
+          retained_cents?: number
+          scheduled_cents: number
+          source_system: string
+          sov_key: string
+          stored_to_date_cents?: number
+          through_application?: string | null
+          work_to_date_cents?: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          job_id?: string
+          period_to?: string | null
+          retained_cents?: number
+          scheduled_cents?: number
+          source_system?: string
+          sov_key?: string
+          stored_to_date_cents?: number
+          through_application?: string | null
+          work_to_date_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_import_opening_balances_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_import_opening_balances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_import_records: {
+        Row: {
+          batch_id: string
+          created_at: string
+          job_id: string
+          source_id: string
+          source_kind: string
+          source_system: string
+          target_id: string | null
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          job_id: string
+          source_id: string
+          source_kind: string
+          source_system: string
+          target_id?: string | null
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          job_id?: string
+          source_id?: string
+          source_kind?: string
+          source_system?: string
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_import_records_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_import_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_item_events: {
         Row: {
           created_at: string
@@ -9596,6 +9761,19 @@ export type Database = {
         Returns: Json
       }
       mcp_job_flagset: { Args: { _job: string }; Returns: Json }
+      mcp_job_import_apply: {
+        Args: { _batch: string; _confirmed: boolean; _hash: string }
+        Returns: Json
+      }
+      mcp_job_import_cancel: { Args: { _batch: string }; Returns: Json }
+      mcp_job_import_context: {
+        Args: { _company: string; _job_number: string; _source: string }
+        Returns: Json
+      }
+      mcp_job_import_stage: {
+        Args: { _company: string; _job_number: string; _package: Json }
+        Returns: Json
+      }
       mcp_job_scope: { Args: { _job: string }; Returns: string }
       mcp_job_settings: {
         Args: {
