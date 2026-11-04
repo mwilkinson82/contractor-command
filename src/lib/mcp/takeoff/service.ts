@@ -12,7 +12,7 @@ import {
 
 import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
-import { cachedSource, pageCache } from "./cache";
+import { cachedSource, pageCache, pageLru } from "./cache";
 import { automaticCalibration, scaleLock } from "./calibration";
 import { drawingReferences, drawingReferenceSection } from "./drawing-references";
 import { highlightedPreview, pageGeometry } from "./render";
@@ -55,6 +55,7 @@ const cachedInspection = pageCache<SheetInspection>(
 );
 const cachedPreview = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
 const cachedHighlighted = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
+const cachedTiles = pageLru<Uint8Array>(24, 12_000_000, (value) => value.length);
 const pageKey = (job: Job, source: DrawingRecord, page: number) =>
   `${job.company_id}:${job.job_id}:${source.id}:${source.content_hash}:${page}`;
 async function stateFingerprint(state: EngineSnapshot): Promise<string> {
@@ -182,7 +183,9 @@ export async function viewEngine(
   state: EngineSnapshot,
   page?: StoredPage,
   extra: Record<string, unknown> = {},
+  options: { modelImage?: boolean } = {},
 ) {
+  const modelImage = options.modelImage !== false;
   const summary = measurementStatus(state);
   const evidenceReview = measurementEvidence(state);
   const droppedLines = currentDroppedLines(state.dropped_lines ?? []);
@@ -516,7 +519,9 @@ export async function viewEngine(
       )
     : null;
   const includeRejected = extra.include_rejected === true;
-  const highlighted = page
+  const highlighted = !modelImage
+    ? null
+    : page
     ? pageGeometry(state, page, includeRejected).length
       ? await cachedHighlighted(
           `${pageKey(job, page.source, page.page - 1)}:${includeRejected}:${await stateFingerprint(state)}`,
@@ -728,11 +733,15 @@ export async function decideGeometry(
 export async function readTile(sb: Sb, job: Job, page: StoredPage, index: number) {
   const tile = page.inspection.tiles[index];
   if (!tile) throw new ToolError("Choose a tile from this stored sheet.");
-  const rendered = await renderTile(page.bytes, page.page - 1, tile);
+  // Callers authorize the job and source first; the key binds company, job,
+  // source hash, page and tile so one member's tiles never answer another job.
+  const png = await cachedTiles(`${pageKey(job, page.source, page.page - 1)}:${index}`, () =>
+    renderTile(page.bytes, page.page - 1, tile).then((rendered) => rendered.png),
+  );
   return {
     tile,
-    png: `data:image/png;base64,${bytesToBase64(rendered.png)}`,
-    content: { type: "image" as const, mimeType: "image/png", data: bytesToBase64(rendered.png) },
+    png: `data:image/png;base64,${bytesToBase64(png)}`,
+    content: { type: "image" as const, mimeType: "image/png", data: bytesToBase64(png) },
   };
 }
 export const requiredSnapshot = (sb: Sb, job: Job) =>

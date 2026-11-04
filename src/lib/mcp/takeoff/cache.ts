@@ -49,3 +49,38 @@ export function pageCache<T>(maxBytes: number, measure: (value: T) => number) {
     }
   };
 }
+
+/** A few immutable page derivatives (zoom tiles), newest kept, bounded by count and
+ * total bytes. Same rules as pageCache: authorize first; the key names company, job,
+ * source hash, page and tile. */
+export function pageLru<T>(maxEntries: number, maxBytes: number, measure: (value: T) => number) {
+  const entries = new Map<string, { expires: number; value: Promise<T>; bytes: number }>();
+  const total = () => [...entries.values()].reduce((sum, entry) => sum + entry.bytes, 0);
+  return async (key: string, load: () => Promise<T>, now = Date.now()): Promise<T> => {
+    const hit = entries.get(key);
+    if (hit && hit.expires > now) {
+      entries.delete(key);
+      entries.set(key, { ...hit, expires: now + TTL });
+      return hit.value;
+    }
+    entries.delete(key);
+    const current = { expires: now + TTL, value: Promise.resolve().then(load), bytes: 0 };
+    entries.set(key, current);
+    try {
+      const value = await current.value;
+      const bytes = measure(value);
+      if (entries.get(key) === current) {
+        if (bytes > maxBytes) entries.delete(key);
+        else current.bytes = bytes;
+      }
+      for (const [k, entry] of entries) {
+        if (entries.size <= maxEntries && total() <= maxBytes) break;
+        if (entry !== current) entries.delete(k);
+      }
+      return value;
+    } catch (error) {
+      if (entries.get(key) === current) entries.delete(key);
+      throw error;
+    }
+  };
+}

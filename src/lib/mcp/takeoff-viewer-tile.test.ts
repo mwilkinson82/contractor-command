@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fixture = vi.hoisted(() => ({ calls: [] as string[], deny: false }));
+const fixture = vi.hoisted(() => ({
+  calls: [] as string[],
+  deny: false,
+  viewOptions: [] as unknown[],
+}));
 vi.mock("./guard", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./guard")>()),
   run: async (
@@ -39,7 +43,8 @@ vi.mock("./takeoff/service", async (importOriginal) => ({
       content: { type: "image", data: "AA==" },
     };
   },
-  viewEngine: async () => {
+  viewEngine: async (...args: unknown[]) => {
+    fixture.viewOptions.push(args[5]);
     fixture.calls.push("full-view");
     return { content: [] };
   },
@@ -67,6 +72,7 @@ const call = (args: Record<string, unknown>) =>
 beforeEach(() => {
   fixture.calls = [];
   fixture.deny = false;
+  fixture.viewOptions = [];
 });
 describe("lightweight viewer tiles", () => {
   it("checks the gate and job scope, preserves source identity, and avoids a full-page view", async () => {
@@ -90,5 +96,20 @@ describe("lightweight viewer tiles", () => {
     fixture.deny = true;
     await expect(call({ viewer_tile_only: true, tile_indices: [0] })).rejects.toThrow("denied");
     expect(fixture.calls).toEqual(["gate"]);
+  });
+  it("opens a sheet for the viewer from the snapshot already read, without the model-only image", async () => {
+    await call({ operation: "list", viewer_only: true });
+    expect(fixture.calls).toEqual([
+      "gate",
+      "scope:write",
+      "snapshot",
+      "source:source:E1",
+      "full-view",
+    ]);
+    expect(fixture.viewOptions).toEqual([{ modelImage: false }]);
+  });
+  it("keeps the annotated image when the model opens a sheet", async () => {
+    await call({ operation: "list" });
+    expect(fixture.viewOptions).toEqual([{ modelImage: true }]);
   });
 });

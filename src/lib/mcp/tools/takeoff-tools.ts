@@ -223,6 +223,7 @@ export const takeoffGeometry = defineTool({
     tile_index: z.number().int().min(0).optional(),
     tile_indices: z.array(z.number().int().min(0)).min(1).max(4).optional(),
     viewer_tile_only: z.boolean().optional(),
+    viewer_only: z.boolean().optional(),
     observations: hostObservationsSchema.optional(),
     line_nos: z.array(z.number().int().min(1).max(9999)).min(1).max(200).optional(),
     sheet_observations: sheetObservationsSchema.optional(),
@@ -689,7 +690,17 @@ export const takeoffGeometry = defineTool({
               `takeoff_geometry_${operation}`,
               args.line_no ? `T-${args.line_no}` : null,
             );
-          return viewEngine(sb, job, await requiredSnapshot(sb, job), page, extra);
+          // A plain list changes nothing, so the snapshot read above is current.
+          // The card draws its own overlay, so a viewer-initiated open or region
+          // skips the second, annotated full-page render meant for the model.
+          return viewEngine(
+            sb,
+            job,
+            operation === "list" ? state : await requiredSnapshot(sb, job),
+            page,
+            extra,
+            { modelImage: !(args.viewer_only === true && operation === "list") },
+          );
         } catch (error) {
           if (error instanceof WhichCompanyAsk) throw error;
           return errorCard(

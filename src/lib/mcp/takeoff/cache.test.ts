@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { cachedSource, clearSourceCache, pageCache } from "./cache";
+import { cachedSource, clearSourceCache, pageCache, pageLru } from "./cache";
 beforeEach(clearSourceCache);
 describe("authorized immutable-byte cache bounds", () => {
   it("shares one download across concurrent reads of the exact same authorized source", async () => {
@@ -70,5 +70,29 @@ describe("authorized immutable page derivative cache", () => {
     ).rejects.toThrow("bad");
     await cached("bad", load, 2);
     expect(load).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("authorized zoom-tile cache", () => {
+  it("keeps recent tiles, evicts the oldest by count and bytes, and keys by job", async () => {
+    const cached = pageLru<Uint8Array>(2, 10, (v) => v.length);
+    const load = vi.fn(async () => new Uint8Array(3));
+    await cached("c:j:s:h:0:1", load, 1);
+    await cached("c:j:s:h:0:2", load, 2);
+    await cached("c:j:s:h:0:1", load, 3);
+    expect(load).toHaveBeenCalledTimes(2);
+    await cached("c:j:s:h:0:3", load, 4); // evicts tile 2, the least recent
+    await cached("c:j:s:h:0:1", load, 5);
+    expect(load).toHaveBeenCalledTimes(3);
+    await cached("c:j:s:h:0:2", load, 6);
+    expect(load).toHaveBeenCalledTimes(4);
+    await cached("c:other:s:h:0:1", load, 7);
+    expect(load).toHaveBeenCalledTimes(5);
+    const big = vi.fn(async () => new Uint8Array(11));
+    await cached("big", big, 8);
+    await cached("big", big, 9);
+    expect(big).toHaveBeenCalledTimes(2);
+    await cached("c:other:s:h:0:1", load, 60_000 + 7 + 1);
+    expect(load).toHaveBeenCalledTimes(6);
   });
 });

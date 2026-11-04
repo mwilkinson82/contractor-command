@@ -191,7 +191,14 @@ export function sheetPageIndex(sheets: string[] | undefined, sheet: string): num
   const want = sheet.trim().toLowerCase();
   if (!want || !sheets?.length) return null;
   const index = sheets.findIndex((name) => name.trim().toLowerCase() === want);
-  return index >= 0 ? index : null;
+  if (index >= 0) return index;
+  // "E1", "E-1" and "E 1" name the same sheet. Accept the spelling only when exactly
+  // one stored sheet matches; never pick between two candidates.
+  const loose = (name: string) => name.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const key = loose(want);
+  if (!key) return null;
+  const matches = sheets.flatMap((name, i) => (loose(name) === key ? [i] : []));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /** The named sheet, plus sheets on lines that carry a markup. Capped so one call stays small. */

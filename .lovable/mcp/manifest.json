@@ -6495,8 +6495,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -6799,6 +6799,22 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            },
+            "tile_indices": {
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "viewer_tile_only": {
+              "type": "boolean"
+            },
+            "viewer_only": {
+              "type": "boolean"
             },
             "observations": {
               "anyOf": [
@@ -8313,7 +8329,7 @@
       {
         "name": "estimate_takeoff_get",
         "title": "Read a takeoff",
-        "description": "Returns the saved takeoff for a job and includes a stored drawing page when a sheet is named or a line names a markup.",
+        "description": "Returns the saved takeoff for a job. When the user names a drawing sheet, pass that exact sheet in the sheet argument so the viewer opens it directly; pass source_id as well when the user specifies a particular drawing set or revision. If the sheet is not specified, do not guess one.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,

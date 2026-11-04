@@ -86,6 +86,10 @@ async (page) => {
     (await frame.getByText("Choose a drawing set and sheet first.").count()) === 1,
     "no silent first sheet",
   );
+  assert(
+    (await frame.getByRole("button", { name: "Open E-100" }).count()) === 1,
+    "shortcut to the sheet that holds saved marks",
+  );
   await frame
     .getByLabel("Stored drawing set")
     .selectOption({ label: "Fictional reference drawing.pdf · revision 1" });
@@ -96,5 +100,9 @@ async (page) => {
     (await page.locator("#calls").innerText()).includes('"sheet":"E-100"'),
     "requested sheet passed through",
   );
-  return "PASS: compact/open/back, overlap cycling, deliberate count, protected pending draft, detailed zoom request, mobile selection, explicit sheet choice; no save requested";
+  assert(
+    (await page.locator("#calls").innerText()).includes('"viewer_only":true'),
+    "viewer open skips the model-only annotated image",
+  );
+  return "PASS: compact/open/back, overlap cycling, deliberate count, protected pending draft, detailed zoom request, mobile selection, explicit sheet choice, saved-mark shortcut, viewer-only open; no save requested";
 }

@@ -339,6 +339,13 @@
       return;
     }
     root.replaceChildren();
+    // Size the workspace to the host frame: fill the screen when expanded, stay
+    // short inline so the conversation is never buried.
+    document.body.classList.toggle("fs", hostContext.displayMode === "fullscreen");
+    document.body.classList.toggle(
+      "inline-ws",
+      hostContext.displayMode !== "fullscreen" && inlineWorkspace,
+    );
     // The inline result should not displace the conversation with the entire
     // measurement workspace. The host can expand it on demand; hosts without
     // fullscreen support retain an explicit inline fallback.
@@ -522,9 +529,44 @@
             operation: "list",
             source_id: pick.value,
             sheet: sheetPick.value,
+            viewer_only: true,
           });
         }),
       );
+      // Shortcuts to sheets that already hold saved marks. Nothing is guessed:
+      // the member picks the exact stored sheet.
+      var marked = [];
+      (sc.engine.geometry || []).forEach(function (g) {
+        if (!g.source_id || !g.page || g.status === "rejected") return;
+        var s = (sc.available_sources || []).find(function (s) {
+          return s.id === g.source_id;
+        });
+        var name = s && s.sheets && s.sheets[g.page - 1];
+        if (
+          name &&
+          !marked.some(function (m) {
+            return m.source === s.id && m.sheet === name;
+          })
+        )
+          marked.push({ source: s.id, sheet: name });
+      });
+      if (marked.length) {
+        var quick = node("div", null, "tools");
+        quick.append(node("span", "Sheets with saved marks:", "small"));
+        marked.slice(0, 8).forEach(function (m) {
+          quick.append(
+            button("Open " + m.sheet, function () {
+              act("takeoff_geometry", {
+                operation: "list",
+                source_id: m.source,
+                sheet: m.sheet,
+                viewer_only: true,
+              });
+            }),
+          );
+        });
+        main.append(quick);
+      }
       sc.engine.summary.lines.forEach(function (l) {
         main.append(node("p", "L" + l.line_no + " · " + l.item + " · " + l.status));
       });
@@ -560,7 +602,14 @@
         o.value = n;
         sheetSelect.append(o);
       });
-      sheetSelect.value = sc.source.sheet;
+      // A different revision may not hold the open sheet; never send a stale name.
+      if (sourceSelect.value === sc.source.id) sheetSelect.value = sc.source.sheet;
+      else {
+        var choose = node("option", "Choose a sheet");
+        choose.value = "";
+        sheetSelect.prepend(choose);
+        sheetSelect.value = "";
+      }
     }
     sourceSelect.addEventListener("change", sheetOptions);
     sheetOptions();
@@ -568,10 +617,12 @@
       sourceSelect,
       sheetSelect,
       button("Open stored sheet", function () {
+        if (!sheetSelect.value) return notice("Choose a sheet first.");
         act("takeoff_geometry", {
           operation: "list",
           source_id: sourceSelect.value,
           sheet: sheetSelect.value,
+          viewer_only: true,
         });
       }),
     );
@@ -707,7 +758,8 @@
           return !detailImages.has(tile.index);
         });
       if (!candidates.length) return;
-      var wanted = candidates.slice(0, 4);
+      // Two regions per request so the centre sharpens first; the rest follow.
+      var wanted = candidates.slice(0, 2);
       detailLoading = true;
       try {
         var result = await call(
@@ -856,8 +908,14 @@
               return candidate.id === selectedGeometry && candidate.index === selectedPoint;
             });
             var target = nearby[(at + 1) % nearby.length] || { id: id, index: i };
+            // The first press only selects. Moving a point starts only from a pin that
+            // was already selected, so a click with a little hand movement never turns
+            // a saved count into an editable copy.
+            var wasSelected = selectedGeometry === target.id && selectedPoint === target.index;
             chooseGeometry(target.id, target.index);
-            drag = { index: target.index, startX: e.clientX, startY: e.clientY, moved: false };
+            drag = wasSelected
+              ? { index: target.index, startX: e.clientX, startY: e.clientY, moved: false }
+              : null;
             svg.setPointerCapture(e.pointerId);
             overlay();
           }
@@ -993,11 +1051,13 @@
       modeNote.textContent =
         mode === "inspect"
           ? "Inspect mode: select a mark to see its line. Repeated clicks cycle overlapping marks."
-          : "Adding " +
-            mode +
-            ": " +
-            draft.length +
-            " unsaved point(s). Select a saved mark to inspect it before adding points.";
+          : draft.length && selectedGeometry
+            ? "Moving points on the selected mark. Nothing changes until you save a revision."
+            : "Adding " +
+              mode +
+              ": " +
+              draft.length +
+              " unsaved point(s). Select a saved mark to inspect it before adding points.";
       svg.querySelectorAll("circle,path,text").forEach(function (e) {
         e.remove();
       });
