@@ -101,6 +101,7 @@ import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
 import type { CardModel } from "../cards/model";
 import { guide } from "../visible";
+import { readEstimateOptions, withEstimateOptions } from "../estimate-options";
 import { CALLER_RATE_NOTICE } from "../estimate-summary-pdf";
 
 const jobNumber = z.string().trim().min(1).max(40);
@@ -1083,7 +1084,10 @@ export const estimateTakeoffGet = defineTool({
         };
         if (!loaded.version) return withPages(emptyTakeoff(`${named(job)}`), []);
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
-        const view = renderTakeoff(`${named(job)}`, loaded.lines, state, loaded.revision);
+        const view = withEstimateOptions(
+          renderTakeoff(`${named(job)}`, loaded.lines, state, loaded.revision),
+          await readEstimateOptions(sb, job.job_id),
+        );
         return withPages(
           reply({
             ...view,

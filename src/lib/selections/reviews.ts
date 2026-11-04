@@ -29,7 +29,16 @@ const baseKey = (b: Board) =>
       .sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1)),
   });
 
-export type ReviewGrant = { option?: { id: string; tier: OptionName }; base?: boolean };
+export type ReviewGrant = {
+  option?: { id: string; tier: OptionName };
+  /** Several options reviewed together in one confirmed call (one markup applied to many). */
+  options?: { id: string; tier: OptionName }[];
+  base?: boolean;
+};
+const granted = (grant: ReviewGrant, id: string, tier: OptionName) =>
+  [...(grant.option ? [grant.option] : []), ...(grant.options ?? [])].some(
+    (g) => g.id.toLowerCase() === id.toLowerCase() && g.tier === tier,
+  );
 
 /**
  * A review date stands only when the member confirmed it in this call (the
@@ -51,8 +60,7 @@ export function enforceReviews(
     for (const tier of optionNames) {
       const o = s.options[tier];
       if (o.price_reviewed_on === null) continue;
-      if (grant.option?.id.toLowerCase() === s.id.toLowerCase() && grant.option.tier === tier)
-        continue;
+      if (granted(grant, s.id, tier)) continue;
       const p = before.get(s.id.toLowerCase())?.options[tier];
       if (
         p &&

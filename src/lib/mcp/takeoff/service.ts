@@ -2,6 +2,8 @@ import { currentDroppedLines } from "./history";
 import { hostWorkflowSection, measurementEvidence } from "./host-workflow";
 import { ToolError, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "../guard";
+import { estimateOptionsPayload, readEstimateOptions } from "../estimate-options";
+import { lineOptionsFlag } from "../../selections/estimate-options";
 import { type Job, named } from "../jobs";
 import {
   drawingRecords,
@@ -217,7 +219,11 @@ export async function viewEngine(
         ...drawingReferences(page.inspection, page.sheet, state.lines),
       }
     : null;
-  const allSources = await drawingRecords(sb, job);
+  const [allSources, lineOptions] = await Promise.all([
+    drawingRecords(sb, job),
+    readEstimateOptions(sb, job.job_id),
+  ]);
+  const optionsFor = (lineNo: number) => lineOptions.get(`T-${lineNo}`);
   const storedSheets = new Set(allSources.flatMap((s) => s.sheets.map(looseSheetName)));
   // A line whose sheet is not in any stored set is not a drawing line the engine can locate: it is
   // shown as such instead of padding the unlocated count (general conditions, allowances, typos).
@@ -332,7 +338,7 @@ export async function viewEngine(
         rows: summary.lines.map((l) => ({
           cells: [
             `L${l.line_no}`,
-            l.item,
+            optionsFor(l.line_no) ? `${l.item} · ${lineOptionsFlag(optionsFor(l.line_no)!)}` : l.item,
             l.accepted == null ? "Not established" : String(l.accepted),
             l.proposed == null ? "" : String(l.proposed),
             l.unit || "",
@@ -342,6 +348,23 @@ export async function viewEngine(
           ],
         })),
       },
+      ...(lineOptions.size
+        ? [
+            {
+              heading: "Good, Better, Best options",
+              kind: "list" as const,
+              rows: [...lineOptions.values()].map((o) => ({
+                cells: [
+                  `L${o.line_no} · ${o.title}`,
+                  `${lineOptionsFlag(o)} · ${o.tiers_priced.length} of 3 priced`,
+                  "Saved alternates. The estimate total is unchanged. Ask Athena to show this line's options.",
+                ],
+                tone: "action" as const,
+                refId: o.selection_id,
+              })),
+            },
+          ]
+        : []),
       ...(droppedLines.length
         ? [
             {
@@ -573,6 +596,7 @@ export async function viewEngine(
     card,
     engine: { ...state, summary },
     measurement_review: evidenceReview,
+    estimate_options: estimateOptionsPayload(lineOptions),
     context: {
       job_id: job.job_id,
       job_number: job.job_number,
