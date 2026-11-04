@@ -327,6 +327,7 @@ function sourcingBrief(s: Selection, line: z.infer<typeof lineSchema> | null): s
       : []),
     "Find three real products that meet the drawings and specifications: Good (meets the spec at the lowest sound cost), Better (adds useful features or quality) and Best (premium quality, efficiency or controls).",
     "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, a direct https photo URL, the listed unit price with the seller and the date you read it, and two links: source_url, the seller page you read the price on (internal), and product_url, the manufacturer's own product page for the customer. Send product_url and photo_url for every option, read from the product page; never use a store listing that shows a price as product_url, and leave a link empty only when no page shows one.",
+    "The customer sees the selection title and each option's description, manufacturer, model, specifications and included items, so write them for the customer. RFI numbers, drawing conflicts, provisional status, price leads and where a price came from are internal: put them in the option's assumptions (review_price or apply_markup) or the selection notes, never in those fields. The customer view stays locked while any of them holds one.",
     "Submit each one with selection_board action propose_option. Never invent a product, link, photo or price; leave a field empty when the page doesn't show it.",
     "If the drawings or takeoff note show a conflict, say so and don't pick a side.",
   ];
@@ -482,7 +483,15 @@ export const selectionBoard = defineTool({
     ]),
     expected_version: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
     estimate_line_ref: z.string().regex(ESTIMATE_LINE_REF).optional(),
-    title: z.string().trim().min(1).max(160).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(160)
+      .optional()
+      .describe(
+        "The selection's name as the customer reads it, for example Type A track heads. No RFI numbers, provisional status or other internal notes.",
+      ),
     quantity: z.number().positive().max(1_000_000).optional(),
     unit: z.string().trim().min(1).max(20).optional(),
     selection_id: z.uuid().optional(),
@@ -501,7 +510,7 @@ export const selectionBoard = defineTool({
       .max(300)
       .optional()
       .describe(
-        'Only when an estimate line has an open drawing conflict: the basis the member chose to run on, for example "E1 schedule, pending RFI-001". The options are saved marked provisional and the customer view stays locked until the conflict is settled.',
+        'Only when an estimate line has an open drawing conflict: the basis the member chose to run on, for example "E1 schedule, pending RFI-001". The options are saved marked provisional in the internal selection notes and the customer view stays locked until the conflict is settled. Keep the basis out of the selection title.',
       ),
     assumptions: z.string().trim().max(1000).optional(),
     currency: z

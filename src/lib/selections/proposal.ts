@@ -9,7 +9,7 @@ import {
   type OptionName,
   type Selection,
 } from "./model";
-import { isProvisional } from "./line-checks";
+import { internalNote, isProvisional } from "./line-checks";
 
 export const TIER_LABEL: Record<OptionName, string> = {
   good: "Good",
@@ -32,10 +32,35 @@ export function proposalBlockers(input: Board): string[] {
       blockers.push(
         `${selection.title}: provisional until its open drawing conflict is answered. Confirm the options still fit the answer, then take PROVISIONAL off its notes.`,
       );
+  const move =
+    "Move it to the selection notes or the option's assumptions; the customer sees this text.";
+  for (const [field, text] of [
+    ["title", board.proposal.title],
+    ["intro", board.proposal.intro],
+    ["terms", board.proposal.terms],
+  ] as const) {
+    const note = internalNote(text);
+    if (note) blockers.push(`Proposal ${field} has an internal note ("${note}"). ${move}`);
+  }
+  for (const selection of board.selections) {
+    const note = internalNote(selection.title);
+    if (note)
+      blockers.push(`${selection.title}: its title has an internal note ("${note}"). ${move}`);
+  }
   for (const selection of board.selections)
     for (const tier of optionNames) {
       const option = selection.options[tier];
       const where = `${selection.title} (${TIER_LABEL[tier]})`;
+      for (const [field, text] of [
+        ["description", option.description],
+        ["manufacturer", option.manufacturer],
+        ["model", option.model],
+        ["specifications", option.specifications],
+        ["included items", option.included.join("\n")],
+      ] as const) {
+        const note = internalNote(text);
+        if (note) blockers.push(`${where}: its ${field} has an internal note ("${note}"). ${move}`);
+      }
       if (!option.description) blockers.push(`${where}: add a description.`);
       if (option.price_cents === null) blockers.push(`${where}: set a customer price.`);
       else if (option.price_reviewed_on === null)

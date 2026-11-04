@@ -90,6 +90,28 @@ export const conflictLine = (g: CheckGap) =>
   `${g.ref} ${g.title}${g.holds_bid ? " (holds the bid)" : ""}: ${g.reasoning.slice(0, 600)}`;
 
 export const PROVISIONAL_PREFIX = "PROVISIONAL";
+
+// Words that only make sense to the contractor: an RFI number, provisional
+// status, or where a price came from. They belong in the selection notes or the
+// option's assumptions, which the customer never sees.
+const INTERNAL_NOTE_RES = [
+  /\bRFI[\s#-]*\d+\b/i,
+  /\bpending\s+RFI\b/i,
+  /\bprovisional\b(?!\s+sums?\b)/i,
+  /\bprice\s+leads?\b/i,
+  /\bfound\s+price\b/i,
+  /\bprice\s+(?:taken|read)\s+from\b/i,
+  /\b(?:price|cost)\s+(?:is\s+)?to\s+be\s+confirmed\b/i,
+  /\bconfirm(?:ed)?\s+(?:the\s+)?(?:price|cost)\s+with\s+(?:the\s+)?supplier\b/i,
+];
+/** The first internal note in text the customer would see, or null. */
+export function internalNote(text: string): string | null {
+  for (const re of INTERNAL_NOTE_RES) {
+    const m = re.exec(text);
+    if (m) return m[0];
+  }
+  return null;
+}
 export const isProvisional = (notes: string) =>
   notes.trimStart().toUpperCase().startsWith(PROVISIONAL_PREFIX);
 export const provisionalNote = (basis: string, refs: string[], notes: string) => {
