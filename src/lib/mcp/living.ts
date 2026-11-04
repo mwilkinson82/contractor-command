@@ -4,10 +4,11 @@ import { publicScheduleControl } from "./schedule-privacy";
 // draws them and never recomputes, rebuilds or guesses them.
 import { money } from "./sov";
 import { ALERT_COLOR } from "./alert-color";
-import { addCountedDays, addDays, federalHolidays, todayIn } from "./deadlines";
+import { DEFAULT_TZ, addCountedDays, addDays, federalHolidays, todayIn } from "./deadlines";
 import { asReportNumber, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey } from "../report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "../ior-hold-summary";
 import { cedarOutcome } from "../ior-outcome";
+import { IOR_MODEL_KEY, iorModelText, readIorModel } from "../ior-model";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -418,6 +419,7 @@ export function checkSave(
         `Owner-furnished work is $0.00 in ALP billing: ${of.map((a) => `${a.id} ${a.name} (${money(a.value ?? 0)})`).join("; ")}. Move that value to ALP's own activities.`,
       );
   }
+  if (type === "ior") problems.push(...readIorModel(next).problems);
   return { ok: problems.length === 0, problems, tie, count, forecast_total: ft };
 }
 
@@ -634,6 +636,9 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
 /** Readable IOR sections. Links, the version line, and the change log stay where the tool already prints them. */
 export function iorSectionsText(data: Record<string, unknown> | null | undefined, context?: { jobId?: string | null; version?: number; contract_total?: unknown; forecast_total?: unknown }): string[] {
   if (!data) return [];
+  // A structured IOR is the source of truth: chat gets the same numbers as the IOR page.
+  const { model } = readIorModel(data);
+  if (model) return iorModelText(model, todayIn(DEFAULT_TZ));
   const lines: string[] = [];
   const outcome = cedarOutcome(context?.jobId, { ...context, data });
   const holds = outcome ? null : iorHoldSummary(data);
@@ -665,7 +670,7 @@ export function iorSectionsText(data: Record<string, unknown> | null | undefined
     lines.push(`C-holds: ${holds.contingencyCents == null ? "Not available" : money(holds.contingencyCents / 100)}`);
   } else if (!outcome) lines.push("Hold summary: Not available");
   for (const [key, value] of Object.entries(data)) {
-    if (key === "title" || key === "kpis" || IOR_HIDDEN.has(key) || IOR_SKIP.has(key) || summarized(key)) continue;
+    if (key === "title" || key === "kpis" || key === IOR_MODEL_KEY || IOR_HIDDEN.has(key) || IOR_SKIP.has(key) || summarized(key)) continue;
     if (key === "holds" && outcome?.eHolds != null && outcome.cHolds != null && value && typeof value === "object" && !Array.isArray(value)) {
       const { e_holds: _e, c_holds: _c, c_hold_total: _total, ...notes } = value as Record<string, unknown>;
       void _e; void _c; void _total;
