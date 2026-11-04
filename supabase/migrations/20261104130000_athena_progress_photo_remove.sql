@@ -2,7 +2,6 @@
 -- Progress photos can be removed or replaced by a member with full or super access to the job. Nothing is deleted:
 -- the row and its stored file are kept with who removed it, when, why, and the photo that replaced it, so a daily's
 -- photo record can be reconstructed in a dispute. Removed photos drop out of the gallery, the daily and chat lists.
-BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 
@@ -43,9 +42,9 @@ END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_progress_photo_remove(uuid, text, uuid) FROM anon, public;
 GRANT EXECUTE ON FUNCTION public.mcp_progress_photo_remove(uuid, text, uuid) TO authenticated;
 
--- Same list as before, without removed photos.
+-- Same list as before, without removed photos. VOLATILE as set by 0056 (its member gate can write).
 CREATE OR REPLACE FUNCTION public.mcp_progress_photos_list(_job uuid, _from date, _to date, _item text, _area text, _client_safe boolean) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO 'public' AS $$
 DECLARE sc text; rows jsonb;
 BEGIN
   PERFORM public.mcp_assert_active();
@@ -74,4 +73,3 @@ REVOKE EXECUTE ON FUNCTION public.mcp_progress_photos_list(uuid, date, date, tex
 GRANT EXECUTE ON FUNCTION public.mcp_progress_photos_list(uuid, date, date, text, text, boolean) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
-COMMIT;
