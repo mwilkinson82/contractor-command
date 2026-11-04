@@ -133,7 +133,7 @@ export function maskEmail(email: string): string {
 
 export const TIER_NAME = { good: "Good", better: "Better", best: "Best" } as const;
 
-/** The exact words the customer agrees to. Stored with each decision. Wording pending legal review for public works. */
+/** The exact words the customer agrees to. Stored with each decision. Wording approved by Marshall (attorney), Nov 4. */
 export function approvalStatement(a: {
   kind: "change_order" | "selection";
   company: string;
