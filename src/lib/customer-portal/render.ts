@@ -269,11 +269,10 @@ h4:first-child{margin-top:0}
 const SIGNIN_CSS = `
 .as{min-height:100vh;background:#DBEAFE;color:#1F2329;padding:40px max(16px,env(safe-area-inset-left)) 48px max(16px,env(safe-area-inset-right));font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:14px}
 .as-wrap{width:100%;max-width:32rem;margin:0 auto}
-.as-brand{display:flex;align-items:center;justify-content:center;gap:14px;min-width:0}
-.as-mark{width:46px;height:34px;flex:none;display:block}
-.as-sep{width:1px;height:36px;background:#2563EB40;flex:none}
-.as-co{display:grid;line-height:1.1;min-width:0}
-.as-co b{font-family:"Source Serif 4",Georgia,serif;font-weight:500;font-size:23px;letter-spacing:-.01em;color:#1F2329;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.as-brand{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;text-align:center}
+.as-logo{display:block;max-width:220px;max-height:56px;width:auto;height:auto}
+.as-co{display:grid;justify-items:center;line-height:1.15;min-width:0;max-width:100%}
+.as-co b{font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;font-weight:600;font-size:22px;letter-spacing:-.011em;max-width:100%;color:#1F2329;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .as-co span{margin-top:5px;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#1D4ED8}
 .as-card{margin-top:36px;background:#fff;border:1px solid #2563EB33;border-radius:16px;box-shadow:0 1px 2px #0F1E3D0F;padding:24px}
 .as-rule{width:40px;height:4px;background:#2563EB;margin-bottom:24px}
@@ -295,28 +294,38 @@ const SIGNIN_CSS = `
 .as-link{border:0;background:none;padding:0;font:inherit;font-weight:600;color:#1D4ED8;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
 .as-err{margin:20px 0 0;padding:11px 14px;border:1px solid #F3C8D0;border-radius:10px;background:#FFF3F5;color:#B91C1C;font-size:13px;font-weight:600}
 .as-foot{margin-top:28px;padding-top:18px;border-top:1px solid #E4E1D6;display:flex;align-items:center;gap:8px;font-size:12px;color:#76736B}
-.as-foot svg{width:18px;height:13px;flex:none}
+.as-foot svg{width:22px;height:16px;flex:none;overflow:visible}
 .as-help{margin:22px 0 0;text-align:center;font-size:12px;color:#3F434B}
 @media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:32px}}
 @media (max-width:380px){.as-co b{font-size:19px}.as h1{font-size:27px}}
 `;
 
-// The Athena mark, inlined so the page needs no image request. Same artwork as public/brand/athena/athena-mark-blue.svg.
-const ATHENA_MARK = (cls: string) =>
-  `<svg class="${cls}" viewBox="100 132 630 458" aria-hidden="true" focusable="false"><path fill="#2563EB" d="M395 140H540L260 582H108Z"/><path fill="#1D4ED8" d="M459 288H562L721 582H586Z"/><path fill="#DBEAFE" d="M393 404H499L517 443L337 493Z"/></svg>`;
+// The Athena A for the "Powered by Athena" corner line, inlined so the page needs no image request. Solid Athena
+// blue so the A reads whole at footer size (the lockup's pale crossbar disappears on white).
+const ATHENA_A = `<svg viewBox="100 132 630 458" aria-hidden="true" focusable="false"><path fill="#2563EB" d="M395 140H540L260 582H108Z"/><path fill="#2563EB" d="M459 288H562L721 582H586Z"/><path fill="#2563EB" d="M393 404H499L517 443L337 493Z"/></svg>`;
 
-/** The Athena-styled shell for sign-in and notice screens. */
-function signinShell(company: string | null, inner: string): string {
-  const brand = `<div class="as-brand">${ATHENA_MARK("as-mark")}${company ? `<span class="as-sep" aria-hidden="true"></span><span class="as-co"><b>${esc(company)}</b><span>Customer page</span></span>` : `<span class="as-co"><b>Athena</b><span>Customer page</span></span>`}</div>`;
+/** Only an https image may stand in for the contractor's name. */
+export const safeLogo = (url: string | null | undefined): string | null =>
+  url && /^https:\/\/[^\s"'<>]+$/i.test(url) ? url : null;
+
+/**
+ * The Athena-styled shell for sign-in and notice screens. Client-facing, so the contractor leads up top (their saved
+ * logo, or their name in type) and Athena is the small A and "Powered by Athena" in the card's footer.
+ */
+function signinShell(company: string | null, inner: string, logo: string | null = null): string {
+  const src = safeLogo(logo);
+  const brand = company
+    ? `<div class="as-brand">${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : `<span class="as-co"><b>${esc(company)}</b></span>`}<span class="as-co"><span>Customer page</span></span></div>`
+    : `<div class="as-brand"><span class="as-co"><span>Customer page</span></span></div>`;
   const help = company
     ? `<p class="as-help">Questions about your project? Contact ${esc(company)}.</p>`
     : "";
-  return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_MARK("")}<span>Powered by Athena</span></div></section>${help}</div></main>`;
+  return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
 }
 
 const FONTS_PORTAL = "family=Archivo:wght@400;500;600;700";
 const FONTS_SIGNIN =
-  "family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500";
+  "family=Archivo:wght@400;500;600;700&family=Inter:wght@600&family=JetBrains+Mono:wght@600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500";
 
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
@@ -333,7 +342,7 @@ export type InviteStep = "start" | "code";
 export function renderInvite(
   info: Extract<InviteOpen, { status: "ok" }>,
   step: InviteStep,
-  opts: { error?: string | null; sent?: boolean } = {},
+  opts: { error?: string | null; sent?: boolean; logo?: string | null } = {},
 ): string {
   const err = opts.error ? `<p class="as-err" role="alert">${esc(opts.error)}</p>` : "";
   const job = `<div class="as-job"><span class="as-label">Job ${esc(info.job_number)}</span><b>${esc(info.job_name)}</b></div>`;
@@ -342,7 +351,11 @@ export function renderInvite(
     step === "start"
       ? `<h1>Hi ${esc(info.name.split(/\s+/)[0])}, here's your project page</h1><p class="as-sub">${esc(info.company)} shares updates, photos, the schedule and anything that needs your decision here.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button><p class="as-note">We'll send a 6-digit code to ${masked}. No password needed.</p></form>`
       : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent" : "Enter"} a 6-digit code to ${masked}. It works for 10 minutes.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="verify"><div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><p class="as-note">No code? Check your spam folder, or <button class="as-link" type="submit">send a new one</button>.</p></form>`;
-  return doc(`${info.job_name} · Sign in`, signinShell(info.company, inner), "signin");
+  return doc(
+    `${info.job_name} · Sign in`,
+    signinShell(info.company, inner, opts.logo ?? null),
+    "signin",
+  );
 }
 
 const GONE: Record<string, [string, string]> = {
@@ -366,11 +379,12 @@ const GONE: Record<string, [string, string]> = {
 export function renderGone(
   kind: keyof typeof GONE | string,
   company: string | null = null,
+  logo: string | null = null,
 ): string {
   const [h, p] = GONE[kind] ?? GONE.unknown!;
   return doc(
     h,
-    signinShell(company, `<h1>${esc(h)}</h1><p class="as-sub">${esc(p)}</p>`),
+    signinShell(company, `<h1>${esc(h)}</h1><p class="as-sub">${esc(p)}</p>`, logo),
     "signin",
   );
 }

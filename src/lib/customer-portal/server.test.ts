@@ -17,7 +17,7 @@ import {
   sixDigits,
   type PortalDeps,
 } from "./server";
-import { PORTAL_SECTIONS } from "./render";
+import { PORTAL_SECTIONS, renderGone } from "./render";
 
 const ACCESS = "00000000-0000-4000-8000-0000000000aa";
 const CO = "00000000-0000-4000-8000-0000000000c1";
@@ -192,9 +192,11 @@ describe("invite link", () => {
     // Sign-in wears Athena's own sign-in card: pale blue ground, blue rule and button, the mark beside the contractor.
     expect(html).toContain('class="as-card"');
     expect(html).toContain("#DBEAFE");
-    expect(html).toContain("Powered by Athena");
-    expect(html).toMatch(/class="as-co"><b>[^<]+<\/b>/);
-    expect(html).toContain("Source+Serif+4");
+    // Client-facing: the contractor leads up top in Inter; Athena is the small A and line in the card footer.
+    expect(html).toMatch(/<div class="as-brand"><span class="as-co"><b>[^<]+<\/b>/);
+    expect(html).toMatch(/class="as-foot"><svg[^>]*>.*<\/svg><span>Powered by Athena<\/span>/);
+    expect(html.match(/<svg/g)).toHaveLength(1);
+    expect(html).toContain("family=Inter");
   });
 
   it("emails a code whose hash is what the database stores, then signs in with a cookie scoped to the page", async () => {
@@ -511,18 +513,53 @@ describe("customer emails", () => {
     purpose: "sign_in",
     nonce: "n",
   });
-  it("match Athena's sign-in emails: the mark, blue tagline, navy heading, blue button, boxed code", () => {
+  it("match Athena's sign-in emails with the contractor up top and Athena small underneath", () => {
     for (const m of [invite, code]) {
-      expect(m.html).toContain(ATHENA_EMAIL_LOGO_URL);
       expect(m.html).toContain(ATHENA_BLUE);
       expect(m.html).toContain(ATHENA_NAVY);
-      expect(m.html).toContain(">ALP Construction</p>");
-      expect(m.html).toContain("Powered by Athena · app.meetathena.io");
+      expect(m.html).toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
+      expect(m.html).toContain(">Customer page</p>");
+      // The A is only the 16px corner mark beside "Powered by Athena".
+      expect(m.html).toContain(`<img src="${ATHENA_EMAIL_LOGO_URL}" width="16"`);
+      expect(m.html).not.toContain('width="56"');
+      expect(m.html).toContain("Powered by Athena</p>");
     }
     expect(invite.html).toContain(">Your project page is ready</h1>");
     expect(invite.html).toContain('href="https://app.meetathena.io/c/i/x"');
     expect(code.html).toContain(">Your sign-in code</h1>");
     expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
+  });
+  it("keep their blue and white in the Gmail phone apps' dark mode", () => {
+    expect(invite.html).toContain('<meta name="supported-color-schemes" content="light">');
+    expect(invite.html).toContain('<body class="body"');
+    expect(invite.html).toContain("background-image:linear-gradient(#FFFFFF,#FFFFFF)");
+    expect(invite.html).toContain(
+      `background-image:linear-gradient(${ATHENA_BLUE},${ATHENA_BLUE})`,
+    );
+    expect(invite.html).toMatch(/u \+ \.body \.gm-screen\{[^}]*mix-blend-mode:screen/);
+    expect(invite.html).toContain(
+      '<span class="gm-screen"><span class="gm-diff">Open your project page</span></span>',
+    );
+    expect(code.html).toContain("background-image:linear-gradient(#F2F6FF,#F2F6FF)");
+  });
+  it("show the contractor's saved logo when there is one, and only an https one", () => {
+    const base = {
+      to: "a@b.co",
+      name: "Rosa",
+      company: "ALP Construction",
+      jobName: "J",
+      code: "123456",
+      purpose: "sign_in" as const,
+      nonce: "n",
+    };
+    const withLogo = codeEmail({ ...base, logo: "https://cdn.example.com/alp.png" });
+    expect(withLogo.html).toContain(
+      '<img src="https://cdn.example.com/alp.png" height="48" alt="ALP Construction"',
+    );
+    expect(withLogo.html).not.toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
+    const bad = codeEmail({ ...base, logo: 'javascript:alert(1)"' });
+    expect(bad.html).not.toContain("javascript:");
+    expect(bad.html).toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
   });
   it("escape what the contractor and customer typed", () => {
     const m = inviteEmail({
@@ -537,5 +574,17 @@ describe("customer emails", () => {
     });
     expect(m.html).toContain("A &amp; B &lt;Build&gt;");
     expect(m.html).not.toContain("<b>x</b>");
+  });
+});
+
+describe("sign-in screens", () => {
+  it("show the contractor's saved https logo up top, and their name otherwise", () => {
+    const withLogo = renderGone("expired", "ALP Construction", "https://cdn.example.com/alp.png");
+    expect(withLogo).toContain(
+      '<img class="as-logo" src="https://cdn.example.com/alp.png" alt="ALP Construction">',
+    );
+    const bad = renderGone("expired", "ALP Construction", "http://cdn.example.com/alp.png");
+    expect(bad).not.toContain(`class="as-logo"`);
+    expect(bad).toContain("<b>ALP Construction</b>");
   });
 });
