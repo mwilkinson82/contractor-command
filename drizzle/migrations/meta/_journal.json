@@ -547,6 +547,13 @@
       "when": 1793812862707,
       "tag": "0077_athena_customer_portal",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793824324909,
+      "tag": "0078_athena_team_plans_read_own",
+      "breakpoints": true
     }
   ]
 }
