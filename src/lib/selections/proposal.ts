@@ -62,6 +62,10 @@ export function proposalBlockers(input: Board): string[] {
         if (note) blockers.push(`${where}: its ${field} has an internal note ("${note}"). ${move}`);
       }
       if (!option.description) blockers.push(`${where}: add a description.`);
+      if (!option.photo_url?.startsWith("https://"))
+        blockers.push(
+          `${where}: add a product photo. The customer page never shows an empty photo box.`,
+        );
       if (option.price_cents === null) blockers.push(`${where}: set a customer price.`);
       else if (option.price_reviewed_on === null)
         blockers.push(`${where}: review the customer price.`);
@@ -114,17 +118,32 @@ export function packageTotals(input: Board): Record<OptionName, Totals> {
   return out;
 }
 
-const customerOptionSchema = z
-  .object({
-    description: z.string(),
-    manufacturer: z.string(),
-    model: z.string(),
-    specifications: z.string(),
-    included: z.array(z.string()),
-    product_url: z.string().nullable(),
-    photo_url: z.string().nullable(),
-  })
-  .strict();
+/**
+ * A customer never gets a product link: contractors mark up materials, and a maker or store page
+ * would show the customer a lower price. Views frozen before that rule may still hold product_url,
+ * so it is dropped on read and never rendered.
+ */
+const dropProductLink = (v: unknown) => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return v;
+  const { product_url: _drop, ...rest } = v as Record<string, unknown>;
+  void _drop;
+  return rest;
+};
+const customerOptionSchema = z.preprocess(
+  dropProductLink,
+  z
+    .object({
+      description: z.string(),
+      manufacturer: z.string(),
+      model: z.string(),
+      specifications: z.string(),
+      included: z.array(z.string()),
+      photo_url: z.string().nullable(),
+      /** This line's price change from the base tier's option, extended for the quantity. Older views lack it. */
+      difference_cents: z.number().int().optional(),
+    })
+    .strict(),
+);
 
 /**
  * The only shape a customer ever sees. It is strict, so a cost, margin,
@@ -203,15 +222,17 @@ export function customerProposal(input: Board, version: number): CustomerProposa
       options: Object.fromEntries(
         optionNames.map((tier) => {
           const o = s.options[tier];
+          const here = extended(s.quantity, o.price_cents);
+          const base = extended(s.quantity, s.options[board.proposal.base_tier].price_cents);
           return [
             tier,
             {
+              ...(here !== null && base !== null ? { difference_cents: here - base } : {}),
               description: o.description,
               manufacturer: o.manufacturer,
               model: o.model,
               specifications: o.specifications,
               included: o.included,
-              product_url: o.product_url,
               photo_url: o.photo_url,
             },
           ];

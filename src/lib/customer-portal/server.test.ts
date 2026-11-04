@@ -466,8 +466,10 @@ describe("customer page", () => {
     const page = await (
       await handlePortal(req(start.headers.get("location")!, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).toContain("Choose Better");
+    expect(page).toContain("Sign your choice");
+    expect(page).toContain("You're choosing");
     expect(page).toContain('name="choice" value="better"');
+    expect(page).toContain("What happens when you confirm");
     await handlePortal(
       await post(
         `/c/${ACCESS}`,
@@ -491,6 +493,108 @@ describe("customer page", () => {
       _decision: "chosen",
       _choice: "better",
     });
+  });
+});
+
+describe("package choice follows the job's contract stage", () => {
+  const page = async (under: boolean | undefined, path = `/c/${ACCESS}?s=selections&i=${SEL}`) => {
+    const v = view();
+    const { d } = deps({ view: { ...v, job: { ...v.job, under_contract: under } } });
+    const html = await (await handlePortal(req(path, { cookie: true }), ACCESS, d)).text();
+    return html.replace(/>Change orders</g, "><"); // the page's own tab name
+  };
+
+  it("before a contract, choosing sets the proposal price and never says change order", async () => {
+    const html = await page(false);
+    expect(html).toContain("its total becomes your proposal price");
+    expect(html).toContain("Choose Better");
+    expect(html).toContain('name="action" value="start"');
+    expect(html).not.toMatch(/change order/i);
+    expect(html).not.toMatch(/<a [^>]*href="https:\/\/lighting/);
+    const confirm = await page(
+      false,
+      `/c/${ACCESS}?s=selections&i=${SEL}&step=confirm&sent=1&choice=best`,
+    );
+    expect(confirm).toContain("Your proposal price becomes the Best total of");
+    expect(confirm).not.toMatch(/change order/i);
+  });
+
+  it("under contract, an upgrade is added by change order the customer approves", async () => {
+    const html = await page(true);
+    expect(html).toContain("the difference is added to your contract by change order");
+    const confirm = await page(
+      true,
+      `/c/${ACCESS}?s=selections&i=${SEL}&step=confirm&sent=1&choice=best`,
+    );
+    expect(confirm).toContain("prepares a change order for the");
+    expect(confirm).toContain(
+      "Your contract price changes only when you approve that change order.",
+    );
+  });
+
+  it("tells the PM whether a change order was drafted", async () => {
+    const { d, mail } = deps({
+      decide: {
+        status: "ok",
+        decision_id: "d1",
+        pm_email: "pat@example.com",
+        under_contract: true,
+        difference_cents: 168600,
+        change_order_number: "PCO-005",
+      },
+    });
+    const csrf = await csrfFor(SESSION);
+    await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        {
+          action: "decide",
+          item: SEL,
+          decision: "chosen",
+          choice: "best",
+          fingerprint: FP,
+          typed_name: "Rosa Delgado",
+          code: "123456",
+          agree: "1",
+          csrf,
+        },
+        { cookie: true },
+      ),
+      ACCESS,
+      d,
+    );
+    const m = mail.at(-1)!;
+    expect(m.text).toContain(
+      "Athena drafted change order PCO-005 for the package difference of $1,686.00",
+    );
+    const { d: d2, mail: mail2 } = deps({
+      decide: {
+        status: "ok",
+        decision_id: "d2",
+        pm_email: "pat@example.com",
+        under_contract: false,
+      },
+    });
+    await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        {
+          action: "decide",
+          item: SEL,
+          decision: "chosen",
+          choice: "best",
+          fingerprint: FP,
+          typed_name: "Rosa Delgado",
+          code: "123456",
+          agree: "1",
+          csrf,
+        },
+        { cookie: true },
+      ),
+      ACCESS,
+      d2,
+    );
+    expect(mail2.at(-1)!.text).toContain("this is a proposal approval, not a change order");
   });
 });
 

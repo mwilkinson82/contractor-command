@@ -49,6 +49,7 @@ const payloadSchema = z
     job_name: z.string().nullable(),
     expires_at: z.string().nullable(),
     board_version: z.number().int().positive(),
+    under_contract: z.boolean().optional(),
     proposal: customerProposalSchema,
   })
   .strict();

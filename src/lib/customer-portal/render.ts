@@ -2,6 +2,7 @@
 // and nothing on the page can run code. Look: the accounting suite's light cards and navy ink (approved Nov 4).
 import { optionNames } from "../selections/model";
 import { displayPrice } from "../selections/format";
+import { COMPARE_CSS, renderCompare } from "../selections/compare-page";
 import { ATHENA_SUPPORT_MAILTO } from "../login-copy";
 import {
   approvalStatement,
@@ -204,24 +205,16 @@ h4:first-child{margin-top:0}
 .receipt dt{color:var(--muted);font-size:12px}
 .receipt dd{margin:0;overflow-wrap:anywhere}
 .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px}
-.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.opt{position:relative;display:flex;flex-direction:column;background:var(--white);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:0}
-.opt.chosen{border:2px solid var(--ink)}
-.opt-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:10px;flex:1}
-.tier{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.opt .price{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.opt .price small{display:block;font-size:12px;font-weight:400;color:var(--body);letter-spacing:0}
-.opt .spacer{flex:1}
-.tag{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--ink);color:var(--white);font-size:12px;font-weight:600;align-self:flex-start}
-.tag.quiet{background:var(--white);border:1px solid var(--line);color:var(--body)}
-.sel{margin-top:22px}
-.sel h3{margin:0;font-size:16px;font-weight:650}
-.sel .meta{margin:2px 0 12px}
-.choice{display:grid;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--white);font-size:13.5px}
-.choice img{width:100%;aspect-ratio:3/2;object-fit:contain;background:var(--head);border-radius:8px;margin-bottom:6px}
-.choice b{font-weight:650}
-.choice span{color:var(--body)}
-.choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.gbb-panel{padding:0;overflow:clip}
+.gbb-panel .gbb{--pin-top:46px;--brand:var(--ink-strong);border-radius:14px}
+.gbb-panel .gbb .btn{min-height:0;border:0;font-weight:500}
+.gbb-panel .gbb .btn.ghost{background:transparent;color:var(--ink-strong)}
+.gbb-panel .gbb h1{font-size:clamp(28px,4vw,44px)}
+.gbb-panel .close-fine{margin:0 var(--gbb-pad,48px);padding:20px 0 28px;border-top:1px solid var(--line);font-size:13px;color:var(--body)}
+.gbb-panel .close-fine p{margin:0 0 8px}
+@media (max-width:560px){.gbb-panel .close-fine{margin:0 18px}}
+.next-steps ol{margin:10px 0 0;padding-left:20px;display:grid;gap:8px;color:var(--body)}
+.next-steps li::marker{color:var(--ink);font-weight:700}
 .field{display:grid;gap:6px;margin-top:14px}
 .field label{font-size:13px;font-weight:600}
 .hint{font-size:12px;color:var(--muted)}
@@ -326,13 +319,13 @@ function signinShell(company: string | null, inner: string, logo: string | null 
   return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
 }
 
-const FONTS_PORTAL = "family=Archivo:wght@400;500;600;700";
+const FONTS_PORTAL = "family=Archivo:wght@400;500;600;700&family=Inter:wght@400;500;600;700";
 const FONTS_SIGNIN =
   "family=Archivo:wght@400;500;600;700&family=Inter:wght@600&family=JetBrains+Mono:wght@600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500";
 
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
-  const css = kind === "signin" ? `${CSS}${SIGNIN_CSS}` : CSS;
+  const css = kind === "signin" ? `${CSS}${SIGNIN_CSS}` : `${CSS}${COMPARE_CSS}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap"><style>${css}</style></head><body>${body}</body></html>`;
 }
 
@@ -592,6 +585,37 @@ function selectionsList(p: PortalPage): string {
     .join("")}</section>`;
 }
 
+/** What the customer's choice does next, in the job's own terms: a change order exists only under contract. */
+function choiceNext(
+  p: PortalPage,
+  v: Extract<PortalItem, { kind: "selection" }>["view"]["proposal"],
+  tier: (typeof optionNames)[number],
+  done: boolean,
+): string {
+  const pk = v.packages.find((k) => k.tier === tier)!;
+  const cur = (c: number) => displayPrice(c, v.currency);
+  const co = p.contractor.name;
+  const pm = p.contractor.pm_name ? `${p.contractor.pm_name} at ${co}` : co;
+  const steps: string[] = done
+    ? [`${pm} has your signed choice.`]
+    : [`You confirm with the code we email you and your typed name.`];
+  if (tier === v.base_tier || pk.difference_cents === 0)
+    steps.push(
+      p.job.under_contract
+        ? `${TIER_NAME[tier]} is what your contract already includes, so nothing about your price changes.`
+        : `${TIER_NAME[tier]} is what your proposal price already includes: ${cur(pk.total_cents)}.`,
+    );
+  else if (p.job.under_contract)
+    steps.push(
+      `${co} prepares a change order for the ${cur(pk.difference_cents)} difference and sends it here for your approval. Your contract price changes only when you approve that change order.`,
+    );
+  else
+    steps.push(
+      `Your proposal price becomes the ${TIER_NAME[tier]} total of ${cur(pk.total_cents)}, and ${co} carries it into your contract.`,
+    );
+  return `<section class="panel next-steps"><h2>${done ? "What happens next" : "What happens when you confirm"}</h2><ol>${steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></section>`;
+}
+
 function selectionDetail(
   p: PortalPage,
   i: Extract<PortalItem, { kind: "selection" }>,
@@ -607,6 +631,7 @@ function selectionDetail(
       : null;
   if (!i.decision && pickedTier) {
     const pk = v.packages.find((k) => k.tier === pickedTier)!;
+    const base = pickedTier === v.base_tier;
     const statement = approvalStatement({
       kind: "selection",
       company: p.contractor.name,
@@ -614,35 +639,38 @@ function selectionDetail(
       price: cur(pk.total_cents),
       choice: TIER_NAME[pickedTier],
     });
-    return `${back}<form method="post" class="panel" style="max-width:560px"><h2>Choose ${TIER_NAME[pickedTier]}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>${esc(v.title)}</span><b>${esc(TIER_NAME[pickedTier])}</b></div><div><span>Package total</span><b>${esc(cur(pk.total_cents))}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "chosen", choice: pickedTier, fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "selections", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Confirm my choice</button></div></form>`;
+    const lines = v.selections
+      .map((s) => {
+        const op = s.options[pickedTier];
+        return `<div><span>${esc(s.title)}</span><b>${esc([op.manufacturer, op.model].filter(Boolean).join(" ") || op.description)}</b></div>`;
+      })
+      .join("");
+    const form = `<form method="post" class="panel"><h2>Sign your choice</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p>${hidden(p, { action: "decide", item: i.id, decision: "chosen", choice: pickedTier, fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "selections", { i: i.id }))}">Back to compare</a><button class="btn" type="submit">Confirm my choice</button></div></form>`;
+    const review = `<section class="panel"><p class="eyebrow">You're choosing</p><h2>${esc(v.title)}: ${TIER_NAME[pickedTier]}</h2><div class="sum"><div><span>Package total</span><b>${esc(cur(pk.total_cents))}</b></div><div><span>${base ? "Change from base" : "Difference from base"}</span><b>${base ? "Included" : esc(`${pk.difference_cents > 0 ? "+" : ""}${cur(pk.difference_cents)}`)}</b></div>${lines}</div></section>`;
+    return `${back}<div class="co-cols"><div class="stack">${review}${choiceNext(p, v, pickedTier, false)}</div><aside class="stack">${form}</aside></div>`;
   }
-  const cards = v.packages
-    .map((k) => {
-      const base = k.tier === v.base_tier;
-      const isChosen = chosen === k.tier;
-      const action = i.decision
-        ? ""
-        : `<form method="post">${hidden(p, { action: "start", item: i.id, choice: k.tier })}<button class="btn block${base ? "" : " secondary"}" type="submit">Choose ${TIER_NAME[k.tier]}</button></form>`;
-      return `<div class="opt${isChosen ? " chosen" : ""}"><div class="opt-body">${isChosen ? `<span class="tag">Your choice</span>` : base ? `<span class="tag quiet">Base proposal</span>` : ""}<span class="tier">${TIER_NAME[k.tier]}</span><div class="price">${esc(cur(k.total_cents))}<small>${base ? "Included in your proposal" : `${esc(k.difference_cents >= 0 ? "+" : "")}${esc(cur(k.difference_cents))} vs. base`}</small></div><div class="spacer"></div>${action}</div></div>`;
-    })
-    .join("");
-  const items = v.selections
-    .map((s) => {
-      const cells = optionNames
-        .map((t) => {
-          const op = s.options[t];
-          const photo = op.photo_url && /^https:\/\//.test(op.photo_url) ? op.photo_url : null;
-          const link = op.product_url && /^https:\/\//.test(op.product_url) ? op.product_url : null;
-          return `<div class="choice">${photo ? `<img src="${esc(photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<span class="tier">${TIER_NAME[t]}</span><b>${esc(op.manufacturer || op.description)}</b>${op.model ? `<span>${esc(op.model)}</span>` : ""}${op.manufacturer && op.description ? `<span>${esc(op.description)}</span>` : ""}${op.included.length ? `<span>${op.included.map(esc).join(" · ")}</span>` : ""}${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Product details</a>` : ""}</div>`;
-        })
-        .join("");
-      return `<div class="sel"><h3>${esc(s.title)}</h3><p class="meta">${esc(String(s.quantity))} ${esc(s.unit)} in every package</p><div class="choices">${cells}</div></div>`;
-    })
-    .join("");
+  const shown = chosen
+    ? { ...v, accepted: { tier: chosen, recorded_on: i.decision!.decided_at.slice(0, 10) } }
+    : v;
+  const compare = renderCompare(shown, {
+    company: p.contractor.name,
+    underContract: p.job.under_contract ?? null,
+    eyebrow: `Selections · shared ${longDate(i.shared_on)}`,
+    action: i.decision
+      ? undefined
+      : (tier) =>
+          `<form method="post">${hidden(p, { action: "start", item: i.id, choice: tier })}<button class="btn${tier === v.base_tier ? "" : " ghost"}" type="submit">Choose ${TIER_NAME[tier]}</button></form>`,
+    note: i.decision
+      ? null
+      : "Choosing asks for a code we email you and your typed name. Nothing is final until you confirm.",
+  });
   const foot = [v.valid_until ? `Prices valid until ${longDate(v.valid_until)}.` : "", v.terms]
     .filter(Boolean)
     .join("\n\n");
-  return `${back}<div class="stack"><section class="panel"><div class="co-head"><div><p class="eyebrow">Selections · shared ${esc(longDate(i.shared_on))}</p><h2>${esc(v.title)}</h2></div>${i.decision ? `<span class="pill ok">You chose ${TIER_NAME[chosen ?? "good"]}</span>` : `<span class="pill wait">Needs your decision</span>`}</div>${v.intro ? `<div class="prose" style="margin-top:10px">${paras(v.intro)}</div>` : ""}</section>${i.decision ? receipt(i) : ""}<div class="opts">${cards}</div><section class="panel">${items}${foot ? `<div class="fine" style="margin-top:18px">${paras(foot)}</div>` : ""}</section></div>`;
+  const done = chosen
+    ? `<div class="co-cols"><div class="stack">${choiceNext(p, v, chosen, true)}</div><aside class="stack">${receipt(i)}</aside></div>`
+    : "";
+  return `${back}<div class="stack">${done}<section class="panel gbb-panel">${compare}${foot ? `<div class="close-fine">${paras(foot)}</div>` : ""}</section></div>`;
 }
 
 function body(p: PortalPage, o: PortalOpts): string {
