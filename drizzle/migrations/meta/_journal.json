@@ -498,6 +498,27 @@
       "when": 1793760587410,
       "tag": "0070_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1793762393469,
+      "tag": "0071_gbb_part3_board_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1793762438330,
+      "tag": "0072_gbb_part4_customer_view",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793762491024,
+      "tag": "0073_gbb_part5_choice_and_sharing",
+      "breakpoints": true
     }
   ]
 }
