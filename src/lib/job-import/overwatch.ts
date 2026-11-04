@@ -86,7 +86,8 @@ export function fromOverwatch(input: unknown, opts: { dailyDays?: number } = {})
     customer: clip(p.client, 200) || null,
     pm_name: clip(p.project_manager, 120) || null,
     pm_email: null,
-    completion_date: toDay(p.forecast_completion_date) ?? toDay(p.baseline_completion_date),
+    // The contract date is the baseline; a forecast is not a contract term.
+    completion_date: toDay(p.baseline_completion_date),
   };
   if (!out.job.job_number)
     out.problems.push(

@@ -126,6 +126,14 @@ describe("Overwatch export", () => {
     expect(held).toMatch(/1 decision:/);
     expect(held).not.toMatch(/ss:/);
   });
+
+  it("brings the baseline completion date in as the contract completion, not the forecast", () => {
+    const x = sample();
+    x.project.baseline_completion_date = "2027-01-19";
+    x.project.forecast_completion_date = "2027-03-02";
+    const plan = planImport(fromOverwatch(x), { job_exists: false });
+    expect(plan.package.contract_facts.substantial_completion).toBe("2027-01-19");
+  });
 });
 
 describe("spreadsheet export", () => {
@@ -191,7 +199,7 @@ describe("import plan and review", () => {
     const plan = planImport(job, { job_exists: false });
     expect(plan.counts).toEqual({
       job: 1,
-      contract_facts: 5,
+      contract_facts: 6,
       sov_lines: 3,
       opening_balances: 3,
       budget_lines: 3,
@@ -298,6 +306,7 @@ describe("import plan and review", () => {
         "executed_change_orders",
         "retainage",
         "customer",
+        "substantial_completion",
       ],
       budget_keys: ["01-000", "09-200", "26-000"],
       submittals: ["092900-01#0", "260519-01#1"],

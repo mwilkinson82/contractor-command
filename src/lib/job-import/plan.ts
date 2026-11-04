@@ -131,6 +131,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   if (job.contract.retainage_pct != null)
     contractFacts.retainage = `${job.contract.retainage_pct}%`;
   if (job.job.customer) contractFacts.customer = job.job.customer;
+  if (job.job.completion_date) contractFacts.substantial_completion = job.job.completion_date;
   for (const key of Object.keys(contractFacts)) {
     if ((ctx.contract_keys ?? []).includes(key)) {
       kept.push(`Contract ${key.replace(/_/g, " ")} already on the job; kept Athena's.`);
