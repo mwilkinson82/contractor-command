@@ -27,6 +27,13 @@
     lastWidth = 0,
     statusFilter = "all";
   var inlineWorkspace = false;
+  // Workspace view state kept across redraws: the side panel tab and the step
+  // whose guide is open (null follows the first unfinished step).
+  var panelTab = "lines",
+    guideStep = null;
+  // Drawing ink, one per takeoff line, so lines tell apart on the sheet. These mark
+  // the drawing only; the card itself keeps the house palette.
+  var LINE_INK = ["#1E5FED", "#0F7B5F", "#B45309", "#7C3AED", "#0E7490"];
   // Sharp 200-dpi regions: at most DETAIL_CAP drawn at once, and the fetched
   // images kept across redraws so a selection or save does not blur the sheet.
   var DETAIL_CAP = 24,
@@ -37,6 +44,10 @@
     if (text != null) e.textContent = String(text);
     if (cls) e.className = cls;
     return e;
+  }
+  function lineInk(lineNo) {
+    var n = Math.max(1, Math.floor(Number(lineNo)) || 1);
+    return LINE_INK[(n - 1) % LINE_INK.length];
   }
   // Trade sheets first, then the rest as coordination. Option values stay the exact
   // stored names; only their order, labels and grouping change. No sheet is preselected.
@@ -567,18 +578,22 @@
       );
     var main = node("main");
     root.append(main);
-    var kpis = node("div", null, "kpis");
-    (sc.card.kpis || []).forEach(function (k) {
-      var d = node("div");
-      d.append(node("span", k.label), node("strong", k.value));
-      kpis.append(d);
-    });
-    main.append(kpis);
-    var workflow = (sc.card.sections || []).find(function (section) {
-      return section.heading === "Before your AI reads the drawings";
-    });
-    if (workflow && workflow.rows && workflow.rows[0])
-      main.append(node("p", workflow.rows[0].cells.join(" "), "note"));
+    // With a sheet open, the step bar carries these counts and the Checks tab carries
+    // the read guidance, so the drawing gets the room.
+    if (!sc.source) {
+      var kpis = node("div", null, "kpis");
+      (sc.card.kpis || []).forEach(function (k) {
+        var d = node("div");
+        d.append(node("span", k.label), node("strong", k.value));
+        kpis.append(d);
+      });
+      main.append(kpis);
+      var workflow = (sc.card.sections || []).find(function (section) {
+        return section.heading === "Before your AI reads the drawings";
+      });
+      if (workflow && workflow.rows && workflow.rows[0])
+        main.append(node("p", workflow.rows[0].cells.join(" "), "note"));
+    }
     function extraSections(target) {
       (sc.card.sections || [])
         .filter(function (section) {
@@ -731,14 +746,7 @@
       size();
       return;
     }
-    main.append(
-      node(
-        "p",
-        sc.source.filename + " · " + sc.source.sheet + " · revision " + sc.source.revision,
-        "small",
-      ),
-      node("p", "Original preserved · dated versions only", "note small"),
-    );
+    head.classList.add("ws-head");
     var sourceTools = node("div", null, "tools"),
       sourceSelect = node("select"),
       sheetSelect = node("select");
@@ -784,15 +792,24 @@
         });
       }),
     );
-    main.append(sourceTools);
+    sourceTools.append(
+      node("span", "Revision " + sc.source.revision + " · original preserved", "note small"),
+    );
+    head.append(sourceTools);
+    // Four steps, in the order the work happens. Each says where it stands from the
+    // saved takeoff; the open step's guide says what to do and offers one action.
+    var steps = node("nav", null, "steps"),
+      guide = node("div", null, "guide");
+    steps.ariaLabel = "Takeoff steps";
+    main.append(steps, guide);
     var layout = node("div", null, "layout"),
-      left = node("section"),
-      right = node("section");
+      left = node("section", null, "stagecol"),
+      right = node("section", null, "sidecol");
     layout.append(left, right);
     main.append(layout);
     var viewWidth = 1000,
       viewHeight = (1000 * sc.space.height) / sc.space.width;
-    var tools = node("div", null, "tools"),
+    var tools = node("div", null, "tools toolbar"),
       viewport = node("div", null, "viewport"),
       modeNote = node("p", "Inspect mode: select a mark to see its line.", "note"),
       surface = node("div", null, "surface"),
@@ -834,22 +851,31 @@
         viewport.scrollLeft = cx * after.width - viewport.clientWidth / 2;
         viewport.scrollTop = cy * after.height - viewport.clientHeight / 2;
       }
+      zoomLabel.textContent = Math.round(zoom * 100) + "%";
       if (svg.isConnected) overlay();
       if (detailReady) scheduleDetail();
       size();
     }
-    setZoom(zoom);
-    tools.append(
-      button("Zoom in", function () {
-        setZoom(zoom + 0.5);
-      }),
-      button("Zoom out", function () {
+    var zoomLabel = node("span", null, "zoom"),
+      zoomOut = button("−", function () {
         setZoom(zoom - 0.5);
       }),
+      zoomIn = button("+", function () {
+        setZoom(zoom + 0.5);
+      });
+    zoomOut.ariaLabel = "Zoom out";
+    zoomIn.ariaLabel = "Zoom in";
+    setZoom(zoom);
+    var zoomGroup = node("span", null, "group");
+    zoomGroup.append(
+      zoomOut,
+      zoomLabel,
+      zoomIn,
       button("Fit", function () {
         setZoom(1);
       }),
     );
+    tools.append(zoomGroup);
     var tileSelect = node("select");
     tileSelect.ariaLabel = "Readable 200 dpi tile";
     (sc.tiles || []).forEach(function (t) {
@@ -857,12 +883,9 @@
       o.value = t.index;
       tileSelect.append(o);
     });
-    tools.append(
-      tileSelect,
-      button("Read region", function () {
-        act("takeoff_geometry", { operation: "tile", tile_index: Number(tileSelect.value) });
-      }),
-    );
+    var tileRead = button("Read region", function () {
+      act("takeoff_geometry", { operation: "tile", tile_index: Number(tileSelect.value) });
+    });
     var marksButton = button("Hide marks", function () {
       if (
         !marksHidden &&
@@ -880,60 +903,201 @@
       overlay();
     });
     tools.append(marksButton);
-    // The selected mark is named right above the drawing, so a click on a pin
-    // says what it is without scrolling the side panel.
-    var selectionBar = node("div", null, "selbar");
+    // The selected mark is named on the drawing itself, so a click on a pin says
+    // what it is without scrolling the side panel.
+    var selectionBar = node("div", null, "selbar"),
+      removingPin = false;
     selectionBar.setAttribute("aria-live", "polite");
-    function showSelectionBar() {
-      selectionBar.replaceChildren();
-      var g = selectedGeometry
+    function selectedRecord() {
+      return selectedGeometry
         ? rows().find(function (g) {
             return g.geometry_id === selectedGeometry;
           })
         : null;
-      var line =
+    }
+    function lineOf(g) {
+      return (
         g &&
         sc.engine.lines.find(function (l) {
           return l.id === g.line_id;
-        });
-      var listRows =
-        typeof list !== "undefined" && list ? list.querySelectorAll(".row[data-line]") : [];
-      Array.prototype.forEach.call(listRows, function (r) {
-        var on = !!line && r.dataset.line === String(line.line_no);
-        r.classList.toggle("selected", on);
-        // Scroll only the review list, never the page, to the selected line.
-        if (on && list.scrollHeight > list.clientHeight) {
-          var top = r.offsetTop - list.offsetTop;
-          if (top < list.scrollTop || top + r.offsetHeight > list.scrollTop + list.clientHeight)
-            list.scrollTop = Math.max(0, top - 8);
-        }
-      });
-      if (!g) return;
-      var label = node("strong", line ? "L" + line.line_no + " · " + line.item : "Selected mark");
-      var facts = [];
-      if (g.shape.kind === "pins" && selectedPoint >= 0) {
-        var before = 0;
-        rows().some(function (other) {
-          if (other.geometry_id === g.geometry_id) return true;
-          if (other.line_id === g.line_id && other.shape.kind === "pins")
-            before += other.shape.points.length;
-          return false;
-        });
-        facts.push("count " + (before + selectedPoint + 1));
-      }
-      facts.push(g.status, Number(g.measured).toFixed(2) + " " + g.unit);
-      selectionBar.append(
-        label,
-        node("span", facts.join(" · "), "note"),
-        button("Clear", function () {
-          selectedGeometry = null;
-          selectedPoint = -1;
-          showSelected();
-          overlay();
-        }),
+        })
       );
     }
-    left.append(tools, modeNote, selectionBar, viewport);
+    // Every saved pin of one line on this sheet, in the order its labels count.
+    function linePins(lineId) {
+      var out = [];
+      rows().forEach(function (g) {
+        if (g.line_id !== lineId || g.shape.kind !== "pins") return;
+        g.shape.points.forEach(function (point, index) {
+          out.push({ id: g.geometry_id, index: index, point: point });
+        });
+      });
+      return out;
+    }
+    function centerOn(point) {
+      var w = surface.clientWidth,
+        h = surface.clientHeight;
+      if (zoom <= 1 || !w || !h || !validPoint(point)) return;
+      viewport.scrollLeft = point.x * w - viewport.clientWidth / 2;
+      viewport.scrollTop = point.y * h - viewport.clientHeight / 2;
+      if (detailReady) scheduleDetail();
+    }
+    // Previous and Next pin walk the selected line's pins on this sheet, one at a time.
+    function stepPin(step, lineId) {
+      var g = selectedRecord(),
+        pins = linePins(lineId || (g && g.line_id));
+      if (!pins.length) return;
+      var at = pins.findIndex(function (p) {
+        return p.id === selectedGeometry && p.index === selectedPoint;
+      });
+      var next =
+        at < 0
+          ? pins[step > 0 ? 0 : pins.length - 1]
+          : pins[(at + step + pins.length) % pins.length];
+      chooseGeometry(next.id, next.index);
+      overlay();
+      centerOn(next.point);
+    }
+    // Opens a line: selects its first saved mark on this sheet, if it has one.
+    function openLine(lineNo) {
+      var line = sc.engine.lines.find(function (l) {
+        return String(l.line_no) === String(lineNo);
+      });
+      if (!line) return;
+      var first = rows().find(function (g) {
+        return g.line_id === line.id;
+      });
+      if (
+        draft.length ||
+        holes.some(function (hole) {
+          return hole.length;
+        })
+      )
+        return notice("Finish or discard the unsaved drawing before opening another line.");
+      if (first) {
+        chooseGeometry(first.geometry_id, 0);
+        overlay();
+        if (first.shape.points[0]) centerOn(first.shape.points[0]);
+        return;
+      }
+      selectedLine = String(line.line_no);
+      lineSelect.value = selectedLine;
+      selectedGeometry = null;
+      selectedPoint = -1;
+      showList();
+      overlay();
+      showReadStatus();
+    }
+    function quantityText(g) {
+      return Number(g.measured).toFixed(g.unit && /^ea$/i.test(g.unit) ? 0 : 2) + " " + g.unit;
+    }
+    function acceptGeometry(g) {
+      confirmBox(
+        "Accept this exact geometry revision and its computed quantity? Review the sheet coverage and any pass uncertainties first.",
+        function () {
+          act("takeoff_geometry", {
+            operation: "accept",
+            geometry_id: g.geometry_id,
+            expected_version: g.version,
+            confirm: true,
+          });
+        },
+      );
+    }
+    // Removing one pin saves a new proposal revision without it; the reason is kept.
+    function removePin(g, index, why) {
+      if (index < 0) return notice("Tap the specific pin to remove it.");
+      if (!String(why || "").trim()) return notice("Record why the pin is removed.");
+      var shape = JSON.parse(JSON.stringify(g.shape));
+      shape.points.splice(index, 1);
+      act("takeoff_geometry", {
+        operation: "save",
+        line_no: lineOf(g).line_no,
+        geometry_id: g.geometry_id,
+        expected_version: g.version,
+        shape: shape,
+        reason: why,
+      });
+    }
+    function showSelectionBar() {
+      selectionBar.replaceChildren();
+      var g = selectedRecord(),
+        line = lineOf(g);
+      if (!g) {
+        removingPin = false;
+        return;
+      }
+      var dot = node("span", null, "dot");
+      dot.style.background = line ? lineInk(line.line_no) : "#6B7280";
+      var label = node("strong", line ? "L" + line.line_no + " · " + line.item : "Selected mark");
+      var facts = [],
+        pins = g.shape.kind === "pins" ? linePins(g.line_id) : [],
+        at = pins.findIndex(function (p) {
+          return p.id === g.geometry_id && p.index === selectedPoint;
+        });
+      if (at >= 0) facts.push("count " + (at + 1) + " of " + pins.length);
+      facts.push(g.status);
+      if (g.shape.kind !== "pins" || g.status !== "proposed") facts.push(quantityText(g));
+      var clear = button("✕", function () {
+        selectedGeometry = null;
+        selectedPoint = -1;
+        removingPin = false;
+        showSelected();
+        overlay();
+      });
+      clear.ariaLabel = "Clear selection";
+      clear.title = "Clear selection";
+      if (removingPin && g.shape.kind === "pins") {
+        var why = node("input");
+        why.placeholder = "Why remove this pin?";
+        why.ariaLabel = "Reason for removing this pin";
+        selectionBar.append(
+          dot,
+          label,
+          why,
+          button("Remove pin", function () {
+            removePin(g, selectedPoint, why.value);
+          }),
+          button("Cancel", function () {
+            removingPin = false;
+            showSelectionBar();
+          }),
+        );
+        why.focus();
+        return;
+      }
+      selectionBar.append(dot, label, node("span", facts.join(" · "), "meta"));
+      if (pins.length > 1)
+        selectionBar.append(
+          button("Previous pin", function () {
+            stepPin(-1);
+          }),
+          button("Next pin", function () {
+            stepPin(1);
+          }),
+        );
+      if (g.status === "proposed")
+        selectionBar.append(
+          button(
+            "Accept " + quantityText(g),
+            function () {
+              acceptGeometry(g);
+            },
+            "primary",
+          ),
+        );
+      if (g.shape.kind === "pins" && g.shape.points.length > 1 && selectedPoint >= 0)
+        selectionBar.append(
+          button("Remove this pin", function () {
+            removingPin = true;
+            showSelectionBar();
+          }),
+        );
+      selectionBar.append(clear);
+    }
+    var stage = node("div", null, "stage");
+    stage.append(viewport, selectionBar);
+    left.append(tools, modeNote, stage);
     // Request the visible 200-dpi regions after zooming, then the regions just
     // outside the view so a pan lands on sharp detail. The low-resolution page
     // stays underneath as an immediate, non-blocking fallback.
@@ -1142,10 +1306,13 @@
       if (!g) return;
       selectedGeometry = id;
       selectedPoint = index;
+      removingPin = false;
       var line = sc.engine.lines.find(function (l) {
-        return l.id === g.line_id;
-      });
+          return l.id === g.line_id;
+        }),
+        lineChanged = false;
       if (line) {
+        lineChanged = selectedLine !== String(line.line_no);
         selectedLine = String(line.line_no);
         lineSelect.value = selectedLine;
       }
@@ -1154,7 +1321,9 @@
       mode = "inspect";
       draft = [];
       holes = [];
-      showSelected();
+      // The side list opens the selected line; switching lines redraws it.
+      if (lineChanged || !selected.isConnected) showList();
+      else showSelected();
       showReadStatus();
       notice("Inspect mode. Saved marks are not changed by selecting them.");
     }
@@ -1357,6 +1526,7 @@
     function overlay() {
       panCursor();
       showSelectionBar();
+      showModeButtons();
       if (marksHidden) {
         svg.querySelectorAll("circle,path,text").forEach(function (e) {
           e.remove();
@@ -1379,19 +1549,15 @@
       });
       var pinNumbers = {};
       rows().forEach(function (g) {
-        var offset = pinNumbers[g.line_id] || 0;
-        geometry(
-          g.shape,
-          g.status === "rejected" ? "#6B7280" : "#1E5FED",
-          g.status === "accepted" ? "#1E5FED" : "white",
-          g.geometry_id,
-          offset,
-        );
-        if (g.shape.kind === "pins") pinNumbers[g.line_id] = offset + g.shape.points.length;
-        var p = g.shape.points[0],
+        var offset = pinNumbers[g.line_id] || 0,
           l = sc.engine.lines.find(function (l) {
             return l.id === g.line_id;
-          });
+          }),
+          ink = g.status === "rejected" ? "#6B7280" : lineInk(l && l.line_no);
+        // Solid and filled: accepted. Dashed and open: proposed.
+        geometry(g.shape, ink, g.status === "accepted" ? ink : "white", g.geometry_id, offset);
+        if (g.shape.kind === "pins") pinNumbers[g.line_id] = offset + g.shape.points.length;
+        var p = g.shape.points[0];
         if (p && g.shape.kind !== "pins") {
           var t = svgNode("text", {
             x:
@@ -1400,7 +1566,11 @@
             y:
               p.y * viewHeight -
               (11 * viewWidth) / Math.max(1, surface.getBoundingClientRect().width),
-            fill: "#1E3A5F",
+            fill: ink,
+            stroke: "white",
+            "stroke-width": (3 * viewWidth) / Math.max(1, surface.getBoundingClientRect().width),
+            "paint-order": "stroke",
+            "font-weight": 600,
             "font-size": (12 * viewWidth) / Math.max(1, surface.getBoundingClientRect().width),
             "pointer-events": "none",
           });
@@ -1543,7 +1713,7 @@
     // A touch pan or lost capture ends the press without a pointerup.
     svg.addEventListener("pointercancel", endPress);
     svg.addEventListener("lostpointercapture", endPress);
-    var edit = node("div", null, "desktop drawer"),
+    var edit = node("div", null, "desktop drawer drawpanel"),
       lineSelect = node("select");
     lineSelect.ariaLabel = "Takeoff line";
     sc.engine.lines.forEach(function (l) {
@@ -1560,7 +1730,7 @@
       draft = [];
       holes = [];
       mode = "inspect";
-      showSelected();
+      showList();
       overlay();
       showReadStatus();
     });
@@ -1592,61 +1762,67 @@
       cal.value = selectedCalibration;
     else if (cal.options.length === 2) cal.selectedIndex = 1;
     selectedCalibration = cal.value;
-    var modes = node("div", null, "tools");
-    modes.append(
-      button("Inspect saved work", function () {
-        function inspect() {
-          mode = "inspect";
-          draft = [];
-          holes = [];
-          activeHole = -1;
-          overlay();
-          notice("Inspect mode: select a saved mark to see its takeoff line.");
-        }
-        if (
-          draft.length ||
-          holes.some(function (hole) {
-            return hole.length;
-          })
-        )
-          confirmBox("Discard the unsaved drawing and return to inspection?", inspect);
-        else inspect();
-      }),
-    );
-    ["pins", "polyline", "polygon", "rect", "calibrate"].forEach(function (m) {
-      modes.append(
-        button(
-          {
-            pins: "Count pins",
-            polyline: "Draw run",
-            polygon: "Draw area",
-            rect: "Rectangle",
-            calibrate: "Calibrate",
-          }[m],
-          function () {
-            if (marksHidden)
-              return notice("Show marks before drawing so existing work stays visible.");
-            function start() {
-              mode = m;
-              draft = [];
-              holes = [];
-              activeHole = -1;
-              selectedGeometry = null;
-              notice("Place " + m + " points on the sheet.");
-              overlay();
-            }
-            if (
-              draft.length ||
-              holes.some(function (hole) {
-                return hole.length;
-              })
-            )
-              confirmBox("Discard the unsaved drawing and change tools?", start);
-            else start();
-          },
-        ),
+    function unsaved() {
+      return (
+        draft.length ||
+        holes.some(function (hole) {
+          return hole.length;
+        })
       );
+    }
+    // One toolbar: select and pan, then the drawing tools. Calibrate starts from Setup.
+    var modeButtons = {},
+      modeGroup = node("span", null, "group"),
+      areaPick = false;
+    modeButtons.inspect = button("Select and pan", function () {
+      function inspect() {
+        mode = "inspect";
+        draft = [];
+        holes = [];
+        activeHole = -1;
+        areaPick = false;
+        overlay();
+        notice("Select a saved mark to see its takeoff line. Drag to move around the sheet.");
+      }
+      if (unsaved()) confirmBox("Discard the unsaved drawing and return to inspection?", inspect);
+      else inspect();
     });
+    modeGroup.append(modeButtons.inspect);
+    function startMode(m, message) {
+      if (marksHidden) return notice("Show marks before drawing so existing work stays visible.");
+      function start() {
+        mode = m;
+        draft = [];
+        holes = [];
+        activeHole = -1;
+        areaPick = false;
+        selectedGeometry = null;
+        selectedPoint = -1;
+        notice(message || "Place " + m + " points on the sheet.");
+        overlay();
+        showPreview();
+      }
+      if (unsaved()) confirmBox("Discard the unsaved drawing and change tools?", start);
+      else start();
+    }
+    [
+      ["pins", "Count", "Click each item on the sheet to count it for the selected line."],
+      ["polyline", "Run", "Click along the run; each click adds a point."],
+      ["polygon", "Area", "Click each corner of the area."],
+      ["rect", "Rectangle", "Click two opposite corners."],
+    ].forEach(function (t) {
+      modeButtons[t[0]] = button(
+        t[1],
+        function () {
+          startMode(t[0], t[2]);
+        },
+        "desktop",
+      );
+      modeGroup.append(modeButtons[t[0]]);
+    });
+    var lineGroup = node("span", null, "group");
+    lineGroup.append(node("span", "Line", "note small"), lineSelect);
+    tools.prepend(modeGroup, lineGroup);
     var preview = node("p", null, "note");
     function showPreview() {
       preview.textContent =
@@ -1700,18 +1876,13 @@
     depthValue.min = "0";
     depthValue.placeholder = "Cited depth (CY only)";
     depthValue.ariaLabel = "Concrete depth";
-    left.append(node("h2", "Choose takeoff line"), lineSelect, cal);
-    edit.append(
-      node("h2", "Locate work"),
-      modes,
-      preview,
-      depthValue,
-      depthUnit,
-      depthSource,
-      depthSheet,
-      detail,
-    );
-    edit.append(
+    // The drawing panel shows only while a tool is in use, with what that tool needs.
+    var depthBox = node("div", null, "tools"),
+      openingBox = node("div", null, "tools"),
+      calBox = node("div", null, "tools"),
+      saveBox = node("div", null, "tools");
+    depthBox.append(depthValue, depthUnit, depthSource, depthSheet, detail);
+    openingBox.append(
       button("Add opening", function () {
         if (mode !== "polygon" && mode !== "rect") return notice("Draw an area first.");
         holes.push([]);
@@ -1722,48 +1893,46 @@
         activeHole = -1;
         notice("Opening boundary completed. Server checks containment.");
       }),
-      button("Undo point", function () {
-        if (activeHole >= 0) holes[activeHole].pop();
-        else draft.pop();
-        overlay();
-        showPreview();
-      }),
     );
-    edit.append(
-      button(
-        "Save geometry proposal",
-        function () {
-          var old = rows().find(function (g) {
-              return g.geometry_id === selectedGeometry;
-            }),
-            shape = { kind: mode, points: draft, holes: holes };
-          if (mode === "inspect" || mode === "calibrate" || !draft.length)
-            return notice("Draw the geometry first.");
-          var line = sc.engine.lines.find(function (l) {
-            return l.line_no === Number(lineSelect.value);
-          });
-          if (line && /^cy$/i.test(line.unit || "")) {
-            if (!(Number(depthValue.value) > 0) || !detail.value.trim())
-              return notice("Cite the depth from this stored sheet before saving concrete volume.");
-            shape.depth = {
-              value: Number(depthValue.value),
-              unit: depthUnit.value,
-              source_id: depthSource.value || sc.source.id,
-              sheet: depthSheet.value,
-              detail: detail.value.trim(),
-            };
-          }
-          act("takeoff_geometry", {
-            operation: "save",
-            line_no: Number(lineSelect.value),
-            shape: shape,
-            calibration_id: cal.value || undefined,
-            geometry_id: old && old.geometry_id,
-            expected_version: old ? old.version : 0,
-          });
-        },
-        "primary",
-      ),
+    var undoPoint = button("Undo point", function () {
+      if (activeHole >= 0) holes[activeHole].pop();
+      else draft.pop();
+      overlay();
+      showPreview();
+    });
+    var saveGeometry = button(
+      "Save geometry proposal",
+      function () {
+        var old = rows().find(function (g) {
+            return g.geometry_id === selectedGeometry;
+          }),
+          shape = { kind: mode, points: draft, holes: holes };
+        if (mode === "inspect" || mode === "calibrate" || !draft.length)
+          return notice("Draw the geometry first.");
+        var line = sc.engine.lines.find(function (l) {
+          return l.line_no === Number(lineSelect.value);
+        });
+        if (line && /^cy$/i.test(line.unit || "")) {
+          if (!(Number(depthValue.value) > 0) || !detail.value.trim())
+            return notice("Cite the depth from this stored sheet before saving concrete volume.");
+          shape.depth = {
+            value: Number(depthValue.value),
+            unit: depthUnit.value,
+            source_id: depthSource.value || sc.source.id,
+            sheet: depthSheet.value,
+            detail: detail.value.trim(),
+          };
+        }
+        act("takeoff_geometry", {
+          operation: "save",
+          line_no: Number(lineSelect.value),
+          shape: shape,
+          calibration_id: cal.value || undefined,
+          geometry_id: old && old.geometry_id,
+          expected_version: old ? old.version : 0,
+        });
+      },
+      "primary",
     );
     var referenceUnit = node("select");
     referenceUnit.ariaLabel = "Reference distance unit";
@@ -1801,70 +1970,73 @@
       label.append(input);
       bounds.append(label);
     });
-    edit.append(
-      node("h2", "Plan or room area"),
-      region,
-      node(
-        "p",
-        "Counts need a confirmed area, not a scale. Choose Rectangle and mark the two opposite corners, or enter page bounds below. Calibration uses the same bounds with a separate distance reference.",
-        "note small",
-      ),
-      button("Choose count area", function () {
-        mode = "rect";
-        draft = [];
-        holes = [];
-        selectedGeometry = null;
-        overlay();
-        showPreview();
-        notice(
-          "Mark two opposite corners around the entire plan or room to count, then confirm the count area.",
-        );
-      }),
-      button("Confirm count area", function () {
-        var areaBounds =
-          mode === "rect" && draft.length === 2
-            ? {
-                x: Math.min(draft[0].x, draft[1].x),
-                y: Math.min(draft[0].y, draft[1].y),
-                width: Math.abs(draft[1].x - draft[0].x),
-                height: Math.abs(draft[1].y - draft[0].y),
-              }
-            : {
-                x: Number(boundsInputs.x.value),
-                y: Number(boundsInputs.y.value),
-                width: Number(boundsInputs.width.value),
-                height: Number(boundsInputs.height.value),
-              };
-        var area = { name: region.value.trim(), bounds: areaBounds };
-        if (!area.name || !(areaBounds.width > 0) || !(areaBounds.height > 0))
-          return notice("Name the plan or room and choose its complete area.");
-        var whole =
-          areaBounds.x === 0 &&
-          areaBounds.y === 0 &&
-          areaBounds.width === 1 &&
-          areaBounds.height === 1;
-        confirmBox(
-          "Confirm count area: " +
-            area.name +
-            (whole
-              ? ". This is the WHOLE SHEET, including every plan and detail."
-              : ". Only this boundary will be read; everything outside is excluded.") +
-            " No quantity or scale is saved by this confirmation.",
-          function () {
-            act("takeoff_geometry", {
-              operation: "scope",
-              line_no: Number(lineSelect.value),
-              count_area: area,
-              confirm: true,
-            });
-          },
-        );
-      }),
-      node("h2", "Confirm scale reference"),
-      distance,
-      referenceUnit,
-      bounds,
-      button("Confirm two-point calibration", function () {
+    function regionBounds() {
+      return {
+        x: Number(boundsInputs.x.value),
+        y: Number(boundsInputs.y.value),
+        width: Number(boundsInputs.width.value),
+        height: Number(boundsInputs.height.value),
+      };
+    }
+    function confirmCountArea() {
+      var areaBounds =
+        mode === "rect" && draft.length === 2
+          ? {
+              x: Math.min(draft[0].x, draft[1].x),
+              y: Math.min(draft[0].y, draft[1].y),
+              width: Math.abs(draft[1].x - draft[0].x),
+              height: Math.abs(draft[1].y - draft[0].y),
+            }
+          : regionBounds();
+      var area = { name: region.value.trim(), bounds: areaBounds };
+      if (!area.name || !(areaBounds.width > 0) || !(areaBounds.height > 0))
+        return notice("Name the plan or room and choose its complete area.");
+      var whole =
+        areaBounds.x === 0 &&
+        areaBounds.y === 0 &&
+        areaBounds.width === 1 &&
+        areaBounds.height === 1;
+      confirmBox(
+        "Confirm count area: " +
+          area.name +
+          (whole
+            ? ". This is the WHOLE SHEET, including every plan and detail."
+            : ". Only this boundary will be read; everything outside is excluded.") +
+          " No quantity or scale is saved by this confirmation.",
+        function () {
+          act("takeoff_geometry", {
+            operation: "scope",
+            line_no: Number(lineSelect.value),
+            count_area: area,
+            confirm: true,
+          });
+        },
+      );
+    }
+    function chooseCountArea() {
+      if (marksHidden) return notice("Show marks before drawing so existing work stays visible.");
+      mode = "rect";
+      draft = [];
+      holes = [];
+      activeHole = -1;
+      areaPick = true;
+      selectedGeometry = null;
+      selectedPoint = -1;
+      overlay();
+      showPreview();
+      notice(
+        "Mark two opposite corners around the entire plan or room to count, then confirm the count area.",
+      );
+    }
+    function startCalibration() {
+      startMode(
+        "calibrate",
+        "Click the two ends of a dimension you know, enter its length, then confirm.",
+      );
+    }
+    var confirmCalibration = button(
+      "Confirm two-point calibration",
+      function () {
         if (mode !== "calibrate" || draft.length !== 2 || !(Number(distance.value) > 0))
           return notice("Place exactly two reference points and enter their known distance.");
         var existing = sc.engine.calibrations.find(function (c) {
@@ -1889,49 +2061,80 @@
             act("sheet_calibrate", {
               operation: "save",
               region: region.value,
-              bounds: {
-                x: Number(boundsInputs.x.value),
-                y: Number(boundsInputs.y.value),
-                width: Number(boundsInputs.width.value),
-                height: Number(boundsInputs.height.value),
-              },
+              bounds: regionBounds(),
               reference: reference,
               confirm_reference: true,
               expected_version: existing ? existing.version : 0,
             });
           },
         );
-      }),
+      },
+      "primary",
     );
+    calBox.append(distance, referenceUnit, confirmCalibration);
+    var drawTitle = node("strong");
+    edit.append(drawTitle, preview, depthBox, openingBox, calBox, saveBox);
+    function showModeButtons() {
+      if (typeof modeButtons === "undefined" || !modeButtons) return;
+      Object.keys(modeButtons).forEach(function (m) {
+        var on = mode === m;
+        modeButtons[m].classList.toggle("on", on);
+        modeButtons[m].setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      var drawing = mode !== "inspect";
+      edit.hidden = !drawing;
+      if (!drawing) return;
+      var line = sc.engine.lines.find(function (l) {
+        return l.line_no === Number(lineSelect.value);
+      });
+      drawTitle.textContent =
+        mode === "calibrate"
+          ? "Known dimension"
+          : areaPick
+            ? "Count area: " + (region.value.trim() || "unnamed")
+            : "Adding to " + (line ? "L" + line.line_no + " · " + line.item : "the selected line");
+      depthBox.hidden = !(
+        !areaPick &&
+        mode !== "calibrate" &&
+        line &&
+        /^cy$/i.test(line.unit || "")
+      );
+      openingBox.hidden = areaPick || (mode !== "polygon" && mode !== "rect");
+      calBox.hidden = mode !== "calibrate";
+      saveBox.replaceChildren(undoPoint);
+      if (areaPick) saveBox.append(button("Confirm count area", confirmCountArea, "primary"));
+      else if (mode !== "calibrate") saveBox.append(saveGeometry);
+    }
+    left.insertBefore(edit, left.querySelector(".stage"));
     left.append(
-      edit,
       node(
         "p",
         "On a phone, zoom and review here; place or move geometry on a screen at least 768 px wide.",
-        "note small",
+        "note small mobile-only",
       ),
     );
+    // Setup holds what is done once per sheet: the scale, the count area and work
+    // with no drawing, with rarely needed controls under Advanced.
+    var setupBox = node("div");
+    var scaleBox = node("section", null, "panel");
+    setupBox.append(scaleBox);
+    scaleBox.append(node("h2", "Scale"));
+    var lockedCal = sc.engine.calibrations
+      .filter(function (c) {
+        return c.source_id === sc.source.id && c.page === sc.source.page && c.confirmed;
+      })
+      .sort(function (a, b) {
+        return b.version - a.version;
+      })[0];
     if (sc.scale_lock && !sc.scale_lock.locked) {
-      var scaleChoice = node("section", null, "panel");
-      scaleChoice.append(node("h2", sc.scale_lock.question));
-      scaleChoice.append(
-        button("1 · Use a known dimension", function () {
-          mode = "calibrate";
-          draft = [];
-          holes = [];
-          overlay();
-          notice(
-            "Select the two ends of a known dimension, enter its length and confirm the reference below the sheet.",
-          );
-          edit.scrollIntoView({ block: "nearest" });
-        }),
-      );
+      scaleBox.append(node("p", sc.scale_lock.question));
+      scaleBox.append(button("1 · Use a known dimension", startCalibration));
       var stated = node("input");
       stated.ariaLabel = "Scale stated for this plan region";
       stated.placeholder = 'For example: 3/16" = 1\'-0"';
       if (sc.scale_lock.printed_scales.length === 1 && !sc.scale_lock.as_noted)
         stated.value = sc.scale_lock.printed_scales[0];
-      scaleChoice.append(
+      scaleBox.append(
         stated,
         button("2 · Use stated scale (true-size PDF)", function () {
           if (!stated.value.trim() || !region.value.trim())
@@ -1951,12 +2154,7 @@
               act("sheet_calibrate", {
                 operation: "save",
                 region: region.value,
-                bounds: {
-                  x: Number(boundsInputs.x.value),
-                  y: Number(boundsInputs.y.value),
-                  width: Number(boundsInputs.width.value),
-                  height: Number(boundsInputs.height.value),
-                },
+                bounds: regionBounds(),
                 stated_scale: stated.value.trim(),
                 confirm_true_size: true,
                 confirm_reference: true,
@@ -1966,67 +2164,98 @@
           );
         }),
       );
-      main.insertBefore(scaleChoice, layout);
+    } else {
+      scaleBox.append(
+        node(
+          "p",
+          lockedCal
+            ? "Locked for " + lockedCal.region + " · revision " + lockedCal.version
+            : "No confirmed scale on this sheet yet. Counts do not need one.",
+          "note",
+        ),
+        button("Check a known dimension", startCalibration),
+      );
     }
-    var selected = node("div");
+    scaleBox.append(node("p", "Calibration used for new measurements", "note small"), cal);
+    var areaBox = node("section", null, "panel");
+    areaBox.append(
+      node("h2", "Count area"),
+      region,
+      node(
+        "p",
+        "Counts need a confirmed plan or room area, not a scale. Mark its two opposite corners on the sheet, then confirm.",
+        "note small",
+      ),
+      button("Choose count area", chooseCountArea),
+      button("Confirm count area", confirmCountArea),
+    );
+    setupBox.append(areaBox);
+    var advanced = node("details", null, "panel");
+    advanced.append(
+      node("summary", "Advanced"),
+      node(
+        "p",
+        "Page bounds for the count area or scale region, from 0 to 1. Use these when corners are easier to type than to click.",
+        "note small",
+      ),
+      bounds,
+      node("p", "Show your AI one stored 200 dpi region of this sheet.", "note small"),
+      tileSelect,
+      tileRead,
+    );
+    showModeButtons();
+    // Side panel in three tabs: Lines to review, Checks to read, Setup done once per sheet.
+    var tabBar = node("div", null, "tabs"),
+      panes = {};
+    tabBar.setAttribute("role", "tablist");
+    [
+      ["lines", "Lines"],
+      ["checks", "Checks"],
+      ["setup", "Setup"],
+    ].forEach(function (t) {
+      var b = button(
+        t[1],
+        function () {
+          setTab(t[0]);
+        },
+        "tab",
+      );
+      b.setAttribute("role", "tab");
+      b.dataset.tab = t[0];
+      tabBar.append(b);
+      panes[t[0]] = node("div", null, "pane");
+      panes[t[0]].setAttribute("role", "tabpanel");
+      panes[t[0]].ariaLabel = t[1];
+    });
+    right.append(tabBar, panes.lines, panes.checks, panes.setup);
+    function setTab(t) {
+      panelTab = panes[t] ? t : "lines";
+      Array.prototype.forEach.call(tabBar.children, function (b) {
+        b.setAttribute("aria-selected", b.dataset.tab === panelTab ? "true" : "false");
+      });
+      Object.keys(panes).forEach(function (k) {
+        panes[k].hidden = k !== panelTab;
+      });
+      size();
+    }
+    // The open line's selected mark: its revision and the rarer actions on it.
+    var selected = node("div", null, "picked");
     function showSelected() {
       selected.replaceChildren();
       var g = rows().find(function (g) {
         return g.geometry_id === selectedGeometry;
       });
-      if (!g) return;
-      var selectedLineRecord = sc.engine.lines.find(function (line) {
-        return line.id === g.line_id;
-      });
-      selected.append(
-        node(
-          "h2",
-          selectedLineRecord
-            ? "L" + selectedLineRecord.line_no + " · " + selectedLineRecord.item
-            : "Selected geometry",
-        ),
-        node(
-          "p",
-          "Revision " +
-            g.version +
-            " · " +
-            g.status +
-            " · " +
-            Number(g.measured).toFixed(2) +
-            " " +
-            g.unit,
-        ),
-      );
+      if (!g || String((lineOf(g) || {}).line_no) !== String(selectedLine)) return;
+      var facts =
+        "Selected mark · revision " + g.version + " · " + g.status + " · " + quantityText(g);
       if (g.shape.kind === "pins" && selectedPoint >= 0)
-        selected.append(
-          node("p", "Selected point " + (selectedPoint + 1) + " of " + g.shape.points.length),
-        );
-      if (g.status === "proposed")
-        selected.append(
-          button(
-            "Accept proposal",
-            function () {
-              confirmBox(
-                "Accept this exact geometry revision and its computed quantity? Review the sheet coverage and any pass uncertainties first.",
-                function () {
-                  act("takeoff_geometry", {
-                    operation: "accept",
-                    geometry_id: g.geometry_id,
-                    expected_version: g.version,
-                    confirm: true,
-                  });
-                },
-              );
-            },
-            "primary",
-          ),
-        );
-      selected.append(
+        facts += " · pin " + (selectedPoint + 1) + " of " + g.shape.points.length;
+      selected.append(node("p", facts, "small"));
+      var actions = node("div", null, "tools");
+      actions.append(
         button("Measurement history", function () {
           act("takeoff_geometry", { operation: "history", geometry_id: g.geometry_id });
         }),
-      );
-      selected.append(
         button("Inspect selected pin or vertex", function () {
           act("takeoff_geometry", {
             operation: "crop",
@@ -2034,6 +2263,7 @@
           });
         }),
       );
+      selected.append(actions);
       if (sc.crop && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(sc.crop.png)) {
         var crop = node("img", null, "crop");
         crop.src = sc.crop.png;
@@ -2043,8 +2273,8 @@
       var reason = node("textarea");
       reason.placeholder = "Reason for rejecting or deleting";
       reason.ariaLabel = "Rejection reason";
-      selected.append(
-        reason,
+      var fix = node("div", null, "tools");
+      fix.append(
         button("Reject geometry", function () {
           act("takeoff_geometry", {
             operation: "reject",
@@ -2055,50 +2285,61 @@
         }),
       );
       if (g.shape.kind === "pins" && g.shape.points.length > 1)
-        selected.append(
+        fix.append(
           button("Delete selected pin", function () {
-            if (selectedPoint < 0) return notice("Tap the specific pin to remove it.");
-            if (!reason.value.trim()) return notice("Record why the pin is removed.");
-            var shape = JSON.parse(JSON.stringify(g.shape));
-            shape.points.splice(Math.max(0, selectedPoint), 1);
-            act("takeoff_geometry", {
-              operation: "save",
-              line_no: sc.engine.lines.find(function (l) {
-                return l.id === g.line_id;
-              }).line_no,
-              geometry_id: g.geometry_id,
-              expected_version: g.version,
-              shape: shape,
-              reason: reason.value,
-            });
+            removePin(g, selectedPoint, reason.value);
           }),
         );
+      selected.append(reason, fix);
     }
-    right.append(selected);
-    showSelected();
-    var filter = node("select");
-    filter.ariaLabel = "Measurement status filter";
-    ["all", "proposed", "accepted", "unlocated", "not_drawable", "holds_bid", "rejected"].forEach(
-      function (s) {
-        var o = node("option", s.replace("_", " "));
-        o.value = s;
-        filter.append(o);
-      },
-    );
-    var list = node("div", null, "list");
-    filter.value = sc.include_rejected ? "rejected" : statusFilter;
+    var filterChips = node("div", null, "chips"),
+      list = node("div", null, "list");
+    var FILTERS = [
+      ["all", "All"],
+      ["proposed", "To review"],
+      ["accepted", "Accepted"],
+      ["unlocated", "Not found"],
+      ["not_drawable", "Not drawable"],
+      ["rejected", "Rejected"],
+    ];
+    if (sc.include_rejected) statusFilter = "rejected";
+    if (
+      !FILTERS.some(function (f) {
+        return f[0] === statusFilter;
+      })
+    )
+      statusFilter = "all";
+    function lineSubtitle(l) {
+      if (l.status === "accepted") return "Accepted";
+      if (l.status === "proposed") return "Proposed · needs your review";
+      if (l.status === "unlocated") return "Not found on a drawing yet";
+      return l.status.replace("_", " ") + (l.reason ? " · " + l.reason : "");
+    }
     function showList() {
+      filterChips.replaceChildren();
+      FILTERS.forEach(function (f) {
+        var chip = button(f[1], function () {
+          var wasRejected = statusFilter === "rejected";
+          statusFilter = f[0];
+          if (wasRejected !== (statusFilter === "rejected")) {
+            selectedGeometry = null;
+            selectedPoint = -1;
+          }
+          showList();
+          overlay();
+        });
+        chip.classList.toggle("on", statusFilter === f[0]);
+        chip.setAttribute("aria-pressed", statusFilter === f[0] ? "true" : "false");
+        filterChips.append(chip);
+      });
       list.replaceChildren();
-      statusFilter = filter.value;
-      if (filter.value === "rejected") {
+      if (statusFilter === "rejected") {
         rows()
           .filter(function (g) {
             return g.status === "rejected";
           })
           .forEach(function (g) {
-            var l = sc.engine.lines.find(function (l) {
-                return l.id === g.line_id;
-              }),
+            var l = lineOf(g),
               r = node("div", null, "row note");
             r.append(
               node("strong", "L" + (l && l.line_no) + " · " + (l && l.item)),
@@ -2107,160 +2348,222 @@
             );
             list.append(r);
           });
-        overlay();
         return;
       }
-      if (filter.value === "holds_bid") {
-        (sc.engine.gaps || [])
+      var shown = sc.engine.summary.lines.filter(function (l) {
+        return statusFilter === "all" || l.status === statusFilter;
+      });
+      // A pin selected on the drawing always opens its line, even under a filter.
+      if (
+        selectedGeometry &&
+        selectedLine &&
+        !shown.some(function (l) {
+          return String(l.line_no) === String(selectedLine);
+        })
+      ) {
+        statusFilter = "all";
+        return showList();
+      }
+      shown.forEach(function (l) {
+        var open = String(l.line_no) === String(selectedLine),
+          r = node("div", null, "line" + (open ? " sel" : "")),
+          headRow = node("button", null, "linehead"),
+          dot = node("span", null, "dot"),
+          qty =
+            l.accepted != null
+              ? Number(l.accepted).toFixed(/^ea$/i.test(l.unit) ? 0 : 2) + " " + l.unit
+              : l.proposed != null
+                ? Number(l.proposed).toFixed(/^ea$/i.test(l.unit) ? 0 : 2) + " " + l.unit
+                : "—";
+        r.dataset.line = String(l.line_no);
+        headRow.type = "button";
+        headRow.setAttribute("aria-expanded", open ? "true" : "false");
+        dot.style.background = lineInk(l.line_no);
+        headRow.append(
+          dot,
+          node("strong", "L" + l.line_no + " · " + l.item),
+          node("span", qty, "qty"),
+          node("span", lineSubtitle(l), "sub"),
+        );
+        headRow.addEventListener("click", function () {
+          openLine(l.line_no);
+        });
+        r.append(headRow);
+        if (!open) {
+          list.append(r);
+          return;
+        }
+        var det = node("div", null, "detail");
+        r.append(det);
+        var sheetPins = linePins(l.line_id);
+        sc.engine.geometry
           .filter(function (g) {
-            return g.holds_bid;
+            return (
+              g.line_id === l.line_id && g.status !== "rejected" && g.shape.kind !== "not_drawable"
+            );
           })
           .forEach(function (g) {
-            var r = node("div", null, "row risk");
-            r.dataset.alert = "risk";
-            r.append(node("strong", g.ref + " · " + g.title), node("p", g.reasoning));
-            list.append(r);
-          });
-        return;
-      }
-      sc.engine.summary.lines
-        .filter(function (l) {
-          return filter.value === "all" || l.status === filter.value;
-        })
-        .forEach(function (l) {
-          var r = node("div", null, "row");
-          r.dataset.line = String(l.line_no);
-          r.append(
-            node("strong", "L" + l.line_no + " · " + l.item),
-            node(
-              "p",
-              "Accepted: " +
-                (l.accepted == null
-                  ? "Not established"
-                  : Number(l.accepted).toFixed(2) + " " + l.unit),
-              "accepted",
-            ),
-            node(
-              "p",
-              "Proposed: " +
-                (l.proposed == null ? "None" : Number(l.proposed).toFixed(2) + " " + l.unit),
-              "proposed",
-            ),
-            node("p", l.status.replace("_", " ") + (l.reason ? " · " + l.reason : ""), "small"),
-          );
-          var gbb = optionsBlock(l.line_no);
-          if (gbb) r.append(gbb);
-          sc.engine.geometry
-            .filter(function (g) {
-              return (
-                g.line_id === l.line_id &&
-                g.status !== "rejected" &&
-                g.shape.kind !== "not_drawable"
+            var actualSource = (sc.available_sources || []).find(function (source) {
+                return source.id === g.source_id;
+              }),
+              currentSource = (sc.available_sources || []).find(function (source) {
+                return source.id === sc.source.id;
+              }),
+              actualSheet = actualSource && actualSource.sheets[g.page - 1];
+            if (
+              g.page !== sc.source.page ||
+              (g.source_id !== sc.source.id &&
+                actualSource &&
+                currentSource &&
+                actualSource.source_key !== currentSource.source_key)
+            ) {
+              det.append(
+                button("Open " + (actualSheet || "measured sheet"), function () {
+                  act("takeoff_geometry", {
+                    operation: "list",
+                    source_id: g.source_id,
+                    sheet: actualSheet,
+                  });
+                }),
               );
-            })
-            .forEach(function (g) {
-              var actualSource = (sc.available_sources || []).find(function (source) {
-                  return source.id === g.source_id;
+              return;
+            }
+            if (g.source_id !== sc.source.id) {
+              det.append(
+                node(
+                  "p",
+                  "Located on another stored revision; this sheet has not inherited its quantity.",
+                  "note small",
+                ),
+                button("Check on this drawing revision", function () {
+                  confirmBox(
+                    "Check these locations on the selected replacement drawing? Scale and ink will be checked again; the result remains a proposal.",
+                    function () {
+                      act("takeoff_geometry", {
+                        operation: "revise",
+                        geometry_id: g.geometry_id,
+                        expected_version: g.version,
+                        calibration_id: cal.value || undefined,
+                        confirm: true,
+                      });
+                    },
+                  );
                 }),
-                currentSource = (sc.available_sources || []).find(function (source) {
-                  return source.id === sc.source.id;
-                }),
-                actualSheet = actualSource && actualSource.sheets[g.page - 1];
-              if (
-                g.page !== sc.source.page ||
-                (g.source_id !== sc.source.id &&
-                  actualSource &&
-                  currentSource &&
-                  actualSource.source_key !== currentSource.source_key)
-              ) {
-                r.append(
-                  button("Open " + (actualSheet || "measured sheet"), function () {
-                    act("takeoff_geometry", {
-                      operation: "list",
-                      source_id: g.source_id,
-                      sheet: actualSheet,
-                    });
-                  }),
-                );
-                return;
-              }
-              if (g.source_id !== sc.source.id) {
-                r.append(
-                  node(
-                    "p",
-                    "Located on another stored revision; this sheet has not inherited its quantity.",
-                    "note small",
-                  ),
-                  button("Check on this drawing revision", function () {
-                    confirmBox(
-                      "Check these locations on the selected replacement drawing? Scale and ink will be checked again; the result remains a proposal.",
-                      function () {
-                        act("takeoff_geometry", {
-                          operation: "revise",
-                          geometry_id: g.geometry_id,
-                          expected_version: g.version,
-                          calibration_id: cal.value || undefined,
-                          confirm: true,
-                        });
-                      },
-                    );
-                  }),
-                );
-                return;
-              }
-              if (g.evidence && typeof g.evidence.confidence === "number")
-                r.append(
-                  node(
-                    "p",
-                    "Reported AI confidence: " +
-                      Math.round(g.evidence.confidence * 100) +
-                      "% · interpretation, not accuracy." +
-                      (g.status === "proposed" ? " Verify item identity before accepting." : ""),
-                    "note small",
-                  ),
-                );
-              r.append(
-                button(
-                  "Review " +
-                    g.shape.kind +
-                    " · " +
-                    Number(g.measured).toFixed(2) +
-                    " " +
-                    g.unit +
-                    " · " +
-                    g.geometry_id.slice(-4) +
-                    " · v" +
-                    g.version,
-                  function () {
-                    selectedLine = String(l.line_no);
-                    lineSelect.value = selectedLine;
-                    selectedGeometry = g.geometry_id;
-                    selectedPoint = -1;
-                    draft = [];
-                    mode = "inspect";
-                    showSelected();
-                    overlay();
-                    showReadStatus();
-                  },
+              );
+              return;
+            }
+            var mark = node("div", null, "mark");
+            mark.append(
+              node(
+                "p",
+                (g.shape.kind === "pins"
+                  ? g.shape.points.length + " pins"
+                  : { polyline: "Run", polygon: "Area", rect: "Rectangle" }[g.shape.kind] ||
+                    g.shape.kind) +
+                  " · " +
+                  quantityText(g) +
+                  " · " +
+                  g.status +
+                  " · revision " +
+                  g.version,
+                "small",
+              ),
+            );
+            if (g.evidence && typeof g.evidence.confidence === "number")
+              mark.append(
+                node(
+                  "p",
+                  "Reported AI confidence: " +
+                    Math.round(g.evidence.confidence * 100) +
+                    "% · interpretation, not accuracy." +
+                    (g.status === "proposed" ? " Verify item identity before accepting." : ""),
+                  "note small",
                 ),
               );
-            });
-          r.append(
-            button("Line history", function () {
-              act("takeoff_geometry", { operation: "history", line_no: l.line_no });
+            var acts = node("div", null, "tools");
+            if (g.status === "proposed")
+              acts.append(
+                button(
+                  "Accept " + quantityText(g),
+                  function () {
+                    acceptGeometry(g);
+                  },
+                  "primary",
+                ),
+              );
+            if (selectedGeometry !== g.geometry_id)
+              acts.append(
+                button("Show on drawing", function () {
+                  chooseGeometry(g.geometry_id, 0);
+                  overlay();
+                  if (g.shape.points[0]) centerOn(g.shape.points[0]);
+                }),
+              );
+            mark.append(acts);
+            det.append(mark);
+          });
+        if (sheetPins.length > 1) {
+          var walk = node("div", null, "tools");
+          walk.append(
+            button("Previous pin", function () {
+              stepPin(-1, l.line_id);
+            }),
+            button("Next pin", function () {
+              stepPin(1, l.line_id);
             }),
           );
-          list.append(r);
-        });
+          det.append(walk);
+        }
+        if (l.status === "proposed")
+          det.append(
+            node(
+              "p",
+              "The ink check confirms each mark touches drawing linework. It does not confirm the item, or that every one was found.",
+              "note small",
+            ),
+          );
+        var gbb = optionsBlock(l.line_no);
+        if (gbb) det.append(gbb);
+        det.append(readPanel);
+        showReadStatus();
+        det.append(
+          button("Line history", function () {
+            act("takeoff_geometry", { operation: "history", line_no: l.line_no });
+          }),
+          selected,
+        );
+        showSelected();
+        list.append(r);
+      });
+      size();
     }
-    filter.addEventListener("change", function () {
-      showList();
-      overlay();
+    var proposals = rows().filter(function (g) {
+      return reviewableProposal(sc, g);
     });
-    right.append(node("h2", "Measurement review"), filter, list);
-    showList();
-    var readPanel = node("div");
-    right.append(readPanel);
+    panes.lines.append(filterChips, list);
+    if (proposals.length)
+      panes.lines.append(
+        button("Accept " + Math.min(200, proposals.length) + " checked proposals", function () {
+          var frozen = proposals.slice(0, 200).map(function (g) {
+            return { id: g.geometry_id, version: g.version };
+          });
+          confirmBox(
+            "Accept these " +
+              frozen.length +
+              " displayed proposals? Their locations passed ink and geometry checks. Reported confidence may be low; review it with item identity, scope and uncertainties. This accepts the listed revisions only.",
+            async function () {
+              await act("takeoff_geometry", {
+                operation: "accept_all",
+                decisions: frozen.map(function (g) {
+                  return { geometry_id: g.id, expected_version: g.version };
+                }),
+                confirm: true,
+              });
+            },
+          );
+        }),
+      );
+    var readPanel = node("div", null, "readpanel");
     function showReadStatus() {
       if (!readPanel) return;
       readPanel.replaceChildren();
@@ -2329,7 +2632,7 @@
       }
       size();
     }
-    showReadStatus();
+    showList();
     async function runRead(smaller) {
       if (sc.scale_lock && !sc.scale_lock.locked)
         return notice(
@@ -2379,12 +2682,6 @@
         );
       }
     }
-    right.append(button("Ask your AI to read selected line", runRead));
-    right.append(
-      button("Ask your AI to read smaller regions", function () {
-        runRead(true);
-      }),
-    );
     // A sheet read: every open line on each tile, one observation set back per tile.
     async function runSheetRead() {
       if (sc.scale_lock && !sc.scale_lock.locked)
@@ -2420,49 +2717,27 @@
         );
       }
     }
-    right.append(button("Ask your AI to read the whole sheet", runSheetRead));
-    if (sc.sheet_read)
-      right.append(
-        node(
-          "p",
-          "Sheet read: tile " +
-            (sc.sheet_read.cursor + 1) +
-            " of " +
-            sc.sheet_read.tiles_total +
-            " · " +
-            (sc.sheet_read.lines || []).length +
-            " lines on this tile" +
-            ((sc.sheet_read.skipped || []).length
-              ? " · " + sc.sheet_read.skipped.length + " lines not ready"
-              : ""),
-          "note",
-        ),
-      );
-    var proposals = rows().filter(function (g) {
-      return reviewableProposal(sc, g);
+    // Checks: what holds the bid, the read guidance, and the other review notes.
+    var holding = (sc.engine.gaps || []).filter(function (g) {
+      return g.holds_bid;
     });
-    if (proposals.length)
-      right.append(
-        button("Accept " + Math.min(200, proposals.length) + " checked proposals", function () {
-          var frozen = proposals.slice(0, 200).map(function (g) {
-            return { id: g.geometry_id, version: g.version };
-          });
-          confirmBox(
-            "Accept these " +
-              frozen.length +
-              " displayed proposals? Their locations passed ink and geometry checks. Reported confidence may be low; review it with item identity, scope and uncertainties. This accepts the listed revisions only.",
-            async function () {
-              await act("takeoff_geometry", {
-                operation: "accept_all",
-                decisions: frozen.map(function (g) {
-                  return { geometry_id: g.id, expected_version: g.version };
-                }),
-                confirm: true,
-              });
-            },
-          );
-        }),
-      );
+    if (holding.length) {
+      var holdBox = node("section");
+      holdBox.append(node("h2", "Holds the bid"));
+      holding.forEach(function (g) {
+        var r = node("div", null, "row risk");
+        r.dataset.alert = "risk";
+        r.append(node("strong", g.ref + " · " + g.title), node("p", g.reasoning));
+        holdBox.append(r);
+      });
+      panes.checks.append(holdBox);
+    }
+    extraSections(panes.checks);
+    if (!panes.checks.childNodes.length)
+      panes.checks.append(node("p", "No open checks on this sheet.", "note"));
+    // Setup: scale and count area first, then work with no drawing, then Advanced.
+    panes.setup.append(setupBox);
+    var nonDrawable = node("section", null, "panel");
     (sc.engine.geometry || [])
       .filter(function (g) {
         return (
@@ -2476,7 +2751,7 @@
         var revoke = node("input");
         revoke.placeholder = "Reason to withdraw this non-drawable basis";
         revoke.ariaLabel = "Withdraw basis reason";
-        right.append(
+        nonDrawable.append(
           revoke,
           button("Withdraw non-drawable basis", function () {
             if (revoke.value.trim().length < 3)
@@ -2511,8 +2786,15 @@
     var why = node("textarea");
     why.placeholder = "Estimator reason and source for non-drawable work";
     why.ariaLabel = "Non-drawable reason";
-    right.append(
+    nonDrawable.prepend(
       node("h2", "Non-drawable work"),
+      node(
+        "p",
+        "For the selected line, when its quantity comes from a schedule, specification or allowance instead of the drawing.",
+        "note small",
+      ),
+    );
+    nonDrawable.append(
       exception,
       exceptionQty,
       why,
@@ -2542,48 +2824,212 @@
         );
       }),
     );
-    right.append(
-      button("Save dated measured PDF", function () {
-        act("takeoff_geometry", { operation: "export" });
-      }),
-    );
-    if (sc.export && sc.export.url) {
-      right.append(
-        button("Open dated measured PDF", function () {
-          var u;
-          try {
-            u = new URL(sc.export.url);
-          } catch (_) {
-            return;
-          }
-          if (
-            u.protocol !== "https:" ||
-            u.pathname.indexOf(
-              "/storage/v1/object/sign/athena-files/" + sc.context.company_id + "/",
-            ) !== 0
-          )
-            return notice("Use the private download link in the conversation.");
-          send({ id: ++seq, method: "ui/open-link", params: { url: u.href } });
-        }),
-      );
+    panes.setup.append(nonDrawable, advanced);
+    setTab(panelTab);
+    // The four steps, worked out from the saved takeoff for this sheet.
+    function stepStates() {
+      var lines = sc.engine.summary.lines || [],
+        unlocated = lines.filter(function (l) {
+          return l.status === "unlocated";
+        }).length,
+        toReview = lines.filter(function (l) {
+          return l.status === "proposed";
+        }).length,
+        accepted = lines.filter(function (l) {
+          return l.status === "accepted";
+        }).length,
+        locked = !(sc.scale_lock && !sc.scale_lock.locked),
+        exported = (sc.engine.exports || []).some(function (e) {
+          return e.source_id === sc.source.id && e.page === sc.source.page;
+        });
+      return [
+        {
+          key: "scale",
+          title: "Scale",
+          done: locked,
+          text: !locked
+            ? "Not locked yet"
+            : lockedCal
+              ? "Locked for " + lockedCal.region
+              : "Counts need no scale",
+        },
+        {
+          key: "read",
+          title: "Read",
+          done: lines.length > 0 && unlocated === 0,
+          text:
+            lines.length -
+            unlocated +
+            " of " +
+            lines.length +
+            " lines found" +
+            (unlocated ? " · " + unlocated + " not found yet" : ""),
+        },
+        {
+          key: "review",
+          title: "Review",
+          done: toReview === 0 && accepted > 0,
+          text: accepted + " of " + lines.length + " lines accepted",
+        },
+        {
+          key: "finish",
+          title: "Finish",
+          done: exported,
+          text: exported ? "Dated PDF saved" : "Save a dated PDF of this sheet",
+        },
+      ];
     }
-    (sc.engine.exports || [])
-      .filter(function (e) {
-        return e.source_id === sc.source.id && e.page === sc.source.page;
-      })
-      .slice(0, 20)
-      .forEach(function (e) {
-        right.append(
-          button("Dated PDF · " + e.created_at, function () {
-            act("takeoff_geometry", { operation: "download", markup_id: e.id });
+    function showSteps() {
+      var states = stepStates(),
+        firstOpen = states.findIndex(function (s) {
+          return !s.done;
+        }),
+        current = states.findIndex(function (s) {
+          return s.key === guideStep;
+        });
+      if (current < 0) current = firstOpen < 0 ? states.length - 1 : firstOpen;
+      steps.replaceChildren();
+      states.forEach(function (s, i) {
+        var b = node(
+          "button",
+          null,
+          "step" + (s.done ? " done" : "") + (i === current ? " on" : ""),
+        );
+        b.type = "button";
+        b.setAttribute("aria-current", i === current ? "step" : "false");
+        b.append(
+          node("span", i + 1 + " · " + (s.done ? "done" : i === firstOpen ? "next" : ""), "n"),
+          node("strong", s.title),
+          node("span", s.text),
+        );
+        b.addEventListener("click", function () {
+          guideStep = s.key;
+          showSteps();
+        });
+        steps.append(b);
+      });
+      showGuide(states[current]);
+    }
+    function showGuide(step) {
+      guide.replaceChildren();
+      var say = node("p"),
+        acts = node("div", null, "tools");
+      guide.append(say, acts);
+      if (step.key === "scale") {
+        if (!step.done) {
+          say.textContent =
+            "Lock the scale before measuring runs or areas: use a known dimension, or the scale printed on the sheet.";
+          acts.append(
+            button(
+              "Set the scale",
+              function () {
+                setTab("setup");
+                scaleBox.scrollIntoView({ block: "nearest" });
+              },
+              "primary",
+            ),
+          );
+        } else {
+          say.textContent =
+            step.text + ". Check a known dimension any time to confirm the scale is right.";
+          acts.append(button("Check a known dimension", startCalibration, "primary"));
+        }
+      } else if (step.key === "read") {
+        say.textContent =
+          "Your AI reads this sheet in the chat and sends back proposed pins. You stay here, and nothing counts until you accept it.";
+        acts.append(
+          button("Ask your AI to read the whole sheet", runSheetRead, "primary"),
+          button("Ask your AI to read selected line", runRead),
+          button("Ask your AI to read smaller regions", function () {
+            runRead(true);
           }),
         );
-      });
-    extraSections(right);
-    main.append(
+        if (sc.sheet_read)
+          guide.append(
+            node(
+              "p",
+              "Sheet read: tile " +
+                (sc.sheet_read.cursor + 1) +
+                " of " +
+                sc.sheet_read.tiles_total +
+                " · " +
+                (sc.sheet_read.lines || []).length +
+                " lines on this tile" +
+                ((sc.sheet_read.skipped || []).length
+                  ? " · " + sc.sheet_read.skipped.length + " lines not ready"
+                  : ""),
+              "note small",
+            ),
+          );
+      } else if (step.key === "review") {
+        var next = (sc.engine.summary.lines || []).find(function (l) {
+          return l.status === "proposed";
+        });
+        say.textContent = next
+          ? "Look over each line's pins. Click a pin to see what it is, fix anything off, then accept the line."
+          : "Every proposed line on this sheet has been reviewed.";
+        if (next)
+          acts.append(
+            button(
+              "Start with L" + next.line_no,
+              function () {
+                setTab("lines");
+                openLine(next.line_no);
+              },
+              "primary",
+            ),
+          );
+      } else {
+        say.textContent =
+          "Save a dated PDF of this sheet with your marks. The original drawing is never changed.";
+        acts.append(
+          button(
+            "Save dated measured PDF",
+            function () {
+              act("takeoff_geometry", { operation: "export" });
+            },
+            "primary",
+          ),
+        );
+        if (sc.export && sc.export.url)
+          acts.append(
+            button("Open dated measured PDF", function () {
+              var u;
+              try {
+                u = new URL(sc.export.url);
+              } catch (_) {
+                return;
+              }
+              if (
+                u.protocol !== "https:" ||
+                u.pathname.indexOf(
+                  "/storage/v1/object/sign/athena-files/" + sc.context.company_id + "/",
+                ) !== 0
+              )
+                return notice("Use the private download link in the conversation.");
+              send({ id: ++seq, method: "ui/open-link", params: { url: u.href } });
+            }),
+          );
+        (sc.engine.exports || [])
+          .filter(function (e) {
+            return e.source_id === sc.source.id && e.page === sc.source.page;
+          })
+          .slice(0, 20)
+          .forEach(function (e) {
+            acts.append(
+              button("Dated PDF · " + e.created_at, function () {
+                act("takeoff_geometry", { operation: "download", markup_id: e.id });
+              }),
+            );
+          });
+      }
+      size();
+    }
+    showSteps();
+    left.append(
       node(
         "p",
-        "Solid ring: accepted. Dashed ring: proposed. Labels identify the line and point. Counts and dimensions come from geometry; no typed quantity changes a measured result.",
+        "Each line has its own color. Solid ring: accepted. Dashed ring: proposed. Labels name the line and count. Counts and dimensions come from geometry; no typed quantity changes a measured result.",
         "note small",
       ),
     );
