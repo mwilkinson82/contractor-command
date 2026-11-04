@@ -4,6 +4,9 @@ import { ALERT_HEX } from "./mcp/alert-color";
 import { asReportNumber, formatBillingText, formatMoneyPhrase, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey, isPlainKey, money } from "./report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "./ior-hold-summary";
 import { cedarOutcome } from "./ior-outcome";
+import { IOR_MODEL_KEY, readIorModel } from "./ior-model";
+import { renderAthenaIor } from "./ior-athena-view";
+import { DEFAULT_TZ, todayIn } from "./mcp/deadlines";
 
 export type ReportNames = {
   job_id?: string | null;
@@ -237,13 +240,20 @@ function isFigure(key: string, value: unknown): boolean {
 }
 
 export function renderIorLayout(input: {
-  report: { scope?: string; version?: number; contract_total?: number | null; forecast_total?: number | null; data?: Record<string, unknown> };
+  report: { scope?: string; version?: number; data_date?: string | null; contract_total?: number | null; forecast_total?: number | null; data?: Record<string, unknown> };
   names?: ReportNames | null;
   jobId?: string | null;
+  /** The job's calendar day, YYYY-MM-DD. Defaults to today in the default job zone. */
+  today?: string | null;
 }): string {
   const report = input.report;
   const data = report.data ?? {};
   const moneyOk = report.scope === "full";
+  // A structured IOR (data.ior_model) gets Athena's own IOR view. Saved IORs without one keep the layout below.
+  if (moneyOk) {
+    const { model } = readIorModel(data);
+    if (model) return renderAthenaIor(model, { today: input.today?.slice(0, 10) || todayIn(DEFAULT_TZ), version: report.version, dataDate: report.data_date });
+  }
   const names = input.names;
   const outcome = moneyOk ? cedarOutcome(input.jobId, report) : null;
   const holds = moneyOk && !outcome ? iorHoldSummary(data) : null;
@@ -282,7 +292,7 @@ export function renderIorLayout(input: {
   const sections: string[] = [];
   const lists: string[] = [];
   for (const [key, value] of Object.entries(data)) {
-    if (isHidden(key) || summarized(key) || key === "kpis" || key === "risks" || key === "activities" || key === "tia" || key === holds?.detailKey || (key === "holds" && outcome?.eHolds != null && outcome.cHolds != null)) continue;
+    if (isHidden(key) || summarized(key) || key === "kpis" || key === "risks" || key === "activities" || key === "tia" || key === IOR_MODEL_KEY || key === holds?.detailKey || (key === "holds" && outcome?.eHolds != null && outcome.cHolds != null)) continue;
     if (key === "billing" && value != null && typeof value === "object") continue;
     if (key === "title" && typeof value === "string") {
       title = plainReportText(value, names);

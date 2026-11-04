@@ -8,6 +8,7 @@ import { addCountedDays, addDays, federalHolidays, todayIn } from "./deadlines";
 import { asReportNumber, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey } from "../report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "../ior-hold-summary";
 import { cedarOutcome } from "../ior-outcome";
+import { readIorModel } from "../ior-model";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -418,6 +419,7 @@ export function checkSave(
         `Owner-furnished work is $0.00 in ALP billing: ${of.map((a) => `${a.id} ${a.name} (${money(a.value ?? 0)})`).join("; ")}. Move that value to ALP's own activities.`,
       );
   }
+  if (type === "ior") problems.push(...readIorModel(next).problems);
   return { ok: problems.length === 0, problems, tie, count, forecast_total: ft };
 }
 
