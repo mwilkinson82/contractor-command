@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { tokenHash } from "../mcp/file-share";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 import { customerProposal } from "../selections/proposal";
-import type { PortalEmail } from "./email";
+import {
+  ATHENA_BLUE,
+  ATHENA_EMAIL_LOGO_URL,
+  ATHENA_NAVY,
+} from "../email-templates/athena-auth-email";
+import { codeEmail, inviteEmail, type PortalEmail } from "./email";
 import {
   codeHash,
   csrfFor,
@@ -159,7 +164,9 @@ describe("same-origin posts", () => {
     expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "cross-site" }))).toBe(false);
     expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "none" }))).toBe(false);
     expect(sameOrigin(at({ origin: ORIGIN }))).toBe(true);
-    expect(sameOrigin(at({ origin: "https://evil.example", "sec-fetch-site": "same-origin" }))).toBe(false);
+    expect(
+      sameOrigin(at({ origin: "https://evil.example", "sec-fetch-site": "same-origin" })),
+    ).toBe(false);
   });
 
   it("sends a same-origin referrer policy so the browser keeps the real origin on its own forms", async () => {
@@ -182,7 +189,12 @@ describe("invite link", () => {
     expect(html).toContain("r***@example.com");
     expect(html).not.toContain("rosa@example.com");
     expect(html).not.toMatch(/<script/i);
-    expect(html).not.toMatch(BLUE);
+    // Sign-in wears Athena's own sign-in card: pale blue ground, blue rule and button, the mark beside the contractor.
+    expect(html).toContain('class="as-card"');
+    expect(html).toContain("#DBEAFE");
+    expect(html).toContain("Powered by Athena");
+    expect(html).toMatch(/class="as-co"><b>[^<]+<\/b>/);
+    expect(html).toContain("Source+Serif+4");
   });
 
   it("emails a code whose hash is what the database stores, then signs in with a cookie scoped to the page", async () => {
@@ -476,5 +488,54 @@ describe("codes", () => {
     const seq = [4_294_967_295, 4_294_000_000, 7];
     expect(sixDigits(() => seq.shift()!)).toBe("000007");
     expect(sixDigits(() => 999_999)).toBe("999999");
+  });
+});
+
+describe("customer emails", () => {
+  const invite = inviteEmail({
+    to: "rosa@example.com",
+    name: "Rosa Diaz",
+    company: "ALP Construction",
+    jobName: "Harbor Residence",
+    pmName: "Sam Lee",
+    link: "https://app.meetathena.io/c/i/x",
+    expires: "Nov 18",
+    nonce: "n",
+  });
+  const code = codeEmail({
+    to: "rosa@example.com",
+    name: "Rosa Diaz",
+    company: "ALP Construction",
+    jobName: "Harbor Residence",
+    code: "123456",
+    purpose: "sign_in",
+    nonce: "n",
+  });
+  it("match Athena's sign-in emails: the mark, blue tagline, navy heading, blue button, boxed code", () => {
+    for (const m of [invite, code]) {
+      expect(m.html).toContain(ATHENA_EMAIL_LOGO_URL);
+      expect(m.html).toContain(ATHENA_BLUE);
+      expect(m.html).toContain(ATHENA_NAVY);
+      expect(m.html).toContain(">ALP Construction</p>");
+      expect(m.html).toContain("Powered by Athena · app.meetathena.io");
+    }
+    expect(invite.html).toContain(">Your project page is ready</h1>");
+    expect(invite.html).toContain('href="https://app.meetathena.io/c/i/x"');
+    expect(code.html).toContain(">Your sign-in code</h1>");
+    expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
+  });
+  it("escape what the contractor and customer typed", () => {
+    const m = inviteEmail({
+      to: "a@b.co",
+      name: "<b>x</b>",
+      company: "A & B <Build>",
+      jobName: "J",
+      pmName: null,
+      link: "https://app.meetathena.io/c/i/x",
+      expires: "Nov 18",
+      nonce: "n",
+    });
+    expect(m.html).toContain("A &amp; B &lt;Build&gt;");
+    expect(m.html).not.toContain("<b>x</b>");
   });
 });
