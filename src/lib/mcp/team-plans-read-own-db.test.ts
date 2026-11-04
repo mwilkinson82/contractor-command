@@ -19,7 +19,7 @@ const as = (user: string, sql: string, args: unknown[] = []) =>
   asUser(
     db,
     { sub: user, email: `${user.slice(-2)}@example.com`, role: "authenticated" },
-    async (tx) => (await tx.query<any>(sql, args)).rows,
+    async (tx): Promise<any[]> => (await tx.query(sql, args)).rows,
   );
 const anon = (sql: string) =>
   db.transaction(async (tx) => {
