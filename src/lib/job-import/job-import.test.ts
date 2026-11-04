@@ -109,6 +109,14 @@ describe("Overwatch export", () => {
     x.billing_line_items[0].scheduled_value_cents = 4_900_000;
     expect(fromOverwatch(x).problems[0]).toMatch(/General conditions/);
   });
+
+  it("treats a zero bucket budget as no budget, not a $0 budget", () => {
+    const x = sample();
+    for (const b of x.cost_buckets) b.original_budget = 0;
+    const zeroed = fromOverwatch(x);
+    expect(zeroed.sov.every((l) => l.budget_cents === null)).toBe(true);
+    expect(planImport(zeroed, { job_exists: false }).counts.budget_lines).toBe(0);
+  });
 });
 
 describe("spreadsheet export", () => {
