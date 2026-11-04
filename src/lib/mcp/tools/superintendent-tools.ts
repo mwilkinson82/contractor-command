@@ -7,12 +7,16 @@ import { DEFAULT_TZ, todayIn } from "../deadlines";
 import { productionPeriod, productionRef } from "../production-summary";
 import { productionClient, productionReportUrl, readSavedProduction } from "../../production-report";
 import { previewDailyReminderCard, type ReminderStatus } from "../field-reminder";
-import { FileRejected, decodeBase64 } from "../file-share";
 import { fetchAllowedFile } from "../file-upload";
 import { drawingFile } from "../drawing-file-input";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, audit, jobTimeZone, named, prefix, resolveJob, type Job } from "../jobs";
 import { photoLogPdf } from "../photo-pdf";
+import { dailyRangePdf, type PdfPhoto, type PdfPhotoSkip } from "../../daily-range-pdf";
+import { DAILY_RANGE_MAX_DAYS, PHOTO_MODES, dailyRangeClient, dailyRangePdfName, dailyRangeUrl, readDailyRange } from "../../daily-range-report";
+import { FILE_MAX_BYTES, FileRejected, decodeBase64, fmtDate, kindAllowed, validateFile } from "../file-share";
+import { LOOKAHEAD_PDF_EMAIL_RULE } from "../email-safety";
+import { storeFile } from "./file-tools";
 import { signedJobPages } from "../board-url";
 import type { BoardPage } from "../board-link";
 import { isUuid } from "../../report-pages";
@@ -443,6 +447,84 @@ export const fieldProductionSummary = defineTool({
       const totals = groups.map((g) => `- ${productionRef(g.sov_item, g.activity_id)}${g.sov_item || g.activity_id ? "" : ` (${g.work})`}: ${shown(g.quantity)} ${g.unit} / ${shown(g.reported_person_hours)} reported person-hours = ${shown(g.actual_rate)} ${g.unit} per person-hour.`);
       const notes = [complete ? "Coverage: saved rate rows for all daily reports in the selected period, read at request time." : "Coverage is incomplete: at least one daily has more than 80 rate rows; totals cover only the rows shown.", "References are reported, not approved mappings. Person-hours are summed work-line hours and can overlap. Corrections replace earlier saved rows; prior revisions are not available. Planned rates and earned value are unknown."];
       return guide({ ...text([`${prefix(job)}Production from ${period.from} through ${period.to} (${timeZone})`, ...notes, `Production report (sign in with project access): ${reportUrl}`, ...body, ...(totals.length ? ["Reported work-line totals:", ...totals] : [])].join("\n")), structuredContent: { period, time_zone_used: timeZone, complete, reports_count, rows, groups, report_url: reportUrl, planned_rate: null, earned_value: null, source: "current_saved_dailies", references: "reported_unverified" } }, "Show the period and coverage, keep unlike units separate, and explain reported person-hours may overlap. Do not infer prior revisions, planned rates, earned value, invoices or payments.");
+    }),
+});
+
+/** What the server can embed without a canvas: JPEG and PNG as stored, inside one shared byte budget. */
+const PDF_PHOTO_BUDGET = FILE_MAX_BYTES - 1_500_000;
+async function serverPdfPhotos(sb: Sb, photos: { id: string; storage_path: string; mime_type: string; size_bytes: number | null }[]) {
+  const out = new Map<string, PdfPhoto | PdfPhotoSkip>();
+  let used = 0;
+  let skipped = 0;
+  for (const p of photos) {
+    const format = p.mime_type === "image/jpeg" ? "JPEG" : p.mime_type === "image/png" ? "PNG" : null;
+    if (!format) { out.set(p.id, { reason: "Photo on file in Athena in a format this PDF can't draw. Open the report page to include it." }); skipped++; continue; }
+    // PNG is recompressed inside the PDF, so it counts a little heavier than its file.
+    const cost = Math.ceil((p.size_bytes ?? 0) * (format === "PNG" ? 1.3 : 1));
+    if (!p.size_bytes || used + cost > PDF_PHOTO_BUDGET) { out.set(p.id, { reason: "Photo on file in Athena. Left out to keep this PDF under 10 MB. The report page's Download PDF includes every photo." }); skipped++; continue; }
+    const file = await sb.storage.from(PHOTO_BUCKET).download(p.storage_path);
+    if (file.error || !file.data) { out.set(p.id, { reason: "Photo on file in Athena. It could not be read for this PDF." }); skipped++; continue; }
+    out.set(p.id, { data: new Uint8Array(await file.data.arrayBuffer()), format });
+    used += cost;
+  }
+  return { photos: out, skipped };
+}
+
+export const dailyReportExport = defineTool({
+  name: "daily_report_export",
+  title: "Daily reports for a date range (PDF)",
+  description: `Builds every saved daily report from date_from through date_to (up to ${DAILY_RANGE_MAX_DAYS} days) into one PDF with work lines and that day's progress photos, for pay apps, T&M change orders and disputes, and returns a download link plus the printable page.`,
+  inputSchema: {
+    job_number: jobNumber.optional(),
+    company_id: companyId,
+    date_from: date,
+    date_to: date,
+    photos: z.enum(PHOTO_MODES).optional(),
+    expires_in_days: z.number().int().min(1).max(90).optional(),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  handler: (args, ctx) =>
+    run("daily_report_export", ctx, { jobNumber: args.job_number }, async (sb) => {
+      const job = await fieldJob(sb, "daily_report_export", args);
+      if (!isJob(job)) return job;
+      const mode = args.photos ?? "all";
+      let report: Awaited<ReturnType<typeof readDailyRange>>;
+      try { report = await readDailyRange(dailyRangeClient(sb), job.job_id, { from: args.date_from, to: args.date_to, photos: mode }); }
+      catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (/^(Choose|Use valid|This range)/.test(message)) throw new ToolError(`${message} Nothing was made.`);
+        throw error;
+      }
+      const page = dailyRangeUrl(job.job_id, report.period, mode);
+      const span = `${report.period.from} to ${report.period.to}`;
+      const counts = `${report.dailies_count} saved ${report.dailies_count === 1 ? "daily" : "dailies"}, ${report.no_daily_dates.length} ${report.no_daily_dates.length === 1 ? "day" : "days"} with no daily${mode === "none" ? "" : `, ${report.photos_count} ${report.photos_count === 1 ? "photo" : "photos"}`}`;
+      if (!kindAllowed("report", job.scope)) {
+        await audit(sb, job, "daily_report_export", "view_daily_range", null);
+        return guide(
+          { ...text([`${prefix(job)}Daily reports ${span}: ${counts}.`, `Printable report with Download PDF (sign in with project access): ${page}`].join("\n")), structuredContent: { pdf: false, page_url: page, period: report.period, dailies_count: report.dailies_count, photos_count: report.photos_count, no_daily_dates: report.no_daily_dates } },
+          "Superintendent access can open the page to print or download it. A shareable file link needs full job access.",
+        );
+      }
+      const embed = await serverPdfPhotos(sb, report.days.flatMap((d) => d.photos));
+      const bytes = dailyRangePdf(report, embed.photos);
+      let f: ReturnType<typeof validateFile>;
+      try { f = validateFile(bytes, dailyRangePdfName(job.job_number, report.period.from, report.period.to)); }
+      catch (e) { if (e instanceof FileRejected) throw new ToolError(`${e.message} Use the report page's Download PDF instead: ${page}`); throw e; }
+      const { id, link, exp } = await storeFile(sb, job, "report", f, bytes, args.expires_in_days);
+      await audit(sb, job, "daily_report_export", "share_daily_range_pdf", id);
+      return guide(
+        {
+          ...text([
+            `${prefix(job)}Daily reports PDF ready: ${f.name} (${Math.max(1, Math.round(f.size / 1024))} KB). ${counts}.`,
+            ...(embed.skipped ? [`${embed.skipped} ${embed.skipped === 1 ? "photo is" : "photos are"} listed with their details but not drawn in this file. The report page's Download PDF includes every photo.`] : []),
+            `Download: ${link}`,
+            `The link works until ${fmtDate(exp)}. Anyone with it can download the file.`,
+            `Printable report (sign in with project access): ${page}`,
+          ].join("\n")),
+          structuredContent: { pdf: true, download_url: link, filename: f.name, mime_type: f.mime, size_bytes: f.size, page_url: page, period: report.period, photos: mode, dailies_count: report.dailies_count, photos_count: report.photos_count, photos_not_drawn: embed.skipped, no_daily_dates: report.no_daily_dates, expires_at: exp.toISOString(), attached: false },
+        },
+        `Give the member the download link and the page. Days with no saved daily are listed in the PDF; never fill them in. ${LOOKAHEAD_PDF_EMAIL_RULE(link, f.name)}`,
+      );
     }),
 });
 

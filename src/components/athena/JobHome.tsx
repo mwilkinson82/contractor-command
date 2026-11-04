@@ -186,7 +186,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       <ProjectReadUnavailable />
     );
   const href = (page: string) =>
-    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
+    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production", "daily-log"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
@@ -262,6 +262,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             : "Currently unavailable",
       ),
       page: "daily",
+    },
+    {
+      title: "Daily report export",
+      detail: "Dailies and photos for a date range, to print or save as PDF",
+      page: "daily-log",
     },
     {
       title: "Production",
