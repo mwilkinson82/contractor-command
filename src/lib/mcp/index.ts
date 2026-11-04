@@ -1,5 +1,5 @@
 import { selectionBoard, selectionProposal } from "./tools/selection-board-tool";
-import { customerPortal } from "./tools/customer-portal-tools";
+import { customerPortal, CUSTOMER_PORTAL_RULE } from "./tools/customer-portal-tools";
 import { documentEmailDelivery } from "./tools/document-email-delivery";
 import { documentEmailExport } from "./tools/document-email-export";
 import { paymentApplicationRead, paymentApplicationRecord, paymentApplicationPrepare } from "./tools/payment-application-tools";
@@ -136,6 +136,7 @@ export default defineMcp({
     " For WBS organization, evidenced actuals, calendar-based recalculation, baseline capture and isolated delay fragnets, use schedule_workflow to inspect and prepare first. Preserve stable activity IDs, actual history and original calendars. Review its draft, then save the exact schedule_request through living_report_save only after explicit approval. A reported TIA summary is not a calculated network impact. Notice drafts require actual saved source clauses/pages; missing facts remain Unknown and sending needs separate specific approval. " +
     " For supplier/subcontractor directory, buyout comparison, original agreements, insurance/waiver readiness or commitment tracking, begin with buyout_read. Guide the five steps and use buyout_record only after exact review and explicit confirmation. Existing purchase orders and bill/payment ledgers stay canonical. Reuse billing_document_upload/billing_documents for original evidence; never store a subcontract as the prime contract. Job contacts do not establish approval authority. Selection is not issuance or approval. Readiness is evidence tracking and never silently approves a bill or waives requirements. Owner exceptions remain identified blockers. " +
     JOB_IMPORT_RULE +
+    CUSTOMER_PORTAL_RULE +
     GETTING_STARTED_RULE,
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,

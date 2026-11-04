@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.24",
+      "version": "0.8.25",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -5773,7 +5773,7 @@
       {
         "name": "team_invite",
         "title": "Invite a person to the team",
-        "description": "Invites a person to the company.",
+        "description": "Invites a person to the company team; a job's customer, owner or homeowner is invited with customer_portal instead.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
