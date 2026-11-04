@@ -9866,6 +9866,16 @@ export type Database = {
       }
       mcp_request_rows: { Args: { _job: string; _kind: string }; Returns: Json }
       mcp_residential_selections_get: { Args: { _job: string }; Returns: Json }
+      mcp_residential_selections_record_choice: {
+        Args: {
+          _evidence: string
+          _expected_version: number
+          _job: string
+          _recorded_on: string
+          _tier: string
+        }
+        Returns: Json
+      }
       mcp_residential_selections_save: {
         Args: { _board: Json; _expected_version: number; _job: string }
         Returns: Json
@@ -9913,6 +9923,23 @@ export type Database = {
           _tool: string
           _tool_hourly: number
         }
+        Returns: Json
+      }
+      mcp_selection_proposal_share_create: {
+        Args: {
+          _expected_version: number
+          _expires_at: string
+          _job: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_selection_proposal_share_open: {
+        Args: { _token_hash: string }
+        Returns: Json
+      }
+      mcp_selection_proposal_share_revoke: {
+        Args: { _token_hash: string }
         Returns: Json
       }
       mcp_session_touch: { Args: never; Returns: boolean }

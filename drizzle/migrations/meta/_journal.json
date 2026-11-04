@@ -512,6 +512,13 @@
       "when": 1793762438330,
       "tag": "0072_gbb_part4_customer_view",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793762491024,
+      "tag": "0073_gbb_part5_choice_and_sharing",
+      "breakpoints": true
     }
   ]
 }
