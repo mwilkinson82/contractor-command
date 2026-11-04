@@ -197,6 +197,15 @@ describe("invite link", () => {
     expect(html).toMatch(/class="as-foot"><svg[^>]*>.*<\/svg><span>Powered by Athena<\/span>/);
     expect(html.match(/<svg/g)).toHaveLength(1);
     expect(html).toContain("family=Inter");
+    // It reads as the contractor's own invite to this job, on a client page.
+    expect(html).toMatch(/<h1>[^<]+ invites you to your [^<]+ project page<\/h1>/);
+    expect(html).toContain("<span>Client page</span>");
+    expect(html).not.toContain("Customer page");
+    // Sign-in trouble goes to Athena's support inbox; project questions go to the contractor.
+    expect(html).toContain(
+      'href="mailto:support@meetathena.io?subject=Help%20signing%20in%20to%20Athena"',
+    );
+    expect(html).not.toContain("alpcontractorcircle");
   });
 
   it("emails a code whose hash is what the database stores, then signs in with a cookie scoped to the page", async () => {
@@ -215,7 +224,7 @@ describe("invite link", () => {
     expect(sent.headers.get("location")).toBe(`/c/i/${TOKEN}?step=code&sent=1`);
     expect(mail[0]).toMatchObject({
       to: "rosa@example.com",
-      subject: "123456 is your sign-in code",
+      subject: "123456 is your Northline Builders sign-in code",
     });
     const issue = calls.find((c) => c.fn === "mcp_portal_code_issue")!;
     expect(issue.args._code_hash).toBe(await codeHash(ACCESS, "123456"));
@@ -332,7 +341,7 @@ describe("customer page", () => {
     );
     expect(mail.at(-1)).toMatchObject({
       to: "rosa@example.com",
-      subject: "123456 is your confirmation code",
+      subject: "123456 is your Northline Builders confirmation code",
     });
     expect(calls.find((c) => c.fn === "mcp_portal_code_issue")!.args).toMatchObject({
       _purpose: "decide",
@@ -518,13 +527,20 @@ describe("customer emails", () => {
       expect(m.html).toContain(ATHENA_BLUE);
       expect(m.html).toContain(ATHENA_NAVY);
       expect(m.html).toMatch(/font-weight:700[^>]*>ALP Construction<\/p>/);
-      expect(m.html).toContain(">Customer page</p>");
+      expect(m.html).toContain(">Client page</p>");
       // The A is only the 16px corner mark beside "Powered by Athena".
       expect(m.html).toContain(`<img src="${ATHENA_EMAIL_LOGO_URL}" width="16"`);
       expect(m.html).not.toContain('width="56"');
       expect(m.html).toContain("Powered by Athena</p>");
     }
-    expect(invite.html).toContain(">Your project page is ready</h1>");
+    expect(invite.subject).toBe(
+      "ALP Construction invites you to your Harbor Residence project page",
+    );
+    expect(invite.html).toContain(
+      ">ALP Construction invites you to your Harbor Residence project page</h1>",
+    );
+    expect(invite.html).toContain("Sam Lee at ALP Construction set up this private page for you.");
+    expect(invite.html).not.toContain("Customer page");
     expect(invite.html).toContain('href="https://app.meetathena.io/c/i/x"');
     expect(code.html).toContain(">Your sign-in code</h1>");
     expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
@@ -586,5 +602,14 @@ describe("sign-in screens", () => {
     const bad = renderGone("expired", "ALP Construction", "http://cdn.example.com/alp.png");
     expect(bad).not.toContain(`class="as-logo"`);
     expect(bad).toContain("<b>ALP Construction</b>");
+  });
+  it("name the contractor instead of 'your contractor' when they know who it is", () => {
+    expect(renderGone("expired", "ALP Construction")).toContain(
+      "Ask ALP Construction to send you a new invite.",
+    );
+    expect(renderGone("revoked", "ALP Construction")).toContain(
+      "ALP Construction turned off access. Contact ALP Construction if you think",
+    );
+    expect(renderGone("expired")).toContain("Ask your contractor to send you a new invite.");
   });
 });
