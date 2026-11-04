@@ -419,7 +419,7 @@ describe("stored drawing markup tool", () => {
     expect(result.content[0].text).toContain("Test footing");
     expect(result.content[0].text).toContain("<");
     const card = attachAthenaCard("drawing_markup", result);
-    expect(card.structuredContent.html).toContain("#2465CB");
+    expect(card.structuredContent.html).toContain("#183B63");
     expect(card.structuredContent.html).not.toContain("#9F243A");
     expect(card.content[0].text).not.toMatch(/lovable/i);
   });

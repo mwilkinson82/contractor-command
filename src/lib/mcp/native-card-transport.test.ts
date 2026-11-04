@@ -354,7 +354,7 @@ describe("native card presentation after the SDK", () => {
         flag: "overdue",
       });
       expect(returned._meta).toEqual(cardWidgetMeta);
-      expect(returned.structuredContent.html).toContain("#2465CB");
+      expect(returned.structuredContent.html).toContain("#183B63");
       if (claude) expect(body).not.toContain("<!doctype html");
       else {
         expect(body).toContain(returned.structuredContent.html);

@@ -167,7 +167,7 @@ describe("0.8.14 report_page_link", () => {
     expect(r.structuredContent.private).toBe(true);
     expect(r.content[0].text).toMatch(/works until/i);
     expect(r.structuredContent.html).toContain("#18314F");
-    expect(r.structuredContent.html).toContain("#2465CB");
+    expect(r.structuredContent.html).toContain("#183B63");
     expect(r.content[0].text).not.toMatch(/lovable|supabase/i);
     expect(jobLinksMissingToken(r)).toEqual([]);
     const card = r.structuredContent.card as { presentation: string; sections: { rows: { href: string }[] }[] };
@@ -418,7 +418,7 @@ describe("private chat access refusal", () => {
     expect(r.structuredContent).toMatchObject({ refused: true, created: false, alternative: "read_only_client_report" });
     expect(r.structuredContent.url).toBeUndefined();
     expect(r.content[0].text).toContain("No. Athena cannot");
-    expect(r.structuredContent.html).toContain("#2465CB");
+    expect(r.structuredContent.html).toContain("#183B63");
     expect(state.rpcs).toEqual([]);
   });
   it.each([true, false, undefined])("cannot grant chat access even with confirmed=%s", async (confirmed) => {

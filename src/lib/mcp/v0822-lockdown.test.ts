@@ -396,7 +396,7 @@ describe("0.8.22 run() wiring", () => {
     const result=await run("submittals_list",ctx,{jobNumber:"2701"},async()=>({content:[{type:"text" as const,text:"Fictional submittal. Overdue: No."}]}));
     expect(JSON.stringify(result)).not.toContain("HOUSE STYLE");
     expect(JSON.stringify(result)).not.toContain("Render silently");
-    expect(JSON.stringify(result)).toContain("#2465CB");
+    expect(JSON.stringify(result)).toContain("#183B63");
   });
   it("refuses the call before the tool runs when the heavy cap is hit", async () => {
     rpc.mockImplementation(answers({ ok: false, limit: "tool_hourly" }));

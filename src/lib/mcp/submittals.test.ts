@@ -149,7 +149,7 @@ describe("card and board", () => {
     const sealed = attachAthenaCard("submittals_list", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as {
       content: { text?: string }[];
     };
-    expect(sealed.content[0].text).toContain("#2465CB");
+    expect(sealed.content[0].text).toContain("#183B63");
     expect(sealed.content[0].text).toContain("Submittal log");
     expect(sealed.content[0].text).toContain("SAMPLE Switchgear");
   });

@@ -118,7 +118,7 @@ describe("native card view lifecycle", () => {
     expect(result._meta).toEqual(cardWidgetMeta);
     expect(result.content[0].text).toContain(result.structuredContent.html);
     expect(result.content[0].text).toContain("<!doctype html");
-    expect(result.content[0].text).toContain("#2465CB");
+    expect(result.content[0].text).toContain("#183B63");
     expect(result.content[0].text).toContain("#18314F");
     expect(result.content[0].text).toContain("#65788E");
     expect(result.content[0].text).not.toContain("#9F243A");
