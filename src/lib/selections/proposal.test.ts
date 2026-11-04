@@ -64,7 +64,9 @@ describe("Good, Better, Best packages", () => {
     expect(proposalBlockers(willowCreekTypeE())).toEqual([]);
     const blockers = proposalBlockers(willowCreekTypeE(false));
     expect(blockers).toContain("Review the base proposal price.");
-    expect(blockers).toContain("Type E 2x4 lay-in LED fixtures (Better): review the customer price.");
+    expect(blockers).toContain(
+      "Type E 2x4 lay-in LED fixtures (Better): review the customer price.",
+    );
     expect(() => customerProposal(willowCreekTypeE(false), 1)).toThrow(/not ready/);
   });
 
@@ -74,7 +76,14 @@ describe("Good, Better, Best packages", () => {
     const keys = keysOf(view);
     for (const k of PRIVATE_KEYS) expect(keys.has(k)).toBe(false);
     const json = JSON.stringify(view);
-    for (const secret of ["6997", "10999", "27133", "Retail list price", "Confirm count", "Illustrative test base"])
+    for (const secret of [
+      "6997",
+      "10999",
+      "27133",
+      "Retail list price",
+      "Confirm count",
+      "Illustrative test base",
+    ])
       expect(json).not.toContain(secret);
     expect(view.packages.map((p) => p.total_cents)).toEqual([4_850_000, 4_883_600, 5_018_600]);
     expect(view.selections[0].options.better.model).toBe("CPANL 2X4 ALO6 SWW7 M2");
@@ -106,7 +115,9 @@ describe("Good, Better, Best packages", () => {
     expect(review.warnings).toEqual([]);
     const b = willowCreekTypeE();
     b.selections[0].options.good.price_cents = 5000;
-    expect(contractorReview(b).warnings).toContain("Type E 2x4 lay-in LED fixtures (Good): price is below cost.");
+    expect(contractorReview(b).warnings).toContain(
+      "Type E 2x4 lay-in LED fixtures (Good): price is below cost.",
+    );
   });
 
   it("turns a chosen package into estimate pricing lines without writing them", () => {
@@ -123,7 +134,10 @@ describe("Good, Better, Best packages", () => {
       skipped: [],
     });
     const b = willowCreekTypeE();
-    b.selections.push({ ...structuredClone(b.selections[0]), id: "6f1d2c34-8b1a-4f0e-9c4d-2a7b5e9d1c02" });
+    b.selections.push({
+      ...structuredClone(b.selections[0]),
+      id: "6f1d2c34-8b1a-4f0e-9c4d-2a7b5e9d1c02",
+    });
     expect(estimateCarry(b, "good").carry).toEqual([]);
     expect(estimateCarry(b, "good").skipped).toHaveLength(2);
   });

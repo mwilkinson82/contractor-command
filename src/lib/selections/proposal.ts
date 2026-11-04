@@ -36,7 +36,9 @@ export function proposalBlockers(input: Board): string[] {
   return blockers;
 }
 
-type Totals = { total_cents: number; difference_cents: number } | { total_cents: null; difference_cents: null };
+type Totals =
+  | { total_cents: number; difference_cents: number }
+  | { total_cents: null; difference_cents: null };
 const unknown = { total_cents: null, difference_cents: null } as const;
 
 /**
@@ -219,7 +221,10 @@ export function contractorReview(input: Board) {
         if (o.cost_cents === null) warnings.push(`${s.title} (${TIER_LABEL[tier]}): cost unknown.`);
         if (row.margin_cents !== null && row.margin_cents < 0)
           warnings.push(`${s.title} (${TIER_LABEL[tier]}): price is below cost.`);
-        return [tier, { ...row, assumptions: o.assumptions, price_reviewed_on: o.price_reviewed_on }];
+        return [
+          tier,
+          { ...row, assumptions: o.assumptions, price_reviewed_on: o.price_reviewed_on },
+        ];
       }),
     ) as Record<OptionName, Margin & { assumptions: string; price_reviewed_on: string | null }>,
   }));
@@ -248,11 +253,21 @@ export function estimateCarry(input: Board, tier: OptionName) {
   for (const s of board.selections) {
     const o = s.options[tier];
     const product = [o.manufacturer, o.model].filter(Boolean).join(" ") || o.description;
-    if (!s.estimate_line_ref) skipped.push({ title: s.title, reason: "Not linked to a takeoff line." });
+    if (!s.estimate_line_ref)
+      skipped.push({ title: s.title, reason: "Not linked to a takeoff line." });
     else if (refs.filter((r) => r === s.estimate_line_ref).length > 1)
-      skipped.push({ title: s.title, reason: `More than one selection is linked to ${s.estimate_line_ref}.` });
+      skipped.push({
+        title: s.title,
+        reason: `More than one selection is linked to ${s.estimate_line_ref}.`,
+      });
     else if (o.cost_cents === null) skipped.push({ title: s.title, reason: "Unit cost unknown." });
-    else carry.push({ ref: s.estimate_line_ref, unit_price: o.cost_cents / 100, item: s.title, product });
+    else
+      carry.push({
+        ref: s.estimate_line_ref,
+        unit_price: o.cost_cents / 100,
+        item: s.title,
+        product,
+      });
   }
   return { tier, carry, skipped };
 }

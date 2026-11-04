@@ -16,7 +16,8 @@ export function signed(amount: number | null, code: string | null): string {
 }
 
 /** Basis points to "25.0%". */
-export const percent = (bp: number | null) => (bp === null ? "Unknown" : `${(bp / 100).toFixed(1)}%`);
+export const percent = (bp: number | null) =>
+  bp === null ? "Unknown" : `${(bp / 100).toFixed(1)}%`;
 
 /** Customer-page price: "$1,234.56" for USD, "EUR 1,234.56" otherwise. */
 export function displayPrice(amount: number, code: string): string {

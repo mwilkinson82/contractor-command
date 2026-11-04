@@ -21,7 +21,10 @@ export type ProposalPagePayload = {
 };
 
 const esc = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
 const safeUrl = (u: string | null) => {
   if (!u) return null;
   try {
@@ -114,7 +117,10 @@ export function renderProposalDocument(p: ProposalPagePayload): string {
     .filter(Boolean)
     .map(esc)
     .join("\n\n");
-  const eyebrow = [p.company, p.job_name].filter(Boolean).map((x) => esc(x!)).join(" · ");
+  const eyebrow = [p.company, p.job_name]
+    .filter(Boolean)
+    .map((x) => esc(x!))
+    .join(" · ");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(v.title)}</title><style>${CSS}</style></head><body><main>${eyebrow ? `<p class="eyebrow">${eyebrow}</p>` : ""}<h1>${esc(v.title)}</h1>${v.intro ? `<p class="intro">${esc(v.intro)}</p>` : ""}${chosen ? `<p class="chosen-note">You selected ${TIER_LABEL[chosen]} on ${esc(longDate(v.accepted!.recorded_on))}.</p>` : ""}<div class="compare"><div class="grid">${pkg}</div></div>${sections}${foot ? `<p class="terms">${foot}</p>` : ""}</main></body></html>`;
 }
 

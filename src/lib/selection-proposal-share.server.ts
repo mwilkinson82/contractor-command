@@ -9,7 +9,9 @@ import {
   type ProposalPagePayload,
 } from "./selections/proposal-page";
 
-type RuntimeGlobals = typeof globalThis & { process?: { env?: Record<string, string | undefined> } };
+type RuntimeGlobals = typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> };
+};
 const env = (names: string[]) => {
   const r = globalThis as RuntimeGlobals;
   for (const n of names) {
@@ -23,11 +25,18 @@ export type ProposalResolver = (hash: string) => Promise<unknown>;
 /** Anon client: mcp_selection_proposal_share_open is SECURITY DEFINER, hash in, the frozen customer view out (or NULL). */
 const defaultResolver: ProposalResolver = async (hash) => {
   const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
-  const key = env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]);
+  const key = env([
+    "SUPABASE_PUBLISHABLE_KEY",
+    "VITE_SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ]);
   if (!url || !key) throw new Error("Backend not configured");
   const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await (
-    sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+    sb.rpc as unknown as (
+      f: string,
+      a: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: unknown }>
   )("mcp_selection_proposal_share_open", { _token_hash: hash });
   if (error) throw new Error("lookup failed");
   return data ?? null;
@@ -59,7 +68,10 @@ export async function openProposalShare(
   try {
     raw = await resolve(await tokenHash(token));
   } catch {
-    return new Response("Try again in a moment.", { status: 503, headers: { "cache-control": "no-store" } });
+    return new Response("Try again in a moment.", {
+      status: 503,
+      headers: { "cache-control": "no-store" },
+    });
   }
   if (!raw) return gone(410, false);
   const parsed = payloadSchema.safeParse(raw);
@@ -69,5 +81,8 @@ export async function openProposalShare(
       headers: { "cache-control": "no-store" },
     });
   const payload: ProposalPagePayload = parsed.data;
-  return new Response(renderProposalDocument(payload), { status: 200, headers: PROPOSAL_PAGE_HEADERS });
+  return new Response(renderProposalDocument(payload), {
+    status: 200,
+    headers: PROPOSAL_PAGE_HEADERS,
+  });
 }

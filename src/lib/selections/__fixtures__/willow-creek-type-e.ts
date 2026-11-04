@@ -73,7 +73,8 @@ export function willowCreekTypeE(reviewed = true): Board {
             description: "2x4 LED flat panel with selectable lumens and color",
             manufacturer: "Lithonia Lighting",
             model: "CPANL 2X4 ALO6 SWW7 M2",
-            specifications: "4,000/5,000/6,000 lumens selectable · selectable color temperature · 0-10V dimming to 10% · 5-year warranty",
+            specifications:
+              "4,000/5,000/6,000 lumens selectable · selectable color temperature · 0-10V dimming to 10% · 5-year warranty",
             included: ["Fixture and installation", "0-10V dimming", "5-year warranty"],
             source_url: "https://www.homedepot.com/p/p/318318625",
             photo_url:
@@ -89,8 +90,13 @@ export function willowCreekTypeE(reviewed = true): Board {
             description: "Architectural basket troffer, 90+ CRI, wireless sensor",
             manufacturer: "Lithonia Lighting",
             model: "2BLT4 40L ADPT EZ1 LP940 NLTAIR2 RES7PDT",
-            specifications: "4,000 lumens · 32W · 4000K · 90+ CRI · dims to 1% · nLight AIR wireless sensor",
-            included: ["Fixture and installation", "Dimming to 1%", "Built-in occupancy and daylight sensor"],
+            specifications:
+              "4,000 lumens · 32W · 4000K · 90+ CRI · dims to 1% · nLight AIR wireless sensor",
+            included: [
+              "Fixture and installation",
+              "Dimming to 1%",
+              "Built-in occupancy and daylight sensor",
+            ],
             source_url:
               "https://www.platt.com/p/1845879/lithonia-lighting/basket-led-lensed-troffer-2x4/193047763523/lit2blt440l940",
             photo_url: null,

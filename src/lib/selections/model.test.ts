@@ -9,7 +9,9 @@ describe("selections model", () => {
   });
 
   it("rejects unknown fields so private data can't hide in extra keys", () => {
-    const b = willowCreekTypeE() as unknown as { selections: { options: { good: Record<string, unknown> } }[] };
+    const b = willowCreekTypeE() as unknown as {
+      selections: { options: { good: Record<string, unknown> } }[];
+    };
     b.selections[0].options.good.margin = 1;
     expect(boardSchema.safeParse(b).success).toBe(false);
     expect(boardSchema.safeParse({ ...willowCreekTypeE(), extra: true }).success).toBe(false);
@@ -54,6 +56,11 @@ describe("selections model", () => {
     b.selections[0].allowance_cents = 60000;
     expect(differenceFromAllowance(b.selections[0], "good")).toBe(-1200);
     expect(differenceFromAllowance(b.selections[0], "best")).toBe(167400);
-    expect(boardSummary(b, "2026-11-21")).toEqual({ total: 1, pending: 1, overdue: 1, missing_date: 0 });
+    expect(boardSummary(b, "2026-11-21")).toEqual({
+      total: 1,
+      pending: 1,
+      overdue: 1,
+      missing_date: 0,
+    });
   });
 });

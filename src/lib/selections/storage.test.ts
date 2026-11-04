@@ -1,8 +1,9 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
+import { gbbSql } from "../../../tests/selections/sql";
 import { willowCreekTypeE } from "./__fixtures__/willow-creek-type-e";
 import { customerProposal } from "./proposal";
 
@@ -15,13 +16,6 @@ const job = "00000000-0000-4000-8000-000000000920";
 const hashA = "a".repeat(64);
 const hashB = "b".repeat(64);
 let db: PGlite;
-
-export const GBB_SQL_DIR = "release-proposals/good-better-best";
-export const gbbSql = () =>
-  readdirSync(GBB_SQL_DIR)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => readFileSync(`${GBB_SQL_DIR}/${f}`, "utf8"));
 
 const rpc = (name: string, args: unknown[], user: string | null = owner) =>
   user === null
@@ -39,10 +33,10 @@ const rpc = (name: string, args: unknown[], user: string | null = owner) =>
         { sub: user, email: "fixture@example.com", role: "authenticated" },
         async (tx) =>
           (
-            await tx.query<{ data: unknown }>(
+            (await tx.query(
               `SELECT public.${name}(${args.map((_, i) => `$${i + 1}`).join(",")}) AS data`,
               args,
-            )
+            )) as { rows: { data: unknown }[] }
           ).rows[0].data,
       );
 const body = (b = willowCreekTypeE()) => JSON.stringify(b);
@@ -64,7 +58,10 @@ beforeAll(async () => {
     await db.query("INSERT INTO auth.users(id,email) VALUES($1,'fixture@example.com')", [id]);
     await db.query("INSERT INTO test_active_members VALUES($1)", [id]);
   }
-  await db.query("INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'ALP Test',$2)", [company, owner]);
+  await db.query("INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'ALP Test',$2)", [
+    company,
+    owner,
+  ]);
   for (const [user, role] of [
     [owner, "owner"],
     [estimator, "estimating"],
@@ -78,7 +75,9 @@ beforeAll(async () => {
     "INSERT INTO mcp_jobs(id,user_id,name,job_number,company_id) VALUES($1,$2,'Willow Creek Community Center','2810',$3)",
     [job, owner, company],
   );
-  await db.query("INSERT INTO mcp_job_access(job_id,user_id) VALUES($1,$2)", [job, fieldSuper]).catch(() => undefined);
+  await db
+    .query("INSERT INTO mcp_job_access(job_id,user_id) VALUES($1,$2)", [job, fieldSuper])
+    .catch(() => undefined);
 });
 afterAll(async () => db?.close());
 
@@ -92,7 +91,9 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
       version: 1,
       board: willowCreekTypeE(),
     });
-    await expect(rpc("mcp_residential_selections_save", [job, 0, body()])).rejects.toThrow(/changed/i);
+    await expect(rpc("mcp_residential_selections_save", [job, 0, body()])).rejects.toThrow(
+      /changed/i,
+    );
     const history = await db.query<{ n: number }>(
       "SELECT count(*)::int AS n FROM mcp_private.residential_selection_board_history WHERE job_id = $1",
       [job],
@@ -101,19 +102,29 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
   });
 
   it("lets the estimator build the board but not share it or record a choice", async () => {
-    const saved = (await rpc("mcp_residential_selections_save", [job, 1, body()], estimator)) as Saved;
+    const saved = (await rpc(
+      "mcp_residential_selections_save",
+      [job, 1, body()],
+      estimator,
+    )) as Saved;
     expect(saved.version).toBe(2);
     await expect(
       rpc("mcp_selection_proposal_share_create", [job, 2, hashA, inDays(7)], estimator),
     ).rejects.toThrow(/full job access/i);
     await expect(
-      rpc("mcp_residential_selections_record_choice", [job, 2, "better", today(), "Email"], estimator),
+      rpc(
+        "mcp_residential_selections_record_choice",
+        [job, 2, "better", today(), "Email"],
+        estimator,
+      ),
     ).rejects.toThrow(/full job access/i);
   });
 
   it("refuses another company, field roles and direct table access", async () => {
     await expect(rpc("mcp_residential_selections_get", [job], outsider)).rejects.toThrow();
-    await expect(rpc("mcp_residential_selections_save", [job, 2, body()], outsider)).rejects.toThrow();
+    await expect(
+      rpc("mcp_residential_selections_save", [job, 2, body()], outsider),
+    ).rejects.toThrow();
     await expect(rpc("mcp_residential_selections_get", [job], fieldSuper)).rejects.toThrow();
     for (const table of [
       "residential_selection_boards",
@@ -141,7 +152,9 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
     for (const mutate of bad) {
       const b = willowCreekTypeE();
       mutate(b);
-      await expect(rpc("mcp_residential_selections_save", [job, 2, body(b)])).rejects.toThrow(/MCP_BAD/);
+      await expect(rpc("mcp_residential_selections_save", [job, 2, body(b)])).rejects.toThrow(
+        /MCP_BAD/,
+      );
     }
     expect(((await rpc("mcp_residential_selections_get", [job])) as Saved).version).toBe(2);
   });
@@ -156,12 +169,16 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
       recorded_by: owner,
       evidence: "forged",
     };
-    await expect(rpc("mcp_residential_selections_save", [job, 2, body(b)])).rejects.toThrow(/recorded customer choice/);
+    await expect(rpc("mcp_residential_selections_save", [job, 2, body(b)])).rejects.toThrow(
+      /recorded customer choice/,
+    );
   });
 
   it("refuses to share or record a choice on an unreviewed board", async () => {
     await rpc("mcp_residential_selections_save", [job, 2, body(willowCreekTypeE(false))]);
-    await expect(rpc("mcp_selection_proposal_share_create", [job, 3, hashA, inDays(7)])).rejects.toThrow(/not ready/i);
+    await expect(
+      rpc("mcp_selection_proposal_share_create", [job, 3, hashA, inDays(7)]),
+    ).rejects.toThrow(/not ready/i);
     await expect(
       rpc("mcp_residential_selections_record_choice", [job, 3, "better", today(), "Email"]),
     ).rejects.toThrow(/not ready/i);
@@ -169,15 +186,27 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
   });
 
   it("freezes the same customer view the app builds, with nothing private in it", async () => {
-    await expect(rpc("mcp_selection_proposal_share_create", [job, 3, hashA, inDays(7)])).rejects.toThrow(/changed/);
-    await expect(rpc("mcp_selection_proposal_share_create", [job, 4, hashA, inDays(91)])).rejects.toThrow(/1 to 90/);
-    const created = (await rpc("mcp_selection_proposal_share_create", [job, 4, hashA, inDays(7)])) as {
+    await expect(
+      rpc("mcp_selection_proposal_share_create", [job, 3, hashA, inDays(7)]),
+    ).rejects.toThrow(/changed/);
+    await expect(
+      rpc("mcp_selection_proposal_share_create", [job, 4, hashA, inDays(91)]),
+    ).rejects.toThrow(/1 to 90/);
+    const created = (await rpc("mcp_selection_proposal_share_create", [
+      job,
+      4,
+      hashA,
+      inDays(7),
+    ])) as {
       board_version: number;
       proposal: unknown;
     };
     expect(created.board_version).toBe(4);
     expect(created.proposal).toEqual(customerProposal(willowCreekTypeE(), 4));
-    const opened = (await rpc("mcp_selection_proposal_share_open", [hashA], null)) as Record<string, unknown>;
+    const opened = (await rpc("mcp_selection_proposal_share_open", [hashA], null)) as Record<
+      string,
+      unknown
+    >;
     expect(opened).toMatchObject({
       company: "ALP Test",
       job_name: "Willow Creek Community Center",
@@ -185,7 +214,14 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
       proposal: customerProposal(willowCreekTypeE(), 4),
     });
     const json = JSON.stringify(opened);
-    for (const secret of ["cost_cents", "6997", "assumptions", "Confirm count", "base_basis", "found_at"])
+    for (const secret of [
+      "cost_cents",
+      "6997",
+      "assumptions",
+      "Confirm count",
+      "base_basis",
+      "found_at",
+    ])
       expect(json).not.toContain(secret);
     expect(await rpc("mcp_selection_proposal_share_open", ["c".repeat(64)], null)).toBeNull();
     expect(await rpc("mcp_selection_proposal_share_open", ["not-a-hash"], null)).toBeNull();
@@ -195,7 +231,9 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
     const b = willowCreekTypeE();
     b.selections[0].options.better.price_cents = 99999;
     await rpc("mcp_residential_selections_save", [job, 4, body(b)]);
-    const opened = (await rpc("mcp_selection_proposal_share_open", [hashA], null)) as { proposal: { packages: { total_cents: number }[] } };
+    const opened = (await rpc("mcp_selection_proposal_share_open", [hashA], null)) as {
+      proposal: { packages: { total_cents: number }[] };
+    };
     expect(opened.proposal.packages[1].total_cents).toBe(4_883_600);
     await rpc("mcp_residential_selections_save", [job, 5, body()]);
   });
@@ -204,7 +242,9 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
     await expect(
       rpc("mcp_residential_selections_record_choice", [job, 6, "better", "2020-01-01", "Email"]),
     ).rejects.toThrow(/today/);
-    await expect(rpc("mcp_residential_selections_record_choice", [job, 6, "better", today(), " "])).rejects.toThrow(/how the customer/);
+    await expect(
+      rpc("mcp_residential_selections_record_choice", [job, 6, "better", today(), " "]),
+    ).rejects.toThrow(/how the customer/);
     const recorded = (await rpc("mcp_residential_selections_record_choice", [
       job,
       6,
@@ -233,8 +273,16 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
     // A later save must carry the recorded choice unchanged.
     const keep = structuredClone(recorded.board);
     keep.proposal.terms = "Updated terms";
-    expect(((await rpc("mcp_residential_selections_save", [job, 7, JSON.stringify(keep)])) as Saved).version).toBe(8);
-    const shareB = (await rpc("mcp_selection_proposal_share_create", [job, 8, hashB, inDays(7)])) as {
+    expect(
+      ((await rpc("mcp_residential_selections_save", [job, 7, JSON.stringify(keep)])) as Saved)
+        .version,
+    ).toBe(8);
+    const shareB = (await rpc("mcp_selection_proposal_share_create", [
+      job,
+      8,
+      hashB,
+      inDays(7),
+    ])) as {
       proposal: { accepted: unknown };
     };
     expect(shareB.proposal.accepted).toBeNull(); // the board changed after the choice
@@ -242,9 +290,14 @@ describe.sequential("Good, Better, Best storage and sharing", () => {
 
   it("turns a link off for its maker or an owner, and expired or revoked links show nothing", async () => {
     expect(await rpc("mcp_selection_proposal_share_revoke", [hashA], estimator)).toBeNull();
-    expect(await rpc("mcp_selection_proposal_share_revoke", [hashA])).toMatchObject({ board_version: 4 });
+    expect(await rpc("mcp_selection_proposal_share_revoke", [hashA])).toMatchObject({
+      board_version: 4,
+    });
     expect(await rpc("mcp_selection_proposal_share_open", [hashA], null)).toBeNull();
-    await db.query("UPDATE mcp_private.selection_proposal_shares SET expires_at = now() - interval '1 minute' WHERE token_hash = $1", [hashB]);
+    await db.query(
+      "UPDATE mcp_private.selection_proposal_shares SET expires_at = now() - interval '1 minute' WHERE token_hash = $1",
+      [hashB],
+    );
     expect(await rpc("mcp_selection_proposal_share_open", [hashB], null)).toBeNull();
   });
 });
