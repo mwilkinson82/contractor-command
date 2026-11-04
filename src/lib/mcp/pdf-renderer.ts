@@ -182,6 +182,90 @@ type NativeTextModule = {
   [name: `_${string}`]: (...args: number[]) => number;
 };
 
+type Box = { x: number; y: number; w: number; h: number };
+type TitleBlockRead = { page: number; runs: (Box & { text: string })[]; rulings: Box[] };
+
+// PDFium page object types and the most objects one page may spend on ruling lines.
+const PAGEOBJ_PATH = 2;
+const PAGEOBJ_FORM = 5;
+const MAX_PAGE_OBJECTS = 40_000;
+const MAX_RULINGS = 4_000;
+
+/** The straight lines drawn near the title block (the box and its field dividers), in the same
+ *  0..1 display coordinates as the text. A rectangle drawn as one path gives its four edges.
+ *  Curves and hatching are skipped; objects inside form XObjects carry their form's matrix. */
+function readRulings(
+  m: NativeTextModule,
+  page: number,
+  device: (x: number, y: number) => { x: number; y: number } | null,
+): Box[] {
+  const out: Box[] = [];
+  const buf = m.wasmExports.malloc(48);
+  let visited = 0;
+  try {
+    const view = () => new DataView(m.HEAPU8.buffer);
+    type Matrix = [number, number, number, number, number, number];
+    const apply = (t: Matrix, x: number, y: number) => ({
+      x: t[0] * x + t[2] * y + t[4],
+      y: t[1] * x + t[3] * y + t[5],
+    });
+    const compose = (outer: Matrix, inner: Matrix): Matrix => [
+      outer[0] * inner[0] + outer[2] * inner[1],
+      outer[1] * inner[0] + outer[3] * inner[1],
+      outer[0] * inner[2] + outer[2] * inner[3],
+      outer[1] * inner[2] + outer[3] * inner[3],
+      outer[0] * inner[4] + outer[2] * inner[5] + outer[4],
+      outer[1] * inner[4] + outer[3] * inner[5] + outer[5],
+    ];
+    const push = (box: Box) => {
+      const thin = Math.min(box.w, box.h) <= 0.004;
+      const long = Math.max(box.w, box.h) >= 0.02;
+      const nearBlock = box.x + box.w >= 0.5 || box.y + box.h >= 0.5;
+      if (thin && long && nearBlock && out.length < MAX_RULINGS) out.push(box);
+    };
+    const visit = (obj: number, t: Matrix, depth: number) => {
+      if (++visited > MAX_PAGE_OBJECTS) return;
+      const type = m._FPDFPageObj_GetType(obj);
+      if (type === PAGEOBJ_FORM && depth < 3) {
+        if (!m._FPDFPageObj_GetMatrix(obj, buf)) return;
+        const v = view();
+        const own: Matrix = [0, 4, 8, 12, 16, 20].map((o) => v.getFloat32(buf + o, true)) as Matrix;
+        const inner = compose(t, own);
+        const count = m._FPDFFormObj_CountObjects(obj);
+        for (let i = 0; i < count && visited <= MAX_PAGE_OBJECTS; i++)
+          visit(m._FPDFFormObj_GetObject(obj, i), inner, depth + 1);
+        return;
+      }
+      if (type !== PAGEOBJ_PATH) return;
+      if (!m._FPDFPageObj_GetBounds(obj, buf, buf + 4, buf + 8, buf + 12)) return;
+      const v = view();
+      const [l, b, r, tp] = [0, 4, 8, 12].map((o) => v.getFloat32(buf + o, true));
+      const corners = [apply(t, l, b), apply(t, r, tp), apply(t, l, tp), apply(t, r, b)]
+        .map((c) => device(c.x, c.y))
+        .filter((c): c is { x: number; y: number } => !!c);
+      if (corners.length < 4) return;
+      const x0 = Math.min(...corners.map((c) => c.x)),
+        x1 = Math.max(...corners.map((c) => c.x)),
+        y0 = Math.min(...corners.map((c) => c.y)),
+        y1 = Math.max(...corners.map((c) => c.y));
+      const box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      if (Math.min(box.w, box.h) <= 0.004) return push(box);
+      // A rectangle drawn as one path (re, or move plus three or four lines) gives four edges.
+      if (m._FPDFPath_CountSegments(obj) > 6) return;
+      push({ x: x0, y: y0, w: box.w, h: 0 });
+      push({ x: x0, y: y1, w: box.w, h: 0 });
+      push({ x: x0, y: y0, w: 0, h: box.h });
+      push({ x: x1, y: y0, w: 0, h: box.h });
+    };
+    const count = m._FPDFPage_CountObjects(page);
+    for (let i = 0; i < count && visited <= MAX_PAGE_OBJECTS; i++)
+      visit(m._FPDFPage_GetObject(page, i), [1, 0, 0, 1, 0, 0], 0);
+  } finally {
+    m.wasmExports.free(buf);
+  }
+  return out;
+}
+
 /** Positioned text runs near each page's title block, read from the PDF's own vector text.
  *  One document load for the whole set, on the shared native queue; no raster, no network.
  *  Coordinates are 0..1 from the displayed top-left, so rotated sheets read the same way.
@@ -191,17 +275,14 @@ export function readPdfiumTitleBlockRuns(
   limits: { maxPages: number; budgetMs: number; maxRunsPerPage?: number },
 ): Promise<{
   total_pages: number;
-  pages: { page: number; runs: { text: string; x: number; y: number; w: number; h: number }[] }[];
+  pages: TitleBlockRead[];
 }> {
   const result = queue.then(async () => {
     const started = Date.now();
     const document = await (await getLibrary()).loadDocument(bytes);
     try {
       const total_pages = document.getPageCount();
-      const pages: {
-        page: number;
-        runs: { text: string; x: number; y: number; w: number; h: number }[];
-      }[] = [];
+      const pages: TitleBlockRead[] = [];
       for (let index = 0; index < Math.min(total_pages, limits.maxPages); index++) {
         if (Date.now() - started > limits.budgetMs) break;
         const page = document.getPage(index);
@@ -212,12 +293,13 @@ export function readPdfiumTitleBlockRuns(
           const sx = Math.round(width * 1000),
             sy = Math.round(height * 1000);
           if (!(sx > 0 && sy > 0)) {
-            pages.push({ page: index + 1, runs: [] });
+            pages.push({ page: index + 1, runs: [], rulings: [] });
             continue;
           }
           const scratch = m.wasmExports.malloc(48);
           const textPage = m._FPDFText_LoadPage(native.pageIdx);
-          const runs: { text: string; x: number; y: number; w: number; h: number }[] = [];
+          const runs: (Box & { text: string })[] = [];
+          let rulings: Box[] = [];
           try {
             const view = () => new DataView(m.HEAPU8.buffer);
             const device = (x: number, y: number) => {
@@ -283,11 +365,12 @@ export function readPdfiumTitleBlockRuns(
                 m.wasmExports.free(buf);
               }
             }
+            rulings = readRulings(m, native.pageIdx, device);
           } finally {
             if (textPage) m._FPDFText_ClosePage(textPage);
             m.wasmExports.free(scratch);
           }
-          pages.push({ page: index + 1, runs });
+          pages.push({ page: index + 1, runs, rulings });
         } finally {
           page.close();
         }

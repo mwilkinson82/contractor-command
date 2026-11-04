@@ -8,6 +8,7 @@ import {
   sheetTags,
   tradeDisciplines,
   tradeFirstOrder,
+  type Ruling,
   type TextRun,
 } from "./sheet-index";
 
@@ -41,6 +42,118 @@ async function drawingSet(
   }
   return new Uint8Array(await pdf.save());
 }
+
+// A right-hand title strip like the 2810 permit set: its left edge at x 0.88, the sheet border at
+// 0.98, and field dividers across the strip. The title field runs from 0.80 to 0.88.
+const vline = (x: number, y = 0.02, h = 0.96): Ruling => ({ x, y, w: 0, h });
+const hline = (y: number, x = 0.88, w = 0.1): Ruling => ({ x, y, w, h: 0 });
+const strip: Ruling[] = [
+  vline(0.88),
+  vline(0.98),
+  hline(0.68),
+  hline(0.8),
+  hline(0.88),
+  hline(0.93),
+];
+const stripPage = (sheet: string, title: TextRun[], extra: TextRun[] = []) => ({
+  page: 1,
+  rulings: strip,
+  runs: [
+    run("WILLOW CREEK COMMUNITY CENTER", 0.885, 0.72, 0.014, 0.09),
+    ...title,
+    run("SHEET NO.", 0.885, 0.935, 0.005),
+    run(sheet, 0.9, 0.945, 0.025),
+    ...extra,
+  ],
+});
+
+describe("sheet titles from the title field (2810 permit set misses)", () => {
+  it("reads both lines of a two-line title, even when a line is split into words", () => {
+    const proposal = proposeSheetIndex([
+      stripPage("A4.0", [
+        run("REFLECTED", 0.885, 0.81, 0.012, 0.04),
+        run("CEILING", 0.93, 0.81, 0.012, 0.035),
+        run("PLAN", 0.885, 0.826, 0.012, 0.02),
+      ]),
+    ]);
+    expect(proposal.pages[0]).toMatchObject({ sheet: "A4.0", title: "REFLECTED CEILING PLAN" });
+  });
+
+  it("ignores note text and view titles outside the title block", () => {
+    const proposal = proposeSheetIndex([
+      stripPage(
+        "A7.4",
+        [
+          run("FEMALE B/F WASHROOM", 0.885, 0.81, 0.012, 0.08),
+          run("DETAILS", 0.885, 0.826, 0.012, 0.035),
+        ],
+        [
+          run("INTERIOR ELEVATION", 0.72, 0.9, 0.016, 0.1),
+          run("POWER LINE", 0.8, 0.85, 0.018, 0.06),
+          run("SEE GENERAL NOTES 4", 0.75, 0.8, 0.01, 0.08),
+        ],
+      ),
+    ]);
+    expect(proposal.pages[0].title).toBe("FEMALE B/F WASHROOM DETAILS");
+  });
+
+  it("reads a labelled title field even when the title has no usual title words", () => {
+    const proposal = proposeSheetIndex([
+      stripPage("A4.2", [
+        run("SHEET TITLE", 0.885, 0.803, 0.005, 0.03),
+        run("BUILDING ENVELOPE", 0.885, 0.815, 0.012, 0.07),
+      ]),
+    ]);
+    expect(proposal.pages[0].title).toBe("BUILDING ENVELOPE");
+  });
+
+  it("keeps the second line of a title when the block has no drawn lines", () => {
+    const proposal = proposeSheetIndex([
+      {
+        page: 1,
+        runs: [
+          run("PLUMBING SCHEDULE/", 0.86, 0.88, 0.01, 0.1),
+          run("NOTES", 0.86, 0.893, 0.01, 0.03),
+          run("SHEET NO.", 0.86, 0.93, 0.005),
+          run("P2", 0.88, 0.95, 0.025),
+        ],
+      },
+    ]);
+    expect(proposal.pages[0]).toMatchObject({ sheet: "P2", title: "PLUMBING SCHEDULE/ NOTES" });
+  });
+
+  it("gives no title to a page with no sheet number, such as a lease schedule page", () => {
+    const proposal = proposeSheetIndex([
+      {
+        page: 1,
+        runs: [
+          run("SCHEDULE C", 0.75, 0.9, 0.014, 0.08),
+          run("LANDLORD'S WORK AND TENANT'S WORK", 0.75, 0.92, 0.012, 0.2),
+        ],
+      },
+    ]);
+    expect(proposal.pages[0]).toMatchObject({ sheet: null, title: null });
+  });
+
+  it("tags C-numbered cover and schedule sheets General, and a C site plan Civil", () => {
+    const proposal = proposeSheetIndex([
+      stripPage("C1.0", [run("COVER SHEET", 0.885, 0.81, 0.012, 0.06)]),
+      stripPage("C1.1", [
+        run("ROOM FINISH", 0.885, 0.81, 0.012, 0.06),
+        run("SCHEDULE", 0.885, 0.826, 0.012, 0.05),
+      ]),
+      stripPage("C2.0", [run("SITE GRADING PLAN", 0.885, 0.81, 0.012, 0.08)]),
+    ]);
+    expect(proposal.pages.map((p) => [p.title, p.discipline])).toEqual([
+      ["COVER SHEET", "General"],
+      ["ROOM FINISH SCHEDULE", "General"],
+      ["SITE GRADING PLAN", "Civil"],
+    ]);
+    expect(sheetDiscipline("C1.0")?.label).toBe("Civil");
+    expect(sheetDiscipline("C1.0", "Code analysis")?.label).toBe("General");
+    expect(sheetDiscipline("C1.0", "Site servicing schedule")?.label).toBe("Civil");
+  });
+});
 
 describe("sheet disciplines and trade focus", () => {
   it("reads the discipline from the sheet number", () => {
@@ -151,6 +264,50 @@ describe("readPdfiumTitleBlockRuns on a real PDF", () => {
     expect(proposal.pages[3].sheet).toBeNull();
     expect(proposal.complete).toBe(false);
     expect(bytes).toEqual(original);
+  });
+
+  it("reads the drawn title-block lines, also inside an embedded block, and uses them for titles", async () => {
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    // The title block drawn once as its own small page, then placed on the sheet as a form XObject,
+    // the way CAD exports often place blocks. It is 259.2 x 1658.9 points (0.1 x 0.96 of the sheet).
+    const blockDoc = await PDFDocument.create();
+    const blockFont = await blockDoc.embedFont(StandardFonts.Helvetica);
+    const block = blockDoc.addPage([259.2, 1658.88]);
+    const black = { thickness: 1 };
+    block.drawRectangle({ x: 0, y: 0, width: 259.2, height: 1658.88, borderWidth: 1 });
+    // Dividers at 0.93, 0.88 and 0.80 down the sheet; the title field is 0.80 to 0.88.
+    for (const yFrac of [0.05 / 0.96, 0.1 / 0.96, 0.18 / 0.96])
+      block.drawLine({
+        start: { x: 0, y: 1658.88 * yFrac },
+        end: { x: 259.2, y: 1658.88 * yFrac },
+        ...black,
+      });
+    // Text placed in sheet fractions: y measured down from the sheet top, block starts at sheet 0.02.
+    const put = (text: string, dx: number, dy: number, size: number) =>
+      block.drawText(text, {
+        x: 2592 * (dx - 0.88),
+        y: 1728 * (0.98 - dy),
+        size,
+        font: blockFont,
+      });
+    put("REFLECTED CEILING", 0.885, 0.825, 18);
+    put("PLAN", 0.885, 0.85, 18);
+    put("SHEET NO.", 0.885, 0.94, 8);
+    put("A4.0", 0.9, 0.975, 40);
+    const [embedded] = await pdf.embedPdf(await blockDoc.save());
+    const page = pdf.addPage([2592, 1728]);
+    page.drawPage(embedded, { x: 2592 * 0.88, y: 1728 * 0.02 });
+    // Note text on the drawing, just left of the strip, with a title word in it.
+    page.drawText("POWER LINE", { x: 2592 * 0.8, y: 1728 * (1 - 0.86), size: 24, font });
+    const bytes = new Uint8Array(await pdf.save());
+
+    const read = await readPdfiumTitleBlockRuns(bytes, { maxPages: 5, budgetMs: 20_000 });
+    const rulings = read.pages[0].rulings;
+    expect(rulings.some((l) => l.h > 0.9 && Math.abs(l.x - 0.88) < 0.005)).toBe(true);
+    expect(rulings.some((l) => l.w > 0.09 && Math.abs(l.y - 0.8) < 0.005)).toBe(true);
+    const proposal = proposeSheetIndex(read.pages);
+    expect(proposal.pages[0]).toMatchObject({ sheet: "A4.0", title: "REFLECTED CEILING PLAN" });
   });
 
   it("stops at the page cap and reports the full page count", async () => {
