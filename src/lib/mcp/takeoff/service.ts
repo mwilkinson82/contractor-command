@@ -6,16 +6,18 @@ import { type Job, named } from "../jobs";
 import {
   drawingRecords,
   readStoredDrawingBytes,
+  exactSheetIndex,
+  looseSheetName,
   sheetPageIndex,
   type DrawingRecord,
 } from "../drawing-set";
 
 import { bytesToBase64 } from "../estimating-sheet";
 import { verifyLocatedShape } from "./verify";
-import { cachedSource } from "./cache";
+import { cachedSource, pageCache, pageLru } from "./cache";
 import { automaticCalibration, scaleLock } from "./calibration";
 import { drawingReferences, drawingReferenceSection } from "./drawing-references";
-import { highlightedPreview } from "./render";
+import { highlightedPreview, pageGeometry } from "./render";
 import { renderMarkdown } from "../cards/markdown";
 import { TAKEOFF_CARD_URI } from "../cards/takeoff-card";
 import type { CardModel } from "../cards/model";
@@ -49,6 +51,20 @@ export type StoredPage = {
   inspection: SheetInspection;
   space: ReturnType<typeof sheetSpace>;
 };
+const cachedInspection = pageCache<SheetInspection>(
+  2_000_000,
+  (value) => JSON.stringify(value).length,
+);
+const cachedPreview = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
+const cachedHighlighted = pageCache<Uint8Array | null>(4_000_000, (value) => value?.length ?? 0);
+const cachedTiles = pageLru<Uint8Array>(16, 8_000_000, (value) => value.length);
+const pageKey = (job: Job, source: DrawingRecord, page: number) =>
+  `${job.company_id}:${job.job_id}:${source.id}:${source.content_hash}:${page}`;
+async function stateFingerprint(state: EngineSnapshot): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(state));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 /** One line per stored set, so a host can pass source_id on the next call. */
 export function describeStoredSets(sources: DrawingRecord[]): string {
   if (!sources.length) return "No drawing set is stored on this job.";
@@ -94,7 +110,25 @@ export function resolveStoredSource(
     return selected;
   }
   // Records arrive newest first, so the first set holding the sheet is its newest revision.
-  const holder = sources.find((s) => sheetPageIndex(s.sheets, sheet) != null);
+  // An exact name in any set wins over another spelling in a newer set.
+  // Another spelling is used only when every set that holds it spells it the same way
+  // (revisions of one sheet), never to choose between differently named sheets.
+  const looseHolders = sources.filter((s) => sheetPageIndex(s.sheets, sheet) != null);
+  const looseNames = new Set(
+    looseHolders.map((s) => s.sheets[sheetPageIndex(s.sheets, sheet)!].trim().toLowerCase()),
+  );
+  const holder =
+    sources.find((s) => exactSheetIndex(s.sheets, sheet) != null) ??
+    (looseNames.size === 1 ? looseHolders[0] : undefined);
+  if (!holder && looseNames.size > 1)
+    throw new ToolError(
+      `More than one stored sheet could be ${sheet}: ${looseHolders
+        .map(
+          (s) =>
+            `${s.sheets[sheetPageIndex(s.sheets, sheet)!]} in ${s.filename} (source_id ${s.id})`,
+        )
+        .join(" and ")}. Name the exact sheet or pass source_id. No sheet was guessed.`,
+    );
   if (holder) return holder;
   if (!sources.length)
     throw new ToolError(
@@ -123,7 +157,9 @@ export async function loadStoredPage(
     `${job.company_id}:${job.job_id}:${source.id}:${source.content_hash}`,
     () => readStoredDrawingBytes(sb, job, source),
   );
-  const inspection = await inspectSheet(bytes, index);
+  const inspection = await cachedInspection(pageKey(job, source, index), () =>
+    inspectSheet(bytes, index),
+  );
   return {
     source,
     sheet: source.sheets[index],
@@ -167,7 +203,9 @@ export async function viewEngine(
   state: EngineSnapshot,
   page?: StoredPage,
   extra: Record<string, unknown> = {},
+  options: { modelImage?: boolean } = {},
 ) {
+  const modelImage = options.modelImage !== false;
   const summary = measurementStatus(state);
   const evidenceReview = measurementEvidence(state);
   const droppedLines = currentDroppedLines(state.dropped_lines ?? []);
@@ -180,17 +218,12 @@ export async function viewEngine(
       }
     : null;
   const allSources = await drawingRecords(sb, job);
-  const storedSheets = new Set(
-    allSources.flatMap((s) => s.sheets.map((name) => name.trim().toLowerCase())),
-  );
+  const storedSheets = new Set(allSources.flatMap((s) => s.sheets.map(looseSheetName)));
   // A line whose sheet is not in any stored set is not a drawing line the engine can locate: it is
   // shown as such instead of padding the unlocated count (general conditions, allowances, typos).
   const noSheet = (l: { line_no: number }) => {
-    const sheet = state.lines
-      .find((row) => row.line_no === l.line_no)
-      ?.sheet?.trim()
-      .toLowerCase();
-    return !sheet || !storedSheets.has(sheet);
+    const sheet = state.lines.find((row) => row.line_no === l.line_no)?.sheet;
+    return !sheet?.trim() || !storedSheets.has(looseSheetName(sheet));
   };
   const unlocatedOnSheets = summary.lines.filter((l) => l.status === "unlocated" && !noSheet(l));
   const noStoredSheet = summary.lines.filter((l) => l.status === "unlocated" && noSheet(l));
@@ -410,12 +443,12 @@ export async function viewEngine(
   );
   // Only agreed foundation requirements become checklist gaps. Unknown scope stays a question;
   // work outside the fixed list still needs its own source/quantity evidence.
-  const uncovered = settled.foundationGaps.filter(
-    (g) => !takeoffLineFor(review.lines, g.title),
-  );
+  const uncovered = settled.foundationGaps.filter((g) => !takeoffLineFor(review.lines, g.title));
   if (uncovered.length)
     card.sections?.push({
-      heading: settled.foundationScope.clarification ? "Foundation scope needs clarification" : "Included foundation requirements with no takeoff line",
+      heading: settled.foundationScope.clarification
+        ? "Foundation scope needs clarification"
+        : "Included foundation requirements with no takeoff line",
       kind: "list",
       rows: [
         ...uncovered.map((g) => ({
@@ -495,10 +528,22 @@ export async function viewEngine(
           ],
         })),
     });
-  const preview = page ? await renderPdfiumPage(page.bytes, page.page - 1) : null;
-  const highlighted = page
-    ? await highlightedPreview(page, state, extra.include_rejected === true)
+  const preview = page
+    ? await cachedPreview(pageKey(job, page.source, page.page - 1), () =>
+        renderPdfiumPage(page.bytes, page.page - 1),
+      )
     : null;
+  const includeRejected = extra.include_rejected === true;
+  const highlighted = !modelImage
+    ? null
+    : page
+      ? pageGeometry(state, page, includeRejected).length
+        ? await cachedHighlighted(
+            `${pageKey(job, page.source, page.page - 1)}:${includeRejected}:${await stateFingerprint(state)}`,
+            () => highlightedPreview(page, state, includeRejected),
+          )
+        : preview
+      : null;
   if (extra.export && typeof (extra.export as { url?: unknown }).url === "string")
     card.sections?.push({
       heading: "Dated measured PDF",
@@ -510,7 +555,7 @@ export async function viewEngine(
         },
       ],
     });
-  const availableSources = (await drawingRecords(sb, job)).map((s) => ({
+  const availableSources = allSources.map((s) => ({
     id: s.id,
     filename: s.filename,
     revision: s.version,
@@ -703,11 +748,15 @@ export async function decideGeometry(
 export async function readTile(sb: Sb, job: Job, page: StoredPage, index: number) {
   const tile = page.inspection.tiles[index];
   if (!tile) throw new ToolError("Choose a tile from this stored sheet.");
-  const rendered = await renderTile(page.bytes, page.page - 1, tile);
+  // Callers authorize the job and source first; the key binds company, job,
+  // source hash, page and tile so one member's tiles never answer another job.
+  const png = await cachedTiles(`${pageKey(job, page.source, page.page - 1)}:${index}`, () =>
+    renderTile(page.bytes, page.page - 1, tile).then((rendered) => rendered.png),
+  );
   return {
     tile,
-    png: `data:image/png;base64,${bytesToBase64(rendered.png)}`,
-    content: { type: "image" as const, mimeType: "image/png", data: bytesToBase64(rendered.png) },
+    png: `data:image/png;base64,${bytesToBase64(png)}`,
+    content: { type: "image" as const, mimeType: "image/png", data: bytesToBase64(png) },
   };
 }
 export const requiredSnapshot = (sb: Sb, job: Job) =>

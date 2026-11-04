@@ -202,6 +202,15 @@ describe("drawing set path", () => {
     expect(sheetPageIndex(next[0].sheets, "A-200")).toBeNull();
   });
 
+  it("matches a sheet spelled with or without a separator only when unambiguous", () => {
+    expect(sheetPageIndex(["C1.0", "E-1", "E2"], "E1")).toBe(1);
+    expect(sheetPageIndex(["C1.0", "E1"], "e 1")).toBe(1);
+    expect(sheetPageIndex(["E1", "E-1"], "E1")).toBe(0);
+    expect(sheetPageIndex(["E-1", "E_1"], "E1")).toBeNull();
+    expect(sheetPageIndex(["E1.0", "E10"], "E1")).toBeNull();
+    expect(sheetPageIndex(["C1.0"], "-")).toBeNull();
+  });
+
   it("ignores a path sent by the host and keeps the stored one", () => {
     const kept = keepDrawingPaths(
       [{ ...prior[0], path: FOREIGN }],

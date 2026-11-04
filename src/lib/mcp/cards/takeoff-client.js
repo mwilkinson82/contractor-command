@@ -26,6 +26,7 @@
     refreshDrawing = null,
     lastWidth = 0,
     statusFilter = "all";
+  var inlineWorkspace = false;
   function node(tag, text, cls) {
     var e = document.createElement(tag);
     if (text != null) e.textContent = String(text);
@@ -338,10 +339,55 @@
       return;
     }
     root.replaceChildren();
+    // Size the workspace to the host frame: fill the screen when expanded, stay
+    // short inline so the conversation is never buried.
+    document.body.classList.toggle("fs", hostContext.displayMode === "fullscreen");
+    document.body.classList.toggle(
+      "inline-ws",
+      hostContext.displayMode !== "fullscreen" && inlineWorkspace,
+    );
+    // The inline result should not displace the conversation with the entire
+    // measurement workspace. The host can expand it on demand; hosts without
+    // fullscreen support retain an explicit inline fallback.
+    if (hostContext.displayMode !== "fullscreen" && !inlineWorkspace) {
+      var compact = node("div", null, "compact");
+      compact.append(
+        node("strong", sc.source ? sc.source.sheet + " · Drawing takeoff" : "Drawing takeoff"),
+        node("p", sc.card.job || "", "note small"),
+        node(
+          "p",
+          sc.source ? "Ready to open " + sc.source.sheet : "Choose a drawing in the workspace.",
+          "small",
+        ),
+        button("Open drawing workspace", async function () {
+          if ((hostContext.availableDisplayModes || []).includes("fullscreen")) {
+            try {
+              var result = await rpc("ui/request-display-mode", { mode: "fullscreen" }, 15000);
+              hostContext.displayMode = result.mode;
+              if (result.mode !== "fullscreen") inlineWorkspace = true;
+            } catch (_) {
+              inlineWorkspace = true;
+            }
+          } else inlineWorkspace = true;
+          draw();
+        }),
+      );
+      root.append(compact);
+      size();
+      return;
+    }
     var head = node("header");
     head.append(node("p", "ATHENA", "brand"), node("h1", sc.card.title), node("p", sc.card.job));
     root.append(head);
-    if ((hostContext.availableDisplayModes || []).includes("fullscreen"))
+    if (inlineWorkspace && hostContext.displayMode !== "fullscreen")
+      head.append(
+        button("Back to chat", function () {
+          inlineWorkspace = false;
+          draw();
+          notice("");
+        }),
+      );
+    else if ((hostContext.availableDisplayModes || []).includes("fullscreen"))
       head.append(
         button(
           hostContext.displayMode === "fullscreen" ? "Back to chat" : "Expand drawing workspace",
@@ -449,6 +495,9 @@
         sheetPick = node("select");
       pick.ariaLabel = "Stored drawing set";
       sheetPick.ariaLabel = "Sheet to measure";
+      var chooseSource = node("option", "Choose a drawing set");
+      chooseSource.value = "";
+      pick.append(chooseSource);
       (sc.available_sources || []).forEach(function (s) {
         var o = node("option", s.filename + " · revision " + s.revision);
         o.value = s.id;
@@ -456,6 +505,9 @@
       });
       function populate() {
         sheetPick.replaceChildren();
+        var placeholder = node("option", "Choose a sheet");
+        placeholder.value = "";
+        sheetPick.append(placeholder);
         var s = (sc.available_sources || []).find(function (s) {
           return s.id === pick.value;
         });
@@ -471,13 +523,50 @@
         pick,
         sheetPick,
         button("Open stored sheet", function () {
+          if (!pick.value || !sheetPick.value)
+            return notice("Choose a drawing set and sheet first.");
           act("takeoff_geometry", {
             operation: "list",
             source_id: pick.value,
             sheet: sheetPick.value,
+            viewer_only: true,
           });
         }),
       );
+      // Shortcuts to sheets that already hold saved marks. Nothing is guessed:
+      // the member picks the exact stored sheet.
+      var marked = [];
+      (sc.engine.geometry || []).forEach(function (g) {
+        if (!g.source_id || !g.page || g.status === "rejected") return;
+        var s = (sc.available_sources || []).find(function (s) {
+          return s.id === g.source_id;
+        });
+        var name = s && s.sheets && s.sheets[g.page - 1];
+        if (
+          name &&
+          !marked.some(function (m) {
+            return m.source === s.id && m.sheet === name;
+          })
+        )
+          marked.push({ source: s.id, sheet: name });
+      });
+      if (marked.length) {
+        var quick = node("div", null, "tools");
+        quick.append(node("span", "Sheets with saved marks:", "small"));
+        marked.slice(0, 8).forEach(function (m) {
+          quick.append(
+            button("Open " + m.sheet, function () {
+              act("takeoff_geometry", {
+                operation: "list",
+                source_id: m.source,
+                sheet: m.sheet,
+                viewer_only: true,
+              });
+            }),
+          );
+        });
+        main.append(quick);
+      }
       sc.engine.summary.lines.forEach(function (l) {
         main.append(node("p", "L" + l.line_no + " · " + l.item + " · " + l.status));
       });
@@ -513,7 +602,14 @@
         o.value = n;
         sheetSelect.append(o);
       });
-      sheetSelect.value = sc.source.sheet;
+      // A different revision may not hold the open sheet; never send a stale name.
+      if (sourceSelect.value === sc.source.id) sheetSelect.value = sc.source.sheet;
+      else {
+        var choose = node("option", "Choose a sheet");
+        choose.value = "";
+        sheetSelect.prepend(choose);
+        sheetSelect.value = "";
+      }
     }
     sourceSelect.addEventListener("change", sheetOptions);
     sheetOptions();
@@ -521,10 +617,12 @@
       sourceSelect,
       sheetSelect,
       button("Open stored sheet", function () {
+        if (!sheetSelect.value) return notice("Choose a sheet first.");
         act("takeoff_geometry", {
           operation: "list",
           source_id: sourceSelect.value,
           sheet: sheetSelect.value,
+          viewer_only: true,
         });
       }),
     );
@@ -538,6 +636,7 @@
       viewHeight = (1000 * sc.space.height) / sc.space.width;
     var tools = node("div", null, "tools"),
       viewport = node("div", null, "viewport"),
+      modeNote = node("p", "Inspect mode: select a mark to see its line.", "note"),
       surface = node("div", null, "surface"),
       img = node("img"),
       svg = svgNode("svg", {
@@ -556,10 +655,19 @@
     viewport.append(surface);
     viewport.tabIndex = 0;
     viewport.ariaLabel = "Drawing. Zoom then scroll to pan.";
+    var detailReady = false,
+      detailTimer = null,
+      detailLoading = false,
+      detailImages = new Map(),
+      detailSource = sc.source.id,
+      detailHash = sc.source.content_hash,
+      detailSheet = sc.source.sheet;
+    var marksHidden = false;
     function setZoom(v) {
       zoom = Math.max(1, Math.min(8, v));
       surface.style.width = zoom * 100 + "%";
       if (svg.isConnected) overlay();
+      if (detailReady) scheduleDetail();
       size();
     }
     setZoom(zoom);
@@ -587,7 +695,143 @@
         act("takeoff_geometry", { operation: "tile", tile_index: Number(tileSelect.value) });
       }),
     );
-    left.append(tools, viewport);
+    var marksButton = button("Hide marks", function () {
+      if (
+        !marksHidden &&
+        (draft.length ||
+          holes.some(function (hole) {
+            return hole.length;
+          }))
+      ) {
+        notice("Finish or discard the unsaved drawing before hiding marks.");
+        return;
+      }
+      marksHidden = !marksHidden;
+      if (marksHidden) mode = "inspect";
+      marksButton.textContent = marksHidden ? "Show marks" : "Hide marks";
+      overlay();
+    });
+    tools.append(marksButton);
+    left.append(tools, modeNote, viewport);
+    // Request only the visible 200-dpi regions after zooming. Keep the
+    // low-resolution page underneath as an immediate, non-blocking fallback.
+    function scheduleDetail() {
+      clearTimeout(detailTimer);
+      if (zoom <= 1 || !host.serverTools || !svg.isConnected) return;
+      detailTimer = setTimeout(loadVisibleDetail, 180);
+    }
+    async function loadVisibleDetail() {
+      if (detailLoading || zoom <= 1 || !svg.isConnected) return;
+      var w = surface.clientWidth,
+        h = surface.clientHeight;
+      if (!w || !h) return;
+      var visible = {
+        x: viewport.scrollLeft / w,
+        y: viewport.scrollTop / h,
+        width: viewport.clientWidth / w,
+        height: viewport.clientHeight / h,
+      };
+      var cx = visible.x + visible.width / 2,
+        cy = visible.y + visible.height / 2;
+      var candidates = (sc.tiles || [])
+        .filter(function (tile) {
+          var b = tile.bounds;
+          return (
+            b &&
+            b.x < visible.x + visible.width &&
+            b.x + b.width > visible.x &&
+            b.y < visible.y + visible.height &&
+            b.y + b.height > visible.y
+          );
+        })
+        .sort(function (a, b) {
+          function distance(tile) {
+            return Math.hypot(
+              tile.bounds.x + tile.bounds.width / 2 - cx,
+              tile.bounds.y + tile.bounds.height / 2 - cy,
+            );
+          }
+          return distance(a) - distance(b);
+        })
+        .slice(0, 12)
+        .filter(function (tile) {
+          return !detailImages.has(tile.index);
+        });
+      if (!candidates.length) return;
+      // Two regions per request so the centre sharpens first; the rest follow.
+      var wanted = candidates.slice(0, 2);
+      detailLoading = true;
+      try {
+        var result = await call(
+          "takeoff_geometry",
+          args({
+            operation: "tile",
+            tile_indices: wanted.map(function (tile) {
+              return tile.index;
+            }),
+            viewer_tile_only: true,
+            source_id: detailSource,
+            sheet: detailSheet,
+          }),
+        );
+        var data = result && result.structuredContent;
+        if (
+          !result ||
+          result.isError ||
+          !data ||
+          !Array.isArray(data.tiles) ||
+          data.tiles.length !== wanted.length ||
+          data.source_id !== detailSource ||
+          data.source_hash !== detailHash ||
+          data.sheet !== detailSheet ||
+          !data.tiles.every(function (tile, index) {
+            return (
+              tile.index === wanted[index].index &&
+              typeof tile.png === "string" &&
+              /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(tile.png)
+            );
+          })
+        )
+          throw Error("Drawing detail could not be loaded.");
+        if (
+          !svg.isConnected ||
+          !sc.source ||
+          sc.source.id !== detailSource ||
+          sc.source.content_hash !== detailHash ||
+          sc.source.sheet !== detailSheet
+        )
+          return;
+        data.tiles.forEach(function (tile, index) {
+          var b = wanted[index].bounds;
+          var detail = svgNode("image", {
+            href: tile.png,
+            x: b.x * viewWidth,
+            y: b.y * viewHeight,
+            width: b.width * viewWidth,
+            height: b.height * viewHeight,
+            preserveAspectRatio: "none",
+            "pointer-events": "none",
+          });
+          svg.insertBefore(detail, svg.firstChild);
+          detailImages.set(tile.index, detail);
+          if (detailImages.size > 12) {
+            var first = detailImages.keys().next().value;
+            detailImages.get(first).remove();
+            detailImages.delete(first);
+          }
+        });
+      } catch (_) {
+        // The original preview remains available; a later scroll or zoom can retry.
+        return;
+      } finally {
+        detailLoading = false;
+      }
+      scheduleDetail();
+    }
+    viewport.addEventListener("scroll", scheduleDetail, { passive: true });
+    detailReady = true;
+    // After a save or reload the svg is rebuilt; restore detail at the current zoom.
+    scheduleDetail();
     if (sc.tile && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(sc.tile.png)) {
       var tileImg = svgNode("image", {
         href: sc.tile.png,
@@ -620,7 +864,9 @@
       holes = [];
       showSelected();
       showReadStatus();
+      notice("Inspect mode. Saved marks are not changed by selecting them.");
     }
+    var suppressPinClick = false;
     function geometry(shape, color, fill, id, offset) {
       if (!shape || !Array.isArray(shape.points) || !shape.points.every(validPoint)) return;
       var ps = shape.points,
@@ -632,29 +878,101 @@
             cy: p.y * viewHeight,
             r: 8 * unit,
             stroke: color,
-            fill: fill,
+            fill: "transparent",
             "stroke-width": 1.3,
             "vector-effect": "non-scaling-stroke",
+            "stroke-dasharray": fill === "white" ? "4 2" : "none",
           });
-          c.addEventListener("pointerdown", function (e) {
-            if (id && mode === "inspect") {
-              chooseGeometry(id, i);
-              drag = { index: i };
-              e.stopPropagation();
+          function selectPin(e) {
+            if (!id) return;
+            e.stopPropagation();
+            suppressPinClick = true;
+            if (
+              draft.length ||
+              holes.some(function (hole) {
+                return hole.length;
+              })
+            ) {
+              notice("Finish or discard the unsaved drawing before inspecting a saved pin.");
+              // Capture so the release always reaches the svg and clears the guard.
               svg.setPointerCapture(e.pointerId);
+              return;
             }
-          });
+            // Repeated clicks cycle coincident saved pins instead of adding a count.
+            var nearby = [];
+            var rect = surface.getBoundingClientRect();
+            rows().forEach(function (g) {
+              if (g.shape.kind !== "pins") return;
+              g.shape.points.forEach(function (point, index) {
+                if (Math.hypot((point.x - p.x) * rect.width, (point.y - p.y) * rect.height) <= 5)
+                  nearby.push({ id: g.geometry_id, index: index });
+              });
+            });
+            var at = nearby.findIndex(function (candidate) {
+              return candidate.id === selectedGeometry && candidate.index === selectedPoint;
+            });
+            var target = nearby[(at + 1) % nearby.length] || { id: id, index: i };
+            // The first press only selects. Moving a point starts only from a pin that
+            // was already selected, so a click with a little hand movement never turns
+            // a saved count into an editable copy.
+            var wasSelected = selectedGeometry === target.id && selectedPoint === target.index;
+            chooseGeometry(target.id, target.index);
+            drag = wasSelected
+              ? { index: target.index, startX: e.clientX, startY: e.clientY, moved: false }
+              : null;
+            svg.setPointerCapture(e.pointerId);
+            overlay();
+          }
+          function stopPinClick(e) {
+            if (id) {
+              e.stopPropagation();
+              suppressPinClick = false;
+            }
+          }
+          if (id) {
+            c.addEventListener("pointerdown", selectPin);
+            c.addEventListener("click", stopPinClick);
+          } else c.setAttribute("pointer-events", "none");
           svg.append(c);
-          var number = svgNode("text", {
-            x: p.x * viewWidth,
-            y: p.y * viewHeight,
-            "font-size": 10 * unit,
-            "text-anchor": "middle",
-            "dominant-baseline": "central",
-            fill: fill === "#1E5FED" ? "white" : color,
-            "pointer-events": "none",
+          var line = sc.engine.lines.find(function (l) {
+            return rows().some(function (g) {
+              return g.geometry_id === id && g.line_id === l.id;
+            });
           });
-          number.textContent = String((offset || 0) + i + 1);
+          var overlapIndex = 0;
+          if (id) {
+            var preceding = true;
+            rows().forEach(function (g) {
+              if (g.geometry_id === id) preceding = false;
+              if (!preceding || g.shape.kind !== "pins") return;
+              g.shape.points.forEach(function (other) {
+                if (Math.hypot((other.x - p.x) * rectWidth(), (other.y - p.y) * rectHeight()) <= 5)
+                  overlapIndex++;
+              });
+            });
+          }
+          function rectWidth() {
+            return surface.getBoundingClientRect().width;
+          }
+          function rectHeight() {
+            return surface.getBoundingClientRect().height;
+          }
+          var number = svgNode("text", {
+            x: p.x * viewWidth + 10 * unit,
+            y: p.y * viewHeight - (10 + overlapIndex * 12) * unit,
+            "font-size": 10 * unit,
+            "dominant-baseline": "central",
+            fill: color,
+            stroke: "white",
+            "stroke-width": 3 * unit,
+            "paint-order": "stroke",
+          });
+          number.textContent =
+            (line ? "L" + line.line_no + " · " : "") + String((offset || 0) + i + 1);
+          if (id) {
+            number.addEventListener("pointerdown", selectPin);
+            number.addEventListener("click", stopPinClick);
+          } else number.setAttribute("pointer-events", "none");
           svg.append(number);
         });
       else {
@@ -684,9 +1002,18 @@
         });
         path.addEventListener("click", function (e) {
           if (id) {
+            e.stopPropagation();
+            if (
+              draft.length ||
+              holes.some(function (hole) {
+                return hole.length;
+              })
+            ) {
+              notice("Finish or discard the unsaved drawing before inspecting saved work.");
+              return;
+            }
             chooseGeometry(id, 0);
             overlay();
-            e.stopPropagation();
           }
         });
         svg.append(path);
@@ -718,6 +1045,23 @@
       }
     }
     function overlay() {
+      if (marksHidden) {
+        svg.querySelectorAll("circle,path,text").forEach(function (e) {
+          e.remove();
+        });
+        modeNote.textContent = "Marks hidden. Show marks before drawing or selecting work.";
+        return;
+      }
+      modeNote.textContent =
+        mode === "inspect"
+          ? "Inspect mode: select a mark to see its line. Repeated clicks cycle overlapping marks."
+          : draft.length && selectedGeometry
+            ? "Moving points on the selected mark. Nothing changes until you save a revision."
+            : "Adding " +
+              mode +
+              ": " +
+              draft.length +
+              " unsaved point(s). Select a saved mark to inspect it before adding points.";
       svg.querySelectorAll("circle,path,text").forEach(function (e) {
         e.remove();
       });
@@ -736,7 +1080,7 @@
           l = sc.engine.lines.find(function (l) {
             return l.id === g.line_id;
           });
-        if (p) {
+        if (p && g.shape.kind !== "pins") {
           var t = svgNode("text", {
             x:
               p.x * viewWidth +
@@ -746,6 +1090,7 @@
               (11 * viewWidth) / Math.max(1, surface.getBoundingClientRect().width),
             fill: "#1E3A5F",
             "font-size": (12 * viewWidth) / Math.max(1, surface.getBoundingClientRect().width),
+            "pointer-events": "none",
           });
           t.textContent =
             "L" + (l && l.line_no) + " · " + Number(g.measured).toFixed(2) + " " + g.unit;
@@ -770,6 +1115,10 @@
       };
     }
     svg.addEventListener("click", function (e) {
+      if (suppressPinClick) {
+        suppressPinClick = false;
+        return;
+      }
       if (window.innerWidth < 768 || busy || mode === "inspect") return;
       var p = pointAt(e);
       if (activeHole >= 0) holes[activeHole].push(p);
@@ -782,6 +1131,10 @@
     });
     svg.addEventListener("pointermove", function (e) {
       if (!drag || window.innerWidth < 768 || busy) return;
+      if (drag.startX != null && !drag.moved) {
+        if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 6) return;
+        drag.moved = true;
+      }
       var g = rows().find(function (g) {
         return g.geometry_id === selectedGeometry;
       });
@@ -796,12 +1149,21 @@
       overlay();
       showPreview();
     });
-    svg.addEventListener("pointerup", function () {
+    function endPress() {
       if (drag) {
         drag = null;
         showSelected();
       }
-    });
+      // The click event is dispatched immediately after pointerup; clear the
+      // guard afterward even when the browser cancels that click.
+      setTimeout(function () {
+        suppressPinClick = false;
+      }, 0);
+    }
+    svg.addEventListener("pointerup", endPress);
+    // A touch pan or lost capture ends the press without a pointerup.
+    svg.addEventListener("pointercancel", endPress);
+    svg.addEventListener("lostpointercapture", endPress);
     var edit = node("div", null, "desktop drawer"),
       lineSelect = node("select");
     lineSelect.ariaLabel = "Takeoff line";
@@ -852,6 +1214,26 @@
     else if (cal.options.length === 2) cal.selectedIndex = 1;
     selectedCalibration = cal.value;
     var modes = node("div", null, "tools");
+    modes.append(
+      button("Inspect saved work", function () {
+        function inspect() {
+          mode = "inspect";
+          draft = [];
+          holes = [];
+          activeHole = -1;
+          overlay();
+          notice("Inspect mode: select a saved mark to see its takeoff line.");
+        }
+        if (
+          draft.length ||
+          holes.some(function (hole) {
+            return hole.length;
+          })
+        )
+          confirmBox("Discard the unsaved drawing and return to inspection?", inspect);
+        else inspect();
+      }),
+    );
     ["pins", "polyline", "polygon", "rect", "calibrate"].forEach(function (m) {
       modes.append(
         button(
@@ -863,13 +1245,25 @@
             calibrate: "Calibrate",
           }[m],
           function () {
-            mode = m;
-            draft = [];
-            holes = [];
-            activeHole = -1;
-            selectedGeometry = null;
-            notice("Place " + m + " points on the sheet.");
-            overlay();
+            if (marksHidden)
+              return notice("Show marks before drawing so existing work stays visible.");
+            function start() {
+              mode = m;
+              draft = [];
+              holes = [];
+              activeHole = -1;
+              selectedGeometry = null;
+              notice("Place " + m + " points on the sheet.");
+              overlay();
+            }
+            if (
+              draft.length ||
+              holes.some(function (hole) {
+                return hole.length;
+              })
+            )
+              confirmBox("Discard the unsaved drawing and change tools?", start);
+            else start();
           },
         ),
       );
@@ -1202,8 +1596,16 @@
         return g.geometry_id === selectedGeometry;
       });
       if (!g) return;
+      var selectedLineRecord = sc.engine.lines.find(function (line) {
+        return line.id === g.line_id;
+      });
       selected.append(
-        node("h2", "Selected geometry"),
+        node(
+          "h2",
+          selectedLineRecord
+            ? "L" + selectedLineRecord.line_no + " · " + selectedLineRecord.item
+            : "Selected geometry",
+        ),
         node(
           "p",
           "Revision " +
@@ -1216,6 +1618,10 @@
             g.unit,
         ),
       );
+      if (g.shape.kind === "pins" && selectedPoint >= 0)
+        selected.append(
+          node("p", "Selected point " + (selectedPoint + 1) + " of " + g.shape.points.length),
+        );
       if (g.status === "proposed")
         selected.append(
           button(
@@ -1795,7 +2201,7 @@
     main.append(
       node(
         "p",
-        "Blue fill: accepted. Blue outline: proposed. Counts and dimensions come from geometry; no typed quantity changes a measured result.",
+        "Solid ring: accepted. Dashed ring: proposed. Labels identify the line and point. Counts and dimensions come from geometry; no typed quantity changes a measured result.",
         "note small",
       ),
     );
