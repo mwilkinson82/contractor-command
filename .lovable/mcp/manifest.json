@@ -17246,6 +17246,7 @@
               "pattern": "^T-[1-9][0-9]{0,5}$"
             },
             "title": {
+              "description": "The selection's name as the customer reads it, for example Type A track heads. No RFI numbers, provisional status or other internal notes.",
               "type": "string",
               "minLength": 1,
               "maxLength": 160
@@ -17767,7 +17768,7 @@
               ]
             },
             "basis": {
-              "description": "Only when an estimate line has an open drawing conflict: the basis the member chose to run on, for example \"E1 schedule, pending RFI-001\". The options are saved marked provisional and the customer view stays locked until the conflict is settled.",
+              "description": "Only when an estimate line has an open drawing conflict: the basis the member chose to run on, for example \"E1 schedule, pending RFI-001\". The options are saved marked provisional in the internal selection notes and the customer view stays locked until the conflict is settled. Keep the basis out of the selection title.",
               "type": "string",
               "minLength": 3,
               "maxLength": 300

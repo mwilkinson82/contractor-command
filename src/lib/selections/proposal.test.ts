@@ -161,4 +161,24 @@ describe("Good, Better, Best packages", () => {
       "A package total is out of range. Check the base price and base tier.",
     ]);
   });
+
+  it("keeps RFI, provisional and price-source notes off the customer page", () => {
+    const b = willowCreekTypeE();
+    b.selections[0].title = "Type A track heads (provisional, pending RFI-001)";
+    b.selections[0].options.best.specifications =
+      "13W, 90 CRI. Price lead taken from the white listing; price to be confirmed with supplier.";
+    const blockers = proposalBlockers(b);
+    expect(blockers).toHaveLength(2);
+    expect(blockers[0]).toMatch(/its title has an internal note \("RFI-001"\)/);
+    expect(blockers[1]).toMatch(
+      /\(Best\): its specifications has an internal note \("Price lead"\)/,
+    );
+    expect(() => customerProposal(b, 1)).toThrow(/internal note/);
+    // The same words in the internal notes and assumptions are fine.
+    const ok = willowCreekTypeE();
+    ok.selections[0].notes = "Pending RFI-001; price lead from bulbs.com";
+    ok.selections[0].options.best.assumptions = "Price taken from the white listing";
+    ok.proposal.terms = "Includes a provisional sum for fittings.";
+    expect(proposalBlockers(ok)).toEqual([]);
+  });
 });
