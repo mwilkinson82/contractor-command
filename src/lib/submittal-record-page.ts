@@ -445,7 +445,7 @@ function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
         : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`),
   );
   const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes · Athena powered by ALP</p>`;
-  return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 8px;font-size:22px;color:${NAVY}">${title}</h1>${head}${what}${requestBody}${changeBody}${changeHistory}${piecesHtml(items, p.read_only === true)}${filesHtml(p.packages ?? [], p.transmittals ?? [], p.time_zone_context ?? { job: p.time_zone })}${mailHtml(p.mail ?? [])}${revisionsHtml(p.revisions ?? [])}${timeline}${foot}</div>`;
+  return `<div class="ath-report-page" style="color:${NAVY}"><h1 class="ath-report-title" style="margin:0 0 8px;color:${NAVY}">${title}</h1><div class="ath-record-grid"><div class="ath-record-main">${head}${what}${requestBody}${changeBody}${changeHistory}${piecesHtml(items, p.read_only === true)}${filesHtml(p.packages ?? [], p.transmittals ?? [], p.time_zone_context ?? { job: p.time_zone })}</div><div class="ath-record-side">${mailHtml(p.mail ?? [])}${revisionsHtml(p.revisions ?? [])}${timeline}</div></div>${foot}</div>`;
 }
 
 /** Long references, evidence names and correspondence fit the current pane. */

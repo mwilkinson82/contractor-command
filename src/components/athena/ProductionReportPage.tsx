@@ -71,7 +71,7 @@ export function ProductionReportView({ report }: { report: ProductionReport }) {
             No saved production rows for this period.
           </p>
         ) : null}
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {report.groups.map((group) => (
             <article
               key={JSON.stringify([group.sov_item, group.activity_id, group.work, group.unit])}
@@ -111,7 +111,7 @@ export function ProductionReportView({ report }: { report: ProductionReport }) {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h3 className="text-sm font-semibold">{day(row.report_date)}</h3>
                   <a
-                    className="text-sm font-medium text-[#1E5FED] underline-offset-4 hover:underline"
+                    className="text-sm font-medium text-[#2465cb] underline-offset-4 hover:underline"
                     href={productionDailyPath(report.job_id, row.report_date)}
                   >
                     Open source daily
@@ -224,10 +224,10 @@ export function ProductionReportPage({
     return <ProjectReadUnavailable />;
   return (
     <main className="min-h-screen min-w-0 [overflow-wrap:anywhere] [&_*]:min-w-0 bg-[#F6F8FB] px-4 py-7 text-[#183453] sm:px-6">
-      <div className="mx-auto max-w-5xl rounded-2xl border border-[#DCE3EC] bg-white px-5 py-6 sm:px-8 sm:py-8">
+      <div className="mx-auto max-w-[1440px] rounded-2xl border border-[#DCE3EC] bg-white px-5 py-6 sm:px-8 sm:py-8">
         <nav
           aria-label="Project navigation"
-          className="mb-6 flex flex-wrap gap-5 text-sm text-[#1E5FED]"
+          className="mb-6 flex flex-wrap gap-5 text-sm font-semibold text-[#2465cb]"
         >
           <a href={`/r/job/${jobId}/home`} className="hover:underline">
             Project home
@@ -279,7 +279,7 @@ export function ProductionReportPage({
             Read production
           </button>
           <button
-            className="min-h-10 px-2 py-2 text-[#1E5FED] disabled:opacity-50"
+            className="min-h-10 px-2 py-2 text-[#2465cb] disabled:opacity-50"
             type="button"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}

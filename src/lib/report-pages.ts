@@ -555,14 +555,14 @@ function submittalsPageHtml(p: SubmittalsPagePayload): string {
 function renderReportContent(p: PagePayload, context?: { jobId?: string }): string {
   if (p.page === "submittals") {
     const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Submittal log`;
-    return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
+    return `<div class="ath-report-page" style="color:${NAVY}"><h1 class="ath-report-title" style="margin:0 0 16px;color:${NAVY}">${title}</h1>${submittalsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
   }
   if (p.page === "field") return fieldPageHtml(p);
   if (p.page === "daily") return dailyPageHtml(p, context);
   if (p.page === "photos") return photoPageHtml(p);
   if (p.page === "items") {
     const title = `${esc(jobPageTitle(p.job_number, p.job_name))} · Open items`;
-    return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0 0 16px;font-size:22px;color:${NAVY}">${title}</h1>${itemsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
+    return `<div class="ath-report-page" style="color:${NAVY}"><h1 class="ath-report-title" style="margin:0 0 16px;color:${NAVY}">${title}</h1>${itemsPageHtml(p)}<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · Athena powered by ALP</p></div>`;
   }
   const title = p.page === "portfolio" ? `${esc(p.company ?? "")} · Portfolio dashboard` : `${esc(jobPageTitle(p.job_number, p.job_name))} · ${PAGE_LABEL[p.page]}`;
   let body: string;
@@ -576,7 +576,7 @@ function renderReportContent(p: PagePayload, context?: { jobId?: string }): stri
   if (p.page === "payapp" && p.report?.found) st = stamp(p.report);
   if (p.page === "briefing") st = `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">${esc(shortDate(p.today))}</p>`;
   const foot = p.shared ? `Shared view${p.expires_at ? ` · link works until ${esc(p.expires_at.slice(0, 10))}` : ""} · Athena powered by ALP` : "Private to your company · updates when Athena saves a new version · Athena powered by ALP";
-  return `<div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${NAVY}"><h1 style="margin:0;font-size:22px;color:${NAVY}">${title}</h1>${st || `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">Live view</p>`}${body}<p style="margin:24px 0 0;font-size:12px;color:${G2}">${foot}</p></div>`;
+  return `<div class="ath-report-page" style="color:${NAVY}"><h1 class="ath-report-title" style="margin:0;color:${NAVY}">${title}</h1>${st || `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">Live view</p>`}${body}<p style="margin:24px 0 0;font-size:12px;color:${G2}">${foot}</p></div>`;
 }
 
 /** Same responsive surface in the signed-in view and the standalone share. */

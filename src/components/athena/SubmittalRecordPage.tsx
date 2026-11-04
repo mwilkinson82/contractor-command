@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useServerFn } from "@tanstack/react-start";
 import { openSubmittalRecord } from "@/lib/board-link.functions";
 import { boardReturnForVisit } from "@/lib/board-sign-in";
+import { AthenaPage } from "./AthenaPage";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { REFRESH_MS, usePageVisible } from "@/components/athena/ReportPage";
 import { SUBMITTAL_BUCKET } from "@/lib/mcp/submittal-package";
@@ -151,38 +152,29 @@ export function SubmittalRecordView({
   const returnTo =
     boardReturnForVisit("submittals", jobId, location) ?? submittalRecordPath(jobId, number);
   if (authLoading || (!payload && ((session && q.isLoading) || (token && linked.isLoading))))
-    return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
+    return (
+      <AthenaPage jobId={jobId} token={token}>
+        <p role="status" className="ath-page-status">
+          Loading…
+        </p>
+      </AthenaPage>
+    );
   if (payload) {
     return (
-      <div style={{ background: "#F3F4F6", minHeight: "100%" }}>
-        <p
-          role="status"
-          style={{ maxWidth: 1068, margin: "0 auto", padding: "12px 20px", color: "#1E3A5F" }}
-        >
-          Browser account: {session ? (session.user.email ?? "Email unavailable") : "Not signed in"}
-        </p>
+      <AthenaPage
+        jobId={jobId}
+        token={token}
+        account={session ? (session.user.email ?? "Email unavailable") : "Not signed in"}
+      >
         {packageId && !packageTarget ? (
-          <p role="status" style={{ padding: "16px 24px", color: "#6B7280" }}>
+          <p role="status" className="ath-page-empty">
             That package could not be opened. The submittal record and its available files are
             below.
           </p>
         ) : null}
-        <div dangerouslySetInnerHTML={{ __html: html }} />
-        <section
-          id="upload"
-          style={{
-            maxWidth: 1068,
-            margin: "0 auto 24px",
-            padding: 20,
-            background: "#FFFFFF",
-            color: "#1E3A5F",
-            border: "1px solid #D1D5DB",
-            borderRadius: 12,
-          }}
-        >
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-            Upload a package piece
-          </h2>
+        <div className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
+        <section id="upload" className="ath-page-panel">
+          <h2>Upload a package piece</h2>
           {memberPayload?.read_only === false ? (
             <SubmittalPieceUpload
               payload={memberPayload}
@@ -216,11 +208,7 @@ export function SubmittalRecordView({
                   <p>{q.error.diagnostic.message}</p>
                 </details>
               ) : null}
-              <button
-                type="button"
-                onClick={() => void q.refetch()}
-                className="my-3 rounded bg-[#1E5FED] px-4 py-2 text-white"
-              >
+              <button type="button" onClick={() => void q.refetch()} className="my-3">
                 Retry upload access
               </button>
               <BoardSignIn returnTo={returnTo} />
@@ -235,7 +223,7 @@ export function SubmittalRecordView({
             </div>
           )}
         </section>
-      </div>
+      </AthenaPage>
     );
   }
   return <BoardSignIn returnTo={returnTo} />;

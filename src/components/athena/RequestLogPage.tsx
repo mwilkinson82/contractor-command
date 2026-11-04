@@ -4,9 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { requestLogCard, type RequestKind, type RequestLogPayload } from "@/lib/mcp/request-log";
-import { renderHtml } from "@/lib/mcp/cards/html";
 import { openRequestLog } from "@/lib/request-log.functions";
 import { BoardSignIn } from "./BoardSignIn";
+import { AthenaPage, CardModelPage } from "./AthenaPage";
 import { readRequestLog, boundedRequestRead, type RequestLogRpc } from "@/lib/request-log-read";
 
 export function RequestLogPage({
@@ -48,51 +48,51 @@ export function RequestLogPage({
   const path = `/r/job/${jobId}/${kind}s`;
   const board = `https://app.meetathena.io/r/job/${jobId}/submittals${token ? `?t=${encodeURIComponent(token)}` : ""}`;
   if (payload) {
-    const rendered = renderHtml(
-      requestLogCard(kind, payload, board, { state: state === "all" ? undefined : state, overdue })
-        .card,
-    );
-    const style = rendered.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
-    const body = rendered.match(/<body>([\s\S]*?)<\/body>/)?.[1] ?? "";
+    const { card } = requestLogCard(kind, payload, board, {
+      state: state === "all" ? undefined : state,
+      overdue,
+    });
     return (
-      <main style={{ padding: 16, minWidth: 0, overflowWrap: "anywhere" }}>
-        {session?.user.email && (
-          <p style={{ color: "#6B7280", fontSize: 12 }}>Browser account: {session.user.email}</p>
-        )}
-        <div
-          style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 16, color: "#1E3A5F" }}
-        >
-          <label>
-            Status{" "}
-            <select
-              value={state}
-              onChange={(event) => setState(event.target.value as typeof state)}
-            >
-              <option value="all">All</option>
-              <option value="draft">Draft, not sent</option>
-              <option value="sent">Sent</option>
-              <option value="answered">Answered</option>
-              <option value="closed">Closed</option>
-            </select>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={overdue}
-              onChange={(event) => setOverdue(event.target.checked)}
-            />{" "}
-            Overdue targets only
-          </label>
-        </div>
-        <div dangerouslySetInnerHTML={{ __html: `<style>${style}</style>${body}` }} />
-      </main>
+      <AthenaPage jobId={jobId} token={token} account={session?.user.email}>
+        <CardModelPage
+          card={card}
+          skip={["Live log"]}
+          filters={
+            <>
+              <label>
+                Status
+                <select
+                  value={state}
+                  onChange={(event) => setState(event.target.value as typeof state)}
+                >
+                  <option value="all">All</option>
+                  <option value="draft">Draft, not sent</option>
+                  <option value="sent">Sent</option>
+                  <option value="answered">Answered</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </label>
+              <label className="ath-page-check">
+                <input
+                  type="checkbox"
+                  checked={overdue}
+                  onChange={(event) => setOverdue(event.target.checked)}
+                />
+                Overdue targets only
+              </label>
+            </>
+          }
+        />
+      </AthenaPage>
     );
   }
   if (loading || member.isFetching || linked.isFetching)
     return (
-      <p role="status" style={{ padding: 24, color: "#1E3A5F" }}>
-        Loading your {kind.toUpperCase()} log…
-      </p>
+      <AthenaPage jobId={jobId} token={token}>
+        <p role="status" className="ath-page-status">
+          Loading your {kind.toUpperCase()} log…
+        </p>
+      </AthenaPage>
     );
   return (
     <main>
