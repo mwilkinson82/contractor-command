@@ -107,6 +107,40 @@ describe("sheet titles from the title field (2810 permit set misses)", () => {
     expect(proposal.pages[0].title).toBe("BUILDING ENVELOPE");
   });
 
+  it("reads a single-detail sheet's title (A4.2 MENU SCREEN MOUNT DETAIL)", () => {
+    const proposal = proposeSheetIndex([
+      stripPage("A4.2", [run("MENU SCREEN MOUNT DETAIL", 0.885, 0.81, 0.012, 0.09)]),
+    ]);
+    expect(proposal.pages[0].title).toBe("MENU SCREEN MOUNT DETAIL");
+  });
+
+  it("leaves the sheet count out of the title (M sheets printed 1 OF 3)", () => {
+    const proposal = proposeSheetIndex([
+      // The count as its own run in the title field.
+      stripPage("M1", [
+        run("HVAC LAYOUT", 0.885, 0.81, 0.012, 0.06),
+        run("1 OF 3", 0.885, 0.84, 0.01, 0.03),
+      ]),
+      // The count set on the title's own line, as one run.
+      stripPage("M2", [run("HVAC SCHEDULES OF 3", 0.885, 0.81, 0.012, 0.09)]),
+      // No drawn lines: the count sits just under the title.
+      {
+        page: 3,
+        runs: [
+          run("PLUMBING LAYOUT", 0.86, 0.88, 0.01, 0.08),
+          run("OF 3", 0.86, 0.893, 0.01, 0.02),
+          run("SHEET NO.", 0.86, 0.93, 0.005),
+          run("P1", 0.88, 0.95, 0.025),
+        ],
+      },
+    ]);
+    expect(proposal.pages.map((p) => p.title)).toEqual([
+      "HVAC LAYOUT",
+      "HVAC SCHEDULES",
+      "PLUMBING LAYOUT",
+    ]);
+  });
+
   it("keeps the second line of a title when the block has no drawn lines", () => {
     const proposal = proposeSheetIndex([
       {
