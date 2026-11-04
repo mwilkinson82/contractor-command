@@ -38,6 +38,18 @@ function readable(message: string | undefined, fallback: string): string {
   return m ? m[1].trim() : fallback;
 }
 
+/** What's picked, in a few words: the file name and size for one photo, a count for several. */
+function pickedText(files: File[]): string {
+  if (!files.length) return "No photo picked yet";
+  if (files.length > 1) return `${files.length} photos picked`;
+  const f = files[0];
+  const size =
+    f.size >= 1024 * 1024
+      ? `${(f.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.max(1, Math.round(f.size / 1024))} KB`;
+  return `${f.name} · ${size}`;
+}
+
 /**
  * Adds original photos straight from the phone or computer to the job's progress photos. Works the same in every
  * browser, so it is also where a chat that can't pass the photo file sends the member.
@@ -241,17 +253,42 @@ export function AddProgressPhotos({
             onChange={(e) => setWork(e.target.value)}
           />
         </label>
-        <label className="pp-add-wide">
-          Photos
+        <div className="pp-add-wide pp-add-files">
+          <span id="pp-add-files-label">{replaces ? "Photo" : "Photos"}</span>
+          {/* The browser's own file input shows as bare "Choose File" text on phones, so it is hidden and a real
+              button opens the same picker. */}
           <input
             ref={fileInput}
+            id="pp-add-file"
+            className="pp-file-input"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             multiple={!replaces}
-            required
+            tabIndex={-1}
+            aria-hidden="true"
             onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, replaces ? 1 : 20))}
           />
-        </label>
+          <div className="pp-add-pick">
+            <button
+              type="button"
+              className="pp-pick"
+              aria-describedby="pp-add-picked"
+              disabled={!!busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              {files.length
+                ? replaces
+                  ? "Pick a different photo"
+                  : "Pick different photos"
+                : replaces
+                  ? "Select photo"
+                  : "Select photos"}
+            </button>
+            <span id="pp-add-picked" className="pp-add-picked">
+              {pickedText(files)}
+            </span>
+          </div>
+        </div>
         <label className="pp-add-check">
           <input
             type="checkbox"
