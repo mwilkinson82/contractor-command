@@ -6,6 +6,7 @@ import { readDailyIndex } from "@/lib/daily-report-workspace";
 import { productionClient } from "@/lib/production-report";
 import { dailyDisplayText, dailyReportHeading } from "@/lib/mcp/superintendent";
 import { DailyReportCapture } from "./DailyReportCapture";
+import { DailyPhotoStrip } from "./DailyPhotoStrip";
 import "./daily-report-workspace.css";
 
 export function DailyReportReview({
@@ -197,6 +198,15 @@ export function DailyReportReview({
                         <p>Work lines not recorded.</p>
                       )}
                     </section>
+                    <section className="dr-wide">
+                      <h3>Progress photos</h3>
+                      <DailyPhotoStrip
+                        jobId={jobId}
+                        date={current}
+                        token={token}
+                        memberId={memberId}
+                      />
+                    </section>
                     {[
                       ["Crews & hours", payload.manpower],
                       ["Weather", payload.weather],
@@ -220,15 +230,13 @@ export function DailyReportReview({
                       Report date: {current}. Quantities, hours and references are as reported;
                       approved mappings and independent verification are not established.
                     </p>
-                    <p>
-                      Photo attachments are not included in this report read.{" "}
-                      <a
-                        href={`/r/job/${jobId}/photos${token ? `?t=${encodeURIComponent(token)}` : ""}`}
-                      >
-                        Open progress photos (all dates)
-                      </a>
-                      .
-                    </p>
+                    <h3>Progress photos</h3>
+                    <DailyPhotoStrip
+                      jobId={jobId}
+                      date={current}
+                      token={token}
+                      memberId={memberId}
+                    />
                     <p>
                       Original transcript and attachments are not supplied by this read model.
                       Missing evidence is not zero.

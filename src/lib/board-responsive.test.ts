@@ -87,6 +87,7 @@ vi.mock("@/lib/change-log.functions", () => ({ openChangeLog: state.calls }));
 import { PurchaseOrderBuyout } from "@/components/athena/PurchaseOrderBuyout";
 import { JobHome } from "@/components/athena/JobHome";
 import { DailyReportReview } from "@/components/athena/DailyReportReview";
+import { ProgressPhotosPage } from "@/components/athena/ProgressPhotosPage";
 import { DailyReportCapture } from "@/components/athena/DailyReportCapture";
 import { ProductionReportPage } from "@/components/athena/ProductionReportPage";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
@@ -286,6 +287,10 @@ const previews: Record<string, () => ReactNode> = {
     ),
   "project-home": () => h(JobHome, { jobId: id }),
   "daily-review": () => h(DailyReportReview, { payload: daily, jobId: id, memberId: "synthetic" }),
+  "progress-photos": () =>
+    h(ProgressPhotosPage, { payload: { page: "photos", job_number: "SYN-001", job_name: long, photos: [] }, jobId: id, memberId: "synthetic" }),
+  "progress-photos-day": () =>
+    h(ProgressPhotosPage, { payload: { page: "photos", job_number: "SYN-001", job_name: long, photos: [] }, jobId: id, memberId: "synthetic", date: day }),
   "daily-capture": () =>
     h(
       "main",
@@ -407,6 +412,25 @@ describe("board and account responsive fixtures", () => {
               ],
             },
     };
+    const synthPhoto = (n: number) => ({
+      id: `00000000-0000-4000-8000-00000000000${n}`,
+      taken_on: day,
+      area: long,
+      work: long,
+      sov_item: null,
+      activity_id: null,
+      client_safe: n === 1,
+      url: "/brand/athena/athena-primary-512.png",
+      storage_path: null,
+      mime_type: "image/jpeg",
+      size_bytes: 3_400_000,
+      created_at: `${day}T15:00:00Z`,
+      created_by: "synthetic",
+      saved_by: "You",
+      daily_linked: true,
+    });
+    state.queries["athena-progress-photos"] = { photos: [1, 2, 3].map(synthPhoto), more: true };
+    state.queries["daily-photo-strip"] = { photos: [1, 2].map((n) => ({ id: synthPhoto(n).id, area: long, url: "/brand/athena/athena-primary-512.png" })), total: 2 };
     state.queries["po-buyout"] = buyout;
     state.queries["athena-request-log"] = {
       job_id: id,

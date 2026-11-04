@@ -1,4 +1,5 @@
 import { DailyReportReview } from "./DailyReportReview";
+import { ProgressPhotosPage } from "./ProgressPhotosPage";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -157,6 +158,8 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate }: { 
   if (authLoading || (!payload && ((session && q.isLoading) || (token && jobId && tokenPage && linked.isLoading)))) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
   // Either the scoped member read or the validated key can open the live board.
   if (payload?.page === "daily" && jobId) return <DailyReportReview key={`${jobId}:${session?.user.id ?? "board"}:${reportDate ?? "latest"}`} payload={payload} jobId={jobId} memberId={memberPayload ? session?.user.id : undefined} token={token} />;
+  // Photos get the responsive gallery and full-size viewer; the member read adds file and saved-by details.
+  if (payload?.page === "photos" && jobId) return <ProgressPhotosPage key={`${jobId}:${reportDate ?? "all"}`} payload={payload} jobId={jobId} token={token} memberId={memberPayload ? session?.user.id : undefined} date={reportDate} />;
   if (payload) return live;
   // Only a missing/rejected session needs a code. A failed scoped read must not create a login loop.
   if (page !== "portfolio") {
