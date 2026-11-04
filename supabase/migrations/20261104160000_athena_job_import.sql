@@ -13,7 +13,6 @@
 -- already brought in.
 --
 -- Nothing here reads another system. The member supplies the export.
-BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
@@ -35,6 +34,7 @@ CREATE TABLE IF NOT EXISTS public.mcp_import_batches (
 CREATE INDEX IF NOT EXISTS mcp_import_batches_actor ON public.mcp_import_batches (actor_id, company_id, job_number, status);
 ALTER TABLE public.mcp_import_batches ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.mcp_import_batches FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.mcp_import_batches TO service_role;
 
 -- One row per source record brought in, so a rerun never duplicates it.
 CREATE TABLE IF NOT EXISTS public.mcp_import_records (
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS public.mcp_import_records (
 );
 ALTER TABLE public.mcp_import_records ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.mcp_import_records FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.mcp_import_records TO service_role;
 
 -- Billing already done in the old system, per SOV line, as of its last
 -- application, kept for the first Athena pay app to start from. Pay app
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.mcp_import_opening_balances (
 );
 ALTER TABLE public.mcp_import_opening_balances ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.mcp_import_opening_balances FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.mcp_import_opening_balances TO service_role;
 
 -- What the review needs to know about the destination: does the job exist,
 -- what is already there, and what an earlier import already brought in.
@@ -286,5 +288,3 @@ GRANT EXECUTE ON FUNCTION public.mcp_job_import_context(uuid, text, text) TO aut
 GRANT EXECUTE ON FUNCTION public.mcp_job_import_stage(uuid, text, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_job_import_cancel(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_job_import_apply(uuid, text, boolean) TO authenticated;
-
-COMMIT;
