@@ -86,7 +86,8 @@ export function fromOverwatch(input: unknown, opts: { dailyDays?: number } = {})
     customer: clip(p.client, 200) || null,
     pm_name: clip(p.project_manager, 120) || null,
     pm_email: null,
-    completion_date: toDay(p.forecast_completion_date) ?? toDay(p.baseline_completion_date),
+    // The contract date is the baseline; a forecast is not a contract term.
+    completion_date: toDay(p.baseline_completion_date),
   };
   if (!out.job.job_number)
     out.problems.push(
@@ -176,7 +177,9 @@ export function fromOverwatch(input: unknown, opts: { dailyDays?: number } = {})
       cost_code: clip(b.cost_code, 40) || null,
       description: clip(b.bucket, 300) || clip(b.cost_code, 300) || "SOV line",
       scheduled_cents: scheduled,
-      budget_cents: toCents(b.original_budget),
+      // Overwatch stores a bucket with no budget as 0. Saving that as a real
+      // $0 budget would block the real number later, so 0 means no budget.
+      budget_cents: toCents(b.original_budget) || null,
       work_to_date_cents: work,
       stored_to_date_cents: stored,
       retained_cents: l && l.retainage_held_cents != null ? num(l.retainage_held_cents) : null,

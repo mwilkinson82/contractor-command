@@ -131,6 +131,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   if (job.contract.retainage_pct != null)
     contractFacts.retainage = `${job.contract.retainage_pct}%`;
   if (job.job.customer) contractFacts.customer = job.job.customer;
+  if (job.job.completion_date) contractFacts.substantial_completion = job.job.completion_date;
   for (const key of Object.keys(contractFacts)) {
     if ((ctx.contract_keys ?? []).includes(key)) {
       kept.push(`Contract ${key.replace(/_/g, " ")} already on the job; kept Athena's.`);
@@ -302,7 +303,11 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     held.push(
       `${plural(job.schedule.length, "schedule activity", "schedule activities")}: the CPM comes in through Athena's schedule step, which ties activities to the SOV.`,
     );
-  for (const h of job.held) held.push(`${plural(h.count, h.kind)}: ${h.why}`);
+  // Held kinds are already plural ("exposures", "Earlier pay applications").
+  for (const h of job.held) {
+    const kind = h.kind.toLowerCase();
+    held.push(`${plural(h.count, kind.replace(/s$/, ""), kind)}: ${h.why}`);
+  }
 
   const pkg: ImportPackage = {
     version: 1,

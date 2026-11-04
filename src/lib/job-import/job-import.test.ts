@@ -109,6 +109,31 @@ describe("Overwatch export", () => {
     x.billing_line_items[0].scheduled_value_cents = 4_900_000;
     expect(fromOverwatch(x).problems[0]).toMatch(/General conditions/);
   });
+
+  it("treats a zero bucket budget as no budget, not a $0 budget", () => {
+    const x = sample();
+    for (const b of x.cost_buckets) b.original_budget = 0;
+    const zeroed = fromOverwatch(x);
+    expect(zeroed.sov.every((l) => l.budget_cents === null)).toBe(true);
+    expect(planImport(zeroed, { job_exists: false }).counts.budget_lines).toBe(0);
+  });
+
+  it("names what stays behind without doubling the plural", () => {
+    const x = sample();
+    x.counts = { exposures: 8, decisions: 1 };
+    const held = planImport(fromOverwatch(x), { job_exists: false }).held.join(" ");
+    expect(held).toMatch(/8 exposures:/);
+    expect(held).toMatch(/1 decision:/);
+    expect(held).not.toMatch(/ss:/);
+  });
+
+  it("brings the baseline completion date in as the contract completion, not the forecast", () => {
+    const x = sample();
+    x.project.baseline_completion_date = "2027-01-19";
+    x.project.forecast_completion_date = "2027-03-02";
+    const plan = planImport(fromOverwatch(x), { job_exists: false });
+    expect(plan.package.contract_facts.substantial_completion).toBe("2027-01-19");
+  });
 });
 
 describe("spreadsheet export", () => {
@@ -174,7 +199,7 @@ describe("import plan and review", () => {
     const plan = planImport(job, { job_exists: false });
     expect(plan.counts).toEqual({
       job: 1,
-      contract_facts: 5,
+      contract_facts: 6,
       sov_lines: 3,
       opening_balances: 3,
       budget_lines: 3,
@@ -281,6 +306,7 @@ describe("import plan and review", () => {
         "executed_change_orders",
         "retainage",
         "customer",
+        "substantial_completion",
       ],
       budget_keys: ["01-000", "09-200", "26-000"],
       submittals: ["092900-01#0", "260519-01#1"],

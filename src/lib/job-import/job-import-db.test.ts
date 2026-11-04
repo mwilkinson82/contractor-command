@@ -145,7 +145,7 @@ describe("job import save", () => {
     ]);
     expect(result).toMatchObject({
       job_created: true,
-      contract_facts: 5,
+      contract_facts: 6,
       sov_lines: 3,
       opening_balances: 3,
       budget_lines: 3,
@@ -231,7 +231,10 @@ describe("job import save", () => {
       [batch_id],
     );
     const hash = (
-      await db.query<{ package_hash: string }>("SELECT package_hash FROM mcp_import_batches WHERE id=$1", [batch_id])
+      await db.query<{ package_hash: string }>(
+        "SELECT package_hash FROM mcp_import_batches WHERE id=$1",
+        [batch_id],
+      )
     ).rows[0].package_hash;
     expect(hash).not.toBe(package_hash);
     await expect(rpc("mcp_job_import_apply", [batch_id, hash, true])).rejects.toThrow(/work line/);
