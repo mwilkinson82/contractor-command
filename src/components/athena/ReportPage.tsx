@@ -10,6 +10,7 @@ import {
   type AnyPage,
   type FieldPagePayload,
   type ItemsPagePayload,
+  type PortfolioPayload,
 } from "@/lib/report-pages";
 import { FieldPushBar } from "@/components/athena/FieldPushBar";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
@@ -21,6 +22,7 @@ import { BOARD_PAGES } from "@/lib/mcp/board-link";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { ProjectReadUnavailable } from "@/components/athena/ProjectReadUnavailable";
 import { AthenaPage } from "@/components/athena/AthenaPage";
+import { OwnerPortfolio } from "@/components/athena/OwnerPortfolio";
 import { productionClient, readProductionDaily } from "@/lib/production-report";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 
@@ -137,7 +139,12 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate }: { 
           <FieldPushBar jobId={jobId} jobNumber={jobNumber} />
         </div>
       ) : null}
-      <div className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
+      {page === "portfolio" && memberPayload?.page === "portfolio" ? (
+        // Owners and leadership get the full portfolio: each job's contract, billing, cost and IOR, read with their own access.
+        <OwnerPortfolio payload={memberPayload as PortfolioPayload} companyId={companyId} visible={visible} memberId={session?.user.id} />
+      ) : (
+        <div className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
+      )}
     </AthenaPage>
   );
   if (authLoading || (!payload && ((session && q.isLoading) || (token && jobId && tokenPage && linked.isLoading)))) return <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>;
