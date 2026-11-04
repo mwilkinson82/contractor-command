@@ -30,8 +30,20 @@ import { canonical, enforceReviews, type ReviewGrant } from "../../selections/re
 import {
   estimateLineOptions,
   lineOptionsText,
+  optionLinks,
   selectionLineOptions,
 } from "../../selections/estimate-options";
+import { SAVE_OFFER_GUIDANCE } from "../estimate-options";
+import {
+  conflictLine,
+  lineLabel,
+  lineMismatch,
+  matchingLines,
+  openLineConflicts,
+  provisionalNote,
+  type CheckGap,
+} from "../../selections/line-checks";
+import { parseState } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { jobTimeZone, named, resolveJob } from "../jobs";
 import { todayIn } from "../deadlines";
@@ -209,7 +221,7 @@ const lineSchema = z
     note: z.string().nullable().optional(),
   })
   .passthrough();
-async function takeoffLines(sb: Sb, jobId: string) {
+async function takeoffLines(sb: Sb, jobId: string, raw?: unknown) {
   const data = z
     .object({
       takeoff: z
@@ -219,13 +231,61 @@ async function takeoffLines(sb: Sb, jobId: string) {
         .optional(),
     })
     .passthrough()
-    .safeParse(await call(sb, "mcp_estimate_get", { _job: jobId }));
+    .safeParse(raw ?? (await call(sb, "mcp_estimate_get", { _job: jobId })));
   if (!data.success) throw new ToolError("The estimate could not be read. Nothing was saved.");
   return (data.data.takeoff?.lines ?? []).flatMap((raw) => {
     const line = lineSchema.safeParse(raw);
     return line.success ? [line.data] : [];
   });
 }
+/** Takeoff lines plus the open drawing gaps and their verdicts, from one read. */
+async function estimateRead(sb: Sb, jobId: string) {
+  const raw = await call(sb, "mcp_estimate_get", { _job: jobId });
+  const lines = await takeoffLines(sb, jobId, raw);
+  let gaps: CheckGap[] = [];
+  let verdicts: { item_kind: string; gap_ref: string | null }[] = [];
+  try {
+    const state = parseState(raw);
+    gaps = state.gaps;
+    verdicts = state.verdicts;
+  } catch {
+    // An unreadable gap list never blocks a selection; it only shows no conflicts.
+  }
+  return { lines, gaps, verdicts };
+}
+
+/** A selection named for other fixture types than its line is on the wrong line. */
+function refuseMismatch(
+  title: string | undefined,
+  line: { line_no: number; item?: string | null },
+  lines: { line_no: number; item?: string | null; qty?: number | null; unit?: string | null }[],
+) {
+  if (!title || !lineMismatch(title, line.item)) return;
+  const better = matchingLines(title, lines);
+  throw new ToolError(
+    `"${title}" doesn't match estimate line T-${line.line_no}, which is ${line.item ?? "another item"}. ${
+      better.length
+        ? `The takeoff lines for it are: ${better.map(lineLabel).join("; ")}. Use those refs.`
+        : "Ask the member which takeoff line it belongs to."
+    } Nothing was saved.`,
+  );
+}
+
+/**
+ * An open conflict on the line has to be settled by the member's choice of
+ * basis before options are saved against one reading of the drawings.
+ */
+function needBasis(ref: string, conflicts: CheckGap[], basis: string | undefined): void {
+  if (!conflicts.length || basis) return;
+  throw new ToolError(
+    [
+      `Estimate line ${ref} has an open drawing conflict, so there is no single spec to build Good, Better, Best against yet:`,
+      ...conflicts.map((g) => `- ${conflictLine(g)}`),
+      "Tell the member and offer two ways. Recommended: run it now on the basis they name (for example the electrical schedule), marked provisional until the conflict or its RFI is answered; the customer view stays locked until then. Or hold until the answer comes back. Once they pick provisional, call again with basis set to what they chose. Nothing was saved.",
+    ].join("\n"),
+  );
+}
+
 async function takeoffLine(sb: Sb, jobId: string, ref: string) {
   const lineNo = Number(ref.slice(2));
   const line = (await takeoffLines(sb, jobId)).find((l) => l.line_no === lineNo);
@@ -233,6 +293,27 @@ async function takeoffLine(sb: Sb, jobId: string, ref: string) {
   throw new ToolError(
     `Estimate line ${ref} was not found on the saved takeoff. Nothing was saved.`,
   );
+}
+
+/**
+ * Each saved option's links, listed in the reply text so a host that draws no
+ * card (Claude) still shows them, and a note for any option missing one.
+ */
+function linkBrief(s: Selection, tiers: readonly OptionName[] = optionNames): string[] {
+  const out: string[] = [];
+  const missing: string[] = [];
+  for (const tier of tiers) {
+    const o = s.options[tier];
+    if (!o.description && !o.model) continue;
+    out.push(`  ${tierLabel(tier)} ${productName(o)}: ${optionLinks(o)}`);
+    const gaps = [!o.product_url && "product page", !o.photo_url && "photo"].filter(Boolean);
+    if (gaps.length) missing.push(`${tierLabel(tier)} has no ${gaps.join(" or ")}`);
+  }
+  if (missing.length)
+    out.push(
+      `  Missing links: ${missing.join("; ")}. Read that product's page and send what it shows with propose_option; never make a link up.`,
+    );
+  return out;
 }
 
 function sourcingBrief(s: Selection, line: z.infer<typeof lineSchema> | null): string[] {
@@ -245,7 +326,7 @@ function sourcingBrief(s: Selection, line: z.infer<typeof lineSchema> | null): s
         ]
       : []),
     "Find three real products that meet the drawings and specifications: Good (meets the spec at the lowest sound cost), Better (adds useful features or quality) and Best (premium quality, efficiency or controls).",
-    "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, a direct https photo URL, the listed unit price with the seller and the date you read it, and two links: source_url, the seller page you read the price on (internal), and product_url, the manufacturer's own product page for the customer. Never use a store listing that shows a price as product_url; leave it empty if there is no manufacturer page.",
+    "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, a direct https photo URL, the listed unit price with the seller and the date you read it, and two links: source_url, the seller page you read the price on (internal), and product_url, the manufacturer's own product page for the customer. Send product_url and photo_url for every option, read from the product page; never use a store listing that shows a price as product_url, and leave a link empty only when no page shows one.",
     "Submit each one with selection_board action propose_option. Never invent a product, link, photo or price; leave a field empty when the page doesn't show it.",
     "If the drawings or takeoff note show a conflict, say so and don't pick a side.",
   ];
@@ -396,6 +477,7 @@ export const selectionBoard = defineTool({
       "review_price",
       "apply_markup",
       "set_proposal",
+      "remove_selection",
       "save",
     ]),
     expected_version: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
@@ -412,6 +494,15 @@ export const selectionBoard = defineTool({
     cost_basis: z.enum(["entered", "found"]).optional(),
     comparison: z.array(comparisonLineSchema).min(1).max(20).optional(),
     base_tier: z.enum(optionNames).optional(),
+    basis: z
+      .string()
+      .trim()
+      .min(3)
+      .max(300)
+      .optional()
+      .describe(
+        'Only when an estimate line has an open drawing conflict: the basis the member chose to run on, for example "E1 schedule, pending RFI-001". The options are saved marked provisional and the customer view stays locked until the conflict is settled.',
+      ),
     assumptions: z.string().trim().max(1000).optional(),
     currency: z
       .string()
@@ -459,7 +550,7 @@ export const selectionBoard = defineTool({
             "Selections changed since you read them. Read the board again. Nothing was saved.",
           );
         let next: Board | null = current ? structuredClone(current.board) : null;
-        let brief: string[] = [];
+        const brief: string[] = [];
         let grant: ReviewGrant = {};
         const skipped: string[] = [];
 
@@ -468,14 +559,34 @@ export const selectionBoard = defineTool({
             throw new ToolError(
               "Name the estimate line (for example T-3) or give the selection a title. Nothing was saved.",
             );
+          const read = args.estimate_line_ref ? await estimateRead(sb, job.job_id) : null;
           const line = args.estimate_line_ref
-            ? await takeoffLine(sb, job.job_id, args.estimate_line_ref)
+            ? (read!.lines.find((l) => l.line_no === Number(args.estimate_line_ref!.slice(2))) ??
+              (await takeoffLine(sb, job.job_id, args.estimate_line_ref)))
             : null;
+          if (line) refuseMismatch(args.title, line, read!.lines);
+          const conflicts = line ? openLineConflicts(line, read!.gaps, read!.verdicts) : [];
+          if (line) needBasis(args.estimate_line_ref!, conflicts, args.basis);
           const existing = args.estimate_line_ref
             ? next!.selections.find((s) => s.estimate_line_ref === args.estimate_line_ref)
             : undefined;
+          if (line)
+            brief.push(
+              `Linked to ${lineLabel(line)}.`,
+              ...(conflicts.length
+                ? [
+                    `Provisional on: ${args.basis}. Open: ${conflicts.map((g) => g.ref).join(", ")}.`,
+                  ]
+                : []),
+            );
           if (existing) {
-            brief = sourcingBrief(existing, line);
+            if (conflicts.length && args.basis)
+              existing.notes = provisionalNote(
+                args.basis,
+                conflicts.map((g) => g.ref),
+                existing.notes,
+              );
+            brief.push(...sourcingBrief(existing, line));
           } else {
             const quantity = args.quantity ?? line?.qty ?? null;
             if (quantity === null || !(Math.round(quantity * 1000) > 0))
@@ -500,10 +611,17 @@ export const selectionBoard = defineTool({
               estimate_line_ref: args.estimate_line_ref ?? null,
               options: { good: blankOption(), better: blankOption(), best: blankOption() },
               selected: null,
-              notes: "",
+              notes:
+                conflicts.length && args.basis
+                  ? provisionalNote(
+                      args.basis,
+                      conflicts.map((g) => g.ref),
+                      "",
+                    )
+                  : "",
             };
             next!.selections.push(created);
-            brief = sourcingBrief(created, line);
+            brief.push(...sourcingBrief(created, line));
           }
         } else if (args.action === "propose_option") {
           if (!args.selection_id || !args.tier || !args.candidate)
@@ -518,6 +636,7 @@ export const selectionBoard = defineTool({
             assumptions: s.options[args.tier].assumptions,
           };
           if (s.selected === args.tier) s.selected = null;
+          brief.push(...linkBrief(s, [args.tier]));
         } else if (args.action === "save_comparison") {
           if (!args.comparison?.length)
             throw new ToolError(
@@ -532,15 +651,23 @@ export const selectionBoard = defineTool({
             throw new ToolError(
               "Each estimate line can appear once in a comparison. Nothing was saved.",
             );
-          const lines = new Map(
-            (await takeoffLines(sb, job.job_id)).map((l) => [`T-${l.line_no}`, l]),
-          );
+          const read = await estimateRead(sb, job.job_id);
+          const lines = new Map(read.lines.map((l) => [`T-${l.line_no}`, l]));
+          const conflictsByRef = new Map<string, CheckGap[]>();
           for (const c of args.comparison) {
             const line = lines.get(c.estimate_line_ref);
             if (!line)
               throw new ToolError(
                 `Estimate line ${c.estimate_line_ref} was not found on the saved takeoff. Nothing was saved.`,
               );
+            refuseMismatch(c.title, line, read.lines);
+            const conflicts = openLineConflicts(line, read.gaps, read.verdicts);
+            needBasis(c.estimate_line_ref, conflicts, args.basis);
+            conflictsByRef.set(c.estimate_line_ref, conflicts);
+          }
+          for (const c of args.comparison) {
+            const line = lines.get(c.estimate_line_ref)!;
+            const conflicts = conflictsByRef.get(c.estimate_line_ref) ?? [];
             let s = next!.selections.find((x) => x.estimate_line_ref === c.estimate_line_ref);
             if (!s) {
               const quantity = line.qty ?? null;
@@ -563,7 +690,17 @@ export const selectionBoard = defineTool({
               next!.selections.push(s);
             } else if (c.title) s.title = c.title;
             if (c.notes !== undefined) s.notes = c.notes;
+            if (conflicts.length && args.basis)
+              s.notes = provisionalNote(
+                args.basis,
+                conflicts.map((g) => g.ref),
+                s.notes,
+              );
             for (const tier of optionNames) placeCandidate(s, tier, c.options[tier]);
+            brief.push(
+              `${lineLabel(line)}: saved${conflicts.length ? `, provisional on ${args.basis} (open ${conflicts.map((g) => g.ref).join(", ")})` : ""}.`,
+              ...linkBrief(s),
+            );
           }
           if (args.base_tier) next!.proposal.base_tier = args.base_tier;
           if (args.currency && !next!.currency) next!.currency = args.currency;
@@ -664,6 +801,22 @@ export const selectionBoard = defineTool({
             next!.proposal.base_reviewed_on = today;
             grant = { base: true };
           }
+        } else if (args.action === "remove_selection") {
+          if (!args.selection_id)
+            throw new ToolError("Send the selection_id to remove. Nothing was saved.");
+          const s = findSelection(next!, args.selection_id);
+          if (args.confirmed !== true)
+            throw new ToolError(
+              `Ask the member whether to remove "${s.title}"${s.estimate_line_ref ? ` from estimate line ${s.estimate_line_ref}` : ""} with its options, and pass confirmed true only after they say yes. Nothing was saved.`,
+            );
+          if (next!.accepted && s.selected)
+            throw new ToolError(
+              "The customer's accepted choice includes this selection, so it stays. Nothing was saved.",
+            );
+          next!.selections = next!.selections.filter((x) => x.id !== s.id);
+          brief.push(
+            `Removed "${s.title}"${s.estimate_line_ref ? ` from ${s.estimate_line_ref}` : ""}.`,
+          );
         } else if (args.action === "save") {
           next = args.board!;
         }
@@ -716,6 +869,7 @@ export const selectionBoard = defineTool({
           "This board is internal: cost, found price, margin, markup, assumptions and notes are for the contractor only. Never put them in a customer message; use selection_proposal preview for the customer view.",
           "To source products, use your own web search to find real products, read each product page, then call propose_option once per tier with what the page shows. If you can't search the web, ask the member to paste product links and read those. Never invent a product, link, photo or price.",
           "A found price is a lead, never a customer price. Call review_price with confirmed true only after the member states or confirms the unit cost and the sell price or markup for that option. For one markup across options (a line, a tier or the whole board), use apply_markup with markup_pct, and cost_basis found only when the member says to use the found web price as their cost.",
+          SAVE_OFFER_GUIDANCE,
           "Save only the changes the member asked for, using the version you just read. A save cannot mark a price reviewed; use review_price or review_base_price. Saving does not share anything or change the estimate, contract, budget or billing.",
           ...(args.action === "save_comparison" && saved
             ? [
@@ -838,6 +992,11 @@ export const selectionProposal = defineTool({
           );
 
         if (args.action === "share") {
+          const blockers = proposalBlockers(saved.board);
+          if (blockers.length)
+            throw new ToolError(
+              `The customer proposal is not ready: ${blockers.join(" ")} No link was made.`,
+            );
           const token = newToken();
           const expires = shareExpiry(args.days);
           const created = z

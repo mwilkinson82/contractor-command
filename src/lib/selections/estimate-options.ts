@@ -8,6 +8,7 @@ import {
 } from "./model";
 import { TIER_LABEL } from "./proposal";
 import { money, percent, signed } from "./format";
+import { isProvisional } from "./line-checks";
 
 /**
  * What the estimate shows for a takeoff line that has Good, Better and Best
@@ -19,6 +20,9 @@ export type LineOptionTier = {
   product: string;
   description: string;
   photo_url: string | null;
+  /** The product page for the customer, and the seller page the price was read on (internal). */
+  product_url: string | null;
+  source_url: string | null;
   /** Per unit. A found price is a web lead, not the contractor's cost or price. */
   found_unit_cents: number | null;
   found_at: string;
@@ -48,6 +52,9 @@ export type LineOptions = {
   base_tier: OptionName;
   /** The customer's recorded choice for this line, if any. */
   selected: OptionName | null;
+  /** Saved on one reading of the drawings while a conflict is open. */
+  provisional: boolean;
+  notes: string;
   /** Tiers that have a product saved. */
   tiers_with_product: OptionName[];
   /** Tiers whose sell price the contractor reviewed. */
@@ -76,6 +83,8 @@ export function selectionLineOptions(board: Board, s: Selection): LineOptions | 
       product: productName(o),
       description: o.description,
       photo_url: o.photo_url,
+      product_url: o.product_url,
+      source_url: o.source_url,
       found_unit_cents: o.found_price_cents,
       found_at: o.found_at,
       cost_unit_cents: o.cost_cents,
@@ -99,6 +108,8 @@ export function selectionLineOptions(board: Board, s: Selection): LineOptions | 
     unit: s.unit,
     base_tier: base,
     selected: s.selected,
+    provisional: isProvisional(s.notes),
+    notes: s.notes,
     tiers_with_product: tiers.filter((t) => t.description).map((t) => t.tier),
     tiers_priced: tiers.filter((t) => t.price_reviewed_on).map((t) => t.tier),
     tiers,
@@ -122,7 +133,20 @@ export function estimateLineOptions(input: Board): Map<string, LineOptions> {
 /** The short flag a takeoff line carries in the estimate. */
 export function lineOptionsFlag(line: LineOptions): string {
   const tiers = line.tiers_with_product.map((t) => TIER_LABEL[t]).join("/");
-  return `${tiers} options${line.selected ? ` · customer chose ${TIER_LABEL[line.selected]}` : ""}`;
+  return `${tiers} options${line.provisional ? " · provisional" : ""}${line.selected ? ` · customer chose ${TIER_LABEL[line.selected]}` : ""}`;
+}
+
+/** An option's links as plain text, so a host that draws no card still shows them. */
+export function optionLinks(o: {
+  product_url: string | null;
+  photo_url: string | null;
+  source_url: string | null;
+}): string {
+  return [
+    `Product page: ${o.product_url ?? "none saved"}`,
+    `Photo: ${o.photo_url ?? "none saved"}`,
+    `Price read on (internal): ${o.source_url ?? "none saved"}`,
+  ].join(" · ");
 }
 
 /** One line, comparable side by side: product, found lead, cost, sell, margin and markup. */
@@ -131,6 +155,9 @@ export function lineOptionsText(line: LineOptions): string[] {
   const out = [
     `${line.ref} ${line.title} · ${line.quantity} ${line.unit} · Good, Better, Best options · INTERNAL, not for the customer`,
     `Base tier in the estimate: ${TIER_LABEL[line.base_tier]}${line.selected ? ` · customer chose ${TIER_LABEL[line.selected]}` : ""}`,
+    ...(line.provisional
+      ? [`${line.notes.slice(0, 400)} The customer view stays locked until it is settled.`]
+      : []),
   ];
   for (const t of line.tiers) {
     out.push(
@@ -139,6 +166,7 @@ export function lineOptionsText(line: LineOptions): string[] {
       `  Found ${money(t.found_unit_cents, code)} per ${line.unit}${t.found_at ? ` at ${t.found_at}` : ""} = ${money(t.found_cents, code)} (a web lead, not a price)`,
       `  Cost ${money(t.cost_unit_cents, code)} per ${line.unit} = ${money(t.cost_cents, code)} · Sell ${money(t.price_unit_cents, code)} per ${line.unit} = ${money(t.price_cents, code)}${t.price_reviewed_on ? ` · reviewed ${t.price_reviewed_on}` : " · NOT PRICED YET"}`,
       `  Margin ${money(t.margin_cents, code)} (${percent(t.margin_bp)}) · markup ${percent(t.markup_bp)} · sell vs base ${t.tier === line.base_tier ? "base" : signed(t.price_vs_base_cents, code)}`,
+      ...(t.product ? [`  ${optionLinks(t)}`] : []),
     );
   }
   if (!line.tiers_priced.length)

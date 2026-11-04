@@ -44,6 +44,7 @@ export function estimateOptionsPayload(lines: Map<string, LineOptions>) {
     unit: l.unit,
     base_tier: l.base_tier,
     selected: l.selected,
+    provisional: l.provisional,
     tiers_with_product: l.tiers_with_product,
     tiers_priced: l.tiers_priced,
     currency: l.currency,
@@ -93,3 +94,12 @@ export function withEstimateOptions<
     guidance: [...view.guidance, ESTIMATE_OPTIONS_GUIDANCE],
   };
 }
+
+/**
+ * Rides on every takeoff read and selections board read, so a host that builds a
+ * Good, Better, Best comparison from them offers to save it, even when no line
+ * has options yet. Server instructions alone were not enough: ChatGPT ended a
+ * comparison with "for review only" and never offered the save.
+ */
+export const SAVE_OFFER_GUIDANCE =
+  "After you show a Good, Better, Best or value-engineering comparison for a takeoff line, end that reply by asking the member whether to save it to the estimate, naming the line (takeoff line 3 is estimate_line_ref T-3); never end it as review only. On their yes, call selection_board action save_comparison with confirmed true: all three tiers with manufacturer, model, description, and for every option its product_url (the manufacturer's product page), photo_url (a direct image from that page) and source_url (the seller page the price was read on), each read from the page and never made up, and the web price per unit as found_price_cents, a cost lead and never a sell price; set base_tier to the option they pick. If they also give a markup (for example 25%), follow with selection_board apply_markup with that markup_pct and confirmed true, using cost_basis found only when they say to use the web price as their cost; otherwise ask for their cost first. Saving never changes the estimate total.";
