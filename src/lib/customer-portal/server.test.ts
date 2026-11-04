@@ -8,6 +8,7 @@ import {
   csrfFor,
   handleInvite,
   handlePortal,
+  sameOrigin,
   sixDigits,
   type PortalDeps,
 } from "./server";
@@ -147,6 +148,27 @@ const post = async (
   opts: { cookie?: boolean; origin?: string | null } = {},
 ) => req(path, { method: "POST", body: new URLSearchParams(body).toString(), ...opts });
 const BLUE = /#0071e3|#2563eb|#2997ff|#1d4ed8|#3b82f6|\bblue\b/i;
+
+describe("same-origin posts", () => {
+  const at = (h: Record<string, string>) =>
+    new Request(`${ORIGIN}/c/i/${TOKEN}`, { method: "POST", headers: h });
+  it("takes a null origin only when the browser says the post came from the same site", () => {
+    // Chrome sends `Origin: null` on a same-origin form post under a no-referrer policy.
+    expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "same-origin" }))).toBe(true);
+    expect(sameOrigin(at({ origin: "null" }))).toBe(false);
+    expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "cross-site" }))).toBe(false);
+    expect(sameOrigin(at({ origin: "null", "sec-fetch-site": "none" }))).toBe(false);
+    expect(sameOrigin(at({ origin: ORIGIN }))).toBe(true);
+    expect(sameOrigin(at({ origin: "https://evil.example", "sec-fetch-site": "same-origin" }))).toBe(false);
+  });
+
+  it("sends a same-origin referrer policy so the browser keeps the real origin on its own forms", async () => {
+    const { d } = deps();
+    const r = await handleInvite(req(`/c/i/${TOKEN}`), TOKEN, d);
+    expect(r.headers.get("referrer-policy")).toBe("same-origin");
+    expect(await r.text()).toContain('<meta name="referrer" content="same-origin">');
+  });
+});
 
 describe("invite link", () => {
   it("refuses bad tokens and shows a sign-in start without the full address", async () => {

@@ -36,7 +36,7 @@ export const PORTAL_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "content-security-policy":
     "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-  "referrer-policy": "no-referrer",
+  "referrer-policy": "same-origin",
   "x-robots-tag": "noindex, nofollow",
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
 };
@@ -276,7 +276,7 @@ h4:first-child{margin-top:0}
 `;
 
 function doc(title: string, body: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"><style>${CSS}</style></head><body>${body}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"><style>${CSS}</style></head><body>${body}</body></html>`;
 }
 
 const logo = (company: string, sub = "Customer page") =>

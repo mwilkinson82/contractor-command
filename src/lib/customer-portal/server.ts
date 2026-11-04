@@ -67,11 +67,16 @@ export function clientIp(req: Request): string | null {
 }
 const ua = (req: Request) => (req.headers.get("user-agent") ?? "").slice(0, 400) || null;
 
-/** Same-site posts only. A browser always sends Origin or Sec-Fetch-Site on a form post. */
+/**
+ * Same-site posts only. A browser always sends Origin or Sec-Fetch-Site on a form post. Under a
+ * no-referrer policy a browser sends `Origin: null` even for a same-origin form, so a null origin
+ * passes only when the browser's own Sec-Fetch-Site says same-origin.
+ */
 export function sameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
-  if (origin) return origin === new URL(req.url).origin || origin === "https://app.meetathena.io";
   const site = req.headers.get("sec-fetch-site");
+  if (origin === "null") return site === "same-origin";
+  if (origin) return origin === new URL(req.url).origin || origin === "https://app.meetathena.io";
   return site === null || site === "same-origin" || site === "none";
 }
 
