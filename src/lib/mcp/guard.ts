@@ -94,6 +94,7 @@ NEVER_SWEEP.add("schedule_workflow");
 NEVER_SWEEP.add("buyout_read");
 NEVER_SWEEP.add("buyout_record");
 NEVER_SWEEP.add("getting_started");
+NEVER_SWEEP.add("job_import");
 for (const tool of ["accounting_report", "accounting_reconciliation", "purchase_orders_read", "purchase_order_terms_read", "purchase_orders_record", "billing_document_upload", "billing_documents", "billing_document_link", "billing_evidence_read", "billing_evidence_record", "job_cost_submissions_read", "job_cost_submission_record", "job_cost_accounting_record", "job_cost_pm_payment_approval", "job_cost_pm_payment_withdraw", "job_cost_receipt", "job_cost_original"]) NEVER_SWEEP.add(tool);
 for (const tool of ["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record"]) NEVER_SWEEP.add(tool);
 

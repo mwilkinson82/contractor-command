@@ -18722,6 +18722,126 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "job_import",
+        "title": "Import a job from Overwatch, Procore or a spreadsheet",
+        "description": "Brings a whole job into Athena from an Overwatch, Procore, Buildertrend or spreadsheet export, showing one review card first and saving it all at once only after a separate yes.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "step": {
+              "type": "string",
+              "enum": [
+                "review",
+                "save",
+                "cancel"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "overwatch",
+                "procore",
+                "buildertrend",
+                "spreadsheet"
+              ]
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "job_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "job_name": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "customer": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "original_contract": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 90000000000
+            },
+            "retainage_pct": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "export_text": {
+              "type": "string",
+              "maxLength": 2000000
+            },
+            "sheets": {
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "sov",
+                      "change_orders",
+                      "rfis",
+                      "submittals",
+                      "schedule",
+                      "dailies"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000000
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "kind",
+                  "text"
+                ]
+              }
+            },
+            "daily_days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            },
+            "batch_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "import_key": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }
