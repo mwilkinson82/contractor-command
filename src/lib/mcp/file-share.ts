@@ -293,3 +293,22 @@ export function downloadHeaders(name: string, mime: string, size?: number): Head
   if (size !== undefined) h.set("content-length", String(size));
   return h;
 }
+
+// A Good, Better, Best or value-engineering comparison for a customer is never a
+// hand-made file: the only customer view is selection_proposal, which shows
+// reviewed sell prices and never cost, found web prices or margin.
+const GBB_NAME_RE =
+  /good[\s_./-]*(?:vs\.?[\s_-]*)?better|better[\s_./-]*(?:vs\.?[\s_-]*)?best|\bg[\s_./-]?b[\s_./-]?b\b|value[\s_-]*engineer|customer[\s_-]*comparison|selection[\s_-]*(?:board|proposal|comparison)|options?[\s_-]*comparison/i;
+const GBB_TEXT_RE = /good\W{0,6}better\W{0,6}best|value[\s-]*engineering\s+comparison|customer\s+comparison/i;
+
+/** True when a file to share looks like a hand-made Good, Better, Best comparison. */
+export function looksLikeOptionsComparison(filename: string, bytes?: Uint8Array): boolean {
+  if (GBB_NAME_RE.test(filename)) return true;
+  if (!bytes) return false;
+  // PDF titles, outlines and uncompressed text are plain bytes; compressed streams are skipped.
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 512 * 1024));
+  return GBB_TEXT_RE.test(head);
+}
+
+export const OPTIONS_SHARE_REFUSAL =
+  "Athena doesn't share a hand-made Good, Better, Best or value-engineering comparison. It could show cost or web prices to the customer. Save the options with selection_board, give each option a sell price (review_price or apply_markup), then use selection_proposal preview and share, which shows the customer only reviewed sell prices. Nothing was shared.";

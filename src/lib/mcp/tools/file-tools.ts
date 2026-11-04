@@ -10,7 +10,7 @@ import { lookaheadData } from "./workflow-tools";
 import { LOOKAHEAD_PDF_EMAIL_RULE } from "../email-safety";
 import {
   FILE_B64_MAX_CHARS, FILE_BUCKET, FILE_DEFAULT_DAYS, FILE_KINDS, FILE_LINK_RULE, FILE_MAX_BYTES, FILE_MAX_DAYS,
-  FileRejected, allowedDownloadUrl, decodeBase64, expiry, fmtDate, kindAllowed, newToken, sha256Hex, shareLink,
+  FileRejected, OPTIONS_SHARE_REFUSAL, allowedDownloadUrl, decodeBase64, expiry, fmtDate, kindAllowed, looksLikeOptionsComparison, newToken, sha256Hex, shareLink,
   storagePath, tokenFromLink, tokenHash, validateFile, type FileKind,
 } from "../file-share";
 import { immutableDrawingDeleteRefused } from "../drawing-set";
@@ -121,6 +121,7 @@ export const fileShare = defineTool({
         if (e instanceof FileRejected) throw new ToolError(e.message);
         throw e;
       }
+      if (looksLikeOptionsComparison(f.name, bytes)) throw new ToolError(OPTIONS_SHARE_REFUSAL);
       const { id, link, exp } = await storeFile(sb, job, kind, f, bytes, args.expires_in_days);
       await audit(sb, job, "file_share", `share_file_${kind}`, id);
       return guide(
