@@ -19,7 +19,11 @@ const payload = (mutate?: (b: ReturnType<typeof willowCreekTypeE>) => void) => {
 
 describe("customer proposal page", () => {
   it("renders a side-by-side comparison with totals, differences, photos and product links", () => {
-    const html = renderProposalDocument(payload());
+    const html = renderProposalDocument(
+      payload((b) => {
+        b.selections[0].options.better.product_url = "https://lighting.example.com/cpanl";
+      }),
+    );
     expect(html).toContain("<h1>Willow Creek lighting options</h1>");
     expect(html).toContain("$48,500.00");
     expect(html).toContain("Base proposal");
@@ -27,7 +31,10 @@ describe("customer proposal page", () => {
     expect(html).toContain("+$1,686.00 vs. base");
     expect(html).toContain("CPANL 2X4 ALO6 SWW7 M2");
     expect(html).toContain('referrerpolicy="no-referrer"');
+    expect(html).toContain('href="https://lighting.example.com/cpanl"');
     expect(html).toContain('rel="noopener noreferrer"');
+    // The seller pages the prices were read on never reach the customer.
+    expect(html).not.toMatch(/homedepot\.com|platt\.com/);
     expect(html).toContain("Photo not available"); // the Best option has no confirmed photo
     expect(html).toContain("6 ea in every package");
     expect(html).not.toMatch(

@@ -94,8 +94,10 @@ const candidate = (n: number) => ({
   model: `TH-${n}`,
   specifications: "13W · 90 CRI · black",
   included: ["Head and installation"],
-  source_url: `https://lighting.example.com/th-${n}`,
-  photo_url: `https://img.example.com/th-${n}.jpg`,
+  product_url: `https://lighting.example.com/th-${n}`,
+  source_url: `https://distributor.example.com/th-${n}`,
+  // Search results often carry spaces; the tool encodes them before checking.
+  photo_url: `https://img.example.com/th ${n}.jpg`,
   found_price_cents: 5000 * n,
   found_at: "Example distributor list price",
   found_on: "2026-11-04",
@@ -259,8 +261,15 @@ describe.sequential("Good, Better, Best from takeoff line to recorded choice", (
     expect(html).toContain("Willow Creek track lighting options");
     expect(html).toContain("$49,130.00");
     expect(html).toContain("+$630.00 vs. base");
-    expect(html).toContain('src="https://img.example.com/th-2.jpg"');
-    for (const secret of ["$50.00", "$100.00", "Example distributor", "Bid summary"])
+    expect(html).toContain('src="https://img.example.com/th%202.jpg"');
+    expect(html).toContain('href="https://lighting.example.com/th-2"');
+    for (const secret of [
+      "$50.00",
+      "$100.00",
+      "Example distributor",
+      "Bid summary",
+      "distributor.example.com",
+    ])
       expect(html).not.toContain(secret);
     expect(page.headers.get("content-security-policy")).toContain("img-src data: https:");
     const revoked = await proposal({ action: "revoke", link: url });
@@ -292,6 +301,7 @@ describe.sequential("Good, Better, Best from takeoff line to recorded choice", (
       {
         ref: "T-3",
         unit_price: 100,
+        unit: "ea",
         item: "Type A black track heads",
         product: "Example Lighting TH-2",
       },
@@ -306,5 +316,43 @@ describe.sequential("Good, Better, Best from takeoff line to recorded choice", (
     expect(pricingAfter.rows[0].n).toBe(pricingBefore.rows[0].n);
     const preview = await proposal({ action: "preview" });
     expect(preview.content[0].text).toContain("Selected: Better");
+    version = r.structuredContent.version;
+  });
+
+  it("asking for the sourcing brief again changes nothing, so the recorded choice stands", async () => {
+    const again = await board(
+      { action: "start", expected_version: version, estimate_line_ref: "T-3" },
+      estimator,
+    );
+    expect(again.structuredContent.saved).toBe(false);
+    expect(again.structuredContent.version).toBe(version);
+    expect((await proposal({ action: "preview" })).content[0].text).toContain("Selected: Better");
+  });
+
+  it("a full save cannot mark a changed price reviewed", async () => {
+    const read = await board({ action: "read" });
+    const edited = structuredClone(read.structuredContent.board);
+    edited.selections[0].options.best.price_cents = 99_000;
+    edited.selections[0].options.best.price_reviewed_on = "2026-11-04";
+    const r = await board({ action: "save", expected_version: version, board: edited }, estimator);
+    version = r.structuredContent.version;
+    expect(r.structuredContent.board.selections[0].options.best.price_reviewed_on).toBeNull();
+    expect(r.structuredContent.reviews_cleared).toEqual(["Type A black track heads (Best) price"]);
+    expect(r.content[0].text).toContain("Marked not reviewed again");
+    expect((await proposal({ action: "preview" })).structuredContent.ready).toBe(false);
+  });
+
+  it("a new base-tier product clears the base price review, because the base includes it", async () => {
+    const r = await board({
+      action: "propose_option",
+      expected_version: version,
+      selection_id: selectionId,
+      tier: "good",
+      candidate: candidate(4),
+    });
+    version = r.structuredContent.version;
+    expect(r.structuredContent.board.proposal.base_reviewed_on).toBeNull();
+    expect(r.structuredContent.reviews_cleared).toContain("base proposal price");
+    expect(r.structuredContent.blockers).toContain("Review the base proposal price.");
   });
 });

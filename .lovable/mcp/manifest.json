@@ -17245,13 +17245,24 @@
                     "maxLength": 160
                   }
                 },
-                "source_url": {
-                  "default": null,
+                "product_url": {
                   "anyOf": [
                     {
                       "type": "string",
                       "maxLength": 2048,
-                      "format": "uri"
+                      "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source_url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                     },
                     {
                       "type": "null"
@@ -17259,12 +17270,11 @@
                   ]
                 },
                 "photo_url": {
-                  "default": null,
                   "anyOf": [
                     {
                       "type": "string",
                       "maxLength": 2048,
-                      "format": "uri"
+                      "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                     },
                     {
                       "type": "null"
@@ -17484,8 +17494,7 @@
                     "properties": {
                       "id": {
                         "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
                       },
                       "title": {
                         "type": "string",
@@ -17565,12 +17574,24 @@
                                   "maxLength": 160
                                 }
                               },
+                              "product_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "source_url": {
                                 "anyOf": [
                                   {
                                     "type": "string",
                                     "maxLength": 2048,
-                                    "format": "uri"
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                                   },
                                   {
                                     "type": "null"
@@ -17582,7 +17603,7 @@
                                   {
                                     "type": "string",
                                     "maxLength": 2048,
-                                    "format": "uri"
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                                   },
                                   {
                                     "type": "null"
@@ -17664,6 +17685,7 @@
                               "model",
                               "specifications",
                               "included",
+                              "product_url",
                               "source_url",
                               "photo_url",
                               "found_price_cents",
@@ -17703,12 +17725,24 @@
                                   "maxLength": 160
                                 }
                               },
+                              "product_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "source_url": {
                                 "anyOf": [
                                   {
                                     "type": "string",
                                     "maxLength": 2048,
-                                    "format": "uri"
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                                   },
                                   {
                                     "type": "null"
@@ -17720,7 +17754,7 @@
                                   {
                                     "type": "string",
                                     "maxLength": 2048,
-                                    "format": "uri"
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                                   },
                                   {
                                     "type": "null"
@@ -17802,6 +17836,7 @@
                               "model",
                               "specifications",
                               "included",
+                              "product_url",
                               "source_url",
                               "photo_url",
                               "found_price_cents",
@@ -17841,12 +17876,24 @@
                                   "maxLength": 160
                                 }
                               },
+                              "product_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "source_url": {
                                 "anyOf": [
                                   {
                                     "type": "string",
                                     "maxLength": 2048,
-                                    "format": "uri"
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                                   },
                                   {
                                     "type": "null"
@@ -17858,7 +17905,7 @@
                                   {
                                     "type": "string",
                                     "maxLength": 2048,
-                                    "format": "uri"
+                                    "pattern": "^https:\\/\\/[^/?#\\s]+\\S*$"
                                   },
                                   {
                                     "type": "null"
@@ -17940,6 +17987,7 @@
                               "model",
                               "specifications",
                               "included",
+                              "product_url",
                               "source_url",
                               "photo_url",
                               "found_price_cents",

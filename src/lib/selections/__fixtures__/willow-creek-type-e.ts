@@ -13,6 +13,7 @@ const option = (o: Partial<Option>): Option => ({
   model: "",
   specifications: "",
   included: [],
+  product_url: null,
   source_url: null,
   photo_url: null,
   found_price_cents: null,

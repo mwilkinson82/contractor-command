@@ -2,7 +2,9 @@ import { z } from "zod";
 import {
   boardSchema,
   extended,
+  MAX_CENTS,
   optionNames,
+  UUID_RE,
   type Board,
   type OptionName,
   type Selection,
@@ -33,6 +35,11 @@ export function proposalBlockers(input: Board): string[] {
       else if (option.price_reviewed_on === null)
         blockers.push(`${where}: review the customer price.`);
     }
+  if (blockers.length === 0) {
+    const totals = packageTotals(board);
+    if (optionNames.some((tier) => totals[tier].total_cents === null))
+      blockers.push("A package total is out of range. Check the base price and base tier.");
+  }
   return blockers;
 }
 
@@ -69,7 +76,7 @@ export function packageTotals(input: Board): Record<OptionName, Totals> {
     }
     const total = base + delta;
     out[tier] =
-      known && Number.isSafeInteger(delta) && Number.isSafeInteger(total) && total >= 0
+      known && Math.abs(delta) <= MAX_CENTS && total >= 0 && total <= MAX_CENTS
         ? { total_cents: total, difference_cents: delta }
         : unknown;
   }
@@ -83,7 +90,7 @@ const customerOptionSchema = z
     model: z.string(),
     specifications: z.string(),
     included: z.array(z.string()),
-    source_url: z.string().nullable(),
+    product_url: z.string().nullable(),
     photo_url: z.string().nullable(),
   })
   .strict();
@@ -115,7 +122,7 @@ export const customerProposalSchema = z
       .array(
         z
           .object({
-            id: z.uuid(),
+            id: z.string().regex(UUID_RE),
             title: z.string(),
             quantity: z.number().positive(),
             unit: z.string(),
@@ -173,7 +180,7 @@ export function customerProposal(input: Board, version: number): CustomerProposa
               model: o.model,
               specifications: o.specifications,
               included: o.included,
-              source_url: o.source_url,
+              product_url: o.product_url,
               photo_url: o.photo_url,
             },
           ];
@@ -245,9 +252,16 @@ export function contractorReview(input: Board) {
  * The estimate pricing a recorded choice implies, for the estimator to review
  * and apply through estimate_pricing. It never writes anything itself.
  */
-export function estimateCarry(input: Board, tier: OptionName) {
+export function estimateCarry(
+  input: Board,
+  tier: OptionName,
+  /** Takeoff line units by ref. When given, a line that is missing or priced in another unit is skipped. */
+  lineUnits?: ReadonlyMap<string, string | null>,
+) {
   const board = boardSchema.parse(input);
-  const carry: { ref: string; unit_price: number; item: string; product: string }[] = [];
+  const sameUnit = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const carry: { ref: string; unit_price: number; unit: string; item: string; product: string }[] =
+    [];
   const skipped: { title: string; reason: string }[] = [];
   const refs = board.selections.map((s) => s.estimate_line_ref).filter(Boolean);
   for (const s of board.selections) {
@@ -261,10 +275,24 @@ export function estimateCarry(input: Board, tier: OptionName) {
         reason: `More than one selection is linked to ${s.estimate_line_ref}.`,
       });
     else if (o.cost_cents === null) skipped.push({ title: s.title, reason: "Unit cost unknown." });
+    else if (lineUnits && !lineUnits.has(s.estimate_line_ref))
+      skipped.push({
+        title: s.title,
+        reason: `Takeoff line ${s.estimate_line_ref} was not found.`,
+      });
+    else if (
+      lineUnits?.get(s.estimate_line_ref) &&
+      !sameUnit(lineUnits.get(s.estimate_line_ref)!, s.unit)
+    )
+      skipped.push({
+        title: s.title,
+        reason: `Priced per ${s.unit}, but takeoff line ${s.estimate_line_ref} is in ${lineUnits.get(s.estimate_line_ref)}.`,
+      });
     else
       carry.push({
         ref: s.estimate_line_ref,
         unit_price: o.cost_cents / 100,
+        unit: s.unit,
         item: s.title,
         product,
       });

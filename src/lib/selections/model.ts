@@ -3,15 +3,40 @@ import { z } from "zod";
 // Amounts are whole cents. A missing amount is unknown; zero is a real price.
 // Option amounts are per unit; a selection's quantity turns them into totals.
 const MAX_UNIT_CENTS = 100_000_000_000; // $1,000,000,000.00
-const MAX_CENTS = 999_999_999_999;
+export const MAX_CENTS = 999_999_999_999;
 const cents = z.number().int().min(0).max(MAX_CENTS).nullable();
 const unitCents = z.number().int().min(0).max(MAX_UNIT_CENTS).nullable();
 const text = (max: number) => z.string().trim().max(max);
 const date = z.iso.date().nullable();
-const httpsUrl = z
-  .url({ protocol: /^https$/ })
+// The same rule as mcp_private.gbb_is_url, so a link that passes here also saves.
+export const HTTPS_URL_RE = /^https:\/\/[^/?#\s]+\S*$/;
+export const httpsUrl = z
+  .string()
   .max(2048)
+  .regex(HTTPS_URL_RE, { message: "Use a full https link." })
+  .refine(
+    (u) => {
+      try {
+        return new URL(u).protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "Use a full https link." },
+  )
   .nullable();
+/** Cleans a link a web search returned (spaces encoded, scheme lower case) before it is checked. */
+export function normalizeUrl(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.href : value;
+  } catch {
+    return value;
+  }
+}
+// The same rule as the database check on selection ids.
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const optionNames = ["good", "better", "best"] as const;
 export type OptionName = (typeof optionNames)[number];
 export const ESTIMATE_LINE_REF = /^T-[1-9][0-9]{0,5}$/;
@@ -25,6 +50,9 @@ const optionSchema = z
     specifications: text(2000),
     // Customer-facing "what's included" bullets.
     included: z.array(text(160).pipe(z.string().min(1))).max(12),
+    // Customer-facing link: the manufacturer's product page, never a store listing with a price.
+    product_url: httpsUrl,
+    // Internal: the seller page the found price was read on. Never shown to a customer.
     source_url: httpsUrl,
     photo_url: httpsUrl,
     // What the contractor's AI found on the web: the listed unit price, where it
@@ -56,13 +84,13 @@ const quantity = z
   .number()
   .positive()
   .max(1_000_000)
-  .refine((q) => Math.abs(q * 1000 - Math.round(q * 1000)) < 1e-6, {
+  .refine((q) => Number(q.toFixed(3)) === q, {
     message: "Quantity can have at most three decimals.",
   });
 
 export const selectionSchema = z
   .object({
-    id: z.uuid(),
+    id: z.string().regex(UUID_RE),
     title: text(160).pipe(z.string().min(1)),
     decision_due: date,
     allowance_cents: cents,

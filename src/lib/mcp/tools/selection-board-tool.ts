@@ -6,6 +6,8 @@ import {
   differenceFromAllowance,
   ESTIMATE_LINE_REF,
   extended,
+  httpsUrl,
+  normalizeUrl,
   optionNames,
   proposalSchema,
   type Board,
@@ -24,6 +26,7 @@ import {
   type CustomerProposal,
 } from "../../selections/proposal";
 import { money, percent, signed } from "../../selections/format";
+import { canonical, enforceReviews, type ReviewGrant } from "../../selections/reviews";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { jobTimeZone, named, resolveJob } from "../jobs";
 import { todayIn } from "../deadlines";
@@ -69,12 +72,20 @@ async function boardRpc(sb: Sb, name: string, args: Record<string, unknown>): Pr
 }
 const readBoard = (sb: Sb, jobId: string) =>
   boardRpc(sb, "mcp_residential_selections_get", { _job: jobId });
-const saveBoard = (sb: Sb, jobId: string, expected: number, board: Board) =>
-  boardRpc(sb, "mcp_residential_selections_save", {
+function saveBoard(sb: Sb, jobId: string, expected: number, board: Board) {
+  const checked = boardSchema.safeParse(board);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    throw new ToolError(
+      `The board is not valid${issue?.path.length ? ` at ${issue.path.join(".")}` : ""}: ${(issue?.message ?? "check the values").replace(/\.$/, "")}. Nothing was saved.`,
+    );
+  }
+  return boardRpc(sb, "mcp_residential_selections_save", {
     _job: jobId,
     _expected_version: expected,
-    _board: boardSchema.parse(board),
+    _board: checked.data,
   });
+}
 
 const blankOption = (): Option => ({
   description: "",
@@ -82,6 +93,7 @@ const blankOption = (): Option => ({
   model: "",
   specifications: "",
   included: [],
+  product_url: null,
   source_url: null,
   photo_url: null,
   found_price_cents: null,
@@ -121,7 +133,7 @@ function contractorText(board: Board, version: number, today: string): string[] 
       lines.push(
         `${tierLabel(tier)}: ${productName(o)}${o.description ? ` · ${o.description}` : ""}`,
         `  Specs: ${o.specifications || "Unknown"} · Included: ${o.included.length ? o.included.join("; ") : "None listed"}`,
-        `  Source: ${o.source_url ?? "Unknown"} · Photo: ${o.photo_url ?? "Unknown"}`,
+        `  Customer link: ${o.product_url ?? "None"} · Photo: ${o.photo_url ?? "Unknown"} · Price read on (internal): ${o.source_url ?? "Unknown"}`,
         `  Found: ${money(o.found_price_cents, code)} per ${s.unit}${o.found_at ? ` at ${o.found_at}` : ""}${o.found_on ? ` on ${o.found_on}` : ""} (a web lead, not a price)`,
         `  Unit cost ${money(o.cost_cents, code)} · unit price ${money(o.price_cents, code)} · ${o.price_reviewed_on ? `price reviewed ${o.price_reviewed_on}` : "PRICE NOT REVIEWED"}`,
         `  Extended: price ${money(m.price_cents, code)} · cost ${money(m.cost_cents, code)} · margin ${money(m.margin_cents, code)} (${percent(m.margin_bp)}) · markup ${percent(m.markup_bp)} · vs allowance ${signed(differenceFromAllowance(s, tier), code)}${o.assumptions ? ` · assumptions: ${o.assumptions}` : ""}`,
@@ -168,7 +180,7 @@ export function customerText(view: CustomerProposal): string[] {
     for (const tier of optionNames) {
       const o = s.options[tier];
       lines.push(
-        `${tierLabel(tier)}: ${[o.manufacturer, o.model].filter(Boolean).join(" ")}${o.description ? ` · ${o.description}` : ""}${o.specifications ? ` · ${o.specifications}` : ""}${o.included.length ? ` · Includes: ${o.included.join("; ")}` : ""}${o.source_url ? ` · ${o.source_url}` : ""}`,
+        `${tierLabel(tier)}: ${[o.manufacturer, o.model].filter(Boolean).join(" ")}${o.description ? ` · ${o.description}` : ""}${o.specifications ? ` · ${o.specifications}` : ""}${o.included.length ? ` · Includes: ${o.included.join("; ")}` : ""}${o.product_url ? ` · ${o.product_url}` : ""}`,
       );
     }
   }
@@ -192,7 +204,7 @@ const lineSchema = z
     note: z.string().nullable().optional(),
   })
   .passthrough();
-async function takeoffLine(sb: Sb, jobId: string, ref: string) {
+async function takeoffLines(sb: Sb, jobId: string) {
   const data = z
     .object({
       takeoff: z
@@ -204,11 +216,15 @@ async function takeoffLine(sb: Sb, jobId: string, ref: string) {
     .passthrough()
     .safeParse(await call(sb, "mcp_estimate_get", { _job: jobId }));
   if (!data.success) throw new ToolError("The estimate could not be read. Nothing was saved.");
-  const lineNo = Number(ref.slice(2));
-  for (const raw of data.data.takeoff?.lines ?? []) {
+  return (data.data.takeoff?.lines ?? []).flatMap((raw) => {
     const line = lineSchema.safeParse(raw);
-    if (line.success && line.data.line_no === lineNo) return line.data;
-  }
+    return line.success ? [line.data] : [];
+  });
+}
+async function takeoffLine(sb: Sb, jobId: string, ref: string) {
+  const lineNo = Number(ref.slice(2));
+  const line = (await takeoffLines(sb, jobId)).find((l) => l.line_no === lineNo);
+  if (line) return line;
   throw new ToolError(
     `Estimate line ${ref} was not found on the saved takeoff. Nothing was saved.`,
   );
@@ -224,7 +240,7 @@ function sourcingBrief(s: Selection, line: z.infer<typeof lineSchema> | null): s
         ]
       : []),
     "Find three real products that meet the drawings and specifications: Good (meets the spec at the lowest sound cost), Better (adds useful features or quality) and Best (premium quality, efficiency or controls).",
-    "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, the product page URL, a direct https photo URL, and the listed unit price with the seller and the date you read it.",
+    "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, a direct https photo URL, the listed unit price with the seller and the date you read it, and two links: source_url, the seller page you read the price on (internal), and product_url, the manufacturer's own product page for the customer. Never use a store listing that shows a price as product_url; leave it empty if there is no manufacturer page.",
     "Submit each one with selection_board action propose_option. Never invent a product, link, photo or price; leave a field empty when the page doesn't show it.",
     "If the drawings or takeoff note show a conflict, say so and don't pick a side.",
   ];
@@ -237,16 +253,9 @@ const candidateSchema = z
     model: z.string().trim().max(120).default(""),
     specifications: z.string().trim().max(2000).default(""),
     included: z.array(z.string().trim().min(1).max(160)).max(12).default([]),
-    source_url: z
-      .url({ protocol: /^https$/ })
-      .max(2048)
-      .nullable()
-      .default(null),
-    photo_url: z
-      .url({ protocol: /^https$/ })
-      .max(2048)
-      .nullable()
-      .default(null),
+    product_url: z.preprocess(normalizeUrl, httpsUrl).default(null),
+    source_url: z.preprocess(normalizeUrl, httpsUrl).default(null),
+    photo_url: z.preprocess(normalizeUrl, httpsUrl).default(null),
     found_price_cents: z.number().int().min(0).max(100_000_000_000).nullable().default(null),
     found_at: z.string().trim().max(160).default(""),
     found_on: z.iso.date().nullable().default(null),
@@ -332,13 +341,14 @@ export const selectionBoard = defineTool({
             "Read the current board first and provide its version and the complete updated board.",
           );
 
-        const current = writes && args.action !== "save" ? await readBoard(sb, job.job_id) : null;
+        const current = writes ? await readBoard(sb, job.job_id) : null;
         if (current && current.version !== needVersion(args.expected_version))
           throw new ToolError(
             "Selections changed since you read them. Read the board again. Nothing was saved.",
           );
-        const next: Board | null = current ? structuredClone(current.board) : null;
+        let next: Board | null = current ? structuredClone(current.board) : null;
         let brief: string[] = [];
+        let grant: ReviewGrant = {};
 
         if (args.action === "start") {
           if (!args.estimate_line_ref && !args.title)
@@ -355,9 +365,17 @@ export const selectionBoard = defineTool({
             brief = sourcingBrief(existing, line);
           } else {
             const quantity = args.quantity ?? line?.qty ?? null;
-            if (quantity === null || !(quantity > 0))
+            if (quantity === null || !(Math.round(quantity * 1000) > 0))
               throw new ToolError(
                 "The quantity is unknown. Ask the member for it. Nothing was saved.",
+              );
+            if (
+              args.unit &&
+              line?.unit &&
+              args.unit.trim().toLowerCase() !== line.unit.trim().toLowerCase()
+            )
+              throw new ToolError(
+                `Takeoff line ${args.estimate_line_ref} is measured in ${line.unit}, so price this selection per ${line.unit}. Nothing was saved.`,
               );
             const created: Selection = {
               id: crypto.randomUUID(),
@@ -383,7 +401,7 @@ export const selectionBoard = defineTool({
           // A new product clears any reviewed price: the contractor reviews again.
           s.options[args.tier] = {
             ...blankOption(),
-            ...args.candidate,
+            ...candidateSchema.parse(args.candidate),
             assumptions: s.options[args.tier].assumptions,
           };
           if (s.selected === args.tier) s.selected = null;
@@ -411,16 +429,13 @@ export const selectionBoard = defineTool({
           o.price_cents = args.price_cents;
           o.price_reviewed_on = today;
           if (args.assumptions !== undefined) o.assumptions = args.assumptions;
+          grant = { option: { id: s.id, tier: args.tier } };
         } else if (args.action === "set_proposal") {
           if (!args.proposal && !args.currency && !args.review_base_price)
             throw new ToolError("Send the proposal details to change. Nothing was saved.");
           const patch = args.proposal ?? {};
-          const baseChanged =
-            patch.base_price_cents !== undefined &&
-            patch.base_price_cents !== next!.proposal.base_price_cents;
           next!.proposal = proposalSchema.parse({ ...next!.proposal, ...patch });
           if (args.currency) next!.currency = args.currency;
-          if (baseChanged || patch.base_tier !== undefined) next!.proposal.base_reviewed_on = null;
           if (args.review_base_price) {
             if (args.confirmed !== true)
               throw new ToolError(
@@ -429,21 +444,38 @@ export const selectionBoard = defineTool({
             if (next!.proposal.base_price_cents === null)
               throw new ToolError("Set the base price before reviewing it. Nothing was saved.");
             next!.proposal.base_reviewed_on = today;
+            grant = { base: true };
           }
+        } else if (args.action === "save") {
+          next = args.board!;
         }
 
+        // Only a confirmed review in this call can set a review date; a change
+        // to what an earlier review covers marks it not reviewed again.
+        const guarded = current && next ? enforceReviews(current.board, next, grant) : null;
+        const parsedNext = guarded ? boardSchema.safeParse(guarded.board) : null;
+        const unchanged =
+          !!parsedNext?.success && canonical(parsedNext.data) === canonical(current!.board);
         const result =
           args.action === "read"
             ? await readBoard(sb, job.job_id)
-            : args.action === "save"
-              ? await saveBoard(sb, job.job_id, needVersion(args.expected_version), args.board!)
-              : await saveBoard(sb, job.job_id, current!.version, next!);
+            : unchanged
+              ? current!
+              : await saveBoard(sb, job.job_id, current!.version, guarded!.board);
+        const saved = writes && !unchanged;
+        const cleared = guarded && !unchanged ? guarded.cleared : [];
 
         return guide(
           {
             ...text(
               [
-                `${named(job)} · Good, Better, Best${writes ? " · saved" : ""}`,
+                `${named(job)} · Good, Better, Best${saved ? " · saved" : writes ? " · nothing changed" : ""}`,
+                ...(cleared.length
+                  ? [
+                      `Marked not reviewed again because what they cover changed: ${cleared.join(", ")}. Ask the member to confirm them again.`,
+                      "",
+                    ]
+                  : []),
                 ...(brief.length ? [...brief, ""] : []),
                 ...contractorText(result.board, result.version, today),
                 "",
@@ -456,7 +488,8 @@ export const selectionBoard = defineTool({
               packages: packageTotals(result.board),
               review: contractorReview(result.board),
               blockers: proposalBlockers(result.board),
-              saved: writes,
+              saved,
+              reviews_cleared: cleared,
               shared: false,
               internal: true,
             } as unknown as JsonValueInput,
@@ -464,7 +497,7 @@ export const selectionBoard = defineTool({
           "This board is internal: cost, found price, margin, markup, assumptions and notes are for the contractor only. Never put them in a customer message; use selection_proposal preview for the customer view.",
           "To source products, use your own web search to find real products, read each product page, then call propose_option once per tier with what the page shows. If you can't search the web, ask the member to paste product links and read those. Never invent a product, link, photo or price.",
           "A found price is a lead. Call review_price with confirmed true only after the member states or confirms the unit cost and the customer unit price for that option.",
-          "Save only the changes the member asked for, using the version you just read. Saving does not share anything or change the estimate, contract, budget or billing.",
+          "Save only the changes the member asked for, using the version you just read. A save cannot mark a price reviewed; use review_price or review_base_price. Saving does not share anything or change the estimate, contract, budget or billing.",
         );
       },
     ),
@@ -635,7 +668,13 @@ export const selectionProposal = defineTool({
           _recorded_on: today,
           _evidence: args.evidence,
         });
-        const carry = estimateCarry(recorded.board, args.tier);
+        // Check units against the takeoff so a cost per unit lands on a line measured the same way.
+        const lineUnits = new Map(
+          (await takeoffLines(sb, job.job_id).catch(() => [])).map(
+            (l) => [`T-${l.line_no}`, l.unit ?? null] as const,
+          ),
+        );
+        const carry = estimateCarry(recorded.board, args.tier, lineUnits);
         const code = recorded.board.currency;
         const total = packageTotals(recorded.board)[args.tier];
         return guide(
@@ -651,7 +690,7 @@ export const selectionProposal = defineTool({
                       const s = recorded.board.selections.find(
                         (x) => x.estimate_line_ref === c.ref,
                       )!;
-                      return `- ${c.ref} ${c.item}: material unit cost ${money(Math.round(c.unit_price * 100), code)} for ${c.product} · ${s.quantity} ${s.unit} = ${money(extended(s.quantity, Math.round(c.unit_price * 100)), code)}`;
+                      return `- ${c.ref} ${c.item}: material unit cost ${money(Math.round(c.unit_price * 100), code)} per ${c.unit} for ${c.product} · ${s.quantity} ${s.unit} = ${money(extended(s.quantity, Math.round(c.unit_price * 100)), code)}`;
                     })
                   : ["- Nothing to carry."]),
                 ...carry.skipped.map((s) => `- Skipped ${s.title}: ${s.reason}`),

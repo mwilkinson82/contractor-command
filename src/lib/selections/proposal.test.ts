@@ -127,6 +127,7 @@ describe("Good, Better, Best packages", () => {
         {
           ref: "T-1",
           unit_price: 109.99,
+          unit: "ea",
           item: "Type E 2x4 lay-in LED fixtures",
           product: "Lithonia Lighting CPANL 2X4 ALO6 SWW7 M2",
         },
@@ -140,5 +141,24 @@ describe("Good, Better, Best packages", () => {
     });
     expect(estimateCarry(b, "good").carry).toEqual([]);
     expect(estimateCarry(b, "good").skipped).toHaveLength(2);
+    // A line measured in another unit, or missing from the takeoff, is not carried.
+    const other = estimateCarry(willowCreekTypeE(), "better", new Map([["T-1", "lf"]]));
+    expect(other.carry).toEqual([]);
+    expect(other.skipped[0].reason).toContain("takeoff line T-1 is in lf");
+    expect(estimateCarry(willowCreekTypeE(), "better", new Map()).skipped[0].reason).toContain(
+      "was not found",
+    );
+    expect(
+      estimateCarry(willowCreekTypeE(), "better", new Map([["T-1", "EA"]])).carry,
+    ).toHaveLength(1);
+  });
+
+  it("blocks a proposal whose package total would fall below zero", () => {
+    const b = willowCreekTypeE();
+    b.proposal.base_tier = "best";
+    b.proposal.base_price_cents = 100;
+    expect(proposalBlockers(b)).toEqual([
+      "A package total is out of range. Check the base price and base tier.",
+    ]);
   });
 });

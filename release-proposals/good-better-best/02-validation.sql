@@ -94,8 +94,8 @@ BEGIN
     FOREACH tier IN ARRAY ARRAY['good','better','best'] LOOP
       opt := item->'options'->tier;
       IF jsonb_typeof(opt) IS DISTINCT FROM 'object'
-         OR opt - ARRAY['description','manufacturer','model','specifications','included','source_url','photo_url','found_price_cents','found_at','found_on','cost_cents','price_cents','price_reviewed_on','assumptions'] <> '{}'::jsonb
-         OR NOT opt ?& ARRAY['description','manufacturer','model','specifications','included','source_url','photo_url','found_price_cents','found_at','found_on','cost_cents','price_cents','price_reviewed_on','assumptions']
+         OR opt - ARRAY['description','manufacturer','model','specifications','included','product_url','source_url','photo_url','found_price_cents','found_at','found_on','cost_cents','price_cents','price_reviewed_on','assumptions'] <> '{}'::jsonb
+         OR NOT opt ?& ARRAY['description','manufacturer','model','specifications','included','product_url','source_url','photo_url','found_price_cents','found_at','found_on','cost_cents','price_cents','price_reviewed_on','assumptions']
          OR NOT mcp_private.gbb_is_text(opt->'description', 500) OR NOT mcp_private.gbb_is_text(opt->'manufacturer', 120)
          OR NOT mcp_private.gbb_is_text(opt->'model', 120) OR NOT mcp_private.gbb_is_text(opt->'specifications', 2000)
          OR NOT mcp_private.gbb_is_text(opt->'assumptions', 1000) OR NOT mcp_private.gbb_is_text(opt->'found_at', 160)
@@ -111,8 +111,9 @@ BEGIN
          OR NOT mcp_private.gbb_is_cents(opt->'found_price_cents', 100000000000) THEN
         RAISE EXCEPTION 'MCP_BAD:Invalid option amount.';
       END IF;
-      IF NOT mcp_private.gbb_is_url(opt->'source_url') OR NOT mcp_private.gbb_is_url(opt->'photo_url') THEN
-        RAISE EXCEPTION 'MCP_BAD:Invalid source URL.';
+      IF NOT mcp_private.gbb_is_url(opt->'product_url') OR NOT mcp_private.gbb_is_url(opt->'source_url')
+         OR NOT mcp_private.gbb_is_url(opt->'photo_url') THEN
+        RAISE EXCEPTION 'MCP_BAD:Invalid product, source or photo link.';
       END IF;
       IF NOT mcp_private.gbb_is_date(opt->'price_reviewed_on') OR NOT mcp_private.gbb_is_date(opt->'found_on') THEN RAISE EXCEPTION 'MCP_BAD:Invalid review date.'; END IF;
       IF opt->'price_reviewed_on' <> 'null'::jsonb AND opt->'price_cents' = 'null'::jsonb THEN

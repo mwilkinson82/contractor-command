@@ -101,9 +101,9 @@ export function renderProposalDocument(p: ProposalPagePayload): string {
         .map((tier) => {
           const o = s.options[tier];
           const photo = safeUrl(o.photo_url);
-          const source = safeUrl(o.source_url);
+          const link = safeUrl(o.product_url);
           const name = o.manufacturer || o.description;
-          return `<div class="col"><div class="item"><div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc([o.manufacturer, o.model].filter(Boolean).join(" ") || o.description)}" loading="lazy" referrerpolicy="no-referrer">` : "<span>Photo not available</span>"}</div><p class="label">${TIER_LABEL[tier]}</p><p class="name">${esc(name)}</p>${o.model ? `<p class="model">${esc(o.model)}</p>` : ""}${o.manufacturer && o.description ? `<p class="desc">${esc(o.description)}</p>` : ""}${o.specifications ? `<p class="specs">${esc(o.specifications)}</p>` : ""}${o.included.length ? `<ul>${o.included.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}${source ? `<a class="more" href="${esc(source)}" target="_blank" rel="noopener noreferrer">Product details ›</a>` : ""}</div></div>`;
+          return `<div class="col"><div class="item"><div class="photo">${photo ? `<img src="${esc(photo)}" alt="${esc([o.manufacturer, o.model].filter(Boolean).join(" ") || o.description)}" loading="lazy" referrerpolicy="no-referrer">` : "<span>Photo not available</span>"}</div><p class="label">${TIER_LABEL[tier]}</p><p class="name">${esc(name)}</p>${o.model ? `<p class="model">${esc(o.model)}</p>` : ""}${o.manufacturer && o.description ? `<p class="desc">${esc(o.description)}</p>` : ""}${o.specifications ? `<p class="specs">${esc(o.specifications)}</p>` : ""}${o.included.length ? `<ul>${o.included.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}${link ? `<a class="more" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Product details ›</a>` : ""}</div></div>`;
         })
         .join("");
       return `<section class="section"><h2>${esc(s.title)}</h2><p class="qty">${esc(String(s.quantity))} ${esc(s.unit)} in every package</p><div class="compare"><div class="grid">${cells}</div></div></section>`;

@@ -1,6 +1,7 @@
 -- Good/Better/Best selections and proposals, part 4 of 5: the customer view.
 -- Builds the only data a customer ever sees, from whitelisted fields. Cost,
--- margin, assumptions, internal notes and the base-price basis never leave.
+-- margin, assumptions, internal notes, the base-price basis and the seller page
+-- the price was read on (source_url) never leave.
 -- Mirrors customerProposal in src/lib/selections/proposal.ts. Safe to rerun.
 
 CREATE OR REPLACE FUNCTION mcp_private.gbb_extended(_qty jsonb, _unit jsonb) RETURNS numeric
@@ -40,7 +41,7 @@ BEGIN
                      - mcp_private.gbb_extended(item->'quantity', item->'options'->base_tier->'price_cents');
     END LOOP;
     total := (p->>'base_price_cents')::numeric + delta;
-    IF total < 0 OR total > 9007199254740991 OR abs(delta) > 9007199254740991 THEN
+    IF total < 0 OR total > 999999999999 OR abs(delta) > 999999999999 THEN
       RAISE EXCEPTION 'MCP_BAD:A package total is out of range.';
     END IF;
     packages := packages || jsonb_build_array(jsonb_build_object('tier', tier, 'total_cents', total, 'difference_cents', delta));
@@ -53,7 +54,7 @@ BEGIN
       options := options || jsonb_build_object(tier, jsonb_build_object(
         'description', opt->'description', 'manufacturer', opt->'manufacturer', 'model', opt->'model',
         'specifications', opt->'specifications', 'included', opt->'included',
-        'source_url', opt->'source_url', 'photo_url', opt->'photo_url'));
+        'product_url', opt->'product_url', 'photo_url', opt->'photo_url'));
     END LOOP;
     selections := selections || jsonb_build_array(jsonb_build_object('id', item->'id', 'title', item->'title',
       'quantity', item->'quantity', 'unit', item->'unit', 'options', options));
