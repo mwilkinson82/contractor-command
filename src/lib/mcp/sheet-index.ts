@@ -218,6 +218,12 @@ function sheetCandidates(runs: TextRun[]): Candidate[] {
 
 // The label over the sheet-number field, alone on its line ("SHEET NO.", "DWG #", "SHEET:").
 const SHEET_NO_LABEL = /^(SHEET|DWG|DRAWING)\s*(NO\.?|NUMBER|NUM\.?|#)?\s*:?$/;
+// A sheet count printed in or beside the title field ("1 OF 3", "SHEET 2 OF 6", "OF 3").
+const SHEET_COUNT = /^(SHEET\s*)?(\d+\s*)?OF\s*\d+$/;
+const TRAILING_SHEET_COUNT = /\s+(SHEET\s+)?(\d+\s+)?OF\s+\d+$/;
+// A note that points elsewhere ("SEE A4.1", "TYP.", "SIM"). Unlike a sheet-number reference,
+// DETAIL and SECTION are ordinary title words here ("MENU SCREEN MOUNT DETAIL").
+const TITLE_REFERENCE = /\b(SEE|REFER|REF|SIM|TYP|ON SHEET|PER)\b/;
 // A label printed inside a title field ("SHEET TITLE", "DRAWING NAME:"), never part of the title.
 const TITLE_FIELD_LABEL = /^(SHEET|DRAWING|DWG)?\s*(TITLE|NAME)\s*:?$/;
 // Text that fills other title-block fields and never belongs to a sheet title.
@@ -362,7 +368,8 @@ function sheetTitle(
   const usable = pool.filter(
     (r) =>
       !TITLE_FIELD_LABEL.test(text(r)) &&
-      !REFERENCE_WORDS.test(text(r).replace(/\bGENERAL NOTES\b|\bNOTES\b/g, "")),
+      !SHEET_COUNT.test(text(r)) &&
+      !TITLE_REFERENCE.test(text(r)),
   );
   // The title's first line: the run under a title label, or the largest title-like run nearest
   // the sheet number.
@@ -394,7 +401,7 @@ function sheetTitle(
           r.h >= seed.h * 0.6,
       )
     : titleLines(seed, usable);
-  const title = joinLines(field.length ? field : [seed]);
+  const title = joinLines(field.length ? field : [seed]).replace(TRAILING_SHEET_COUNT, "");
   if (title.length < 3 || (sheet && title.replace(/\s+/g, "") === sheet)) return null;
   return title.slice(0, 80);
 }
