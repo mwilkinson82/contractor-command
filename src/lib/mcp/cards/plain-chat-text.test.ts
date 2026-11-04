@@ -51,7 +51,7 @@ describe("plain chat text without decorative circles", () => {
     expect(text).toContain("**Progress:** 2 of 4\n");
     expect(text).toContain(`Overdue: [Confirm delivery](${href})`);
     expect(text).toContain("Unknown: Owner · Delay notice");
-    expect(text).toContain("| Risk: Exposure | $1,400.00 |");
+    expect(text).toContain("**Risk: Exposure:** $1,400.00");
     expect(text).toContain("| Risk: Liquidated damages | $500.00 |");
     expect(text).toContain("### Delay: Notice");
     expect(text).toContain("- **Delay**\nGive written notice");
@@ -60,7 +60,7 @@ describe("plain chat text without decorative circles", () => {
     expect(text).toContain("Risk: Contract notice required");
     expect(card).toEqual(original);
     expect(renderHtml(card)).toContain('data-alert="overdue"');
-    expect(renderHtml(card)).toContain("#DC2626");
+    expect(renderHtml(card)).toContain("#9F243A");
   });
 
   it("does not remove markers that are part of literal or quoted source text", () => {

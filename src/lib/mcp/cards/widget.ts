@@ -1,7 +1,7 @@
 // ChatGPT MCP Apps card. Same shape as the team picker (ui:// resource, outputTemplate,
 // HTML stays out of the tool text). This one paints whatever card the tool put on structuredContent.card.
 import { sovCss } from "./sov-style";
-import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor } from "./palette";
+import { LONG_CELL_MIN, SHORT_CELL_MAX, cardBaseCss } from "./card-style";
 import { responsiveCardCss } from "./responsive";
 import { onboardingCss } from "./onboarding-style";
 import { reportLinkCss } from "./report-link-card";
@@ -17,11 +17,11 @@ export const cardWidgetResourceMeta = {
 
 const SCRIPT = `(function(){
 var root=window.openai||{};
-var P=${JSON.stringify({ navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert: ALERT })};
 var app=document.getElementById("app");
 if(!app||app.dataset.subscribed==="1")return;
 app.dataset.subscribed="1";
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}
+function cellKind(t){var v=String(t||"").trim();if(/^[$\\d][\\d.,]*%?$/.test(v))return "num";if(v&&v.length<=${SHORT_CELL_MAX}&&!/\\s/.test(v))return "short";return v.length>=${LONG_CELL_MIN}?"long":""}
 function isAlert(level){return level==="risk"||level==="delay"||level==="overdue"}
 function raw(c){return /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(String(c||"").trim())}
 function clean(c){return String(c==null?"":c).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig," ").replace(/\\s+/g," ").replace(/^[,·\\s-]+|[,·\\s-]+$/g,"").trim()}
@@ -86,7 +86,7 @@ if(card.ask&&card.ask.prompt)h+='<div class="ask"><strong>This question</strong>
     (s.rows||[]).forEach(function(r){
       var alert=isAlert(r.flag);
       var seen=view(r);
-      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===(r.linkCell||0)?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);return '<td'+(!t&&i>0?' class="blank"':/^[$\\d][\\d.,]*%?$/.test(t)?' class="num"':'')+(cols[i]?' data-label="'+esc(cols[i])+'"':'')+'>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
+      h+='<tr'+(alert?' class="alert" data-alert="'+r.flag+'"':r.flag==="callout"?' class="callout"':'')+'>'+(r.cells||[]).map(function(c,i){var t=raw(c)?"":clean(c);var body=i===(r.linkCell||0)?linked({label:t||seen.label,href:seen.href,ref:seen.ref,secondary:seen.secondary}):esc(t);var k=cellKind(t);return '<td'+(!t&&i>0?' class="blank"':k?' class="'+k+'"':'')+(cols[i]?' data-label="'+esc(cols[i])+'"':'')+'>'+((alert||r.flag==="callout")&&i===0?'<div class="flag-head">'+head(r.flag)+'</div><div class="flag-body">'+body+'</div>':body)+'</td>'}).join('')+'</tr>';
     });
     h+='</tbody></table></div>'+close;
     return;
@@ -127,55 +127,9 @@ display((window.openai||root).toolOutput);
 })();`;
 
 export function cardWidgetHtml(): string {
-  const navy = cssColor(NAVY, "#1E3A5F");
-  const blue = cssColor(BLUE, "#1E5FED");
-  const gray = cssColor(GRAY, "#6B7280");
-  const white = cssColor(WHITE, "#FFFFFF");
-  const alert = cssColor(ALERT, "#DC2626");
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
-body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}
+${cardBaseCss(true)}
 .stack{display:flex;flex-direction:column;gap:12px}
-.card{border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}
-header{background:${navy};color:${white};padding:16px 18px}
-.mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
-h1{margin:0;font-size:22px}.job{margin:6px 0 0}
-.body{padding:16px 18px}
-.eyebrow{display:inline-block;margin:0 0 10px;padding:3px 8px;border-radius:999px;background:${blue};color:${white};font-size:12px;font-weight:700}
-.track{height:8px;border-radius:999px;border:1px solid ${gray};overflow:hidden;margin:0 0 14px}
-.fill{height:100%;background:${blue}}
-.kpi{display:inline-block;min-width:120px;border:1px solid ${gray};border-radius:10px;padding:8px 10px;margin:0 8px 8px 0}
-.kpi span{display:block;color:${gray};font-size:12px}
-h2{margin:16px 0 8px;font-size:14px}
-th{background:${blue};color:${white};text-align:left;padding:6px 8px}
-.table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}
-td{padding:6px 8px;border-bottom:1px solid ${gray}}
-.table-wrap{overflow-x:auto}td.num{white-space:nowrap;text-align:right}
-.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray}}
-.tone-known{border-color:${blue};color:${blue}}.tone-unknown{color:${gray}}.tone-action{background:${blue};color:${white}}
-.chip.tone-action a{color:inherit}
-a{color:${blue};text-decoration:none}
-.ref{display:block;margin-top:2px;font-size:11px;color:${gray}}
-.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue}}
-.placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px}
-.placeholder h2{margin-top:0;color:${navy}}
-.placeholder li,.placeholder p{color:${gray}}
-.next{font-weight:700}
-.alert{color:${alert}}
-li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alert};border-radius:12px;background:${white};overflow:hidden}
-.flag-head{display:block;margin:0;padding:6px 10px;background:${alert};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.flag-body{padding:10px 12px}
-.callout{color:${navy};border-left:4px solid ${blue}}
-li.callout{display:block;margin:8px 0;background:${white}}
-.callout .flag-head{background:${white};color:${navy};padding:6px 10px;font-size:12px;font-weight:700}
-tr.alert td{border:2px solid ${alert}}
-.tone-literal{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap;overflow-wrap:anywhere}
-.framed{margin:10px 0;border:1px solid ${gray};border-radius:12px;overflow:hidden}
-.framed h2{margin:0;padding:8px 12px;border-bottom:1px solid ${gray}}
-.framed ul{list-style:none;margin:0;padding:8px 12px}
-.framed li{margin:0 0 6px}
-.tone-quote{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap}
-.framed.alert{border:2px solid ${alert};color:${navy}}
-.framed.alert h2{background:${alert};color:${white};border-bottom:0}
 ${responsiveCardCss(true)}
 ${onboardingCss}
 ${sovCss}

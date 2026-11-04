@@ -209,7 +209,7 @@ describe("board link card palette", () => {
       sections: [{ heading: "Open", kind: "chips", rows: [{ cells: ["Open items"], href: signedJobUrl("items", JOB, "abc"), tone: "action" }] }],
     });
     expect(paletteViolations(html, false)).toEqual([]);
-    expect(html).toContain("#1E3A5F");
-    expect(html).toContain("#1E5FED");
+    expect(html).toContain("#18314F");
+    expect(html).toContain("#2465CB");
   });
 });

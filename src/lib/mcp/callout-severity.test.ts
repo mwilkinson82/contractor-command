@@ -57,7 +57,7 @@ describe("ordinary callouts and real alerts", () => {
   it("keeps an S-100 saved markup reference navy/blue in HTML, markdown and the widget", () => {
     const { card, html } = drawingMarkupCard("S-100", [{ label: "Grid A" }]);
     expect(html).toContain('class="callout"');
-    expect(html).toContain("color:#1E3A5F;border-left:4px solid #1E5FED");
+    expect(html).toContain("color:#18314F;border-left:3px solid #2465CB");
     expect(html).not.toContain('data-alert="');
     expect(paletteViolations(html, false)).toEqual([]);
     expect(renderMarkdown(card)).not.toContain("🔴");
@@ -90,7 +90,7 @@ describe("ordinary callouts and real alerts", () => {
           },
         ],
       }),
-    ).toContain(".callout .flag-head{background:#FFFFFF;color:#1E3A5F");
+    ).toContain(".card .callout{color:#18314F;border-left:3px solid #2465CB}");
   });
 
   it("does not count an ordinary linked item or a date check as a risk", () => {
@@ -213,14 +213,14 @@ describe("delay notices render red", () => {
 
     for (const shown of [delay, linked]) {
       expect(shown.html).toContain('data-alert="delay"');
-      expect(shown.html).toContain("#DC2626");
+      expect(shown.html).toContain("#9F243A");
       expect(shown.markdown).toContain("Delay:");
       expect(shown.markdown).not.toMatch(/[🔵🔴⚪]/u);
       expect(shown.widget).toContain('data-alert="delay"');
       expect(paletteViolations(shown.html, true)).toEqual([]);
     }
-    expect(ordinary.html).toContain("#1E5FED");
-    expect(ordinary.html).not.toContain("#DC2626");
+    expect(ordinary.html).toContain("#2465CB");
+    expect(ordinary.html).not.toContain("#9F243A");
     expect(ordinary.html).not.toContain("data-alert=");
     expect(ordinary.markdown).toContain("Confirm the conduit");
     expect(ordinary.markdown).not.toMatch(/[🔵🔴⚪]/u);
@@ -228,7 +228,7 @@ describe("delay notices render red", () => {
     expect(ordinary.widget).not.toContain("data-alert=");
     expect(paletteViolations(ordinary.html, false)).toEqual([]);
     expect(overdue.html).toContain('data-alert="overdue"');
-    expect(overdue.html).toContain("#DC2626");
+    expect(overdue.html).toContain("#9F243A");
     expect(overdue.markdown).toContain("Overdue:");
     expect(overdue.markdown).not.toMatch(/[🔵🔴⚪]/u);
     expect(overdue.widget).toContain('data-alert="overdue"');

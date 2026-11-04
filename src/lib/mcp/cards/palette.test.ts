@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, emptyCssValues, paletteViolations } from "./palette";
+import { ALERT, BLUE, CARD, GRAY, NAVY, WHITE, cssColor, emptyCssValues, paletteViolations } from "./palette";
 import { renderHtml } from "./html";
 import { renderMarkdown } from "./markdown";
 import { cardWidgetHtml } from "./widget";
@@ -72,7 +72,7 @@ describe("palette", () => {
     expect(paletteViolations(html, true)).toEqual([]);
     expect(paletteViolations(md, true)).toEqual([]);
     expect(html).toContain('data-alert="risk"');
-    expect(html).toContain(ALERT);
+    expect(html).toContain(CARD.alertInk);
     expect(md).toContain("Risk: Liquidated damages");
     expect(md).not.toMatch(/[🔵🔴⚪]/u);
   });
