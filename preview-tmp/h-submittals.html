@@ -1,4 +1,1069 @@
-<!doctype html><html><body style="margin:0;background:#333;display:flex;gap:16px;padding:8px;align-items:flex-start">
-<iframe src="submittals.html" style="width:820px;height:960px;border:0;background:#fff"></iframe>
-<iframe src="submittals.html" style="width:390px;height:960px;border:0;background:#fff"></iframe>
-</body></html>
+<!doctype html><html><body style="margin:0;background:#333;display:flex;gap:16px;padding:8px;align-items:flex-start"><iframe srcdoc="&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;&lt;title&gt;submittals.html&lt;/title&gt;&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;display=swap&quot;&gt;&lt;style&gt;body{margin:0}/*
+ * Shared web-page shell for Athena&#x27;s /r/ job pages (RFI, RFC and change order logs, and the live report pages).
+ * Same look as the accounting suite: soft blue-gray page, white panels, navy ink, one link blue.
+ * Desktop uses the full width up to 1440px; tablet keeps tables at real width with a side scroll;
+ * phones stack every table row into a labelled card.
+ */
+.ath-page {
+  --ath-ink: #18314f;
+  --ath-ink-strong: #183b63;
+  --ath-muted: #65788e;
+  --ath-soft: #53677d;
+  --ath-line: #dfe7f0;
+  --ath-line-soft: #e8edf4;
+  --ath-head: #edf3fa;
+  --ath-link: #2465cb;
+  --ath-focus: #659ff4;
+  --ath-alert: #dc2626;
+  min-height: 100vh;
+  min-width: 0;
+  padding: 24px clamp(16px, 3vw, 40px) 56px;
+  background: #f5f8fc;
+  color: var(--ath-ink);
+  font:
+    14px/1.55 &quot;Archivo&quot;,
+    Arial,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.ath-page *,
+.ath-page *::before,
+.ath-page *::after {
+  box-sizing: border-box;
+}
+.ath-page a {
+  color: var(--ath-link);
+  text-underline-offset: 3px;
+}
+.ath-page :is(a, button, input, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--ath-focus);
+  outline-offset: 3px;
+}
+.ath-page-wrap {
+  max-width: 1440px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* Top bar: Athena mark on the left, project links on the right. */
+.ath-page-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  margin-bottom: 22px;
+}
+.ath-page-mark {
+  color: #6080a4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ath-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  font-size: 13px;
+}
+.ath-page-nav a {
+  font-weight: 600;
+  text-decoration: none;
+}
+.ath-page-nav a:hover {
+  text-decoration: underline;
+}
+.ath-page-account {
+  color: var(--ath-muted);
+  font-size: 12px;
+}
+
+/* Title row: title and job on the left, filters on the right on wide screens. */
+.ath-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-bottom: 22px;
+}
+.ath-page-head h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ath-ink);
+}
+.ath-page-sub {
+  margin: 6px 0 0;
+  color: var(--ath-soft);
+  font-size: 14px;
+}
+.ath-page-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+.ath-page-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ath-soft);
+}
+.ath-page-filters label.ath-page-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  font-size: 13px;
+}
+.ath-page select {
+  min-height: 42px;
+  min-width: 11rem;
+  max-width: 100%;
+  padding: 9px 12px;
+  background: #fff;
+  border: 1px solid #cbd6e3;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ath-ink);
+  box-shadow: 0 1px 2px #18345304;
+}
+.ath-page input[type=&quot;checkbox&quot;] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ath-link);
+}
+.ath-page button {
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid #bbcee7;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ath-link);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ath-page-content &gt; * + * {
+  margin-top: 22px;
+}
+
+/* Number tiles: one row on desktop, two across on phones. */
+.ath-page-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+.ath-page-kpi {
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid var(--ath-line);
+  border-radius: 12px;
+  box-shadow: 0 3px 12px #18345304;
+}
+.ath-page-kpi dt {
+  font-size: 12px;
+  color: var(--ath-muted);
+}
+.ath-page-kpi dd {
+  margin: 2px 0 0;
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ath-ink-strong);
+}
+.ath-page-kpi[data-alert] {
+  border-color: #f3c8d0;
+}
+.ath-page-kpi[data-alert] dd {
+  color: var(--ath-alert);
+}
+
+/* White panel per section. */
+.ath-page-panel {
+  min-width: 0;
+  padding: 22px;
+  background: #fff;
+  border: 1px solid var(--ath-line);
+  border-radius: 14px;
+  box-shadow: 0 3px 12px #18345304;
+}
+.ath-page-panel &gt; h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ath-ink);
+}
+.ath-page-panel &gt; ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.ath-page-panel &gt; ul &gt; li + li {
+  margin-top: 6px;
+}
+.ath-page-panel .ath-page-literal {
+  white-space: pre-wrap;
+}
+.ath-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ath-page-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #bbcee7;
+  border-radius: 7px;
+  background: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ath-page-alert {
+  padding: 14px 16px;
+  background: #fff3f5;
+  border: 1px solid #f3c8d0;
+  border-radius: 10px;
+  color: #9f243a;
+}
+.ath-page-alert strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.ath-page-empty {
+  padding: 14px 16px;
+  border: 1px dashed #d7e2ef;
+  border-radius: 9px;
+  background: #f8fafd;
+  color: var(--ath-muted);
+}
+.ath-page-next {
+  margin: 0;
+  color: var(--ath-soft);
+}
+.ath-page-next strong {
+  color: var(--ath-ink);
+}
+.ath-page-foot {
+  margin: 28px 0 0;
+  font-size: 12px;
+  color: var(--ath-muted);
+}
+.ath-page-status {
+  padding: 32px 0;
+  color: var(--ath-soft);
+}
+
+/* Tables: full width on desktop, real width with a side scroll on tablet, stacked cards on phone. */
+.ath-page-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--ath-line);
+  border-radius: 10px;
+  background: #fff;
+}
+.ath-page-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.ath-page-table th,
+.ath-page-table td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ath-line-soft);
+}
+.ath-page-table thead {
+  background: var(--ath-head);
+  color: var(--ath-soft);
+}
+.ath-page-table thead th {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.ath-page-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ath-page-table tbody tr:nth-child(even) {
+  background: #fafcfe;
+}
+.ath-page-table tbody tr:hover {
+  background: #f0f6ff;
+}
+.ath-page-table td:first-child {
+  white-space: nowrap;
+}
+.ath-page-table td:first-child a {
+  font-weight: 650;
+  text-decoration: none;
+}
+.ath-page-table td:first-child a:hover {
+  text-decoration: underline;
+}
+.ath-page-table :is(td, th).is-short,
+.ath-page-table :is(td, th).is-num {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.ath-page-table td.is-num {
+  text-align: right;
+}
+.ath-page-table td.is-long {
+  min-width: 16rem;
+}
+.ath-page-table td.is-blank::after {
+  content: &quot;–&quot;;
+  color: #a3b2c3;
+}
+.ath-page-table tr[data-alert] td:first-child {
+  box-shadow: inset 4px 0 0 var(--ath-alert);
+}
+.ath-page-table tr[data-alert] td:first-child a,
+.ath-page-flag {
+  color: var(--ath-alert);
+}
+.ath-page-flag {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ath-page-ref {
+  display: block;
+  font-size: 12px;
+  color: var(--ath-muted);
+}
+
+/* Tablet: tables keep a readable width and pan sideways inside their frame. */
+@media (max-width: 1024px) {
+  .ath-page-table {
+    min-width: 760px;
+  }
+  .ath-page-head {
+    align-items: flex-start;
+  }
+}
+
+/* Phone: each row becomes a card with the column name beside each value. */
+@media (max-width: 720px) {
+  .ath-page {
+    padding: 18px 14px 40px;
+  }
+  .ath-page-top {
+    margin-bottom: 16px;
+  }
+  .ath-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 16px;
+  }
+  .ath-page-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ath-page select {
+    width: 100%;
+  }
+  .ath-page-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .ath-page-kpi {
+    padding: 12px 14px;
+  }
+  .ath-page-kpi dd {
+    font-size: 20px;
+  }
+  .ath-page-panel {
+    padding: 16px;
+  }
+  .ath-page-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .ath-page-table {
+    min-width: 0;
+  }
+  .ath-page-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ath-page-table,
+  .ath-page-table tbody,
+  .ath-page-table tr,
+  .ath-page-table td {
+    display: block;
+    width: 100%;
+  }
+  .ath-page-table tbody tr {
+    margin-bottom: 12px;
+    padding: 4px 0;
+    border: 1px solid var(--ath-line);
+    border-radius: 10px;
+    background: #fff;
+  }
+  .ath-page-table tbody tr:nth-child(even),
+  .ath-page-table tbody tr:hover {
+    background: #fff;
+  }
+  .ath-page-table tr[data-alert] {
+    border-left: 4px solid var(--ath-alert);
+  }
+  .ath-page-table tr[data-alert] td:first-child {
+    box-shadow: none;
+  }
+  .ath-page-table td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 34%) minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--ath-line-soft);
+    text-align: left;
+    white-space: normal;
+  }
+  .ath-page-table td.is-num {
+    text-align: left;
+  }
+  .ath-page-table td.is-long {
+    min-width: 0;
+  }
+  .ath-page-table td::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ath-muted);
+  }
+  .ath-page-table td:not([data-label])::before,
+  .ath-page-table td[data-label=&quot;&quot;]::before {
+    display: none;
+  }
+  .ath-page-table td:not([data-label]),
+  .ath-page-table td[data-label=&quot;&quot;] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ath-page-table td:first-child {
+    font-size: 15px;
+  }
+  .ath-page-table td:last-child {
+    border-bottom: 0;
+  }
+  .ath-page-table td.is-blank {
+    display: none;
+  }
+}
+
+@media print {
+  .ath-page {
+    padding: 0;
+    background: #fff;
+  }
+  .ath-page-top,
+  .ath-page-filters {
+    display: none;
+  }
+  .ath-page-panel,
+  .ath-page-kpi {
+    box-shadow: none;
+  }
+  .ath-page-table-wrap {
+    overflow: visible;
+  }
+}
+
+/* Server-rendered report bodies (live report pages and submittal records) sit inside this shell, which owns the padding. */
+.ath-page-embed .ath-report-surface .ath-report-page,
+.ath-page-embed .ath-report-surface .ath-field-page {
+  padding: 0 !important;
+}
+.ath-page-embed .ath-report-surface .ath-field-wide {
+  max-width: none !important;
+}
+.ath-page-embed + .ath-page-panel {
+  margin-top: 22px;
+}
+.ath-page-bar &gt; div {
+  max-width: none !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+}
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;main class=&quot;ath-page&quot;&gt;&lt;div class=&quot;ath-page-wrap&quot;&gt;&lt;div class=&quot;ath-page-top&quot;&gt;&lt;span class=&quot;ath-page-mark&quot;&gt;Athena&lt;/span&gt;&lt;div class=&quot;ath-page-nav&quot;&gt;&lt;span class=&quot;ath-page-account&quot; role=&quot;status&quot;&gt;Browser account: marshall@example.com&lt;/span&gt;&lt;nav class=&quot;ath-page-nav&quot; aria-label=&quot;Project navigation&quot;&gt;&lt;a href=&quot;/r/job/f568fe39-26d1-4c49-9d93-a9072a896c46/home?t=board&quot;&gt;Project home&lt;/a&gt;&lt;a href=&quot;/today&quot;&gt;Morning brief&lt;/a&gt;&lt;/nav&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;ath-page-embed&quot;&gt;&lt;style&gt;
+.ath-report-surface{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.ath-report-surface *{box-sizing:border-box;min-width:0}
+.ath-report-surface img{max-width:100%;height:auto}
+.ath-report-surface .ath-report-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.ath-report-surface .ath-report-table-scroll:focus-visible,.ath-report-surface .ath-cpm-scroll:focus-visible{outline:2px solid #1E5FED;outline-offset:3px}
+.ath-report-surface .ath-report-table-scroll table{min-width:36rem}
+.ath-report-surface .ath-report-table-scroll th{overflow-wrap:normal;word-break:normal;white-space:nowrap}
+.ath-report-surface .ath-report-amount{white-space:nowrap;overflow-wrap:normal}
+.ath-report-surface .ath-report-tile{container-type:inline-size;flex-basis:14rem!important}
+.ath-report-surface .ath-report-page{max-width:1440px;margin:0 auto;padding:24px clamp(16px,3vw,40px) 40px;font:14px/1.55 &quot;Archivo&quot;,Arial,system-ui,sans-serif}
+.ath-report-surface .ath-report-title{font-size:clamp(22px,2.6vw,30px);line-height:1.2;font-weight:700;letter-spacing:-.02em}
+.ath-report-surface .ath-field-page{font-family:&quot;Archivo&quot;,Arial,system-ui,sans-serif!important}
+@media(min-width:760px){.ath-report-surface .ath-field-wide{max-width:1440px!important;padding:24px clamp(16px,3vw,40px) 40px!important}.ath-report-surface .ath-field-wide .ath-field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-items:start;margin:0 0 16px}.ath-report-surface .ath-field-wide .ath-field-grid&gt;section&gt;section{margin:0!important}}
+@media(min-width:1200px){.ath-report-surface .ath-record-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:20px;align-items:start}}
+.ath-report-surface .ath-report-tile-value{font-size:clamp(16px,8cqi,20px)!important;white-space:nowrap;overflow-wrap:normal}
+&lt;/style&gt;&lt;div class=&quot;ath-report-surface&quot;&gt;&lt;div class=&quot;ath-report-page&quot; style=&quot;color:#1E3A5F&quot;&gt;&lt;h1 class=&quot;ath-report-title&quot; style=&quot;margin:0 0 16px;color:#1E3A5F&quot;&gt;SYN-001 Synthetic reference LONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCE · Submittal log&lt;/h1&gt;&lt;div data-count=&quot;1&quot; data-overdue=&quot;0&quot;&gt;&lt;div style=&quot;display:flex;flex-wrap:wrap;gap:12px;margin:0 0 16px&quot;&gt;&lt;div class=&quot;ath-report-tile&quot; style=&quot;flex:1 1 160px;background:#fff;border:1px solid #D1D5DB;border-radius:10px;padding:12px&quot;&gt;&lt;div style=&quot;font-size:12px;color:#6B7280&quot;&gt;Submittals&lt;/div&gt;&lt;div class=&quot;ath-report-tile-value&quot; style=&quot;font-size:20px;font-weight:600;color:#1E3A5F&quot;&gt;1&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;ath-report-tile&quot; style=&quot;flex:1 1 160px;background:#fff;border:1px solid #D1D5DB;border-radius:10px;padding:12px&quot;&gt;&lt;div style=&quot;font-size:12px;color:#6B7280&quot;&gt;Overdue&lt;/div&gt;&lt;div class=&quot;ath-report-tile-value&quot; style=&quot;font-size:20px;font-weight:600;color:#1E3A5F&quot;&gt;0&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;ath-report-tile&quot; style=&quot;flex:1 1 160px;background:#fff;border:1px solid #D1D5DB;border-radius:10px;padding:12px&quot;&gt;&lt;div style=&quot;font-size:12px;color:#6B7280&quot;&gt;Review days&lt;/div&gt;&lt;div class=&quot;ath-report-tile-value&quot; style=&quot;font-size:20px;font-weight:600;color:#1E3A5F&quot;&gt;14&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;p style=&quot;margin:0 0 16px;font-size:13px;color:#6B7280&quot;&gt;Posture is unset. Public work uses strict. Private work uses advisory.&lt;/p&gt;&lt;/div&gt;&lt;section id=&quot;submittal-synthetic-submittal&quot; data-submittal-row=&quot;1&quot; data-id=&quot;synthetic-submittal&quot; style=&quot;&quot;&gt;&lt;section style=&quot;background:#fff;border:1px solid #D1D5DB;border-radius:12px;padding:16px;margin:0 0 16px&quot;&gt;&lt;div style=&quot;font-weight:700;color:#1E3A5F&quot;&gt;&lt;a href=&quot;submittal/SYN-001&quot; data-record=&quot;SYN-001&quot; style=&quot;color:#1E3A5F;text-decoration:none&quot;&gt;SYN-001 revision 1, Synthetic reference LONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCE&lt;/a&gt;&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#6B7280;margin-top:4px&quot;&gt;Spec 26 24 16 · Submitted · Entered here. · Architect or engineer, Synthetic reference LONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCE · Transmittal T-1 · Due back Needed · Package 0 of 1 received · Overdue: No · &lt;a href=&quot;submittal/SYN-001?upload=%221%22&quot; style=&quot;color:#2563EB&quot;&gt;Upload a piece&lt;/a&gt;&lt;/div&gt;&lt;/section&gt;&lt;/section&gt;&lt;p style=&quot;margin:24px 0 0;font-size:12px;color:#9CA3AF&quot;&gt;Private to your company · Athena powered by ALP&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/main&gt;&lt;/body&gt;&lt;/html&gt;" style="width:820px;height:960px;border:0;background:#fff"></iframe><iframe srcdoc="&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;&lt;title&gt;submittals.html&lt;/title&gt;&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;display=swap&quot;&gt;&lt;style&gt;body{margin:0}/*
+ * Shared web-page shell for Athena&#x27;s /r/ job pages (RFI, RFC and change order logs, and the live report pages).
+ * Same look as the accounting suite: soft blue-gray page, white panels, navy ink, one link blue.
+ * Desktop uses the full width up to 1440px; tablet keeps tables at real width with a side scroll;
+ * phones stack every table row into a labelled card.
+ */
+.ath-page {
+  --ath-ink: #18314f;
+  --ath-ink-strong: #183b63;
+  --ath-muted: #65788e;
+  --ath-soft: #53677d;
+  --ath-line: #dfe7f0;
+  --ath-line-soft: #e8edf4;
+  --ath-head: #edf3fa;
+  --ath-link: #2465cb;
+  --ath-focus: #659ff4;
+  --ath-alert: #dc2626;
+  min-height: 100vh;
+  min-width: 0;
+  padding: 24px clamp(16px, 3vw, 40px) 56px;
+  background: #f5f8fc;
+  color: var(--ath-ink);
+  font:
+    14px/1.55 &quot;Archivo&quot;,
+    Arial,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.ath-page *,
+.ath-page *::before,
+.ath-page *::after {
+  box-sizing: border-box;
+}
+.ath-page a {
+  color: var(--ath-link);
+  text-underline-offset: 3px;
+}
+.ath-page :is(a, button, input, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--ath-focus);
+  outline-offset: 3px;
+}
+.ath-page-wrap {
+  max-width: 1440px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* Top bar: Athena mark on the left, project links on the right. */
+.ath-page-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  margin-bottom: 22px;
+}
+.ath-page-mark {
+  color: #6080a4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ath-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  font-size: 13px;
+}
+.ath-page-nav a {
+  font-weight: 600;
+  text-decoration: none;
+}
+.ath-page-nav a:hover {
+  text-decoration: underline;
+}
+.ath-page-account {
+  color: var(--ath-muted);
+  font-size: 12px;
+}
+
+/* Title row: title and job on the left, filters on the right on wide screens. */
+.ath-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-bottom: 22px;
+}
+.ath-page-head h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ath-ink);
+}
+.ath-page-sub {
+  margin: 6px 0 0;
+  color: var(--ath-soft);
+  font-size: 14px;
+}
+.ath-page-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+.ath-page-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ath-soft);
+}
+.ath-page-filters label.ath-page-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  font-size: 13px;
+}
+.ath-page select {
+  min-height: 42px;
+  min-width: 11rem;
+  max-width: 100%;
+  padding: 9px 12px;
+  background: #fff;
+  border: 1px solid #cbd6e3;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ath-ink);
+  box-shadow: 0 1px 2px #18345304;
+}
+.ath-page input[type=&quot;checkbox&quot;] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ath-link);
+}
+.ath-page button {
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid #bbcee7;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ath-link);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ath-page-content &gt; * + * {
+  margin-top: 22px;
+}
+
+/* Number tiles: one row on desktop, two across on phones. */
+.ath-page-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+.ath-page-kpi {
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid var(--ath-line);
+  border-radius: 12px;
+  box-shadow: 0 3px 12px #18345304;
+}
+.ath-page-kpi dt {
+  font-size: 12px;
+  color: var(--ath-muted);
+}
+.ath-page-kpi dd {
+  margin: 2px 0 0;
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ath-ink-strong);
+}
+.ath-page-kpi[data-alert] {
+  border-color: #f3c8d0;
+}
+.ath-page-kpi[data-alert] dd {
+  color: var(--ath-alert);
+}
+
+/* White panel per section. */
+.ath-page-panel {
+  min-width: 0;
+  padding: 22px;
+  background: #fff;
+  border: 1px solid var(--ath-line);
+  border-radius: 14px;
+  box-shadow: 0 3px 12px #18345304;
+}
+.ath-page-panel &gt; h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--ath-ink);
+}
+.ath-page-panel &gt; ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.ath-page-panel &gt; ul &gt; li + li {
+  margin-top: 6px;
+}
+.ath-page-panel .ath-page-literal {
+  white-space: pre-wrap;
+}
+.ath-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ath-page-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #bbcee7;
+  border-radius: 7px;
+  background: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ath-page-alert {
+  padding: 14px 16px;
+  background: #fff3f5;
+  border: 1px solid #f3c8d0;
+  border-radius: 10px;
+  color: #9f243a;
+}
+.ath-page-alert strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.ath-page-empty {
+  padding: 14px 16px;
+  border: 1px dashed #d7e2ef;
+  border-radius: 9px;
+  background: #f8fafd;
+  color: var(--ath-muted);
+}
+.ath-page-next {
+  margin: 0;
+  color: var(--ath-soft);
+}
+.ath-page-next strong {
+  color: var(--ath-ink);
+}
+.ath-page-foot {
+  margin: 28px 0 0;
+  font-size: 12px;
+  color: var(--ath-muted);
+}
+.ath-page-status {
+  padding: 32px 0;
+  color: var(--ath-soft);
+}
+
+/* Tables: full width on desktop, real width with a side scroll on tablet, stacked cards on phone. */
+.ath-page-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--ath-line);
+  border-radius: 10px;
+  background: #fff;
+}
+.ath-page-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.ath-page-table th,
+.ath-page-table td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ath-line-soft);
+}
+.ath-page-table thead {
+  background: var(--ath-head);
+  color: var(--ath-soft);
+}
+.ath-page-table thead th {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.ath-page-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ath-page-table tbody tr:nth-child(even) {
+  background: #fafcfe;
+}
+.ath-page-table tbody tr:hover {
+  background: #f0f6ff;
+}
+.ath-page-table td:first-child {
+  white-space: nowrap;
+}
+.ath-page-table td:first-child a {
+  font-weight: 650;
+  text-decoration: none;
+}
+.ath-page-table td:first-child a:hover {
+  text-decoration: underline;
+}
+.ath-page-table :is(td, th).is-short,
+.ath-page-table :is(td, th).is-num {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.ath-page-table td.is-num {
+  text-align: right;
+}
+.ath-page-table td.is-long {
+  min-width: 16rem;
+}
+.ath-page-table td.is-blank::after {
+  content: &quot;–&quot;;
+  color: #a3b2c3;
+}
+.ath-page-table tr[data-alert] td:first-child {
+  box-shadow: inset 4px 0 0 var(--ath-alert);
+}
+.ath-page-table tr[data-alert] td:first-child a,
+.ath-page-flag {
+  color: var(--ath-alert);
+}
+.ath-page-flag {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ath-page-ref {
+  display: block;
+  font-size: 12px;
+  color: var(--ath-muted);
+}
+
+/* Tablet: tables keep a readable width and pan sideways inside their frame. */
+@media (max-width: 1024px) {
+  .ath-page-table {
+    min-width: 760px;
+  }
+  .ath-page-head {
+    align-items: flex-start;
+  }
+}
+
+/* Phone: each row becomes a card with the column name beside each value. */
+@media (max-width: 720px) {
+  .ath-page {
+    padding: 18px 14px 40px;
+  }
+  .ath-page-top {
+    margin-bottom: 16px;
+  }
+  .ath-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 16px;
+  }
+  .ath-page-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ath-page select {
+    width: 100%;
+  }
+  .ath-page-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .ath-page-kpi {
+    padding: 12px 14px;
+  }
+  .ath-page-kpi dd {
+    font-size: 20px;
+  }
+  .ath-page-panel {
+    padding: 16px;
+  }
+  .ath-page-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .ath-page-table {
+    min-width: 0;
+  }
+  .ath-page-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ath-page-table,
+  .ath-page-table tbody,
+  .ath-page-table tr,
+  .ath-page-table td {
+    display: block;
+    width: 100%;
+  }
+  .ath-page-table tbody tr {
+    margin-bottom: 12px;
+    padding: 4px 0;
+    border: 1px solid var(--ath-line);
+    border-radius: 10px;
+    background: #fff;
+  }
+  .ath-page-table tbody tr:nth-child(even),
+  .ath-page-table tbody tr:hover {
+    background: #fff;
+  }
+  .ath-page-table tr[data-alert] {
+    border-left: 4px solid var(--ath-alert);
+  }
+  .ath-page-table tr[data-alert] td:first-child {
+    box-shadow: none;
+  }
+  .ath-page-table td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 34%) minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--ath-line-soft);
+    text-align: left;
+    white-space: normal;
+  }
+  .ath-page-table td.is-num {
+    text-align: left;
+  }
+  .ath-page-table td.is-long {
+    min-width: 0;
+  }
+  .ath-page-table td::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ath-muted);
+  }
+  .ath-page-table td:not([data-label])::before,
+  .ath-page-table td[data-label=&quot;&quot;]::before {
+    display: none;
+  }
+  .ath-page-table td:not([data-label]),
+  .ath-page-table td[data-label=&quot;&quot;] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ath-page-table td:first-child {
+    font-size: 15px;
+  }
+  .ath-page-table td:last-child {
+    border-bottom: 0;
+  }
+  .ath-page-table td.is-blank {
+    display: none;
+  }
+}
+
+@media print {
+  .ath-page {
+    padding: 0;
+    background: #fff;
+  }
+  .ath-page-top,
+  .ath-page-filters {
+    display: none;
+  }
+  .ath-page-panel,
+  .ath-page-kpi {
+    box-shadow: none;
+  }
+  .ath-page-table-wrap {
+    overflow: visible;
+  }
+}
+
+/* Server-rendered report bodies (live report pages and submittal records) sit inside this shell, which owns the padding. */
+.ath-page-embed .ath-report-surface .ath-report-page,
+.ath-page-embed .ath-report-surface .ath-field-page {
+  padding: 0 !important;
+}
+.ath-page-embed .ath-report-surface .ath-field-wide {
+  max-width: none !important;
+}
+.ath-page-embed + .ath-page-panel {
+  margin-top: 22px;
+}
+.ath-page-bar &gt; div {
+  max-width: none !important;
+  margin: 0 0 16px !important;
+  padding: 0 !important;
+}
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;main class=&quot;ath-page&quot;&gt;&lt;div class=&quot;ath-page-wrap&quot;&gt;&lt;div class=&quot;ath-page-top&quot;&gt;&lt;span class=&quot;ath-page-mark&quot;&gt;Athena&lt;/span&gt;&lt;div class=&quot;ath-page-nav&quot;&gt;&lt;span class=&quot;ath-page-account&quot; role=&quot;status&quot;&gt;Browser account: marshall@example.com&lt;/span&gt;&lt;nav class=&quot;ath-page-nav&quot; aria-label=&quot;Project navigation&quot;&gt;&lt;a href=&quot;/r/job/f568fe39-26d1-4c49-9d93-a9072a896c46/home?t=board&quot;&gt;Project home&lt;/a&gt;&lt;a href=&quot;/today&quot;&gt;Morning brief&lt;/a&gt;&lt;/nav&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;ath-page-embed&quot;&gt;&lt;style&gt;
+.ath-report-surface{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.ath-report-surface *{box-sizing:border-box;min-width:0}
+.ath-report-surface img{max-width:100%;height:auto}
+.ath-report-surface .ath-report-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.ath-report-surface .ath-report-table-scroll:focus-visible,.ath-report-surface .ath-cpm-scroll:focus-visible{outline:2px solid #1E5FED;outline-offset:3px}
+.ath-report-surface .ath-report-table-scroll table{min-width:36rem}
+.ath-report-surface .ath-report-table-scroll th{overflow-wrap:normal;word-break:normal;white-space:nowrap}
+.ath-report-surface .ath-report-amount{white-space:nowrap;overflow-wrap:normal}
+.ath-report-surface .ath-report-tile{container-type:inline-size;flex-basis:14rem!important}
+.ath-report-surface .ath-report-page{max-width:1440px;margin:0 auto;padding:24px clamp(16px,3vw,40px) 40px;font:14px/1.55 &quot;Archivo&quot;,Arial,system-ui,sans-serif}
+.ath-report-surface .ath-report-title{font-size:clamp(22px,2.6vw,30px);line-height:1.2;font-weight:700;letter-spacing:-.02em}
+.ath-report-surface .ath-field-page{font-family:&quot;Archivo&quot;,Arial,system-ui,sans-serif!important}
+@media(min-width:760px){.ath-report-surface .ath-field-wide{max-width:1440px!important;padding:24px clamp(16px,3vw,40px) 40px!important}.ath-report-surface .ath-field-wide .ath-field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-items:start;margin:0 0 16px}.ath-report-surface .ath-field-wide .ath-field-grid&gt;section&gt;section{margin:0!important}}
+@media(min-width:1200px){.ath-report-surface .ath-record-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:20px;align-items:start}}
+.ath-report-surface .ath-report-tile-value{font-size:clamp(16px,8cqi,20px)!important;white-space:nowrap;overflow-wrap:normal}
+&lt;/style&gt;&lt;div class=&quot;ath-report-surface&quot;&gt;&lt;div class=&quot;ath-report-page&quot; style=&quot;color:#1E3A5F&quot;&gt;&lt;h1 class=&quot;ath-report-title&quot; style=&quot;margin:0 0 16px;color:#1E3A5F&quot;&gt;SYN-001 Synthetic reference LONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCE · Submittal log&lt;/h1&gt;&lt;div data-count=&quot;1&quot; data-overdue=&quot;0&quot;&gt;&lt;div style=&quot;display:flex;flex-wrap:wrap;gap:12px;margin:0 0 16px&quot;&gt;&lt;div class=&quot;ath-report-tile&quot; style=&quot;flex:1 1 160px;background:#fff;border:1px solid #D1D5DB;border-radius:10px;padding:12px&quot;&gt;&lt;div style=&quot;font-size:12px;color:#6B7280&quot;&gt;Submittals&lt;/div&gt;&lt;div class=&quot;ath-report-tile-value&quot; style=&quot;font-size:20px;font-weight:600;color:#1E3A5F&quot;&gt;1&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;ath-report-tile&quot; style=&quot;flex:1 1 160px;background:#fff;border:1px solid #D1D5DB;border-radius:10px;padding:12px&quot;&gt;&lt;div style=&quot;font-size:12px;color:#6B7280&quot;&gt;Overdue&lt;/div&gt;&lt;div class=&quot;ath-report-tile-value&quot; style=&quot;font-size:20px;font-weight:600;color:#1E3A5F&quot;&gt;0&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;ath-report-tile&quot; style=&quot;flex:1 1 160px;background:#fff;border:1px solid #D1D5DB;border-radius:10px;padding:12px&quot;&gt;&lt;div style=&quot;font-size:12px;color:#6B7280&quot;&gt;Review days&lt;/div&gt;&lt;div class=&quot;ath-report-tile-value&quot; style=&quot;font-size:20px;font-weight:600;color:#1E3A5F&quot;&gt;14&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;p style=&quot;margin:0 0 16px;font-size:13px;color:#6B7280&quot;&gt;Posture is unset. Public work uses strict. Private work uses advisory.&lt;/p&gt;&lt;/div&gt;&lt;section id=&quot;submittal-synthetic-submittal&quot; data-submittal-row=&quot;1&quot; data-id=&quot;synthetic-submittal&quot; style=&quot;&quot;&gt;&lt;section style=&quot;background:#fff;border:1px solid #D1D5DB;border-radius:12px;padding:16px;margin:0 0 16px&quot;&gt;&lt;div style=&quot;font-weight:700;color:#1E3A5F&quot;&gt;&lt;a href=&quot;submittal/SYN-001&quot; data-record=&quot;SYN-001&quot; style=&quot;color:#1E3A5F;text-decoration:none&quot;&gt;SYN-001 revision 1, Synthetic reference LONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCE&lt;/a&gt;&lt;/div&gt;&lt;div style=&quot;font-size:12px;color:#6B7280;margin-top:4px&quot;&gt;Spec 26 24 16 · Submitted · Entered here. · Architect or engineer, Synthetic reference LONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCELONGREFERENCE · Transmittal T-1 · Due back Needed · Package 0 of 1 received · Overdue: No · &lt;a href=&quot;submittal/SYN-001?upload=%221%22&quot; style=&quot;color:#2563EB&quot;&gt;Upload a piece&lt;/a&gt;&lt;/div&gt;&lt;/section&gt;&lt;/section&gt;&lt;p style=&quot;margin:24px 0 0;font-size:12px;color:#9CA3AF&quot;&gt;Private to your company · Athena powered by ALP&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/main&gt;&lt;/body&gt;&lt;/html&gt;" style="width:390px;height:960px;border:0;background:#fff"></iframe></body></html>
