@@ -123,14 +123,27 @@ async function downloadPdf(
 }
 
 function Photo({ photo, href, zone }: { photo: DailyRangePhoto; href?: string; zone: string }) {
+  // A stored file that will not decode (damaged or incomplete) shows a plain note, not the
+  // browser's broken-image icon and alt text, so the printed record stays clean.
+  const [broken, setBroken] = useState(false);
   return (
     <figure className="drr-photo" id={`photo-${photo.id}`}>
-      {href ? (
+      {href && !broken ? (
         <a href={href} target="_blank" rel="noreferrer" title="Open the original photo">
-          <img src={href} alt={photoCaption(photo)} loading="lazy" decoding="async" />
+          <img
+            src={href}
+            alt={photoCaption(photo)}
+            loading="lazy"
+            decoding="async"
+            onError={() => setBroken(true)}
+          />
         </a>
       ) : (
-        <div className="drr-photo-missing">Photo on file. Preview unavailable.</div>
+        <div className="drr-photo-missing">
+          {broken
+            ? "Photo on file in Athena. The stored file could not be displayed."
+            : "Photo on file. Preview unavailable."}
+        </div>
       )}
       <figcaption>
         <strong>{photoCaption(photo)}</strong>
