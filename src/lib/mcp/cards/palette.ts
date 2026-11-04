@@ -12,10 +12,33 @@ export const ALERT = ALERT_HEX;
 
 export const PALETTE = { navy: NAVY, blue: BLUE, gray: GRAY, white: WHITE, alert: ALERT } as const;
 
+/**
+ * Chat card tokens. Taken from the accounting workspace on app.meetathena.io so a card in
+ * ChatGPT or Claude reads like the accounting pages: white surface, hairline borders,
+ * ink text, no colored header band and no filled table header.
+ */
+export const CARD = {
+  ink: "#18314F",
+  strong: "#183B63",
+  body: "#53677D",
+  muted: "#65788E",
+  line: "#DFE7F0",
+  rule: "#E8EDF4",
+  soft: "#F8FAFD",
+  head: "#F5F8FC",
+  action: "#2465CB",
+  white: "#FFFFFF",
+  alertInk: "#9F243A",
+  alertSoft: "#FFF3F5",
+  alertLine: "#F3C8D0",
+} as const;
+/** The alert tokens. Legal only on delay, risk and overdue, like ALERT. */
+export const CARD_ALERT = new Set([CARD.alertInk, CARD.alertSoft, CARD.alertLine].map((h) => h.toUpperCase()));
+
 /** Markdown markers. Blue, white/gray, and red. Nothing else. */
 export const MARK = { action: "🔵", neutral: "⚪", alert: "🔴" } as const;
 
-const ALLOWED = new Set([NAVY, BLUE, GRAY, WHITE, ALERT].map((h) => h.toUpperCase()));
+const ALLOWED = new Set([NAVY, BLUE, GRAY, WHITE, ALERT, ...Object.values(CARD)].map((h) => h.toUpperCase()));
 
 export type AlertLevel = "risk" | "delay" | "overdue";
 export function isAlertLevel(value: unknown): value is AlertLevel {
@@ -41,7 +64,7 @@ export function paletteViolations(text: string, alertAllowed: boolean): string[]
   const bad: string[] = [];
   for (const h of hexesIn(text)) {
     if (!ALLOWED.has(h)) bad.push(`off-palette ${h}`);
-    else if (h === ALERT.toUpperCase() && !alertAllowed) bad.push(`red ${h} outside delay, risk, or overdue`);
+    else if ((h === ALERT.toUpperCase() || CARD_ALERT.has(h)) && !alertAllowed) bad.push(`red ${h} outside delay, risk, or overdue`);
   }
   if (OFF_MARKER.test(text) || /\bamber\b/i.test(text)) bad.push("off-palette marker");
   if (!alertAllowed && text.includes(MARK.alert)) bad.push("red marker outside delay, risk, or overdue");

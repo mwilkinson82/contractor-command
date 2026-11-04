@@ -80,10 +80,9 @@ export function renderMarkdown(card: CardModel): string {
     lines.push(`**Progress:** ${done} of ${card.progress.total}`);
   }
   if (card.kpis?.length) {
-    lines.push("", "| | |", "| --- | --- |");
-    for (const k of card.kpis) {
-      lines.push(`| ${statusText(cell(k.label), k.flag)} | ${cell(k.value)} |`);
-    }
+    // One stat line, like the stat block on the card. A two-column table with a blank header
+    // rendered as an empty grey bar in Claude and ChatGPT.
+    lines.push("", card.kpis.map((k) => `**${statusText(cell(k.label), k.flag)}:** ${cell(k.value)}`).join(" · "));
   }
   for (const s of card.sections ?? []) lines.push("", ...section(s));
   if (card.ask?.prompt) {

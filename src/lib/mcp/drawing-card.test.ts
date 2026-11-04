@@ -292,8 +292,8 @@ describe("drawing card view", () => {
     });
     const pins = v.all().filter((e) => e.className === "drawing-pin");
     expect(pins).toHaveLength(2);
-    expect(pins[0].style).toMatchObject({ left: "25%", top: "60%", border: "2px solid #1E5FED" });
-    expect(pins[1].style.border).toBe("2px solid #DC2626");
+    expect(pins[0].style).toMatchObject({ left: "25%", top: "60%", border: "2px solid #2465CB" });
+    expect(pins[1].style.border).toBe("2px solid #9F243A");
     const surface = v.all().find((e) => e.children.includes(pins[0]))!;
     v.all()
       .find((e) => e.textContent === "Zoom in")!

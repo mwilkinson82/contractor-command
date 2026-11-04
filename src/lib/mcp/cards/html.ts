@@ -1,5 +1,6 @@
 import { plainLabel, rowPlain } from "../plain-label";
-import { ALERT, BLUE, GRAY, NAVY, WHITE, cssColor, isAlertLevel } from "./palette";
+import { isAlertLevel } from "./palette";
+import { cardBaseCss, cellClass } from "./card-style";
 import { STATE_LABEL, cardHasAlert, type CardModel, type CardRow } from "./model";
 import { responsiveCardCss } from "./responsive";
 import { onboardingCss } from "./onboarding-style";
@@ -8,9 +9,6 @@ import { reportLinkHtml } from "./report-link-card";
 
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-
-/** Money, percents and line numbers: kept on one line. */
-const NUMERIC = /^[$\d][\d.,]*%?$/;
 
 function cellText(value: string): string {
   if (!value.trim()) return "";
@@ -46,65 +44,12 @@ function rowClass(row: CardRow): string {
   return parts.join(" ");
 }
 
-/** Finished HTML document. Claude shows it as-is. Colors come only from the palette. */
+/** Finished HTML document. Claude shows it as-is. Styling comes only from card-style.ts. */
 export function renderHtml(card: CardModel): string {
   if (card.presentation === "report-link") return reportLinkHtml(card);
   const alert = cardHasAlert(card);
-  const navy = cssColor(NAVY, "#1E3A5F");
-  const blue = cssColor(BLUE, "#1E5FED");
-  const gray = cssColor(GRAY, "#6B7280");
-  const white = cssColor(WHITE, "#FFFFFF");
-  const alertColor = cssColor(ALERT, "#DC2626");
   const css = [
-    `body{margin:0;background:${white};color:${navy};font:15px/1.45 system-ui,sans-serif}`,
-    `.card{box-sizing:border-box;overflow-wrap:anywhere;max-width:640px;margin:16px auto;border:1px solid ${gray};border-radius:14px;overflow:hidden;background:${white}}`,
-    `header{background:${navy};color:${white};padding:16px 18px}`,
-    `.mark{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${white}}`,
-    `h1{margin:0;font-size:22px}`,
-    `.job{margin:6px 0 0;color:${white};opacity:.9}`,
-    `.body{padding:16px 18px}`,
-    `.eyebrow{display:inline-block;margin:0 0 10px;padding:3px 8px;border-radius:999px;background:${blue};color:${white};font-size:12px;font-weight:700}`,
-    `.track{height:8px;border-radius:999px;background:${white};border:1px solid ${gray};overflow:hidden;margin:0 0 14px}`,
-    `.fill{height:100%;background:${blue}}`,
-    `.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}`,
-    `.kpi{min-width:0;flex:1 1 14rem;border:1px solid ${gray};border-radius:10px;padding:8px 10px}`,
-    `.kpi span{display:block;color:${gray};font-size:12px}`,
-    `.kpi strong{font-size:16px}`,
-    `h2{margin:16px 0 8px;font-size:14px;color:${navy}}`,
-    `table{width:100%;border-collapse:collapse}`,
-    `.table-scroll{overflow-x:auto}.table-scroll table{min-width:960px}`,
-    `th{background:${blue};color:${white};text-align:left;padding:6px 8px;font-size:12px}`,
-    `td{padding:6px 8px;border-bottom:1px solid ${gray};vertical-align:top}`,
-    `.table-wrap{overflow-x:auto}.card td{overflow-wrap:anywhere}.card th{overflow-wrap:normal;white-space:nowrap}td.num{white-space:nowrap;text-align:right}`,
-    `a{color:${blue};text-decoration:none}`,
-    `.ref{display:block;margin-top:2px;font-size:11px;font-weight:400;color:${gray}}`,
-    `.chip{display:inline-block;margin:0 6px 6px 0;padding:4px 8px;border-radius:999px;border:1px solid ${gray};color:${navy}}`,
-    `.tone-known{border-color:${blue};color:${blue}}`,
-    `.tone-unknown{color:${gray}}`,
-    `.tone-action{background:${blue};color:${white};border-color:${blue}}`,
-    `.chip.tone-action a{color:inherit}`,
-    `.ask{margin:12px 0;padding:12px;border-left:4px solid ${blue};background:${white}}`,
-    `.placeholder{margin:12px 0;padding:12px;border:1px solid ${gray};border-left:4px solid ${blue};border-radius:10px;background:${white}}`,
-    `.placeholder h2{margin-top:0;color:${navy}}`,
-    `.placeholder li,.placeholder p{color:${gray}}`,
-    `.next{margin:14px 0 0;font-weight:700}`,
-    card.sections?.some((section) => section.rows.some((row) => row.tone === "literal")) ? `.tone-literal{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap;overflow-wrap:anywhere}` : "",
-    `.framed{margin:10px 0;border:1px solid ${gray};border-radius:12px;overflow:hidden}`,
-    `.framed h2{margin:0;padding:8px 12px;border-bottom:1px solid ${gray}}`,
-    `.framed ul{list-style:none;margin:0;padding:8px 12px}`,
-    `.framed li{margin:0 0 6px}`,
-    `.tone-quote{display:block;padding:8px 12px;border-left:3px solid ${gray};white-space:pre-wrap}`,
-    alert ? `.alert,li.alert,p.alert,tr.alert{color:${alertColor}}` : "",
-    alert ? `li.alert,p.alert{display:block;margin:8px 0;padding:0;border:2px solid ${alertColor};border-radius:12px;background:${white};overflow:hidden}` : "",
-    alert ? `.flag-head{display:block;margin:0;padding:6px 10px;background:${alertColor};color:${white};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}` : "",
-    `.callout{color:${navy};border-left:4px solid ${blue}}`,
-    `li.callout{display:block;margin:8px 0;background:${white}}`,
-    `.callout .flag-head{background:${white};color:${navy};padding:6px 10px;font-size:12px;font-weight:700}`,
-    `.flag-body{padding:10px 12px}`,
-
-    alert ? `tr.alert td{border:2px solid ${alertColor}}` : "",
-    alert ? `.framed.alert{border:2px solid ${alertColor};color:${navy}}` : "",
-    alert ? `.framed.alert h2{background:${alertColor};color:${white};border-bottom:0}` : "",
+    cardBaseCss(alert),
     responsiveCardCss(alert),
     card.presentation === "onboarding" ? onboardingCss : "",
     card.presentation === "sov" ? sovCss : "",
@@ -140,7 +85,8 @@ export function renderHtml(card: CardModel): string {
             const cells = Array.from({ length: width }, (_, i) => {
               const text = cellText(r.cells[i] ?? "");
               const body = i === (r.linkCell ?? 0) ? linked(r, text) : esc(text);
-              const cls = !text && i > 0 ? ' class="blank"' : NUMERIC.test(text) ? ' class="num"' : "";
+              const kind = cellClass(text);
+              const cls = !text && i > 0 ? ' class="blank"' : kind ? ` class="${kind}"` : "";
               const label = s.columns?.[i] ? ` data-label="${esc(s.columns[i])}"` : "";
               return `<td${cls}${label}>${i === 0 ? flagged(r, body) : body}</td>`;
             }).join("");
@@ -167,7 +113,7 @@ export function renderHtml(card: CardModel): string {
     .join("");
   const alerts = (card.alerts ?? [])
     .filter((a) => isAlertLevel(a.level))
-    .map((a) => `<p class="alert" data-alert="${a.level}"><div class="flag-head">${flagHead(a.level)}</div><div class="flag-body">${esc(a.level)}: ${esc(a.text)}</div></p>`)
+    .map((a) => `<div class="alert" data-alert="${a.level}"><div class="flag-head">${flagHead(a.level)}</div><div class="flag-body">${esc(a.text)}</div></div>`)
     .join("");
   const ask = card.ask?.prompt ? `<div class="ask"><strong>This question</strong><p>${esc(card.ask.prompt)}</p></div>` : "";
   const next = card.next_move ? `<p class="next">Next move: ${esc(card.next_move)}</p>` : "";

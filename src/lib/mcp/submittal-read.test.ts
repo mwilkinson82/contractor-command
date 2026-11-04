@@ -132,10 +132,10 @@ describe("submittal log read", () => {
       expect(text).toContain(title);
     }
     expect(log?.rows[0].flag).toBe("overdue");
-    expect(text).toContain("#1E3A5F");
-    expect(text).toContain("#1E5FED");
+    expect(text).toContain("#18314F");
+    expect(text).toContain("#2465CB");
     expect(paletteViolations(result.structuredContent.html, true)).toEqual([]);
-    expect(result.structuredContent.html).toContain("#DC2626");
+    expect(result.structuredContent.html).toContain("#9F243A");
   });
 
   it("leaves RFI, RFC, and change-order rows off the submittal log", async () => {

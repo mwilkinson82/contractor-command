@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderHtml } from "./cards/html";
 import { paletteViolations } from "./cards/palette";
-import { BLUE, NAVY } from "./cards/palette";
+import { BLUE, CARD } from "./cards/palette";
 import { attachAthenaCard } from "./cards/attach";
 import { chaseBriefRows, chaseDraft, chaseHeaderMatches, chaseIsDue, nextChaseDate, presentChaseCard, type ChaseRow } from "./submittal-chase";
 
@@ -46,8 +46,8 @@ describe("submittal chase", () => {
     expect(presented.text).toMatch(/Yes or no/);
     expect(presented.card.next_move).toMatch(/Nothing is sent/);
     const html = renderHtml(presented.card);
-    expect(html).toContain(NAVY);
-    expect(html).toContain(BLUE);
+    expect(html).toContain(CARD.ink);
+    expect(html).toContain(CARD.action);
     expect(BLUE).toBe("#1E5FED");
     expect(paletteViolations(html, true)).toEqual([]);
     const quiet = renderHtml(presentChaseCard({
@@ -58,7 +58,7 @@ describe("submittal chase", () => {
     }).card);
     expect(paletteViolations(quiet, false)).toEqual([]);
     const sealed = attachAthenaCard("submittal_chase", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as { content: { text?: string }[] };
-    expect(sealed.content[0].text).toContain("#1E5FED");
+    expect(sealed.content[0].text).toContain("#2465CB");
     expect(chaseDraft("2701", chase()).body).not.toMatch(/\battached\b/i);
   });
 

@@ -268,8 +268,8 @@ describe("stored sheet page", () => {
     expect(result.content[0].text).toContain('class="callout"');
     expect(result.content[0].text).toContain("Grid A");
     const markup = result.structuredContent?.markup as { html: string }[];
-    expect(markup[0].html).not.toContain("#DC2626");
-    expect(markup[0].html).toContain("#1E5FED");
+    expect(markup[0].html).not.toContain("#9F243A");
+    expect(markup[0].html).toContain("#2465CB");
   });
 
   it("returns nothing for another company's drawing", async () => {

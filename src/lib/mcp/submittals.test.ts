@@ -137,7 +137,7 @@ describe("card and board", () => {
     });
     const html = renderHtml(presented.card);
     expect(paletteViolations(html, true)).toEqual([]);
-    expect(html).toContain("#DC2626");
+    expect(html).toContain("#9F243A");
     const quiet = renderHtml(presentSubmittalLog({
       jobNumber: "2701",
       jobName: "Harbor",
@@ -149,7 +149,7 @@ describe("card and board", () => {
     const sealed = attachAthenaCard("submittals_list", { content: [{ type: "text", text: presented.text }], structuredContent: { card: presented.card } }) as {
       content: { text?: string }[];
     };
-    expect(sealed.content[0].text).toContain("#1E5FED");
+    expect(sealed.content[0].text).toContain("#2465CB");
     expect(sealed.content[0].text).toContain("Submittal log");
     expect(sealed.content[0].text).toContain("SAMPLE Switchgear");
   });
