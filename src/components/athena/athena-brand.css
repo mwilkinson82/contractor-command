@@ -1,0 +1,110 @@
+/*
+ * Athena brand on the web pages (approved Nov 4 2026, option D in website blue):
+ * top bar = small Athena icon, a thin divider, then the contractor's company name in type;
+ * footer = the big Athena word alone, bottom-left. Selectors use two classes so page rules
+ * such as `.af-top span` or `.pp-top a` never restyle the brand.
+ */
+a.ath-brand.ath-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  color: #18314f;
+  text-decoration: none;
+  letter-spacing: normal;
+  text-transform: none;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+a.ath-brand.ath-brand:hover {
+  text-decoration: none;
+}
+a.ath-brand.ath-brand:hover .ath-brand-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ath-brand .ath-brand-mark {
+  display: block;
+  flex: none;
+  width: auto;
+  height: 24px;
+  max-width: none;
+}
+.ath-brand .ath-brand-divider {
+  flex: none;
+  width: 1px;
+  height: 26px;
+  background: #d4dfed;
+}
+.ath-brand .ath-brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #18314f;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+footer.ath-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 20px 32px;
+  margin-top: 40px;
+  padding: 34px 0 8px;
+  border-top: 1px solid #d4dfed;
+}
+.ath-footer .ath-footer-word {
+  display: block;
+  width: min(600px, 100%);
+  height: auto;
+}
+.ath-footer .ath-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ath-footer .ath-footer-links a {
+  color: #4c6a8f;
+  text-decoration: none;
+}
+.ath-footer .ath-footer-links a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .ath-footer .ath-footer-word {
+    width: min(480px, 100%);
+  }
+}
+@media (max-width: 640px) {
+  .ath-brand .ath-brand-mark {
+    height: 22px;
+  }
+  .ath-brand .ath-brand-name {
+    font-size: 16px;
+  }
+  footer.ath-footer {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 28px;
+    padding-top: 26px;
+  }
+  .ath-footer .ath-footer-links {
+    justify-content: flex-start;
+  }
+}
+@media print {
+  footer.ath-footer {
+    display: none;
+  }
+}

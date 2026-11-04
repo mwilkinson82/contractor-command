@@ -45,7 +45,7 @@
   min-width: 0;
 }
 
-/* Top bar: Athena mark on the left, project links on the right. */
+/* Top bar: Athena icon and company name on the left (athena-brand.css), project links on the right. */
 .ath-page-top {
   display: flex;
   flex-wrap: wrap;
@@ -53,13 +53,6 @@
   justify-content: space-between;
   gap: 10px 20px;
   margin-bottom: 22px;
-}
-.ath-page-mark {
-  color: #6080a4;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 .ath-page-nav {
   display: flex;

@@ -26,6 +26,7 @@ import {
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 import { BoardSignIn } from "./BoardSignIn";
 import { ProjectReadUnavailable } from "./ProjectReadUnavailable";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import "./daily-range-report.css";
 
 const PHOTO_BUCKET = "athena-progress";
@@ -416,11 +417,14 @@ export function DailyRangeReportPage({
   return (
     <main className="drr-page">
       <div className="drr-shell">
-        <nav className="drr-nav no-print" aria-label="Project navigation">
-          <a href={`/r/job/${jobId}/home`}>Project home</a>
-          <a href={`/r/job/${jobId}/daily`}>Daily reports</a>
-          <a href={`/r/job/${jobId}/photos`}>Progress photos</a>
-        </nav>
+        <div className="drr-brandbar no-print">
+          <AthenaBrand jobId={jobId} company={report?.company} />
+          <nav className="drr-nav" aria-label="Project navigation">
+            <a href={`/r/job/${jobId}/home`}>Project home</a>
+            <a href={`/r/job/${jobId}/daily`}>Daily reports</a>
+            <a href={`/r/job/${jobId}/photos`}>Progress photos</a>
+          </nav>
+        </div>
         <div className="drr-toolbar no-print">
           <div>
             <h1>Daily report export</h1>
@@ -498,6 +502,9 @@ export function DailyRangeReportPage({
         ) : report ? (
           <DailyRangeReportView report={report} links={links.data} />
         ) : null}
+        <div className="no-print">
+          <AthenaFooter jobId={jobId} />
+        </div>
       </div>
     </main>
   );

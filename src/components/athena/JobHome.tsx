@@ -21,6 +21,7 @@ import {
 } from "@/lib/project-overview";
 import { accountingMoney } from "@/lib/accounting-report";
 import { detailAnchor } from "@/lib/mcp/plain-label";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import "./project-overview.css";
 import type {
   PagePayload,
@@ -340,11 +341,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
     <main className="job-home">
       <div className="jh-shell">
         <div className="jh-top">
-          <a className="jh-brand" href={jobHomePath(jobId)}>
-            ATHENA
-          </a>
+          <AthenaBrand jobId={jobId} token={token} company={base.company} />
           <span className="jh-project">
-            {base.company || "Your project"} / {base.job_number}
+            {base.job_number}
             {base.job_name ? ` · ${base.job_name}` : ""}
           </span>
           {jobs.data && jobs.data.length > 1 ? (
@@ -685,6 +684,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             </p>
           </div>
         </div>
+      </div>
+      <div className="jh-foot">
+        <AthenaFooter jobId={jobId} token={token} />
       </div>
     </main>
   );

@@ -17,6 +17,7 @@ import {
   type GalleryPhoto,
 } from "@/lib/progress-photos";
 import { AddProgressPhotos } from "./AddProgressPhotos";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import "./progress-photos.css";
 
 const PAGE = 60;
@@ -241,6 +242,7 @@ export function ProgressPhotosPage({
   return (
     <main className="pp-page">
       <header className="pp-top">
+        <AthenaBrand jobId={jobId} token={token} company={payload.company} />
         <nav aria-label="Project navigation">
           <a href={homeHref}>← Project home</a>
           <a href="/today">Morning brief</a>
@@ -248,7 +250,6 @@ export function ProgressPhotosPage({
             {date ? `Daily report for ${shortDay(date)}` : "Daily reports"}
           </a>
         </nav>
-        <span>ATHENA · PROGRESS PHOTOS</span>
       </header>
       <div className="pp-heading">
         <div>
@@ -400,7 +401,10 @@ export function ProgressPhotosPage({
           </button>
         </div>
       )}
-      <p className="pp-foot">Private to your company · Athena powered by ALP</p>
+      <p className="pp-foot">Private to your company</p>
+      <div className="pp-brand-foot">
+        <AthenaFooter jobId={jobId} token={token} />
+      </div>
       {open && (
         <PhotoViewer
           key={open.id}

@@ -4,6 +4,7 @@ import { cellClass } from "@/lib/mcp/cards/card-style";
 import { isAlertLevel } from "@/lib/mcp/cards/palette";
 import type { CardModel, CardRow, CardSection } from "@/lib/mcp/cards/model";
 import { jobHomePath } from "@/lib/report-pages";
+import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import "./athena-page.css";
 
 /** Project home and morning brief links, kept on the board token when the page was opened with one. */
@@ -28,18 +29,21 @@ export function AthenaPage({
   jobId,
   token,
   account,
+  company,
   children,
 }: {
   jobId?: string;
   token?: string;
   account?: string | null;
+  /** Company name the page already has; otherwise the brand reads it for signed-in members. */
+  company?: string | null;
   children?: ReactNode;
 }) {
   return (
     <main className="ath-page">
       <div className="ath-page-wrap">
         <div className="ath-page-top">
-          <span className="ath-page-mark">Athena</span>
+          <AthenaBrand jobId={jobId} token={token} company={company} />
           <div className="ath-page-nav">
             {account ? (
               <span className="ath-page-account" role="status">
@@ -50,6 +54,7 @@ export function AthenaPage({
           </div>
         </div>
         {children}
+        <AthenaFooter jobId={jobId} token={token} />
       </div>
     </main>
   );

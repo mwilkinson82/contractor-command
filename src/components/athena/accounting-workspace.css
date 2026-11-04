@@ -27,17 +27,11 @@
 }
 .af-top {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
   margin-bottom: 22px;
-}
-.af-top span {
-  color: #6080a4;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 .accounting-workspace a {
   color: #2465cb;
@@ -310,10 +304,6 @@
   .af-top {
     gap: 10px;
     margin-bottom: 20px;
-  }
-  .af-top span {
-    letter-spacing: 0.08em;
-    font-size: 9px;
   }
   .af-content > section:not(.af-metrics) {
     padding: 16px;
