@@ -759,7 +759,7 @@ describe("the contractor's saved logo on the customer page", () => {
     const page = await (
       await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).toContain(`<img class="co-img" src="${LOGO}" alt="Northline Builders">`);
+    expect(page).toContain(`<img class="cp-co-img" src="${LOGO}" alt="Northline Builders">`);
     expect(asked.every((a) => a === ACCESS)).toBe(true);
   });
 
@@ -771,7 +771,7 @@ describe("the contractor's saved logo on the customer page", () => {
     const page = await (
       await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).not.toContain(`class="co-img"`);
+    expect(page).not.toContain(`class="cp-co-img"`);
     expect(page).toContain("<b>Northline Builders</b>");
   });
 });
