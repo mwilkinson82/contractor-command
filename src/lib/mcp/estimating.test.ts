@@ -833,7 +833,7 @@ describe("intake reuse and takeoff save mode", () => {
     );
     const view = renderIntake("2701 – Crystal", blankSetup, null);
     expect(view.text).toContain("Intake is not complete.");
-    expect(view.text).toContain("general contractor or a self-performer");
+    expect(view.text).toContain("Are you the general contractor (you cover every division and sub out the trades), or a trade contractor self-performing your own scope");
     expect(view.text).toContain("What is in your scope");
     expect(view.text).toContain("as drawn, or the estimator key");
     expect(view.text).toContain("Role: Not answered");
