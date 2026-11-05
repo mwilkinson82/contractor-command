@@ -22,7 +22,7 @@ import {
 import { proposeTakeoffStep, saveCountAreas } from "../takeoff/pass";
 import { assertReadComplete } from "../takeoff/scope";
 import { reviseGeometry } from "../takeoff/revision";
-import { automaticCalibration, statedScaleCalibration } from "../takeoff/calibration";
+import { plainCalibration, statedScaleCalibration } from "../takeoff/calibration";
 import { readPointCrop } from "../takeoff/verify";
 import { bytesToBase64 } from "../estimating-sheet";
 import { hostContextForTile, hostReviewContext } from "../takeoff/host-workflow";
@@ -105,13 +105,13 @@ export const sheetCalibrate = defineTool({
           if (!args.sheet) throw new ToolError("Name the sheet to inspect or calibrate.");
           const page = await loadStoredPage(sb, job, args.sheet, args.source_id);
           let saved;
-          const automatic = automaticCalibration(page.space, page.inspection);
+          const automatic = plainCalibration(page.space, page.inspection);
           if (
             args.operation !== "save" &&
             automatic &&
             !state.calibrations.some((c) => c.source_id === page.source.id && c.page === page.page)
           )
-            saved = await saveCalibration(sb, job, page, automatic.calibration, 0);
+            saved = await saveCalibration(sb, job, page, automatic, 0);
           if (args.operation === "save") {
             if (
               (!args.reference && !args.stated_scale) ||
@@ -293,6 +293,29 @@ export const takeoffGeometry = defineTool({
             }
           }
           const page = sheet ? await loadStoredPage(sb, job, sheet, source) : undefined;
+          // Opening a sheet with no scale yet applies the one it plainly states: two
+          // dimension strings that agree with the title block, or the title block's
+          // single printed scale on a standard full-size sheet. Nobody has to set it.
+          let autoScaled = false;
+          if (
+            operation === "list" &&
+            page?.inspection &&
+            !(state.calibrations ?? []).some(
+              (c) => c.source_id === page.source.id && c.page === page.page,
+            )
+          ) {
+            try {
+              const plain = plainCalibration(page.space, page.inspection);
+              if (plain) {
+                extra.saved_calibration = await saveCalibration(sb, job, page, plain, 0);
+                autoScaled = true;
+                await audit(sb, job, "takeoff_geometry", "auto_sheet_calibration", plain.region);
+              }
+            } catch {
+              // Another open saved it first, or the stored page could not be read for a
+              // scale; the list still opens and shows whatever scale is saved.
+            }
+          }
           if (
             ["scope", "save", "propose", "tile", "crop", "revise", "export", "accept_all"].includes(
               operation,
@@ -695,13 +718,14 @@ export const takeoffGeometry = defineTool({
               `takeoff_geometry_${operation}`,
               args.line_no ? `T-${args.line_no}` : null,
             );
-          // A plain list changes nothing, so the snapshot read above is current.
-          // The card draws its own overlay, so a viewer-initiated open or region
-          // skips the second, annotated full-page render meant for the model.
+          // A plain list changes nothing unless it just applied the printed scale,
+          // so the snapshot read above is current. The card draws its own overlay,
+          // so a viewer-initiated open or region skips the second, annotated
+          // full-page render meant for the model.
           return viewEngine(
             sb,
             job,
-            operation === "list" ? state : await requiredSnapshot(sb, job),
+            operation === "list" && !autoScaled ? state : await requiredSnapshot(sb, job),
             page,
             extra,
             { modelImage: !(args.viewer_only === true && operation === "list") },

@@ -1801,7 +1801,12 @@ export function settle(
       missing: null,
       exclusion: null,
       owner: v?.owner ?? null,
-      holdsBid: gap.holds_bid && status !== "dropped",
+      // An answered check stops holding the bid once it is cleared or carries a
+      // quantity; one handed to someone else still holds it until they answer.
+      holdsBid:
+        gap.holds_bid &&
+        status !== "dropped" &&
+        !(status === "settled" && v?.corrected_qty != null),
       checklistKey: null,
       followUp:
         status === "open"

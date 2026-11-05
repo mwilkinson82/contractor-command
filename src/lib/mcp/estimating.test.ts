@@ -538,6 +538,55 @@ describe("coverage, gaps, bids, summary", () => {
     expect(dropped.counts).toMatchObject({ dropped: 1, open: 0 });
   });
 
+  it("takes an answered check off the bid once it is cleared or carries a quantity", () => {
+    const gap = {
+      ref: "G-10",
+      kind: "verify" as const,
+      category: "conflict" as const,
+      severity: "hard" as const,
+      title: "Spare circuits",
+      reasoning: "Plan vs schedule.",
+      sheet: "E2",
+      detail: null,
+      spec_section: "26 05 00",
+      holds_bid: true,
+      qty: null,
+      unit: "EA",
+      element: null,
+      line_no: null,
+    };
+    const verdict = (over: Partial<StoredVerdict>): StoredVerdict => ({
+      item_kind: "gap",
+      line_no: null,
+      gap_ref: "G-10",
+      item_text: "Spare circuits",
+      mark: "relevant",
+      note: null,
+      corrected_qty: null,
+      owner: null,
+      created_at: "2026-11-05T00:00:00Z",
+      ...over,
+    });
+    const item = (v: StoredVerdict[]) =>
+      settle([], [gap], v, { role: "self_performer", trades: [] }).items.find(
+        (i) => i.ref === "G-10",
+      )!;
+    expect(item([])).toMatchObject({ status: "open", holdsBid: true });
+    expect(item([verdict({ mark: "not_relevant", note: "Checked E3." })])).toMatchObject({
+      status: "dropped",
+      holdsBid: false,
+    });
+    expect(item([verdict({ corrected_qty: 2 })])).toMatchObject({
+      status: "settled",
+      holdsBid: false,
+    });
+    // Handed to someone else, it still holds the bid until they answer.
+    expect(item([verdict({ owner: "Engineer by RFI" })])).toMatchObject({
+      status: "settled",
+      holdsBid: true,
+    });
+  });
+
   it("exports blanks as empty cells", () => {
     const view = renderExport("2701 – Crystal", lines, "csv");
     expect(view.text).toContain("item,unit,qty");
