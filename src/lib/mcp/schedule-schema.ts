@@ -96,7 +96,7 @@ export const activityCode = z
   })
   .strict();
 /** Table columns a layout can show. Code columns are `code:<code id>`. */
-export const LAYOUT_COLUMNS = ["od", "rd", "pc", "st", "fi", "tf", "ff"] as const;
+export const LAYOUT_COLUMNS = ["od", "rd", "pc", "st", "fi", "tf", "ff", "bs", "sv", "ss"] as const;
 export const LAYOUT_SORT_KEYS = ["id", "name", ...LAYOUT_COLUMNS] as const;
 const layoutColumn = z.union([z.enum(LAYOUT_COLUMNS), z.string().regex(/^code:[^\s]{1,80}$/)]);
 export const scheduleLayout = z

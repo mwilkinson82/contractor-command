@@ -166,9 +166,11 @@ describe("schedule reports", () => {
         data: input().data,
       },
     });
-    for (const id of ["cpm-narrative", "cpm-lookahead", "cpm-health"])
+    for (const id of ["cpm-narrative", "cpm-lookahead-gantt", "cpm-health"])
       expect(page).toContain(`id="${id}"`);
-    expect(page.indexOf('id="cpm-gantt"')).toBeLessThan(page.indexOf('id="cpm-narrative"'));
+    // Reports sit on their own tab, after the Gantt and the lookahead, not stacked under the Gantt.
+    expect(page.indexOf('id="cpm-gantt"')).toBeLessThan(page.indexOf('id="cpm-lookahead-gantt"'));
+    expect(page.indexOf('data-tab="r"')).toBeLessThan(page.indexOf('id="cpm-narrative"'));
   });
 
   it("leads with the forecast against the baseline and flags a contract date far from it", () => {

@@ -5,16 +5,21 @@ import type { Activity, LivingData } from "./mcp/living";
 import {
   compareActivities,
   comparisonHtml,
+  delaySnapshotsHtml,
   delaysHtml,
   scheduleWindows,
   windowsHtml,
   ganttHtml,
   ganttModel,
   ganttSummary,
+  logicChanges,
+  logicChangesHtml,
+  lookaheadGanttHtml,
   milestoneHtml,
   viewItems,
   workDaysBetween,
 } from "./cpm-gantt";
+import { startStatus, startVariance } from "./schedule-layouts";
 import {
   renderReportBody,
   renderReportDocument,
@@ -251,7 +256,7 @@ describe("calculated schedule page", () => {
     expect(comparisonHtml(noFloat)).not.toMatch(/<td class="cpm-n"> → /);
     // The Gantt can draw the last update's bars instead of the baseline's.
     const g = ganttHtml(i);
-    expect(g).toContain('<option value="p">Last update: 03/09/26</option>');
+    expect(g).toContain('<option value="p">Last update · 03/09/26</option>');
     expect(g).toContain('data-bar="prior-update"');
     // A same-date revision keeps the prior update it already had.
     const same = prepareSchedule(next, 4, {
@@ -294,6 +299,11 @@ describe("calculated schedule page", () => {
     }).data as LivingData;
     const tia = readScheduleControl(data)!;
     expect(tia.delay_register).toHaveLength(1);
+    // Reports show each delay event as a small Gantt of its fragnet and the work it pushed.
+    const snap = delaySnapshotsHtml({ data: data as LivingData, control: tia, dataDate: tia.calculation.data_date });
+    expect(snap).toContain('data-delay-snapshot="EV-1"');
+    expect(snap).toMatch(/--cpm-w:\d+px/);
+    expect(snap).toContain('data-bar="remaining"');
     expect(tia.delay_register![0]).toMatchObject({ event_id: "EV-1", impact_project_work_days: 3 });
     // TIAs do not add an update to the history.
     expect(tia.update_history?.map((h) => h.data_date)).toEqual(["2026-03-02", "2026-03-09"]);
@@ -336,5 +346,65 @@ describe("calculated schedule page", () => {
       updates: [{ id: "Y", duration: 5 }],
     }).data;
     expect(readScheduleControl(again)!.update_history?.map((h) => h.version)).toEqual([1, 3, 6]);
+  });
+});
+
+describe("round 3: start status, lookahead Gantt, reports", () => {
+  it("reads each start against the baseline at the data date", () => {
+    const i = input();
+    const by = (id: string) => i.data.activities!.find((a) => a.id === id)!;
+    expect(startStatus(i.control, by("A"))?.kind).toBe("finished");
+    expect(startStatus(i.control, by("B"))).toMatchObject({ kind: "started", late_wd: 0 });
+    // X was due to start 03/05 and hasn't by the 03/09 data date: 2 working days behind the owner's plan.
+    expect(startStatus(i.control, by("X"))).toMatchObject({ kind: "past-due", late_wd: 2, label: "Past due 2 WD" });
+    expect(startStatus(i.control, by("C"))?.kind).toBe("this-week");
+    expect(startVariance(i.control, by("C"))).toBeGreaterThan(0);
+    const g = ganttHtml(i);
+    expect(g).toContain('class="ss ss-past-due">Past due 2 WD');
+  });
+
+  it("draws the lookahead as a Gantt for 1 to 6 weeks, by total float, by start or by WBS", () => {
+    const html = lookaheadGanttHtml(input());
+    for (const w of [1, 2, 3, 4, 5, 6]) {
+      expect(html).toContain(`id="cpml-w${w}"`);
+      for (const g of ["f", "d", "w"]) expect(html).toContain(`data-w="${w}" data-g="${g}"`);
+    }
+    expect(html).toMatch(/id="cpml-w3"[^>]*checked/);
+    expect(html).toContain("By total float");
+    expect(html).toContain("By WBS");
+    expect(html).not.toContain("By path");
+    // Float groups are named by their total float, never as logic paths.
+    expect(html).toContain("Total float 0 WD · critical");
+    expect(html).not.toContain("Float path");
+    expect(html).not.toMatch(/NaN|undefined/);
+  });
+
+  it("marks the data date and the end of the lookahead period", () => {
+    const html = lookaheadGanttHtml(input());
+    expect(html).toContain("End of lookahead period");
+    expect(html).toContain('data-window-end-line="true"');
+    expect(html).toContain('data-date-marker="true"');
+  });
+
+  it("lists logic changes against the baseline", () => {
+    const i = input();
+    const now = structuredClone(i.data.activities!);
+    now.find((a) => a.id === "C")!.predecessors = [{ id: "X", type: "FS" }];
+    const changes = logicChanges(now, i.control.baselines[0].activities);
+    expect(changes.map((c) => c.kind)).toEqual(expect.arrayContaining(["link added", "link removed"]));
+    expect(logicChangesHtml(i)).not.toMatch(/NaN|undefined/);
+  });
+
+  it("puts the Gantt, lookahead and reports on their own tabs", () => {
+    const i = input();
+    const page = renderReportBody({
+      page: "schedule",
+      job_number: "QA-1",
+      report: { found: true, version: 3, data_date: "2026-03-09", contract_completion_date: "2026-03-20", data: i.data },
+    } as never);
+    for (const t of ["s", "l", "r"]) expect(page).toContain(`id="ath-tab-${t}"`);
+    expect(page.indexOf('data-tab="s"')).toBeLessThan(page.indexOf('id="cpm-gantt"'));
+    expect(page.indexOf('data-tab="r"')).toBeLessThan(page.indexOf('id="cpm-compare"'));
+    expect(page).toContain('aria-label="Full screen"');
   });
 });

@@ -74,7 +74,95 @@ export const COLUMN_LABELS: Record<string, string> = {
   fi: "Finish",
   tf: "TF",
   ff: "FF",
+  bs: "BL start",
+  sv: "Start var",
+  ss: "Start status",
 };
+
+const DAY_MS = 86_400_000;
+const dayOf = (v: string | null | undefined): number | null => {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(v)) return null;
+  const t = Date.parse(`${v.slice(0, 10)}T00:00:00Z`);
+  return Number.isFinite(t) ? t : null;
+};
+/** Whether a day is a working day on an activity's calendar (Mon to Fri when none is saved). */
+function worksOn(control: ScheduleControl, calendarId?: string | null): (t: number) => boolean {
+  const s = control.settings;
+  const c =
+    s?.calendars?.find((x) => x.id === (calendarId ?? s?.default_calendar_id)) ??
+    s?.calendars?.find((x) => x.id === s?.default_calendar_id);
+  if (!c) return (t) => ![0, 6].includes(new Date(t).getUTCDay());
+  const off = new Set(c.holidays);
+  return (t) =>
+    (c.work_days & (1 << new Date(t).getUTCDay())) !== 0 &&
+    !off.has(new Date(t).toISOString().slice(0, 10));
+}
+/** Working days from a to b over (a, b]; negative when b is earlier. */
+function workDays(a: number, b: number, works: (t: number) => boolean): number {
+  let n = 0;
+  if (b >= a) for (let d = a + DAY_MS; d <= b && n < 20000; d += DAY_MS) n += works(d) ? 1 : 0;
+  else for (let d = a; d > b && n > -20000; d -= DAY_MS) n -= works(d) ? 1 : 0;
+  return n;
+}
+
+export type StartStatusKind =
+  | "finished"
+  | "started"
+  | "started-late"
+  | "past-due"
+  | "this-week"
+  | "two-weeks"
+  | "upcoming";
+export type StartStatus = {
+  kind: StartStatusKind;
+  label: string;
+  /** Working days late against the baseline start (started late, or past due as of the data date). */
+  late_wd: number | null;
+};
+
+/**
+ * Whether an activity has started when the schedule submitted to the owner said it would.
+ * Measured at the data date against the active baseline start, in working days on the activity's calendar:
+ * a sub who starts after its baseline start, or has not started by the data date, is behind the plan the
+ * owner holds. Not-yet-due starts read against the two-week lookahead window.
+ */
+export function startStatus(control: ScheduleControl, a: Activity): StartStatus | null {
+  const dd = dayOf(control.calculation.data_date);
+  const base = control.baselines
+    .find((b) => b.id === control.active_baseline_id)
+    ?.activities.find((b) => b.id === a.id);
+  const bs = dayOf(base?.start);
+  const works = worksOn(control, a.calendar_id);
+  if (done(a)) return { kind: "finished", label: "Finished", late_wd: null };
+  const as = dayOf(a.actual_start);
+  if (as !== null) {
+    const late = bs === null ? 0 : workDays(bs, as, works);
+    return late > 0
+      ? { kind: "started-late", label: `Started ${late} WD late`, late_wd: late }
+      : { kind: "started", label: "Started on time", late_wd: 0 };
+  }
+  if (dd === null) return null;
+  if (bs !== null && bs < dd) {
+    const late = workDays(bs, dd, works);
+    if (late > 0) return { kind: "past-due", label: `Past due ${late} WD`, late_wd: late };
+  }
+  const st = dayOf(a.start);
+  if (st === null) return null;
+  const ahead = Math.round((st - dd) / DAY_MS);
+  if (ahead <= 6) return { kind: "this-week", label: "Due this week", late_wd: null };
+  if (ahead <= 13) return { kind: "two-weeks", label: "Due in 2 weeks", late_wd: null };
+  return { kind: "upcoming", label: "Upcoming", late_wd: null };
+}
+
+/** Working days the current start sits after the baseline start (negative when earlier). */
+export function startVariance(control: ScheduleControl, a: Activity): number | null {
+  const base = control.baselines
+    .find((b) => b.id === control.active_baseline_id)
+    ?.activities.find((b) => b.id === a.id);
+  const bs = dayOf(base?.start),
+    st = dayOf(a.actual_start ?? a.start);
+  return bs === null || st === null ? null : workDays(bs, st, worksOn(control, a.calendar_id));
+}
 
 /** Plain value of a column for one activity, as the page shows it (A marks an actual date). */
 export function columnValue(
@@ -103,6 +191,16 @@ export function columnValue(
       return isDone ? null : (a.total_float ?? null);
     case "ff":
       return isDone ? null : (control.calculation.activity_results?.[a.id]?.free_float ?? null);
+    case "bs":
+      return (
+        control.baselines
+          .find((b) => b.id === control.active_baseline_id)
+          ?.activities.find((b) => b.id === a.id)?.start ?? null
+      );
+    case "sv":
+      return startVariance(control, a);
+    case "ss":
+      return startStatus(control, a)?.label ?? null;
     default:
       return null;
   }
