@@ -582,6 +582,20 @@
       "when": 1793842041584,
       "tag": "0082_athena_portal_pay_apps",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1793843637089,
+      "tag": "0083_athena_gbb_change_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1793843697089,
+      "tag": "0084_athena_job_notices",
+      "breakpoints": true
     }
   ]
 }
