@@ -124,6 +124,7 @@ export type GanttRow = {
   costToken: string | null;
   fragnet: boolean;
   base?: Activity;
+  prior?: Activity;
   cal: Cal;
 };
 type Item =
@@ -166,6 +167,8 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
     (b) => b.id === control.active_baseline_id,
   );
   const baseById = new Map((baseline?.activities ?? []).map((b) => [b.id, b]));
+  const prior = control.prior_update;
+  const priorById = new Map((prior?.activities ?? []).map((b) => [b.id, b]));
   const results = control.calculation.activity_results ?? {};
   const fragnetIds = new Set(control.analysis?.fragnet_ids ?? []);
   const rows: GanttRow[] = acts.map((a, idx) => {
@@ -188,6 +191,7 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
       costToken: a.cost_code?.trim() ? costToken.get(a.cost_code.trim())! : null,
       fragnet: fragnetIds.has(a.id),
       base: baseById.get(a.id),
+      prior: priorById.get(a.id),
       cal: cals.get(a.calendar_id),
     };
   });
@@ -201,6 +205,7 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
   const times = [
     ...rows.flatMap((r) => [r.start, r.finish]),
     ...(baseline?.activities ?? []).flatMap((b) => [day(b.start), day(b.finish)]),
+    ...(prior?.activities ?? []).flatMap((b) => [day(b.start), day(b.finish)]),
     dd,
     cc,
     day(control.analysis?.prior_completion),
@@ -234,6 +239,7 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
     costs,
     costToken,
     baseline,
+    prior,
     dd,
     cc,
     t0,
@@ -359,17 +365,22 @@ function colorOf(r: GanttRow) {
 function barsHtml(m: Model, r: GanttRow, g: ReturnType<typeof geometry>, label: boolean): string {
   const out: string[] = [];
   const { X } = g;
-  const b = r.base;
-  const bs = day(b?.start),
-    bf = day(b?.finish);
-  if (b && bs !== null && bf !== null) {
+  // Comparison bars beneath the current bars: the active baseline, or the last update (chosen on the page).
+  for (const [b, cls, label] of [
+    [r.base, "cpm-b", "baseline"],
+    [r.prior, "cpm-p", "prior-update"],
+  ] as const) {
+    const bs = day(b?.start),
+      bf = day(b?.finish);
+    if (!b || bs === null || bf === null) continue;
+    const name = label === "baseline" ? "Baseline" : "Last update";
     if (b.duration === 0)
       out.push(
-        `<i class="cpm-b cpm-bm" data-bar="baseline" style="left:${px(X(bf) + (r.milestone && !(r.a.predecessors ?? []).length ? 0 : m.scale))}"></i>`,
+        `<i class="${cls} cpm-bm" data-bar="${label}" title="${name} ${esc(shortDay(bf))}" style="left:${px(X(bf) + (r.milestone && !(r.a.predecessors ?? []).length ? 0 : m.scale))}"></i>`,
       );
     else
       out.push(
-        `<i class="cpm-b" data-bar="baseline" title="Baseline ${esc(shortDay(bs))} to ${esc(shortDay(bf))}" style="left:${px(X(bs))};width:${px(Math.max(2, X(bf + DAY) - X(bs)))}"></i>`,
+        `<i class="${cls}" data-bar="${label}" title="${name} ${esc(shortDay(bs))} to ${esc(shortDay(bf))}" style="left:${px(X(bs))};width:${px(Math.max(2, X(bf + DAY) - X(bs)))}"></i>`,
       );
   }
   if (r.milestone) {
@@ -667,6 +678,23 @@ function inspectorHtml(m: Model, r: GanttRow): string {
         ? `${esc(longDay(bf))}${variance !== null && !r.milestone ? ` <span style="color:${variance > 0 ? "#B42318" : MUTED}">${variance > 0 ? "+" : ""}${variance} WD</span>` : ""}`
         : esc(m.baseline ? "New since baseline" : "No baseline"),
     ),
+    ...(m.prior
+      ? [
+          dl(
+            "Last update finish",
+            r.prior
+              ? `${esc(longDay(day(r.prior.finish)))}${(() => {
+                  const pf = day(r.prior.finish);
+                  const v =
+                    pf !== null && r.finish !== null ? workDaysBetween(pf, r.finish, r.cal) : null;
+                  return v === null
+                    ? ""
+                    : ` <span style="color:${v > 0 ? "#B42318" : MUTED}">${v > 0 ? "+" : ""}${v} WD</span>`;
+                })()}`
+              : "New this update",
+          ),
+        ]
+      : []),
     dl(
       "Total float",
       r.tf === null ? "Complete" : `${esc(r.tf)} WD`,
@@ -754,6 +782,7 @@ ${views}
 .cpmx .cpm-a{background:${ACT}}
 .cpmx .cpm-frag{background:repeating-linear-gradient(45deg,${CRIT} 0 3px,#F6C2BF 3px 6px)!important;outline:1px solid ${CRIT}}
 .cpmx .cpm-b{top:21px;height:4px;border-radius:1px;background:${BL}}
+.cpmx .cpm-p{top:21px;height:4px;border-radius:1px;background:#8FB0DD;display:none}
 .cpmx .cpm-bm{width:7px;height:7px;top:19px;transform:translateX(-50%) rotate(45deg)}
 .cpmx .cpm-f{top:13px;height:2px;background:${FLT};border-right:2px solid ${FLT};box-sizing:content-box;margin-top:-2px;padding-top:2px;background-clip:content-box}
 .cpmx .cpm-m{top:7px;width:11px;height:11px;transform:translateX(-50%) rotate(45deg);border:1px solid #fff}
@@ -767,7 +796,8 @@ ${views}
 .cpmx .cpm-fnote{display:none;margin:8px 0 0;color:${MUTED}}
 ${wbs}${cc}${filtered}
 ${rule(`#cpm-lg:not(:checked)`, `.cpm-logic`)}{display:none}
-${rule(`#cpm-bb:not(:checked)`, `.cpm-b`)}{display:none}
+${rule(`#cpm-cmp option[value="p"]:checked`, `.cpm-b`)},${rule(`#cpm-cmp option[value="none"]:checked`, `.cpm-b`)}{display:none}
+${rule(`#cpm-cmp option[value="p"]:checked`, `.cpm-p`)}{display:block}
 ${rule(`#cpm-fl:not(:checked)`, `.cpm-f`)}{display:none}
 .cpmx .cpm-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 0;color:${INK2}}
 .cpmx .cpm-legend span{display:inline-flex;align-items:center;gap:5px}
@@ -798,7 +828,7 @@ ${rule(`#cpm-fl:not(:checked)`, `.cpm-f`)}{display:none}
 
 function legendHtml(m: Model): string {
   const sw = (bg: string, extra = "") => `<i class="cpm-sw" style="background:${bg};${extra}"></i>`;
-  return `<div class="cpm-legend" aria-label="Legend"><span>${sw(ACT)}Actual</span><span>${sw(CRIT)}${m.definition === "longest-path" ? "Remaining, longest path" : "Remaining, critical (TF ≤ 0)"}</span><span>${sw(NEG)}Remaining, negative float</span><span>${sw(POS)}Remaining, positive float</span><span>${sw(`repeating-linear-gradient(45deg,${CRIT} 0 3px,#F6C2BF 3px 6px)`)}Delay fragnet</span><span>${sw(BL, "height:4px")}Baseline</span><span>${sw(FLT, "height:2px")}Total float</span><span><svg width="11" height="11" aria-hidden="true"><path d="M5.5 0l5.5 5.5-5.5 5.5L0 5.5z" fill="${INK}"/></svg>Milestone</span><span><svg width="22" height="8" aria-hidden="true"><path d="M0 4h15" stroke="${INK}" stroke-width="1.4"/><path d="M15 1l6 3-6 3z" fill="${INK}"/></svg>Driving tie</span><span><svg width="22" height="8" aria-hidden="true"><path d="M0 4h15" stroke="${FLT}" stroke-dasharray="3 2"/><path d="M15 1l6 3-6 3z" fill="${FLT}"/></svg>Non-driving tie</span><span>${sw(BLUE, "width:2px;height:12px")}Data date</span>${m.cc !== null ? `<span>${sw(`repeating-linear-gradient(${INK} 0 3px,transparent 3px 5px)`, "width:2px;height:12px")}Contract completion</span>` : ""}</div>`;
+  return `<div class="cpm-legend" aria-label="Legend"><span>${sw(ACT)}Actual</span><span>${sw(CRIT)}${m.definition === "longest-path" ? "Remaining, longest path" : "Remaining, critical (TF ≤ 0)"}</span><span>${sw(NEG)}Remaining, negative float</span><span>${sw(POS)}Remaining, positive float</span><span>${sw(`repeating-linear-gradient(45deg,${CRIT} 0 3px,#F6C2BF 3px 6px)`)}Delay fragnet</span><span>${sw(BL, "height:4px")}Baseline</span>${m.prior ? `<span>${sw("#8FB0DD", "height:4px")}Last update</span>` : ""}<span>${sw(FLT, "height:2px")}Total float</span><span><svg width="11" height="11" aria-hidden="true"><path d="M5.5 0l5.5 5.5-5.5 5.5L0 5.5z" fill="${INK}"/></svg>Milestone</span><span><svg width="22" height="8" aria-hidden="true"><path d="M0 4h15" stroke="${INK}" stroke-width="1.4"/><path d="M15 1l6 3-6 3z" fill="${INK}"/></svg>Driving tie</span><span><svg width="22" height="8" aria-hidden="true"><path d="M0 4h15" stroke="${FLT}" stroke-dasharray="3 2"/><path d="M15 1l6 3-6 3z" fill="${FLT}"/></svg>Non-driving tie</span><span>${sw(BLUE, "width:2px;height:12px")}Data date</span>${m.cc !== null ? `<span>${sw(`repeating-linear-gradient(${INK} 0 3px,transparent 3px 5px)`, "width:2px;height:12px")}Contract completion</span>` : ""}</div>`;
 }
 
 /** Headline numbers for the top of the page. */
@@ -846,9 +876,14 @@ export function ganttHtml(input: GanttInput): string {
     ([v, l], i) =>
       `<input class="cpm-sr" type="radio" name="cpm-view" id="cpm-v-${v}"${i === 0 ? " checked" : ""}><label for="cpm-v-${v}">${esc(l)}</label>`,
   ).join("");
+  const compare = [
+    ...(m.baseline ? [opt("b", `Baseline: ${m.baseline.name}`)] : []),
+    ...(m.prior ? [opt("p", `Last update: ${shortDay(day(m.prior.data_date))}`)] : []),
+    opt("none", "No comparison bars"),
+  ];
+  const cmpSelect = `<label class="cpm-field" for="cpm-cmp">Compare <select id="cpm-cmp">${compare.join("")}</select></label>`;
   const toggles = [
     ["cpm-lg", "Logic"],
-    ["cpm-bb", "Baseline"],
     ["cpm-fl", "Float"],
   ]
     .map(
@@ -856,8 +891,188 @@ export function ganttHtml(input: GanttInput): string {
         `<label class="cpm-tog" for="${id}"><input type="checkbox" id="${id}" checked> ${l}</label>`,
     )
     .join("");
-  const controls = `<div class="cpm-controls"><div class="cpm-pills" role="radiogroup" aria-label="Show">${pills}</div>${wbsSelect}${ccSelect}${toggles}</div>`;
+  const controls = `<div class="cpm-controls"><div class="cpm-pills" role="radiogroup" aria-label="Show">${pills}</div>${wbsSelect}${ccSelect}${cmpSelect}${toggles}</div>`;
   const views = GANTT_VIEWS.map(([v]) => viewHtml(m, v)).join("");
   const inspectors = m.rows.map((r) => inspectorHtml(m, r)).join("");
   return `${css(m)}<div class="cpmx" id="cpm-gantt">${controls}${views}<p class="cpm-fnote">Logic lines hide while a WBS or cost code filter is on, so no line points at a hidden activity.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Print this page on tabloid landscape for the full schedule.</p>${inspectors}</div>`;
+}
+
+/** One activity compared against an earlier plan: the baseline or the last update. */
+export type ActivityChange = {
+  id: string;
+  name: string;
+  kind: "added" | "deleted" | "changed";
+  start_variance: number | null;
+  finish_variance: number | null;
+  float_before: number | null;
+  float_now: number | null;
+  notes: string[];
+};
+export function compareActivities(m: Model, against: Activity[]): ActivityChange[] {
+  const then = new Map(against.map((a) => [a.id, a]));
+  const out: ActivityChange[] = [];
+  const linkKey = (l: { id: string; type?: string; lag?: number }) =>
+    `${l.id} ${l.type ?? "FS"}${l.lag ? ` ${l.lag > 0 ? "+" : ""}${l.lag}` : ""}`;
+  for (const r of m.rows) {
+    const b = then.get(r.a.id);
+    if (!b) {
+      out.push({
+        id: r.a.id,
+        name: r.a.name,
+        kind: "added",
+        start_variance: null,
+        finish_variance: null,
+        float_before: null,
+        float_now: r.tf,
+        notes: ["Added"],
+      });
+      continue;
+    }
+    const bs = day(b.start),
+      bf = day(b.finish);
+    const sv = bs !== null && r.start !== null ? workDaysBetween(bs, r.start, r.cal) : null;
+    const fv = bf !== null && r.finish !== null ? workDaysBetween(bf, r.finish, r.cal) : null;
+    const notes: string[] = [];
+    if (!b.actual_start && r.a.actual_start) notes.push("Started");
+    if (!b.actual_finish && r.a.actual_finish) notes.push("Finished");
+    if (b.duration !== r.a.duration)
+      notes.push(`Duration ${b.duration ?? "?"} → ${r.a.duration ?? "?"} WD`);
+    const was = new Set((b.predecessors ?? []).map(linkKey)),
+      now = new Set((r.a.predecessors ?? []).map(linkKey));
+    const added = [...now].filter((k) => !was.has(k)),
+      removed = [...was].filter((k) => !now.has(k));
+    if (added.length) notes.push(`Logic added: ${added.join(", ")}`);
+    if (removed.length) notes.push(`Logic removed: ${removed.join(", ")}`);
+    const floatBefore = b.actual_finish ? null : b.total_float;
+    if (sv || fv || notes.length || (floatBefore ?? null) !== (r.tf ?? null))
+      out.push({
+        id: r.a.id,
+        name: r.a.name,
+        kind: "changed",
+        start_variance: sv,
+        finish_variance: fv,
+        float_before: floatBefore,
+        float_now: r.tf,
+        notes,
+      });
+  }
+  for (const b of against)
+    if (!m.byId.has(b.id))
+      out.push({
+        id: b.id,
+        name: b.name,
+        kind: "deleted",
+        start_variance: null,
+        finish_variance: null,
+        float_before: b.total_float,
+        float_now: null,
+        notes: ["Deleted"],
+      });
+  return out.sort(
+    (x, y) => (y.finish_variance ?? -1e9) - (x.finish_variance ?? -1e9) || x.id.localeCompare(y.id),
+  );
+}
+
+const signed = (n: number | null) => (n === null ? "" : n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+
+function compareTable(
+  m: Model,
+  against: Activity[],
+  label: string,
+  dataDate: string | null,
+  key: string,
+): string {
+  const changes = compareActivities(m, against);
+  const finishOf = (list: { finish: string | null }[]) => {
+    const f = list.map((a) => day(a.finish)).filter((t): t is number => t !== null);
+    return f.length ? Math.max(...f) : null;
+  };
+  const was = finishOf(against);
+  const moved =
+    was !== null && m.forecast !== null ? workDaysBetween(was, m.forecast, m.projectCal) : null;
+  const count = (k: ActivityChange["kind"]) => changes.filter((c) => c.kind === k).length;
+  const later = changes.filter((c) => (c.finish_variance ?? 0) > 0).length;
+  const facts = [
+    moved === null
+      ? null
+      : `Completion ${moved > 0 ? `${moved} WD later` : moved < 0 ? `${-moved} WD earlier` : "unchanged"} (${shortDay(was)} → ${shortDay(m.forecast)})`,
+    `${later} finishing later`,
+    count("added") ? `${count("added")} added` : null,
+    count("deleted") ? `${count("deleted")} deleted` : null,
+    changes.filter((c) => c.notes.some((n) => n.startsWith("Logic"))).length
+      ? `${changes.filter((c) => c.notes.some((n) => n.startsWith("Logic"))).length} with logic changes`
+      : null,
+  ].filter(Boolean);
+  const rows = changes
+    .map(
+      (c) =>
+        `<tr data-change="${esc(c.id)}"><td class="cpm-mono">${esc(c.id)}</td><td>${esc(c.name)}</td><td class="cpm-n"${(c.finish_variance ?? 0) > 0 ? ' style="color:#B42318;font-weight:700"' : ""}>${esc(signed(c.finish_variance))}</td><td class="cpm-n">${esc(signed(c.start_variance))}</td><td class="cpm-n">${esc(c.float_before ?? "")}${c.float_before !== null || c.float_now !== null ? " → " : ""}${esc(c.float_now ?? "")}</td><td>${esc(c.notes.join(" · "))}</td></tr>`,
+    )
+    .join("");
+  return `<div class="cpmc-set" data-against="${key}"><p class="cpmc-sum"><strong>Against ${esc(label)}${dataDate ? ` (data date ${esc(shortDay(day(dataDate)))})` : ""}:</strong> ${esc(facts.join(" · "))}</p>${
+    changes.length
+      ? `<div class="cpm-tbl"><table><thead><tr><th>ID</th><th>Activity</th><th class="cpm-n" title="Working days">Finish</th><th class="cpm-n" title="Working days">Start</th><th class="cpm-n">Total float</th><th>What changed</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<p class="cpmc-none">No activity changed.</p>`
+  }</div>`;
+}
+
+/** Baseline vs this update and last update vs this update, switchable without scripts. */
+export function comparisonHtml(input: GanttInput): string {
+  const m = ganttModel(input);
+  const sets: [string, string, string, Activity[], string | null][] = [];
+  if (m.baseline)
+    sets.push([
+      "b",
+      /baseline/i.test(m.baseline.name) ? m.baseline.name : `baseline ${m.baseline.name}`,
+      `Baseline: ${m.baseline.name}`,
+      m.baseline.activities,
+      m.baseline.data_date,
+    ]);
+  if (m.prior)
+    sets.push([
+      "p",
+      "the last update",
+      `Last update: ${shortDay(day(m.prior.data_date))}`,
+      m.prior.activities,
+      m.prior.data_date,
+    ]);
+  if (!sets.length) return "";
+  const pills = sets
+    .map(
+      ([k, , pill], i) =>
+        `<input class="cpm-sr" type="radio" name="cpmc" id="cpmc-${k}"${i === 0 ? " checked" : ""}><label for="cpmc-${k}">${esc(pill)}</label>`,
+    )
+    .join("");
+  const rules = sets
+    .slice(1)
+    .map(
+      ([k]) =>
+        `.cpmc:has(#cpmc-${k}:checked) .cpmc-set[data-against="${k}"]{display:block}.cpmc:has(#cpmc-${k}:checked) .cpmc-set[data-against="${sets[0][0]}"]{display:none}`,
+    )
+    .join("");
+  const style = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-sr{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}.cpmc .cpm-pills{display:inline-flex;flex-wrap:wrap;border:1px solid ${LINE};border-radius:8px;overflow:hidden;margin:0 0 10px}.cpmc .cpm-pills label{padding:6px 10px;cursor:pointer;color:${INK2};font-weight:600;border-right:1px solid ${LINE};white-space:nowrap}.cpmc .cpm-pills label:last-of-type{border-right:0}.cpmc .cpm-sr:checked+label{background:${BLUE};color:#fff}.cpmc .cpm-sr:focus-visible+label{outline:2px solid ${BLUE};outline-offset:-2px}.cpmc .cpmc-set{display:none}.cpmc .cpmc-set[data-against="${sets[0][0]}"]{display:block}${rules}.cpmc .cpmc-sum{margin:0 0 8px;font-size:13px}.cpmc .cpmc-none{color:${MUTED};margin:0}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}@media print{.cpmc .cpm-pills{display:none}.cpmc .cpmc-set{display:block!important;break-inside:auto}}</style>`;
+  return `${style}<div class="cpmc" id="cpm-compare"><h2>UPDATE COMPARISON</h2><div class="cpm-pills" role="radiogroup" aria-label="Compare against">${pills}</div>${sets.map(([k, label, , acts, dd]) => compareTable(m, acts, label, dd, k)).join("")}<p class="cpmc-none" style="margin-top:8px">Variances are working days on each activity's calendar. Positive means later.</p></div>`;
+}
+
+/** Milestones against the baseline and the last update, with float and any finish-by date. */
+export function milestoneHtml(input: GanttInput): string {
+  const m = ganttModel(input);
+  const ms = m.rows.filter((r) => r.milestone);
+  if (!ms.length) return "";
+  const v = (from: string | null | undefined, r: GanttRow) => {
+    const f = day(from);
+    return f === null || r.finish === null ? null : workDaysBetween(f, r.finish, r.cal);
+  };
+  const rows = ms
+    .map((r) => {
+      const vb = v(r.base?.finish, r),
+        vp = v(r.prior?.finish, r);
+      const late = (n: number | null) =>
+        (n ?? 0) > 0 ? ' style="color:#B42318;font-weight:700"' : "";
+      const fnlt = day(r.a.finish_no_later_than);
+      return `<tr data-milestone-row="${esc(r.a.id)}"><td class="cpm-mono">${esc(r.a.id)}</td><td>${esc(r.a.name)}</td><td class="cpm-n">${esc(shortDay(day(r.base?.finish)))}</td>${m.prior ? `<td class="cpm-n">${esc(shortDay(day(r.prior?.finish)))}</td>` : ""}<td class="cpm-n"><strong>${esc(shortDay(r.finish))}${r.done ? " A" : ""}</strong></td><td class="cpm-n"${late(vb)}>${esc(signed(vb))}</td>${m.prior ? `<td class="cpm-n"${late(vp)}>${esc(signed(vp))}</td>` : ""}<td class="cpm-n"${(r.tf ?? 0) < 0 ? ' style="color:#B42318;font-weight:700"' : ""}>${esc(r.tf ?? (r.done ? "Done" : ""))}</td><td class="cpm-n">${fnlt === null ? "" : `${esc(shortDay(fnlt))}`}</td></tr>`;
+    })
+    .join("");
+  const style = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}</style>`;
+  return `${style}<div class="cpmc" id="cpm-milestones"><h2>MILESTONES</h2><div class="cpm-tbl"><table><thead><tr><th>ID</th><th>Milestone</th><th class="cpm-n">Baseline</th>${m.prior ? `<th class="cpm-n">Last update</th>` : ""}<th class="cpm-n">Forecast / actual</th><th class="cpm-n" title="Working days">vs baseline</th>${m.prior ? `<th class="cpm-n" title="Working days">vs last update</th>` : ""}<th class="cpm-n">Total float</th><th class="cpm-n">Finish by</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }

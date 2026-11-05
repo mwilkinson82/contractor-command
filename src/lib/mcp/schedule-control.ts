@@ -73,7 +73,13 @@ export type ScheduleControl = {
     activity_results?: Record<string, ActivityAnalysis>;
   };
   analysis?: ScheduleAnalysis;
+  /**
+   * The last calculated update before this one, kept so the page can compare update against update without
+   * reading history. Replaced when the data date moves forward; kept through same-date revisions and TIAs.
+   */
+  prior_update?: PriorUpdate;
 };
+export type PriorUpdate = { version: number; data_date: string; activities: Activity[] };
 export type CriticalDefinition = "longest-path" | "total-float";
 export type FloatPathSummary = {
   rank: number;
@@ -612,6 +618,18 @@ export function prepareSchedule(
   validateSchedule(activities, control, request.data_date, old);
   let criticalPath: string[] = [];
   if (request.operation === "recalculate" || request.operation === "tia") {
+    const priorCalc = readScheduleControl(previous)?.calculation;
+    if (
+      request.operation === "recalculate" &&
+      priorCalc?.status === "calculated" &&
+      old.length &&
+      request.data_date > priorCalc.data_date
+    )
+      control.prior_update = {
+        version: baseVersion,
+        data_date: priorCalc.data_date,
+        activities: snapshot(old),
+      };
     const before = calculate(activities, control, request.data_date);
     activities = before.activities;
     criticalPath = before.critical_path;

@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { prepareSchedule, readScheduleControl } from "./mcp/schedule-control";
 import type { Activity, LivingData } from "./mcp/living";
-import { ganttHtml, ganttModel, ganttSummary, viewItems, workDaysBetween } from "./cpm-gantt";
+import {
+  compareActivities,
+  comparisonHtml,
+  ganttHtml,
+  ganttModel,
+  ganttSummary,
+  milestoneHtml,
+  viewItems,
+  workDaysBetween,
+} from "./cpm-gantt";
 import {
   renderReportBody,
   renderReportDocument,
@@ -189,5 +198,73 @@ describe("calculated schedule page", () => {
     const html = ganttHtml(i);
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+  });
+
+  it("keeps the last update so the page compares update against update", () => {
+    const first = network();
+    const control = readScheduleControl(first)!;
+    // The update at Mar 9 kept the Mar 2 calculation as its prior update.
+    expect(control.prior_update?.data_date).toBe("2026-03-02");
+    expect(
+      control.prior_update?.activities.find((a) => a.id === "B")?.actual_start ?? null,
+    ).toBeNull();
+    // A later update slips C by two days of extra work.
+    const next = prepareSchedule(first, 3, {
+      operation: "recalculate",
+      data_date: "2026-03-16",
+      updates: [
+        {
+          id: "B",
+          actual_start: "2026-03-05",
+          actual_finish: "2026-03-13",
+          remaining_duration: 0,
+          pct_complete: 100,
+        },
+        { id: "C", duration: 7 },
+      ],
+    }).data as LivingData;
+    const c2 = readScheduleControl(next)!;
+    expect(c2.prior_update?.data_date).toBe("2026-03-09");
+    const i = { data: next, control: c2, dataDate: "2026-03-16", contractCompletion: "2026-03-20" };
+    const m = ganttModel(i);
+    const changes = compareActivities(m, c2.prior_update!.activities);
+    const c = changes.find((x) => x.id === "C")!;
+    expect(c.notes).toContain("Duration 5 → 7 WD");
+    expect(c.finish_variance).toBeGreaterThan(0);
+    expect(changes.find((x) => x.id === "B")!.notes).toContain("Finished");
+    // Biggest slip first.
+    expect(changes[0].finish_variance).toBe(
+      Math.max(...changes.map((x) => x.finish_variance ?? -99)),
+    );
+    const html = comparisonHtml(i);
+    expect(html).toContain('id="cpmc-b"');
+    expect(html).toContain('id="cpmc-p"');
+    expect(html).toContain("Against the last update (data date 03/09/26)");
+    expect(html).toMatch(/data-change="C"/);
+    // The Gantt can draw the last update's bars instead of the baseline's.
+    const g = ganttHtml(i);
+    expect(g).toContain('<option value="p">Last update: 03/09/26</option>');
+    expect(g).toContain('data-bar="prior-update"');
+    // A same-date revision keeps the prior update it already had.
+    const same = prepareSchedule(next, 4, {
+      operation: "recalculate",
+      data_date: "2026-03-16",
+      updates: [{ id: "Y", duration: 5 }],
+    }).data;
+    expect(readScheduleControl(same)!.prior_update?.data_date).toBe("2026-03-09");
+  });
+
+  it("reports milestones against the baseline and the last update", () => {
+    const html = milestoneHtml(input());
+    expect(html).toContain('data-milestone-row="End"');
+    expect(html).toContain('<th class="cpm-n">Last update</th>');
+    expect(html).not.toContain("NaN");
+    const page = renderReportBody({
+      page: "schedule",
+      job_number: "QA-1",
+      report: { found: true, version: 3, data_date: "2026-03-09", data: input().data },
+    });
+    expect(page).toContain("MILESTONES");
+    expect(page).toContain("UPDATE COMPARISON");
   });
 });
