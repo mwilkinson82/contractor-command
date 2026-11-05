@@ -158,9 +158,9 @@ export function settingsCard(settings: BriefSettings): CardModel {
     sections: [
       { heading: "Time", kind: "list", rows: [{ cells: [clockLabel(settings.send_local)] }] },
       { heading: "Time zone", kind: "list", rows: [{ cells: [settings.time_zone] }] },
-      { heading: "Delivery", kind: "list", rows: [{ cells: [settings.enabled ? "On" : "Off"] }, { cells: ["Nothing is sent."] }] },
+      { heading: "Delivery", kind: "list", rows: [{ cells: [settings.enabled ? "On" : "Off"] }] },
     ],
-    next_move: "Nothing is sent.",
+    next_move: "Say a new time or time zone to change it.",
   };
 }
 
@@ -588,6 +588,8 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
 const WORK_HEADINGS = new Set(["Today", "This week", "Open items", "Don't forget", "Portfolio", "Chases", "Since yesterday"]);
 
 export function ensureBriefCard(card: CardModel): CardModel {
+  // The PM brief and the settings card are complete as built. Only the older list brief gets the fallback row.
+  if (card.presentation === "brief" || card.title === "Morning briefing") return card;
   const sections = card.sections ?? [];
   const hasWork = sections.some((section) => WORK_HEADINGS.has(section.heading) && section.rows.length);
   const next = card.next_move?.trim() || "Name the job, or say let's get started.";
@@ -604,9 +606,12 @@ export function ensureBriefCard(card: CardModel): CardModel {
   };
 }
 
-export function presentBrief(card: CardModel) {
+export const PM_BRIEF_GUIDANCE =
+  "Each section ends in buttons. A tap sends its words as the member's next message: act on it like any other ask, and confirm before anything is sent to someone.";
+
+export function presentBrief(card: CardModel, briefHtml?: string) {
   card = ensureBriefCard(card);
-  const html = renderHtml({ ...card, show_state: false });
+  const html = briefHtml ?? renderHtml({ ...card, show_state: false });
   const lead = `${INBOX_HOST_LINE}\n\n`;
   const body = applyCardClosing(`${lead}${renderMarkdown(card)}\n\n${htmlBlock(html)}`, false);
   return guide(
@@ -616,6 +621,6 @@ export function presentBrief(card: CardModel) {
       content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
     },
     "Always keep the heading From your inbox and calendar. If you can read Gmail and Calendar, replace the placeholder rows with overnight emails, unanswered emails that need a reply, and today's meetings. If you cannot, keep the placeholder rows and write no error text of your own. Keep the job sections: schedule, notices, submittals due, overdue items, and what happened yesterday versus what is due today. The card is shown. Add nothing after it.",
-    MORNING_CARD_GUIDANCE,
+    briefHtml ? `${MORNING_CARD_GUIDANCE} ${PM_BRIEF_GUIDANCE}` : MORNING_CARD_GUIDANCE,
   );
 }

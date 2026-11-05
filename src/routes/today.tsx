@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
@@ -47,6 +48,18 @@ function TodayPage() {
   return <TodayBriefView html={html} error={error} />;
 }
 
+/** The lookahead's week and crew toggles. Only attributes inside the brief change. */
+function toggleLookahead(event: React.MouseEvent<HTMLDivElement>) {
+  const target = event.target as HTMLElement | null;
+  const tog = target?.closest?.("button[data-set]");
+  if (!tog) return;
+  const root = tog.closest("[data-toggle-root]");
+  const [key, value] = String(tog.getAttribute("data-set") ?? "").split("=");
+  if (!root || !value || !/^[a-z]+$/.test(key)) return;
+  root.setAttribute(`data-${key}`, value);
+  tog.parentElement?.querySelectorAll("button[data-set]").forEach((b) => b.setAttribute("aria-pressed", b === tog ? "true" : "false"));
+}
+
 export function TodayBriefView({ html, error }: { html: string | null; error: string | null }) {
   return (
     <div data-screen="today" style={{ background: "#F3F4F6", minHeight: "100vh" }}>
@@ -54,7 +67,7 @@ export function TodayBriefView({ html, error }: { html: string | null; error: st
       {error ? (
         <p style={{ maxWidth: 640, margin: "16px auto", color: "#1E3A5F" }}>{error}</p>
       ) : html ? (
-        <div dangerouslySetInnerHTML={{ __html: html }} />
+        <div onClick={toggleLookahead} dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
         <div style={{ padding: 32, color: "#6B7280" }}>Loading…</div>
       )}

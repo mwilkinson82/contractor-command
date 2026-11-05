@@ -110,9 +110,36 @@ h+='</div></article>';
 return h;
 }
 var lastOutput="";
+// The morning brief arrives as Athena's server-built HTML. Only inert markup and the brief's own
+// palette CSS cross in; a button sends its fixed prompt as the member's next message.
+var BRIEF_TAGS=new Set(["ARTICLE","HEADER","FOOTER","SECTION","DIV","SPAN","P","H1","H2","H3","STRONG","B","EM","UL","OL","LI","TABLE","THEAD","TBODY","TR","TH","TD","A","BR","BUTTON"]);
+function briefHtml(html){
+ var doc=new DOMParser().parseFromString(html,"text/html");
+ var css=Array.from(doc.head.querySelectorAll("style")).map(function(s){return s.textContent}).join("\\n");
+ if(/url\\s*\\(|@import|expression\\s*\\(/i.test(css))return false;
+ doc.body.querySelectorAll("*").forEach(function(el){
+  if(!BRIEF_TAGS.has(el.tagName)){el.remove();return}
+  Array.from(el.attributes).forEach(function(a){if(!/^(class|data-[a-z-]+|aria-[a-z-]+|role|tabindex|colspan|rowspan|href|type)$/.test(a.name))el.removeAttribute(a.name)});
+  if(el.tagName==="BUTTON")el.setAttribute("type","button");
+  if(el.hasAttribute("href")){var href=el.getAttribute("href");if(!/^https:\\/\\/app\\.meetathena\\.io\\/r\\//.test(href))el.removeAttribute("href");else{el.setAttribute("target","_blank");el.setAttribute("rel","noopener noreferrer")}}
+ });
+ var style=document.getElementById("brief-style");if(!style){style=document.createElement("style");style.id="brief-style";document.head.appendChild(style)}
+ style.textContent=css;app.replaceChildren.apply(app,Array.from(doc.body.childNodes));return true;
+}
+function tapBrief(event){
+ var t=event.target&&typeof event.target.closest==="function"?event.target:null;if(!t||!app.contains(t))return;
+ var tog=t.closest("button[data-set]");
+ if(tog&&tog.tagName==="BUTTON"){var box=tog.closest("[data-toggle-root]");var kv=String(tog.getAttribute("data-set")||"").split("=");if(!box||kv.length!==2||!/^[a-z]+$/.test(kv[0]))return;box.setAttribute("data-"+kv[0],kv[1]);Array.from(tog.parentNode.querySelectorAll("button[data-set]")).forEach(function(b){b.setAttribute("aria-pressed",b===tog?"true":"false")});return}
+ var btn=t.closest("button[data-prompt]");if(!btn||btn.tagName!=="BUTTON"||btn.getAttribute("data-sent")==="true")return;
+ var text=String(btn.getAttribute("data-prompt")||"").slice(0,500);var host=window.openai||root;
+ if(!text.trim()||!host||typeof host.sendFollowUpMessage!=="function")return;
+ btn.setAttribute("data-sent","true");host.sendFollowUpMessage({prompt:text});
+}
+if(typeof app.addEventListener==="function")app.addEventListener("click",tapBrief);
 function display(output){
  if(!output||!output.card||typeof output.card.title!=="string")return;
  var key=JSON.stringify(output);if(key===lastOutput)return;lastOutput=key;
+ if(output.card.presentation==="brief"&&typeof output.html==="string"&&briefHtml(output.html)){app.dataset.painted="1";return}
  var main=paint(output.card),lead=output.getting_started;
  app.innerHTML=lead&&lead.title?'<div class="stack">'+paint(lead)+main+'</div>':main;
  app.dataset.painted="1";
