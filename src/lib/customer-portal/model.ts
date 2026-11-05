@@ -68,6 +68,74 @@ export const payAppViewSchema = z
   .strict();
 export type PayAppView = z.infer<typeof payAppViewSchema>;
 
+/** A work order the customer approves before work starts: how it's billed, the lines, the limit. A strict whitelist. */
+export const workOrderViewSchema = z
+  .object({
+    number: z.string(),
+    title: z.string(),
+    basis: z.enum(["unit_price", "time_and_material", "hourly"]),
+    basis_label: z.string(),
+    scope: nstr,
+    findings: nstr,
+    site_address: nstr,
+    lines: z
+      .array(
+        z
+          .object({
+            kind: z.enum(["item", "labor", "material"]),
+            description: z.string(),
+            detail: nstr,
+            amount_cents: cents,
+          })
+          .strict(),
+      )
+      .max(100),
+    totals: z
+      .object({
+        labor_cents: cents,
+        material_cents: cents,
+        items_cents: cents,
+        markup_cents: cents,
+        estimate_cents: cents,
+        cap_cents: cents.nullable(),
+        fee_credit_cents: cents,
+      })
+      .strict(),
+    terms: z.string(),
+  })
+  .strict();
+export type WorkOrderView = z.infer<typeof workOrderViewSchema>;
+
+/** A service invoice: the upfront service call fee, or the bill for a finished work order. A strict whitelist. */
+export const serviceInvoiceViewSchema = z
+  .object({
+    number: z.string(),
+    stage: z.enum(["fee", "bill"]),
+    title: z.string(),
+    work_order: nstr,
+    site_address: nstr,
+    issue: nstr,
+    lines: z
+      .array(z.object({ description: z.string(), detail: nstr, amount_cents: cents }).strict())
+      .min(1)
+      .max(100),
+    signoff: z.object({ name: z.string(), date: isoDate }).strict().nullable(),
+    totals: z
+      .object({ subtotal_cents: cents, credit_cents: cents, current_due_cents: cents })
+      .strict(),
+    note: nstr,
+  })
+  .strict();
+export type ServiceInvoiceView = z.infer<typeof serviceInvoiceViewSchema>;
+
+/** What a work order approval is for, in the customer's words: a fixed total, or the actual time up to the limit. */
+export function workOrderPrice(v: WorkOrderView, currency = "USD"): string {
+  const t = v.totals;
+  if (v.basis === "unit_price") return displayPrice(t.estimate_cents, currency);
+  if (t.cap_cents !== null) return `the actual cost, up to ${displayPrice(t.cap_cents, currency)}`;
+  return `the actual cost, estimated at ${displayPrice(t.estimate_cents, currency)}`;
+}
+
 /** The name the member confirmed when sharing, exactly; a bare number reads "Payment Application 3". Same rule as the SQL label. */
 export function payAppLabel(number: string): string {
   const n = number.trim();
@@ -96,6 +164,10 @@ export const portalItemSchema = z.discriminatedUnion("kind", [
   z.object({ ...itemBase, kind: z.literal("change_order"), view: changeOrderViewSchema }).strict(),
   z.object({ ...itemBase, kind: z.literal("selection"), view: selectionViewSchema }).strict(),
   z.object({ ...itemBase, kind: z.literal("pay_app"), view: payAppViewSchema }).strict(),
+  z.object({ ...itemBase, kind: z.literal("work_order"), view: workOrderViewSchema }).strict(),
+  z
+    .object({ ...itemBase, kind: z.literal("service_invoice"), view: serviceInvoiceViewSchema })
+    .strict(),
 ]);
 export type PortalItem = z.infer<typeof portalItemSchema>;
 
@@ -114,6 +186,8 @@ export const portalViewSchema = z
         today: isoDate,
         /** True once the job has a known contract value: a package change is then a change order. */
         under_contract: z.boolean().optional(),
+        /** A service call's page shows work orders and bills; a project's shows the full job. */
+        kind: z.enum(["project", "service"]).optional(),
       })
       .strict(),
     updates: z
@@ -260,10 +334,11 @@ export const TIER_NAME = { good: "Good", better: "Better", best: "Best" } as con
 
 /**
  * The exact words the customer agrees to. Stored with each decision. Change order and selection wording approved by
- * Marshall (attorney), Nov 4; pay application wording approved by Marshall, Nov 5.
+ * Marshall (attorney), Nov 4; pay application wording approved by Marshall, Nov 5. Work order wording follows the change
+ * order wording (Nov 5 service calls build); the price is workOrderPrice.
  */
 export function approvalStatement(a: {
-  kind: "change_order" | "selection" | "pay_app";
+  kind: "change_order" | "selection" | "pay_app" | "work_order";
   company: string;
   label: string;
   /** The price, the package total, or for a pay application the amount due now. */
@@ -278,6 +353,8 @@ export function approvalStatement(a: {
    */
   changeOrder?: { difference: string } | null;
 }): string {
+  if (a.kind === "work_order")
+    return `I approve ${a.label} from ${a.company} for ${a.price}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
   if (a.kind === "pay_app")
     return `I approve ${a.label} from ${a.company} for ${a.price} due for work through ${a.periodEnd ?? ""}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
   if (a.kind === "change_order") {

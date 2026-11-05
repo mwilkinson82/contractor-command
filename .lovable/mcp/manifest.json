@@ -78,8 +78,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -355,6 +355,16 @@
             "sov_division": {
               "type": "string",
               "pattern": "^\\d{2}$"
+            },
+            "pricing_basis": {
+              "description": "How this change order is priced, whatever the job's contract type: a lump sum job can still take a unit price, T&M or hourly change order.",
+              "type": "string",
+              "enum": [
+                "lump_sum",
+                "unit_price",
+                "time_and_material",
+                "hourly"
+              ]
             }
           },
           "required": [
@@ -21235,6 +21245,355 @@
             },
             "clear": {
               "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "service_call",
+        "title": "Service calls",
+        "description": "Runs service calls: set the company's service rates (service call fee, T&M and hourly labor rates, overtime, materials markup), take a call (customer, site, problem, tech, arrival window), send the upfront service call fee to the customer's client page, record what the tech found, write and send a work order priced by unit price, time and material, or hourly labor (optional not-to-exceed), record an on-site approval, log the actual work with the customer's sign-off, send the bill less the paid fee, and record a check or wire payment. Each call is a job numbered SC-<n>.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "rates",
+                "rates_save",
+                "list",
+                "create",
+                "get",
+                "update",
+                "request_fee",
+                "work_order_save",
+                "work_order_send",
+                "approve_on_site",
+                "log_work",
+                "bill",
+                "record_payment"
+              ]
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "job_number": {
+              "description": "The service call's job number, like SC-1001.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "cancelled",
+                "all"
+              ]
+            },
+            "request_id": {
+              "description": "A new UUID for create or record_payment; reuse the same one on a retry.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "customer_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "customer_phone": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "customer_email": {
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "site_address": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "issue": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "urgency": {
+              "type": "string",
+              "enum": [
+                "routine",
+                "soon",
+                "emergency"
+              ]
+            },
+            "tech_name": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "window_start": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "window_end": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "time_zone": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "findings": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "recommendation": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "call_status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "cancelled"
+              ]
+            },
+            "fee_cents": {
+              "description": "Service call fee in cents, e.g. 14900 for $149.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "fee_credit": {
+              "description": "Credit the paid fee toward the repair.",
+              "type": "boolean"
+            },
+            "labor_rate_cents": {
+              "description": "T&M labor rate per hour in cents.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "hourly_rate_cents": {
+              "description": "Hourly labor rate per hour in cents.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "overtime_bps": {
+              "description": "15000 = time and a half.",
+              "type": "integer",
+              "minimum": 10000,
+              "maximum": 30000
+            },
+            "markup_bps": {
+              "description": "Materials markup on T&M, 1500 = 15%.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "work_order_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "basis": {
+              "type": "string",
+              "enum": [
+                "unit_price",
+                "time_and_material",
+                "hourly"
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "scope": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "lines": {
+              "minItems": 1,
+              "maxItems": 60,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "item",
+                      "labor",
+                      "material"
+                    ]
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "hours": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000
+                  },
+                  "overtime": {
+                    "type": "boolean"
+                  },
+                  "quantity": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000
+                  },
+                  "unit": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "unit_rate_cents": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "unit_cost_cents": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "description"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "cap_cents": {
+              "description": "Not-to-exceed for T&M or hourly, in cents.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "done": {
+              "type": "boolean"
+            },
+            "signed_name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "invoice_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "check",
+                "wire"
+              ]
+            },
+            "amount_cents": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "received_on": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "reference": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "due_on": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "notify": {
+              "type": "boolean"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "job_contract_type",
+        "title": "Job contract type",
+        "description": "Reads or sets a project job's contract type: lump sum, unit price, cost plus, or time and material (a GMP job is cost_plus). It's a label on the job and its board; any job can still carry change orders priced by lump sum, unit price, T&M or hourly (set on change_order_record with pricing_basis). Service calls are priced on each work order instead.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contract_type": {
+              "description": "Leave out to read it; none clears it.",
+              "type": "string",
+              "enum": [
+                "lump_sum",
+                "unit_price",
+                "cost_plus",
+                "time_and_material",
+                "none"
+              ]
             }
           },
           "required": [

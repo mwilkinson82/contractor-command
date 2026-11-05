@@ -134,12 +134,32 @@ export function changeSections(details: ChangeDetails) {
     },
   ];
 }
+/** How a change order is priced, beside the record. Any job can take any basis, whatever its contract type. */
+export const PRICING_LABEL: Record<string, string> = {
+  lump_sum: "Lump sum",
+  unit_price: "Unit price",
+  time_and_material: "T&M",
+  hourly: "Hourly",
+  cost_plus: "Cost plus",
+};
+export type ChangeExtras = {
+  /** submittal id → pricing basis key. */
+  pricing?: Record<string, string>;
+  /** The job's contract type key, shown as a label. */
+  contractType?: string | null;
+};
 export function changeLogCard(
   payload: ChangeLogPayload,
   board: string | null,
   filter: { state?: ChangeDetails["state"]; overdue?: boolean } = {},
   number?: string,
+  extras: ChangeExtras = {},
 ) {
+  const basisOf = (r: ChangeRow) => {
+    const b = extras.pricing?.[r.id];
+    return b ? (PRICING_LABEL[b] ?? null) : null;
+  };
+  const contract = extras.contractType ? PRICING_LABEL[extras.contractType] : null;
   const late = (r: ChangeRow) =>
     !["approved", "rejected", "executed"].includes(r.change_order_details.state) &&
     !!r.change_order_details.due_date &&
@@ -164,7 +184,7 @@ export function changeLogCard(
     state: "result",
     show_state: false,
     title: "Change-order log",
-    job: `${payload.job_number} – ${payload.job_name}`,
+    job: `${payload.job_number} – ${payload.job_name}${contract ? ` · ${contract} contract` : ""}`,
     kpis: [
       { label: "Shown", value: String(rows.length) },
       { label: "On this log", value: String(payload.records.length) },
@@ -187,9 +207,14 @@ export function changeLogCard(
                 ["draft", "priced"].includes(r.change_order_details.state)
                   ? `${r.change_order_details.state === "priced" ? "Priced · " : ""}Draft, not sent`
                   : r.change_order_details.state,
-                r.change_order_details.total_cents == null
-                  ? "Not priced"
-                  : changeMoney(r.change_order_details.total_cents),
+                [
+                  r.change_order_details.total_cents == null
+                    ? "Not priced"
+                    : changeMoney(r.change_order_details.total_cents),
+                  basisOf(r),
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
                 r.change_order_details.due_date
                   ? `${r.change_order_details.due_date} · member target`
                   : "Due date needed",

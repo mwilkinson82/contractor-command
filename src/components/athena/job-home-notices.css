@@ -597,3 +597,112 @@
 .jhm-new {
   border-color: #f0b8b3;
 }
+
+/* Contract type and change order pricing; service call card. */
+.jhp-type {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c3654;
+  white-space: nowrap;
+}
+.jhp-bases {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+.jhp-bases li {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 12px 14px;
+  border: 1px solid #e0e8f2;
+  border-radius: 8px;
+  background: #fafcfe;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.jhp-bases li:hover {
+  border-color: #bccfe7;
+  background: #f2f6fc;
+}
+.jhp-bases b {
+  font-size: 13px;
+  color: #1c3654;
+}
+.jhp-hint {
+  font-size: 12px;
+  color: #5b718c;
+}
+.jhp-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5b718c;
+}
+.jhp-bases li.jhp-on {
+  border-color: #b9dcc6;
+  background: #f3faf6;
+}
+.jhp-bases li.jhp-on .jhp-count {
+  color: #1d6b3f;
+}
+.jhp-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 6px 0 10px;
+}
+.jhp-facts dt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b718c;
+}
+.jhp-facts dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: #1c3654;
+  overflow-wrap: anywhere;
+}
+.jhp-issue {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #3e5672;
+}
+.jhp-wo .jhn-co-row {
+  grid-template-columns: 96px minmax(0, 1fr) 170px 170px 130px;
+}
+.jhp-next {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f2f6fc;
+  font-size: 13px;
+  color: #1c3654;
+}
+@media (max-width: 1100px) {
+  .jhp-bases,
+  .jhp-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .jhp-wo .jhn-co-row {
+    grid-template-columns: 80px minmax(0, 1fr) 150px 140px 110px;
+  }
+}
+@media (max-width: 760px) {
+  .jhp-bases,
+  .jhp-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .jhp-wo .jhn-co-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .jhp-wo .jhn-co-row > :nth-child(4),
+  .jhp-wo .jhn-co-row > :nth-child(5) {
+    white-space: normal;
+  }
+}
