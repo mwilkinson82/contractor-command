@@ -11631,6 +11631,7 @@ export type Database = {
         Returns: Json
       }
       mcp_job_import_cancel: { Args: { _batch: string }; Returns: Json }
+      mcp_job_import_completion: { Args: { _batch: string }; Returns: Json }
       mcp_job_import_context: {
         Args: { _company: string; _job_number: string; _source: string }
         Returns: Json
