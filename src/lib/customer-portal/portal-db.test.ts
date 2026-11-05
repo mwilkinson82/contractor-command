@@ -10,6 +10,7 @@ import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e
 import { tokenHash } from "../mcp/file-share";
 import { codeHash } from "./server";
 import { portalViewSchema } from "./model";
+import { applicationFixture } from "../payment-applications/fixtures";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
 vi.mock("../mcp/guard", async (importOriginal) => {
@@ -41,6 +42,8 @@ const pm = "00000000-0000-4000-8000-000000000c02";
 const outsider = "00000000-0000-4000-8000-000000000c03";
 const company = "00000000-0000-4000-8000-000000000c10";
 const job = "00000000-0000-4000-8000-000000000c20";
+// The billing job: its own SOV, contract and customer access, so the change orders above never move its contract.
+const job2 = "00000000-0000-4000-8000-000000000c21";
 let db: PGlite;
 
 type Row = Record<string, unknown>;
@@ -116,6 +119,16 @@ beforeAll(async () => {
   await load("20261104170000_athena_customer_portal");
   await load("20261104200000_athena_proposal_choice_stage");
   await load("20261104200100_athena_portal_choice_stage");
+  // Payment applications (billing evidence, then the application chain) and the customer page's pay applications.
+  await load("20261101120001_athena_project_billing_evidence");
+  await load("20261030140000_athena_sov_contract_total_guard");
+  for (const f of [
+    "0057_sov_payment_applications",
+    "0058_payment_application_contract_basis",
+    "0059_conversational_payment_drafts",
+    "0081_athena_portal_pay_apps",
+  ])
+    await db.exec(readFileSync(`drizzle/migrations/${f}.sql`, "utf8"));
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -137,6 +150,18 @@ beforeAll(async () => {
     [job, owner, company, pm],
   );
   await db.query("INSERT INTO test_company_plans VALUES($1,'circle')", [company]);
+  await db.query(
+    "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone,pm_name,pm_email,pm_user_id,sov_fee_pct) VALUES($1,$2,$3,'2716','Harbor Point Garage','America/Chicago','Pat Lee','pat@example.com',$4,0)",
+    [job2, owner, company, pm],
+  );
+  await db.query(
+    "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'contract','contract_value','100000','known','member_answer',$2)",
+    [job2, owner],
+  );
+  await db.query(
+    "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','01',$2::jsonb,'known','member_answer',$3)",
+    [job2, JSON.stringify({ description: "Construction work", billable_value: 100000 }), owner],
+  );
   // Field records: a daily with private notes and two photos, one not customer-safe.
   const d = await db.query<{ id: string }>(
     `INSERT INTO mcp_daily_reports(job_id,company_id,report_date,weather,manpower,subs_on_site,deliveries,issues,delays,safety,transcript)
@@ -729,6 +754,322 @@ describe.sequential("customer page", () => {
       status: "signed_out",
     });
     expect(await server("mcp_portal_invite_open", [inviteHash])).toEqual({ status: "revoked" });
+  });
+});
+
+describe.sequential("customer page pay applications", () => {
+  const invite2 = "B".repeat(43);
+  const session2 = "T".repeat(43);
+  let inviteHash2 = "";
+  let sessionHash2 = "";
+  let access2 = "";
+  const app = crypto.randomUUID();
+  let version = 0;
+  const billing = (action: string, p: Record<string, unknown>, user = owner) =>
+    member("mcp_billing_evidence_record", [job2, action, JSON.stringify(p)], user);
+  // Every private field carries SECRET, so a leak shows in the customer's JSON.
+  const body = async (state: string, reason = "") => {
+    const ctx = await billing("payment_application_read", {});
+    const a = applicationFixture();
+    a.snapshot = ctx.snapshot;
+    return {
+      ...a,
+      number: "7",
+      state,
+      reason,
+      source: "SECRET SOURCE progress walk",
+      retainage_basis: "SECRET RETAINAGE TERMS",
+      lines: a.lines.map((l) => ({ ...l, stored_basis: "SECRET STORED BASIS" })),
+    };
+  };
+  const save = async (state: string, reason = "") => {
+    const p = {
+      id: app,
+      request_id: crypto.randomUUID(),
+      expected_version: version,
+      application: await body(state, reason),
+    };
+    const r = await billing("payment_application_review", p);
+    const saved = await billing("payment_application_save", { ...p, review_key: r.review_key });
+    version = saved.version;
+    return saved;
+  };
+  const due = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  const share = (expected: number | null, dueOn: string | null = due, user = owner) =>
+    member("mcp_portal_share_pay_app", [job2, null, "7", expected, dueOn], user);
+  const decide = (item: string, decision: string, code: string | null, fp: string) =>
+    server("mcp_portal_decide", [
+      access2,
+      sessionHash2,
+      item,
+      decision,
+      null,
+      code,
+      "Rosa Delgado",
+      decision === "approved" ? "I approve Pay application 7." : "I decline Pay application 7.",
+      fp,
+      decision === "declined" ? "Retainage looks high" : null,
+      "203.0.113.9",
+      "test",
+    ]);
+  const view = () => server("mcp_portal_view", [access2, sessionHash2, null, null]);
+
+  beforeAll(async () => {
+    inviteHash2 = await tokenHash(invite2);
+    sessionHash2 = await tokenHash(session2);
+    const r = await member("mcp_portal_invite", [
+      job2,
+      "rosa@example.com",
+      "Rosa Delgado",
+      inviteHash2,
+      new Date(Date.now() + 86_400_000).toISOString(),
+    ]);
+    access2 = r.access_id;
+    const code = await codeHash(access2, "246810");
+    await server("mcp_portal_code_issue", [access2, "sign_in", code, inviteHash2, null, null]);
+    expect(
+      (await server("mcp_portal_sign_in", [inviteHash2, code, sessionHash2, false, null, null]))
+        .status,
+    ).toBe("ok");
+  });
+
+  let shared: J;
+  it("shares only a finished, current pay application, by its number, to full-access members", async () => {
+    await save("draft");
+    await expect(share(null)).rejects.toThrow(/ready or submitted/);
+    await save("submitted", "SECRET REASON: issue to owner");
+    expect(version).toBe(2);
+    await expect(share(1)).rejects.toThrow(/changed/);
+    await expect(share(null, "2001-01-01")).rejects.toThrow(/approve-by/);
+    await expect(share(null, due, outsider)).rejects.toThrow();
+    await expect(member("mcp_portal_share_pay_app", [job, app, null, null, null])).rejects.toThrow(
+      /not on this job/,
+    );
+    shared = await share(2);
+    expect(shared).toMatchObject({
+      kind: "pay_app",
+      application_id: app,
+      version: 2,
+      label: "Pay application 7",
+      due_on: due,
+      company: "Northline Builders",
+      job_name: "Harbor Point Garage",
+    });
+    expect(shared.recipients).toEqual([
+      { access_id: access2, email: "rosa@example.com", name: "Rosa Delgado" },
+    ]);
+    // The whole frozen view, field for field: nothing else from the application reaches the owner.
+    expect(shared.view).toEqual({
+      number: "7",
+      period_start: "2026-01-01",
+      period_end: "2026-01-31",
+      original_contract_cents: 10000000,
+      approved_changes_cents: 0,
+      contract_total_cents: 10000000,
+      lines: [
+        {
+          item: "01",
+          description: "Construction work",
+          scheduled_cents: 10000000,
+          previous_cents: 0,
+          this_period_cents: 1000000,
+          stored_cents: 500000,
+          completed_to_date_cents: 1500000,
+          percent_complete: 15,
+        },
+      ],
+      totals: {
+        completed_and_stored_cents: 1500000,
+        retainage_percent: 10,
+        retainage_cents: 150000,
+        previous_certified_cents: 0,
+        current_due_cents: 1350000,
+      },
+    });
+  });
+
+  it("shows the pay application to the customer with no private field", async () => {
+    const v = await view();
+    expect(portalViewSchema.safeParse(v).success).toBe(true);
+    const item = v.items.find((i: J) => i.id === shared.item_id);
+    expect(item).toMatchObject({
+      kind: "pay_app",
+      due_on: due,
+      fingerprint: shared.fingerprint,
+      decision: null,
+    });
+    const s = JSON.stringify(v);
+    for (const secret of [
+      "SECRET",
+      "fee_pct",
+      "provenance",
+      "working_intent",
+      "sov_facts",
+      "bps",
+      "evidence",
+      owner,
+    ])
+      expect(s, secret).not.toContain(secret);
+    expect((await member("mcp_portal_list", [job2])).items[0]).toMatchObject({
+      kind: "pay_app",
+      label: "Pay application 7",
+    });
+  });
+
+  it("refuses a view with an extra field, in the database and on the page", async () => {
+    await expect(
+      db.query("SELECT mcp_private.portal_pay_app_view_check($1::jsonb)", [
+        JSON.stringify({ ...shared.view, fee_pct: 10 }),
+      ]),
+    ).rejects.toThrow(/whitelist/);
+    const line = { ...shared.view.lines[0], cost_cents: 1 };
+    await expect(
+      db.query("SELECT mcp_private.portal_pay_app_view_check($1::jsonb)", [
+        JSON.stringify({ ...shared.view, lines: [line] }),
+      ]),
+    ).rejects.toThrow(/whitelist/);
+    await db.query("SELECT mcp_private.portal_pay_app_view_check($1::jsonb)", [
+      JSON.stringify(shared.view),
+    ]);
+    // A stored view that grew a field is refused by the page's own schema.
+    await db.query("UPDATE mcp_portal_items SET view = view || '{\"fee_pct\":10}' WHERE id=$1", [
+      shared.item_id,
+    ]);
+    expect(portalViewSchema.safeParse(await view()).success).toBe(false);
+    await db.query("UPDATE mcp_portal_items SET view = view - 'fee_pct' WHERE id=$1", [
+      shared.item_id,
+    ]);
+    expect(portalViewSchema.safeParse(await view()).success).toBe(true);
+  });
+
+  it("declines without a code, and the decided version can't be shared again", async () => {
+    expect((await decide(shared.item_id, "declined", null, hex(7))).status).toBe("changed");
+    const r = await decide(shared.item_id, "declined", null, shared.fingerprint);
+    expect(r).toMatchObject({
+      status: "ok",
+      label: "Pay application 7",
+      pm_email: "pat@example.com",
+    });
+    const d = (
+      await db.query<Row>("SELECT * FROM mcp_portal_decisions WHERE item_id=$1", [shared.item_id])
+    ).rows[0]!;
+    expect(d).toMatchObject({
+      decision: "declined",
+      code_verified: false,
+      note: "Retainage looks high",
+    });
+    await expect(share(2)).rejects.toThrow(/already decided/);
+    const rec = await db.query<Row>(
+      "SELECT kind, ref_table, ref_id FROM mcp_project_record_events WHERE job_id=$1 ORDER BY occurred_at DESC LIMIT 1",
+      [job2],
+    );
+    expect(rec.rows[0]).toMatchObject({
+      kind: "pay_application_customer_decline",
+      ref_table: "mcp_payment_applications",
+      ref_id: app,
+    });
+  });
+
+  it("hides a shared version once the application is revised", async () => {
+    await save("submitted", "SECRET REASON: revised after the owner's note");
+    const again = await share(null);
+    expect(again.version).toBe(3);
+    expect((await view()).items.map((i: J) => i.id)).toContain(again.item_id);
+    await save("submitted", "SECRET REASON: one more fix");
+    expect((await view()).items.map((i: J) => i.id)).not.toContain(again.item_id);
+    const code = await codeHash(access2, "135790");
+    expect(
+      (
+        await server("mcp_portal_code_issue", [
+          access2,
+          "decide",
+          code,
+          null,
+          sessionHash2,
+          again.item_id,
+        ])
+      ).status,
+    ).toBe("ok");
+    expect((await decide(again.item_id, "approved", code, again.fingerprint)).status).toBe(
+      "changed",
+    );
+  });
+
+  it("approves the current version with a fresh emailed code, and changes no billing", async () => {
+    const before = await db.query(
+      "SELECT count(*)::int AS n FROM mcp_payment_application_versions WHERE application_id=$1",
+      [app],
+    );
+    const billed = await db.query(
+      "SELECT version, status FROM mcp_billing_invoice_versions WHERE invoice_id=$1 ORDER BY version",
+      [app],
+    );
+    // The member shares it from chat: customer_portal share_pay_app, by number, after their yes.
+    await expect(
+      tool({ action: "share_pay_app", job_number: "2716", application_number: "7" }),
+    ).rejects.toThrow(/confirm/);
+    const shareTool = await tool({
+      action: "share_pay_app",
+      job_number: "2716",
+      application_number: "7",
+      expected_version: 4,
+      due_on: due,
+      notify: false,
+      confirmed: true,
+    });
+    expect(shareTool.content[0]!.text).toContain(
+      "Shared Pay application 7 (version 4) for the customer's approval: $13,500.00 due",
+    );
+    expect(shareTool.content[0]!.text).not.toContain("SECRET");
+    const cur = (await view()).items.find((i: J) => i.id === shareTool.structuredContent!.item_id);
+    expect(cur).toMatchObject({ kind: "pay_app", due_on: due });
+    cur.item_id = cur.id;
+    expect((await decide(cur.item_id, "approved", null, cur.fingerprint)).status).toBe("expired");
+    const code = await codeHash(access2, "975310");
+    await server("mcp_portal_code_issue", [
+      access2,
+      "decide",
+      code,
+      null,
+      sessionHash2,
+      cur.item_id,
+    ]);
+    expect((await decide(cur.item_id, "approved", code, hex(8))).status).toBe("changed");
+    const ok = await decide(cur.item_id, "approved", code, cur.fingerprint);
+    expect(ok).toMatchObject({
+      status: "ok",
+      label: "Pay application 7",
+      customer: "Rosa Delgado",
+    });
+    expect((await decide(cur.item_id, "approved", code, cur.fingerprint)).status).toBe("not_open");
+    const v = await view();
+    expect(v.items.find((i: J) => i.id === cur.item_id).decision).toMatchObject({
+      decision: "approved",
+      typed_name: "Rosa Delgado",
+      code_verified: true,
+    });
+    // The page records the owner's decision only: no new application version, certificate or invoice.
+    expect(
+      (
+        await db.query(
+          "SELECT count(*)::int AS n FROM mcp_payment_application_versions WHERE application_id=$1",
+          [app],
+        )
+      ).rows,
+    ).toEqual(before.rows);
+    expect(
+      (
+        await db.query(
+          "SELECT version, status FROM mcp_billing_invoice_versions WHERE invoice_id=$1 ORDER BY version",
+          [app],
+        )
+      ).rows,
+    ).toEqual(billed.rows);
+    const listed = await member("mcp_portal_list", [job2]);
+    expect(listed.items.find((i: J) => i.item_id === cur.item_id).decision).toMatchObject({
+      decision: "approved",
+      email: "rosa@example.com",
+    });
   });
 });
 

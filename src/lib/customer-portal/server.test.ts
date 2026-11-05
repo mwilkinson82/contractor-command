@@ -8,7 +8,7 @@ import {
   ATHENA_EMAIL_LOGO_URL,
   ATHENA_NAVY,
 } from "../email-templates/athena-auth-email";
-import { codeEmail, inviteEmail, type PortalEmail } from "./email";
+import { codeEmail, inviteEmail, noticeEmail, type PortalEmail } from "./email";
 import {
   codeHash,
   csrfFor,
@@ -549,6 +549,306 @@ describe("customer page", () => {
       _decision: "chosen",
       _choice: "better",
     });
+  });
+});
+
+const PAY = "00000000-0000-4000-8000-0000000000e1";
+const PAY_OLD = "00000000-0000-4000-8000-0000000000e2";
+const payView = (number: string, end: string, due: number, prior: number) => ({
+  number,
+  period_start: `${end.slice(0, 8)}01`,
+  period_end: end,
+  original_contract_cents: 10000000,
+  approved_changes_cents: 486000,
+  contract_total_cents: 10486000,
+  lines: [
+    {
+      item: "01",
+      description: "Framing <and> trim",
+      scheduled_cents: 6000000,
+      previous_cents: 1500000,
+      this_period_cents: 1000000,
+      stored_cents: 500000,
+      completed_to_date_cents: 3000000,
+      percent_complete: 50,
+    },
+    {
+      item: "02",
+      description: "Electrical",
+      scheduled_cents: 4486000,
+      previous_cents: 0,
+      this_period_cents: 0,
+      stored_cents: 0,
+      completed_to_date_cents: 0,
+      percent_complete: 0,
+    },
+  ],
+  totals: {
+    completed_and_stored_cents: 3000000,
+    retainage_percent: 10,
+    retainage_cents: 300000,
+    previous_certified_cents: prior,
+    current_due_cents: due,
+  },
+});
+const withPayApps = () => {
+  const v = view();
+  (v.items as unknown[]).push(
+    {
+      id: PAY,
+      kind: "pay_app",
+      shared_on: "2026-11-04",
+      due_on: "2026-11-12",
+      fingerprint: FP,
+      view: payView("7", "2026-10-31", 1350000, 1350000),
+      decision: null,
+    },
+    {
+      id: PAY_OLD,
+      kind: "pay_app",
+      shared_on: "2026-10-03",
+      due_on: null,
+      fingerprint: FP,
+      view: payView("Application 6", "2026-09-30", 1350000, 0),
+      decision: {
+        decision: "approved",
+        choice: null,
+        typed_name: "Rosa Delgado",
+        decided_at: "2026-10-05T15:00:00Z",
+        note: null,
+        code_verified: true,
+      },
+    },
+  );
+  return v;
+};
+
+describe("billing: pay applications", () => {
+  it("renders the Billing tab, home money panel and every billing view with phone and tablet rules", async () => {
+    const { d } = deps({ view: withPayApps() });
+    expect(PORTAL_SECTIONS).toContain("billing");
+    const home = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(home).toMatch(/>Billing<span class="count" aria-label="1 waiting">1<\/span><\/a>/);
+    expect(home).toContain("3 decisions waiting");
+    expect(home).toContain("Pay application · $13,500.00 due");
+    expect(home).toContain("Approve by Nov 12 · 8 days");
+    expect(home).toContain("Money at a glance");
+    expect(home).toContain("$104,860.00");
+    // Approved before this bill, this bill, and what's left of the contract.
+    expect(home).toContain("<span>Approved</span><b>$13,500.00</b>");
+    expect(home).toContain("<span>This bill</span><b>$13,500.00</b>");
+    expect(home).toContain("<span>Remaining</span><b>$77,860.00</b>");
+    for (const at of [
+      `/c/${ACCESS}?s=billing`,
+      `/c/${ACCESS}?s=billing&i=${PAY}`,
+      `/c/${ACCESS}?s=billing&i=${PAY}&step=confirm`,
+      `/c/${ACCESS}?s=billing&i=${PAY}&step=decline`,
+      `/c/${ACCESS}?s=billing&i=${PAY_OLD}`,
+    ]) {
+      const r = await handlePortal(req(at, { cookie: true }), ACCESS, d);
+      const html = await r.text();
+      expect(r.status, at).toBe(200);
+      expect(html, at).not.toMatch(/<script/i);
+      expect(html, at).not.toContain("Framing <and>");
+      expect(html, at).toContain("Framing &lt;and&gt; trim");
+      expect(html, at).toContain("@media (max-width:640px){.pay-head");
+      expect(html, at).toContain("@media (max-width:1000px){.pay-due");
+      // Billing styles never use the compare's own class names, so they can't restyle it.
+      for (const cls of [
+        "hero",
+        "act",
+        "acts",
+        "co",
+        "co-sub",
+        "big",
+        "seg",
+        "bar",
+        "row",
+        "col",
+        "line",
+        "tag",
+        "pin",
+        "cap",
+      ])
+        expect(html.replace(COMPARE_CSS, ""), `${at} .${cls}`).not.toMatch(
+          new RegExp(`(?<![\\w-])\\.${cls}(?![\\w-])`),
+        );
+    }
+    const list = await (
+      await handlePortal(req(`/c/${ACCESS}?s=billing`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(list).toContain("Latest pay application · Oct 1, 2026 to Oct 31, 2026");
+    expect(list).toContain('<p class="pay-due">$13,500.00<span>due now</span></p>');
+    expect(list).toContain("Work done and materials stored");
+    expect(list).toContain("Held back, 10% (retainage)");
+    expect(list).toContain("You keep it until the job is finished and accepted.");
+    expect(list).toContain("Already approved</dt><dd>−$13,500.00");
+    expect(list).toContain("Due now</dt><dd>$13,500.00");
+    expect(list).toContain("Work by line");
+    expect(list).toContain('class="cp-seg cp-now" style="width:16.67%"');
+    expect(list).toContain("Billing history");
+    expect(list).toContain('<span class="pill wait">Needs you</span>');
+    expect(list).toContain('<span class="pill ok">Approved Oct 5, 2026</span>');
+    // A number that already says Application keeps its own words.
+    expect(list).toContain("<h3>Application 6</h3>");
+    expect(list).toContain("Your contract");
+    expect(list).toContain("<dt>Approved change orders</dt><dd>+$4,860.00</dd>");
+    // Home without a shared pay application has no money panel.
+    const { d: plain } = deps();
+    expect(
+      await (await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, plain)).text(),
+    ).not.toContain("Money at a glance");
+    expect(
+      await (
+        await handlePortal(req(`/c/${ACCESS}?s=billing`, { cookie: true }), ACCESS, plain)
+      ).text(),
+    ).toContain("No pay applications shared with you yet.");
+  });
+
+  it("refuses a pay application view carrying a cost, fee or note", async () => {
+    for (const extra of [
+      (v: Record<string, unknown>) => (v.fee_pct = 10),
+      (v: Record<string, unknown>) => ((v.lines as Record<string, unknown>[])[0]!.cost_cents = 1),
+      (v: Record<string, unknown>) => ((v.totals as Record<string, unknown>).reason = "x"),
+    ]) {
+      const v = withPayApps();
+      extra(
+        (v.items as { id: string; view: Record<string, unknown> }[]).find((i) => i.id === PAY)!
+          .view,
+      );
+      const { d } = deps({ view: v });
+      expect(
+        (await handlePortal(req(`/c/${ACCESS}?s=billing`, { cookie: true }), ACCESS, d)).status,
+      ).toBe(503);
+    }
+  });
+
+  it("approves a pay application with a fresh code, the typed name and the pay application statement", async () => {
+    const { d, calls, mail } = deps({ view: withPayApps() });
+    const csrf = await csrfFor(SESSION);
+    const start = await handlePortal(
+      await post(`/c/${ACCESS}`, { action: "start", item: PAY, csrf }, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(start.headers.get("location")).toBe(
+      `/c/${ACCESS}?s=billing&i=${PAY}&step=confirm&sent=1`,
+    );
+    expect(mail.at(-1)!.text).toContain("confirm your decision on Pay application 7");
+    const confirm = await (
+      await handlePortal(req(start.headers.get("location")!, { cookie: true }), ACCESS, d)
+    ).text();
+    const statement =
+      "I approve Pay application 7 from Northline Builders for $13,500.00 due for work through Oct 31, 2026, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.";
+    expect(confirm).toContain(statement);
+    expect(confirm).toContain("Approve pay application");
+    expect(confirm).toContain('name="agree" value="1" required');
+    expect(confirm).toContain('name="fingerprint" value="' + FP + '"');
+    const base = {
+      action: "decide",
+      item: PAY,
+      decision: "approved",
+      fingerprint: FP,
+      typed_name: "Rosa Delgado",
+      code: "123456",
+      csrf,
+    };
+    expect(
+      (
+        await handlePortal(await post(`/c/${ACCESS}`, base, { cookie: true }), ACCESS, d)
+      ).headers.get("location"),
+    ).toContain("e=agree");
+    // A pay application takes approve or decline, never a package choice.
+    expect(
+      (
+        await handlePortal(
+          await post(
+            `/c/${ACCESS}`,
+            { ...base, decision: "chosen", choice: "good", agree: "1" },
+            { cookie: true },
+          ),
+          ACCESS,
+          d,
+        )
+      ).headers.get("location"),
+    ).toContain("e=invalid");
+    expect(calls.some((c) => c.fn === "mcp_portal_decide")).toBe(false);
+    const ok = await handlePortal(
+      await post(`/c/${ACCESS}`, { ...base, agree: "1" }, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(ok.headers.get("location")).toBe(`/c/${ACCESS}?s=billing&i=${PAY}&ok=approved`);
+    expect(calls.find((c) => c.fn === "mcp_portal_decide")!.args).toMatchObject({
+      _decision: "approved",
+      _choice: null,
+      _statement: statement,
+      _code_hash: await codeHash(ACCESS, "123456"),
+    });
+    const pm = mail.at(-1)!;
+    expect(pm).toMatchObject({
+      to: "pat@example.com",
+      subject: "Customer approved: Pay application 7",
+    });
+    expect(pm.text).toContain("Nothing in billing changed");
+    expect(pm.text).not.toContain("$");
+  });
+
+  it("declines a pay application without a code and shows the receipt once decided", async () => {
+    const { d, calls } = deps({ view: withPayApps() });
+    const csrf = await csrfFor(SESSION);
+    const r = await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        {
+          action: "decide",
+          item: PAY,
+          decision: "declined",
+          fingerprint: FP,
+          typed_name: "Rosa Delgado",
+          note: "Line 01 looks high",
+          csrf,
+        },
+        { cookie: true },
+      ),
+      ACCESS,
+      d,
+    );
+    expect(r.headers.get("location")).toBe(`/c/${ACCESS}?s=billing&i=${PAY}&ok=declined`);
+    expect(calls.find((c) => c.fn === "mcp_portal_decide")!.args).toMatchObject({
+      _decision: "declined",
+      _code_hash: null,
+      _statement: "I decline Pay application 7 from Northline Builders.",
+    });
+    const receipt = await (
+      await handlePortal(req(`/c/${ACCESS}?s=billing&i=${PAY_OLD}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(receipt).toContain('class="receipt"');
+    expect(receipt).toContain("With a code emailed to you");
+    expect(receipt).not.toContain('name="action" value="start"');
+  });
+
+  it("emails the customer that a pay application needs their approval", () => {
+    const m = noticeEmail({
+      to: "rosa@example.com",
+      name: "Rosa Delgado",
+      company: "Northline Builders",
+      jobName: "Harbor Point Dental",
+      link: `${ORIGIN}/c/${ACCESS}`,
+      kind: "decision",
+      label: "Pay application 7",
+      item: "pay_app",
+      nonce: "n",
+    });
+    expect(m.subject).toBe(
+      "Northline Builders sent a pay application for your approval: Pay application 7",
+    );
+    expect(m.text).toContain(
+      "Northline Builders sent pay application 7 for Harbor Point Dental. It needs your review and approval.",
+    );
+    expect(m.html).toContain("A pay application needs your approval");
   });
 });
 

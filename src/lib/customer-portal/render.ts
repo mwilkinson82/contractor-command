@@ -8,9 +8,11 @@ import { ATHENA_SUPPORT_MAILTO } from "../login-copy";
 import {
   approvalStatement,
   maskEmail,
+  payAppLabel,
   TIER_NAME,
   type ChangeOrderView,
   type InviteOpen,
+  type PayAppView,
   type PortalItem,
   type PortalPage,
 } from "./model";
@@ -22,6 +24,7 @@ export const PORTAL_SECTIONS = [
   "schedule",
   "changes",
   "selections",
+  "billing",
 ] as const;
 export type PortalSection = (typeof PORTAL_SECTIONS)[number];
 const SECTION_LABEL: Record<PortalSection, string> = {
@@ -31,6 +34,7 @@ const SECTION_LABEL: Record<PortalSection, string> = {
   schedule: "Schedule",
   changes: "Change orders",
   selections: "Selections",
+  billing: "Billing",
 };
 
 export const PORTAL_HEADERS: Record<string, string> = {
@@ -407,7 +411,8 @@ const FONTS_SIGNIN =
 
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
-  const css = kind === "signin" ? `${CSS}${SIGNIN_CSS}` : `${CSS}${PORTAL_CSS}${COMPARE_CSS}`;
+  const css =
+    kind === "signin" ? `${CSS}${SIGNIN_CSS}` : `${CSS}${PORTAL_CSS}${BILLING_CSS}${COMPARE_CSS}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap"><style>${css}</style></head><body>${body}</body></html>`;
 }
 
@@ -485,7 +490,16 @@ export type PortalOpts = {
 
 const open = (i: PortalItem) => i.decision === null;
 const itemLabel = (i: PortalItem) =>
-  i.kind === "change_order" ? `${i.view.number} · ${i.view.title}` : i.view.proposal.title;
+  i.kind === "change_order"
+    ? `${i.view.number} · ${i.view.title}`
+    : i.kind === "pay_app"
+      ? payAppLabel(i.view.number)
+      : i.view.proposal.title;
+const SECTION_OF: Record<PortalItem["kind"], PortalSection> = {
+  change_order: "changes",
+  selection: "selections",
+  pay_app: "billing",
+};
 const href = (p: PortalPage, section: PortalSection, extra: Record<string, string> = {}) => {
   const q = new URLSearchParams({ s: section, ...extra }).toString();
   return `/c/${p.access_id}?${q}`;
@@ -505,6 +519,7 @@ function nextMilestone(p: PortalPage) {
 const ICON = {
   change_order: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>`,
   selection: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>`,
+  pay_app: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M14 11.2c-.4-.6-1.1-.9-2-.9-1.1 0-2 .6-2 1.4s.9 1.2 2 1.4 2 .6 2 1.4-.9 1.4-2 1.4c-.9 0-1.6-.4-2-.9M12 9.3v1M12 15.9v1"/></svg>`,
 } as const;
 
 /** Whole days from today to a due date, for the "Reply by" chip. */
@@ -526,12 +541,15 @@ function decideBox(p: PortalPage): string {
     return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2></div><div class="done-box">You're all caught up. Nothing needs your decision right now.</div></section>`;
   const rows = waiting
     .map((i) => {
-      const section: PortalSection = i.kind === "change_order" ? "changes" : "selections";
+      const section = SECTION_OF[i.kind];
       const what =
         i.kind === "change_order"
           ? `Change order · ${usd(i.view.price_cents)} · ${days(i.view.schedule_days)}`
-          : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
-      const verb = i.kind === "change_order" ? "Reply" : "Choose";
+          : i.kind === "pay_app"
+            ? `Pay application · ${usd(i.view.totals.current_due_cents)} due`
+            : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
+      const verb =
+        i.kind === "change_order" ? "Reply" : i.kind === "pay_app" ? "Approve" : "Choose";
       return `<div class="cp-act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(itemLabel(i))}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
     })
     .join("");
@@ -654,7 +672,7 @@ function home(p: PortalPage): string {
     ? `<section class="panel"><div class="panel-head"><h2>Latest photos</h2><a class="meta" href="${esc(href(p, "photos"))}">See all ${shown.length}</a></div>${photoGrid(shown.slice(0, 2), "thumbs")}</section>`
     : "";
   const coming = `<section class="panel"><div class="panel-head"><h2>Coming up</h2><a class="meta" href="${esc(href(p, "schedule"))}">Schedule</a></div>${milestoneList(p, 4)}</section>`;
-  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p)}</div><aside class="rail">${contactPanel(p)}${photos}${coming}</aside></div>`;
+  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p)}</div><aside class="rail">${moneyPanel(p)}${contactPanel(p)}${photos}${coming}</aside></div>`;
 }
 
 function updates(p: PortalPage): string {
@@ -849,6 +867,199 @@ function selectionDetail(
   return `${back}<div class="stack">${done}<section class="panel gbb-panel">${compare}${foot ? `<div class="close-fine">${paras(foot)}</div>` : ""}</section></div>`;
 }
 
+// ---------- billing: shared pay applications ----------
+
+type PayApp = Extract<PortalItem, { kind: "pay_app" }>;
+
+/** Shared pay applications, newest period first. Only what was shared reaches the page. */
+const payApps = (p: PortalPage): PayApp[] =>
+  p.items
+    .filter((i): i is PayApp => i.kind === "pay_app")
+    .sort(
+      (a, b) =>
+        b.view.period_end.localeCompare(a.view.period_end) ||
+        b.shared_on.localeCompare(a.shared_on),
+    );
+const less = (c: number) => (c < 0 ? `+${usd(-c)}` : `−${usd(c)}`);
+const pctText = (n: number) => `${Number(n.toFixed(2))}%`;
+/** Share of a whole as a CSS width, kept between 0 and 100. */
+const width = (part: number, whole: number) =>
+  whole > 0 ? `${Math.max(0, Math.min(100, (part / whole) * 100)).toFixed(2)}%` : "0%";
+const period = (v: PayAppView) => `${longDate(v.period_start)} to ${longDate(v.period_end)}`;
+
+function payPill(i: PayApp, dated = false): string {
+  const d = i.decision;
+  if (!d) return `<span class="pill wait">Needs you</span>`;
+  const when = dated ? ` ${longDate(d.decided_at)}` : "";
+  return d.decision === "approved"
+    ? `<span class="pill ok">${esc(`Approved${when}`)}</span>`
+    : `<span class="pill neutral">${esc(`Declined${when}`)}</span>`;
+}
+
+/** The plain-words math: work done and stored, less what you hold back, less what you already approved. */
+function payMath(v: PayAppView): string {
+  const t = v.totals;
+  const held =
+    t.retainage_percent === null
+      ? "Held back (retainage)"
+      : `Held back, ${pctText(t.retainage_percent)} (retainage)`;
+  return `<dl class="pay-math"><div><dt>Work done and materials stored</dt><dd>${esc(usd(t.completed_and_stored_cents))}</dd></div><div class="cp-less"><dt>${esc(held)}<span>You keep it until the job is finished and accepted.</span></dt><dd>${esc(less(t.retainage_cents))}</dd></div><div class="cp-less"><dt>Already approved</dt><dd>${esc(less(t.previous_certified_cents))}</dd></div><div class="cp-total"><dt>Due now</dt><dd>${esc(usd(t.current_due_cents))}</dd></div></dl>`;
+}
+
+const LINE_LEGEND = `<ul class="cp-legend cp-inline" aria-hidden="true"><li><i class="cp-prev"></i>Before this bill</li><li><i class="cp-now"></i>This bill</li><li><i class="cp-stored"></i>Materials stored</li></ul>`;
+
+/** Each SOV line with a bar of what was billed before and what this bill adds. */
+function payLines(v: PayAppView): string {
+  const rows = v.lines
+    .map((l) => {
+      const pct = l.percent_complete === null ? null : pctText(l.percent_complete);
+      const bar =
+        l.scheduled_cents > 0
+          ? `<div class="cp-bar" role="img" aria-label="${esc(`${pct ?? "Not measured"} complete: ${usd(l.previous_cents)} before this bill, ${usd(l.this_period_cents)} this bill, ${usd(l.stored_cents)} materials stored`)}"><span class="cp-seg cp-prev" style="width:${width(l.previous_cents, l.scheduled_cents)}"></span><span class="cp-seg cp-now" style="width:${width(l.this_period_cents, l.scheduled_cents)}"></span><span class="cp-seg cp-stored" style="width:${width(l.stored_cents, l.scheduled_cents)}"></span></div>`
+          : "";
+      const meta = [
+        pct ? `${pct} complete` : null,
+        `this bill ${usd(l.this_period_cents)}`,
+        l.stored_cents ? `${usd(l.stored_cents)} materials stored` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return `<div class="cp-wl"><div class="cp-wl-top"><b>${esc(l.description || l.item)}</b><span class="cp-money">${esc(`${usd(l.completed_to_date_cents)} of ${usd(l.scheduled_cents)}`)}</span></div>${bar}<div class="cp-wl-meta">${esc(meta)}</div></div>`;
+    })
+    .join("");
+  return `${LINE_LEGEND}<div class="cp-wls">${rows}</div>`;
+}
+
+function contractCard(i: PayApp): string {
+  const v = i.view;
+  const rows = [
+    v.original_contract_cents !== null
+      ? `<div><dt>Original contract</dt><dd>${esc(usd(v.original_contract_cents))}</dd></div>`
+      : "",
+    v.approved_changes_cents !== null
+      ? `<div><dt>Approved change orders</dt><dd>${esc(signedUsd(v.approved_changes_cents))}</dd></div>`
+      : "",
+    `<div class="cp-total"><dt>Contract total</dt><dd>${esc(usd(v.contract_total_cents))}</dd></div>`,
+    `<div><dt>Work done and stored to date</dt><dd>${esc(usd(v.totals.completed_and_stored_cents))}</dd></div>`,
+    `<div><dt>Left to finish</dt><dd>${esc(usd(Math.max(0, v.contract_total_cents - v.totals.completed_and_stored_cents)))}</dd></div>`,
+  ].join("");
+  return `<section class="panel cp-contract"><div class="panel-head"><h2>Your contract</h2><span class="meta">${esc(`As of ${itemLabel(i)}`)}</span></div><dl class="cp-kv">${rows}</dl></section>`;
+}
+
+/** Home rail: the contract total and where the money stands, from shared pay applications only. */
+function moneyPanel(p: PortalPage): string {
+  const latest = payApps(p)[0];
+  if (!latest) return "";
+  const v = latest.view;
+  const t = v.totals;
+  const total = v.contract_total_cents;
+  const settled = latest.decision?.decision === "approved";
+  const approved = Math.max(0, t.previous_certified_cents + (settled ? t.current_due_cents : 0));
+  const bill = settled ? 0 : Math.max(0, t.current_due_cents);
+  const rest = Math.max(0, total - approved - bill);
+  const label = settled
+    ? "No bill waiting"
+    : latest.decision
+      ? "This bill (declined)"
+      : "This bill";
+  return `<section class="panel cp-money"><div class="panel-head"><h2>Money at a glance</h2><a class="meta" href="${esc(href(p, "billing"))}">Billing</a></div><p class="cp-big">${esc(usd(total))}<span>Contract total</span></p><div class="cp-bar cp-tall" role="img" aria-label="${esc(`Approved ${usd(approved)}, ${label.toLowerCase()} ${usd(bill)}, remaining ${usd(rest)}, of ${usd(total)}`)}"><span class="cp-seg cp-prev" style="width:${width(approved, total)}"></span><span class="cp-seg cp-now" style="width:${width(bill, total)}"></span><span class="cp-seg cp-rest" style="width:${width(rest, total)}"></span></div><ul class="cp-legend"><li><i class="cp-prev"></i><span>Approved</span><b>${esc(usd(approved))}</b></li><li><i class="cp-now"></i><span>${esc(label)}</span><b>${esc(usd(bill))}</b></li><li><i class="cp-rest"></i><span>Remaining</span><b>${esc(usd(rest))}</b></li></ul>${t.retainage_cents > 0 ? `<p class="fine cp-money-fine">${esc(`Remaining includes ${usd(t.retainage_cents)} held back (retainage) until the job is finished and accepted.`)}</p>` : ""}</section>`;
+}
+
+function billing(p: PortalPage): string {
+  const apps = payApps(p);
+  if (!apps.length)
+    return `<section class="panel"><div class="panel-head"><h2>Billing</h2></div><p class="empty">No pay applications shared with you yet.</p></section>`;
+  const latest = apps[0]!;
+  const v = latest.view;
+  const dueWord = latest.decision
+    ? latest.decision.decision === "approved"
+      ? "approved"
+      : "declined"
+    : "due now";
+  const head = `<section class="panel pay-card"><div class="pay-head"><div><p class="eyebrow">${esc(`Latest pay application · ${period(v)}`)}</p><h2>${esc(itemLabel(latest))}</h2></div>${payPill(latest)}</div><p class="pay-due">${esc(usd(v.totals.current_due_cents))}<span>${esc(dueWord)}</span></p>${latest.decision ? "" : dueChip(p, latest.due_on, "Approve")}${payMath(v)}<div class="form-actions"><a class="btn${latest.decision ? " secondary" : ""}" href="${esc(href(p, "billing", { i: latest.id }))}">${latest.decision ? "View" : "Review and approve"}</a></div></section>`;
+  const lines = `<section class="panel"><div class="panel-head"><h2>Work by line</h2><span class="meta">${esc(`Work through ${longDate(v.period_end)}`)}</span></div>${payLines(v)}</section>`;
+  const history = `<section class="panel"><div class="panel-head"><h2>Billing history</h2><span class="meta">${apps.length} ${apps.length === 1 ? "pay application" : "pay applications"}</span></div>${apps
+    .map(
+      (i) =>
+        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Work through ${longDate(i.view.period_end)} · shared ${longDate(i.shared_on)}`)}</div></div><div class="right"><span class="cp-money">${esc(usd(i.view.totals.current_due_cents))}</span>${payPill(i, true)}<a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">${i.decision ? "View" : "Review"}</a></div></div>`,
+    )
+    .join("")}</section>`;
+  return `<div class="grid-home"><div class="stack">${head}${lines}${history}</div><aside class="rail">${contractCard(latest)}${contactPanel(p)}</aside></div>`;
+}
+
+function payAppDetail(p: PortalPage, i: PayApp, o: PortalOpts): string {
+  const v = i.view;
+  const t = v.totals;
+  const label = itemLabel(i);
+  const back = `<p><a href="${esc(href(p, "billing"))}">All billing</a></p>`;
+  const statement = approvalStatement({
+    kind: "pay_app",
+    company: p.contractor.name,
+    label,
+    price: usd(t.current_due_cents),
+    periodEnd: longDate(v.period_end),
+  });
+  let side: string;
+  if (i.decision) side = receipt(i);
+  else if (o.step === "confirm")
+    side = `<form method="post" class="panel"><h2>${esc(`Approve ${label}`)}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>Due now</span><b>${esc(usd(t.current_due_cents))}</b></div><div><span>Work through</span><b>${esc(longDate(v.period_end))}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "approved", fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Approve pay application</button></div></form>`;
+  else if (o.step === "decline")
+    side = `<form method="post" class="panel"><h2>${esc(`Decline ${label}`)}</h2><p class="sub">${esc(p.contractor.name)} will see your note and follow up.</p>${hidden(p, { action: "decide", item: i.id, decision: "declined", fingerprint: i.fingerprint })}<div class="field"><label for="note">What doesn't look right? (optional)</label><textarea class="textarea" id="note" name="note" maxlength="2000"></textarea></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Decline pay application</button></div></form>`;
+  else
+    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "billing", { i: i.id, step: "decline" }))}">Decline</a><p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
+  const sum = `<dl class="co-sum"><div><dt>Due now</dt><dd>${esc(usd(t.current_due_cents))}</dd></div><div><dt>Work through</dt><dd>${esc(longDate(v.period_end))}</dd></div><div><dt>Approve by</dt><dd>${esc(i.due_on ? longDate(i.due_on) : "No date")}</dd></div></dl>`;
+  const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`Pay application · shared ${longDate(i.shared_on)} · ${period(v)}`)}</p><h2>${esc(label)}</h2></div>${payPill(i)}</div>${sum}<h4 class="pay-h">How this amount adds up</h4>${payMath(v)}</section><section class="panel"><div class="panel-head"><h2>Work by line</h2></div>${payLines(v)}</section>`;
+  return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}${contractCard(i)}</aside></div>`;
+}
+
+const BILLING_CSS = `
+/* Billing: pay applications in plain words. */
+.pay-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;align-items:start}
+.pay-card h2{font-size:22px;letter-spacing:-.025em}
+.pay-due{margin:16px 0 0;font-size:42px;line-height:1.05;font-weight:650;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.pay-due span{display:block;margin-top:6px;font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted)}
+.pay-card .due{margin-top:10px}
+.pay-h{margin-top:20px}
+.pay-math{margin:14px 0 0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pay-math div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 16px;border-top:1px solid var(--rule)}
+.pay-math div:first-child{border-top:0}
+.pay-math dt{color:var(--body);min-width:0}
+.pay-math dt span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+.pay-math dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pay-math .cp-total{background:var(--accent-soft)}
+.pay-math .cp-total dt,.pay-math .cp-total dd{color:var(--accent-ink);font-weight:700}
+.cp-legend{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px;font-size:13px}
+.cp-legend li{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center}
+.cp-legend span{color:var(--body)}
+.cp-legend b{font-weight:600;font-variant-numeric:tabular-nums}
+.cp-legend i{width:10px;height:10px;border-radius:3px;background:var(--line)}
+.cp-legend.cp-inline{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 10px;font-size:12px;color:var(--muted)}
+.cp-legend.cp-inline li{display:inline-flex;gap:6px}
+.cp-legend .cp-prev,.cp-bar .cp-prev{background:var(--ok-ink)}
+.cp-legend .cp-now,.cp-bar .cp-now{background:var(--accent)}
+.cp-legend .cp-stored,.cp-bar .cp-stored{background:#93b4f5}
+.cp-legend .cp-rest,.cp-bar .cp-rest{background:var(--line)}
+.cp-bar{display:flex;height:10px;margin-top:8px;border-radius:999px;background:var(--rule);overflow:hidden}
+.cp-bar.cp-tall{height:14px;margin-top:14px}
+.cp-bar .cp-seg{display:block;height:100%}
+.cp-wl{padding:12px 0;border-top:1px solid var(--rule)}
+.cp-wl:first-child{border-top:0;padding-top:0}
+.cp-wl-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.cp-wl-top b{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.cp-wl-meta{margin-top:6px;font-size:12.5px;color:var(--muted)}
+.cp-big{margin:0;font-size:30px;line-height:1.1;font-weight:650;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.cp-big span{display:block;margin-top:4px;font-size:12.5px;font-weight:500;letter-spacing:0;color:var(--muted)}
+.cp-money-fine{margin-top:12px!important}
+.cp-kv{margin:0;display:grid}
+.cp-kv div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--rule);font-size:13.5px}
+.cp-kv div:first-child{border-top:0;padding-top:0}
+.cp-kv dt{color:var(--body)}
+.cp-kv dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cp-kv .cp-total dt,.cp-kv .cp-total dd{color:var(--ink);font-weight:700}
+@media (max-width:1000px){.pay-due{font-size:36px}.pay-card h2{font-size:20px}.cp-big{font-size:27px}.pay-math div{padding:11px 14px}.cp-wl-top{gap:10px}.cp-legend{gap:7px}.cp-kv div{font-size:13px}}
+@media (max-width:640px){.pay-head{grid-template-columns:minmax(0,1fr)}.pay-head .pill{justify-self:start}.pay-due{font-size:30px}.pay-card h2{font-size:18px}.cp-big{font-size:24px}.pay-math div{padding:10px 12px;gap:10px}.pay-math dt span{font-size:11.5px}.cp-wl-top{flex-direction:column;gap:2px}.cp-wl-meta{font-size:12px}.cp-legend.cp-inline{gap:4px 12px}.cp-bar.cp-tall{height:12px}.cp-kv div{gap:8px}}
+`;
+
 function body(p: PortalPage, o: PortalOpts): string {
   const it = o.item ? p.items.find((x) => x.id === o.item) : null;
   switch (o.section) {
@@ -862,6 +1073,8 @@ function body(p: PortalPage, o: PortalOpts): string {
       return it?.kind === "change_order" ? changeOrderDetail(p, it, o) : changeOrderList(p);
     case "selections":
       return it?.kind === "selection" ? selectionDetail(p, it, o) : selectionsList(p);
+    case "billing":
+      return it?.kind === "pay_app" ? payAppDetail(p, it, o) : billing(p);
     default:
       return home(p);
   }
@@ -915,6 +1128,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
   const count: Partial<Record<PortalSection, number>> = {
     changes: waitingBy("change_order"),
     selections: waitingBy("selection"),
+    billing: waitingBy("pay_app"),
   };
   const tabs = PORTAL_SECTIONS.map(
     (s) =>
