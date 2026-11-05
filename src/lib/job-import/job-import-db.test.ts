@@ -97,6 +97,7 @@ beforeAll(async () => {
   );
   await load("20261105100000_athena_job_logs");
   await load("20261105210000_athena_job_import_completion");
+  await load("20261105211000_athena_job_import_replace_schedule");
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
