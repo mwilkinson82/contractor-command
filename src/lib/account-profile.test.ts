@@ -5,12 +5,28 @@ import {
   draftFrom,
   nameChanged,
   profileSaveError,
+  paymentsStep,
   setupSteps,
   validateProfile,
   type CompanyProfile,
 } from "./account-profile";
+import type { ClientPaymentsState } from "./client-payments/account-view";
 import { accountLinkCard, accountSection, accountUrl } from "./mcp/tools/account-tools";
 import { inviteEmailNote } from "@/components/account/athena-team-section";
+
+function payState(over: Partial<ClientPaymentsState>): ClientPaymentsState {
+  return {
+    can_manage: true,
+    mode: "test",
+    test: { connected: false, status: "not_connected" },
+    live: { connected: false, status: "not_connected" },
+    ready: false,
+    card_enabled: true,
+    bank_enabled: true,
+    card_max_cents: 2_500_000,
+    ...over,
+  };
+}
 
 const saved: CompanyProfile = {
   id: "c1",
@@ -56,7 +72,7 @@ describe("company profile on the account page", () => {
     expect(companyInitials("Ridgeline Electric Co")).toBe("RE");
     expect(companyInitials("")).toBe("A");
   });
-  it("counts setup steps, with payments shown but not yet counted", () => {
+  it("counts setup steps, with client payments not set up until Stripe is linked", () => {
     const steps = setupSteps({
       profile: { ...saved, logo_url: "https://x.example/logo.png" },
       members: 1,
@@ -65,9 +81,42 @@ describe("company profile on the account page", () => {
     expect(steps.map((s) => [s.id, s.done, !!s.soon])).toEqual([
       ["profile", true, false],
       ["team", true, false],
-      ["payments", false, true],
+      ["payments", false, false],
     ]);
     expect(setupSteps({ profile: saved, members: 1, pending: 0 })[0].done).toBe(false);
+  });
+  it("shows client payments as not set up, with a way into the payments section", () => {
+    for (const payments of [undefined, null, payState({})]) {
+      const step = paymentsStep(payments);
+      expect(step).toMatchObject({ done: false, href: "#payments", action: "Set up" });
+      expect(step.detail).toMatch(/^Not set up\./);
+      expect(step.detail).not.toMatch(/soon/i);
+      expect(step.soon).toBeUndefined();
+    }
+  });
+  it("shows client payments as connected once Stripe is linked, in test or live", () => {
+    const test = paymentsStep(
+      payState({ test: { connected: true, status: "ready" }, ready: true }),
+    );
+    expect(test).toMatchObject({ done: true, doneLabel: "Connected" });
+    expect(test.detail).toBe("Stripe connected in test mode. No real money moves yet");
+    const live = paymentsStep(
+      payState({ mode: "live", live: { connected: true, status: "ready" }, ready: true }),
+    );
+    expect(live).toMatchObject({ done: true, doneLabel: "Connected" });
+    expect(live.detail).toBe("Stripe connected. Clients can pay approved pay apps");
+    const pending = paymentsStep(
+      payState({ test: { connected: true, status: "action_required" } }),
+    );
+    expect(pending).toMatchObject({ done: true, doneLabel: "Connected" });
+    expect(pending.detail).toBe("Stripe connected. Stripe needs more from you");
+    const steps = setupSteps({
+      profile: saved,
+      members: 2,
+      pending: 0,
+      payments: payState({ test: { connected: true, status: "ready" }, ready: true }),
+    });
+    expect(steps.filter((s) => s.done).map((s) => s.id)).toEqual(["team", "payments"]);
   });
 });
 
