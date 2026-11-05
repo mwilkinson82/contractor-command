@@ -1,4 +1,9 @@
-import { accountingMoney, sumCents, type AccountingReport } from "./accounting-report";
+import {
+  accountingMoney,
+  accountingRowKindLabel,
+  sumCents,
+  type AccountingReport,
+} from "./accounting-report";
 import { apMoney, type ApCostRow } from "./accounting-ap-versioned";
 
 export const REPORT_TYPES = {
@@ -145,7 +150,7 @@ export function readableAccountingReport(
           ]).map((r) => [
             r.label,
             r.date ?? "Unknown",
-            r.kind.replaceAll("_", " "),
+            accountingRowKindLabel(r.kind),
             accountingMoney(r.amountCents),
             r.source,
           ]),

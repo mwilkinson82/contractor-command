@@ -252,8 +252,8 @@ describe("integrated accounting presentation and export reconciliation", () => {
     const r = report("2026-10-01");
     expect(r.ap!.rows.filter((x) => x.currency === "USD").map((x) => x.version)).toEqual([2, 2]);
     const costs = readableAccountingReport(r, "costs");
-    expect(costs.metrics[0].amount).toBe("USD 180.00");
-    expect(costs.metrics[1].amount).toBe("USD 180.00");
+    expect(costs.metrics[0].amount).toBe("$180.00");
+    expect(costs.metrics[1].amount).toBe("$180.00");
     expect(r.metrics.find((m) => m.key === "commitments")!.cents).toBe(20000);
     expect(
       readableAccountingReport(r, "summary").metrics.find((m) => m.label.includes("commitments"))
@@ -329,7 +329,7 @@ describe("integrated accounting presentation and export reconciliation", () => {
         "/r/job/private-evidence",
         "Posted AP allocations",
         "Current saved cost budget",
-        "USD 180.00",
+        "$180.00",
         "CAD 225.00",
       ])
         expect(content).not.toContain(forbidden);

@@ -656,6 +656,26 @@ export function accountingSourceUrl(report: AccountingReport, rowId: string): st
   });
   return `https://app.meetathena.io/r/job/${report.jobId}/accounting?${query}#${encodeURIComponent(rowId)}`;
 }
+const ROW_KIND_LABELS: Record<string, string> = {
+  billed: "Invoice / pay application",
+  credit: "Credit",
+  receipt: "Payment received",
+  receipt_reversal: "Payment received, reversed",
+  allocation: "Payment applied to invoice",
+  allocation_reversal: "Payment application reversed",
+  posted_cost: "Cost posted",
+  payable: "Bill balance owed",
+  settlement_evidence: "Payment made",
+  corrected_settlement: "Payment made, corrected",
+  commitment: "Purchase order",
+};
+/** Plain words for a ledger row's type ("Payment made"), never the internal key. */
+export function accountingRowKindLabel(kind: string): string {
+  if (ROW_KIND_LABELS[kind]) return ROW_KIND_LABELS[kind];
+  if (kind.startsWith("excluded_")) return `Not counted (${kind.slice(9).replaceAll("_", " ")})`;
+  const words = kind.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 export const accountingMoney = (n: number | null) => {
   if (n === null) return "Unknown";
   const value = BigInt(n),

@@ -210,7 +210,7 @@ describe("selected financial record reads", () => {
     });
     expect(detail.title).toBe("SYN-I01 · v4");
     expect(detail.subtitle).toContain("historical version; current is v5");
-    expect(detail.facts).toContainEqual(["net due", "USD 500.00"]);
+    expect(detail.facts).toContainEqual(["Net due", "$500.00"]);
     expect(detail.originals.map((d) => d.filename)).toEqual(["synthetic-v4.pdf"]);
     expect(detail.related.some((l) => l.target.id === credit)).toBe(true);
     expect(
@@ -253,7 +253,7 @@ describe("selected financial record reads", () => {
     });
     expect(detail.title).toBe("SYN-B01 · v1");
     expect(detail.subtitle).toContain("current v2; posted v1");
-    expect(detail.facts).toContainEqual(["amount", "CAD 123.45"]);
+    expect(detail.facts).toContainEqual(["Amount", "CAD 123.45"]);
     expect(source.rpc).toHaveBeenCalledWith("mcp_ap_original_list", {
       _job: job,
       _record: payable,
@@ -307,13 +307,26 @@ describe("selected financial record reads", () => {
     });
     expect(detail.title).toContain("SYN-P01");
     expect(detail.subtitle).toContain("corrected");
-    expect(source.rpc).toHaveBeenCalledExactlyOnceWith("mcp_cost_payment_correction", {
+    expect(source.rpc).toHaveBeenNthCalledWith(1, "mcp_cost_payment_correction", {
       _job: job,
       _step: "read",
       _p: { id: payable, payment_id: payment },
       _review: null,
       _confirmed: false,
     });
+    // Only reads: the bill's own trail, its originals and any attached proof.
+    for (const [name] of source.rpc.mock.calls)
+      expect([
+        "mcp_cost_payment_correction",
+        "mcp_cost_submission_read",
+        "mcp_ap_original_list",
+        "mcp_cost_payment_proof_list",
+        "mcp_project_purchase_orders_get",
+      ]).toContain(name);
+    expect(
+      source.rpc.mock.calls.filter(([name]) => name === "mcp_cost_payment_correction"),
+    ).toHaveLength(1);
+    expect(detail.facts).toContainEqual(["Amount paid", "CAD 10.00"]);
     expect(detail.related[0].target.version).toBe(2);
   });
   it.each(["invoice", "payable", "payment"] as const)(

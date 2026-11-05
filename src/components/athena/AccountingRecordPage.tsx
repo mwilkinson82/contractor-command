@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import {
   type RecordIO,
 } from "@/lib/accounting-record-read";
 import { AccountingWorkspace } from "./AccountingWorkspace";
+import { PaymentTrailView, type TrailDocument } from "./PaymentTrailView";
 import { BoardSignIn } from "./BoardSignIn";
 
 function Facts({ facts }: { facts: RecordDetail["facts"] }) {
@@ -23,15 +24,83 @@ function Facts({ facts }: { facts: RecordDetail["facts"] }) {
     </dl>
   );
 }
+/** Owner/AP only: pick a PDF, JPEG or PNG and attach it to the payment shown. */
+export function AttachProof({
+  onFile,
+  busy,
+  message,
+}: {
+  onFile: (file: File) => void;
+  busy: boolean;
+  message?: string;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="pt-attach">
+      <input
+        ref={input}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          e.target.value = "";
+        }}
+      />
+      <button
+        type="button"
+        className="pt-btn pt-btn-secondary"
+        disabled={busy}
+        onClick={() => input.current?.click()}
+      >
+        {busy ? "Attaching…" : "Attach proof of payment"}
+      </button>
+      <p className="pt-attach-hint">
+        Check image, wire confirmation or remittance. PDF, JPEG or PNG, up to 10 MB.
+      </p>
+      {message && (
+        <p className="pt-attach-msg" role="status">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
 export function AccountingRecordView({
+  detail,
+  download,
+  attach,
+}: {
+  detail: RecordDetail;
+  download?: (doc: TrailDocument, kind: "original" | "proof") => void;
+  attach?: ReactNode;
+}) {
+  if (detail.trail)
+    return (
+      <div className="grid gap-4">
+        <PaymentTrailView trail={detail.trail} download={download} attach={attach} />
+        <details className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+          <summary className="cursor-pointer font-semibold">Full record details</summary>
+          <RecordDetails detail={detail} download={download} />
+        </details>
+      </div>
+    );
+  return (
+    <article aria-label="Selected financial record" className="rounded-xl bg-white p-4 sm:p-6">
+      <RecordDetails detail={detail} download={download} />
+    </article>
+  );
+}
+function RecordDetails({
   detail,
   download,
 }: {
   detail: RecordDetail;
-  download?: (id: string, filename: string) => void;
+  download?: (doc: TrailDocument, kind: "original" | "proof") => void;
 }) {
   return (
-    <article aria-label="Selected financial record" className="rounded-xl bg-white p-4 sm:p-6">
+    <>
       <p className="mt-2 text-sm">{detail.subtitle}</p>
       <Facts facts={detail.facts} />
       <section className="mt-6">
@@ -60,7 +129,7 @@ export function AccountingRecordView({
                   type="button"
                   className="underline py-2"
                   disabled={!download}
-                  onClick={() => download?.(d.id, d.filename)}
+                  onClick={() => download?.(d, "original")}
                 >
                   {d.filename}
                   {d.version ? ` · v${d.version}` : ""}
@@ -90,7 +159,7 @@ export function AccountingRecordView({
           <p>No additional history recorded.</p>
         )}
       </section>
-    </article>
+    </>
   );
 }
 export function AccountingRecordPage({
@@ -106,6 +175,8 @@ export function AccountingRecordPage({
 }) {
   const { session, loading } = useAuth();
   const [downloadError, setDownloadError] = useState("");
+  const [attaching, setAttaching] = useState(false);
+  const [attachMessage, setAttachMessage] = useState("");
   const query = useQuery({
     queryKey: ["accounting-record", jobId, session?.user.id, target],
     enabled: !loading && !!session && !!target && !invalid,
@@ -151,13 +222,25 @@ export function AccountingRecordPage({
         }
       />
     );
-  async function download(id: string, filename: string) {
+  async function download(doc: TrailDocument, kind: "original" | "proof") {
+    const { id, filename } = doc;
     setDownloadError("");
     try {
       const q = new URLSearchParams({ job: jobId, document: id });
-      if (target!.kind === "payable") {
-        q.set("ap_record", target!.id);
-        const v = query.data?.originals.find((d) => d.id === id)?.version;
+      const billId =
+        target!.kind === "payable"
+          ? target!.id
+          : target!.kind === "payment"
+            ? target!.payableId
+            : undefined;
+      if (kind === "proof") q.set("payment_proof", "1");
+      else if (billId) {
+        q.set("ap_record", billId);
+        const v =
+          doc.version ??
+          (target!.kind === "payable"
+            ? query.data?.originals.find((d) => d.id === id)?.version
+            : undefined);
         if (!v) throw new Error("Original version unavailable.");
         q.set("version", String(v));
       }
@@ -173,6 +256,45 @@ export function AccountingRecordPage({
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       setDownloadError(e instanceof Error ? e.message : "Original unavailable.");
+    }
+  }
+  async function attachProof(file: File) {
+    const proofTarget = query.data?.proofTarget;
+    if (!proofTarget) return;
+    setAttaching(true);
+    setAttachMessage("");
+    try {
+      const q = new URLSearchParams({
+        job: jobId,
+        record: proofTarget.recordId,
+        payment: proofTarget.paymentId,
+        filename: file.name,
+      });
+      const response = await fetch(`/api/payment-proof?${q}`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${session!.access_token}`,
+          "content-type": file.type || "application/octet-stream",
+        },
+        body: file,
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        stored?: boolean;
+        duplicate?: boolean;
+        message?: string;
+      };
+      if (!response.ok || !body.stored)
+        throw new Error(body.message || "The proof could not be attached. Nothing was linked.");
+      setAttachMessage(
+        body.duplicate
+          ? "That file was already attached to this payment."
+          : `Attached ${file.name}.`,
+      );
+      await query.refetch();
+    } catch (e) {
+      setAttachMessage(e instanceof Error ? e.message : "The proof could not be attached.");
+    } finally {
+      setAttaching(false);
     }
   }
   return (
@@ -195,7 +317,7 @@ export function AccountingRecordPage({
         Record history is read now; this is not a historical accounting close. Recorded payment
         evidence does not verify a bank transfer.
       </p>
-      {query.isFetching ? (
+      {query.isFetching && !query.data ? (
         <p role="status">Reading selected record…</p>
       ) : query.error ? (
         <p role="alert">
@@ -205,7 +327,16 @@ export function AccountingRecordPage({
       ) : query.data ? (
         <AccountingRecordView
           detail={query.data}
-          download={(id, name) => void download(id, name)}
+          download={(doc, kind) => void download(doc, kind)}
+          attach={
+            query.data.proofTarget ? (
+              <AttachProof
+                busy={attaching}
+                message={attachMessage}
+                onFile={(f) => void attachProof(f)}
+              />
+            ) : undefined
+          }
         />
       ) : null}
       {downloadError && <p role="alert">{downloadError}</p>}

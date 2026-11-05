@@ -66,7 +66,7 @@ export const paymentApplicationRead = defineTool({
           {
             ...text(
               s
-                ? `${working ? "Working application" : s.body.number} · ${working ? s.working_state : s.body.state} · version ${s.version}\nPeriod ${s.body.period_start} through ${s.body.period_end}.\nCurrent application: ${appMoney(s.calculation.payment_due_cents)} USD.\nOpen saved application: ${url}`
+                ? `${working ? "Working application" : s.body.number} · ${working ? s.working_state : s.body.state} · version ${s.version}\nPeriod ${s.body.period_start} through ${s.body.period_end}.\nCurrent application: ${appMoney(s.calculation.payment_due_cents)}.\nOpen saved application: ${url}`
                 : `Payment applications for job ${job.job_number}.\nOpen applications: ${url}${data.snapshot_issue ? `\nBefore preparing: ${data.snapshot_issue}` : ""}\nNo new application was saved.`,
             ),
             structuredContent: {
@@ -127,7 +127,7 @@ export const paymentApplicationRecord = defineTool({
           return guide(
             {
               ...text(
-                `Review ${args.application.number} · ${args.application.state}\n${args.application.period_start} through ${args.application.period_end}\nCurrent requested amount: ${appMoney(review.calculation.payment_due_cents)} USD.\n${review.billing_effect}\n${review.calculation.issues.length ? `Needed: ${review.calculation.issues.join("\n")}` : "All required inputs are present."}\nConfirm this application to save it.`,
+                `Review ${args.application.number} · ${args.application.state}\n${args.application.period_start} through ${args.application.period_end}\nCurrent requested amount: ${appMoney(review.calculation.payment_due_cents)}.\n${review.billing_effect}\n${review.calculation.issues.length ? `Needed: ${review.calculation.issues.join("\n")}` : "All required inputs are present."}\nConfirm this application to save it.`,
               ),
               structuredContent: review as never,
             },

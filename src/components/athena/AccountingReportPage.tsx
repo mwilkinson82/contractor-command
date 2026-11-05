@@ -11,6 +11,7 @@ import {
   accountingCsv,
   accountingSourceUrl,
   accountingMoney,
+  accountingRowKindLabel,
   accountingPage,
   type AccountingReport,
 } from "@/lib/accounting-report";
@@ -287,7 +288,7 @@ export function AccountingReportView({
                     )}
                   </th>
                   <td className="p-2">
-                    {r.kind.replaceAll("_", " ")}
+                    {accountingRowKindLabel(r.kind)}
                     {r.costCode ? ` · ${r.costCode}` : ""}
                     {r.category ? ` · ${r.category}` : ""}
                   </td>
