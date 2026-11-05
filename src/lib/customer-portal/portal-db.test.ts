@@ -1514,3 +1514,325 @@ describe.sequential("client messages", () => {
     await expect(tool({ job_number: "2716", action: "messages_list" }, outsider)).rejects.toThrow();
   });
 });
+
+describe.sequential("client payments", () => {
+  const sessionP = "P".repeat(43);
+  let sessP = "";
+  let accessP = "";
+  let item = "";
+  let app = "";
+  const acct = "acct_1TestNorthline";
+  const pay = (sess = sessP) => server("mcp_portal_pay_start", [accessP, sess, item]);
+  const update = (
+    sessionId: string,
+    status: string,
+    pi: string | null = null,
+    amount: number | null = null,
+    account = acct,
+  ) =>
+    server("mcp_portal_pay_update", [
+      sessionId,
+      account,
+      status,
+      pi,
+      pi ? "ch_" + pi.slice(3) : null,
+      pi ? "us_bank_account" : null,
+      amount,
+      pi ? 3375 : null,
+      pi ? "2026-11-06T15:00:00Z" : null,
+    ]);
+
+  beforeAll(async () => {
+    await db.exec(
+      readFileSync("supabase/migrations/20261105190000_athena_client_payments.sql", "utf8"),
+    );
+    // The approved pay application from the pay application tests, and Rosa's access on that job.
+    const r = await db.query<{ id: string; ref_id: string; access_id: string }>(
+      `SELECT i.id, i.ref_id, d.access_id FROM mcp_portal_items i JOIN mcp_portal_decisions d ON d.item_id = i.id
+        WHERE i.job_id = $1 AND i.kind = 'pay_app' AND d.decision = 'approved' ORDER BY i.shared_at DESC LIMIT 1`,
+      [job2],
+    );
+    item = r.rows[0]!.id;
+    app = r.rows[0]!.ref_id;
+    accessP = r.rows[0]!.access_id;
+    sessP = await tokenHash(sessionP);
+    await db.query(
+      "INSERT INTO mcp_portal_sessions(access_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 day')",
+      [accessP, sessP],
+    );
+  });
+
+  it("lets only an owner connect, and shows members the setup without account ids", async () => {
+    await expect(
+      server("mcp_client_payments_account_save", [company, "test", acct, "action_required", pm]),
+    ).rejects.toThrow(/owner/);
+    expect(await member("mcp_client_payments_get", [company], pm)).toMatchObject({
+      can_manage: false,
+      test: { connected: false, status: "not_connected" },
+      ready: false,
+    });
+    await server("mcp_client_payments_account_save", [
+      company,
+      "test",
+      acct,
+      "action_required",
+      owner,
+    ]);
+    await expect(
+      server("mcp_client_payments_account_save", [
+        company,
+        "test",
+        "acct_1Someoneelse",
+        "ready",
+        owner,
+      ]),
+    ).rejects.toThrow(/already has/);
+    const got = await member("mcp_client_payments_get", [company]);
+    expect(got).toMatchObject({
+      can_manage: true,
+      mode: "test",
+      test: { connected: true, status: "action_required" },
+    });
+    expect(JSON.stringify(got)).not.toContain("acct_");
+    await expect(member("mcp_client_payments_get", [company], outsider)).rejects.toThrow();
+    await expect(
+      member("mcp_client_payments_settings", [company, false, true, 500000], pm),
+    ).rejects.toThrow(/owner/);
+    await expect(
+      member("mcp_client_payments_settings", [company, false, false, 500000]),
+    ).rejects.toThrow(/one way/);
+    expect(
+      await member("mcp_client_payments_settings", [company, true, true, 500000]),
+    ).toMatchObject({
+      card_max_cents: 500000,
+    });
+    await expect(server("mcp_client_payments_set_mode", [company, "live", owner])).rejects.toThrow(
+      /live setup/,
+    );
+  });
+
+  it("takes payment only once Stripe says the account is ready, on an approved pay app", async () => {
+    expect(await pay()).toEqual({ status: "not_accepting" });
+    expect(await pay(hex(9))).toEqual({ status: "signed_out" });
+    expect(
+      await server("mcp_client_payments_account_status", [acct, false, "ready"]),
+    ).toMatchObject({
+      status: "ok",
+      company_id: company,
+    });
+    expect(
+      await server("mcp_client_payments_account_status", ["acct_1Unknown", false, "ready"]),
+    ).toEqual({
+      status: "unknown_account",
+    });
+    const start = await pay();
+    // $13,500.00 is over the $5,000 card limit, so only bank is offered.
+    expect(start).toMatchObject({
+      status: "ok",
+      mode: "test",
+      account_id: acct,
+      amount_cents: 1350000,
+      card: false,
+      bank: true,
+      label: "Payment Application 7",
+      open_session: null,
+    });
+    const state = await server("mcp_portal_payments_state", [accessP, sessP]);
+    expect(state).toMatchObject({ status: "ok", accepting: true, test: true, payments: [] });
+  });
+
+  it("books a bank payment once: processing, then paid, applied to the pay application", async () => {
+    await server("mcp_portal_pay_opened", [
+      item,
+      accessP,
+      "test",
+      acct,
+      "cs_test_first",
+      ["us_bank_account"],
+      1350000,
+      3375,
+    ]);
+    expect((await pay()).open_session).toMatchObject({ checkout_session_id: "cs_test_first" });
+    // A new session replaces the open one.
+    await server("mcp_portal_pay_opened", [
+      item,
+      accessP,
+      "test",
+      acct,
+      "cs_test_second",
+      ["us_bank_account"],
+      1350000,
+      3375,
+    ]);
+    expect(
+      (
+        await db.query(
+          "SELECT checkout_session_id, status FROM mcp_portal_payments WHERE item_id=$1 ORDER BY created_at",
+          [item],
+        )
+      ).rows,
+    ).toEqual([
+      { checkout_session_id: "cs_test_first", status: "expired" },
+      { checkout_session_id: "cs_test_second", status: "open" },
+    ]);
+    await expect(update("cs_test_second", "paid", "pi_test_second", 1349999)).rejects.toThrow(
+      /amount/,
+    );
+    await expect(
+      update("cs_test_second", "paid", "pi_test_second", 1350000, "acct_1Other"),
+    ).rejects.toThrow(/account/);
+    expect(await update("cs_test_second", "processing", "pi_test_second", 1350000)).toMatchObject({
+      status: "changed",
+      payment_status: "processing",
+      booked: false,
+    });
+    expect((await pay()).status).toBe("already_paid");
+    const paid = await update("cs_test_second", "paid", "pi_test_second", 1350000);
+    expect(paid).toMatchObject({
+      status: "changed",
+      payment_status: "paid",
+      was: "processing",
+      booked: true,
+      applied: true,
+      customer: "Rosa Delgado",
+      job_number: "2716",
+      test: true,
+    });
+    expect((await update("cs_test_second", "paid", "pi_test_second", 1350000)).status).toBe(
+      "unchanged",
+    );
+    const receipt = (
+      await db.query<Row>(
+        "SELECT amount_cents, source FROM mcp_billing_receipts WHERE job_id=$1 AND source LIKE 'Client page payment%'",
+        [job2],
+      )
+    ).rows;
+    expect(receipt).toEqual([
+      {
+        amount_cents: 1350000,
+        source: "Client page payment pi_test_second (Stripe test mode) for Payment Application 7",
+      },
+    ]);
+    expect(
+      (
+        await db.query(
+          "SELECT amount_cents FROM mcp_billing_allocations WHERE invoice_id=$1 AND reversal_of IS NULL",
+          [app],
+        )
+      ).rows,
+    ).toEqual([{ amount_cents: 1350000 }]);
+    const state = await server("mcp_portal_payments_state", [accessP, sessP]);
+    expect(state.payments).toEqual([
+      expect.objectContaining({
+        item_id: item,
+        status: "paid",
+        method: "us_bank_account",
+        amount_cents: 1350000,
+        test: true,
+      }),
+    ]);
+    const board = await member("mcp_job_payments_list", [job2]);
+    expect(board[0]).toMatchObject({
+      status: "paid",
+      fee_cents: 3375,
+      customer: "Rosa Delgado",
+      label: "Payment Application 7",
+    });
+    await expect(member("mcp_job_payments_list", [job2], outsider)).rejects.toThrow();
+  });
+
+  it("reverses only the new part of a refund, off the pay application and then the receipt", async () => {
+    expect(await server("mcp_portal_pay_refunded", ["pi_test_unknown", acct, 100])).toEqual({
+      status: "unknown_payment",
+    });
+    expect(await server("mcp_portal_pay_refunded", ["pi_test_second", acct, 50000])).toMatchObject({
+      status: "changed",
+      payment_status: "partially_refunded",
+      refunded_cents: 50000,
+    });
+    expect((await server("mcp_portal_pay_refunded", ["pi_test_second", acct, 50000])).status).toBe(
+      "unchanged",
+    );
+    expect(
+      await server("mcp_portal_pay_refunded", ["pi_test_second", acct, 1350000]),
+    ).toMatchObject({
+      payment_status: "refunded",
+      refunded_cents: 1300000,
+    });
+    const alloc = await db.query<{ n: string }>(
+      "SELECT sum(CASE WHEN reversal_of IS NULL THEN amount_cents ELSE -amount_cents END)::text AS n FROM mcp_billing_allocations WHERE invoice_id=$1",
+      [app],
+    );
+    expect(alloc.rows[0]!.n).toBe("0");
+    const rev = await db.query<{ n: string }>(
+      "SELECT sum(r.amount_cents)::text AS n FROM mcp_billing_receipt_reversals r JOIN mcp_billing_receipts b ON b.id=r.receipt_id WHERE b.source LIKE 'Client page payment pi_test_second%'",
+    );
+    expect(rev.rows[0]!.n).toBe("1350000");
+    await expect(
+      server("mcp_portal_pay_refunded", ["pi_test_second", acct, 1350001]),
+    ).rejects.toThrow(/range/);
+  });
+
+  it("handles each Stripe event once, and keeps payments out of members' direct reach", async () => {
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("fresh");
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("busy");
+    await server("mcp_stripe_connect_event_finish", ["evt_test_1", false]);
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("fresh");
+    await server("mcp_stripe_connect_event_finish", ["evt_test_1", true]);
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("done");
+    for (const fn of [
+      ["mcp_portal_pay_update", ["cs_test_second", acct, "paid", "pi_x", null, null, 1, 0, null]],
+      ["mcp_portal_pay_refunded", ["pi_test_second", acct, 1]],
+      ["mcp_client_payments_account_save", [company, "test", acct, "ready", owner]],
+      ["mcp_stripe_connect_event_claim", ["evt_test_2", "x", false, null]],
+    ] as const)
+      await expect(member(fn[0], [...fn[1]])).rejects.toThrow();
+    await expect(as(owner)("SELECT * FROM mcp_portal_payments")).rejects.toThrow();
+    await expect(as(owner)("SELECT * FROM mcp_company_payments")).rejects.toThrow();
+  });
+
+  it("applies twice, rolls back cleanly and applies again", async () => {
+    const up = readFileSync(
+      "supabase/migrations/20261105190000_athena_client_payments.sql",
+      "utf8",
+    );
+    const down = readFileSync(
+      "supabase/rollbacks/20261105190000_athena_client_payments.rollback.sql",
+      "utf8",
+    );
+    await db.exec(`BEGIN; ${up}; COMMIT;`);
+    await db.exec(`BEGIN; ${down}; COMMIT;`);
+    expect(
+      (await db.query("SELECT to_regclass('public.mcp_portal_payments') AS t")).rows[0],
+    ).toEqual({ t: null });
+    await db.exec(`BEGIN; ${up}; COMMIT;`);
+  });
+});
