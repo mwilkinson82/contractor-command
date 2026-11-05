@@ -2586,6 +2586,56 @@ export type Database = {
           },
         ]
       }
+      mcp_company_payments: {
+        Row: {
+          account_live: string | null
+          account_test: string | null
+          bank_enabled: boolean
+          card_enabled: boolean
+          card_max_cents: number
+          company_id: string
+          connected_by: string
+          mode: string
+          status_live: string
+          status_test: string
+          updated_at: string
+        }
+        Insert: {
+          account_live?: string | null
+          account_test?: string | null
+          bank_enabled?: boolean
+          card_enabled?: boolean
+          card_max_cents?: number
+          company_id: string
+          connected_by: string
+          mode?: string
+          status_live?: string
+          status_test?: string
+          updated_at?: string
+        }
+        Update: {
+          account_live?: string | null
+          account_test?: string | null
+          bank_enabled?: boolean
+          card_enabled?: boolean
+          card_max_cents?: number
+          company_id?: string
+          connected_by?: string
+          mode?: string
+          status_live?: string
+          status_test?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_company_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_contract_clauses: {
         Row: {
           category: string
@@ -7149,6 +7199,121 @@ export type Database = {
           },
         ]
       }
+      mcp_portal_payments: {
+        Row: {
+          access_id: string
+          account_id: string
+          allocation_id: string | null
+          amount_cents: number
+          charge_id: string | null
+          checkout_session_id: string
+          company_id: string
+          created_at: string
+          fee_cents: number
+          id: string
+          item_id: string
+          job_id: string
+          method: string | null
+          methods: string[]
+          mode: string
+          paid_at: string | null
+          payment_intent_id: string | null
+          receipt_id: string | null
+          refunded_cents: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_id: string
+          account_id: string
+          allocation_id?: string | null
+          amount_cents: number
+          charge_id?: string | null
+          checkout_session_id: string
+          company_id: string
+          created_at?: string
+          fee_cents?: number
+          id?: string
+          item_id: string
+          job_id: string
+          method?: string | null
+          methods: string[]
+          mode: string
+          paid_at?: string | null
+          payment_intent_id?: string | null
+          receipt_id?: string | null
+          refunded_cents?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_id?: string
+          account_id?: string
+          allocation_id?: string | null
+          amount_cents?: number
+          charge_id?: string | null
+          checkout_session_id?: string
+          company_id?: string
+          created_at?: string
+          fee_cents?: number
+          id?: string
+          item_id?: string
+          job_id?: string
+          method?: string | null
+          methods?: string[]
+          mode?: string
+          paid_at?: string | null
+          payment_intent_id?: string | null
+          receipt_id?: string | null
+          refunded_cents?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_payments_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_payments_allocation_id_fkey"
+            columns: ["allocation_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_allocations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_payments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_payments_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_portal_sessions: {
         Row: {
           access_id: string
@@ -7801,6 +7966,99 @@ export type Database = {
           },
         ]
       }
+      mcp_recorded_payments: {
+        Row: {
+          allocation_id: string
+          amount_cents: number
+          company_id: string
+          id: string
+          invoice_id: string
+          job_id: string
+          method: string
+          note: string | null
+          receipt_id: string
+          received_on: string
+          recorded_at: string
+          recorded_by: string
+          reference: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          allocation_id: string
+          amount_cents: number
+          company_id: string
+          id: string
+          invoice_id: string
+          job_id: string
+          method: string
+          note?: string | null
+          receipt_id: string
+          received_on: string
+          recorded_at?: string
+          recorded_by: string
+          reference: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          allocation_id?: string
+          amount_cents?: number
+          company_id?: string
+          id?: string
+          invoice_id?: string
+          job_id?: string
+          method?: string
+          note?: string | null
+          receipt_id?: string
+          received_on?: string
+          recorded_at?: string
+          recorded_by?: string
+          reference?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_recorded_payments_allocation_id_fkey"
+            columns: ["allocation_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_allocations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_recorded_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_recorded_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_recorded_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_recorded_payments_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_reenable_prompts: {
         Row: {
           actor: string
@@ -8051,6 +8309,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mcp_stripe_connect_events: {
+        Row: {
+          account_id: string | null
+          claimed_at: string
+          event_id: string
+          event_type: string
+          livemode: boolean
+          processed_at: string | null
+          status: string
+        }
+        Insert: {
+          account_id?: string | null
+          claimed_at?: string
+          event_id: string
+          event_type: string
+          livemode: boolean
+          processed_at?: string | null
+          status?: string
+        }
+        Update: {
+          account_id?: string | null
+          claimed_at?: string
+          event_id?: string
+          event_type?: string
+          livemode?: boolean
+          processed_at?: string | null
+          status?: string
+        }
+        Relationships: []
       }
       mcp_submittal_mail: {
         Row: {
@@ -10814,6 +11102,38 @@ export type Database = {
         Returns: Json
       }
       mcp_clean_pm_name: { Args: { _s: string }; Returns: string }
+      mcp_client_payments_account_save: {
+        Args: {
+          _account: string
+          _by: string
+          _company: string
+          _mode: string
+          _status: string
+        }
+        Returns: Json
+      }
+      mcp_client_payments_account_status: {
+        Args: { _account: string; _livemode: boolean; _status: string }
+        Returns: Json
+      }
+      mcp_client_payments_get: { Args: { _company: string }; Returns: Json }
+      mcp_client_payments_server_get: {
+        Args: { _company: string }
+        Returns: Json
+      }
+      mcp_client_payments_set_mode: {
+        Args: { _by: string; _company: string; _mode: string }
+        Returns: Json
+      }
+      mcp_client_payments_settings: {
+        Args: {
+          _bank: boolean
+          _card: boolean
+          _card_max_cents: number
+          _company: string
+        }
+        Returns: Json
+      }
       mcp_commercial_package_read: {
         Args: { _submittal: string }
         Returns: boolean
@@ -11367,6 +11687,7 @@ export type Database = {
         Args: { _ids?: string[]; _job: string }
         Returns: number
       }
+      mcp_job_payments_list: { Args: { _job: string }; Returns: Json }
       mcp_job_scope: { Args: { _job: string }; Returns: string }
       mcp_job_settings: {
         Args: {
@@ -11547,6 +11868,27 @@ export type Database = {
         Args: { _action: string; _job: string; _p: Json }
         Returns: Json
       }
+      mcp_pay_app_payments: {
+        Args: { _application: string; _job: string }
+        Returns: Json
+      }
+      mcp_pay_app_record_payment: {
+        Args: {
+          _amount_cents: number
+          _application: string
+          _id: string
+          _job: string
+          _method: string
+          _note: string
+          _received_on: string
+          _reference: string
+        }
+        Returns: Json
+      }
+      mcp_pay_app_void_payment: {
+        Args: { _job: string; _payment: string; _reason: string }
+        Returns: Json
+      }
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
       mcp_portal_brand: { Args: { _access: string }; Returns: Json }
@@ -11611,6 +11953,49 @@ export type Database = {
       }
       mcp_portal_pay_app_name: {
         Args: { _application: string; _job: string; _number: string }
+        Returns: Json
+      }
+      mcp_portal_pay_opened: {
+        Args: {
+          _access: string
+          _account: string
+          _amount_cents: number
+          _fee_cents: number
+          _item: string
+          _methods: string[]
+          _mode: string
+          _session: string
+        }
+        Returns: Json
+      }
+      mcp_portal_pay_refunded: {
+        Args: {
+          _account: string
+          _payment_intent: string
+          _refunded_total_cents: number
+        }
+        Returns: Json
+      }
+      mcp_portal_pay_start: {
+        Args: { _access: string; _item: string; _session_hash: string }
+        Returns: Json
+      }
+      mcp_portal_pay_update: {
+        Args: {
+          _account: string
+          _amount_cents: number
+          _charge: string
+          _fee_cents: number
+          _method: string
+          _paid_at: string
+          _payment_intent: string
+          _session: string
+          _status: string
+        }
+        Returns: Json
+      }
+      mcp_portal_payments_state: {
+        Args: { _access: string; _session_hash: string }
         Returns: Json
       }
       mcp_portal_post_update: {
@@ -11921,6 +12306,19 @@ export type Database = {
       mcp_set_flags: {
         Args: { _flags: Json; _job: string; _source: string }
         Returns: Json
+      }
+      mcp_stripe_connect_event_claim: {
+        Args: {
+          _account: string
+          _event: string
+          _livemode: boolean
+          _type: string
+        }
+        Returns: string
+      }
+      mcp_stripe_connect_event_finish: {
+        Args: { _event: string; _processed: boolean }
+        Returns: undefined
       }
       mcp_submittal_chase_due: { Args: never; Returns: Json }
       mcp_submittal_chase_mark: {
