@@ -1,50 +1,77 @@
 /**
- * The board's client messages panel data layer, kept in one small file so the function names can follow the SQL in
- * supabase/migrations/20261105160000_athena_portal_messages.sql (another worker's piece).
- *   list:  mcp_job_messages_list(_job) -> { threads: [{ customer_name, access_id, messages: [...] }] }
- *   reply: mcp_job_message_reply(_job, _access, _body, _about_item) -> { id }
+ * The board's client messages panel data layer (supabase/migrations/20261105160000_athena_portal_messages.sql).
+ *   list:  mcp_job_messages_list(_job), full job access only; supers are refused and the panel hides.
+ *   reply: never from the browser. replyJobMessageFn (job-messages.functions.ts) runs replyToClient as the signed-in
+ *          member, which posts the reply and emails the client.
+ *   read:  mcp_job_notices_mark_read(_job, [notice_id]).
  */
 import { rpcMessage, type NoticeRpc } from "./board-notices";
 
 export const MESSAGES_LIST_RPC = "mcp_job_messages_list";
-export const MESSAGES_REPLY_RPC = "mcp_job_message_reply";
-export const REPLY_MAX = 2000;
+/** replyToClient's limit (src/lib/customer-portal/messages.ts MESSAGE_MAX). */
+export const REPLY_MAX = 4000;
 
 export type JobMessage = {
   id: string;
   author_kind: "client" | "team";
   author_name: string | null;
   body: string;
-  about_label: string | null;
   created_at: string;
+  item_id: string | null;
+  about_kind: string | null;
+  about_label: string | null;
+  team_read_at: string | null;
+  notice_id: string | null;
+  read: boolean;
 };
 export type MessageThread = {
-  customer_name: string;
   access_id: string;
+  customer_name: string;
+  customer_email: string | null;
+  can_reply: boolean;
+  last_at: string | null;
+  awaiting_reply: number;
+  unread: number;
   messages: JobMessage[];
 };
+export type JobMessages = { unread: number; awaiting_reply: number; threads: MessageThread[] };
+
+const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+const count = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v)
+    ? v
+    : typeof v === "string" && /^\d+$/.test(v)
+      ? Number(v)
+      : 0;
 
 function cleanMessage(raw: unknown): JobMessage | null {
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Record<string, unknown>;
   if (typeof m.id !== "string" || typeof m.body !== "string" || typeof m.created_at !== "string")
     return null;
+  const team = m.author_kind === "team";
   return {
     id: m.id,
-    author_kind: m.author_kind === "team" ? "team" : "client",
-    author_name: typeof m.author_name === "string" && m.author_name.trim() ? m.author_name : null,
+    author_kind: team ? "team" : "client",
+    author_name: str(m.author_name),
     body: m.body,
-    about_label: typeof m.about_label === "string" && m.about_label.trim() ? m.about_label : null,
     created_at: m.created_at,
+    item_id: str(m.item_id),
+    about_kind: str(m.about_kind),
+    about_label: str(m.about_label),
+    team_read_at: str(m.team_read_at),
+    notice_id: str(m.notice_id),
+    read: team || m.read === true,
   };
 }
 
-/** Threads with the newest activity first; messages oldest first so a thread reads top to bottom. */
-export function parseThreads(data: unknown): MessageThread[] | null {
+/** The database already sends the newest thread first and each thread oldest first; this keeps that order. */
+export function parseJobMessages(data: unknown): JobMessages | null {
   if (!data || typeof data !== "object" || !Array.isArray((data as { threads?: unknown }).threads))
     return null;
+  const d = data as Record<string, unknown> & { threads: unknown[] };
   const threads: MessageThread[] = [];
-  for (const raw of (data as { threads: unknown[] }).threads) {
+  for (const raw of d.threads) {
     if (!raw || typeof raw !== "object") continue;
     const t = raw as Record<string, unknown>;
     if (typeof t.access_id !== "string") continue;
@@ -53,56 +80,82 @@ export function parseThreads(data: unknown): MessageThread[] | null {
       .filter((m): m is JobMessage => !!m)
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
     threads.push({
-      customer_name:
-        typeof t.customer_name === "string" && t.customer_name.trim() ? t.customer_name : "Client",
       access_id: t.access_id,
+      customer_name: str(t.customer_name) ?? "Client",
+      customer_email: str(t.customer_email),
+      can_reply: t.can_reply !== false,
+      last_at: str(t.last_at) ?? messages[messages.length - 1]?.created_at ?? null,
+      awaiting_reply: count(t.awaiting_reply),
+      unread: count(t.unread),
       messages,
     });
   }
-  const last = (t: MessageThread) => t.messages[t.messages.length - 1]?.created_at ?? "";
-  return threads.sort((a, b) => last(b).localeCompare(last(a)));
+  threads.sort((a, b) => (b.last_at ?? "").localeCompare(a.last_at ?? ""));
+  return { unread: count(d.unread), awaiting_reply: count(d.awaiting_reply), threads };
 }
 
-/** A thread waits on the team when the client wrote last. */
 export function threadWaiting(t: MessageThread): boolean {
-  return t.messages[t.messages.length - 1]?.author_kind === "client";
+  return t.awaiting_reply > 0;
 }
 
-/** What the latest client message was about, so a reply stays on the same item. */
-export function lastAbout(t: MessageThread): string | null {
+/** The item the client's latest message was about, so a reply stays on it. */
+export function lastAbout(t: MessageThread): { id: string | null; label: string | null } {
   for (let i = t.messages.length - 1; i >= 0; i--)
-    if (t.messages[i].author_kind === "client") return t.messages[i].about_label;
-  return null;
+    if (t.messages[i].author_kind === "client")
+      return { id: t.messages[i].item_id, label: t.messages[i].about_label };
+  return { id: null, label: null };
 }
 
-export async function listJobMessages(rpc: NoticeRpc, jobId: string): Promise<MessageThread[]> {
+/** The unread notices behind a thread's client messages, to mark read when the member opens it. */
+export function unreadNoticeIds(t: MessageThread): string[] {
+  return t.messages
+    .filter((m) => m.author_kind === "client" && !m.read && m.notice_id)
+    .map((m) => m.notice_id!);
+}
+
+/** Notices for client messages still waiting on the team, for the brief to list first. */
+export function awaitingNoticeIds(m: JobMessages): string[] {
+  return m.threads.flatMap((t) =>
+    t.messages
+      .filter((x) => x.author_kind === "client" && !x.team_read_at && x.notice_id)
+      .map((x) => x.notice_id!),
+  );
+}
+
+/** The database's answer to a member without full access. The panel hides for them instead of erroring. */
+export class MessagesNotForYou extends Error {}
+
+export async function listJobMessages(rpc: NoticeRpc, jobId: string): Promise<JobMessages> {
   const { data, error } = await rpc(MESSAGES_LIST_RPC, { _job: jobId });
-  const threads = error ? null : parseThreads(data);
-  if (!threads) throw new Error(rpcMessage(error, "Client messages are unavailable right now."));
-  return threads;
+  if (error) {
+    const msg = rpcMessage(error, "");
+    if (/full access|access to this job/i.test(msg)) throw new MessagesNotForYou(msg);
+    throw new Error(msg || "Client messages are unavailable right now.");
+  }
+  const parsed = parseJobMessages(data);
+  if (!parsed) throw new Error("Client messages are unavailable right now.");
+  return parsed;
 }
 
 export function replyProblem(body: string): string | null {
   const text = body.trim();
   if (!text) return "Write your reply first.";
-  if (text.length > REPLY_MAX) return `Keep the reply under ${REPLY_MAX} characters.`;
+  if (text.length > REPLY_MAX) return "Keep the reply to 4,000 characters.";
   return null;
 }
 
-export async function replyJobMessage(
-  rpc: NoticeRpc,
-  input: { jobId: string; accessId: string; body: string; aboutItem?: string | null },
-): Promise<{ id: string }> {
-  const problem = replyProblem(input.body);
-  if (problem) throw new Error(problem);
-  const { data, error } = await rpc(MESSAGES_REPLY_RPC, {
-    _job: input.jobId,
-    _access: input.accessId,
-    _body: input.body.trim(),
-    _about_item: input.aboutItem ?? null,
-  });
-  const id = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
-  if (error || typeof id !== "string")
-    throw new Error(rpcMessage(error, "Your reply was not sent. Try again."));
-  return { id };
+/** What the reply server function hands back to the panel. */
+export type ReplyResult = {
+  message_id: string;
+  customer_name: string;
+  customer_email: string;
+  email: "sent" | "off" | "failed";
+};
+
+export function replySentLine(r: ReplyResult): string {
+  return r.email === "sent"
+    ? `Sent. ${r.customer_name} sees it on their client page, and Athena emailed ${r.customer_email} that there's a reply.`
+    : r.email === "off"
+      ? `Sent. ${r.customer_name} sees it on their client page next time they open it. Client email is off.`
+      : `Sent. ${r.customer_name} sees it on their client page next time they open it. The email didn't go out.`;
 }

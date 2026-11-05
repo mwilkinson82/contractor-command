@@ -148,7 +148,11 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
   }
   // The job's morning hitlist opens with what came back from the client and the field since yesterday.
   const since =
-    flow === "pm_morning" && stage === stages[0] && args.sample !== true && !args.note && isUuid(job.job_id)
+    flow === "pm_morning" &&
+    stage === stages[0] &&
+    args.sample !== true &&
+    !args.note &&
+    isUuid(job.job_id)
       ? await loadNoticeBrief(sb as never, { jobId: job.job_id, max: 5 })
       : null;
   return present(flow, stage, data, since);

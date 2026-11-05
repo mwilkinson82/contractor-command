@@ -28,7 +28,9 @@ export const athenaHello = defineTool({
     run("athena_hello", ctx, {}, (sb) => {
       // Retain the existing argument schema for connected hosts; entry shows saved choices.
       void args;
-      return gettingStartedReply(sb, "overview", (db) => loadNoticeBrief(db as never, { max: 3 }));
+      return gettingStartedReply(sb, "overview", (db) =>
+        loadNoticeBrief(db as never, { max: 3, window: "day" }),
+      );
     }),
 });
 

@@ -125,6 +125,7 @@ describe("first use and returning jobs", () => {
       }
       expect(fixture).toEqual(before);
       // Entitlement/security/session bookkeeping and first-run flag are allowed; no briefing, source, deadline or project operations.
+      // Hello also reads (never marks) the member's unread notices for its short Since yesterday list.
       expect(new Set(rpc.mock.calls.map(([fn]) => fn))).toEqual(
         new Set([
           "mcp_abuse_cap_check",
@@ -132,6 +133,7 @@ describe("first use and returning jobs", () => {
           "mcp_security_touch",
           "mcp_session_touch",
           "mcp_getting_started_claim",
+          ...(tool === athenaHello ? ["mcp_my_notices"] : []),
         ]),
       );
       expect(new Set(from.mock.calls.map(([table]) => table))).toEqual(

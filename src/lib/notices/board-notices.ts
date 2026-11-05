@@ -20,7 +20,11 @@ export type BoardNotice = {
   read: boolean;
 };
 export type NoticeList = { notices: BoardNotice[]; unread: number };
-export type MyNotice = BoardNotice & { job_id: string; job_number: string; job_name: string | null };
+export type MyNotice = BoardNotice & {
+  job_id: string;
+  job_number: string;
+  job_name: string | null;
+};
 
 export type NoticeRpc = (
   name: string,
@@ -95,7 +99,9 @@ export function parseMyNotices(data: unknown): MyNotice[] | null {
 /** Strips the database's MCP_BAD: prefix so the member reads the plain sentence. */
 export function rpcMessage(error: unknown, fallback: string): string {
   const m =
-    error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"
+    error &&
+    typeof error === "object" &&
+    typeof (error as { message?: unknown }).message === "string"
       ? (error as { message: string }).message
       : "";
   const plain = m.replace(/^MCP_[A-Z_]+:/, "").trim();
@@ -277,7 +283,13 @@ export function groupNoticesByJob(notices: MyNotice[]): {
 }[] {
   const groups = new Map<
     string,
-    { job_id: string; job_number: string; job_name: string | null; notices: MyNotice[]; unread: number }
+    {
+      job_id: string;
+      job_number: string;
+      job_name: string | null;
+      notices: MyNotice[];
+      unread: number;
+    }
   >();
   const sorted = [...notices].sort((a, b) => b.created_at.localeCompare(a.created_at));
   for (const n of sorted) {

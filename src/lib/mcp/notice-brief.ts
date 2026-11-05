@@ -3,6 +3,7 @@
 // Reads only; nothing is marked read here, the board and the account page do that.
 import type { CardRow, CardSection } from "./cards/model";
 import { jobLabel, parseMyNotices, type MyNotice } from "../notices/board-notices";
+import { awaitingNoticeIds, parseJobMessages } from "../notices/job-messages";
 
 export const SINCE_YESTERDAY = "Since yesterday";
 /** Token budget: the brief prints at most this many lines, then "and N more". */
@@ -11,7 +12,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
 type Rpc = {
-  rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
+  rpc: (
+    fn: string,
+    args?: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: unknown }>;
 };
 
 /**
@@ -33,24 +37,30 @@ export function noticeLine(n: MyNotice): string {
 
 /**
  * Client questions waiting on a reply come first. The rest are grouped by job, the job with the newest notice
- * first, each job newest first.
+ * first, each job newest first. `awaiting` holds the notices of client messages still waiting on the team; without
+ * it (the messages read was unavailable) every client message counts as waiting.
  */
-export function orderBriefNotices(notices: MyNotice[]): MyNotice[] {
+export function orderBriefNotices(notices: MyNotice[], awaiting?: ReadonlySet<string>): MyNotice[] {
   const unread = notices.filter((n) => !n.read);
   const newest = (a: MyNotice, b: MyNotice) => b.created_at.localeCompare(a.created_at);
-  const questions = unread.filter((n) => n.topic === "client_message").sort(newest);
-  const rest = unread.filter((n) => n.topic !== "client_message").sort(newest);
+  const waits = (n: MyNotice) => n.topic === "client_message" && (!awaiting || awaiting.has(n.id));
+  const questions = unread.filter(waits).sort(newest);
+  const rest = unread.filter((n) => !waits(n)).sort(newest);
   const jobOrder: string[] = [];
   for (const n of rest) if (!jobOrder.includes(n.job_id)) jobOrder.push(n.job_id);
   return [...questions, ...jobOrder.flatMap((id) => rest.filter((n) => n.job_id === id))];
 }
 
-export function noticeBriefRows(notices: MyNotice[], max = BRIEF_NOTICE_LINES): CardRow[] {
-  const ordered = orderBriefNotices(notices);
+export function noticeBriefRows(
+  notices: MyNotice[],
+  max = BRIEF_NOTICE_LINES,
+  awaiting?: ReadonlySet<string>,
+): CardRow[] {
+  const ordered = orderBriefNotices(notices, awaiting);
   const shown = ordered.slice(0, max);
   const rows: CardRow[] = shown.map((n) => ({
     cells: [noticeLine(n)],
-    flag: n.topic === "client_message" ? "callout" : null,
+    flag: n.topic === "client_message" && (!awaiting || awaiting.has(n.id)) ? "callout" : null,
     refId: n.id,
   }));
   if (ordered.length > shown.length)
@@ -58,16 +68,26 @@ export function noticeBriefRows(notices: MyNotice[], max = BRIEF_NOTICE_LINES): 
   return rows;
 }
 
-export function noticeBriefSection(notices: MyNotice[], max = BRIEF_NOTICE_LINES): CardSection | null {
-  const rows = noticeBriefRows(notices, max);
+export function noticeBriefSection(
+  notices: MyNotice[],
+  max = BRIEF_NOTICE_LINES,
+  awaiting?: ReadonlySet<string>,
+): CardSection | null {
+  const rows = noticeBriefRows(notices, max, awaiting);
   return rows.length ? { heading: SINCE_YESTERDAY, kind: "list", rows } : null;
 }
 
 type ShowsTable = {
   from: (table: string) => {
     select: (cols: string) => {
-      lt: (col: string, v: string) => {
-        order: (col: string, o: { ascending: boolean }) => {
+      lt: (
+        col: string,
+        v: string,
+      ) => {
+        order: (
+          col: string,
+          o: { ascending: boolean },
+        ) => {
           limit: (n: number) => PromiseLike<{ data: unknown; error: unknown }>;
         };
       };
@@ -84,11 +104,41 @@ async function lastBriefShown(sb: unknown, now: number): Promise<string | null> 
       .lt("shown_at", new Date(now - 12 * 60 * 60 * 1000).toISOString())
       .order("shown_at", { ascending: false })
       .limit(1);
-    const row = Array.isArray(res?.data) ? (res.data[0] as { shown_at?: unknown } | undefined) : undefined;
+    const row = Array.isArray(res?.data)
+      ? (res.data[0] as { shown_at?: unknown } | undefined)
+      : undefined;
     return !res?.error && typeof row?.shown_at === "string" ? row.shown_at : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Which client message notices still wait on a reply, read from each job's messages (awaiting_reply). At most five
+ * jobs are read. Null when no read worked, so the order falls back to every client message first. A super is refused
+ * by the messages read, and never sees client messages anyway.
+ */
+async function awaitingReplies(sb: Rpc, notices: MyNotice[]): Promise<Set<string> | undefined> {
+  const jobs = [
+    ...new Set(notices.filter((n) => n.topic === "client_message" && !n.read).map((n) => n.job_id)),
+  ].slice(0, 5);
+  if (!jobs.length) return undefined;
+  const found = new Set<string>();
+  let any = false;
+  await Promise.all(
+    jobs.map(async (job) => {
+      try {
+        const res = await sb.rpc("mcp_job_messages_list", { _job: job });
+        const parsed = res.error ? null : parseJobMessages(res.data);
+        if (!parsed) return;
+        any = true;
+        for (const id of awaitingNoticeIds(parsed)) found.add(id);
+      } catch {
+        /* the brief never waits on messages */
+      }
+    }),
+  );
+  return any ? found : undefined;
 }
 
 /**
@@ -97,17 +147,22 @@ async function lastBriefShown(sb: unknown, now: number): Promise<string | null> 
  */
 export async function loadNoticeBrief(
   sb: Rpc,
-  opts: { jobId?: string; max?: number; now?: number } = {},
+  /** window "day" skips the last-brief lookup and reads the last 24 hours (hello). */
+  opts: { jobId?: string; max?: number; now?: number; window?: "brief" | "day" } = {},
 ): Promise<CardSection | null> {
   const now = opts.now ?? Date.now();
   try {
-    const since = noticeSince(await lastBriefShown(sb, now), now);
+    const since = noticeSince(opts.window === "day" ? null : await lastBriefShown(sb, now), now);
     const res = await sb.rpc("mcp_my_notices", { _since: since, _unread_only: true, _limit: 100 });
     if (res.error) return null;
     const notices = parseMyNotices(res.data);
     if (!notices) return null;
     const mine = opts.jobId ? notices.filter((n) => n.job_id === opts.jobId) : notices;
-    return noticeBriefSection(mine, opts.max ?? BRIEF_NOTICE_LINES);
+    return noticeBriefSection(
+      mine,
+      opts.max ?? BRIEF_NOTICE_LINES,
+      await awaitingReplies(sb, mine),
+    );
   } catch {
     return null;
   }

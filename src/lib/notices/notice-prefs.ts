@@ -26,7 +26,11 @@ export const ROLE_LABEL: Record<NoticeRole, string> = {
 };
 
 /** Supers take field notices only: never money or the client conversation. */
-export const FIELD_TOPICS: readonly NoticeTopic[] = ["submittal_reply", "field_confirm", "sub_contract"];
+export const FIELD_TOPICS: readonly NoticeTopic[] = [
+  "submittal_reply",
+  "field_confirm",
+  "sub_contract",
+];
 
 export type PrefCell = {
   role: NoticeRole;

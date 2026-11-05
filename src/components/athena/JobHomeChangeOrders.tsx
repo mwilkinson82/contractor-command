@@ -51,7 +51,8 @@ export function JobHomeChangeOrders({
   });
   // A new client decision notice refreshes the rows at once instead of waiting for the next poll.
   const notices = useJobNotices(jobId, token);
-  const latestDecision = notices.list?.notices.find((n) => n.topic === "client_decision")?.id ?? null;
+  const latestDecision =
+    notices.list?.notices.find((n) => n.topic === "client_decision")?.id ?? null;
   const seen = useRef<string | null>(null);
   useEffect(() => {
     if (!latestDecision) return;
@@ -109,7 +110,9 @@ export function JobHomeChangeOrders({
                   </span>
                   <span role="cell" className="jhn-co-title">
                     {row.title}
-                    {row.decision ? <small className="jhn-co-decision">{row.decision}</small> : null}
+                    {row.decision ? (
+                      <small className="jhn-co-decision">{row.decision}</small>
+                    ) : null}
                   </span>
                   <span role="cell">
                     <span className={`jhn-status jhn-status-${row.tone}`}>{row.status}</span>
@@ -125,7 +128,8 @@ export function JobHomeChangeOrders({
             </div>
             {rows.length > BOARD_CO_ROWS ? (
               <p className="jhn-more">
-                Showing {BOARD_CO_ROWS} of {rows.length}. <a href={logHref}>See all change orders</a>
+                Showing {BOARD_CO_ROWS} of {rows.length}.{" "}
+                <a href={logHref}>See all change orders</a>
               </p>
             ) : null}
           </>

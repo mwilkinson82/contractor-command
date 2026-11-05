@@ -45,7 +45,8 @@ export function JobNoticeEmailSettings({
   const [saved, setSaved] = useState<PrefGrid | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
-  const fetched = !q.error && q.data && Array.isArray((q.data as PrefGrid).rows) ? (q.data as PrefGrid) : null;
+  const fetched =
+    !q.error && q.data && Array.isArray((q.data as PrefGrid).rows) ? (q.data as PrefGrid) : null;
   const grid = saved ?? fetched;
   const toggle = async (cell: PrefCell, email: boolean) => {
     const key = `${cell.role}:${cell.topic}`;
@@ -59,7 +60,10 @@ export function JobNoticeEmailSettings({
         text: `${ROLE_LABEL[cell.role]} ${email ? "now gets" : "no longer gets"} ${TOPIC_LABEL[cell.topic].toLowerCase()} emails.`,
       });
     } catch (e) {
-      setMessage({ tone: "error", text: e instanceof Error ? e.message : "That choice was not saved." });
+      setMessage({
+        tone: "error",
+        text: e instanceof Error ? e.message : "That choice was not saved.",
+      });
     } finally {
       setBusy(null);
     }
@@ -138,7 +142,8 @@ export function JobNoticeEmailSettings({
             </table>
             <p className="jh-small">
               The job's PM gets every notice email. Owners get client questions unless switched off.
-              Supers get submittal replies, date confirmations and subcontract signatures, never money.
+              Supers get submittal replies, date confirmations and subcontract signatures, never
+              money.
             </p>
             {message ? (
               <p

@@ -38,11 +38,7 @@ export async function gettingStartedReply(
   const card = extra
     ? {
         ...base,
-        sections: [
-          ...(base.sections ?? []).slice(0, 1),
-          extra,
-          ...(base.sections ?? []).slice(1),
-        ],
+        sections: [...(base.sections ?? []).slice(0, 1), extra, ...(base.sections ?? []).slice(1)],
       }
     : base;
   return guide(

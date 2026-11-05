@@ -48,7 +48,12 @@ export function decisionTime(at: string, timeZone?: string): string {
       ...(timeZone ? { timeZone } : {}),
     });
   } catch {
-    return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return d.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   }
 }
 
@@ -68,7 +73,9 @@ export function boardCoRows(payload: ChangeLogPayload): BoardCoRow[] {
     const d = r.change_order_details;
     const status = STATUS[d.state] ?? { label: d.state, tone: "neutral" as const };
     const decided = d.state === "approved" || d.state === "rejected" || d.state === "executed";
-    const decisionRecord = (r.history ?? []).find((h) => h.action === "approve" || h.action === "reject");
+    const decisionRecord = (r.history ?? []).find(
+      (h) => h.action === "approve" || h.action === "reject",
+    );
     const who = decisionName(d.decision?.by ?? decisionRecord?.snapshot?.decision?.by);
     const at = d.decision?.at ?? decisionRecord?.created_at ?? null;
     const channel = (d.decision as { channel?: string } | null | undefined)?.channel;
@@ -82,7 +89,11 @@ export function boardCoRows(payload: ChangeLogPayload): BoardCoRow[] {
             .filter(Boolean)
             .join(" · ")
         : null;
-    const latest = (r.history ?? []).map((h) => h.created_at).sort().pop() ?? null;
+    const latest =
+      (r.history ?? [])
+        .map((h) => h.created_at)
+        .sort()
+        .pop() ?? null;
     return {
       id: r.id,
       number: d.co_number || r.number,
@@ -93,10 +104,17 @@ export function boardCoRows(payload: ChangeLogPayload): BoardCoRow[] {
       amount: typeof d.total_cents === "number" ? money(d.total_cents) : null,
       days: daysText(d.schedule_days),
       decision,
-      changedAt: [latest, at].filter((x): x is string => !!x).sort().pop() ?? null,
+      changedAt:
+        [latest, at]
+          .filter((x): x is string => !!x)
+          .sort()
+          .pop() ?? null,
     };
   });
-  return rows.sort((a, b) => (b.changedAt ?? "").localeCompare(a.changedAt ?? "") || a.number.localeCompare(b.number));
+  return rows.sort(
+    (a, b) =>
+      (b.changedAt ?? "").localeCompare(a.changedAt ?? "") || a.number.localeCompare(b.number),
+  );
 }
 
 export function coCounts(rows: BoardCoRow[]) {

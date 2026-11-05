@@ -587,3 +587,13 @@
     gap: 8px;
   }
 }
+
+.jhm-thread-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.jhm-new {
+  border-color: #f0b8b3;
+}

@@ -10,13 +10,19 @@ const fixture = vi.hoisted(() => ({
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (opts: { queryKey: unknown[] }) => {
     fixture.queries.push(opts);
-    return fixture.rows[String(opts.queryKey[0])] ?? { data: undefined, isLoading: false, error: null };
+    return (
+      fixture.rows[String(opts.queryKey[0])] ?? { data: undefined, isLoading: false, error: null }
+    );
   },
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
 vi.mock("@/lib/change-log.functions", () => ({ openChangeLog: vi.fn() }));
+vi.mock("@/lib/notices/job-messages.functions", () => ({ replyJobMessageFn: vi.fn() }));
 vi.mock("@/hooks/use-auth", () => ({
-  useAuth: () => ({ session: fixture.signedIn ? { user: { id: "member" } } : null, loading: false }),
+  useAuth: () => ({
+    session: fixture.signedIn ? { user: { id: "member" } } : null,
+    loading: false,
+  }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
 vi.mock("./ReportPage", () => ({ usePageVisible: () => true }));
@@ -54,7 +60,11 @@ beforeEach(() => {
   fixture.queries = [];
   fixture.rows = {
     "job-notices": ok({
-      notices: [notice("CO-003"), notice("CO-002", true, "nowhere"), ...Array.from({ length: 6 }, (_, i) => notice(`N-${i}`, true))],
+      notices: [
+        notice("CO-003"),
+        notice("CO-002", true, "nowhere"),
+        ...Array.from({ length: 6 }, (_, i) => notice(`N-${i}`, true)),
+      ],
       unread: 3,
     }),
   };
@@ -85,14 +95,28 @@ describe("board notifications", () => {
   });
   it("says unavailable instead of zero when the read fails", () => {
     fixture.rows["job-notices"] = { data: undefined, isLoading: false, error: new Error("x") };
-    expect(html(React.createElement(JobHomeNotifications, { jobId: job }))).toContain("unavailable");
-    expect(html(React.createElement(NotificationsBell, { jobId: job }))).not.toContain("jhn-bell-count");
+    expect(html(React.createElement(JobHomeNotifications, { jobId: job }))).toContain(
+      "unavailable",
+    );
+    expect(html(React.createElement(NotificationsBell, { jobId: job }))).not.toContain(
+      "jhn-bell-count",
+    );
   });
   it("shows nothing on a share link with no signed-in member", () => {
     fixture.signedIn = false;
-    for (const C of [JobHomeNotifications, NotificationsBell, NotificationsNavLink, JobHomeMessages, JobNoticeEmailSettings])
+    for (const C of [
+      JobHomeNotifications,
+      NotificationsBell,
+      NotificationsNavLink,
+      JobHomeMessages,
+      JobNoticeEmailSettings,
+    ])
       expect(html(React.createElement(C, { jobId: job, token: "share" }))).toBe("");
-    expect(fixture.queries.filter((q) => q.queryKey[0] !== "job-home-cos").every((q) => q.enabled === false)).toBe(true);
+    expect(
+      fixture.queries
+        .filter((q) => q.queryKey[0] !== "job-home-cos")
+        .every((q) => q.enabled === false),
+    ).toBe(true);
   });
   it("feeds the panel, bell, nav and badge from one shared query", () => {
     html(
@@ -116,7 +140,9 @@ describe("board notifications", () => {
     fixture.rows["job-notices"] = ok({ notices: [], unread: 140 });
     expect(html(React.createElement(NotificationsBell, { jobId: job }))).toContain("99+");
     fixture.rows["job-notices"] = ok({ notices: [], unread: 0 });
-    expect(html(React.createElement(NotificationsBell, { jobId: job }))).not.toContain("jhn-bell-count");
+    expect(html(React.createElement(NotificationsBell, { jobId: job }))).not.toContain(
+      "jhn-bell-count",
+    );
   });
   it("renders the nav link with the board's classes", () => {
     const nav = html(React.createElement(NotificationsNavLink, { jobId: job }));
@@ -124,7 +150,9 @@ describe("board notifications", () => {
     expect(nav).toContain('class="jh-nav-icon"');
     expect(nav).toContain('<span class="jh-count" aria-hidden="true">3</span>');
     fixture.rows["job-notices"] = ok({ notices: [], unread: 0 });
-    expect(html(React.createElement(NotificationsNavLink, { jobId: job }))).not.toContain("jh-count");
+    expect(html(React.createElement(NotificationsNavLink, { jobId: job }))).not.toContain(
+      "jh-count",
+    );
   });
 });
 
@@ -156,7 +184,12 @@ describe("board change orders, messages and email choices", () => {
             lines: [],
             total_cents: 267192,
             schedule_days: 2,
-            decision: { by: "Rosa Delgado <rosa@example.com>", at: "2026-11-05T19:14:00Z", reference: "r", channel: "customer_page" },
+            decision: {
+              by: "Rosa Delgado <rosa@example.com>",
+              at: "2026-11-05T19:14:00Z",
+              reference: "r",
+              channel: "customer_page",
+            },
           },
         },
       ],
@@ -169,19 +202,52 @@ describe("board change orders, messages and email choices", () => {
     expect(out).not.toContain("rosa@example.com");
   });
   it("lists client threads with a reply box", () => {
-    fixture.rows["job-messages"] = ok([
-      {
-        customer_name: "Rosa Delgado",
-        access_id: "acc-1",
-        messages: [{ id: "m1", author_kind: "client", author_name: "Rosa", body: "Is the tile in?", about_label: "CO-003", created_at: "2026-11-05T09:00:00Z" }],
-      },
-    ]);
+    fixture.rows["job-messages"] = ok({
+      unread: 1,
+      awaiting_reply: 1,
+      threads: [
+        {
+          customer_name: "Rosa Delgado",
+          customer_email: "rosa@example.com",
+          access_id: "acc-1",
+          can_reply: true,
+          last_at: "2026-11-05T09:00:00Z",
+          awaiting_reply: 1,
+          unread: 1,
+          messages: [
+            {
+              id: "m1",
+              author_kind: "client",
+              author_name: "Rosa",
+              body: "Is the tile in?",
+              item_id: null,
+              about_label: "CO-003",
+              created_at: "2026-11-05T09:00:00Z",
+              team_read_at: null,
+              notice_id: "n1",
+              read: false,
+            },
+          ],
+        },
+      ],
+    });
     const out = html(React.createElement(JobHomeMessages, { jobId: job }));
+    expect(out).toContain("Waiting on your reply");
+    expect(out).toContain("Mark read");
     expect(out).toContain("Client messages");
     expect(out).toContain("1 waiting");
     expect(out).toContain("Is the tile in?");
     expect(out).toContain("Send to Rosa Delgado");
     expect(out).toContain('id="job-messages"');
+  });
+  it("hides client messages from a super, whom the read refuses", async () => {
+    const { MessagesNotForYou } = await import("@/lib/notices/job-messages");
+    fixture.rows["job-messages"] = {
+      data: undefined,
+      isLoading: false,
+      error: new MessagesNotForYou("full access"),
+    };
+    expect(html(React.createElement(JobHomeMessages, { jobId: job }))).toBe("");
   });
   it("locks the Job PM row on and keeps it read only when the member cannot change it", () => {
     fixture.rows["job-notice-prefs"] = ok({
@@ -199,7 +265,9 @@ describe("board change orders, messages and email choices", () => {
     });
     const out = html(React.createElement(JobNoticeEmailSettings, { jobId: job }));
     expect(out).toContain("Notice emails");
-    expect(out).toContain("Only the job&#x27;s PM, an owner or an all-access member can change these.");
+    expect(out).toContain(
+      "Only the job&#x27;s PM, an owner or an all-access member can change these.",
+    );
     expect(out).toContain("Always on");
     expect(out).toContain("Not for supers");
     expect(out).toContain("Client approvals and choices");
@@ -210,11 +278,26 @@ describe("board change orders, messages and email choices", () => {
 describe("account page", () => {
   it("adds a Notifications section with a red count", () => {
     const props = {
-      name: "Owner", email: "o@example.com", companyName: "Co", plan: "Athena", seats: "1",
-      teamLoading: false, teamError: false, canViewSupport: false, onSignOut: async () => {},
-      profile: null, company: null, team: null, billing: null, projects: null, briefing: null, guide: null,
+      name: "Owner",
+      email: "o@example.com",
+      companyName: "Co",
+      plan: "Athena",
+      seats: "1",
+      teamLoading: false,
+      teamError: false,
+      canViewSupport: false,
+      onSignOut: async () => {},
+      profile: null,
+      company: null,
+      team: null,
+      billing: null,
+      projects: null,
+      briefing: null,
+      guide: null,
     };
-    const out = html(React.createElement(AthenaAccountLayout, { ...props, notices: "LIST", noticeCount: 4 }));
+    const out = html(
+      React.createElement(AthenaAccountLayout, { ...props, notices: "LIST", noticeCount: 4 }),
+    );
     expect(out).toContain("Notifications");
     expect(out).toContain('class="aa-nav-count"');
     expect(out).toContain("LIST");
