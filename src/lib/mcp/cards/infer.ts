@@ -7,7 +7,7 @@ import { isUuid } from "../refs";
 import { safeBoardHref } from "../plain-label";
 
 const TITLES: Record<string, string> = {
-  next_question: "Next question",
+  next_question: "Job setup",
   answer: "What I have so far",
   intake: "Intake",
   onboarding: "Company",
@@ -130,6 +130,20 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
 
   if (tool === "answer") {
     const recorded = text.match(/Recorded(?:\s+([a-z]+))?/i)?.[1] ?? "saved";
+    // answer now brings back the next setup question in the same step: show it as the ask.
+    const nextPrompt = /\nNext question:\n/.test(text) ? questionOf(text) : null;
+    if (nextPrompt) {
+      const head = text.split(/\nNext question:\n/)[0];
+      return {
+        ...base,
+        state: "ask",
+        progress: progressOf(text),
+        kpis: [{ label: "Recorded", value: recorded }],
+        ask: { prompt: nextPrompt },
+        sections: [listSection("Just recorded", linesOf(head).slice(0, 3).map((l) => ({ cells: [l], tone: "known" })))],
+        next_move: "Answer this question, then we take the next one.",
+      };
+    }
     return {
       ...base,
       state: "progress",

@@ -63,7 +63,7 @@ import { setCurrentCompany, teamAddSeats, teamInvite, teamList, teamRemoveMember
 import { accountLink } from "./tools/account-tools";
 import { sheetCalibrate, takeoffGeometry } from "./tools/takeoff-tools";
 import { jobsList, drawingSetsList } from "./tools/discovery-tools";
-import { ESTIMATE_SERVER_RULE } from "./estimating";
+import { ESTIMATE_SERVER_RULE, GAP_CHECK_ROUTE_RULE } from "./estimating";
 import { FIELD_SERVER_RULE } from "./superintendent";
 import {
   dailyReminder,
@@ -117,6 +117,7 @@ export default defineMcp({
     REFUSAL_RULE +
     PRIVATE_CHAT_SHARE_RULE +
     PROJECT_HOME_ROUTE_RULE +
+    GAP_CHECK_ROUTE_RULE +
     " Athena powered by ALP, construction agents. " +
     GREETING_RULE +
     " Drawing measurements use sheet_calibrate and takeoff_geometry. Geometry is the quantity; the member's connected AI reads Athena's stored tiles and proposes locations, Athena verifies and calculates, and only the estimator accepts. At estimating intake, ask the member to choose their strongest available image-reading model with deeper reasoning. Reconcile measured scope with drawing notes, specifications and contract through cited gap analysis, identifying unread context and specific verification questions. Unlocated or pending geometry cannot form a final bid. Never back-solve locations to match a typed quantity. A drawing attached in chat goes to drawing_set_import with its host-supplied file original, subject to the existing estimating plan and storage checks. Never store a drawing as a contract or specification to bypass unavailable drawing storage. Drawing imports from Google Drive or Dropbox → drawing_set_import with drawing.source_url and sheets in PDF page order; upload bytes through drawing.content_base64 when the connected AI must authenticate the download. Mark up a stored drawing → drawing_markup, never ask for a re-upload. To analyze new findings, use operation prepare, inspect the returned original sheet, then save supplied annotations. Coordinates are normalized 0..1 from the top-left of that image. Unlocated findings remain in the key; never guess positions, quantities or claim a review when no findings were established. " +

@@ -1425,7 +1425,7 @@ export const estimateGapAnalysis = defineTool({
 
 export const estimateGapAnswer = defineTool({
   name: "estimate_gap_answer",
-  title: "Gap check answer",
+  title: "Gap check walk-through",
   description:
     "Starts or continues the estimate gap check walk-through when called with just the job number, or saves or clears the estimator's answer to one gap, and returns the progress, the live board link and the next question to ask.",
   inputSchema: {
