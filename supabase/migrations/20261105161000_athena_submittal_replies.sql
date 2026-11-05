@@ -1,6 +1,6 @@
 -- Managed Lovable Cloud proposal. No standalone transaction wrapper.
 -- Plain SQL for Lovable to apply; nothing in this repo applies it. Apply after
--- 20261105150000_athena_job_notices.sql (also staged as 20261105151500_athena_job_notices.sql).
+-- 20261105151500_athena_job_notices.sql.
 --
 -- Submittal replies: the architect or engineer's return comes back into Athena.
 -- Before: a package went out through the member's own email with a file link, and nothing captured the answer.
@@ -292,8 +292,9 @@ BEGIN
   SELECT * INTO r FROM public.mcp_submittal_responses WHERE inbound_email_id = _inbound_email_id;
   IF r.id IS NOT NULL THEN RETURN jsonb_build_object('status', 'ok', 'created', false, 'files', r.files) || mcp_private.submittal_reply_json(r); END IF;
   SELECT * INTO f FROM mcp_private.submittal_reply_find(_token_hash);
-  -- A replaced revision or a turned-off package still gets its reviewer's email kept; only unknown and expired codes stop.
-  IF (f.link).id IS NULL OR f.state IN ('unknown', 'expired') OR (f.link).revoked_at IS NOT NULL THEN
+  -- A late, replaced or turned-off package still gets its reviewer's email kept: the code only finds the package,
+  -- and the PM decides. Only an unknown code or a reply link the team turned off stops here.
+  IF (f.link).id IS NULL OR f.state = 'unknown' OR (f.link).revoked_at IS NOT NULL THEN
     RETURN jsonb_build_object('status', coalesce(f.state, 'unknown'));
   END IF;
   IF sender !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' OR length(sender) > 320 THEN RETURN jsonb_build_object('status', 'invalid'); END IF;

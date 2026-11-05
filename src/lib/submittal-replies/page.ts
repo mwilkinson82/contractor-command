@@ -72,15 +72,19 @@ export const returnCsrf = async (cookie: string) =>
 
 const clientIp = (req: Request) => {
   const h = req.headers;
-  const v = h.get("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",")[0] || h.get("x-real-ip");
+  const v =
+    h.get("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",")[0] || h.get("x-real-ip");
   return v ? v.trim().slice(0, 100) : null;
 };
 
 /** PDF, PNG or JPEG by their first bytes; the browser's claimed type is not trusted. */
-export function sniffReturnFile(bytes: Uint8Array): { ext: "pdf" | "png" | "jpg"; mime: string } | null {
+export function sniffReturnFile(
+  bytes: Uint8Array,
+): { ext: "pdf" | "png" | "jpg"; mime: string } | null {
   const starts = (sig: number[]) => sig.every((b, i) => bytes[i] === b);
   if (starts([0x25, 0x50, 0x44, 0x46, 0x2d])) return { ext: "pdf", mime: "application/pdf" };
-  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { ext: "png", mime: "image/png" };
+  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    return { ext: "png", mime: "image/png" };
   if (starts([0xff, 0xd8, 0xff])) return { ext: "jpg", mime: "image/jpeg" };
   return null;
 }
@@ -147,7 +151,11 @@ export async function handleSubmittalReturn(
   if (!ct.includes("multipart/form-data") && !ct.includes("application/x-www-form-urlencoded"))
     return again("Something was missing. Check the form and try again.", {});
   if (Number(req.headers.get("content-length") ?? "0") > MAX_BODY)
-    return again("That file is over 25 MB. Attach a smaller copy, or reply to the email with it.", {}, 413);
+    return again(
+      "That file is over 25 MB. Attach a smaller copy, or reply to the email with it.",
+      {},
+      413,
+    );
   let fd: FormData;
   try {
     fd = await req.formData();
@@ -168,7 +176,10 @@ export async function handleSubmittalReturn(
   if (!isReplyAction(values.action)) return again("Pick your action.", values);
   if (values.reviewer_name!.length < 2 || values.reviewer_name!.length > 120)
     return again("Type your name so the contractor knows who reviewed it.", values);
-  if (values.reviewer_email && (!EMAIL.test(values.reviewer_email) || values.reviewer_email.length > 320))
+  if (
+    values.reviewer_email &&
+    (!EMAIL.test(values.reviewer_email) || values.reviewer_email.length > 320)
+  )
     return again("Check your email address, or leave it blank.", values);
   if (values.comments!.length > 4000) return again("Keep comments under 4,000 characters.", values);
 
@@ -176,7 +187,11 @@ export async function handleSubmittalReturn(
   let file: { bytes: Uint8Array; name: string; mime: string } | null = null;
   if (raw && typeof raw !== "string" && raw.size > 0) {
     if (raw.size > RETURN_FILE_MAX_BYTES)
-      return again("That file is over 25 MB. Attach a smaller copy, or reply to the email with it.", values, 413);
+      return again(
+        "That file is over 25 MB. Attach a smaller copy, or reply to the email with it.",
+        values,
+        413,
+      );
     const bytes = new Uint8Array(await raw.arrayBuffer());
     const kind = sniffReturnFile(bytes);
     if (!kind) return again("Attach a PDF, PNG or JPEG.", values);
@@ -196,9 +211,18 @@ export async function handleSubmittalReturn(
     try {
       await deps.upload(path, file.bytes, file.mime);
     } catch {
-      return again("We couldn't save your file. Try again, or reply to the email with it.", values, 503);
+      return again(
+        "We couldn't save your file. Try again, or reply to the email with it.",
+        values,
+        503,
+      );
     }
-    files.push({ path, filename: file.name, content_type: file.mime, size_bytes: file.bytes.length });
+    files.push({
+      path,
+      filename: file.name,
+      content_type: file.mime,
+      size_bytes: file.bytes.length,
+    });
   }
   const res = (await deps
     .rpc("mcp_submittal_reply_page_submit", {
@@ -219,6 +243,7 @@ export async function handleSubmittalReturn(
     return redirect(self);
   }
   if (st === "already") return redirect(self);
-  if (st === "invalid") return again("Something was missing. Check the form and try again.", values);
+  if (st === "invalid")
+    return again("Something was missing. Check the form and try again.", values);
   return page(renderGone(st, company, logo), st === "error" ? 503 : 410);
 }

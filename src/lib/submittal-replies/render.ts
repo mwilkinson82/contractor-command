@@ -115,7 +115,9 @@ function facts(info: ReturnInfo): string {
     ["Submittal", `${info.number} revision ${info.revision}`],
     ["Spec section", info.spec_section],
     ["Job", `${info.job_number} ${info.job_name}`.trim()],
-    ...(info.transmittal_number ? ([["Transmittal", `T-${info.transmittal_number}`]] as [string, string][]) : []),
+    ...(info.transmittal_number
+      ? ([["Transmittal", `T-${info.transmittal_number}`]] as [string, string][])
+      : []),
   ];
   return `<div class="sr-facts">${rows.map(([k, v]) => `<div><span class="sr-label">${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
 }
@@ -136,7 +138,12 @@ export function renderReturnForm(
 
 export function renderThanks(
   info: ReturnInfo,
-  returned: { action_label: string; reviewer_name: string | null; created_at: string; file_count?: number },
+  returned: {
+    action_label: string;
+    reviewer_name: string | null;
+    created_at: string;
+    file_count?: number;
+  },
   logo: string | null = null,
 ): string {
   const first = (returned.reviewer_name ?? "").trim().split(/\s+/)[0];
@@ -150,16 +157,35 @@ export function renderThanks(
 }
 
 const GONE: Record<string, [string, string]> = {
-  unknown: ["This link isn't valid", "Check that you opened the whole link from the email, or ask the contractor to send it again."],
-  expired: ["This review link has expired", "Reply to the submittal email instead, or ask the contractor for a new link."],
-  revoked: ["This submittal was withdrawn", "The contractor turned off this package. Contact them for the current one."],
-  void: ["This submittal was withdrawn", "The contractor voided this submittal. Contact them if you have questions."],
-  replaced: ["A newer revision was sent", "This link is for an earlier revision. Use the link in the newest submittal email."],
+  unknown: [
+    "This link isn't valid",
+    "Check that you opened the whole link from the email, or ask the contractor to send it again.",
+  ],
+  expired: [
+    "This review link has expired",
+    "Reply to the submittal email instead, or ask the contractor for a new link.",
+  ],
+  revoked: [
+    "This submittal was withdrawn",
+    "The contractor turned off this package. Contact them for the current one.",
+  ],
+  void: [
+    "This submittal was withdrawn",
+    "The contractor voided this submittal. Contact them if you have questions.",
+  ],
+  replaced: [
+    "A newer revision was sent",
+    "This link is for an earlier revision. Use the link in the newest submittal email.",
+  ],
   slow_down: ["Too many tries", "Wait a few minutes and try again."],
   error: ["Something went wrong", "Try again in a moment. Nothing was recorded."],
 };
 
-export function renderGone(kind: string, company: string | null = null, logo: string | null = null): string {
+export function renderGone(
+  kind: string,
+  company: string | null = null,
+  logo: string | null = null,
+): string {
   const [h, raw] = GONE[kind] ?? GONE.unknown!;
   const p = company ? raw.replace(/\bthe contractor\b/gi, company) : raw;
   return doc(h, shell(company, logo, `<h1>${esc(h)}</h1><p class="sr-sub">${esc(p)}</p>`));

@@ -55,7 +55,10 @@ export const replyAddress = (code: string) => `submittals+${code}@${REPLY_DOMAIN
 
 const bare = (value: string) => {
   const m = value.match(/<([^>]+)>/);
-  return (m ? m[1]! : value).trim().toLowerCase().replace(/^mailto:/, "");
+  return (m ? m[1]! : value)
+    .trim()
+    .toLowerCase()
+    .replace(/^mailto:/, "");
 };
 
 /** The reply code in a capture address (submittals+<code>@meetathena.io), or null for any other address. */

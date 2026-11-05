@@ -14,6 +14,8 @@ import { SupportDeliveryError } from "@/lib/support/resend-send";
 import { supabaseSupportStore } from "@/lib/support/store.server";
 import { collectAddresses, supportInboxForAddresses } from "@/lib/support/ticket";
 import { routeSupport } from "@/lib/support/conversation";
+import { replyCodeFromAddresses } from "@/lib/submittal-replies/reply-link";
+import type { SubmittalInboundResult } from "@/lib/resend/inbound-submittal";
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -47,12 +49,20 @@ export type InboundHttpDeps = {
       hintReview?: string | null;
     },
   ) => Promise<SupportProcessResult>;
+  /** Mail to a submittal capture address (submittals+<code>@...): kept on the submittal, never forwarded. */
+  processSubmittal: (
+    emailId: string,
+    opts: { apiKey: string; code: string },
+  ) => Promise<SubmittalInboundResult>;
 };
 
 let cachedWebhookSecret: string | undefined;
 
 class WebhookConfigurationError extends Error {
-  constructor(readonly reason: string, status?: number) {
+  constructor(
+    readonly reason: string,
+    status?: number,
+  ) {
     super("Webhook not configured");
     console.error("[resend-inbound] webhook configuration", { reason, status });
   }
@@ -82,7 +92,7 @@ async function resolveWebhookSecret(deps: InboundHttpDeps): Promise<string> {
   } catch {
     throw new WebhookConfigurationError("no_secret_field", response.status);
   }
-  const fields = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const fields = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const secret = [fields.signing_secret, fields.secret].find(
     (value): value is string => typeof value === "string" && value.trim().length > 0,
   );
@@ -107,6 +117,21 @@ function defaultDeps(overrides?: Partial<InboundHttpDeps>): InboundHttpDeps {
           hintReview: opts.hintReview,
           store: supabaseSupportStore,
         })),
+    processSubmittal:
+      overrides?.processSubmittal ??
+      (async (emailId, opts) => {
+        // Loaded on demand so the support and forward paths never need the service-role client.
+        const [{ processSubmittalInbound }, live] = await Promise.all([
+          import("@/lib/resend/inbound-submittal"),
+          import("@/lib/submittal-replies/deps.server"),
+        ]);
+        return processSubmittalInbound(emailId, opts.code, {
+          apiKey: opts.apiKey,
+          rpc: live.serviceRpc,
+          upload: live.serviceUpload,
+          send: live.liveReturnDeps.send,
+        });
+      }),
   };
 }
 
@@ -129,7 +154,7 @@ export async function handleResendInboundPost(
   const usingCachedSecret = !deps.env.RESEND_WEBHOOK_SECRET && !!cachedWebhookSecret;
   let verified: Awaited<ReturnType<typeof verifyResendWebhook>>;
   try {
-    const secret = deps.env.RESEND_WEBHOOK_SECRET || await resolveWebhookSecret(deps);
+    const secret = deps.env.RESEND_WEBHOOK_SECRET || (await resolveWebhookSecret(deps));
     verified = await verifyResendWebhook({
       payload,
       headers,
@@ -180,9 +205,41 @@ export async function handleResendInboundPost(
     return json({ ok: false, error: "Forwarder not configured" }, 500);
   }
 
+  const recipients = collectAddresses(
+    event.data?.to,
+    event.data?.cc,
+    event.data?.bcc,
+    event.data?.received_for,
+  );
+  const submittalCode = replyCodeFromAddresses(recipients);
+  if (submittalCode) {
+    // A submittal reply is the project's record, not stray mail: it is never forwarded to the owner.
+    try {
+      const result = await deps.processSubmittal(emailId, { apiKey, code: submittalCode });
+      console.log("[resend-inbound] submittal", {
+        emailId,
+        svixId: headers.id,
+        status: result.status,
+        reason: "reason" in result ? result.reason : null,
+      });
+      return json({ ok: true, emailId, ...result }, 200);
+    } catch (err) {
+      const retryable = err instanceof InboundForwardError ? err.retryable : true;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[resend-inbound] submittal failed", {
+        emailId,
+        svixId: headers.id,
+        retryable,
+        error: message.slice(0, 300),
+      });
+      if (retryable) return json({ ok: false, error: "Submittal reply failed; retry" }, 500);
+      return json({ ok: false, emailId, error: "Submittal reply failed permanently" }, 200);
+    }
+  }
+
   const routing = routeSupport({
     from: "",
-    to: collectAddresses(event.data?.to, event.data?.cc, event.data?.bcc, event.data?.received_for),
+    to: recipients,
   });
   const hint = routing.inbox;
   if (hint) {

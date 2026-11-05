@@ -93,6 +93,7 @@ import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$c
 import { Route as RSTokenRouteImport } from './routes/r.s.$token'
 import { Route as RSubmittalFileTokenRouteImport } from './routes/r.submittal-file.$token'
 import { Route as RSubmittalPreviewTokenRouteImport } from './routes/r.submittal-preview.$token'
+import { Route as RSubmittalReturnCodeRouteImport } from './routes/r.submittal-return.$code'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
 import { Route as ApiPublicAthenaStripeWebhookRouteImport } from './routes/api/public/athena/stripe-webhook'
@@ -538,6 +539,11 @@ const RSubmittalPreviewTokenRoute = RSubmittalPreviewTokenRouteImport.update({
   path: '/r/submittal-preview/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RSubmittalReturnCodeRoute = RSubmittalReturnCodeRouteImport.update({
+  id: '/r/submittal-return/$code',
+  path: '/r/submittal-return/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsSopEditPacketIdRoute = ToolsSopEditPacketIdRouteImport.update({
   id: '/sop-edit/$packetId',
   path: '/sop-edit/$packetId',
@@ -727,6 +733,7 @@ export interface FileRoutesByFullPath {
   '/r/s/$token': typeof RSTokenRoute
   '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
   '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
+  '/r/submittal-return/$code': typeof RSubmittalReturnCodeRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
@@ -832,6 +839,7 @@ export interface FileRoutesByTo {
   '/r/s/$token': typeof RSTokenRoute
   '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
   '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
+  '/r/submittal-return/$code': typeof RSubmittalReturnCodeRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
@@ -938,6 +946,7 @@ export interface FileRoutesById {
   '/r/s/$token': typeof RSTokenRoute
   '/r/submittal-file/$token': typeof RSubmittalFileTokenRoute
   '/r/submittal-preview/$token': typeof RSubmittalPreviewTokenRoute
+  '/r/submittal-return/$code': typeof RSubmittalReturnCodeRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
@@ -1045,6 +1054,7 @@ export interface FileRouteTypes {
     | '/r/s/$token'
     | '/r/submittal-file/$token'
     | '/r/submittal-preview/$token'
+    | '/r/submittal-return/$code'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
@@ -1150,6 +1160,7 @@ export interface FileRouteTypes {
     | '/r/s/$token'
     | '/r/submittal-file/$token'
     | '/r/submittal-preview/$token'
+    | '/r/submittal-return/$code'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
@@ -1255,6 +1266,7 @@ export interface FileRouteTypes {
     | '/r/s/$token'
     | '/r/submittal-file/$token'
     | '/r/submittal-preview/$token'
+    | '/r/submittal-return/$code'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
     | '/api/public/athena/stripe-webhook'
@@ -1357,6 +1369,7 @@ export interface RootRouteChildren {
   RSTokenRoute: typeof RSTokenRoute
   RSubmittalFileTokenRoute: typeof RSubmittalFileTokenRoute
   RSubmittalPreviewTokenRoute: typeof RSubmittalPreviewTokenRoute
+  RSubmittalReturnCodeRoute: typeof RSubmittalReturnCodeRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
   ApiPublicAthenaStripeWebhookRoute: typeof ApiPublicAthenaStripeWebhookRoute
   ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
@@ -1967,6 +1980,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RSubmittalPreviewTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/submittal-return/$code': {
+      id: '/r/submittal-return/$code'
+      path: '/r/submittal-return/$code'
+      fullPath: '/r/submittal-return/$code'
+      preLoaderRoute: typeof RSubmittalReturnCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools/sop-edit/$packetId': {
       id: '/tools/sop-edit/$packetId'
       path: '/sop-edit/$packetId'
@@ -2216,6 +2236,7 @@ const rootRouteChildren: RootRouteChildren = {
   RSTokenRoute: RSTokenRoute,
   RSubmittalFileTokenRoute: RSubmittalFileTokenRoute,
   RSubmittalPreviewTokenRoute: RSubmittalPreviewTokenRoute,
+  RSubmittalReturnCodeRoute: RSubmittalReturnCodeRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
   ApiPublicAthenaStripeWebhookRoute: ApiPublicAthenaStripeWebhookRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
