@@ -1,3 +1,4 @@
+import { formatMoney } from "./money-format";
 import { z } from "zod";
 import { accountingDate, type AccountingReport } from "./accounting-report";
 
@@ -294,10 +295,8 @@ export function attachVersionedAp(report: AccountingReport, ap: ApVersionReport)
     }
   return report;
 }
+/** "$6,400.00" for US dollars, "CAD 650.00" for other codes; a missing currency is said, not guessed. */
 export function apMoney(cents: string | null, currency: string | null) {
-  if (cents === null || currency === null) return "Unknown";
-  const n = BigInt(cents),
-    negative = n < 0n,
-    absolute = negative ? -n : n;
-  return `${currency} ${negative ? "-" : ""}${(absolute / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${(absolute % 100n).toString().padStart(2, "0")}`;
+  if (cents === null) return "Unknown";
+  return formatMoney(cents, currency, "Unknown");
 }

@@ -63,6 +63,7 @@ import { Route as ApiAskRouteImport } from './routes/api/ask'
 import { Route as ApiBillingOriginalRouteImport } from './routes/api/billing-original'
 import { Route as ApiContractScanRouteImport } from './routes/api/contract-scan'
 import { Route as ApiOwnerPlaysRouteImport } from './routes/api/owner-plays'
+import { Route as ApiPaymentProofRouteImport } from './routes/api/payment-proof'
 import { Route as ApiSopBacklogRouteImport } from './routes/api/sop-backlog'
 import { Route as ApiSopDraftRouteImport } from './routes/api/sop-draft'
 import { Route as AskIndexRouteImport } from './routes/ask.index'
@@ -387,6 +388,11 @@ const ApiContractScanRoute = ApiContractScanRouteImport.update({
 const ApiOwnerPlaysRoute = ApiOwnerPlaysRouteImport.update({
   id: '/api/owner-plays',
   path: '/api/owner-plays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaymentProofRoute = ApiPaymentProofRouteImport.update({
+  id: '/api/payment-proof',
+  path: '/api/payment-proof',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSopBacklogRoute = ApiSopBacklogRouteImport.update({
@@ -714,6 +720,7 @@ export interface FileRoutesByFullPath {
   '/api/billing-original': typeof ApiBillingOriginalRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
+  '/api/payment-proof': typeof ApiPaymentProofRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
@@ -822,6 +829,7 @@ export interface FileRoutesByTo {
   '/api/billing-original': typeof ApiBillingOriginalRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
+  '/api/payment-proof': typeof ApiPaymentProofRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
@@ -931,6 +939,7 @@ export interface FileRoutesById {
   '/api/billing-original': typeof ApiBillingOriginalRoute
   '/api/contract-scan': typeof ApiContractScanRoute
   '/api/owner-plays': typeof ApiOwnerPlaysRoute
+  '/api/payment-proof': typeof ApiPaymentProofRoute
   '/api/sop-backlog': typeof ApiSopBacklogRoute
   '/api/sop-draft': typeof ApiSopDraftRoute
   '/ask/$threadId': typeof AskThreadIdRoute
@@ -1041,6 +1050,7 @@ export interface FileRouteTypes {
     | '/api/billing-original'
     | '/api/contract-scan'
     | '/api/owner-plays'
+    | '/api/payment-proof'
     | '/api/sop-backlog'
     | '/api/sop-draft'
     | '/ask/$threadId'
@@ -1149,6 +1159,7 @@ export interface FileRouteTypes {
     | '/api/billing-original'
     | '/api/contract-scan'
     | '/api/owner-plays'
+    | '/api/payment-proof'
     | '/api/sop-backlog'
     | '/api/sop-draft'
     | '/ask/$threadId'
@@ -1257,6 +1268,7 @@ export interface FileRouteTypes {
     | '/api/billing-original'
     | '/api/contract-scan'
     | '/api/owner-plays'
+    | '/api/payment-proof'
     | '/api/sop-backlog'
     | '/api/sop-draft'
     | '/ask/$threadId'
@@ -1366,6 +1378,7 @@ export interface RootRouteChildren {
   ApiBillingOriginalRoute: typeof ApiBillingOriginalRoute
   ApiContractScanRoute: typeof ApiContractScanRoute
   ApiOwnerPlaysRoute: typeof ApiOwnerPlaysRoute
+  ApiPaymentProofRoute: typeof ApiPaymentProofRoute
   ApiSopBacklogRoute: typeof ApiSopBacklogRoute
   ApiSopDraftRoute: typeof ApiSopDraftRoute
   AskThreadIdRoute: typeof AskThreadIdRoute
@@ -1795,6 +1808,13 @@ declare module '@tanstack/react-router' {
       path: '/api/owner-plays'
       fullPath: '/api/owner-plays'
       preLoaderRoute: typeof ApiOwnerPlaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/payment-proof': {
+      id: '/api/payment-proof'
+      path: '/api/payment-proof'
+      fullPath: '/api/payment-proof'
+      preLoaderRoute: typeof ApiPaymentProofRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sop-backlog': {
@@ -2248,6 +2268,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBillingOriginalRoute: ApiBillingOriginalRoute,
   ApiContractScanRoute: ApiContractScanRoute,
   ApiOwnerPlaysRoute: ApiOwnerPlaysRoute,
+  ApiPaymentProofRoute: ApiPaymentProofRoute,
   ApiSopBacklogRoute: ApiSopBacklogRoute,
   ApiSopDraftRoute: ApiSopDraftRoute,
   AskThreadIdRoute: AskThreadIdRoute,

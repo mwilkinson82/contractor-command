@@ -1,4 +1,6 @@
-import { costRecordLinks } from "../../accounting-record-target";
+import { accountingRecordUrl, costRecordLinks } from "../../accounting-record-target";
+import { formatMoney, formatRecordDate } from "../../money-format";
+import { buildPaymentTrail, type TrailRecord } from "../../payable-payment-trail";
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError, text, type Sb } from "../guard";
@@ -97,10 +99,51 @@ const validDate = (s: string) => {
   const d = new Date(`${s}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 };
+/** "$6,400.00"; other supported currencies keep their code; an unknown currency is said, not guessed. */
 const money = (n: number, currency?: string | null) =>
-  currency && (COST_CURRENCIES as readonly string[]).includes(currency)
-    ? `${new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n / 100)} ${currency}`
-    : `${(n / 100).toFixed(2)} (currency unknown)`;
+  formatMoney(
+    n,
+    currency && (COST_CURRENCIES as readonly string[]).includes(currency) ? currency : null,
+  );
+/**
+ * After a recorded payment: what was paid, to whom, against which bill, and what is left, with a
+ * link to the payment record. Falls back to a plain line if the bill cannot be read back.
+ */
+async function paymentRecordedSummary(
+  sb: Sb,
+  jobId: string,
+  payload: {
+    id: string;
+    payment_id?: string;
+    amount_cents?: number;
+    paid_on?: string;
+    reference?: string;
+  },
+): Promise<string> {
+  const fallback = `Payment recorded for ${formatRecordDate(payload.paid_on)}, reference ${payload.reference}. Read the bill to see its remaining balance. Athena recorded what your team entered; no money was moved and the bank was not checked.`;
+  try {
+    const data = await rpc<{ records: TrailRecord[] }>(sb, "mcp_cost_submission_read", {
+      _job: jobId,
+    });
+    const record = data.records.find((r) => r.id === payload.id);
+    if (!record || !payload.payment_id || !record.payments.some((p) => p.id === payload.payment_id))
+      return fallback;
+    const t = buildPaymentTrail(jobId, record, { focusPaymentId: payload.payment_id });
+    const url = accountingRecordUrl(jobId, {
+      kind: "payment",
+      id: payload.payment_id,
+      payableId: record.id,
+    });
+    return [
+      `Payment recorded: ${t.focus?.amount} to ${t.payee} on ${t.focus?.date}, reference ${t.focus?.reference}.`,
+      `${t.kindLabel} ${t.billLabel}: total ${t.total} · paid to date ${t.paid} · remaining ${t.remaining} (${t.statusLabel.toLowerCase()}).`,
+      `Payment record: ${url}`,
+      "Attach the check or wire confirmation on that page. Athena recorded what your team entered; no money was moved and the bank was not checked.",
+    ].join("\n");
+  } catch {
+    return fallback;
+  }
+}
 export const jobCostSubmissionRead = defineTool({
   name: "job_cost_submissions_read",
   title: "Read existing supplier bills and field expenses",
@@ -295,7 +338,7 @@ export const jobCostSubmissionRecord = defineTool({
           return guide(
             {
               ...text(
-                `Review this ${p.facts.kind.replaceAll("_", " ")}: ${p.facts.description}; ${p.facts.counterparty_name}; incurred ${p.facts.incurred_on}; ${money(p.facts.amount_cents, p.facts.currency_code)}.\n${lines.join("\n")}\nReference: ${p.facts.document_reference ?? "not supplied"}.${p.facts.party_id ? ` Supplier ID: ${p.facts.party_id}.` : ""}${p.facts.purchase_order_id ? ` PO ID: ${p.facts.purchase_order_id}, revision ${p.facts.purchase_order_version}.` : ""}${p.reason ? ` Correction reason: ${p.reason}.` : ""} Original attachment: missing from this submission; an eligible field submitter can attach it separately after saving. This will be submitted only, not posted or paid. Is this correct?`,
+                `Review this ${p.facts.kind.replaceAll("_", " ")}: ${p.facts.description}; ${p.facts.counterparty_name}; incurred ${p.facts.incurred_on}; ${money(p.facts.amount_cents, p.facts.currency_code)}.\n${lines.join("\n")}\nReference: ${p.facts.document_reference ?? "not supplied"}.${p.facts.party_id ? ` Supplier: ${p.facts.counterparty_name} (saved project party).` : ""}${p.facts.purchase_order_id ? ` Linked to a purchase order, revision ${p.facts.purchase_order_version}.` : ""}${p.reason ? ` Correction reason: ${p.reason}.` : ""} Original attachment: missing from this submission; an eligible field submitter can attach it separately after saving. This will be submitted only, not posted or paid. Is this correct?`,
               ),
               structuredContent: { saved: false, payload: p, review_key: reviewKey } as never,
             },
@@ -520,13 +563,13 @@ export const jobCostAccountingRecord = defineTool({
           const allocations = current.facts.allocations
             .map(
               (a) =>
-                `${a.job_id === job.job_id ? job.job_number : `job ID ${a.job_id}`} / ${a.cost_code}: ${money(a.amount_cents, current.facts.currency_code)}`,
+                `${a.job_id === job.job_id ? job.job_number : "another project"} / ${a.cost_code}: ${money(a.amount_cents, current.facts.currency_code)}`,
             )
             .join("\n");
           return guide(
             {
               ...text(
-                `Review accounting ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; incurred ${current.facts.incurred_on}; ${money(current.facts.amount_cents, current.facts.currency_code)}; version ${current.version}.${payload.action === "post" ? ` Accounting effective date: ${payload.accounting_effective_on}.` : ""}\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment was missing at submission; check separate receipts.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!, current.facts.currency_code)} on ${payload.paid_on}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
+                `Review accounting ${payload.action} for ${current.facts.kind.replaceAll("_", " ")}: ${current.facts.description}; ${current.facts.counterparty_name}; incurred ${current.facts.incurred_on}; ${money(current.facts.amount_cents, current.facts.currency_code)}; version ${current.version}.${payload.action === "post" ? ` Accounting effective date: ${payload.accounting_effective_on}.` : ""}\n${allocations}\nReference: ${current.facts.document_reference ?? "not supplied"}. Original attachment was missing at submission; check separate receipts.${current.reason ? ` Correction reason: ${current.reason}.` : ""}${payload.action === "payment" ? ` Recorded settlement: ${money(payload.amount_cents!, current.facts.currency_code)} on ${formatRecordDate(payload.paid_on)}, reference ${payload.reference}. No funds will be transferred.` : ""} Nothing has been recorded. Is this correct?`,
               ),
               structuredContent: { saved: false, payload, review_key: reviewKey } as never,
             },
@@ -542,11 +585,15 @@ export const jobCostAccountingRecord = defineTool({
             _review: args.review_key,
             _confirmed: true,
           });
+          const paymentSummary =
+            args.payload.action === "payment"
+              ? await paymentRecordedSummary(sb, job.job_id, args.payload)
+              : null;
           return guide(
             {
               ...text(
-                args.payload.action === "payment"
-                  ? "Settlement evidence recorded. No funds were transferred."
+                paymentSummary
+                  ? paymentSummary
                   : args.payload.action === "post"
                     ? "Cost posted to accounting."
                     : "Accounting review approved. PM payment approval is separate.",

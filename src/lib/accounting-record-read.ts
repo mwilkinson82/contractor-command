@@ -1,13 +1,15 @@
 import { z } from "zod";
-import { billingReportSchema, accountingMoney } from "./accounting-report";
+import { billingReportSchema, accountingMoney, poReportSchema } from "./accounting-report";
 import { invoiceBalance, receiptBalance } from "./billing-evidence-balances";
-import { AP_REPORT_CURRENCIES, apMoney } from "./accounting-ap-versioned";
+import { AP_REPORT_CURRENCIES } from "./accounting-ap-versioned";
 import {
   accountingTarget,
   recordLink,
   type AccountingTarget,
   type RecordLink,
 } from "./accounting-record-target";
+import { formatMoney, formatRecordDate } from "./money-format";
+import { buildPaymentTrail, type PaymentTrail, type TrailRecord } from "./payable-payment-trail";
 
 export type RecordIO = {
   rpc: (
@@ -23,6 +25,10 @@ export type RecordDetail = {
   related: RecordLink[];
   originals: Array<{ id: string; filename: string; version?: number }>;
   originalsNote: string;
+  /** Plain-language trail for a supplier bill/expense or one of its payments. */
+  trail?: PaymentTrail;
+  /** Set when the reader may attach proof to the focused payment (owner or accounts payable). */
+  proofTarget?: { recordId: string; paymentId: string } | null;
 };
 const unavailable = () =>
   new Error(
@@ -50,11 +56,32 @@ const factLabels: Record<string, string> = {
   counterparty_name: "Payee",
   incurred_on: "Incurred date",
   accounting_effective_on: "Accounting effective date",
-  recorded_at: "Recorded at",
-  corrected_at: "Corrected at",
+  recorded_at: "Recorded",
+  corrected_at: "Corrected",
+  posted_at: "Posted",
   paid_on: "Payment date",
   reference: "Reference",
 };
+const dateKeys = new Set([
+  "invoice_date",
+  "effective_date",
+  "incurred_on",
+  "accounting_effective_on",
+  "recorded_at",
+  "corrected_at",
+  "posted_at",
+  "paid_on",
+]);
+const moneyLabels: Record<string, string> = {
+  amount_cents: "Amount",
+  gross_cents: "Gross amount",
+  withheld_cents: "Retainage withheld",
+  released_cents: "Retainage released",
+  net_due_cents: "Net due",
+  certified_cents: "Certified amount",
+  original_amount_cents: "Original amount",
+};
+/** Readable labels, "$6,400.00" money and "Nov 3, 2026" dates; a null currency is said, not guessed. */
 function facts(
   value: Record<string, unknown>,
   currency: string | null = "USD",
@@ -62,27 +89,23 @@ function facts(
   return Object.entries(value).flatMap(([k, v]): Array<[string, string]> => {
     if (v === null || v === undefined) return [];
     if (factLabels[k] && (typeof v === "string" || typeof v === "number"))
-      return [[factLabels[k], String(v)]];
-    if (
-      [
-        "amount_cents",
-        "gross_cents",
-        "withheld_cents",
-        "released_cents",
-        "net_due_cents",
-        "certified_cents",
-      ].includes(k) &&
-      ["string", "number"].includes(typeof v)
-    )
-      return [[k.replace(/_cents$/, "").replaceAll("_", " "), apMoney(String(v), currency)]];
+      return [
+        [factLabels[k], dateKeys.has(k) && typeof v === "string" ? formatRecordDate(v) : String(v)],
+      ];
+    if (moneyLabels[k] && (typeof v === "string" || typeof v === "number"))
+      return [[moneyLabels[k], formatMoney(v, currency)]];
     return [];
   });
 }
+const knownCurrency = (v: unknown) =>
+  typeof v === "string" && AP_REPORT_CURRENCIES.includes(v) ? v : null;
 const costVersion = z.object({
   version: z.number().int().positive(),
   facts: z.record(z.string(), z.unknown()),
   recorded_at: z.string().optional(),
   reason: z.string().nullable().optional(),
+  purchase_order_ref: uuid.nullable().optional(),
+  purchase_order_version_ref: z.number().nullable().optional(),
 });
 const costRecord = z.object({
   id: uuid,
@@ -102,7 +125,99 @@ const costRecord = z.object({
       correction: z.record(z.string(), z.unknown()).nullable().optional(),
     }),
   ),
+  active_settlement_cents: z.union([z.number(), z.string()]).nullable().optional(),
 });
+type CostRecord = z.infer<typeof costRecord>;
+
+/** Lines times unit price; null when any extension is fractional (no rounding policy is recorded). */
+function poTotal(lines: Array<{ quantity: number; unit_price_cents: number }>): number | null {
+  let total = 0;
+  for (const l of lines) {
+    const ext = l.quantity * l.unit_price_cents;
+    if (!Number.isSafeInteger(ext)) return null;
+    total += ext;
+  }
+  return total;
+}
+async function trailFor(
+  io: RecordIO,
+  job: string,
+  records: CostRecord[],
+  r: CostRecord,
+  focusPaymentId?: string,
+): Promise<{ trail: PaymentTrail; proofTarget: RecordDetail["proofTarget"] }> {
+  const latest = Math.max(...r.versions.map((v) => v.version));
+  const basis = r.versions.find((v) => v.version === (r.posted_version ?? latest))!;
+  let purchaseOrder: NonNullable<Parameters<typeof buildPaymentTrail>[2]>["purchaseOrder"];
+  if (basis.purchase_order_ref) {
+    try {
+      const orders = poReportSchema.parse(
+        await read(io, "mcp_project_purchase_orders_get", { _job: job }),
+      ).orders;
+      const o = orders.find((o) => o.id === basis.purchase_order_ref);
+      if (o) {
+        const v = [...o.versions].sort((a, b) => b.version - a.version)[0];
+        const billed = records.reduce((n, x) => {
+          const posted = x.versions.find((y) => y.version === x.posted_version);
+          const amount = posted?.facts.amount_cents;
+          return posted?.purchase_order_ref === o.id && typeof amount === "number" ? n + amount : n;
+        }, 0);
+        purchaseOrder = {
+          number: o.number,
+          status: `${v.status[0].toUpperCase()}${v.status.slice(1)} v${v.version}`,
+          totalCents: poTotal(v.lines),
+          billedCents: billed,
+          url: `https://app.meetathena.io/r/job/${job}/purchase-orders`,
+        };
+      }
+    } catch {
+      /* PO detail unreadable with this access: the trail still says a PO is linked. */
+    }
+  }
+  let originals: Array<{ id: string; filename: string; version?: number }> = [];
+  let originalsNote: string | undefined;
+  try {
+    const got = z.object({ originals: originalList }).parse(
+      await read(io, "mcp_ap_original_list", {
+        _job: job,
+        _record: r.id,
+        _version: basis.version,
+      }),
+    );
+    originals = got.originals.filter((o) => o.version === basis.version);
+  } catch {
+    originalsNote = "The supplier's invoice is not available with your current access.";
+  }
+  let paymentProof: Array<{ id: string; filename: string }> = [];
+  let canAttach = false;
+  try {
+    const got = z
+      .object({
+        proofs: z.array(z.object({ id: uuid, payment_id: uuid, filename: z.string() })),
+        can_attach: z.boolean(),
+      })
+      .parse(await read(io, "mcp_cost_payment_proof_list", { _job: job, _record: r.id }));
+    canAttach = got.can_attach;
+    paymentProof = got.proofs
+      .filter((p) => !focusPaymentId || p.payment_id === focusPaymentId)
+      .map((p) => ({ id: p.id, filename: p.filename }));
+  } catch {
+    /* Proof storage is not set up yet, or not readable with this access. */
+  }
+  const trail = buildPaymentTrail(job, r as unknown as TrailRecord, {
+    focusPaymentId,
+    originals,
+    originalsNote,
+    purchaseOrder,
+    paymentProof,
+  });
+  const focus = focusPaymentId ? r.payments.find((p) => p.id === focusPaymentId) : undefined;
+  return {
+    trail,
+    proofTarget:
+      canAttach && focus && !focus.corrected ? { recordId: r.id, paymentId: focus.id } : null,
+  };
+}
 /** Only existing user-scoped RPC reads. Never calls review, save, post, allocate or confirm. */
 export async function readAccountingRecord(
   io: RecordIO,
@@ -276,11 +391,7 @@ export async function readAccountingRecord(
     const latest = Math.max(...r.versions.map((v) => v.version));
     const v = r.versions.find((v) => v.version === (t.version ?? latest));
     if (!v) throw unavailable();
-    const currency =
-      typeof v.facts.currency_code === "string" &&
-      AP_REPORT_CURRENCIES.includes(v.facts.currency_code)
-        ? v.facts.currency_code
-        : null;
+    const currency = knownCurrency(v.facts.currency_code);
     detail.title = `${v.facts.document_reference || v.facts.description || "Supplier bill / expense"} · v${v.version}`;
     detail.subtitle = `${r.kind.replaceAll("_", " ")} · current v${latest}; posted ${r.posted_version === null ? "none" : `v${r.posted_version}`}`;
     detail.facts = facts({ ...v.facts, reason: v.reason, recorded_at: v.recorded_at }, currency);
@@ -292,10 +403,7 @@ export async function readAccountingRecord(
       label: `Version ${x.version}`,
       facts: facts(
         { ...x.facts, reason: x.reason, recorded_at: x.recorded_at },
-        typeof x.facts.currency_code === "string" &&
-          AP_REPORT_CURRENCIES.includes(x.facts.currency_code)
-          ? x.facts.currency_code
-          : null,
+        knownCurrency(x.facts.currency_code),
       ),
       link: recordLink(job, `Open v${x.version}`, { ...t, version: x.version }),
     }));
@@ -307,14 +415,14 @@ export async function readAccountingRecord(
         label: `v${v.version} allocation · ${a.cost_code}`,
         facts: [
           ["Project", a.job_id === job ? "This project" : a.job_id],
-          ["Reviewed allocation", apMoney(String(a.amount_cents), currency)],
+          ["Reviewed allocation", formatMoney(a.amount_cents, currency)],
         ] as Array<[string, string]>,
       })),
     );
     detail.history.push(
       ...(r.posting_events ?? []).map((e) => ({
         label: `Posting history · v${e.version}`,
-        facts: facts({ ...e, recorded_at: e.posted_at }, null),
+        facts: facts(e, currency),
       })),
     );
     detail.history.push(
@@ -337,12 +445,9 @@ export async function readAccountingRecord(
       detail.history.push({
         label: `Recorded payment ${p.reference}${p.corrected ? " · corrected" : ""}`,
         facts: [
-          ["Payment date", p.paid_on],
-          [
-            "Currency",
-            "Open payment for its reviewed allocation currency; not inferred from this bill version",
-          ],
-          ...(p.correction ? facts(p.correction, null) : []),
+          ["Payment date", formatRecordDate(p.paid_on)],
+          ["Amount applied to this bill", formatMoney(p.amount_cents, currency)],
+          ...(p.correction ? facts(p.correction, currency) : []),
         ],
       });
     }
@@ -358,6 +463,8 @@ export async function readAccountingRecord(
       detail.originalsNote =
         "Supplier originals are unavailable for this access level or version. Accounting/owner access and every allocated job must be authorized.";
     }
+    const built = await trailFor(io, job, data.records, r);
+    detail.trail = built.trail;
   } else {
     const raw = await read(io, "mcp_cost_payment_correction", {
       _job: job,
@@ -395,23 +502,30 @@ export async function readAccountingRecord(
     const { state } = result;
     if (state.payment.id !== t.id || !state.records.some((r) => r.record_id === t.payableId))
       throw unavailable();
-    detail.title = `Recorded payment ${state.payment.reference}`;
-    detail.subtitle = `Payment evidence · ${state.payment.paid_on}${state.correction ? " · corrected; original retained" : ""}`;
+    const currencies = [...new Set(state.records.map((r) => r.currency_code))];
+    const paymentCurrency = currencies.length === 1 ? knownCurrency(currencies[0]) : null;
+    detail.title = `Payment ${state.payment.reference}`;
+    detail.subtitle = `Payment recorded for ${formatRecordDate(state.payment.paid_on)}${state.correction ? " · corrected; original retained" : ""}`;
     // Allocation currencies are read independently; never assign one inferred currency to a shared payment.
     detail.facts = [
-      [
-        "Recorded total",
-        `${(BigInt(state.payment.amount_cents) / 100n).toString()}.${(BigInt(state.payment.amount_cents) % 100n).toString().padStart(2, "0")} · currency not recorded on payment`,
-      ],
-      ["Bank settlement", "Not verified by recorded payment evidence"],
+      ["Amount paid", formatMoney(state.payment.amount_cents, paymentCurrency)],
+      ["Payment date", formatRecordDate(state.payment.paid_on)],
+      ["Reference", state.payment.reference],
+      ["Bank settlement", "Recorded by your team; Athena does not see the bank"],
     ];
     detail.history = state.records.map((r) => ({
       label: r.document_reference || r.description,
       facts: [
-        ["Allocated to payable", apMoney(r.original_amount_cents, r.currency_code)],
-        ["Current / posted version", `v${r.current_version} / ${r.posted_version ?? "none"}`],
+        [
+          "Applied to this bill",
+          formatMoney(r.original_amount_cents, knownCurrency(r.currency_code)),
+        ],
+        [
+          "Bill version",
+          `Current v${r.current_version} · posted ${r.posted_version ? `v${r.posted_version}` : "none"}`,
+        ],
       ],
-      link: recordLink(r.job_id, "Open related payable", {
+      link: recordLink(r.job_id, `Open ${r.document_reference || "bill"}`, {
         kind: "payable",
         id: r.record_id,
         version: r.current_version,
@@ -419,18 +533,21 @@ export async function readAccountingRecord(
     }));
     detail.related = detail.history.map((h) => h.link!);
     detail.history.push(
-      ...result.history.map((h) => ({ label: "Correction history", facts: facts(h, null) })),
+      ...result.history.map((h) => ({
+        label: "Correction history",
+        facts: facts(h, paymentCurrency),
+      })),
     );
     if (state.correction)
       detail.history.push({
         label: "Original payment correction",
-        facts: facts(state.correction, null),
+        facts: facts(state.correction, paymentCurrency),
       });
     for (const h of result.history) {
       if (h.revised && typeof h.revised === "object")
         detail.history.push({
           label: "Replacement payment facts",
-          facts: facts(h.revised as Record<string, unknown>, null),
+          facts: facts(h.revised as Record<string, unknown>, paymentCurrency),
         });
       for (const key of ["payment_id", "replacement_id"])
         if (typeof h[key] === "string" && uuid.safeParse(h[key]).success && h[key] !== t.id)
@@ -444,6 +561,19 @@ export async function readAccountingRecord(
     }
     detail.originalsNote =
       "Original source documents belong to the related payable and its exact version.";
+    try {
+      const costs = z
+        .object({ records: z.array(costRecord) })
+        .parse(await read(io, "mcp_cost_submission_read", { _job: job }));
+      const bill = costs.records.find((r) => r.id === t.payableId);
+      if (bill && bill.payments.some((p) => p.id === t.id)) {
+        const built = await trailFor(io, job, costs.records, bill, t.id);
+        detail.trail = built.trail;
+        detail.proofTarget = built.proofTarget;
+      }
+    } catch {
+      /* The bill's own read needs full project access; the payment facts above still stand. */
+    }
   }
   detail.related = [...new Map(detail.related.map((l) => [l.url, l])).values()];
   return detail;

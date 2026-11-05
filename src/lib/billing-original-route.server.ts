@@ -6,6 +6,7 @@ import {
   readVerifiedCostReceipt,
   readVerifiedFinancialOriginal,
 } from "./mcp/billing-original.server";
+import { readPaymentProof } from "./payment-proof-route.server";
 
 const uuid = z.string().uuid();
 export async function handleBillingOriginalDownload(request: Request): Promise<Response> {
@@ -23,6 +24,37 @@ export async function handleBillingOriginalDownload(request: Request): Promise<R
   const apRaw = url.searchParams.get("ap_record");
   const apRecord = apRaw === null ? null : uuid.safeParse(apRaw);
   const version = url.searchParams.get("version");
+  const proof = url.searchParams.get("payment_proof");
+  if (proof !== null) {
+    if (
+      !job.success ||
+      !document.success ||
+      proof !== "1" ||
+      apRaw !== null ||
+      costRecordRaw !== null ||
+      version !== null
+    )
+      return new Response("Original unavailable.", {
+        status: 404,
+        headers: { "cache-control": "no-store" },
+      });
+    try {
+      const result = await readPaymentProof(auth[1], job.data, document.data);
+      return new Response(result.bytes as BodyInit, {
+        headers: {
+          "content-type": "application/octet-stream",
+          "content-disposition": "attachment",
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    } catch {
+      return new Response("Proof unavailable or could not be verified.", {
+        status: 404,
+        headers: { "cache-control": "no-store" },
+      });
+    }
+  }
   if (
     !job.success ||
     !document.success ||

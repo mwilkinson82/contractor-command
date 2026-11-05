@@ -159,6 +159,19 @@ export function ledgerRecordUrl(
     );
   if (prefix === "receipt" || prefix === "allocation")
     return accountingRecordUrl(job, { kind: prefix, id }, dates);
+  // Supplier bills, expenses and their payments open the payment trail for that exact record.
+  if (prefix === "cost" || prefix === "payable")
+    return accountingRecordUrl(
+      job,
+      { kind: "payable", id, ...(row.version ? { version: row.version } : {}) },
+      dates,
+    );
+  if (prefix === "cost_payment") {
+    const payment = row.id.split(":")[2];
+    if (!z.string().uuid().safeParse(payment).success) return null;
+    return accountingRecordUrl(job, { kind: "payment", id: payment, payableId: id }, dates);
+  }
+  if (prefix === "po") return `https://app.meetathena.io/r/job/${job}/purchase-orders`;
   return null;
 }
 

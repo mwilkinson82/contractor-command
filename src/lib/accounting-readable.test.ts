@@ -145,9 +145,9 @@ describe("readable accounting reports", () => {
       vendor: "Alpha",
       costCode: "26",
     });
-    expect(view.tables[1].rows).toEqual([["Alpha", "A01", "2026-10-10", "26", "USD 100.00", "v2"]]);
-    expect(view.tables[0].rows[0]).toEqual(["26", "Unknown", "USD 100.00", "Unknown"]);
-    expect(view.metrics.find((m) => m.label.includes("through as-of"))?.amount).toBe("USD 100.00");
+    expect(view.tables[1].rows).toEqual([["Alpha", "A01", "2026-10-10", "26", "$100.00", "v2"]]);
+    expect(view.tables[0].rows[0]).toEqual(["26", "Unknown", "$100.00", "Unknown"]);
+    expect(view.metrics.find((m) => m.label.includes("through as-of"))?.amount).toBe("$100.00");
     const empty = readableAccountingReport(fixture(), "costs", {
       currency: "USD",
       vendor: "Beta",

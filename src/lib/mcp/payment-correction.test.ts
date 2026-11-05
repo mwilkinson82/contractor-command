@@ -211,9 +211,9 @@ describe("recorded payment correction: real isolated PostgreSQL and mocked tool 
       },
       ap,
     );
-    expect(r.content[0].text).toContain("USD 6,200.00");
-    expect(r.content[0].text).toContain("USD 5,200.00");
-    expect(r.content[0].text).toContain("USD 4,800.00");
+    expect(r.content[0].text).toContain("$6,200.00");
+    expect(r.content[0].text).toContain("$5,200.00");
+    expect(r.content[0].text).toContain("$4,800.00");
     expect(
       (
         await db.query<{ n: number }>(
