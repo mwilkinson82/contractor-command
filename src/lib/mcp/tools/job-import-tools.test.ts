@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { drawingFileMeta } from "../drawing-file-input";
 import {
   JOB_IMPORT_RULE,
   OVERWATCH_EXPORT_HOW,
   destinationChecks,
+  jobImport,
   overwatchJobNumber,
   readExport,
   replacedCard,
@@ -87,5 +89,20 @@ describe("schedule replace", () => {
       "CPM version 2 saved: 20 activities, recalculated at data date 2026-06-25",
     );
     expect(all).toContain("Version 1 and every earlier version stay in the CPM's history.");
+  });
+});
+
+describe("job import tool: loose booleans from a stale client", () => {
+  const input = z.object(jobImport.inputSchema);
+  it('reads "true" and "false" the same as real booleans', () => {
+    const got = input.parse({ step: "save", confirmed: "true", replace_schedule: " TRUE " });
+    expect(got).toMatchObject({ confirmed: true, replace_schedule: true });
+    expect(input.parse({ step: "save", confirmed: "false" })).toMatchObject({ confirmed: false });
+    expect(input.parse({ step: "save", confirmed: true })).toMatchObject({ confirmed: true });
+    expect(input.parse({ step: "review" }).replace_schedule).toBeUndefined();
+  });
+  it("still refuses anything that isn't a yes or no", () => {
+    for (const v of ["yes", "1", "", "y", 1, null])
+      expect(input.safeParse({ step: "save", confirmed: v }).success).toBe(false);
   });
 });
