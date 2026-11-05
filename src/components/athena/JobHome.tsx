@@ -431,10 +431,10 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 </a>
               ) : null}
             </header>
+            {/* Notifications panel (customer portal work) mounts here as section#notifications. */}
             {commercialOn ? (
               <>
                 <StageStrip stage={stage} />
-                {/* JobHomeWhatsNew (customer portal work) mounts here as section#notifications. */}
                 <NextStepCard step={nextStepOf(commercial, base.job_number ?? "")} href={href} />
                 {estimateFirst ? estimateSection : contractsSection}
               </>
