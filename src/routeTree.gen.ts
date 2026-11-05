@@ -89,6 +89,7 @@ import { Route as BrandAthenaAthenaIcon64DotpngRouteImport } from './routes/bran
 import { Route as CITokenRouteImport } from './routes/c.i.$token'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as PSTokenRouteImport } from './routes/p.s.$token'
+import { Route as RCompanyCompanyIdRouteImport } from './routes/r.company.$companyId'
 import { Route as RDrawingUploadTokenRouteImport } from './routes/r.drawing-upload.$token'
 import { Route as RFileUploadTokenRouteImport } from './routes/r.file-upload.$token'
 import { Route as RPortfolioCompanyIdRouteImport } from './routes/r.portfolio.$companyId'
@@ -522,6 +523,11 @@ const PSTokenRoute = PSTokenRouteImport.update({
   path: '/p/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RCompanyCompanyIdRoute = RCompanyCompanyIdRouteImport.update({
+  id: '/r/company/$companyId',
+  path: '/r/company/$companyId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RDrawingUploadTokenRoute = RDrawingUploadTokenRouteImport.update({
   id: '/r/drawing-upload/$token',
   path: '/r/drawing-upload/$token',
@@ -748,6 +754,7 @@ export interface FileRoutesByFullPath {
   '/c/i/$token': typeof CITokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/p/s/$token': typeof PSTokenRoute
+  '/r/company/$companyId': typeof RCompanyCompanyIdRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
@@ -857,6 +864,7 @@ export interface FileRoutesByTo {
   '/c/i/$token': typeof CITokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/p/s/$token': typeof PSTokenRoute
+  '/r/company/$companyId': typeof RCompanyCompanyIdRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
@@ -967,6 +975,7 @@ export interface FileRoutesById {
   '/c/i/$token': typeof CITokenRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/p/s/$token': typeof PSTokenRoute
+  '/r/company/$companyId': typeof RCompanyCompanyIdRoute
   '/r/drawing-upload/$token': typeof RDrawingUploadTokenRoute
   '/r/file-upload/$token': typeof RFileUploadTokenRoute
   '/r/portfolio/$companyId': typeof RPortfolioCompanyIdRoute
@@ -1078,6 +1087,7 @@ export interface FileRouteTypes {
     | '/c/i/$token'
     | '/lovable/email/suppression'
     | '/p/s/$token'
+    | '/r/company/$companyId'
     | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/portfolio/$companyId'
@@ -1187,6 +1197,7 @@ export interface FileRouteTypes {
     | '/c/i/$token'
     | '/lovable/email/suppression'
     | '/p/s/$token'
+    | '/r/company/$companyId'
     | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/portfolio/$companyId'
@@ -1296,6 +1307,7 @@ export interface FileRouteTypes {
     | '/c/i/$token'
     | '/lovable/email/suppression'
     | '/p/s/$token'
+    | '/r/company/$companyId'
     | '/r/drawing-upload/$token'
     | '/r/file-upload/$token'
     | '/r/portfolio/$companyId'
@@ -1402,6 +1414,7 @@ export interface RootRouteChildren {
   CITokenRoute: typeof CITokenRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   PSTokenRoute: typeof PSTokenRoute
+  RCompanyCompanyIdRoute: typeof RCompanyCompanyIdRoute
   RDrawingUploadTokenRoute: typeof RDrawingUploadTokenRoute
   RFileUploadTokenRoute: typeof RFileUploadTokenRoute
   RPortfolioCompanyIdRoute: typeof RPortfolioCompanyIdRoute
@@ -1992,6 +2005,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PSTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/company/$companyId': {
+      id: '/r/company/$companyId'
+      path: '/r/company/$companyId'
+      fullPath: '/r/company/$companyId'
+      preLoaderRoute: typeof RCompanyCompanyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/drawing-upload/$token': {
       id: '/r/drawing-upload/$token'
       path: '/r/drawing-upload/$token'
@@ -2293,6 +2313,7 @@ const rootRouteChildren: RootRouteChildren = {
   CITokenRoute: CITokenRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   PSTokenRoute: PSTokenRoute,
+  RCompanyCompanyIdRoute: RCompanyCompanyIdRoute,
   RDrawingUploadTokenRoute: RDrawingUploadTokenRoute,
   RFileUploadTokenRoute: RFileUploadTokenRoute,
   RPortfolioCompanyIdRoute: RPortfolioCompanyIdRoute,

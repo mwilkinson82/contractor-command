@@ -1,7 +1,8 @@
 // Athena account page: Company profile (Nov 2026). Saves to Athena's own company record, the one pay apps, proposals,
 // client pages and emails read, so a logo set here finally shows up for clients. Owner-only; the database checks it.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Trash2, Upload } from "lucide-react";
+import { ArrowRight, Loader2, Trash2, Upload } from "lucide-react";
+import { companyBoardPath, isCompanyId } from "@/lib/company-board";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LOGO_RULE,
@@ -88,6 +89,50 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
+  );
+}
+
+/**
+ * The account page's Company tab (Nov 5 2026): company details and the logo moved to the company board, so there is
+ * one editor. The account page keeps team, billing, payments, notifications and projects.
+ */
+export function CompanyBoardLinkCard({
+  companyId,
+  profile,
+}: {
+  companyId: string | null;
+  profile: CompanyProfile | null;
+}) {
+  if (!isCompanyId(companyId))
+    return (
+      <div className="aa-card">
+        <h2>No Athena company yet</h2>
+        <p className="aa-lede">
+          Ask Athena in your chat to set up your company. Your company board opens from here after.
+        </p>
+      </div>
+    );
+  const name = profile?.name?.trim() || "Your company";
+  return (
+    <section className="aa-card" aria-labelledby="aa-company-board-title">
+      <div className="aa-row" style={{ justifyContent: "flex-start", gap: 14 }}>
+        <span className="aa-logo-box" aria-hidden="true">
+          {profile?.logo_url ? <img src={profile.logo_url} alt="" /> : companyInitials(profile?.name)}
+        </span>
+        <div>
+          <h2 id="aa-company-board-title">{name} company board</h2>
+          <p className="aa-lede">
+            Your company details and logo live on your company board now, with your profile, kinds of work, labor
+            rules and the tools you use. Team, plan and billing stay here on your account page.
+          </p>
+        </div>
+      </div>
+      <div className="aa-save-bar">
+        <a className="aa-btn aa-btn-primary" href={companyBoardPath(companyId)}>
+          Open company board <ArrowRight size={14} />
+        </a>
+      </div>
+    </section>
   );
 }
 
