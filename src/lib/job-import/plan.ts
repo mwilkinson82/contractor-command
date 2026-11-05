@@ -41,7 +41,7 @@ export const PACKAGE_MAX_BYTES = 5_500_000;
 export type ImportPackage = {
   /**
    * 1: the original package. 2: adds ior and archive (migration 20261105090000).
-   * 3: adds schedule, rfis, decisions, claims and inspections (20261105100000).
+   * 3: adds schedule, rfis, decisions, claims and inspections (20261105100000 to 20261105100300, the job logs parts).
    */
   version: 1 | 2 | 3;
   source: { system: ImportSource; label: string; exported_at: string | null };

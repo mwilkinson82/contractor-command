@@ -244,8 +244,20 @@ replaces `mcp_job_import_context` (adds `has_ior`, `archived`),
 an IOR or archive is version 2, so a database without this migration refuses it
 instead of saving part of it.
 
-`supabase/migrations/20261105100000_athena_job_logs.sql` (stage only; Lovable
-writes its own drizzle copy; needs 20261105090000 first):
+The job logs migration, in four parts applied in order (stage only; Lovable
+writes its own drizzle copy of each; needs 20261105090000 first). It was one
+file, split only to keep each paste small; no statement changed:
+
+1. `supabase/migrations/20261105100000_athena_job_logs_part1.sql`: CPM save and
+   outside RFIs.
+2. `supabase/migrations/20261105100100_athena_job_logs_part2.sql`: the claim,
+   inspection and decision tables.
+3. `supabase/migrations/20261105100200_athena_job_logs_part3.sql`:
+   `mcp_job_log_record` and `mcp_job_log_rows`.
+4. `supabase/migrations/20261105100300_athena_job_logs_part4.sql`: the import's
+   context, stage and apply.
+
+Together they:
 
 - Replaces `mcp_living_report_save` so a CPM ties only when cost loaded.
 - Allows RFI state `sent_outside` and adds `mcp_request_record_outside`; patches

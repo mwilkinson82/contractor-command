@@ -1,4 +1,4 @@
--- Rollback for 20261105100000_athena_job_logs.sql.
+-- Rollback for the four 20261105100000 to 20261105100300 athena_job_logs part files.
 -- 1. Put mcp_living_report_save back as 20261020213000 defined it (re-run that
 --    CREATE OR REPLACE block). Do this only when no plain (unloaded) CPM is
 --    saved, or the next save of one will be refused.

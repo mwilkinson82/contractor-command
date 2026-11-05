@@ -95,7 +95,10 @@ beforeAll(async () => {
   await db.exec(
     "CREATE SCHEMA IF NOT EXISTS mcp_private; CREATE TABLE mcp_private.residential_selection_boards(job_id uuid PRIMARY KEY, version bigint NOT NULL, body jsonb NOT NULL, updated_by uuid, updated_at timestamptz NOT NULL DEFAULT now());",
   );
-  await load("20261105100000_athena_job_logs");
+  await load("20261105100000_athena_job_logs_part1");
+  await load("20261105100100_athena_job_logs_part2");
+  await load("20261105100200_athena_job_logs_part3");
+  await load("20261105100300_athena_job_logs_part4");
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
