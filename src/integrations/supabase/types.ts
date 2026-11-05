@@ -2037,6 +2037,45 @@ export type Database = {
           },
         ]
       }
+      mcp_change_order_pricing: {
+        Row: {
+          basis: string
+          job_id: string
+          set_at: string
+          set_by: string
+          submittal_id: string
+        }
+        Insert: {
+          basis: string
+          job_id: string
+          set_at?: string
+          set_by: string
+          submittal_id: string
+        }
+        Update: {
+          basis?: string
+          job_id?: string
+          set_at?: string
+          set_by?: string
+          submittal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_change_order_pricing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_change_order_pricing_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_change_orders: {
         Row: {
           details: Json
@@ -5987,8 +6026,10 @@ export type Database = {
         Row: {
           company_id: string | null
           contract_completion_date: string | null
+          contract_type: string | null
           created_at: string
           id: string
+          job_kind: string
           job_number: string | null
           name: string
           pm_email: string | null
@@ -6008,8 +6049,10 @@ export type Database = {
         Insert: {
           company_id?: string | null
           contract_completion_date?: string | null
+          contract_type?: string | null
           created_at?: string
           id?: string
+          job_kind?: string
           job_number?: string | null
           name: string
           pm_email?: string | null
@@ -6029,8 +6072,10 @@ export type Database = {
         Update: {
           company_id?: string | null
           contract_completion_date?: string | null
+          contract_type?: string | null
           created_at?: string
           id?: string
+          job_kind?: string
           job_number?: string | null
           name?: string
           pm_email?: string | null
@@ -8380,6 +8425,150 @@ export type Database = {
           },
         ]
       }
+      mcp_service_calls: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          fee_cents: number
+          fee_credit: boolean
+          fee_invoice_id: string | null
+          findings: string | null
+          issue: string
+          job_id: string
+          number: number
+          recommendation: string | null
+          request_id: string
+          site_address: string
+          status: string
+          tech_name: string | null
+          updated_at: string
+          urgency: string
+          version: number
+          window_end: string | null
+          window_start: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          fee_cents?: number
+          fee_credit?: boolean
+          fee_invoice_id?: string | null
+          findings?: string | null
+          issue: string
+          job_id: string
+          number: number
+          recommendation?: string | null
+          request_id: string
+          site_address: string
+          status?: string
+          tech_name?: string | null
+          updated_at?: string
+          urgency?: string
+          version?: number
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          fee_cents?: number
+          fee_credit?: boolean
+          fee_invoice_id?: string | null
+          findings?: string | null
+          issue?: string
+          job_id?: string
+          number?: number
+          recommendation?: string | null
+          request_id?: string
+          site_address?: string
+          status?: string
+          tech_name?: string | null
+          updated_at?: string
+          urgency?: string
+          version?: number
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_service_calls_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_service_calls_fee_invoice_id_fkey"
+            columns: ["fee_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_service_calls_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_service_rates: {
+        Row: {
+          company_id: string
+          fee_cents: number
+          fee_credit: boolean
+          hourly_rate_cents: number | null
+          labor_rate_cents: number | null
+          markup_bps: number
+          overtime_bps: number
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          company_id: string
+          fee_cents?: number
+          fee_credit?: boolean
+          hourly_rate_cents?: number | null
+          labor_rate_cents?: number | null
+          markup_bps?: number
+          overtime_bps?: number
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          company_id?: string
+          fee_cents?: number
+          fee_credit?: boolean
+          hourly_rate_cents?: number | null
+          labor_rate_cents?: number | null
+          markup_bps?: number
+          overtime_bps?: number
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_service_rates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_sessions: {
         Row: {
           last_call_at: string
@@ -9627,6 +9816,100 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "mcp_companies"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_work_orders: {
+        Row: {
+          actual_cents: number | null
+          actual_lines: Json | null
+          basis: string
+          bill_invoice_id: string | null
+          cap_cents: number | null
+          company_id: string
+          created_at: string
+          created_by: string
+          decision: Json | null
+          estimate_cents: number
+          id: string
+          job_id: string
+          lines: Json
+          number: string
+          rates: Json
+          scope: string
+          signoff: Json | null
+          state: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          actual_cents?: number | null
+          actual_lines?: Json | null
+          basis: string
+          bill_invoice_id?: string | null
+          cap_cents?: number | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          decision?: Json | null
+          estimate_cents: number
+          id?: string
+          job_id: string
+          lines: Json
+          number: string
+          rates: Json
+          scope: string
+          signoff?: Json | null
+          state?: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          actual_cents?: number | null
+          actual_lines?: Json | null
+          basis?: string
+          bill_invoice_id?: string | null
+          cap_cents?: number | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          decision?: Json | null
+          estimate_cents?: number
+          id?: string
+          job_id?: string
+          lines?: Json
+          number?: string
+          rates?: Json
+          scope?: string
+          signoff?: Json | null
+          state?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_work_orders_bill_invoice_id_fkey"
+            columns: ["bill_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_billing_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_work_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_work_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_service_calls"
+            referencedColumns: ["job_id"]
           },
         ]
       }
@@ -11082,8 +11365,10 @@ export type Database = {
         Returns: {
           company_id: string | null
           contract_completion_date: string | null
+          contract_type: string | null
           created_at: string
           id: string
+          job_kind: string
           job_number: string | null
           name: string
           pm_email: string | null
@@ -11235,6 +11520,11 @@ export type Database = {
       mcp_canary_for: { Args: { _company: string }; Returns: string }
       mcp_change_log_open: {
         Args: { _job: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_change_order_pricing_list: { Args: { _job: string }; Returns: Json }
+      mcp_change_order_pricing_set: {
+        Args: { _basis: string; _job: string; _submittal: string }
         Returns: Json
       }
       mcp_change_price: { Args: { _lines: Json }; Returns: Json }
@@ -11816,6 +12106,10 @@ export type Database = {
       mcp_is_test_caller: { Args: never; Returns: boolean }
       mcp_job_contract_rows: { Args: { _job: string }; Returns: Json }
       mcp_job_contract_save: { Args: { _job: string; _p: Json }; Returns: Json }
+      mcp_job_contract_type_set: {
+        Args: { _contract_type: string; _job: string }
+        Returns: Json
+      }
       mcp_job_create: {
         Args: {
           _company: string
@@ -11908,6 +12202,7 @@ export type Database = {
         Args: { _basis: string; _fee_pct: number; _job: string }
         Returns: undefined
       }
+      mcp_job_terms: { Args: { _job: string }; Returns: Json }
       mcp_latest_setup_checks: {
         Args: never
         Returns: {
@@ -12499,6 +12794,45 @@ export type Database = {
         Args: { _token_hash: string }
         Returns: Json
       }
+      mcp_service_bill: {
+        Args: { _due_on: string; _job: string; _work_order: string }
+        Returns: Json
+      }
+      mcp_service_call_create: {
+        Args: { _company: string; _p: Json }
+        Returns: Json
+      }
+      mcp_service_call_get: { Args: { _job: string }; Returns: Json }
+      mcp_service_call_update: {
+        Args: { _expected_version: number; _job: string; _p: Json }
+        Returns: Json
+      }
+      mcp_service_calls_list: {
+        Args: { _company: string; _status: string }
+        Returns: Json
+      }
+      mcp_service_fee_request: {
+        Args: { _due_on: string; _job: string }
+        Returns: Json
+      }
+      mcp_service_rates_get: { Args: { _company: string }; Returns: Json }
+      mcp_service_rates_save: {
+        Args: { _company: string; _p: Json }
+        Returns: Json
+      }
+      mcp_service_record_payment: {
+        Args: {
+          _amount_cents: number
+          _id: string
+          _invoice: string
+          _job: string
+          _method: string
+          _note: string
+          _received_on: string
+          _reference: string
+        }
+        Returns: Json
+      }
       mcp_session_touch: { Args: never; Returns: boolean }
       mcp_set_current_company: {
         Args: { _company: string }
@@ -12804,6 +13138,43 @@ export type Database = {
       mcp_user_push_subscribed: { Args: never; Returns: boolean }
       mcp_user_push_subscription_save: {
         Args: { _auth: string; _endpoint: string; _p256dh: string }
+        Returns: Json
+      }
+      mcp_work_order_approve_on_site: {
+        Args: {
+          _expected_version: number
+          _job: string
+          _note: string
+          _signed_name: string
+          _work_order: string
+        }
+        Returns: Json
+      }
+      mcp_work_order_log: {
+        Args: {
+          _expected_version: number
+          _job: string
+          _p: Json
+          _work_order: string
+        }
+        Returns: Json
+      }
+      mcp_work_order_save: {
+        Args: {
+          _expected_version: number
+          _job: string
+          _p: Json
+          _work_order: string
+        }
+        Returns: Json
+      }
+      mcp_work_order_send: {
+        Args: {
+          _due_on: string
+          _expected_version: number
+          _job: string
+          _work_order: string
+        }
         Returns: Json
       }
       move_to_dlq: {
