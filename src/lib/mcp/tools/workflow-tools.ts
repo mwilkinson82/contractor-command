@@ -247,7 +247,7 @@ export { CLAUSE_ABSENT, CLAUSE_UNKNOWN };
 const humanKeys = (ks: string[]) => ks.map((k) => k.replace(/_/g, " ")).join(", ");
 /** 0.8.4: step 0 scoping, asked as setup question 1 by next_question. */
 const SCOPE_Q1_KEY = "job_scoping";
-const SCOPE_Q1_ASK = "Tell me about this job: the job type, who the client is, the sector (public, private commercial or residential), whether you're the prime or a sub, and the pricing model (lump sum, unit price, cost plus or GMP). Or say \"use the defaults\" and I'll fill what I can from your company profile and move on.";
+const SCOPE_Q1_ASK = "Tell me about this job: the job type, who the client is, the sector (public, private commercial or residential), whether you're the prime or a sub, and the pricing model (lump sum, unit price, cost plus, time and material or GMP). Or say \"use the defaults\" and I'll fill what I can from your company profile and move on.";
 const SCOPE_Q1_GUIDANCE = "Record the answer with intake section \"scope\": job_location as city and state, labor_shop union or open_shop, prevailing_wage and pla yes or no, and preconstruction or unit_price_items when asked. Offer only the choices the question shows; if the member gives more than one thing in one reply, save it all. If the member says \"use the defaults\" (or similar), call intake section \"scope\" with use_defaults true and nothing else, show which fields were filled and which stay unconfirmed in one line, then call next_question for question 2. Never skip this question and never guess the fields.";
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
@@ -392,7 +392,7 @@ export const intake = defineTool({
     size_band: z.enum(["<$250k", "$250k–$2M", "$2M–$10M", "$10M+"]).optional(),
     sector: z.preprocess(scopeAlias(SECTOR_ALIASES), z.enum(["public", "private_commercial", "residential"]).optional()),
     client_type: short("scope: client type."),
-    pricing_model: z.preprocess(scopeAlias(PRICING_ALIASES), z.enum(["lump_sum", "unit_price", "cost_plus", "gmp"]).optional()),
+    pricing_model: z.preprocess(scopeAlias(PRICING_ALIASES), z.enum(["lump_sum", "unit_price", "cost_plus", "time_and_material", "gmp"]).optional()),
     position: z.preprocess(scopeAlias(POSITION_ALIASES), z.enum(["prime", "sub", "sub_sub"]).optional()),
     job_location: short("scope: where the job is, city and state (e.g. Albany, NY)."),
     labor_shop: z.enum(["union", "open_shop"]).optional(),
@@ -676,6 +676,7 @@ export const intake = defineTool({
           pricing_lump_sum: triFrom(args.pricing_model === undefined ? undefined : args.pricing_model === "lump_sum"),
           pricing_unit_price: triFrom(args.pricing_model === undefined ? undefined : args.pricing_model === "unit_price"),
           pricing_cost_plus: triFrom(args.pricing_model === undefined ? undefined : args.pricing_model === "cost_plus"),
+          pricing_time_and_material: triFrom(args.pricing_model === undefined ? undefined : args.pricing_model === "time_and_material"),
           pricing_gmp: triFrom(args.pricing_model === undefined ? undefined : args.pricing_model === "gmp"),
           has_subcontracts: triFrom(wp === undefined ? undefined : wp.some((w) => w.mode === "subcontract")),
           self_perform: triFrom(wp === undefined ? undefined : wp.some((w) => w.mode === "self_perform")),
@@ -2114,7 +2115,7 @@ async function lookaheadRows(sb: Sb, job: Job): Promise<LaRow[]> {
 /** 0.8.18: the lookahead's data (window from the saved CPM data date, activities, open items); shared by the view and the PDF. */
 export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: string; start_date?: string | null; end_date?: string | null }) {
   const la = typeof laInput === "string" ? await lookaheadForJob(sb, job, laInput) : laInput;
-  type Cpm = { found?: boolean; data_date?: string | null; version?: number | null; data?: { activities?: SAct[] } };
+  type Cpm = { found?: boolean; data_date?: string | null; version?: number | null; contract_completion_date?: string | null; data?: { activities?: SAct[] } };
   const cpm: Cpm | null = await (async () => {
     try {
       const { data, error } = await sb.rpc("mcp_living_report_get", { _job: job.job_id, _type: "cpm", _version: null });
@@ -2133,7 +2134,7 @@ export async function lookaheadData(sb: Sb, job: Job, laInput: string | { id: st
       .filter((r) => !r.due || r.due <= win.end);
   }
   const today = todayIn(await jobTimeZone(sb, job.job_id));
-  return { la, ref: lookaheadRef(la.id), win, note: found?.note ?? null, dataDate, version: cpm?.version ?? null, acts, items, today };
+  return { la, ref: lookaheadRef(la.id), win, note: found?.note ?? null, dataDate, version: cpm?.version ?? null, acts, items, today, cpmData: cpm?.found ? (cpm.data ?? null) : null, contractCompletion: cpm?.found ? (cpm.contract_completion_date ?? null) : null };
 }
 
 /** 0.8.17: the lookahead as a finished view, filled from the saved CPM window when no schedule export was sent. */

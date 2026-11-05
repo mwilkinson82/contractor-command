@@ -2346,6 +2346,7 @@
                 "lump_sum",
                 "unit_price",
                 "cost_plus",
+                "time_and_material",
                 "gmp"
               ]
             },
@@ -6442,7 +6443,7 @@
       {
         "name": "lookahead_pdf",
         "title": "Lookahead as a PDF file (for email)",
-        "description": "Builds the job's two-week lookahead as a PDF and returns a download link.",
+        "description": "Builds the job's two-week lookahead as a PDF and returns a download link; with a saved CPM it matches the schedule page, 1 to 6 weeks from the data date grouped by total float, start, WBS or any activity code, with stacked code filters, the data date line and the End of lookahead period line.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -6450,8 +6451,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -6467,6 +6468,44 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 64
+            },
+            "weeks": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            },
+            "group": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "filters": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "value_ids": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    }
+                  }
+                },
+                "required": [
+                  "code_id",
+                  "value_ids"
+                ]
+              }
             },
             "expires_in_days": {
               "type": "integer",
