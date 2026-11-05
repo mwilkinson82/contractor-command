@@ -63,6 +63,8 @@ async function sendAthenaRecovery(email: string): Promise<boolean> {
   const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
     type: "recovery",
     email,
+    // Unused by our token_hash link, kept explicit so nothing depends on the Site URL.
+    options: { redirectTo: `${ATHENA_ORIGIN}/reset-password` },
   });
   const tokenHash = link?.properties?.hashed_token;
   if (error || !tokenHash) {
