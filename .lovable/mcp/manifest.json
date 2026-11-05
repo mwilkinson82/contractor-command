@@ -3643,6 +3643,18 @@
                     "out_of_sequence": {
                       "type": "string",
                       "const": "retained-logic"
+                    },
+                    "critical_definition": {
+                      "type": "string",
+                      "enum": [
+                        "longest-path",
+                        "total-float"
+                      ]
+                    },
+                    "float_path_count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10
                     }
                   },
                   "required": [
@@ -14059,6 +14071,18 @@
                     "out_of_sequence": {
                       "type": "string",
                       "const": "retained-logic"
+                    },
+                    "critical_definition": {
+                      "type": "string",
+                      "enum": [
+                        "longest-path",
+                        "total-float"
+                      ]
+                    },
+                    "float_path_count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10
                     }
                   },
                   "required": [
