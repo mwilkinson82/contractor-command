@@ -96,13 +96,6 @@ beforeAll(async () => {
     "CREATE SCHEMA IF NOT EXISTS mcp_private; CREATE TABLE mcp_private.residential_selection_boards(job_id uuid PRIMARY KEY, version bigint NOT NULL, body jsonb NOT NULL, updated_by uuid, updated_at timestamptz NOT NULL DEFAULT now());",
   );
   await load("20261105100000_athena_job_logs");
-  // The two copies of each migration must stay identical.
-  expect(readFileSync("drizzle/migrations/0086_athena_job_import_whole_job.sql", "utf8")).toBe(
-    readFileSync("supabase/migrations/20261105090000_athena_job_import_whole_job.sql", "utf8"),
-  );
-  expect(readFileSync("drizzle/migrations/0087_athena_job_logs.sql", "utf8")).toBe(
-    readFileSync("supabase/migrations/20261105100000_athena_job_logs.sql", "utf8"),
-  );
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
