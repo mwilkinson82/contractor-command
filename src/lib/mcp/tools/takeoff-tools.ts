@@ -23,6 +23,7 @@ import { proposeTakeoffStep, saveCountAreas } from "../takeoff/pass";
 import { assertReadComplete } from "../takeoff/scope";
 import { reviseGeometry } from "../takeoff/revision";
 import { plainCalibration, statedScaleCalibration } from "../takeoff/calibration";
+import { applyPlainScale } from "../takeoff/auto-scale";
 import { readPointCrop } from "../takeoff/verify";
 import { bytesToBase64 } from "../estimating-sheet";
 import { hostContextForTile, hostReviewContext } from "../takeoff/host-workflow";
@@ -293,29 +294,8 @@ export const takeoffGeometry = defineTool({
             }
           }
           const page = sheet ? await loadStoredPage(sb, job, sheet, source) : undefined;
-          // Opening a sheet with no scale yet applies the one it plainly states: two
-          // dimension strings that agree with the title block, or the title block's
-          // single printed scale on a standard full-size sheet. Nobody has to set it.
-          let autoScaled = false;
-          if (
-            operation === "list" &&
-            page?.inspection &&
-            !(state.calibrations ?? []).some(
-              (c) => c.source_id === page.source.id && c.page === page.page,
-            )
-          ) {
-            try {
-              const plain = plainCalibration(page.space, page.inspection);
-              if (plain) {
-                extra.saved_calibration = await saveCalibration(sb, job, page, plain, 0);
-                autoScaled = true;
-                await audit(sb, job, "takeoff_geometry", "auto_sheet_calibration", plain.region);
-              }
-            } catch {
-              // Another open saved it first, or the stored page could not be read for a
-              // scale; the list still opens and shows whatever scale is saved.
-            }
-          }
+          // A sheet opened with no scale yet takes the one it plainly states.
+          const autoScaled = operation === "list" && (await applyPlainScale(sb, job, state, page));
           if (
             ["scope", "save", "propose", "tile", "crop", "revise", "export", "accept_all"].includes(
               operation,

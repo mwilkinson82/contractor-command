@@ -2246,6 +2246,7 @@ export type Database = {
       }
       mcp_companies: {
         Row: {
+          address: string | null
           agent_name: string
           company_role: string | null
           contact_name: string | null
@@ -2267,6 +2268,7 @@ export type Database = {
           work_types: string[]
         }
         Insert: {
+          address?: string | null
           agent_name?: string
           company_role?: string | null
           contact_name?: string | null
@@ -2288,6 +2290,7 @@ export type Database = {
           work_types?: string[]
         }
         Update: {
+          address?: string | null
           agent_name?: string
           company_role?: string | null
           contact_name?: string | null
@@ -10323,6 +10326,10 @@ export type Database = {
       }
       mcp_portal_invite_open: { Args: { _invite_hash: string }; Returns: Json }
       mcp_portal_list: { Args: { _job: string }; Returns: Json }
+      mcp_portal_pay_app_name: {
+        Args: { _application: string; _job: string; _number: string }
+        Returns: Json
+      }
       mcp_portal_post_update: {
         Args: { _body: string; _job: string; _title: string; _week_of: string }
         Returns: Json
@@ -10338,6 +10345,7 @@ export type Database = {
       mcp_portal_share_pay_app: {
         Args: {
           _application: string
+          _client_number?: string
           _due_on: string
           _expected_version: number
           _job: string
