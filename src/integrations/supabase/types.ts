@@ -2244,6 +2244,177 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_claim_events: {
+        Row: {
+          claim_id: string
+          created_at: string
+          created_by: string | null
+          event_date: string | null
+          event_type: string
+          id: string
+          job_id: string
+          note: string | null
+          revision_number: number
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string
+          created_by?: string | null
+          event_date?: string | null
+          event_type: string
+          id?: string
+          job_id: string
+          note?: string | null
+          revision_number?: number
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_date?: string | null
+          event_type?: string
+          id?: string
+          job_id?: string
+          note?: string | null
+          revision_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_claim_events_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_claim_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_claims: {
+        Row: {
+          change_order_id: string | null
+          claim_item_id: string | null
+          claim_type: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          delay_event_id: string | null
+          description: string
+          exposure_ref: string | null
+          id: string
+          job_id: string
+          money_awarded_cents: number
+          money_claimed_cents: number
+          number: string
+          outcome: string | null
+          owner_name: string | null
+          record_version: number
+          resolved_on: string | null
+          source: Json | null
+          status: string
+          submitted_on: string | null
+          time_awarded_days: number
+          time_claimed_days: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          change_order_id?: string | null
+          claim_item_id?: string | null
+          claim_type: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          delay_event_id?: string | null
+          description?: string
+          exposure_ref?: string | null
+          id?: string
+          job_id: string
+          money_awarded_cents?: number
+          money_claimed_cents?: number
+          number: string
+          outcome?: string | null
+          owner_name?: string | null
+          record_version?: number
+          resolved_on?: string | null
+          source?: Json | null
+          status: string
+          submitted_on?: string | null
+          time_awarded_days?: number
+          time_claimed_days?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          change_order_id?: string | null
+          claim_item_id?: string | null
+          claim_type?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          delay_event_id?: string | null
+          description?: string
+          exposure_ref?: string | null
+          id?: string
+          job_id?: string
+          money_awarded_cents?: number
+          money_claimed_cents?: number
+          number?: string
+          outcome?: string | null
+          owner_name?: string | null
+          record_version?: number
+          resolved_on?: string | null
+          source?: Json | null
+          status?: string
+          submitted_on?: string | null
+          time_awarded_days?: number
+          time_claimed_days?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_claims_change_order_id_fkey"
+            columns: ["change_order_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_claims_claim_item_id_fkey"
+            columns: ["claim_item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_open_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_claims_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_claims_delay_event_id_fkey"
+            columns: ["delay_event_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_delay_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_claims_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_companies: {
         Row: {
           agent_name: string
@@ -3440,6 +3611,100 @@ export type Database = {
           },
           {
             foreignKeyName: "mcp_daily_work_lines_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_decisions: {
+        Row: {
+          change_order_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          decided_on: string | null
+          decision: string
+          due_on: string | null
+          exposure_ref: string | null
+          id: string
+          impact: string | null
+          job_id: string
+          notes: string | null
+          number: string
+          outcome: string | null
+          owner_email: string | null
+          owner_name: string | null
+          record_version: number
+          selection_id: string | null
+          source: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          change_order_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          decided_on?: string | null
+          decision: string
+          due_on?: string | null
+          exposure_ref?: string | null
+          id?: string
+          impact?: string | null
+          job_id: string
+          notes?: string | null
+          number: string
+          outcome?: string | null
+          owner_email?: string | null
+          owner_name?: string | null
+          record_version?: number
+          selection_id?: string | null
+          source?: Json | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          change_order_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          decided_on?: string | null
+          decision?: string
+          due_on?: string | null
+          exposure_ref?: string | null
+          id?: string
+          impact?: string | null
+          job_id?: string
+          notes?: string | null
+          number?: string
+          outcome?: string | null
+          owner_email?: string | null
+          owner_name?: string | null
+          record_version?: number
+          selection_id?: string | null
+          source?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_decisions_change_order_id_fkey"
+            columns: ["change_order_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_decisions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_decisions_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
@@ -4718,6 +4983,115 @@ export type Database = {
           },
         ]
       }
+      mcp_inspections: {
+        Row: {
+          attempt: number
+          authority: string | null
+          company_id: string
+          completed_on: string | null
+          corrective_action: string | null
+          cost_impact_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          inspection_type: string
+          inspector: string | null
+          job_id: string
+          location: string | null
+          notes: string | null
+          parent_id: string | null
+          record_version: number
+          reinspection_required: boolean
+          requested_on: string | null
+          responsible_party: string | null
+          result: string
+          risk_ref: string | null
+          schedule_impact_weeks: number | null
+          scheduled_on: string | null
+          source: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          authority?: string | null
+          company_id: string
+          completed_on?: string | null
+          corrective_action?: string | null
+          cost_impact_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inspection_type: string
+          inspector?: string | null
+          job_id: string
+          location?: string | null
+          notes?: string | null
+          parent_id?: string | null
+          record_version?: number
+          reinspection_required?: boolean
+          requested_on?: string | null
+          responsible_party?: string | null
+          result?: string
+          risk_ref?: string | null
+          schedule_impact_weeks?: number | null
+          scheduled_on?: string | null
+          source?: Json | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          authority?: string | null
+          company_id?: string
+          completed_on?: string | null
+          corrective_action?: string | null
+          cost_impact_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inspection_type?: string
+          inspector?: string | null
+          job_id?: string
+          location?: string | null
+          notes?: string | null
+          parent_id?: string | null
+          record_version?: number
+          reinspection_required?: boolean
+          requested_on?: string | null
+          responsible_party?: string | null
+          result?: string
+          risk_ref?: string | null
+          schedule_impact_weeks?: number | null
+          scheduled_on?: string | null
+          source?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_inspections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_inspections_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_inspections_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_item_events: {
         Row: {
           created_at: string
@@ -5013,6 +5387,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "mcp_job_flags_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_job_log_operations: {
+        Row: {
+          actor_id: string
+          created_at: string
+          digest: string
+          job_id: string
+          log: string
+          record_id: string
+          request_id: string
+          result: Json
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          digest: string
+          job_id: string
+          log: string
+          record_id: string
+          request_id: string
+          result: Json
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          digest?: string
+          job_id?: string
+          log?: string
+          record_id?: string
+          request_id?: string
+          result?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_log_operations_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "mcp_jobs"
@@ -10205,6 +10620,11 @@ export type Database = {
         Args: { _company: string; _job_number: string; _package: Json }
         Returns: Json
       }
+      mcp_job_log_record: {
+        Args: { _action: string; _job: string; _log: string; _p: Json }
+        Returns: Json
+      }
+      mcp_job_log_rows: { Args: { _job: string; _log: string }; Returns: Json }
       mcp_job_scope: { Args: { _job: string }; Returns: string }
       mcp_job_settings: {
         Args: {
@@ -10594,6 +11014,10 @@ export type Database = {
       mcp_request_package_content: { Args: { _details: Json }; Returns: Json }
       mcp_request_record: {
         Args: { _action: string; _job: string; _kind: string; _p: Json }
+        Returns: Json
+      }
+      mcp_request_record_outside: {
+        Args: { _job: string; _p: Json }
         Returns: Json
       }
       mcp_request_rows: { Args: { _job: string; _kind: string }; Returns: Json }
