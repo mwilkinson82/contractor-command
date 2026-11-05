@@ -245,6 +245,10 @@ describe("calculated schedule page", () => {
     expect(html).toContain('id="cpmc-p"');
     expect(html).toContain("Against the last update (data date 03/09/26)");
     expect(html).toMatch(/data-change="C"/);
+    // A baseline taken from another tool's dates has no float: show today's float, not a bare arrow.
+    const noFloat = structuredClone(i);
+    for (const b of noFloat.control.baselines[0].activities) b.total_float = null;
+    expect(comparisonHtml(noFloat)).not.toMatch(/<td class="cpm-n"> → /);
     // The Gantt can draw the last update's bars instead of the baseline's.
     const g = ganttHtml(i);
     expect(g).toContain('<option value="p">Last update: 03/09/26</option>');
