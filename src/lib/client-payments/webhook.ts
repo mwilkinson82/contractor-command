@@ -94,8 +94,8 @@ async function notify(deps: WebhookDeps, c: Changed): Promise<void> {
     kind = "pay_app_paid";
     title = `${testMark(c)}${who(c)} paid ${money(c.amount_cents)} on ${what(c)}${by}`;
     detail = c.applied
-      ? "Recorded as a receipt and applied to the pay application."
-      : "Recorded as a receipt. It wasn't applied to the pay application automatically, so apply it on the billing page.";
+      ? `Recorded as a receipt and applied to ${what(c)}.`
+      : `Recorded as a receipt. It wasn't applied to ${what(c)} automatically, so apply it on the billing page.`;
   } else if (c.payment_status === "processing") {
     kind = "pay_app_payment_processing";
     title = `${testMark(c)}${who(c)} started a ${money(c.amount_cents)} bank payment on ${what(c)}`;

@@ -124,7 +124,7 @@ async function notify(
   label: string | undefined,
   accessFor: (r: Recipient) => string | null,
   logo: string | null = null,
-  item?: "change_order" | "selection" | "pay_app",
+  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice",
 ) {
   const out: string[] = [];
   for (const r of recipients) {
@@ -615,12 +615,12 @@ export const customerPortal = defineTool({
     ),
 });
 
-async function notifyAll(
+export async function notifyAll(
   r: { recipients: Recipient[]; company: string; job_name: string },
   kind: "update" | "decision",
   label?: string,
   logo: string | null = null,
-  item?: "change_order" | "selection" | "pay_app",
+  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice",
 ): Promise<string[]> {
   return notify(
     r.recipients,
