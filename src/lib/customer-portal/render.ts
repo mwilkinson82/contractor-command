@@ -27,6 +27,7 @@ export const PORTAL_SECTIONS = [
   "changes",
   "selections",
   "billing",
+  "messages",
 ] as const;
 export type PortalSection = (typeof PORTAL_SECTIONS)[number];
 const SECTION_LABEL: Record<PortalSection, string> = {
@@ -37,6 +38,7 @@ const SECTION_LABEL: Record<PortalSection, string> = {
   changes: "Change orders",
   selections: "Selections",
   billing: "Billing",
+  messages: "Messages",
 };
 
 export const PORTAL_HEADERS: Record<string, string> = {
@@ -415,7 +417,9 @@ const FONTS_SIGNIN =
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
   const css =
-    kind === "signin" ? `${CSS}${SIGNIN_CSS}` : `${CSS}${PORTAL_CSS}${BILLING_CSS}${COMPARE_CSS}`;
+    kind === "signin"
+      ? `${CSS}${SIGNIN_CSS}`
+      : `${CSS}${PORTAL_CSS}${BILLING_CSS}${MESSAGES_CSS}${COMPARE_CSS}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap"><style>${css}</style></head><body>${body}</body></html>`;
 }
 
@@ -489,6 +493,8 @@ export type PortalOpts = {
   error?: string | null;
   /** The contractor's saved logo, an https URL. Their initials and name show when there is none. */
   logo?: string | null;
+  /** Messages: the shared item a new message is about, from an "Ask a question about this" link. */
+  about?: string | null;
 };
 
 const open = (i: PortalItem) => i.decision === null;
@@ -639,7 +645,55 @@ function milestoneList(p: PortalPage, limit?: number): string {
 function contactPanel(p: PortalPage): string {
   const c = p.contractor;
   if (!c.pm_name && !c.pm_email) return "";
-  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team"><span class="avatar" aria-hidden="true">${esc(initials(c.pm_name || c.name))}</span><div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div>${c.pm_email ? `<p class="sub" style="margin-top:14px"><a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a></p>` : ""}</section>`;
+  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team"><span class="avatar" aria-hidden="true">${esc(initials(c.pm_name || c.name))}</span><div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div><p class="sub cp-team-acts"><a class="btn" href="${esc(href(p, "messages"))}">Send a message</a>${c.pm_email ? `<a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a>` : ""}</p></section>`;
+}
+
+/** "Ask a question about this": opens Messages with the item already linked. Never inside a signing form. */
+function askLink(p: PortalPage, i: PortalItem, cls = "btn secondary block"): string {
+  return `<a class="${cls}" href="${esc(href(p, "messages", { about: i.id }))}#write">Ask a question about this</a>`;
+}
+
+const stamp = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
+};
+
+/** The customer's conversation with the team: the thread, then a box to write. */
+function messages(p: PortalPage, o: PortalOpts): string {
+  const m = p.messages;
+  const about = o.about ? (p.items.find((i) => i.id === o.about) ?? null) : null;
+  const list = m?.list ?? [];
+  const thread = !m
+    ? `<p class="empty">Messages can't be shown right now. Try again in a moment, or email your project team.</p>`
+    : list.length
+      ? `<ol class="cp-msgs">${list
+          .map((x, n) => {
+            const mine = x.author_kind === "client";
+            return `<li class="cp-msg${mine ? " cp-msg-mine" : ""}"${n === list.length - 1 ? ' id="latest"' : ""}><div class="cp-msg-who"><span class="avatar" aria-hidden="true">${esc(initials(x.author_name))}</span><b>${esc(mine ? "You" : x.author_name)}</b><span>${esc(stamp(x.created_at))}</span></div>${x.about_label ? `<p class="cp-msg-about">About ${esc(x.about_label)}</p>` : ""}<div class="cp-msg-body">${paras(x.body)}</div></li>`;
+          })
+          .join("")}</ol>`
+      : `<p class="empty">No messages yet. Ask ${esc(p.contractor.name)} anything about your project, and the reply shows here.</p>`;
+  const aboutRow = about
+    ? `<div class="cp-msg-link"><span>About <b>${esc(itemLabel(about))}</b></span><a href="${esc(href(p, "messages"))}#write">Remove</a></div>`
+    : "";
+  const compose = `<form method="post" class="panel" id="write"><div class="panel-head"><h2>Write to your team</h2></div>${aboutRow}${hidden(p, { action: "message", ...(about ? { about: about.id } : {}) })}<div class="field"><label for="body">Your message</label><textarea class="textarea" id="body" name="body" maxlength="4000" required placeholder="Ask a question or tell your team something about the job."></textarea><span class="hint">Up to 4,000 characters. ${esc(p.contractor.name)} gets it right away.</span></div><div class="form-actions"><button class="btn" type="submit">Send message</button></div></form>`;
+  const shared = p.items.length
+    ? `<section class="panel"><div class="panel-head"><h2>Ask about something shared</h2></div>${p.items
+        .map(
+          (i) =>
+            `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Shared ${longDate(i.shared_on)}`)}</div></div><div class="right"><a class="btn secondary" href="${esc(href(p, "messages", { about: i.id }))}#write">Ask</a></div></div>`,
+        )
+        .join("")}</section>`
+    : "";
+  return `<div class="grid-home"><div class="stack"><section class="panel"><div class="panel-head"><h2>Messages</h2><span class="meta">${esc(`Between you and ${p.contractor.name}`)}</span></div>${thread}</section>${compose}</div><aside class="rail">${contactPanel(p)}${shared}</aside></div>`;
 }
 
 /** Up to five milestones around where the job is: the last one done, then what's next. */
@@ -755,13 +809,14 @@ function changeOrderDetail(
     scheduleDays: v.schedule_days,
   });
   let side: string;
-  if (i.decision) side = receipt(i);
+  if (i.decision)
+    side = `${receipt(i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
   else if (o.step === "confirm")
     side = `<form method="post" class="panel"><h2>Approve ${esc(v.number)}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>Price</span><b>${esc(usd(v.price_cents))}</b></div><div><span>Schedule</span><b>${esc(days(v.schedule_days))}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "approved", fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "changes", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Approve change order</button></div></form>`;
   else if (o.step === "decline")
     side = `<form method="post" class="panel"><h2>Decline ${esc(v.number)}</h2><p class="sub">${esc(p.contractor.name)} will see your note and follow up.</p>${hidden(p, { action: "decide", item: i.id, decision: "declined", fingerprint: i.fingerprint })}<div class="field"><label for="note">What would you like changed? (optional)</label><textarea class="textarea" id="note" name="note" maxlength="2000"></textarea></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "changes", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Decline change order</button></div></form>`;
   else
-    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "changes", { i: i.id, step: "decline" }))}">Decline</a><p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
+    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "changes", { i: i.id, step: "decline" }))}">Decline</a>${askLink(p, i)}<p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
   const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">Change order · shared ${esc(longDate(i.shared_on))}</p><h2>${esc(itemLabel(i))}</h2></div>${pill}</div>${coSummary(v)}<div style="margin-top:18px">${v.why ? `<h4>Why this change</h4><div class="prose">${paras(v.why)}</div>` : ""}${v.scope ? `<h4>What's included</h4><div class="prose">${paras(v.scope)}</div>` : ""}</div></section>`;
   return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}</aside></div>`;
 }
@@ -886,7 +941,9 @@ function selectionDetail(
   const done = chosen
     ? `<div class="co-cols"><div class="stack">${choiceNext(p, v, chosen, true)}</div><aside class="stack">${receipt(i)}</aside></div>`
     : "";
-  return `${back}<div class="stack">${done}<section class="panel gbb-panel">${compare}${foot ? `<div class="close-fine">${paras(foot)}</div>` : ""}</section></div>`;
+  // The question link sits beside the way back, outside the compare and its choose buttons.
+  const backAsk = `<p class="cp-backrow"><a href="${esc(href(p, "selections"))}">All selections</a>${askLink(p, i, "btn secondary")}</p>`;
+  return `${backAsk}<div class="stack">${done}<section class="panel gbb-panel">${compare}${foot ? `<div class="close-fine">${paras(foot)}</div>` : ""}</section></div>`;
 }
 
 // ---------- billing: shared pay applications ----------
@@ -1022,13 +1079,14 @@ function payAppDetail(p: PortalPage, i: PayApp, o: PortalOpts): string {
     periodEnd: longDate(v.period_end),
   });
   let side: string;
-  if (i.decision) side = receipt(i);
+  if (i.decision)
+    side = `${receipt(i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
   else if (o.step === "confirm")
     side = `<form method="post" class="panel"><h2>${esc(`Approve ${label}`)}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>Due now</span><b>${esc(usd(t.current_due_cents))}</b></div><div><span>Work through</span><b>${esc(longDate(v.period_end))}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "approved", fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Approve pay application</button></div></form>`;
   else if (o.step === "decline")
     side = `<form method="post" class="panel"><h2>${esc(`Decline ${label}`)}</h2><p class="sub">${esc(p.contractor.name)} will see your note and follow up.</p>${hidden(p, { action: "decide", item: i.id, decision: "declined", fingerprint: i.fingerprint })}<div class="field"><label for="note">What doesn't look right? (optional)</label><textarea class="textarea" id="note" name="note" maxlength="2000"></textarea></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Decline pay application</button></div></form>`;
   else
-    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "billing", { i: i.id, step: "decline" }))}">Decline</a><p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
+    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "billing", { i: i.id, step: "decline" }))}">Decline</a>${askLink(p, i)}<p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
   const sum = `<dl class="co-sum"><div><dt>Due now</dt><dd>${esc(usd(t.current_due_cents))}</dd></div><div><dt>Work through</dt><dd>${esc(longDate(v.period_end))}</dd></div><div><dt>Approve by</dt><dd>${esc(i.due_on ? longDate(i.due_on) : "No date")}</dd></div></dl>`;
   const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`Pay application · shared ${longDate(i.shared_on)} · ${period(v)}`)}</p><h2>${esc(label)}</h2></div>${payPill(i)}</div>${sum}<h4 class="pay-h">How this amount adds up</h4>${payMath(v)}</section><section class="panel"><div class="panel-head"><h2>Work by line</h2></div>${payLines(v)}</section>`;
   return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}${contractCard(i)}</aside></div>`;
@@ -1082,6 +1140,27 @@ const BILLING_CSS = `
 @media (max-width:640px){.pay-head{grid-template-columns:minmax(0,1fr)}.pay-head .pill{justify-self:start}.pay-due{font-size:30px}.pay-card h2{font-size:18px}.cp-big{font-size:24px}.pay-math div{padding:10px 12px;gap:10px}.pay-math dt span{font-size:11.5px}.cp-wl-top{flex-direction:column;gap:2px}.cp-wl-meta{font-size:12px}.cp-legend.cp-inline{gap:4px 12px}.cp-bar.cp-tall{height:12px}.cp-kv div{gap:8px}}
 `;
 
+const MESSAGES_CSS = `
+/* Messages: the customer's conversation with the team. Theirs on the right in pale blue, the team's on white. */
+.cp-msgs{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.cp-msg{max-width:min(620px,88%);justify-self:start;padding:12px 16px;border-radius:16px 16px 16px 6px;background:var(--white);border:1px solid var(--line);scroll-margin-top:calc(var(--tabs-h) + 16px)}
+.cp-msg-mine{justify-self:end;border-radius:16px 16px 6px 16px;background:var(--accent-soft);border-color:#cfdcfb}
+.cp-msg-who{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12.5px;color:var(--muted)}
+.cp-msg-who b{color:var(--ink);font-weight:600;font-size:13.5px}
+.cp-msg-who .avatar{width:24px;height:24px;font-size:10px}
+.cp-msg-mine .cp-msg-who .avatar{background:var(--white)}
+.cp-msg-about{margin:8px 0 0!important;display:inline-block;font-size:12px;font-weight:600;color:var(--accent-ink);background:var(--white);border:1px solid #cfdcfb;padding:2px 9px;border-radius:999px}
+.cp-msg-body{margin-top:8px;color:var(--ink);overflow-wrap:anywhere}
+.cp-msg-body p+p{margin-top:8px}
+.cp-msg-link{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent-ink);font-size:13.5px}
+.cp-msg-link b{font-weight:650}
+#write{scroll-margin-top:calc(var(--tabs-h) + 16px)}
+.cp-team-acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px!important}
+.cp-backrow{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 16px}
+@media (max-width:1000px){.cp-msg{max-width:92%}}
+@media (max-width:640px){.cp-msg{max-width:100%;padding:11px 13px}.cp-msg-link{flex-direction:column;align-items:flex-start;gap:4px}.cp-team-acts .btn{flex:1 1 auto}.cp-backrow .btn{width:100%}}
+`;
+
 function body(p: PortalPage, o: PortalOpts): string {
   const it = o.item ? p.items.find((x) => x.id === o.item) : null;
   switch (o.section) {
@@ -1097,6 +1176,8 @@ function body(p: PortalPage, o: PortalOpts): string {
       return it?.kind === "selection" ? selectionDetail(p, it, o) : selectionsList(p);
     case "billing":
       return it?.kind === "pay_app" ? payAppDetail(p, it, o) : billing(p);
+    case "messages":
+      return messages(p, o);
     default:
       return home(p);
   }
@@ -1151,10 +1232,11 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
     changes: waitingBy("change_order"),
     selections: waitingBy("selection"),
     billing: waitingBy("pay_app"),
+    messages: o.section === "messages" ? 0 : (p.messages?.unread ?? 0),
   };
   const tabs = PORTAL_SECTIONS.map(
     (s) =>
-      `<a class="tab" href="${esc(href(p, s))}"${s === o.section ? ' aria-current="page"' : ""}>${SECTION_LABEL[s]}${count[s] ? `<span class="count" aria-label="${count[s]} waiting">${count[s]}</span>` : ""}</a>`,
+      `<a class="tab" href="${esc(href(p, s))}"${s === o.section ? ' aria-current="page"' : ""}>${SECTION_LABEL[s]}${count[s] ? `<span class="count" aria-label="${count[s]} ${s === "messages" ? "new" : "waiting"}">${count[s]}</span>` : ""}</a>`,
   ).join("");
   const waiting = p.items.filter(open).length;
   const flash = o.error

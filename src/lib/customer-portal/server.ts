@@ -7,12 +7,16 @@ import {
   approvalStatement,
   choiceTerms,
   inviteOpenSchema,
+  portalMessagesSchema,
   portalViewSchema,
   TIER_NAME,
   UUID,
   type PortalPage,
   type PortalView,
 } from "./model";
+import { recordJobNotice, type NoticeDeps } from "../notices/send";
+import { MESSAGE_MAX } from "./messages";
+import { decisionNotice, messageNotice, type DecideResult, type PostedMessage } from "./notices";
 import {
   itemLabel,
   longDate,
@@ -63,6 +67,11 @@ export type PortalDeps = {
   randomInt?: () => number;
   /** The contractor's saved logo for this customer's page, an https URL, or null. Optional: name-only without it. */
   logo?: (access: string) => Promise<string | null>;
+  /**
+   * Records job notices for the customer's decisions and messages (service role). Without it a decision emails the
+   * job's PM directly, as before, and a message is kept but tells no one.
+   */
+  notice?: NoticeDeps;
 };
 
 const logoFor = (deps: PortalDeps, access: string): Promise<string | null> =>
@@ -89,8 +98,11 @@ const ERRORS: Record<string, string> = {
   not_open: "This is no longer waiting on you.",
   invalid: "Something was missing. Check the form and try again.",
   agree: "Tick the box to agree before you confirm.",
+  msg_invalid: "Write a message of up to 4,000 characters, then send it.",
+  msg_slow: "You've sent a lot of messages in the last hour. Wait a little, then send this one.",
 };
 const FLASH: Record<string, string> = {
+  sent: "Message sent. Your project team will reply here, and we'll email you when they do.",
   approved: "Approved. Your contractor has been told, and the record is below.",
   declined: "Declined. Your contractor has been told and will follow up.",
   chosen: "Your choice is recorded. Your contractor has been told.",
@@ -153,11 +165,12 @@ async function form(req: Request): Promise<Record<string, string>> {
   if (!ct.includes("application/x-www-form-urlencoded") && !ct.includes("multipart/form-data"))
     return {};
   const len = Number(req.headers.get("content-length") ?? "0");
-  if (len > 20_000) return {};
+  // Room for a 4,000 character message in any language (a browser sends line breaks as two characters).
+  if (len > 80_000) return {};
   const fd = await req.formData();
   const out: Record<string, string> = {};
   fd.forEach((v, k) => {
-    if (typeof v === "string" && v.length <= 4000) out[k] = v;
+    if (typeof v === "string" && v.length <= 8000) out[k] = v;
   });
   return out;
 }
@@ -340,14 +353,19 @@ export async function handlePortal(
       access_id: access,
       csrf: await csrfFor(session!),
     };
-    const brandLogo = await logoFor(deps, access);
     const q = url.searchParams;
+    const sec = section(q.get("s"));
+    // Opening Messages marks the team's replies read; every other page only counts them for the tab.
+    page.messages = await loadMessages(deps, access, sessionHash!, sec === "messages");
+    const brandLogo = await logoFor(deps, access);
     const step = q.get("step");
     const e = q.get("e");
     const ok = q.get("ok");
+    const about = q.get("about");
     return html(
       renderPortal(page, {
-        section: section(q.get("s")),
+        section: sec,
+        about: about && UUID.safeParse(about).success ? about : null,
         item: q.get("i") && UUID.safeParse(q.get("i")).success ? q.get("i") : null,
         step: step === "confirm" || step === "decline" ? step : null,
         choice: q.get("choice"),
@@ -375,6 +393,8 @@ export async function handlePortal(
       .catch(() => null);
     return redirect(self, { "set-cookie": clearCookie(access) });
   }
+
+  if (f.action === "message") return postMessage(req, access, sessionHash, f, deps);
 
   const view = await loadView(deps, access, sessionHash, req);
   if (typeof view === "string") return goneFor(view, access);
@@ -499,15 +519,26 @@ export async function handlePortal(
       .catch(() => null);
     const st = status(res);
     if (st === "ok") {
-      const r = res as {
-        decision_id?: string;
-        pm_email?: string | null;
-        under_contract?: boolean;
-        difference_cents?: number | null;
-        change_order_number?: string | null;
-        schedule_days?: number | null;
-      };
-      if (r.pm_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.pm_email))
+      // co_number and schedule_days arrive only with the change terms migration; both are read as optional.
+      const r = res as DecideResult & { pm_email?: string | null };
+      const next =
+        decision === "chosen"
+          ? choiceNextForPm(r, item)
+          : item.kind === "pay_app"
+            ? payAppNextForPm(decision!)
+            : null;
+      // The job notice tells the team (board, account page, morning brief) and emails the people the PM chose. The
+      // PM gets the old decision email only when the notice can't be recorded, so nobody is emailed twice.
+      const recorded = await recordDecisionNotice(deps, access, sessionHash, r, {
+        customer: view.customer.name,
+        item,
+        label,
+        decision: decision!,
+        choice,
+        note,
+        next,
+      });
+      if (!recorded && r.pm_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.pm_email))
         await deps.send(
           decisionEmail({
             to: r.pm_email,
@@ -519,12 +550,7 @@ export async function handlePortal(
             choice: choice ? TIER_NAME[choice] : null,
             note,
             reference: `Customer page decision ${r.decision_id ?? ""}`.trim(),
-            next:
-              decision === "chosen"
-                ? choiceNextForPm(r, item)
-                : item.kind === "pay_app"
-                  ? payAppNextForPm(decision!)
-                  : null,
+            next,
           }),
         );
       return redirect(at({ ok: decision! }));
@@ -535,4 +561,84 @@ export async function handlePortal(
     return goneFor(st, access);
   }
   return redirect(self);
+}
+
+// ---------- notices and messages ----------
+
+/** The customer's conversation, or null when it can't be read (the rest of the page still shows). */
+async function loadMessages(
+  deps: PortalDeps,
+  access: string,
+  sessionHash: string,
+  markRead: boolean,
+): Promise<PortalPage["messages"]> {
+  const raw = await deps
+    .rpc("mcp_portal_messages", {
+      _access: access,
+      _session_hash: sessionHash,
+      _mark_read: markRead,
+    })
+    .catch(() => null);
+  const parsed = portalMessagesSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  return { unread: markRead ? 0 : parsed.data.unread, list: parsed.data.messages };
+}
+
+/** Records the client_decision notice. False when it couldn't be, so the caller falls back to the PM email. */
+async function recordDecisionNotice(
+  deps: PortalDeps,
+  access: string,
+  sessionHash: string,
+  r: DecideResult,
+  a: Omit<Parameters<typeof decisionNotice>[0], "jobId" | "r">,
+): Promise<boolean> {
+  if (!deps.notice || !r.decision_id) return false;
+  const jobId = await deps
+    .rpc("mcp_portal_decision_job", {
+      _access: access,
+      _session_hash: sessionHash,
+      _decision: r.decision_id,
+    })
+    .catch(() => null);
+  if (typeof jobId !== "string" || !UUID.safeParse(jobId).success) return false;
+  const n = await recordJobNotice(
+    deps.notice,
+    decisionNotice({ ...a, jobId, r: { ...r, decision_id: r.decision_id } }),
+  ).catch(() => null);
+  return n !== null;
+}
+
+/** The customer writes to the team. The notice tells the team; a failed notice still keeps the message. */
+async function postMessage(
+  req: Request,
+  access: string,
+  sessionHash: string,
+  f: Record<string, string>,
+  deps: PortalDeps,
+): Promise<Response> {
+  const about = f.about && UUID.safeParse(f.about).success ? f.about : null;
+  const body = (f.body ?? "").replace(/\r\n/g, "\n").trim();
+  const back = (extra: Record<string, string>) =>
+    redirect(
+      `/c/${access}?${new URLSearchParams({ s: "messages", ...(about ? { about } : {}), ...extra }).toString()}`,
+    );
+  if (!body || body.length > MESSAGE_MAX) return back({ e: "msg_invalid" });
+  const res = await deps
+    .rpc("mcp_portal_message_post", {
+      _access: access,
+      _session_hash: sessionHash,
+      _item: about,
+      _body: body,
+      _ip: clientIp(req),
+      _user_agent: ua(req),
+    })
+    .catch(() => null);
+  const st = status(res);
+  if (st === "slow_down") return back({ e: "msg_slow" });
+  if (st === "invalid") return back({ e: "msg_invalid" });
+  if (st !== "ok") return goneFor(st, access);
+  const m = res as PostedMessage;
+  if (deps.notice && m.job_id && m.message_id)
+    await recordJobNotice(deps.notice, messageNotice(m, body, access)).catch(() => null);
+  return redirect(`/c/${access}?s=messages&ok=sent#latest`);
 }

@@ -26,17 +26,22 @@ function service() {
   return client;
 }
 
+const serviceRpc = async (fn: string, args: Record<string, unknown>): Promise<unknown> => {
+  const { data, error } = await (
+    service().rpc as unknown as (
+      f: string,
+      a: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: unknown }>
+  )(fn, args);
+  if (error) throw new Error("rpc failed");
+  return data;
+};
+
 export const liveDeps: PortalDeps = {
-  rpc: async (fn, args) => {
-    const { data, error } = await (
-      service().rpc as unknown as (
-        f: string,
-        a: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: unknown }>
-    )(fn, args);
-    if (error) throw new Error("rpc failed");
-    return data;
-  },
+  rpc: serviceRpc,
+  // Job notices for the customer's decisions and messages: mcp_job_notice_record is service role only. Team
+  // emails go out through the same switch as customer email.
+  notice: { rpc: serviceRpc, send: (m) => sendPortalEmail(m) },
   signPhotos: async (paths) => {
     const out = new Map<string, string>();
     const { data } = await service().storage.from(PHOTO_BUCKET).createSignedUrls(paths, 3600);

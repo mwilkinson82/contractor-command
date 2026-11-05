@@ -19,6 +19,7 @@ import {
   type PortalDeps,
 } from "./server";
 import { customerCaption, PORTAL_SECTIONS, renderGone } from "./render";
+import { replyEmail, replyToClient } from "./messages";
 
 const ACCESS = "00000000-0000-4000-8000-0000000000aa";
 const CO = "00000000-0000-4000-8000-0000000000c1";
@@ -1130,5 +1131,450 @@ describe("the contractor's saved logo on the customer page", () => {
     ).text();
     expect(page).not.toContain(`class="cp-co-img"`);
     expect(page).toContain("<b>Northline Builders</b>");
+  });
+});
+
+const JOB = "00000000-0000-4000-8000-0000000000b1";
+const MSG = "00000000-0000-4000-8000-0000000000f1";
+
+/** deps() plus the messages functions and a job notice recorder that keeps what it was asked to record. */
+function withNotices(
+  over: Partial<{
+    view: unknown;
+    decide: unknown;
+    post: unknown;
+    thread: unknown;
+    job: unknown;
+  }> = {},
+) {
+  const base = deps({ view: over.view, decide: over.decide });
+  const notices: Record<string, unknown>[] = [];
+  const teamMail: PortalEmail[] = [];
+  const rpc = base.d.rpc;
+  base.d.rpc = async (fn, args) => {
+    if (fn === "mcp_portal_messages") {
+      base.calls.push({ fn, args });
+      return (
+        over.thread ?? {
+          status: "ok",
+          unread: 1,
+          messages: [
+            {
+              id: MSG,
+              author_kind: "client",
+              author_name: "Rosa Delgado",
+              body: "Can we <b>see</b> the fixture?",
+              created_at: "2026-11-04T15:00:00Z",
+              item_id: CO,
+              about_label: "PCO-004 · Exam room lights",
+            },
+            {
+              id: "00000000-0000-4000-8000-0000000000f2",
+              author_kind: "team",
+              author_name: "Pat Lee",
+              body: "Yes, I'll bring one Monday.",
+              created_at: "2026-11-04T16:00:00Z",
+              item_id: null,
+              about_label: null,
+            },
+          ],
+        }
+      );
+    }
+    if (fn === "mcp_portal_message_post") {
+      base.calls.push({ fn, args });
+      return (
+        over.post ?? {
+          status: "ok",
+          message_id: MSG,
+          created_at: "2026-11-04T15:00:00Z",
+          job_id: JOB,
+          job_number: "2715",
+          job_name: "Harbor Point Dental",
+          customer: "Rosa Delgado",
+          item_id: args._item ?? null,
+          about_kind: args._item ? "change_order" : null,
+          about_label: args._item ? "PCO-004 · Exam room lights" : null,
+        }
+      );
+    }
+    if (fn === "mcp_portal_decision_job") {
+      base.calls.push({ fn, args });
+      return over.job === undefined ? JOB : over.job;
+    }
+    return rpc(fn, args);
+  };
+  base.d.notice = {
+    rpc: async (fn, args) => {
+      if (fn === "mcp_job_notice_record") {
+        notices.push(args);
+        return {
+          notice_id: `n${notices.length}`,
+          created: true,
+          topic: args._topic,
+          title: args._title,
+          detail: args._detail,
+          actor: args._actor,
+          job_number: "2715",
+          job_name: "Harbor Point Dental",
+          company: "Northline Builders",
+          recipients: [{ email: "pat@example.com", role: "job_pm" }],
+        };
+      }
+      return null;
+    },
+    send: async (m) => {
+      teamMail.push(m);
+      return "sent";
+    },
+  };
+  return { ...base, notices, teamMail };
+}
+
+const decidePost = async (d: PortalDeps, body: Record<string, string>) =>
+  handlePortal(
+    await post(
+      `/c/${ACCESS}`,
+      { typed_name: "Rosa Delgado", fingerprint: FP, csrf: await csrfFor(SESSION), ...body },
+      { cookie: true },
+    ),
+    ACCESS,
+    d,
+  );
+
+describe("job notices for client decisions", () => {
+  it("records one notice per decision with the price and days, and the PM gets no second email", async () => {
+    const { d, mail, notices, teamMail } = withNotices();
+    const r = await decidePost(d, {
+      action: "decide",
+      item: CO,
+      decision: "approved",
+      code: "123456",
+      agree: "1",
+    });
+    expect(r.headers.get("location")).toBe(`/c/${ACCESS}?s=changes&i=${CO}&ok=approved`);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      _job: JOB,
+      _topic: "client_decision",
+      _kind: "co_approved",
+      _title: "Rosa Delgado approved PCO-004 · Exam room lights",
+      _actor: "Rosa Delgado",
+      _ref_table: "mcp_portal_decisions",
+      _ref_id: "d1",
+      _board_page: "cos",
+      _dedupe_key: "portal-decision:d1",
+      _facts: { decision: "approved", amount_cents: 486000, days: 2 },
+    });
+    expect(JSON.stringify(notices[0])).not.toMatch(/cost|markup|fee_pct/);
+    // The notice email replaces the old decision email, so the PM hears once.
+    expect(teamMail.map((m) => m.to)).toEqual(["pat@example.com"]);
+    expect(mail.some((m) => m.subject.startsWith("Customer approved"))).toBe(false);
+  });
+
+  it("files pay applications under billing and package picks under change orders, with the CO number when there is one", async () => {
+    const pay = withNotices({ view: withPayApps() });
+    await decidePost(pay.d, {
+      action: "decide",
+      item: PAY,
+      decision: "declined",
+      note: "Retainage looks high",
+    });
+    expect(pay.notices[0]).toMatchObject({
+      _kind: "pay_app_declined",
+      _title: "Rosa Delgado declined Payment Application 7",
+      _board_page: "billing",
+      _facts: { decision: "declined", amount_cents: 1350000, period_end: "2026-10-31" },
+    });
+    expect(pay.notices[0]!._detail).toContain("Their note: Retainage looks high");
+
+    // With the change terms result: the pick approved a change order, named in the title.
+    const sel = withNotices({
+      decide: {
+        status: "ok",
+        decision_id: "d3",
+        pm_email: "pat@example.com",
+        under_contract: true,
+        difference_cents: 168600,
+        change_order_number: "PCO-005",
+        co_number: "CO-003",
+        schedule_days: 2,
+      },
+    });
+    await decidePost(sel.d, {
+      action: "decide",
+      item: SEL,
+      decision: "chosen",
+      choice: "best",
+      code: "123456",
+      agree: "1",
+    });
+    expect(sel.notices[0]).toMatchObject({
+      _kind: "choice_made",
+      _board_page: "cos",
+      _facts: { choice: "best", difference_cents: 168600, days: 2, co_number: "CO-003" },
+    });
+    expect(sel.notices[0]!._title).toMatch(/^Rosa Delgado chose Best for .+, approving CO-003$/);
+
+    // Without it (before the change terms migration) the same pick still records, with no CO number.
+    const old = withNotices({
+      decide: { status: "ok", decision_id: "d4", pm_email: "pat@example.com" },
+    });
+    await decidePost(old.d, {
+      action: "decide",
+      item: SEL,
+      decision: "chosen",
+      choice: "better",
+      code: "123456",
+      agree: "1",
+    });
+    expect(old.notices[0]!._title).toMatch(/^Rosa Delgado chose Better for [^,]+$/);
+    expect(old.notices[0]!._facts).not.toHaveProperty("co_number");
+  });
+
+  it("falls back to emailing the PM when the notice can't be recorded", async () => {
+    const { d, mail, notices } = withNotices({ job: null });
+    await decidePost(d, {
+      action: "decide",
+      item: CO,
+      decision: "approved",
+      code: "123456",
+      agree: "1",
+    });
+    expect(notices).toHaveLength(0);
+    expect(mail.at(-1)).toMatchObject({
+      to: "pat@example.com",
+      subject: "Customer approved: PCO-004 · Exam room lights",
+    });
+  });
+});
+
+describe("client messages on the customer page", () => {
+  it("shows the thread escaped, marks replies read only on the Messages tab, and counts them elsewhere", async () => {
+    const { d, calls } = withNotices();
+    const home = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(home).toMatch(/>Messages<span class="count" aria-label="1 new">1<\/span><\/a>/);
+    expect(calls.find((c) => c.fn === "mcp_portal_messages")!.args._mark_read).toBe(false);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=messages`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(calls.filter((c) => c.fn === "mcp_portal_messages").at(-1)!.args._mark_read).toBe(true);
+    expect(page).toContain("Can we &lt;b&gt;see&lt;/b&gt; the fixture?");
+    expect(page).not.toContain("<b>see</b>");
+    expect(page).toContain("About PCO-004 · Exam room lights");
+    expect(page).toContain("Pat Lee");
+    expect(page).toContain('name="action" value="message"');
+    expect(page).toContain(`name="csrf" value="${await csrfFor(SESSION)}"`);
+    expect(page).toContain('maxlength="4000"');
+    expect(page).not.toMatch(/>Messages<span class="count"/);
+    expect(page).toContain("@media (max-width:640px){.cp-msg{");
+    expect(page).toContain("@media (max-width:1000px){.cp-msg{");
+    expect(page).not.toMatch(/<script/i);
+  });
+
+  it("puts 'Ask a question about this' beside the decision, outside every signing form", async () => {
+    const { d } = withNotices({ view: withPayApps() });
+    const ask = `/c/${ACCESS}?s=messages&amp;about=`;
+    for (const [path, id] of [
+      [`/c/${ACCESS}?s=changes&i=${CO}`, CO],
+      [`/c/${ACCESS}?s=billing&i=${PAY}`, PAY],
+      [`/c/${ACCESS}?s=billing&i=${PAY_OLD}`, PAY_OLD],
+      [`/c/${ACCESS}?s=selections&i=${SEL}`, SEL],
+    ] as const) {
+      const html = await (await handlePortal(req(path, { cookie: true }), ACCESS, d)).text();
+      expect(html, path).toContain(`${ask}${id}#write">Ask a question about this</a>`);
+      // Never inside a form: every form closes before the link, or opens after it.
+      for (const f of html.match(/<form[\s\S]*?<\/form>/g) ?? [])
+        expect(f, path).not.toContain("Ask a question about this");
+    }
+    for (const step of ["confirm", "decline"]) {
+      const html = await (
+        await handlePortal(
+          req(`/c/${ACCESS}?s=changes&i=${CO}&step=${step}`, { cookie: true }),
+          ACCESS,
+          d,
+        )
+      ).text();
+      expect(html, step).not.toContain("Ask a question about this");
+    }
+    // The link opens Messages with the item named and posted along with the message.
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=messages&about=${CO}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain("About <b>PCO-004 · Exam room lights</b>");
+    expect(page).toContain(`name="about" value="${CO}"`);
+  });
+
+  it("posts with the form token and origin, records the notice, and confirms it was sent", async () => {
+    const { d, calls, notices } = withNotices();
+    const csrf = await csrfFor(SESSION);
+    const send = (body: Record<string, string>, origin?: string) =>
+      handlePortal(
+        req(`/c/${ACCESS}`, {
+          method: "POST",
+          body: new URLSearchParams(body).toString(),
+          cookie: true,
+          ...(origin ? { origin } : {}),
+        }),
+        ACCESS,
+        d,
+      );
+    expect((await send({ action: "message", body: "Hi" })).status).toBe(403);
+    expect(
+      (await send({ action: "message", body: "Hi", csrf }, "https://evil.example")).status,
+    ).toBe(403);
+    expect(calls.some((c) => c.fn === "mcp_portal_message_post")).toBe(false);
+
+    const empty = await send({ action: "message", body: "   ", csrf, about: CO });
+    expect(empty.headers.get("location")).toBe(`/c/${ACCESS}?s=messages&about=${CO}&e=msg_invalid`);
+    const long = await send({ action: "message", body: "x".repeat(4001), csrf });
+    expect(long.headers.get("location")).toContain("e=msg_invalid");
+
+    const ok = await send({
+      action: "message",
+      body: "  Can we see it?\r\nThanks  ",
+      csrf,
+      about: CO,
+    });
+    expect(ok.headers.get("location")).toBe(`/c/${ACCESS}?s=messages&ok=sent#latest`);
+    expect(calls.find((c) => c.fn === "mcp_portal_message_post")!.args).toMatchObject({
+      _access: ACCESS,
+      _session_hash: await tokenHash(SESSION),
+      _item: CO,
+      _body: "Can we see it?\nThanks",
+    });
+    expect(notices[0]).toMatchObject({
+      _job: JOB,
+      _topic: "client_message",
+      _kind: "client_question",
+      _title: "Rosa Delgado asked about PCO-004 · Exam room lights",
+      _detail: "Can we see it?\nThanks",
+      _ref_table: "mcp_portal_messages",
+      _ref_id: MSG,
+      _board_page: "messages",
+      _dedupe_key: `portal-message:${MSG}`,
+    });
+    // A message about the job as a whole.
+    await send({ action: "message", body: "When is paint?", csrf });
+    expect(notices[1]).toMatchObject({
+      _kind: "client_message",
+      _title: "Rosa Delgado sent a message",
+    });
+    // A bad about id is dropped, not passed through.
+    await send({ action: "message", body: "Hi", csrf, about: "not-a-uuid" });
+    expect(calls.filter((c) => c.fn === "mcp_portal_message_post").at(-1)!.args._item).toBeNull();
+
+    const flash = await (
+      await handlePortal(req(`/c/${ACCESS}?s=messages&ok=sent`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(flash).toContain("Message sent.");
+  });
+
+  it("holds the client to the hourly limit with a plain message", async () => {
+    const { d, notices } = withNotices({ post: { status: "slow_down" } });
+    const r = await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        { action: "message", body: "One more", csrf: await csrfFor(SESSION) },
+        { cookie: true },
+      ),
+      ACCESS,
+      d,
+    );
+    expect(r.headers.get("location")).toBe(`/c/${ACCESS}?s=messages&e=msg_slow`);
+    expect(notices).toHaveLength(0);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=messages&e=msg_slow`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain("sent a lot of messages in the last hour");
+  });
+
+  it("still shows the page when the thread can't be read", async () => {
+    const { d } = withNotices({ thread: { status: "ok", unread: 0, messages: [{ cost: 1 }] } });
+    const r = await handlePortal(req(`/c/${ACCESS}?s=messages`, { cookie: true }), ACCESS, d);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toContain("Messages can't be shown right now");
+  });
+});
+
+describe("the team's reply email", () => {
+  it("leads with the contractor, carries the reply and a button back, escapes it and holds no price", () => {
+    const m = replyEmail(
+      {
+        message_id: MSG,
+        created_at: "2026-11-04T16:00:00Z",
+        author_name: "Pat Lee",
+        body: "Yes <script>x</script>\nMonday.",
+        item_id: CO,
+        about_label: "PCO-004 · Exam room lights",
+        access_id: ACCESS,
+        customer_name: "Rosa Delgado",
+        customer_email: "rosa@example.com",
+        job_id: JOB,
+        job_number: "2715",
+        job_name: "Harbor Point Dental",
+        company: "Northline Builders",
+      },
+      "https://cdn.example.com/logo.png",
+    );
+    expect(m).toMatchObject({
+      to: "rosa@example.com",
+      key: `portal-message:${MSG}`,
+      fromName: "Northline Builders via Athena",
+      subject: "Northline Builders replied about PCO-004 · Exam room lights",
+    });
+    expect(m.html).toContain("https://cdn.example.com/logo.png");
+    expect(m.html).toContain("Powered by Athena");
+    expect(m.html).toContain(`https://app.meetathena.io/c/${ACCESS}?s=messages`);
+    expect(m.html).toContain("Yes &lt;script&gt;x&lt;/script&gt;<br>Monday.");
+    expect(m.html).not.toContain("<script>");
+    expect(m.text).toContain("Yes <script>x</script>\nMonday.");
+    expect(m.text).not.toContain("$");
+  });
+
+  it("posts the reply as the member, then emails the customer; a failed email keeps the reply", async () => {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+    const reply = {
+      message_id: MSG,
+      created_at: "2026-11-04T16:00:00Z",
+      author_name: "Pat Lee",
+      body: "Monday.",
+      item_id: null,
+      about_label: null,
+      access_id: ACCESS,
+      customer_name: "Rosa Delgado",
+      customer_email: "rosa@example.com",
+      job_id: JOB,
+      job_number: "2715",
+      job_name: "Harbor Point Dental",
+      company: "Northline Builders",
+    };
+    const r = await replyToClient(
+      {
+        rpc: async (fn, args) => {
+          calls.push({ fn, args });
+          return reply;
+        },
+        send: async () => {
+          throw new Error("down");
+        },
+      },
+      { jobId: JOB, accessId: ACCESS, body: "  Monday. " },
+    );
+    expect(calls).toEqual([
+      {
+        fn: "mcp_job_message_reply",
+        args: { _job: JOB, _access: ACCESS, _body: "Monday.", _about_item: null },
+      },
+    ]);
+    expect(r).toMatchObject({ email: "failed", reply: { message_id: MSG } });
+    await expect(
+      replyToClient(
+        { rpc: async () => reply, send: async () => "sent" },
+        { jobId: JOB, accessId: ACCESS, body: " " },
+      ),
+    ).rejects.toThrow(/4,000/);
   });
 });
