@@ -4,6 +4,7 @@ import {
   extended,
   MAX_CENTS,
   optionNames,
+  packageTerms,
   UUID_RE,
   type Board,
   type OptionName,
@@ -85,8 +86,8 @@ const unknown = { total_cents: null, difference_cents: null } as const;
 
 /**
  * Package total = base price + the change from the base tier's option to this
- * tier's option on every selection. The base price already includes the base
- * tier's options. Unknown when any amount is missing.
+ * tier's option on every selection + the package's added cost. The base price
+ * already includes the base tier's options. Unknown when any amount is missing.
  */
 export function packageTotals(input: Board): Record<OptionName, Totals> {
   const board = boardSchema.parse(input);
@@ -100,6 +101,8 @@ export function packageTotals(input: Board): Record<OptionName, Totals> {
     }
     let delta = 0;
     let known = true;
+    // Added cost beyond the products (extra install labor, for example) is part of the change.
+    delta += packageTerms(board, tier).added_cents;
     for (const selection of board.selections) {
       const from = extended(selection.quantity, selection.options[baseTier].price_cents);
       const to = extended(selection.quantity, selection.options[tier].price_cents);
@@ -164,6 +167,11 @@ export const customerProposalSchema = z
             tier: z.enum(optionNames),
             total_cents: z.number().int().min(0),
             difference_cents: z.number().int(),
+            /** Extra schedule days this package needs. Older views lack it: read as no added time. */
+            schedule_days: z.number().int().min(0).optional(),
+            /** Added cost beyond the products, already inside difference_cents. */
+            added_cents: z.number().int().min(0).optional(),
+            added_note: z.string().optional(),
           })
           .strict(),
       )
@@ -213,7 +221,7 @@ export function customerProposal(input: Board, version: number): CustomerProposa
     terms: board.proposal.terms,
     valid_until: board.proposal.valid_until,
     base_tier: board.proposal.base_tier,
-    packages: optionNames.map((tier) => ({ tier, ...totals[tier] })),
+    packages: optionNames.map((tier) => ({ tier, ...totals[tier], ...packageTerms(board, tier) })),
     selections: board.selections.map((s) => ({
       id: s.id,
       title: s.title,

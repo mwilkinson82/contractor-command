@@ -28,14 +28,20 @@ describe("next steps after a Good, Better, Best preview", () => {
     expect(ids(steps)).toEqual([
       "fix_wording",
       "add_terms",
+      "set_change_terms",
       "send_to_client_page",
       "view_only_link",
     ]);
     expect(steps[1].detail).toContain("No date the prices are good until and no terms");
+    expect(steps[2].detail).toContain("no added time and no extra charge");
+  });
+
+  it("drops the time step once the member has confirmed it", () => {
+    expect(ids(proposalNextSteps(view(), 4, someone, true))).not.toContain("set_change_terms");
   });
 
   it("says it replaces the proposal already waiting on the client page", () => {
-    const steps = proposalNextSteps(view(), 4, { ...someone, open_on_client_page: true });
+    const steps = proposalNextSteps(view(), 4, { ...someone, open_on_client_page: true }, true);
     expect(steps[0]).toMatchObject({
       id: "send_to_client_page",
       label: "Update it on their client page",
