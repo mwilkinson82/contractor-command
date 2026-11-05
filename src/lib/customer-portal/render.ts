@@ -1,5 +1,6 @@
 // Customer page HTML. Server-rendered, no scripts: every button is a plain form post, so it works on any phone
-// and nothing on the page can run code. Look: the accounting suite's light cards and navy ink (approved Nov 4).
+// and nothing on the page can run code. Look: an Athena blue hero over white cards, Inter type, blue actions
+// (client page redesign approved by Marshall, Nov 5).
 import { optionNames } from "../selections/model";
 import { displayPrice } from "../selections/format";
 import { COMPARE_CSS, renderCompare } from "../selections/compare-page";
@@ -67,6 +68,12 @@ export function longDate(iso: string | null | undefined): string {
     timeZone: "UTC",
   });
 }
+/** "Nov 18" for chips and timelines. */
+function shortDate(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
 const dayName = (iso: string) => {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
@@ -89,25 +96,16 @@ const initials = (s: string) =>
     .join("") || "·";
 
 const CSS = `
-:root{color-scheme:light;--ink:#18314f;--ink-strong:#183b63;--body:#53677d;--muted:#65788e;--line:#dfe7f0;--rule:#e8edf4;--soft:#f8fafd;--head:#edf3fa;--ground:#f5f8fc;--white:#fff;--underline:#9aabbf;--field:#cbd6e3;--ok-ink:#2c6a4b;--ok-soft:#eaf4ee;--ok-line:#c9e3d3;--wait-ink:#7a5310;--wait-soft:#fbf3e4;--wait-line:#efdcb5;--alert-ink:#9f243a;--alert-soft:#fff3f5;--alert-line:#f3c8d0;--font:"Archivo","Helvetica Neue",Arial,sans-serif}
+:root{color-scheme:light;--ink:#0d1526;--ink-strong:#0d1526;--body:#4b5871;--muted:#66728a;--line:#e3e8f0;--rule:#edf1f6;--soft:#f7f9fc;--head:#e9f0fe;--ground:#f3f5f9;--white:#fff;--underline:#a9b6cc;--field:#d3dae6;--accent:#2563eb;--accent-deep:#1d4ed8;--accent-soft:#e9f0fe;--accent-ink:#1e48c4;--ok-ink:#2c6a4b;--ok-soft:#eaf4ee;--ok-line:#c9e3d3;--wait-ink:#7a5310;--wait-soft:#fbf3e4;--wait-line:#efdcb5;--alert-ink:#9f243a;--alert-soft:#fff3f5;--alert-line:#f3c8d0;--font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.55 var(--font);-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--ground);color:var(--ink);font:14.5px/1.55 var(--font);letter-spacing:-.011em;font-feature-settings:"cv11","ss01";-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
 button,input,textarea{font:inherit;color:inherit}
-:is(a,button,input,textarea):focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-a{color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--underline);text-underline-offset:3px}
+:is(a,button,input,textarea,label):focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+a{color:var(--accent-ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--underline);text-underline-offset:3px}
 .pt{min-height:100vh;display:flex;flex-direction:column}
-.pt-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px max(16px,env(safe-area-inset-left)) 14px max(16px,env(safe-area-inset-right));background:var(--white);border-bottom:1px solid var(--line)}
-.logo{display:flex;align-items:center;gap:10px;min-width:0}
-.logo-mark{width:34px;height:34px;border-radius:8px;background:var(--ink);color:var(--white);display:grid;place-items:center;flex:none;font-weight:700;font-size:13px;letter-spacing:.04em}
-.logo-word{display:grid;line-height:1.15;min-width:0}
-.logo-word b{font-size:13.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.logo-word span{font-size:11px;color:var(--muted)}
-.who{display:flex;align-items:center;gap:14px;font-size:13px;color:var(--body)}
-.who-name{display:flex;align-items:center;gap:8px}
-.avatar{width:28px;height:28px;border-radius:50%;background:var(--head);color:var(--ink);display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
-.linkbtn{border:0;background:none;padding:0;color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--underline);text-underline-offset:3px;cursor:pointer}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+.linkbtn{border:0;background:none;padding:0;color:inherit;font-weight:600;text-decoration:underline;text-decoration-color:var(--underline);text-underline-offset:3px;cursor:pointer}
 .wrap{width:100%;max-width:1240px;margin:0 auto;padding:0 max(16px,min(40px,3vw))}
-.pt-job{padding-top:26px;padding-bottom:18px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
 .eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
 h1{margin:0;font-size:clamp(24px,3.2vw,32px);line-height:1.15;font-weight:700;letter-spacing:-.025em;text-wrap:balance}
 .sub{margin:6px 0 0;color:var(--body)}
@@ -116,20 +114,13 @@ h1{margin:0;font-size:clamp(24px,3.2vw,32px);line-height:1.15;font-weight:700;le
 .pill.ok{color:var(--ok-ink);background:var(--ok-soft);border-color:var(--ok-line)}
 .pill.wait{color:var(--wait-ink);background:var(--wait-soft);border-color:var(--wait-line)}
 .pill.neutral{color:var(--body);background:var(--soft)}
-.tabs{position:sticky;top:0;z-index:5;background:var(--ground);border-bottom:1px solid var(--line)}
-.tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
-.tabs .wrap::-webkit-scrollbar{display:none}
-.tab{position:relative;flex:none;padding:12px 12px 13px;font-size:13.5px;font-weight:600;color:var(--body);display:inline-flex;align-items:center;gap:7px;text-decoration:none}
-.tab[aria-current=page]{color:var(--ink)}
-.tab[aria-current=page]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--ink);border-radius:2px}
-.count{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--ink);color:var(--white);font-size:11px;font-weight:700;display:inline-grid;place-items:center}
-.main{flex:1;padding-top:24px;padding-bottom:36px}
-.foot{padding-top:18px;padding-bottom:26px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 18px}
+.main{flex:1;padding-top:28px;padding-bottom:40px}
 .stack{display:grid;gap:20px;min-width:0}
-.grid-home{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.grid-home{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:20px;align-items:start}
 .rail{display:grid;gap:20px}
-.panel{background:var(--white);border:1px solid var(--line);border-radius:14px;box-shadow:0 3px 12px #18345306;padding:22px;min-width:0}
-.panel h2{margin:0;font-size:18px;line-height:1.35;font-weight:650;letter-spacing:-.02em}
+.panel{background:var(--white);border:1px solid var(--line);border-radius:18px;padding:22px 24px;min-width:0;transition:box-shadow .25s}
+.panel:hover{box-shadow:0 10px 30px rgba(15,30,60,.07)}
+.panel h2{margin:0;font-size:18px;line-height:1.35;font-weight:650;letter-spacing:-.02em;color:var(--ink)}
 .panel-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px;margin-bottom:14px}
 .meta{font-size:12.5px;color:var(--muted)}
 .panel p{margin:0}.panel p+p{margin-top:10px}
@@ -137,26 +128,20 @@ h1{margin:0;font-size:clamp(24px,3.2vw,32px);line-height:1.15;font-weight:700;le
 .empty{color:var(--muted)}
 .flash{padding:12px 16px;border-radius:10px;font-weight:600;margin-bottom:18px;border:1px solid var(--ok-line);background:var(--ok-soft);color:var(--ok-ink)}
 .flash.err{border-color:var(--alert-line);background:var(--alert-soft);color:var(--alert-ink)}
-.decide{border-color:#c9d5e3}
-.decide-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:center;padding:14px 0;border-top:1px solid var(--rule)}
-.decide-row:first-child{border-top:0;padding-top:2px}
-.decide-row:last-child{padding-bottom:0}
-.decide-row h3,.rec h3{margin:0;font-size:15px;font-weight:600;line-height:1.35}
-.decide-row .meta,.rec .meta{font-size:13px;color:var(--body);margin-top:2px}
+.rec h3{margin:0;font-size:15px;font-weight:600;line-height:1.35}
+.rec .meta{font-size:13px;color:var(--body);margin-top:2px}
 .done-box{display:flex;gap:10px;align-items:center;padding:14px 16px;border-radius:10px;background:var(--ok-soft);border:1px solid var(--ok-line);color:var(--ok-ink);font-weight:600}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 18px;border-radius:8px;border:1px solid var(--ink);background:var(--ink);color:var(--white);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 18px;border-radius:999px;border:1px solid var(--accent);background:var(--accent);color:var(--white);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background .2s,transform .2s,box-shadow .2s}
+.btn:hover{background:var(--accent-deep);border-color:var(--accent-deep);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,.28)}
 .btn.secondary{background:var(--white);color:var(--ink);border-color:var(--field)}
+.btn.secondary:hover{background:var(--soft);border-color:var(--underline);box-shadow:none}
 .btn.block{width:100%}
-.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0}
-.kpi{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:15px 17px;min-width:0}
-.kpi dt{font-size:12px;color:var(--muted)}
-.kpi dd{margin:3px 0 0;font-size:22px;font-weight:650;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink-strong)}
 .miles{list-style:none;margin:0;padding:0;display:grid}
 .miles li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .miles li:first-child{border-top:0;padding-top:0}
 .dot{width:12px;height:12px;margin-top:4px;border-radius:50%;border:2px solid var(--underline);background:var(--white)}
-.miles .done .dot{background:var(--ink);border-color:var(--ink)}
-.miles .next .dot{border-color:var(--ink)}
+.miles .done .dot{background:var(--ok-ink);border-color:var(--ok-ink)}
+.miles .next .dot{border-color:var(--accent);background:var(--accent-soft)}
 .miles .when{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .miles .done .what{color:var(--body)}
 .contact{display:flex;gap:12px;align-items:center}
@@ -166,8 +151,9 @@ h1{margin:0;font-size:clamp(24px,3.2vw,32px);line-height:1.15;font-weight:700;le
 .photos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .photos.home{grid-template-columns:repeat(3,minmax(0,1fr))}
 .photo{margin:0;min-width:0}
-.photo .img{aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--head)}
-.photo img{display:block;width:100%;height:100%;object-fit:cover}
+.photo .img{aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--head)}
+.photo img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.photo:hover img{transform:scale(1.05)}
 .photo figcaption{margin-top:6px;font-size:12.5px;color:var(--body);line-height:1.4}
 .photo figcaption span{display:block;color:var(--muted);font-size:11.5px}
 .rec{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:14px 0;border-top:1px solid var(--rule)}
@@ -206,7 +192,7 @@ h4:first-child{margin-top:0}
 .receipt dd{margin:0;overflow-wrap:anywhere}
 .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px}
 .gbb-panel{padding:0;overflow:clip}
-.gbb-panel .gbb{--pin-top:46px;--brand:var(--ink-strong);border-radius:14px}
+.gbb-panel .gbb{--pin-top:var(--tabs-h);--brand:var(--ink-strong);border-radius:14px}
 .gbb-panel .gbb .btn{min-height:0;border:0;font-weight:500}
 .gbb-panel .gbb .btn.ghost{background:transparent;color:var(--ink-strong)}
 .gbb-panel .gbb h1{font-size:clamp(28px,4vw,44px)}
@@ -214,35 +200,31 @@ h4:first-child{margin-top:0}
 .gbb-panel .close-fine p{margin:0 0 8px}
 @media (max-width:560px){.gbb-panel .close-fine{margin:0 18px}}
 .next-steps ol{margin:10px 0 0;padding-left:20px;display:grid;gap:8px;color:var(--body)}
-.next-steps li::marker{color:var(--ink);font-weight:700}
+.next-steps li::marker{color:var(--accent);font-weight:700}
 .field{display:grid;gap:6px;margin-top:14px}
 .field label{font-size:13px;font-weight:600}
 .hint{font-size:12px;color:var(--muted)}
-.input{width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--field);border-radius:8px;font-size:16px;background:var(--white)}
-.input.code{font-size:24px;letter-spacing:.5em;text-align:center;font-variant-numeric:tabular-nums;padding-left:calc(12px + .5em)}
-.textarea{width:100%;min-height:96px;padding:10px 12px;border:1px solid var(--field);border-radius:8px;font-size:15px;resize:vertical}
+.input{width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--field);border-radius:12px;font-size:16px;background:var(--white)}
+.input:focus,.textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.input.code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-weight:600;font-size:24px;letter-spacing:.5em;text-align:center;font-variant-numeric:tabular-nums;padding-left:calc(12px + .5em)}
+.textarea{width:100%;min-height:96px;padding:10px 12px;border:1px solid var(--field);border-radius:12px;font-size:15px;resize:vertical}
 .check{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:13.5px;cursor:pointer}
-.check input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--ink);flex:none}
-.sum{margin:16px 0 4px;padding:12px 14px;border-radius:10px;background:var(--soft);border:1px solid var(--line);display:grid;gap:4px;font-size:13.5px}
+.check input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent);flex:none}
+.sum{margin:16px 0 4px;padding:12px 14px;border-radius:12px;background:var(--soft);border:1px solid var(--line);display:grid;gap:4px;font-size:13.5px}
 .sum div{display:flex;justify-content:space-between;gap:12px}
 .sum span{color:var(--body)}
 .sum b{font-variant-numeric:tabular-nums;font-weight:650}
 .form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
-.statement{margin-top:14px;padding:12px 14px;border-left:3px solid var(--ink);background:var(--soft);font-size:13.5px}
+.statement{margin-top:14px;padding:12px 14px;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--soft);font-size:13.5px}
 @media (max-width:1000px){.grid-home,.co-cols{grid-template-columns:minmax(0,1fr)}.rail{grid-template-columns:repeat(2,minmax(0,1fr))}.photos{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){
-.who-name span:not(.avatar),.logo-word span{display:none}
-.pt-job{padding-top:20px;padding-bottom:14px}
+.who-name span:not(.avatar),.co-sub{display:none}
 .main{padding-top:18px}
 .stack{gap:16px}
 .rail{grid-template-columns:minmax(0,1fr);gap:16px}
 .panel{padding:18px 16px;border-radius:12px}
 .panel h2{font-size:17px}
-.kpis{grid-template-columns:minmax(0,1fr)}
-.kpi{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-.kpi dd{font-size:19px;margin:0}
-.decide-row,.rec{grid-template-columns:minmax(0,1fr)}
-.decide-row .btn{width:100%}
+.rec{grid-template-columns:minmax(0,1fr)}
 .right{justify-content:flex-start}
 .photos,.photos.home{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .photos.home .photo:nth-child(3){display:none}
@@ -255,6 +237,84 @@ h4:first-child{margin-top:0}
 .form-actions{flex-direction:column-reverse}
 .form-actions .btn{width:100%}
 }
+`;
+
+const PORTAL_CSS = `
+/* Client page shell: Athena blue hero with a blueprint grid, pinned glass tabs, white cards. */
+.pt{--tabs-h:57px}
+.hero{position:relative;color:#f4f7fd;overflow:hidden;isolation:isolate;background:#1a47c7}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(900px 420px at 85% 0%,rgba(140,190,255,.55),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),linear-gradient(160deg,#2f6cf2,#1a47c7)}
+.hero a,.hero .linkbtn{color:#fff;text-decoration-color:rgba(255,255,255,.45)}
+.brandbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:18px;padding-bottom:18px}
+.co{display:flex;align-items:center;gap:12px;min-width:0}
+.co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#1a47c7;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
+.co-word{display:grid;line-height:1.2;min-width:0}
+.co-word b{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.co-sub{font-size:12px;color:#dbe6ff}
+.who{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#dbe6ff}
+.who-name{display:flex;align-items:center;gap:8px}
+.who .avatar{background:rgba(255,255,255,.16);color:#fff}
+.hero-in{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;align-items:center;padding-top:22px;padding-bottom:44px}
+.h-eyebrow{margin:0;font:600 10.5px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#e4edff}
+.hero h1{font-size:46px;line-height:1.04;font-weight:650;letter-spacing:-.035em;margin:10px 0 12px;color:#fff;text-wrap:balance}
+.lede{margin:0 0 18px;font-size:16px;color:#dbe6ff;max-width:46ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);color:#fff}
+.chip i{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.22)}
+.chip.attn i{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
+.snap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:center;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 20px 50px rgba(8,25,80,.18);border-radius:20px;padding:20px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.snap.no-ring{grid-template-columns:minmax(0,1fr)}
+.ring{--p:0;position:relative;width:132px;height:132px;border-radius:50%;display:grid;place-items:center;animation:ringin 1.2s cubic-bezier(.2,.7,.2,1) both}
+.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(#fff calc(var(--p)*1%),rgba(255,255,255,.22) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px));mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px))}
+.ring div{position:relative;text-align:center;font-size:11.5px;color:#dbe6ff;line-height:1.3;max-width:96px}
+.ring b{display:block;font-size:30px;font-weight:650;letter-spacing:-.03em;line-height:1;color:#fff;margin-bottom:3px}
+@property --p{syntax:"<number>";inherits:true;initial-value:0}
+@keyframes ringin{from{--p:0}}
+.snap-rows{display:grid;gap:10px;min-width:0}
+.snap-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#dbe6ff;border-bottom:1px solid rgba(255,255,255,.22);padding-bottom:8px}
+.snap-row:last-child{border:0;padding:0}
+.snap-row b{color:#fff;font-weight:600;text-align:right}
+.peek{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+.peek figure{margin:0;overflow:hidden;border-radius:12px;position:relative;aspect-ratio:4/3;background:rgba(255,255,255,.1)}
+.peek img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.peek figure:hover img{transform:scale(1.05)}
+.peek figcaption{position:absolute;left:8px;bottom:8px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(10,23,51,.72);color:#fff}
+.tabs{position:sticky;top:0;z-index:6;background:rgba(255,255,255,.84);-webkit-backdrop-filter:saturate(180%) blur(18px);backdrop-filter:saturate(180%) blur(18px);border-bottom:1px solid var(--line)}
+.tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-top:10px;padding-bottom:10px}
+.tabs .wrap::-webkit-scrollbar{display:none}
+.tab{flex:none;display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;font-size:14px;font-weight:500;color:var(--body);text-decoration:none;transition:background .2s,color .2s}
+.tab:hover{background:var(--soft);color:var(--ink)}
+.tab[aria-current=page]{background:var(--ink);color:#fff}
+.count{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}
+.acts{display:grid;gap:10px}
+.act{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:14px;background:var(--soft);border:1px solid var(--line);transition:border-color .2s,transform .2s}
+.act:hover{border-color:var(--accent);transform:translateY(-1px)}
+.ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.act h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.015em;line-height:1.35}
+.act .meta{display:block;font-size:13px;color:var(--body);margin-top:1px}
+.due{display:inline-flex;align-items:center;font-size:12px;font-weight:600;color:var(--wait-ink);background:var(--wait-soft);padding:2px 8px;border-radius:999px;margin-top:5px}
+.week{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.byline{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);font-size:13px;color:var(--body)}
+.phases{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:6px}
+.phases li{position:relative;padding-top:18px;min-width:0}
+.phases li::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;border-radius:999px;background:var(--line)}
+.phases li.done::before{background:var(--ok-ink)}
+.phases li.next::before{background:var(--accent)}
+.phases b{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.phases span{display:block;font-size:12px;color:var(--muted)}
+.phases li.next b{color:var(--accent-ink)}
+.team{display:flex;align-items:center;gap:14px}
+.team .avatar{width:46px;height:46px;font-size:14px}
+.team b{display:block;font-weight:600}
+.team span{font-size:13px;color:var(--body)}
+.photos.thumbs{grid-template-columns:repeat(2,minmax(0,1fr))}
+.foot{padding-top:24px;padding-bottom:26px;margin-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 18px}
+.athena{display:inline-flex;align-items:center;gap:6px}
+.athena svg{width:16px;height:12px;flex:none}
+@media (max-width:1000px){.hero-in{grid-template-columns:minmax(0,1fr);gap:24px}.hero h1{font-size:38px}}
+@media (max-width:640px){.hero-in{padding-top:8px;padding-bottom:24px}.hero h1{font-size:30px}.lede{font-size:14.5px}.brandbar{padding-top:14px;padding-bottom:14px}.snap{grid-template-columns:minmax(0,1fr);justify-items:center;padding:16px}.snap-rows{width:100%}.act{grid-template-columns:auto minmax(0,1fr);padding:12px}.act .btn{grid-column:1/-1;width:100%}.phases{grid-template-columns:minmax(0,1fr);gap:12px}.phases li{padding:0 0 0 18px}.phases li::before{top:3px;bottom:3px;left:0;right:auto;width:6px;height:auto}.photos.thumbs{gap:10px}.foot{flex-direction:column;align-items:flex-start}.tabs .wrap{padding-top:8px;padding-bottom:8px}}
+@media (prefers-reduced-motion:reduce){.ring,.panel,.act,.btn,.photo img,.peek img{animation:none!important;transition:none!important}}
 `;
 
 // Sign-in, code and notice screens match Athena's own sign-in card (src/components/auth/auth-card.tsx, brand
@@ -319,18 +379,15 @@ function signinShell(company: string | null, inner: string, logo: string | null 
   return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
 }
 
-const FONTS_PORTAL = "family=Archivo:wght@400;500;600;700&family=Inter:wght@400;500;600;700";
+const FONTS_PORTAL = "family=Inter:wght@400;500;600;700";
 const FONTS_SIGNIN =
   "family=Archivo:wght@400;500;600;700&family=Inter:wght@600&family=JetBrains+Mono:wght@600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500";
 
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
-  const css = kind === "signin" ? `${CSS}${SIGNIN_CSS}` : `${CSS}${COMPARE_CSS}`;
+  const css = kind === "signin" ? `${CSS}${SIGNIN_CSS}` : `${CSS}${PORTAL_CSS}${COMPARE_CSS}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap"><style>${css}</style></head><body>${body}</body></html>`;
 }
-
-const logo = (company: string, sub = "Client page") =>
-  `<div class="logo"><span class="logo-mark" aria-hidden="true">${esc(initials(company))}</span><span class="logo-word"><b>${esc(company)}</b><span>${esc(sub)}</span></span></div>`;
 
 // ---------- sign-in ----------
 
@@ -421,10 +478,28 @@ function nextMilestone(p: PortalPage) {
   return p.milestones.find((m) => !m.done) ?? null;
 }
 
+const ICON = {
+  change_order: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>`,
+  selection: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>`,
+} as const;
+
+/** Whole days from today to a due date, for the "Reply by" chip. */
+function daysLeft(p: PortalPage, due: string): number {
+  return Math.round(
+    (Date.parse(due.slice(0, 10)) - Date.parse(p.job.today.slice(0, 10))) / 86_400_000,
+  );
+}
+function dueChip(p: PortalPage, due: string | null, verb: string): string {
+  if (!due) return "";
+  const n = daysLeft(p, due);
+  const left = n < 0 ? "past due" : n === 0 ? "today" : `${n} ${n === 1 ? "day" : "days"}`;
+  return `<span class="due">${esc(`${verb} by ${shortDate(due)} · ${left}`)}</span>`;
+}
+
 function decideBox(p: PortalPage): string {
   const waiting = p.items.filter(open);
   if (!waiting.length)
-    return `<section class="panel decide"><div class="panel-head"><h2>Needs your decision</h2></div><div class="done-box">You're all caught up. Nothing needs your decision right now.</div></section>`;
+    return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2></div><div class="done-box">You're all caught up. Nothing needs your decision right now.</div></section>`;
   const rows = waiting
     .map((i) => {
       const section: PortalSection = i.kind === "change_order" ? "changes" : "selections";
@@ -432,11 +507,11 @@ function decideBox(p: PortalPage): string {
         i.kind === "change_order"
           ? `Change order · ${usd(i.view.price_cents)} · ${days(i.view.schedule_days)}`
           : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
-      const due = i.due_on ? ` · Reply by ${longDate(i.due_on)}` : "";
-      return `<div class="decide-row"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(what + due)}</div></div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
+      const verb = i.kind === "change_order" ? "Reply" : "Choose";
+      return `<div class="act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(itemLabel(i))}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
     })
     .join("");
-  return `<section class="panel decide"><div class="panel-head"><h2>Needs your decision</h2><span class="pill wait">${waiting.length} waiting</span></div><div>${rows}</div></section>`;
+  return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2><span class="meta">${waiting.length} ${waiting.length === 1 ? "item" : "items"}</span></div><div class="acts">${rows}</div></section>`;
 }
 
 function photoGrid(photos: PortalPage["photos"], cls = ""): string {
@@ -466,19 +541,43 @@ function milestoneList(p: PortalPage, limit?: number): string {
 function contactPanel(p: PortalPage): string {
   const c = p.contractor;
   if (!c.pm_name && !c.pm_email) return "";
-  return `<section class="panel"><div class="panel-head"><h2>Your contact</h2></div><div class="contact"><span class="avatar" aria-hidden="true">${esc(initials(c.pm_name || c.name))}</span><div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title, c.name].filter(Boolean).join(" · "))}</span></div></div>${c.pm_email ? `<p class="sub"><a href="mailto:${esc(c.pm_email)}">${esc(c.pm_email)}</a></p>` : ""}</section>`;
+  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team"><span class="avatar" aria-hidden="true">${esc(initials(c.pm_name || c.name))}</span><div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div>${c.pm_email ? `<p class="sub" style="margin-top:14px"><a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a></p>` : ""}</section>`;
+}
+
+/** Up to five milestones around where the job is: the last one done, then what's next. */
+function phases(p: PortalPage): string {
+  if (!p.milestones.length) return "";
+  const firstOpen = p.milestones.findIndex((m) => !m.done);
+  const at = firstOpen < 0 ? p.milestones.length : firstOpen;
+  const start = Math.max(0, Math.min(at - 1, p.milestones.length - 5));
+  const shown = p.milestones.slice(start, start + 5);
+  const next = nextMilestone(p);
+  const items = shown
+    .map((m) => {
+      const cls = m.done ? "done" : m === next ? "next" : "";
+      const when = m.done
+        ? `Done ${shortDate(m.date)}`
+        : m === next
+          ? `Next · ${shortDate(m.date)}`
+          : shortDate(m.date);
+      return `<li class="${cls}"><b>${esc(m.name)}</b><span>${esc(when)}</span></li>`;
+    })
+    .join("");
+  return `<section class="panel"><div class="panel-head"><h2>Where the job stands</h2><a class="meta" href="${esc(href(p, "schedule"))}">Full schedule</a></div><ol class="phases" style="--n:${shown.length}">${items}</ol></section>`;
 }
 
 function home(p: PortalPage): string {
   const latest = p.updates[0];
-  const done = p.milestones.filter((m) => m.done).length;
-  const next = nextMilestone(p);
-  const kpis = `<dl class="kpis"><div class="kpi"><dt>Milestones done</dt><dd>${p.milestones.length ? `${done} of ${p.milestones.length}` : "None yet"}</dd></div><div class="kpi"><dt>Next milestone</dt><dd>${esc(next ? longDate(next.date) : "None")}</dd></div><div class="kpi"><dt>Planned finish</dt><dd>${esc(longDate(p.job.completion_date) || "Not set")}</dd></div></dl>`;
+  const pm = p.contractor.pm_name;
   const update = latest
-    ? `<section class="panel"><div class="panel-head"><h2>${esc(latest.title)}</h2><span class="meta">Week of ${esc(longDate(latest.week_of))}</span></div><div class="prose">${paras(latest.body)}</div>${p.photos.length ? `<div style="margin-top:16px">${photoGrid(p.photos.slice(0, 3), "home")}</div>` : ""}<p class="sub"><a href="${esc(href(p, "updates"))}">All updates</a></p></section>`
-    : `<section class="panel"><div class="panel-head"><h2>This week on your project</h2></div><p class="empty">Your contractor hasn't posted an update yet.</p>${p.photos.length ? `<div style="margin-top:16px">${photoGrid(p.photos.slice(0, 3), "home")}</div>` : ""}</section>`;
+    ? `<section class="panel"><div class="panel-head"><h2>${esc(latest.title)}</h2><a class="meta" href="${esc(href(p, "updates"))}">All updates</a></div><div class="prose">${paras(latest.body)}</div><div class="byline"><span class="avatar" aria-hidden="true">${esc(initials(pm || p.contractor.name))}</span>${esc([pm ? `${pm}, ${p.contractor.pm_title || "project manager"}` : p.contractor.name, `week of ${longDate(latest.week_of)}`].join(" · "))}</div></section>`
+    : `<section class="panel"><div class="panel-head"><h2>This week on your project</h2></div><p class="empty">${esc(p.contractor.name)} hasn't posted an update yet.</p></section>`;
+  const shown = p.photos.filter((ph) => ph.url);
+  const photos = shown.length
+    ? `<section class="panel"><div class="panel-head"><h2>Latest photos</h2><a class="meta" href="${esc(href(p, "photos"))}">See all ${shown.length}</a></div>${photoGrid(shown.slice(0, 2), "thumbs")}</section>`
+    : "";
   const coming = `<section class="panel"><div class="panel-head"><h2>Coming up</h2><a class="meta" href="${esc(href(p, "schedule"))}">Schedule</a></div>${milestoneList(p, 4)}</section>`;
-  return `<div class="grid-home"><div class="stack">${kpis}${decideBox(p)}${update}</div><aside class="rail">${coming}${contactPanel(p)}</aside></div>`;
+  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p)}</div><aside class="rail">${contactPanel(p)}${photos}${coming}</aside></div>`;
 }
 
 function updates(p: PortalPage): string {
@@ -691,6 +790,43 @@ function body(p: PortalPage, o: PortalOpts): string {
   }
 }
 
+/** The blue top of every signed-in page: contractor, job, where it stands, and the two latest photos. */
+function hero(p: PortalPage, waiting: number): string {
+  const c = p.contractor;
+  const brand = `<div class="wrap brandbar"><div class="co"><span class="co-logo" aria-hidden="true">${esc(initials(c.name))}</span><span class="co-word"><b>${esc(c.name)}</b><span class="co-sub">Client page</span></span></div><div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></div>`;
+  const latest = p.updates[0];
+  const next = nextMilestone(p);
+  const lede = latest
+    ? latest.title
+    : next
+      ? `Next up: ${next.name}, ${longDate(next.date)}.`
+      : `Your private project page from ${c.name}.`;
+  const chips = [
+    waiting
+      ? `<span class="chip attn"><i></i>${waiting} ${waiting === 1 ? "decision" : "decisions"} waiting</span>`
+      : `<span class="chip"><i></i>Up to date</span>`,
+    latest ? `<span class="chip">Update posted ${esc(shortDate(latest.week_of))}</span>` : "",
+  ].join("");
+  const total = p.milestones.length;
+  const done = p.milestones.filter((m) => m.done).length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const ring = total
+    ? `<div class="ring" style="--p:${pct}" role="img" aria-label="${done} of ${total} milestones done"><div><b>${done}/${total}</b>milestones done</div></div>`
+    : "";
+  const rows = [
+    next ? `<div class="snap-row"><span>Next milestone</span><b>${esc(next.name)}</b></div>` : "",
+    next
+      ? `<div class="snap-row"><span>Next date</span><b>${esc(longDate(next.date))}</b></div>`
+      : "",
+    `<div class="snap-row"><span>Planned finish</span><b>${esc(longDate(p.job.completion_date) || "Not set")}</b></div>`,
+  ].join("");
+  const pics = p.photos.filter((ph) => ph.url).slice(0, 2);
+  const peek = pics.length
+    ? `<div class="peek">${pics.map((ph) => `<figure><img src="${esc(ph.url)}" alt="${esc(ph.work || ph.area || "Progress photo")}" referrerpolicy="no-referrer"><figcaption>${esc(shortDate(ph.taken_on))}</figcaption></figure>`).join("")}</div>`
+    : "";
+  return `<section class="hero">${brand}<div class="wrap hero-in"><div><p class="h-eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1><p class="lede">${esc(lede)}</p><div class="chips">${chips}</div></div><div class="snap${ring ? "" : " no-ring"}">${ring}<div class="snap-rows">${rows}</div>${peek}</div></div></section>`;
+}
+
 export function renderPortal(p: PortalPage, o: PortalOpts): string {
   const waitingBy = (kind: PortalItem["kind"]) =>
     p.items.filter((i) => i.kind === kind && open(i)).length;
@@ -703,20 +839,14 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
       `<a class="tab" href="${esc(href(p, s))}"${s === o.section ? ' aria-current="page"' : ""}>${SECTION_LABEL[s]}${count[s] ? `<span class="count" aria-label="${count[s]} waiting">${count[s]}</span>` : ""}</a>`,
   ).join("");
   const waiting = p.items.filter(open).length;
-  const status = waiting
-    ? `<span class="pill wait">${waiting} ${waiting === 1 ? "decision" : "decisions"} waiting</span>`
-    : `<span class="pill neutral">Up to date</span>`;
   const flash = o.error
     ? `<p class="flash err" role="alert">${esc(o.error)}</p>`
     : o.flash
       ? `<p class="flash" role="status">${esc(o.flash)}</p>`
       : "";
-  const top = `<header class="pt-top">${logo(p.contractor.name)}<div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></header>`;
-  const job = `<div class="wrap pt-job"><div><p class="eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1></div>${status}</div>`;
-  const foot = `<footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span>Powered by Athena</span></footer>`;
   return doc(
     `${p.job.name} · ${SECTION_LABEL[o.section]}`,
-    `<div class="pt">${top}${job}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main>${foot}</div>`,
+    `<div class="pt">${hero(p, waiting)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>`,
   );
 }
 

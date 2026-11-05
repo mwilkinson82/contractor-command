@@ -152,7 +152,6 @@ const post = async (
   body: Record<string, string>,
   opts: { cookie?: boolean; origin?: string | null } = {},
 ) => req(path, { method: "POST", body: new URLSearchParams(body).toString(), ...opts });
-const BLUE = /#0071e3|#2563eb|#2997ff|#1d4ed8|#3b82f6|\bblue\b/i;
 
 describe("same-origin posts", () => {
   const at = (h: Record<string, string>) =>
@@ -266,14 +265,17 @@ describe("customer page", () => {
     expect((await handlePortal(req("/c/not-a-uuid"), "not-a-uuid", d)).status).toBe(404);
   });
 
-  it("renders every section in the approved look, with signed photos and no storage paths or scripts", async () => {
+  it("renders every section in the Athena blue client look, with signed photos and no storage paths or scripts", async () => {
     const { d } = deps();
     for (const s of PORTAL_SECTIONS) {
       const r = await handlePortal(req(`/c/${ACCESS}?s=${s}`, { cookie: true }), ACCESS, d);
       const html = await r.text();
       expect(r.status, s).toBe(200);
       expect(html, s).not.toMatch(/<script/i);
-      expect(html, s).not.toMatch(BLUE);
+      // Approved Nov 5: Athena blue hero over white cards, Powered by Athena in the footer.
+      expect(html, s).toContain('<section class="hero">');
+      expect(html, s).toContain("linear-gradient(160deg,#2f6cf2,#1a47c7)");
+      expect(html, s).toContain("Powered by Athena");
       expect(html, s).not.toContain("secret-path");
       expect(html, s).toContain('aria-current="page"');
       expect(html, s).toContain("@media (max-width:640px)");
