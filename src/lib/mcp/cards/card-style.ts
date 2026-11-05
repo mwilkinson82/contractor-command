@@ -100,7 +100,7 @@ export const LONG_CELL_MIN = 60;
 /** Table cell class: `num` for money and counts, `short` for brief values, `long` for prose. */
 export function cellClass(text: string): string {
   const value = text.trim();
-  if (/^[$\d][\d.,]*%?$/.test(value)) return "num";
+  if (/^-?[$\d][\d.,]*%?$/.test(value)) return "num";
   if (value.length > 0 && value.length <= SHORT_CELL_MAX && !/\s/.test(value)) return "short";
   if (value.length >= LONG_CELL_MIN) return "long";
   return "";
