@@ -7,6 +7,7 @@ import {
   renderReportBody,
   scheduleLayoutHref,
   scheduleLookaheadHtml,
+  scheduleGanttViewsHtml,
   reportPageQuery,
   type PagePayload,
   type AnyPage,
@@ -28,6 +29,7 @@ import { OwnerPortfolio } from "@/components/athena/OwnerPortfolio";
 import { productionClient, readProductionDaily } from "@/lib/production-report";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
 import { attachLookaheadZoom } from "@/lib/cpm-lookahead-zoom";
+import { attachScheduleZoom } from "@/lib/cpm-schedule-zoom";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -151,11 +153,17 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate, layo
   const embed = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (page !== "schedule" || !payload || !embed.current) return;
-    return attachLookaheadZoom(embed.current, (zoom, only) => {
-      const body = scheduleLookaheadHtml(payload, zoom, { layoutHref: jobId ? scheduleLayoutHref : undefined }, only);
-      return token && body ? signSiblingLinks(body, token) : body;
-    });
-  }, [html, page, payload, token, jobId]);
+    const sign = (body: string) => (token && body ? signSiblingLinks(body, token) : body);
+    const layoutHref = jobId ? scheduleLayoutHref : undefined;
+    const offSchedule = attachScheduleZoom(embed.current, (zoom, only) =>
+      sign(scheduleGanttViewsHtml(payload, zoom, { layout: layout ?? null, layoutHref }, only)),
+    );
+    const offLook = attachLookaheadZoom(embed.current, (zoom, only) => sign(scheduleLookaheadHtml(payload, zoom, { layoutHref }, only)));
+    return () => {
+      offLook();
+      offSchedule();
+    };
+  }, [html, page, payload, token, jobId, layout]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <AthenaPage jobId={jobId} token={token} company={payloadCompany(payload)}>

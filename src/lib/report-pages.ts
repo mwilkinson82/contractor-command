@@ -2,7 +2,7 @@ import { CLIENT_BRAND_FONTS, CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from 
 import { reportSurface } from "./report-surface";
 import { healthHtml, narrativeHtml } from "./cpm-reports";
 import { athenaControlsCss } from "./athena-controls";
-import { comparisonHtml, delaySnapshotsHtml, delaysHtml, ganttHtml, ganttModel, ganttSummary, logicChangesHtml, lookaheadGanttHtml, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
+import { comparisonHtml, delaySnapshotsHtml, delaysHtml, ganttHtml, ganttModel, ganttViewsHtml, ganttSummary, logicChangesHtml, lookaheadGanttHtml, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
 import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
 // Pure logic: URLs, payload types and one HTML renderer shared by the signed-in page and the owner share link.
@@ -181,6 +181,19 @@ export function scheduleLookaheadHtml(
     { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date, layout: null, layoutHref: context?.layoutHref },
     3,
     zoom,
+    only,
+  );
+}
+
+/** The Schedule tab's Gantt views alone at a timescale zoom, for the page's drag and Fit. Same input as the page. */
+export function scheduleGanttViewsHtml(p: PagePayload, zoom: number, context?: ReportContext, only: string | null = null): string {
+  if (p.page !== "schedule") return "";
+  const r = (p as JobPayload).report,
+    d = r?.data ?? {};
+  const control = readScheduleControl(d);
+  if (!control || !(d.activities ?? []).length) return "";
+  return ganttViewsHtml(
+    { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date, layout: context?.layout ?? null, layoutHref: context?.layoutHref, zoom },
     only,
   );
 }
