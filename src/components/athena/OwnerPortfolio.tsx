@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { jobHomePath, type PortfolioPayload } from "@/lib/report-pages";
+import { companyBoardPath, isCompanyId } from "@/lib/company-board";
 import {
   HEALTH_LABEL,
   buildOwnerPortfolio,
@@ -79,7 +80,17 @@ export function OwnerPortfolio({
             {t.counts.watch} to watch, {t.counts.risk} at risk
           </p>
         </div>
-        <p className="op-asof">Figures as of {shortDay(asOf)} · owners and leadership only</p>
+        <div className="op-header-side">
+          {isCompanyId(companyId) ? (
+            <nav className="op-pages" aria-label="Company pages">
+              <a href={companyBoardPath(companyId)}>Company board</a>
+              <a href={`/r/portfolio/${companyId}`} aria-current="page">
+                Portfolio
+              </a>
+            </nav>
+          ) : null}
+          <p className="op-asof">Figures as of {shortDay(asOf)} · owners and leadership only</p>
+        </div>
       </header>
 
       {partial ? (

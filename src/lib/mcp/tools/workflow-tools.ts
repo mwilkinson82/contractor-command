@@ -6,6 +6,7 @@ import { draftSovText, nextDraftFacts } from "../sov-draft";
 import { readIntakeDestination, saveIntakeDestination, effectiveDraftTerms } from "../estimating-destination-client";
 import type { SovLineIn } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
+import { companyBoardUrl } from "../../company-board";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { FOOTER, dbError, isMissingFunction, run, text, type Sb } from "../guard";
@@ -232,10 +233,10 @@ export const onboarding = defineTool({
             "",
             nextWork
               ? `${workAsk}\n\n${workQuestionGuidance(nextWork, prechecked)}`
-              : `${workLines.length ? "Kinds of work is complete. If the member was starting a job or an import when these questions began, carry on with it now. Otherwise next" : "Next"}: create a job with intake section "create_job" and a job_number.`,
+              : `${workLines.length ? `Kinds of work is complete. Company board: ${companyBoardUrl(cid!)} (end the reply with this link as "Open your company board"; it shows the profile, kinds of work, labor rules and company details). If the member was starting a job or an import when these questions began, carry on with it now. Otherwise next` : "Next"}: create a job with intake section "create_job" and a job_number.`,
           ].join("\n"),
         ),
-        structuredContent: { company_id: cid!, ...(nextWork ? { work_question: { key: nextWork.key, number: nextWork.number, ask: nextWork.ask, choices: nextWork.choices, prechecked, left: workQuestionsLeft(work) } } : {}) },
+        structuredContent: { company_id: cid!, company_board_url: companyBoardUrl(cid!), ...(nextWork ? { work_question: { key: nextWork.key, number: nextWork.number, ask: nextWork.ask, choices: nextWork.choices, prechecked, left: workQuestionsLeft(work) } } : {}) },
       };
     }),
 });

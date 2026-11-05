@@ -33,7 +33,7 @@ import { HUB_ACCOUNT_TITLE, pageTitle } from "@/lib/host-document";
 import { ProjectHomeLinks, type ProjectHomeJob } from "@/components/athena/ProjectHomeLinks";
 import { AthenaAccountLayout } from "@/components/account/athena-account-layout";
 import {
-  CompanyProfileSection,
+  CompanyBoardLinkCard,
   useCompanyProfile,
 } from "@/components/account/company-profile-section";
 import { AthenaTeamSection } from "@/components/account/athena-team-section";
@@ -557,19 +557,14 @@ function AccountPage() {
                 pending: team?.pending.length ?? seatsNow?.pending ?? 0,
                 payments: clientPayments,
                 progress: setupProgress,
+                companyId: athenaCompanyId,
               })
             : undefined
         }
         profile={athenaProfile}
         billing={athenaBilling}
         company={
-          <CompanyProfileSection
-            key={athenaCompanyId ?? "none"}
-            state={companyProfile}
-            companyId={athenaCompanyId}
-            isOwner={athena.state?.isOwner === true}
-            userId={user?.id ?? null}
-          />
+          <CompanyBoardLinkCard companyId={athenaCompanyId} profile={companyProfile.profile} />
         }
         team={<AthenaTeamSection {...athena} inviteEmailEnabled={inviteEmailEnabled} />}
         payments={<ClientPaymentsSection key={athenaCompanyId ?? "none"} companyId={athenaCompanyId} />}

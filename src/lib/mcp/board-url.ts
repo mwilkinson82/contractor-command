@@ -8,6 +8,9 @@ export type BoardLinkPage = AnyPage | "home" | "production";
 export const PROJECT_HOME_ROUTE_RULE =
   ' For "open the project board", "open the job board", "give me the job board", "show me the job board", project home, or a job dashboard, call report_page_link with page "home" and the job_number the member supplied; preserve company_id when known. This generic navigation intent takes priority over greeting, morning-brief, open-item, and superintendent rules. Use page "items" or list_open_items for explicit open-items requests; use field_board or superintendent_view for explicit field board, super board, superintendent board, super plan, or crew-plan requests. Never present an Open items or Field board destination as the project home. ';
 
+export const COMPANY_BOARD_ROUTE_RULE =
+  ' For "open my company board", "show my company board", "view company profile", "show our company profile" or the company page, call report_page_link with page "company"; it returns the company board link. Never answer with the profile in text instead of that link. ';
+
 const ALIASES: Record<string, BoardLinkPage> = {
   board: "home",
   home: "home",

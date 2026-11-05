@@ -1,3 +1,4 @@
+import { companyBoardPath, isCompanyId } from "@/lib/company-board";
 import { MAX_COMPANY_LOGO_BYTES, validatePaymentLogo } from "@/lib/payment-applications/brand";
 import { READINESS, type ClientPaymentsState } from "@/lib/client-payments/account-view";
 
@@ -125,6 +126,8 @@ export type SetupInput = {
    * Left out until the account page has read them, so the two steps don't flash "not done" while loading.
    */
   progress?: SetupProgress | null;
+  /** The member's Athena company; the profile step then opens its company board, where the editor lives. */
+  companyId?: string | null;
 };
 export type SetupProgress = {
   connected: boolean;
@@ -229,7 +232,8 @@ export function setupSteps(i: SetupInput): SetupStep[] {
         ? "Shows on pay apps, proposals and client pages"
         : "Add your logo so clients see your brand, not ours",
       done: profileDone,
-      href: "#company",
+      href: isCompanyId(i.companyId) ? companyBoardPath(i.companyId) : "#company",
+      ...(isCompanyId(i.companyId) ? { action: "Open company board" } : {}),
     },
     {
       id: "team",

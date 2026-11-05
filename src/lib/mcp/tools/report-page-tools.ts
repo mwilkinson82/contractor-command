@@ -18,6 +18,7 @@ import { renderMarkdown } from "../cards/markdown";
 import type { CardModel } from "../cards/model";
 import { shortDate } from "../styled-views";
 import { isChatAccessPage, privateChatRefusalCard } from "../private-chat-sharing";
+import { companyBoardUrl } from "../../company-board";
 import { PAGE_LABEL, REPORT_PAGES, SHARE_DEFAULT_DAYS, SHARE_MAX_DAYS, pageAllowed, pageUrl, shareExpiry, shareTokenFromLink, shareUrl, type ReportPage } from "../../report-pages";
 
 const jobNumber = z.string().trim().min(1).max(40).optional();
@@ -49,6 +50,24 @@ async function target(sb: Sb, args: { page: string; job_number?: string; company
   const job = await resolveJob(sb, args.job_number, args.company_id);
   if (!pageAllowed(p === "home" || p === "production" ? "field" : p, job.scope, false)) throw new ToolError(job.scope === "super" ? READ_ONLY_MESSAGE : FULL_ACCESS_MESSAGE);
   return { p, id: job.job_id, job, company: job.company_id, head: prefix(job) };
+}
+
+/** Page names that open the company board, not a job page. */
+export const COMPANY_BOARD_PAGES = ["company", "company board", "company profile", "company page", "my company", "company record"];
+
+export function companyBoardCard(url: string): CardModel {
+  return {
+    state: "result",
+    show_state: false,
+    presentation: "report-link",
+    title: "Company board",
+    job: null,
+    sections: [
+      { heading: "Open", kind: "chips", rows: [{ cells: ["Open your company board"], href: url, tone: "action" }] },
+      { heading: "Access", kind: "list", rows: [{ cells: ["Sign in as a member of the company to open it."], tone: "known" }] },
+    ],
+    next_move: null,
+  };
 }
 
 const BOARD_BUTTON: Partial<Record<string, string>> = {
@@ -137,7 +156,7 @@ export const reportPageLink = defineTool({
   name: "report_page_link",
   title: "Project home or report link",
   description:
-    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), page "statement" for a private Customer Statement report, page "payapp" only for the separate monthly billing forecast; for a saved SOV payment application use payment_application_read, other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
+    'Opens the project board, job board, project home, or job dashboard with page "home" by default; use page "items" only for explicit Open items requests, page "production" for a dated actual-production report (from_date/to_date or range), page "statement" for a private Customer Statement report, page "payapp" only for the separate monthly billing forecast; for a saved SOV payment application use payment_application_read, page "company" for the company board (company profile, kinds of work, company details and logo; "open my company board", "view company profile"), other named pages for their reports, and page "chat" to refuse owner or client chat access and offer a read-only client report instead.',
   inputSchema: {
     page,
     job_number: jobNumber,
@@ -158,6 +177,19 @@ export const reportPageLink = defineTool({
       const requestedPage = args.page ?? "home";
       if (isChatAccessPage(requestedPage)) return refuseChatAccess(args.job_number);
       const mode = requestedPage.trim().toLowerCase().replace(/[_-]+/g, " ");
+      if (COMPANY_BOARD_PAGES.includes(mode)) {
+        const co = await resolveCompany(sb, args.company_id);
+        const url = companyBoardUrl(co);
+        const card = companyBoardCard(url);
+        await audit(sb, null, "report_page_link", "page_link_company", null, co);
+        return guide(
+          {
+            ...text(renderMarkdown(card)),
+            structuredContent: { url, page: "company", private: true, requires_session: true, company_id: co, card, html: renderHtml(card) },
+          },
+          "Return the complete Markdown reply and its supplied link. The company board is the company's profile, kinds of work, labor rules, decision authority, tools, company details and logo. Do not retell the profile in chat.",
+        );
+      }
       if (
         ["statement", "customer statement", "customer statement report", "accounting"].includes(
           mode,
