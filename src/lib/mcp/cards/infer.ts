@@ -101,6 +101,28 @@ function countMatch(text: string, word: string): number {
 }
 
 /** Build a card from a tool's existing text and structured fields. Data lines are not rewritten. */
+type KindsOfWorkQuestion = { number?: number; ask?: string; choices?: string[]; prechecked?: string[]; left?: number };
+
+/** A kinds-of-work question is open: the card asks it, with its choices and what the profile suggests. */
+function kindsOfWorkCard(base: CardModel, wq: KindsOfWorkQuestion, title: string): CardModel {
+  const pre = new Set(wq.prechecked ?? []);
+  return {
+    ...base,
+    state: "ask",
+    title,
+    progress: wq.number ? { done: wq.number, total: 8 } : null,
+    ask: { prompt: `Question ${wq.number ?? 1} of 8: ${wq.ask}` },
+    sections: [
+      {
+        heading: pre.size ? "Choices (checked ones come from your profile; answer to save)" : "Choices",
+        kind: "chips",
+        rows: (wq.choices ?? []).map((ch) => ({ cells: [pre.has(ch) ? `✓ ${ch}` : ch], tone: pre.has(ch) ? ("known" as const) : undefined })),
+      },
+    ],
+    next_move: "Pick your answer, or say skip.",
+  };
+}
+
 export function inferCard(tool: string, raw: string, structured: Record<string, unknown> = {}): CardModel {
   const text = visibleBody(raw);
   const job = jobOf(text);
@@ -113,6 +135,12 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     alerts: [],
     next_move: null,
   };
+
+  if (structured.gate === "kinds_of_work") {
+    // Kinds of work comes first: a new job or import waits until the Owner has answered it.
+    const wq = structured.work_question as KindsOfWorkQuestion | undefined;
+    if (wq?.ask) return kindsOfWorkCard(base, wq, "First, your kinds of work");
+  }
 
   if (tool === "next_question") {
     const progress = progressOf(text);
@@ -175,25 +203,7 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
     const wq = structured.work_question as
       | { number?: number; ask?: string; choices?: string[]; prechecked?: string[]; left?: number }
       | undefined;
-    if (wq?.ask) {
-      // A kinds-of-work question is open: the card asks it, with its choices and what the profile already says.
-      const pre = new Set(wq.prechecked ?? []);
-      return {
-        ...base,
-        state: "ask",
-        title: saved ? "Saved. Next question" : "Kinds of work",
-        progress: wq.number ? { done: wq.number, total: 8 } : null,
-        ask: { prompt: `Question ${wq.number ?? 1} of 8: ${wq.ask}` },
-        sections: [
-          {
-            heading: pre.size ? "Choices (checked ones are already on your profile)" : "Choices",
-            kind: "chips",
-            rows: (wq.choices ?? []).map((ch) => ({ cells: [pre.has(ch) ? `✓ ${ch}` : ch], tone: pre.has(ch) ? ("known" as const) : undefined })),
-          },
-        ],
-        next_move: "Pick your answer, or say skip.",
-      };
-    }
+    if (wq?.ask) return kindsOfWorkCard(base, wq, saved ? "Saved. Next question" : "Kinds of work");
     return {
       ...base,
       state: saved ? "result" : "progress",

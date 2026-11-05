@@ -80,11 +80,31 @@ export function workQuestions(profile?: WorkProfile | null): WorkQuestion[] {
     { key: "pricing", number: 2, answer: "several", ask: "How are your jobs usually priced? Pick all that fit.", choices: [...pricingChoices(profile).map((p) => PRICING_LABEL[p]), "Skip"] },
     { key: "regions", number: 3, answer: "typed", ask: "Which states or areas do you usually work in? Just type them, like New York and New Jersey.", choices: ["Skip"] },
     { key: "shop", number: 4, answer: "one", ask: "Are you an open shop (non-union) or a union shop?", choices: ["Open shop", "Union shop", "Both", "Skip"] },
-    { key: "wage_rules", number: 5, answer: "several", ask: "Do you take prevailing wage or PLA jobs?", choices: ["Prevailing wage", "PLA", "Both", "Neither", "Skip"] },
+    { key: "wage_rules", number: 5, answer: "several", ...wageQuestion(profile?.shop) },
     { key: "unit_price", number: 6, answer: "yes_no", ask: "Do you ever do unit price work, even once a year? That includes a unit price change order on a lump sum job.", choices: ["Yes", "No", "Skip"] },
     { key: "preconstruction", number: 7, answer: "yes_no", ask: "Are you involved in pre-construction with owners, beyond the estimate, like a pre-con agreement?", choices: ["Yes", "No", "Skip"] },
     { key: "service_calls", number: 8, answer: "yes_no", ask: "Do you run service calls?", choices: ["Yes", "No", "Skip"] },
   ];
+}
+
+export const UNION_RATES = "Union rates";
+export const OPEN_SHOP_WAGES = "Open-shop wages";
+
+/**
+ * Question 5 follows question 4 (Marshall, Nov 5): union work can be PLA, prevailing wage or union rates;
+ * open shop work is open-shop wages, or prevailing wage on public jobs. Union rates and open-shop wages
+ * are what the shop answer already means, so they save no value of their own: only PLA and prevailing
+ * wage go in wage_rules, and picking only those base rates saves an empty list.
+ */
+export function wageQuestion(shop: Shop | undefined): { ask: string; choices: string[] } {
+  if (shop === "union_shop")
+    return { ask: "On your union work, which wage rules apply? Pick all that fit.", choices: ["PLA", "Prevailing wage", UNION_RATES, "Skip"] };
+  if (shop === "open_shop")
+    return { ask: "On your open shop work, which wage rules apply? Pick all that fit.", choices: ["Prevailing wage", OPEN_SHOP_WAGES, "Skip"] };
+  return {
+    ask: "Which wage rules apply to your work? Pick all that fit. Union work can be PLA, prevailing wage or union rates; open shop work is usually open-shop wages.",
+    choices: ["PLA", "Prevailing wage", UNION_RATES, OPEN_SHOP_WAGES, "Skip"],
+  };
 }
 
 /** Reads a stored profile defensively: unknown keys and bad values are dropped. */
@@ -142,12 +162,31 @@ export function workPrechecked(q: WorkQuestion, workTypes: readonly string[] | n
 }
 
 /** What the connected AI does with an open question. Written for hosts whose saved tool list may be out of date. */
+/** A ready-to-send save call for each question, so the connected AI copies its shape. */
+export const WORK_SAVE_EXAMPLE: Record<WorkQuestionKey, string> = {
+  markets: '{"action":"save_work_profile","work_markets":["public_low_bid","private_commercial"]}',
+  pricing: '{"action":"save_work_profile","work_pricing":["lump_sum","cost_plus"]}',
+  regions: '{"action":"save_work_profile","work_regions":["New York","New Jersey"]}',
+  shop: '{"action":"save_work_profile","work_shop":"open_shop"}',
+  wage_rules: '{"action":"save_work_profile","work_wage_rules":["pla","prevailing_wage"]}',
+  unit_price: '{"action":"save_work_profile","work_unit_price":"yes"}',
+  preconstruction: '{"action":"save_work_profile","work_preconstruction":"no"}',
+  service_calls: '{"action":"save_work_profile","work_service_calls":"yes"}',
+};
+
+/**
+ * What the connected AI does with an open question. ChatGPT (Nov 5, after a tools refresh) still told the
+ * member the save "isn't exposed": a line here that said what to do if the action were missing made it doubt
+ * a tool it had, and pre-checked choices read as already saved. So this says plainly that the action is
+ * there and that a pre-check is not an answer.
+ */
 export function workQuestionGuidance(q: WorkQuestion, prechecked: readonly string[]): string {
   return [
-    `Next: ask the member only this question, in these plain words, with its choices${prechecked.length ? `. Show ${prechecked.join(" and ")} already checked, because the company profile lists them; the member can change that` : ""}.`,
-    `Save the answer with onboarding action "save_work_profile" (${WORK_ANSWER_FIELD[q.key]}), or work_skip ["${q.key}"] if they skip it. If they say to skip all of it or do it later, send work_skip with every key still open.`,
+    `Next: ask the member only this question, in these plain words, with its choices${prechecked.length ? `. Show ${prechecked.join(" and ")} pre-checked as a suggestion from the company's older profile; that is not a saved answer, and the member can change it` : ""}.`,
+    `When the member answers (typed, tapped, or a confirm or "save and continue" on those choices), call the onboarding tool now with action "save_work_profile", which this tool has: ${WORK_ANSWER_FIELD[q.key]}. For example ${WORK_SAVE_EXAMPLE[q.key]}. If they skip it, send {"action":"save_work_profile","work_skip":["${q.key}"]}; if they say to skip all of it or do it later, send work_skip with every key still open.`,
+    "Map their words to those values yourself. Never tell the member to refresh or reconnect Athena for this, and never say Athena can't save it: make the call.",
     "Say it is saved only after save_work_profile answers Saved. Then ask the next question it returns, one per reply, before the first job.",
-    'If your onboarding tool has no "save_work_profile" action, the member\'s Athena connection is out of date. Do not say Athena can\'t save it. Tell them: "Your Athena connection needs a refresh to save these answers. Refresh Athena in your AI app\'s connector settings, or disconnect and reconnect it, then start a new chat and send: Athena, let\'s set up the kinds of work we do."',
+    "To change an earlier answer when the member asks, send save_work_profile with that question's field again; the new answer replaces the old one.",
   ].join(" ");
 }
 
@@ -165,7 +204,7 @@ export function workQuestionText(q: WorkQuestion, left: number, prechecked: read
     "",
     q.ask,
     `Choices: ${q.choices.join(" · ")}`,
-    ...(prechecked.length ? [`Already on your profile: ${prechecked.join(", ")}`] : []),
+    ...(prechecked.length ? [`Suggested from your profile (not saved until you answer): ${prechecked.join(", ")}`] : []),
     how,
   ].join("\n");
 }
@@ -178,7 +217,14 @@ export function workProfileSummary(profile: WorkProfile | null | undefined): str
   if (p.pricing?.length) lines.push(`Pricing: ${p.pricing.map((x) => PRICING_LABEL[x]).join(", ")}`);
   if (p.regions?.length) lines.push(`Works in: ${p.regions.join(", ")}`);
   if (p.shop) lines.push(`Shop: ${SHOP_LABEL[p.shop]}`);
-  if (p.wage_rules) lines.push(`Prevailing wage or PLA: ${p.wage_rules.length ? p.wage_rules.map((w) => WAGE_LABEL[w]).join(" and ") : "Neither"}`);
+  if (p.wage_rules) {
+    const base = [
+      ...(p.shop === "union_shop" || p.shop === "both" ? [UNION_RATES] : []),
+      ...(p.shop === "open_shop" || p.shop === "both" ? [OPEN_SHOP_WAGES] : []),
+    ];
+    const rules = [...p.wage_rules.map((w) => WAGE_LABEL[w]), ...base];
+    lines.push(`Wage rules: ${rules.length ? rules.join(", ") : "Neither prevailing wage nor PLA"}`);
+  }
   if (p.unit_price) lines.push(`Unit price work: ${p.unit_price === "yes" ? "Yes" : "No"}`);
   if (p.preconstruction) lines.push(`Pre-construction with owners: ${p.preconstruction === "yes" ? "Yes" : "No"}`);
   if (p.service_calls) lines.push(`Service calls: ${p.service_calls === "yes" ? "Yes" : "No"}`);
@@ -252,7 +298,7 @@ export const WORK_ANSWER_FIELD: Record<WorkQuestionKey, string> = {
   pricing: `work_pricing: ${PRICING.join(", ")}`,
   regions: "work_regions: the states or areas as typed",
   shop: `work_shop: ${SHOPS.join(", ")}`,
-  wage_rules: "work_wage_rules: prevailing_wage, pla, both, or [] for neither",
+  wage_rules: 'work_wage_rules: "PLA" is pla and "Prevailing wage" is prevailing_wage. "Union rates" and "Open-shop wages" save no value (the shop answer covers them), so send only pla and prevailing_wage among the picks, or [] when they picked only union rates or open-shop wages',
   unit_price: "work_unit_price: yes or no",
   preconstruction: "work_preconstruction: yes or no",
   service_calls: "work_service_calls: yes or no",

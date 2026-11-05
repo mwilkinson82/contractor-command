@@ -9,6 +9,7 @@ import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { FOOTER, dbError, isMissingFunction, run, text, type Sb } from "../guard";
+import { kindsOfWorkGate } from "../work-gate";
 import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, named, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
@@ -231,7 +232,7 @@ export const onboarding = defineTool({
             "",
             nextWork
               ? `${workAsk}\n\n${workQuestionGuidance(nextWork, prechecked)}`
-              : 'Next: create a job with intake section "create_job" and a job_number.',
+              : `${workLines.length ? "Kinds of work is complete. If the member was starting a job or an import when these questions began, carry on with it now. Otherwise next" : "Next"}: create a job with intake section "create_job" and a job_number.`,
           ].join("\n"),
         ),
         structuredContent: { company_id: cid!, ...(nextWork ? { work_question: { key: nextWork.key, number: nextWork.number, ask: nextWork.ask, choices: nextWork.choices, prechecked, left: workQuestionsLeft(work) } } : {}) },
@@ -475,6 +476,11 @@ export const intake = defineTool({
           throw new WhichCompanyAsk(args.job_number, choice.ask.map((c) => ({ company_id: c.id, company_name: c.name, job_name: args.job_name! })), true);
         }
         await rememberCompany(sb, choice.companyId);
+        const gate = await kindsOfWorkGate(sb, choice.companyId, ctx.getUserId?.(), {
+          what: `job ${args.job_number} is created`,
+          resume: `create job ${args.job_number}, ${args.job_name}, with intake section "create_job" and the same details.`,
+        });
+        if (gate) return guide(gate);
         const companyName = companies.find((c) => c.id === choice.companyId)?.name ?? "your company";
         const r = await rpc<{ duplicate: boolean; suggestion?: string; job_id?: string }>(sb, "mcp_job_create", {
           _company: choice.companyId, _job_number: args.job_number, _name: args.job_name, _restrict_to: args.restrict_to ?? null,

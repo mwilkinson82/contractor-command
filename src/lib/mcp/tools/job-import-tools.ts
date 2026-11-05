@@ -14,6 +14,7 @@ import {
   rememberCompany,
 } from "../jobs";
 import { guide } from "../visible";
+import { kindsOfWorkGate } from "../work-gate";
 import { pmReachable, pmSetupNext, readTeammates } from "../pm-setup";
 import { drawingFile } from "../drawing-file-input";
 import { fetchAllowedFile } from "../file-upload";
@@ -497,6 +498,11 @@ export const jobImport = defineTool({
           true,
         );
       await rememberCompany(sb, choice.companyId);
+      const gate = await kindsOfWorkGate(sb, choice.companyId, ctx.getUserId?.(), {
+        what: `job ${jobNumber} is imported`,
+        resume: `call job_import step review again with the same export.`,
+      });
+      if (gate) return guide(gate);
 
       const context = await call<ImportContext>(sb, "mcp_job_import_context", {
         _company: choice.companyId,
