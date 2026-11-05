@@ -223,7 +223,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       <ProjectReadUnavailable />
     );
   const href = (page: string) =>
-    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production", "daily-log", "estimate"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
+    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production", "daily-log", "estimate", "record"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
@@ -361,6 +361,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                   : "Currently unavailable",
             ),
             page: "payapp",
+          },
+          {
+            title: "Project record",
+            detail: "Everything logged on this job, with who and when. Export for a dispute",
+            page: "record",
           },
           {
             title: "Indicated Outcome Report",
