@@ -248,6 +248,7 @@ const PORTAL_CSS = `
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:18px;padding-bottom:18px}
 .co{display:flex;align-items:center;gap:12px;min-width:0}
 .co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#1a47c7;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
+.co-img{display:block;height:44px;width:auto;max-width:min(200px,44vw);object-fit:contain;padding:6px 10px;border-radius:11px;background:#fff;flex:none}
 .co-word{display:grid;line-height:1.2;min-width:0}
 .co-word b{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .co-sub{font-size:12px;color:#dbe6ff}
@@ -457,6 +458,8 @@ export type PortalOpts = {
   choice?: string | null;
   flash?: string | null;
   error?: string | null;
+  /** The contractor's saved logo, an https URL. Their initials and name show when there is none. */
+  logo?: string | null;
 };
 
 const open = (i: PortalItem) => i.decision === null;
@@ -791,9 +794,14 @@ function body(p: PortalPage, o: PortalOpts): string {
 }
 
 /** The blue top of every signed-in page: contractor, job, where it stands, and the two latest photos. */
-function hero(p: PortalPage, waiting: number): string {
+function hero(p: PortalPage, waiting: number, logo: string | null = null): string {
   const c = p.contractor;
-  const brand = `<div class="wrap brandbar"><div class="co"><span class="co-logo" aria-hidden="true">${esc(initials(c.name))}</span><span class="co-word"><b>${esc(c.name)}</b><span class="co-sub">Client page</span></span></div><div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></div>`;
+  // The contractor leads: their saved logo on a white tile when they have one, else initials and their name.
+  const src = safeLogo(logo);
+  const mark = src
+    ? `<img class="co-img" src="${esc(src)}" alt="${esc(c.name)}"><span class="co-word"><span class="co-sub">Client page</span></span>`
+    : `<span class="co-logo" aria-hidden="true">${esc(initials(c.name))}</span><span class="co-word"><b>${esc(c.name)}</b><span class="co-sub">Client page</span></span>`;
+  const brand = `<div class="wrap brandbar"><div class="co">${mark}</div><div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></div>`;
   const latest = p.updates[0];
   const next = nextMilestone(p);
   const lede = latest
@@ -846,7 +854,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
       : "";
   return doc(
     `${p.job.name} · ${SECTION_LABEL[o.section]}`,
-    `<div class="pt">${hero(p, waiting)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>`,
+    `<div class="pt">${hero(p, waiting, o.logo ?? null)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>`,
   );
 }
 

@@ -734,3 +734,37 @@ describe("sign-in screens", () => {
     expect(renderGone("expired")).toContain("Ask your contractor to send you a new invite.");
   });
 });
+
+describe("the contractor's saved logo on the customer page", () => {
+  const LOGO = "https://x.supabase.co/storage/v1/object/public/company-logos/northline.png";
+
+  it("leads the sign-in screen, the page header and the code email when the contractor has one", async () => {
+    const { d, mail } = deps();
+    const asked: string[] = [];
+    d.logo = async (a) => {
+      asked.push(a);
+      return LOGO;
+    };
+    const invite = await (await handleInvite(req(`/c/i/${TOKEN}`), TOKEN, d)).text();
+    expect(invite).toContain(`class="as-logo" src="${LOGO}"`);
+    await handleInvite(await post(`/c/i/${TOKEN}`, { action: "send_code" }), TOKEN, d);
+    expect(mail.at(-1)!.html).toContain(`src="${LOGO}"`);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain(`<img class="co-img" src="${LOGO}" alt="Northline Builders">`);
+    expect(asked.every((a) => a === ACCESS)).toBe(true);
+  });
+
+  it("keeps the initials and name when there is no logo or the lookup fails", async () => {
+    const { d } = deps();
+    d.logo = async () => {
+      throw new Error("down");
+    };
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).not.toContain(`class="co-img"`);
+    expect(page).toContain("<b>Northline Builders</b>");
+  });
+});

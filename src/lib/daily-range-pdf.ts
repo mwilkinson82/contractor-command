@@ -3,6 +3,7 @@
 // (download button) and on the server (Athena tool) from the same code.
 import { jsPDF } from "jspdf";
 import { pdfText, scrubProducer } from "./mcp/lookahead-pdf";
+import { drawContractorBrand, drawPoweredByAthena, type ContractorBrand } from "./client-brand";
 import {
   DAILY_SECTIONS,
   PHOTO_MODE_LABEL,
@@ -46,6 +47,7 @@ const lines = (s: string) =>
 export function dailyRangePdf(
   r: DailyRangeReport,
   photos: Map<string, PdfPhoto | PdfPhotoSkip> = new Map(),
+  brand?: ContractorBrand,
 ): Uint8Array {
   const d = new jsPDF({ unit: "pt", format: "letter" });
   const W = d.internal.pageSize.getWidth(),
@@ -85,11 +87,15 @@ export function dailyRangePdf(
       : `${mediumDate(r.period.from)} - ${mediumDate(r.period.to)}`;
 
   // ---------- cover summary ----------
-  if (r.company) {
-    font(9, true, G1);
-    d.text(pdfText(r.company.toUpperCase()), X, y);
-    y += 26;
-  }
+  // Client branding: the contractor leads (their saved logo, else their name); Athena is one small
+  // line in the bottom corner.
+  const companyName = brand?.companyName || r.company || undefined;
+  const brandHeight = drawContractorBrand(
+    d,
+    { companyName, logo: brand?.logo, logoFormat: brand?.logoFormat },
+    { x: X, y: y - 12, maxWidth: 200, maxHeight: 30, align: "left" },
+  );
+  if (brandHeight) y += brandHeight + 14;
   font(22, true);
   d.text("Daily Reports", X, y);
   y += 22;
@@ -407,14 +413,14 @@ export function dailyRangePdf(
     d.line(X, H - 36, X + CW, H - 36);
     font(7, false, G1);
     d.text(pdfText(`${r.job_number} Daily Reports ${r.period.from} to ${r.period.to}`), X, H - 24);
-    d.text(`Page ${i} of ${n}`, X + CW, H - 24, { align: "right" });
-    d.text("Athena by ALP", X + CW / 2, H - 24, { align: "center" });
+    d.text(`Page ${i} of ${n}`, X + CW / 2, H - 24, { align: "center" });
+    drawPoweredByAthena(d, X + CW, H - 24);
   }
   d.setProperties({
     title: pdfText(`${title} Daily Reports ${r.period.from} to ${r.period.to}`),
     subject: "Daily reports",
     creator: "Athena",
-    author: "Athena",
+    author: pdfText(companyName ?? "") || "Athena",
   });
   return scrubProducer(new Uint8Array(d.output("arraybuffer")));
 }

@@ -370,6 +370,38 @@ describe("0.8.14 share page route", () => {
   });
 });
 
+describe("share page leads with the contractor's logo", () => {
+  const PNG = "data:image/png;base64,iVBORw0KGgo=";
+  const shared = { ...sched, company: "ALP Construction", shared: true, expires_at: "2026-11-19T00:00:00Z" };
+
+  it("shows the saved logo when the company has one, and the name when it doesn't", async () => {
+    const seen: string[] = [];
+    const withLogo = await openReportShare(TOKEN, "GET", async () => ({ ...shared, company_logo_url: "https://x.supabase.co/storage/v1/object/public/company-logos/a.png" }) as never, async (u) => { seen.push(u); return PNG; });
+    const html = await withLogo.text();
+    expect(seen).toEqual(["https://x.supabase.co/storage/v1/object/public/company-logos/a.png"]);
+    expect(html).toContain(`<img src="${PNG}" alt="ALP Construction"`);
+    const noLogo = await (await openReportShare(TOKEN, "GET", async () => shared, async () => { throw new Error("not called"); })).text();
+    expect(noLogo).not.toContain("<img");
+    expect(noLogo).toContain("ALP Construction</span></div></header>");
+  });
+
+  it("falls back to the name when the logo can't be read, and never puts a non-image URI in the page", async () => {
+    const failed = await (await openReportShare(TOKEN, "GET", async () => ({ ...shared, company_logo_url: "https://x/a.png" }) as never, async () => { throw new Error("down"); })).text();
+    expect(failed).toContain("ALP Construction</span></div></header>");
+    expect(renderReportDocument(shared, { logo: "javascript:alert(1)" })).not.toContain("javascript:");
+  });
+
+  it("migration returns the logo address with the shared report and keeps the same grants", () => {
+    const sql = readFileSync("supabase/migrations/20261104233000_athena_client_logos.sql", "utf8");
+    expect(sql).toContain("SELECT name, logo_url INTO co, logo FROM public.mcp_companies WHERE id = s.company_id;");
+    expect(sql.match(/'company_logo_url', logo/g)).toHaveLength(2);
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.mcp_report_share_open(text) TO anon, authenticated;");
+    expect(sql).not.toMatch(/^\s*(BEGIN|COMMIT)\s*;/m);
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.mcp_portal_brand(uuid) TO service_role;");
+    expect(sql).toContain("REVOKE ALL ON FUNCTION public.mcp_portal_brand(uuid) FROM PUBLIC, anon, authenticated;");
+  });
+});
+
 describe("0.8.14 guidance and migration", () => {
   it("living_report_get/save offer the job board links; server instructions mention report_page_link", () => {
     const src = readFileSync("src/lib/mcp/tools/living-tools.ts", "utf8");

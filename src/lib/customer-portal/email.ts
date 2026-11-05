@@ -8,7 +8,37 @@ import { EMAIL_BLUE, EMAIL_LOGO, EMAIL_NAVY, emailShell } from "../email/athena-
 export { EMAIL_BLUE, EMAIL_LOGO, EMAIL_NAVY };
 
 export const PORTAL_FROM_DEFAULT = "Athena <team@meetathena.io>";
-export type PortalEmail = { to: string; subject: string; text: string; html: string; key: string };
+/**
+ * `fromName` is the sender's display name. Customer emails lead with the contractor ("ALP Construction via
+ * Athena"); the address stays Athena's sending address. Without it the configured sender is used as is.
+ */
+export type PortalEmail = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  key: string;
+  fromName?: string;
+};
+
+/** Display name for a customer email: the contractor first, Athena as the carrier. */
+export const customerFromName = (company: string) => `${company} via Athena`;
+
+/**
+ * The From header for a display name and the configured sender. Keeps the configured address and drops
+ * characters that could break out of a quoted display name or add a header.
+ */
+export function portalFrom(configured: string, fromName?: string): string {
+  if (!fromName) return configured;
+  const address = /<([^<>\s]+@[^<>\s]+)>\s*$/.exec(configured)?.[1] ?? configured.trim();
+  const name = fromName
+    .replace(/[\r\n]/g, " ")
+    .replace(/["\\<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return name ? `"${name}" <${address}>` : configured;
+}
 export type PortalSender = (m: PortalEmail & { from: string }) => Promise<void>;
 type Env = Record<string, string | undefined>;
 
@@ -41,6 +71,7 @@ export function inviteEmail(a: {
   return {
     to: a.to,
     key: `portal-invite:${a.nonce}`,
+    fromName: customerFromName(a.company),
     subject: `${a.company} invites you to your ${a.jobName} project page`,
     text: [
       `Hi ${a.name},`,
@@ -89,6 +120,7 @@ export function codeEmail(a: {
   return {
     to: a.to,
     key: `portal-code:${a.nonce}`,
+    fromName: customerFromName(a.company),
     subject:
       a.purpose === "sign_in"
         ? `${a.code} is your ${a.company} sign-in code`
@@ -137,6 +169,7 @@ export function noticeEmail(a: {
   return {
     to: a.to,
     key: `portal-notice:${a.nonce}`,
+    fromName: customerFromName(a.company),
     subject:
       a.kind === "update"
         ? `${a.company} posted an update on ${a.jobName}`
@@ -234,9 +267,10 @@ export async function sendPortalEmail(
   const env = opts.env ?? runtimeEnv();
   if (!portalEmailEnabled(env)) return "off";
   try {
+    const { fromName, ...email } = m;
     await (opts.sender ?? resendPortalSender)({
-      ...m,
-      from: env.ATHENA_PORTAL_FROM || PORTAL_FROM_DEFAULT,
+      ...email,
+      from: portalFrom(env.ATHENA_PORTAL_FROM || PORTAL_FROM_DEFAULT, fromName),
     });
     return "sent";
   } catch {
