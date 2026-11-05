@@ -98,6 +98,10 @@ async function notify(
   return out;
 }
 
+// After an invite, the member shouldn't have to work out what comes next.
+const NEXT_AFTER_INVITE =
+  "Then offer the next step: if this job has a Good, Better, Best proposal that is ready (selection_proposal preview shows it ready) and it isn't on the client page yet, ask whether to send it to their client page now, and on the member's yes call customer_portal share_selection with the preview's version and confirmed true. If a priced change order is waiting on the customer, offer to share it the same way.";
+
 export const CUSTOMER_PORTAL_RULE =
   " To invite a job's customer, owner or homeowner to their private customer page, call customer_portal with action invite, the job number and their email; never use team_invite or a team role for a customer, and never say Athena has no customer access. Pass confirmed true only after the member says yes to that invite.";
 
@@ -254,6 +258,7 @@ export const customerPortal = defineTool({
             sent === "sent"
               ? "Tell the member the invite went out. Do not send the link yourself."
               : "Tell the member the email didn't go out and give them the link to pass on themselves. Do not send it yourself.",
+            NEXT_AFTER_INVITE,
           );
         }
 
@@ -367,6 +372,10 @@ export const customerPortal = defineTool({
               `Shared "${r.title}" for the customer to choose Good, Better or Best. They see the same view as the proposal link: no costs, margin or notes.`,
               "Their choice is recorded on the selection board with their typed name and an emailed code. The estimate, contract and billing do not change.",
               ...(r.recipients.length ? sent : ["No customer has access yet. Invite them first."]),
+              "",
+              r.recipients.length
+                ? "What happens next: they open their client page, pick Good, Better or Best, type their name and confirm with an emailed code. Athena emails the job's PM when they choose."
+                : "Next: invite the customer to their client page. They'll see this proposal as soon as they sign in.",
             ].join("\n"),
           );
         }
