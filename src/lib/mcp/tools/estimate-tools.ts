@@ -111,7 +111,7 @@ import { cachedSource } from "../takeoff/cache";
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const READ = { readOnlyHint: true, idempotentHint: true, openWorldHint: false } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const SAVE = {
   readOnlyHint: false,
   destructiveHint: false,
