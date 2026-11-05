@@ -6527,7 +6527,7 @@
       {
         "name": "report_page_link",
         "title": "Project home or report link",
-        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), page \"statement\" for a private Customer Statement report, page \"payapp\" only for the separate monthly billing forecast; for a saved SOV payment application use payment_application_read, other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
+        "description": "Opens the project board, job board, project home, or job dashboard with page \"home\" by default; use page \"items\" only for explicit Open items requests, page \"production\" for a dated actual-production report (from_date/to_date or range), page \"statement\" for a private Customer Statement report, page \"payapp\" only for the separate monthly billing forecast; for a saved SOV payment application use payment_application_read, page \"company\" for the company board (company profile, kinds of work, company details and logo; \"open my company board\", \"view company profile\"), other named pages for their reports, and page \"chat\" to refuse owner or client chat access and offer a read-only client report instead.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -7139,7 +7139,7 @@
       {
         "name": "account_link",
         "title": "Open my Athena account page",
-        "description": "Gives the member a link to their Athena account page: company profile and logo, team invites, roles and job access, client payments, plan and billing, or saved projects. Use for 'where do I invite my team', 'change my logo', 'set permissions' or 'open my account'.",
+        "description": "Gives the member a link to their Athena account page: team invites, roles and job access, client payments, plan and billing, or saved projects. Section company (company profile, company details, 'change my logo') returns the company board link instead. Use for 'where do I invite my team', 'change my logo', 'set permissions' or 'open my account'.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

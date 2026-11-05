@@ -5,6 +5,9 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, text } from "../guard";
+import { resolveCompany } from "../jobs";
+import { companyBoardUrl } from "../../company-board";
+import { companyBoardCard } from "./report-page-tools";
 import { guide } from "../visible";
 import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
@@ -23,7 +26,7 @@ export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 
 const LABEL: Record<AccountSection, string> = {
   overview: "Your Athena account",
-  company: "Company profile",
+  company: "Company board",
   team: "Team & access",
   payments: "Client payments",
   billing: "Plan & billing",
@@ -31,7 +34,7 @@ const LABEL: Record<AccountSection, string> = {
 };
 const BUTTON: Record<AccountSection, string> = {
   overview: "Open my account",
-  company: "Edit company profile",
+  company: "Open your company board",
   team: "Manage team",
   payments: "Open client payments",
   billing: "Open plan & billing",
@@ -112,7 +115,7 @@ export const accountLink = defineTool({
   name: "account_link",
   title: "Open my Athena account page",
   description:
-    "Gives the member a link to their Athena account page: company profile and logo, team invites, roles and job access, client payments, plan and billing, or saved projects. Use for 'where do I invite my team', 'change my logo', 'set permissions' or 'open my account'.",
+    "Gives the member a link to their Athena account page: team invites, roles and job access, client payments, plan and billing, or saved projects. Section company (company profile, company details, 'change my logo') returns the company board link instead. Use for 'where do I invite my team', 'change my logo', 'set permissions' or 'open my account'.",
   inputSchema: {
     section: z
       .string()
@@ -128,8 +131,23 @@ export const accountLink = defineTool({
     openWorldHint: false,
   },
   handler: (args, ctx) =>
-    run("account_link", ctx, {}, async () => {
+    run("account_link", ctx, {}, async (sb) => {
       const section = accountSection(args.section);
+      if (section === "company") {
+        // Company details and the logo live on the company board now (Nov 5 2026), not the account page.
+        const co = await resolveCompany(sb, undefined).catch(() => null);
+        if (co) {
+          const boardUrl = companyBoardUrl(co);
+          const card = companyBoardCard(boardUrl);
+          return guide(
+            {
+              ...text(renderMarkdown(card)),
+              structuredContent: { url: boardUrl, section, page: "company", requires_session: true, card, html: renderHtml(card) },
+            },
+            "Return the complete Markdown reply and its link. Company details and the logo are edited on the company board.",
+          );
+        }
+      }
       const url = accountUrl(section);
       const card = accountLinkCard(section);
       return guide(

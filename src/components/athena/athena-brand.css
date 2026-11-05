@@ -4,7 +4,8 @@
  * footer = the big Athena word alone, bottom-left. Selectors use two classes so page rules
  * such as `.af-top span` or `.pp-top a` never restyle the brand.
  */
-a.ath-brand.ath-brand {
+a.ath-brand.ath-brand,
+span.ath-brand.ath-brand {
   display: inline-flex;
   align-items: center;
   gap: 14px;
@@ -22,6 +23,24 @@ a.ath-brand.ath-brand:hover {
   text-decoration: none;
 }
 a.ath-brand.ath-brand:hover .ath-brand-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Job pages for signed-in members: the icon goes home, the company name opens the company board. */
+.ath-brand-split .ath-brand-home.ath-brand-home {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.ath-brand-split a.ath-brand-name.ath-brand-name {
+  border-radius: 6px;
+  color: #18314f;
+  text-decoration: none;
+}
+.ath-brand-split a.ath-brand-name.ath-brand-name:hover {
+  color: #2465cb;
   text-decoration: underline;
   text-underline-offset: 3px;
 }

@@ -33,7 +33,7 @@ export type AccountSectionId =
   | "notices";
 const sections = [
   { id: "overview", label: "Overview", Icon: LayoutGrid },
-  { id: "company", label: "Company profile", Icon: Building2 },
+  { id: "company", label: "Company board", Icon: Building2 },
   { id: "team", label: "Team & access", Icon: Users },
   { id: "payments", label: "Client payments", Icon: Wallet },
   { id: "billing", label: "Plan & billing", Icon: CreditCard },
@@ -46,9 +46,9 @@ const copy: Record<AccountSectionId, { title: string; description: string }> = {
     description: "Your company, your people and your plan, in one place.",
   },
   company: {
-    title: "Company profile",
+    title: "Company board",
     description:
-      "This is what your clients see on pay apps, proposals, client pages and emails. Athena stays small in the corner.",
+      "Your company details, logo, kinds of work and labor rules are on your company board. Clients see the details and logo on pay apps, proposals, client pages and emails.",
   },
   team: {
     title: "Team & access",
@@ -452,7 +452,7 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
               {props.guide}
             </details>
           </div>
-          <section className="aa-view" hidden={section !== "company"} aria-label="Company profile">
+          <section className="aa-view" hidden={section !== "company"} aria-label="Company board">
             {props.company}
           </section>
           <section className="aa-view" hidden={section !== "team"} aria-label="Team and access">
