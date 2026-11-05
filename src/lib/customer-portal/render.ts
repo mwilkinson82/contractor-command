@@ -982,8 +982,7 @@ const SETTLED = ["processing", "paid", "partially_refunded", "refunded"];
 /** The payment that settles this pay application, if one is paid or on its way. */
 const settledPayment = (p: PortalPage, i: PayApp): PortalPayment | null =>
   p.payments?.payments.find((x) => x.item_id === i.id && SETTLED.includes(x.status)) ?? null;
-const byWord = (m: string | null) =>
-  m === "bank" ? " by bank" : m === "card" ? " by card" : "";
+const byWord = (m: string | null) => (m === "bank" ? " by bank" : m === "card" ? " by card" : "");
 
 /** The pill a pay application shows once paid online, or null to show its decision. */
 function paidPill(p: PortalPage, i: PayApp): string | null {

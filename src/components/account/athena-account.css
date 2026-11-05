@@ -1535,3 +1535,92 @@ details.aa-card > summary {
     min-height: 40px;
   }
 }
+
+/* Client payments: one row per Stripe mode, and the ways clients can pay. Desktop, tablet and phone. */
+.aa-paymodes {
+  display: grid;
+  margin-top: 14px;
+  border: 1px solid var(--aa-line, #e3e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.aa-paymode {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 20px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.aa-paymode + .aa-paymode {
+  border-top: 1px solid var(--aa-line, #e3e8f0);
+}
+.aa-paymode-l strong {
+  display: block;
+}
+.aa-paymode-l small {
+  display: block;
+  margin-top: 2px;
+  color: var(--aa-muted, #66728a);
+}
+.aa-paymode-r {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.aa-payways {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(160px, 220px);
+  gap: 12px;
+  margin-top: 14px;
+  align-items: start;
+}
+.aa-paycheck {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--aa-line, #e3e8f0);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.aa-paycheck input {
+  margin-top: 3px;
+}
+.aa-paycheck strong {
+  display: block;
+}
+.aa-paycheck small {
+  display: block;
+  margin-top: 2px;
+  color: var(--aa-muted, #66728a);
+}
+@media (max-width: 999px) {
+  .aa-payways {
+    grid-template-columns: 1fr 1fr;
+  }
+  .aa-paymax {
+    grid-column: 1 / -1;
+    max-width: 260px;
+  }
+}
+@media (max-width: 620px) {
+  .aa-paymode {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 14px;
+  }
+  .aa-paymode-r {
+    justify-content: flex-start;
+  }
+  .aa-paymode-r .aa-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .aa-payways {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aa-paymax {
+    max-width: none;
+  }
+}

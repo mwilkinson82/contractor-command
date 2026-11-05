@@ -64,7 +64,13 @@ export type CheckoutCreate = {
 
 export type ConnectStripe = {
   createAccount(
-    p: { companyId: string; companyName: string; email: string | null; userId: string; mode: string },
+    p: {
+      companyId: string;
+      companyName: string;
+      email: string | null;
+      userId: string;
+      mode: string;
+    },
     idempotencyKey: string,
   ): Promise<AccountLike>;
   retrieveAccount(account: string): Promise<AccountLike>;
@@ -74,7 +80,9 @@ export type ConnectStripe = {
     return_url: string;
   }): Promise<{ url: string }>;
   /** Webhook endpoints on the platform account, for finding the one Athena made. */
-  listWebhookEndpoints(): Promise<{ id: string; url: string; metadata?: Record<string, string> | null }[]>;
+  listWebhookEndpoints(): Promise<
+    { id: string; url: string; metadata?: Record<string, string> | null }[]
+  >;
   createWebhookEndpoint(p: {
     url: string;
     enabled_events: string[];

@@ -93,6 +93,12 @@ vi.mock("@/lib/support/dashboard.functions", () => ({
   listSupportAttachments: state.calls,
 }));
 vi.mock("@/lib/magic-link.functions", () => ({ requestMemberMagicLink: state.calls }));
+vi.mock("@/lib/client-payments.functions", () => ({
+  getClientPaymentsSetup: state.calls,
+  connectClientPayments: state.calls,
+  refreshClientPayments: state.calls,
+  setClientPaymentMode: state.calls,
+}));
 vi.mock("@/lib/password-reset.functions", () => ({ requestPasswordReset: state.calls }));
 vi.mock("@/lib/oauth-continuation.functions", () => ({ resolveOAuthContinuation: state.calls }));
 vi.mock("@/lib/email/send", () => ({ sendTransactionalEmail: state.calls }));
@@ -408,7 +414,7 @@ const previews: Record<string, () => ReactNode> = {
     h(
       "div",
       { className: "athena-account" },
-      h("main", { className: "aa-content" }, h(ClientPaymentsSection)),
+      h("main", { className: "aa-content" }, h(ClientPaymentsSection, { companyId: null })),
     ),
   "morning-brief": () => h(TodayBriefView, { html: renderHtml(morning.card), error: null }),
   "account-projects": () =>

@@ -8,7 +8,12 @@
 // ATHENA_CONNECT_FEE_CAP_CENTS. Both are 0 until set. Athena never holds the money.
 
 export type PayMode = "test" | "live";
-export type Readiness = "not_connected" | "action_required" | "under_review" | "restricted" | "ready";
+export type Readiness =
+  | "not_connected"
+  | "action_required"
+  | "under_review"
+  | "restricted"
+  | "ready";
 
 /** The only Stripe API version this code is written and tested against. */
 export const CONNECT_API_VERSION = "2024-12-18.acacia";
@@ -102,7 +107,10 @@ export function accountReadiness(a: AccountLike): Readiness {
   if (a.charges_enabled && a.payouts_enabled && a.details_submitted) return "ready";
   const r = a.requirements ?? {};
   const reason = r.disabled_reason ?? "";
-  if ((r.past_due?.length ?? 0) > 0 || (reason && !/pending_verification|under_review/.test(reason)))
+  if (
+    (r.past_due?.length ?? 0) > 0 ||
+    (reason && !/pending_verification|under_review/.test(reason))
+  )
     return "restricted";
   if ((r.currently_due?.length ?? 0) > 0 || !a.details_submitted) return "action_required";
   return "under_review";

@@ -30,7 +30,11 @@ export function connectStripe(mode: PayMode, env = process.env): ConnectStripe {
             requirement_collection: "stripe",
             stripe_dashboard: { type: "full" },
           },
-          metadata: { athena_company_id: p.companyId, athena_user_id: p.userId, athena_mode: p.mode },
+          metadata: {
+            athena_company_id: p.companyId,
+            athena_user_id: p.userId,
+            athena_mode: p.mode,
+          },
         } as never,
         { idempotencyKey },
       )) as never;

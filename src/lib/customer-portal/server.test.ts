@@ -1589,7 +1589,13 @@ describe("paying an approved pay application online", () => {
     card_max_cents: 2_500_000,
     payments: [] as unknown[],
   };
-  function payDeps(state: unknown = STATE, result: unknown = { status: "redirect", url: "https://checkout.stripe.com/c/pay/cs_test_1#abc" }) {
+  function payDeps(
+    state: unknown = STATE,
+    result: unknown = {
+      status: "redirect",
+      url: "https://checkout.stripe.com/c/pay/cs_test_1#abc",
+    },
+  ) {
     const base = deps({ view: withPayApps() });
     const rpc = base.d.rpc;
     const pays: unknown[] = [];
@@ -1614,7 +1620,9 @@ describe("paying an approved pay application online", () => {
   it("offers bank and card on an approved pay application, in test mode, on every layout", async () => {
     const { d } = payDeps();
     const { r, html } = await page(d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
-    expect(r.headers.get("content-security-policy")).toContain("form-action 'self' https://checkout.stripe.com");
+    expect(r.headers.get("content-security-policy")).toContain(
+      "form-action 'self' https://checkout.stripe.com",
+    );
     expect(html).toContain("<h2>Pay $13,500.00</h2>");
     expect(html).toContain('name="action" value="pay"');
     expect(html).toContain('name="method" value="bank"');
@@ -1622,7 +1630,9 @@ describe("paying an approved pay application online", () => {
     expect(html).toContain(">Pay by card</button>");
     expect(html).toContain("Test mode. No real money moves");
     expect(html).toContain("Northline Builders gets it directly");
-    expect(html).toContain("@media (min-width:641px) and (max-width:1000px){.pay-card+.pp .pp-btns");
+    expect(html).toContain(
+      "@media (min-width:641px) and (max-width:1000px){.pay-card+.pp .pp-btns",
+    );
     expect(html).not.toMatch(/application fee|fee_pct|markup/i);
     // Not approved yet: approve first, no way to pay.
     const open = await page(d, `/c/${ACCESS}?s=billing&i=${PAY}`);
@@ -1637,9 +1647,13 @@ describe("paying an approved pay application online", () => {
     expect(html).not.toContain(">Pay by card</button>");
     expect(html).toContain("Card payments are open up to $10,000.00, so pay this one by bank.");
     const off = payDeps({ ...STATE, bank: false, card: false });
-    expect((await page(off.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).not.toContain("<h2>Pay $");
+    expect((await page(off.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).not.toContain(
+      "<h2>Pay $",
+    );
     const closed = payDeps({ ...STATE, accepting: false });
-    expect((await page(closed.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).not.toContain("<h2>Pay $");
+    expect((await page(closed.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).not.toContain(
+      "<h2>Pay $",
+    );
   });
 
   it("shows a payment on its way, a paid one and a refund", async () => {
@@ -1665,7 +1679,10 @@ describe("paying an approved pay application online", () => {
     expect(paid.html).not.toContain(">Pay by bank</button>");
     const list = await page(payDeps(pay({})).d, `/c/${ACCESS}?s=billing`);
     expect(list.html).toContain('<span class="pill ok">Paid</span>');
-    const going = await page(payDeps(pay({ status: "processing", paid_at: null })).d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    const going = await page(
+      payDeps(pay({ status: "processing", paid_at: null })).d,
+      `/c/${ACCESS}?s=billing&i=${PAY_OLD}`,
+    );
     expect(going.html).toContain("Your $13,500.00 bank payment started Nov 3, 2026.");
     expect(going.html).toContain("Payment on its way");
     const part = await page(
@@ -1697,17 +1714,30 @@ describe("paying an approved pay application online", () => {
     const csrf = await csrfFor(SESSION);
     const { d, pays } = payDeps();
     const r = await handlePortal(
-      await post(`/c/${ACCESS}`, { action: "pay", item: PAY_OLD, method: "bank", csrf }, { cookie: true }),
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "bank", csrf },
+        { cookie: true },
+      ),
       ACCESS,
       d,
     );
     expect(r.status).toBe(303);
     expect(r.headers.get("location")).toBe("https://checkout.stripe.com/c/pay/cs_test_1#abc");
-    expect(pays[0]).toEqual({ access: ACCESS, sessionHash: await tokenHash(SESSION), item: PAY_OLD, method: "bank" });
+    expect(pays[0]).toEqual({
+      access: ACCESS,
+      sessionHash: await tokenHash(SESSION),
+      item: PAY_OLD,
+      method: "bank",
+    });
 
     const evil = payDeps(STATE, { status: "redirect", url: "https://evil.example.com/pay" });
     const r2 = await handlePortal(
-      await post(`/c/${ACCESS}`, { action: "pay", item: PAY_OLD, method: "card", csrf }, { cookie: true }),
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "card", csrf },
+        { cookie: true },
+      ),
       ACCESS,
       evil.d,
     );
@@ -1716,7 +1746,11 @@ describe("paying an approved pay application online", () => {
     for (const st of ["nothing_due", "not_accepting", "already_paid", "method", "not_approved"]) {
       const x = payDeps(STATE, { status: st });
       const rr = await handlePortal(
-        await post(`/c/${ACCESS}`, { action: "pay", item: PAY_OLD, method: "bank", csrf }, { cookie: true }),
+        await post(
+          `/c/${ACCESS}`,
+          { action: "pay", item: PAY_OLD, method: "bank", csrf },
+          { cookie: true },
+        ),
         ACCESS,
         x.d,
       );
@@ -1727,14 +1761,22 @@ describe("paying an approved pay application online", () => {
 
     const bad = payDeps();
     const r3 = await handlePortal(
-      await post(`/c/${ACCESS}`, { action: "pay", item: PAY_OLD, method: "crypto", csrf }, { cookie: true }),
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "crypto", csrf },
+        { cookie: true },
+      ),
       ACCESS,
       bad.d,
     );
     expect(r3.headers.get("location")).toBe(`/c/${ACCESS}?s=billing&e=invalid`);
     expect(bad.pays).toEqual([]);
     const r4 = await handlePortal(
-      await post(`/c/${ACCESS}`, { action: "pay", item: PAY_OLD, method: "bank", csrf: "x" }, { cookie: true }),
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "bank", csrf: "x" },
+        { cookie: true },
+      ),
       ACCESS,
       bad.d,
     );

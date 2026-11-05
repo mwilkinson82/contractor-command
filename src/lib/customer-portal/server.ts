@@ -79,7 +79,12 @@ export type PortalDeps = {
    * Opens a Stripe Checkout page for an approved pay application on the contractor's account. Without it the page
    * shows no way to pay.
    */
-  pay?: (p: { access: string; sessionHash: string; item: string; method: PayMethod }) => Promise<OpenCheckoutResult>;
+  pay?: (p: {
+    access: string;
+    sessionHash: string;
+    item: string;
+    method: PayMethod;
+  }) => Promise<OpenCheckoutResult>;
 };
 
 const logoFor = (deps: PortalDeps, access: string): Promise<string | null> =>
@@ -112,7 +117,8 @@ const ERRORS: Record<string, string> = {
   pay_nothing_due: "Nothing is due on this pay application.",
   pay_not_accepting: "Online payments aren't open right now. Ask your project team how to pay.",
   pay_already_paid: "This pay application is already paid or a payment is on its way.",
-  pay_method: "That way to pay isn't available for this amount. Try the other one, or ask your project team.",
+  pay_method:
+    "That way to pay isn't available for this amount. Try the other one, or ask your project team.",
   pay_error: "We couldn't open the payment page. Nothing was charged. Try again in a moment.",
 };
 const FLASH: Record<string, string> = {
@@ -141,7 +147,8 @@ async function loadPayments(
 }
 
 /** Only Stripe's own Checkout pages: anything else from the pay step is refused. */
-const isCheckoutUrl = (u: string) => /^https:\/\/checkout\.stripe\.com\/[A-Za-z0-9/_\-#%.?=&]+$/.test(u);
+const isCheckoutUrl = (u: string) =>
+  /^https:\/\/checkout\.stripe\.com\/[A-Za-z0-9/_\-#%.?=&]+$/.test(u);
 
 export function clientIp(req: Request): string | null {
   const h = req.headers;
@@ -440,10 +447,17 @@ export async function handlePortal(
     if (!item || !method || !deps.pay) return redirect(`${self}?s=billing&e=invalid`);
     const back = (e: string) =>
       redirect(`${self}?${new URLSearchParams({ s: "billing", i: item, e }).toString()}`);
-    const r = await deps.pay({ access, sessionHash, item, method }).catch(() => ({ status: "error" }));
+    const r = await deps
+      .pay({ access, sessionHash, item, method })
+      .catch(() => ({ status: "error" }));
     if (r.status === "redirect" && "url" in r && typeof r.url === "string" && isCheckoutUrl(r.url))
       return redirect(r.url);
-    if (r.status === "signed_out" || r.status === "unknown" || r.status === "revoked" || r.status === "closed")
+    if (
+      r.status === "signed_out" ||
+      r.status === "unknown" ||
+      r.status === "revoked" ||
+      r.status === "closed"
+    )
       return goneFor(r.status, access);
     return back(ERRORS[`pay_${r.status}`] ? `pay_${r.status}` : "pay_error");
   }

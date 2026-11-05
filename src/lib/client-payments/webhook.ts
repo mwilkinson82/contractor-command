@@ -20,7 +20,11 @@ type Reply = { status: number; body: string };
 const reply = (status: number, body: string): Reply => ({ status, body });
 
 const idOf = (v: unknown): string | null =>
-  typeof v === "string" ? v : v && typeof v === "object" && typeof (v as { id?: unknown }).id === "string" ? (v as { id: string }).id : null;
+  typeof v === "string"
+    ? v
+    : v && typeof v === "object" && typeof (v as { id?: unknown }).id === "string"
+      ? (v as { id: string }).id
+      : null;
 
 type PaySession = {
   status: "processing" | "paid" | "failed" | "expired";
@@ -40,7 +44,8 @@ export function sessionOutcome(s: CheckoutSessionLike): PaySession | null {
   const base = {
     paymentIntent: idOf(s.payment_intent),
     charge: idOf(pi?.latest_charge ?? null),
-    method: type === "card" ? ("card" as const) : type === "us_bank_account" ? ("bank" as const) : null,
+    method:
+      type === "card" ? ("card" as const) : type === "us_bank_account" ? ("bank" as const) : null,
     amountCents: typeof s.amount_total === "number" ? s.amount_total : null,
     feeCents: typeof pi?.application_fee_amount === "number" ? pi.application_fee_amount : null,
     paidAt: null as string | null,
@@ -54,7 +59,8 @@ export function sessionOutcome(s: CheckoutSessionLike): PaySession | null {
       paidAt: ch?.created ? new Date(ch.created * 1000).toISOString() : null,
     };
   // Complete but unpaid: a bank payment on its way, or one that came back.
-  if (pi?.status === "processing" || pi?.status === "succeeded") return { ...base, status: "processing" };
+  if (pi?.status === "processing" || pi?.status === "succeeded")
+    return { ...base, status: "processing" };
   return { ...base, status: "failed" };
 }
 
@@ -93,7 +99,8 @@ async function notify(deps: WebhookDeps, c: Changed): Promise<void> {
   } else if (c.payment_status === "processing") {
     kind = "pay_app_payment_processing";
     title = `${testMark(c)}${who(c)} started a ${money(c.amount_cents)} bank payment on ${what(c)}`;
-    detail = "Bank payments take a few business days to clear. You'll get another notice when it does.";
+    detail =
+      "Bank payments take a few business days to clear. You'll get another notice when it does.";
   } else if (c.payment_status === "failed") {
     kind = "pay_app_payment_failed";
     title = `${testMark(c)}${who(c)}'s ${money(c.amount_cents)} payment on ${what(c)} didn't go through`;
@@ -125,7 +132,13 @@ async function notify(deps: WebhookDeps, c: Changed): Promise<void> {
   }).catch(() => null);
 }
 
-async function process(deps: WebhookDeps, mode: PayMode, account: string, type: string, obj: Record<string, unknown>) {
+async function process(
+  deps: WebhookDeps,
+  mode: PayMode,
+  account: string,
+  type: string,
+  obj: Record<string, unknown>,
+) {
   if (type === "account.updated") {
     await deps.rpc("mcp_client_payments_account_status", {
       _account: account,
@@ -174,9 +187,12 @@ export async function handleConnectWebhook(body: string, deps: WebhookDeps): Pro
   } catch {
     return reply(400, "Bad request");
   }
-  const id = typeof posted?.id === "string" && /^evt_[A-Za-z0-9]+$/.test(posted.id) ? posted.id : null;
+  const id =
+    typeof posted?.id === "string" && /^evt_[A-Za-z0-9]+$/.test(posted.id) ? posted.id : null;
   const account =
-    typeof posted?.account === "string" && /^acct_[A-Za-z0-9]+$/.test(posted.account) ? posted.account : null;
+    typeof posted?.account === "string" && /^acct_[A-Za-z0-9]+$/.test(posted.account)
+      ? posted.account
+      : null;
   if (!id || !account || typeof posted.livemode !== "boolean") return reply(400, "Bad request");
   const mode: PayMode = posted.livemode ? "live" : "test";
   if (!deps.configured(mode)) return reply(503, "Not configured");
@@ -188,14 +204,17 @@ export async function handleConnectWebhook(body: string, deps: WebhookDeps): Pro
     // Stripe doesn't have this event on that account: not ours to act on.
     return reply(400, "Unknown event");
   }
-  if (!event || event.id !== id || event.livemode !== posted.livemode) return reply(400, "Unknown event");
+  if (!event || event.id !== id || event.livemode !== posted.livemode)
+    return reply(400, "Unknown event");
 
-  const claim = (await deps.rpc("mcp_stripe_connect_event_claim", {
-    _event: id,
-    _type: event.type,
-    _livemode: event.livemode,
-    _account: account,
-  }).catch(() => null)) as string | null;
+  const claim = (await deps
+    .rpc("mcp_stripe_connect_event_claim", {
+      _event: id,
+      _type: event.type,
+      _livemode: event.livemode,
+      _account: account,
+    })
+    .catch(() => null)) as string | null;
   if (claim === "done") return reply(200, "Already handled");
   if (claim === "busy") return reply(409, "In progress");
   if (claim !== "fresh" && claim !== "retry") return reply(500, "Try again");
@@ -204,9 +223,13 @@ export async function handleConnectWebhook(body: string, deps: WebhookDeps): Pro
     await process(deps, mode, account, event.type, event.data?.object ?? {});
   } catch {
     deps.log?.(`client payments: ${event.type} ${id} failed`);
-    await deps.rpc("mcp_stripe_connect_event_finish", { _event: id, _processed: false }).catch(() => null);
+    await deps
+      .rpc("mcp_stripe_connect_event_finish", { _event: id, _processed: false })
+      .catch(() => null);
     return reply(500, "Try again");
   }
-  await deps.rpc("mcp_stripe_connect_event_finish", { _event: id, _processed: true }).catch(() => null);
+  await deps
+    .rpc("mcp_stripe_connect_event_finish", { _event: id, _processed: true })
+    .catch(() => null);
   return reply(200, "OK");
 }

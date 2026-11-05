@@ -179,7 +179,15 @@ export const portalMessagesSchema = z
 /** One online payment on a pay application, as the customer may see it. Never Athena's fee. */
 export const portalPaymentSchema = z.object({
   item_id: UUID,
-  status: z.enum(["open", "processing", "paid", "failed", "expired", "refunded", "partially_refunded"]),
+  status: z.enum([
+    "open",
+    "processing",
+    "paid",
+    "failed",
+    "expired",
+    "refunded",
+    "partially_refunded",
+  ]),
   method: z.string().nullable(),
   amount_cents: z.number().int(),
   refunded_cents: z.number().int().nullable().optional(),

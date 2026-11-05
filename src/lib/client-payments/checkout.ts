@@ -45,7 +45,19 @@ type Start = {
 export type OpenCheckoutResult =
   | { status: "redirect"; url: string }
   /** Why the customer can't pay right now; the page explains it. */
-  | { status: "unknown" | "signed_out" | "invalid" | "not_approved" | "nothing_due" | "not_accepting" | "already_paid" | "method" | "error" | string };
+  | {
+      status:
+        | "unknown"
+        | "signed_out"
+        | "invalid"
+        | "not_approved"
+        | "nothing_due"
+        | "not_accepting"
+        | "already_paid"
+        | "method"
+        | "error"
+        | string;
+    };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -64,7 +76,8 @@ export async function openCheckout(
     return { status: "error" };
   }
   if (s?.status !== "ok") return { status: s?.status ?? "error" };
-  if ((p.method === "card" && !s.card) || (p.method === "bank" && !s.bank)) return { status: "method" };
+  if ((p.method === "card" && !s.card) || (p.method === "bank" && !s.bank))
+    return { status: "method" };
 
   const stripe = deps.stripe(s.mode);
   const methods = [STRIPE_METHOD[p.method]];
@@ -82,10 +95,13 @@ export async function openCheckout(
       prev.methods.length === 1 &&
       prev.methods[0] === methods[0];
     try {
-      const old = await stripe.retrieveCheckout(prev.checkout_session_id, { stripeAccount: prev.account_id });
+      const old = await stripe.retrieveCheckout(prev.checkout_session_id, {
+        stripeAccount: prev.account_id,
+      });
       if (same && old.status === "open" && old.url) return { status: "redirect", url: old.url };
       if (old.status === "complete") return { status: "already_paid" };
-      if (old.status === "open") await stripe.expireCheckout(prev.checkout_session_id, { stripeAccount: prev.account_id });
+      if (old.status === "open")
+        await stripe.expireCheckout(prev.checkout_session_id, { stripeAccount: prev.account_id });
     } catch {
       return { status: "error" };
     }
@@ -117,7 +133,9 @@ export async function openCheckout(
           unit_amount: amount,
           product_data: {
             name: label,
-            ...(where ? { description: clip(`${s.company ?? ""} · ${where}`.replace(/^ · /, ""), 300) } : {}),
+            ...(where
+              ? { description: clip(`${s.company ?? ""} · ${where}`.replace(/^ · /, ""), 300) }
+              : {}),
           },
         },
       },
@@ -128,7 +146,11 @@ export async function openCheckout(
       metadata,
     },
     ...(p.method === "bank"
-      ? { payment_method_options: { us_bank_account: { verification_method: "automatic" as const } } }
+      ? {
+          payment_method_options: {
+            us_bank_account: { verification_method: "automatic" as const },
+          },
+        }
       : {}),
     metadata,
     success_url: back({ paid: "1" }),
