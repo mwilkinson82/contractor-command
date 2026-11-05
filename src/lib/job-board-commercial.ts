@@ -311,7 +311,7 @@ export function contractsOverview(
             ? "Unsigned copy saved"
             : "No copy saved",
       source: "contract",
-      number: null,
+      number: str(c.po_number),
       contractId: str(c.id),
       poId: po,
       documentId: str(c.document_id),
