@@ -421,7 +421,13 @@ export function CompanyBoard({ companyId }: { companyId: string }) {
                     <div className="cb-tile">
                       <span>Billed to date</span>
                       <strong>{shortMoney(t.billedCents)}</strong>
-                      <em>{percent(t.pctComplete, 0)} of contract</em>
+                      <em>
+                        {t.pctComplete == null
+                          ? t.billedCents
+                            ? "Share of contract not available"
+                            : "Nothing billed yet"
+                          : `${percent(t.pctComplete, 0)} of contract`}
+                      </em>
                     </div>
                   </div>
                 ) : (
