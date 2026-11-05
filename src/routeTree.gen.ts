@@ -97,6 +97,7 @@ import { Route as RSubmittalPreviewTokenRouteImport } from './routes/r.submittal
 import { Route as RSubmittalReturnCodeRouteImport } from './routes/r.submittal-return.$code'
 import { Route as ToolsSopEditPacketIdRouteImport } from './routes/tools.sop-edit.$packetId'
 import { Route as ApiPublicAosTierLookupRouteImport } from './routes/api/public/aos/tier-lookup'
+import { Route as ApiPublicAthenaConnectWebhookRouteImport } from './routes/api/public/athena/connect-webhook'
 import { Route as ApiPublicAthenaStripeWebhookRouteImport } from './routes/api/public/athena/stripe-webhook'
 import { Route as ApiPublicCircleReconcileRouteImport } from './routes/api/public/circle/reconcile'
 import { Route as ApiPublicOverwatchTierLookupRouteImport } from './routes/api/public/overwatch/tier-lookup'
@@ -560,6 +561,12 @@ const ApiPublicAosTierLookupRoute = ApiPublicAosTierLookupRouteImport.update({
   path: '/api/public/aos/tier-lookup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAthenaConnectWebhookRoute =
+  ApiPublicAthenaConnectWebhookRouteImport.update({
+    id: '/api/public/athena/connect-webhook',
+    path: '/api/public/athena/connect-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAthenaStripeWebhookRoute =
   ApiPublicAthenaStripeWebhookRouteImport.update({
     id: '/api/public/athena/stripe-webhook',
@@ -743,6 +750,7 @@ export interface FileRoutesByFullPath {
   '/r/submittal-return/$code': typeof RSubmittalReturnCodeRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/athena/connect-webhook': typeof ApiPublicAthenaConnectWebhookRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
@@ -850,6 +858,7 @@ export interface FileRoutesByTo {
   '/r/submittal-return/$code': typeof RSubmittalReturnCodeRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/athena/connect-webhook': typeof ApiPublicAthenaConnectWebhookRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
@@ -958,6 +967,7 @@ export interface FileRoutesById {
   '/r/submittal-return/$code': typeof RSubmittalReturnCodeRoute
   '/tools/sop-edit/$packetId': typeof ToolsSopEditPacketIdRoute
   '/api/public/aos/tier-lookup': typeof ApiPublicAosTierLookupRoute
+  '/api/public/athena/connect-webhook': typeof ApiPublicAthenaConnectWebhookRoute
   '/api/public/athena/stripe-webhook': typeof ApiPublicAthenaStripeWebhookRoute
   '/api/public/circle/reconcile': typeof ApiPublicCircleReconcileRoute
   '/api/public/overwatch/tier-lookup': typeof ApiPublicOverwatchTierLookupRoute
@@ -1067,6 +1077,7 @@ export interface FileRouteTypes {
     | '/r/submittal-return/$code'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/athena/connect-webhook'
     | '/api/public/athena/stripe-webhook'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
@@ -1174,6 +1185,7 @@ export interface FileRouteTypes {
     | '/r/submittal-return/$code'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/athena/connect-webhook'
     | '/api/public/athena/stripe-webhook'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
@@ -1281,6 +1293,7 @@ export interface FileRouteTypes {
     | '/r/submittal-return/$code'
     | '/tools/sop-edit/$packetId'
     | '/api/public/aos/tier-lookup'
+    | '/api/public/athena/connect-webhook'
     | '/api/public/athena/stripe-webhook'
     | '/api/public/circle/reconcile'
     | '/api/public/overwatch/tier-lookup'
@@ -1384,6 +1397,7 @@ export interface RootRouteChildren {
   RSubmittalPreviewTokenRoute: typeof RSubmittalPreviewTokenRoute
   RSubmittalReturnCodeRoute: typeof RSubmittalReturnCodeRoute
   ApiPublicAosTierLookupRoute: typeof ApiPublicAosTierLookupRoute
+  ApiPublicAthenaConnectWebhookRoute: typeof ApiPublicAthenaConnectWebhookRoute
   ApiPublicAthenaStripeWebhookRoute: typeof ApiPublicAthenaStripeWebhookRoute
   ApiPublicCircleReconcileRoute: typeof ApiPublicCircleReconcileRoute
   ApiPublicOverwatchTierLookupRoute: typeof ApiPublicOverwatchTierLookupRoute
@@ -2021,6 +2035,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAosTierLookupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/athena/connect-webhook': {
+      id: '/api/public/athena/connect-webhook'
+      path: '/api/public/athena/connect-webhook'
+      fullPath: '/api/public/athena/connect-webhook'
+      preLoaderRoute: typeof ApiPublicAthenaConnectWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/athena/stripe-webhook': {
       id: '/api/public/athena/stripe-webhook'
       path: '/api/public/athena/stripe-webhook'
@@ -2259,6 +2280,7 @@ const rootRouteChildren: RootRouteChildren = {
   RSubmittalPreviewTokenRoute: RSubmittalPreviewTokenRoute,
   RSubmittalReturnCodeRoute: RSubmittalReturnCodeRoute,
   ApiPublicAosTierLookupRoute: ApiPublicAosTierLookupRoute,
+  ApiPublicAthenaConnectWebhookRoute: ApiPublicAthenaConnectWebhookRoute,
   ApiPublicAthenaStripeWebhookRoute: ApiPublicAthenaStripeWebhookRoute,
   ApiPublicCircleReconcileRoute: ApiPublicCircleReconcileRoute,
   ApiPublicOverwatchTierLookupRoute: ApiPublicOverwatchTierLookupRoute,
@@ -2281,13 +2303,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
