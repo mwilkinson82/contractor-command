@@ -124,9 +124,9 @@ export async function loadServiceChain(d: PGlite) {
   await load("20261105190000_athena_client_payments");
 }
 const up = () =>
-  readFileSync("supabase/migrations/20261105230000_athena_service_calls.sql", "utf8");
+  readFileSync("supabase/migrations/20261106110000_athena_service_calls.sql", "utf8");
 const down = () =>
-  readFileSync("supabase/rollbacks/20261105230000_athena_service_calls.rollback.sql", "utf8");
+  readFileSync("supabase/rollbacks/20261106110000_athena_service_calls.rollback.sql", "utf8");
 
 beforeAll(async () => {
   db = await makeDb();

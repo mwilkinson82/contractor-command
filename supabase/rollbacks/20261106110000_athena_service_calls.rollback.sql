@@ -1,4 +1,4 @@
--- Rollback for 20261105230000_athena_service_calls.sql.
+-- Rollback for 20261106110000_athena_service_calls.sql.
 -- 1. Puts the client page functions back exactly as their last earlier migrations defined them
 --    (20261105181000, 20261105120000, 20261105150000 and 20261105190000). Shared work orders and service invoices
 --    then drop off the client page.

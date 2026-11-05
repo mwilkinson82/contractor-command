@@ -30,7 +30,7 @@
 --     the bill equal the work.
 -- Grants follow 0077: member functions are for authenticated only, client page functions stay service_role only,
 -- and the private helpers are callable by nobody.
--- Rollback: supabase/rollbacks/20261105230000_athena_service_calls.rollback.sql
+-- Rollback: supabase/rollbacks/20261106110000_athena_service_calls.rollback.sql
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
