@@ -191,6 +191,43 @@ export function ClientPaymentsSection({ companyId }: { companyId: string | null 
       </Explainer>
     );
 
+  return (
+    <ClientPaymentsPanel
+      companyId={companyId}
+      state={state}
+      setup={setup}
+      busy={busy}
+      error={error}
+      connect={connect}
+      check={check}
+      switchMode={switchMode}
+      load={load}
+    />
+  );
+}
+
+/** The section once its state is read. Apart from the loading, so it renders on its own for tests and previews. */
+export function ClientPaymentsPanel({
+  companyId,
+  state,
+  setup,
+  busy,
+  error,
+  connect,
+  check,
+  switchMode,
+  load,
+}: {
+  companyId: string;
+  state: ClientPaymentsState;
+  setup: ClientPaymentsSetup | null;
+  busy: string | null;
+  error: string | null;
+  connect: (mode: PayMode) => void | Promise<void>;
+  check: () => void | Promise<void>;
+  switchMode: (mode: PayMode) => void | Promise<void>;
+  load: () => Promise<unknown>;
+}) {
   const owner = state.can_manage;
   const configured = setup?.configured ?? { test: false, live: false };
   const head = headline(state);
