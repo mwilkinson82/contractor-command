@@ -4,7 +4,8 @@ import { ALERT_HEX } from "./mcp/alert-color";
 import { asReportNumber, formatBillingText, formatMoneyPhrase, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey, isPlainKey, money } from "./report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "./ior-hold-summary";
 import { cedarOutcome } from "./ior-outcome";
-import { IOR_MODEL_KEY, readIorModel } from "./ior-model";
+import { IOR_MODEL_KEY, readIorModel, withCpmFinish } from "./ior-model";
+import { cpmFinish, type CpmReportLike } from "./ior-schedule";
 import { renderAthenaIor } from "./ior-athena-view";
 import { DEFAULT_TZ, todayIn } from "./mcp/deadlines";
 
@@ -254,6 +255,8 @@ export function renderIorLayout(input: {
   jobId?: string | null;
   /** The job's calendar day, YYYY-MM-DD. Defaults to today in the default job zone. */
   today?: string | null;
+  /** The job's live CPM report. When it has dates, the IOR's finish comes from it. */
+  schedule?: CpmReportLike;
 }): string {
   const report = input.report;
   const data = report.data ?? {};
@@ -267,7 +270,7 @@ export function renderIorLayout(input: {
       const day = input.today?.slice(0, 10) || todayIn(viewerZone());
       const dataDay = /^\d{4}-\d{2}-\d{2}/.test(report.data_date ?? "") ? report.data_date!.slice(0, 10) : null;
       const today = dataDay && dataDay > day ? dataDay : day;
-      return renderAthenaIor(model, { today, version: report.version, dataDate: report.data_date });
+      return renderAthenaIor(withCpmFinish(model, cpmFinish(input.schedule)), { today, version: report.version, dataDate: report.data_date });
     }
   }
   const names = input.names;

@@ -93,7 +93,9 @@ export type Report = {
   contract_total?: number | null; forecast_total?: number | null; contract_completion_date?: string | null; scope?: string;
   data?: { activities?: Act[]; tia?: Tia | null; kpis?: Record<string, unknown>; items?: unknown[]; risks?: unknown[]; [k: string]: unknown };
 };
-export type JobPayload = { page: "ior" | "schedule"; company?: string; job_number?: string; job_name?: string; report: Report; names?: ReportNames; shared?: boolean; expires_at?: string };
+export type JobPayload = { page: "ior" | "schedule"; company?: string; job_number?: string; job_name?: string; report: Report; names?: ReportNames; shared?: boolean; expires_at?: string;
+  /** IOR page only: the job's live CPM, read with the same access, so the finish date follows the schedule. */
+  schedule?: Report | null };
 export type PortfolioJob = { job_id: string; job_number: string; name: string; pm?: string | null; completion_date?: string | null;
   cpm?: { version: number; data_date?: string | null; updated_at?: string; tia?: Tia | null; contract_total?: number | null; forecast_total?: number | null } | null;
   ior?: { version: number; data_date?: string | null; updated_at?: string; data?: Record<string, unknown> } | null };
@@ -380,6 +382,7 @@ function iorView(p: JobPayload, jobId?: string): string {
     report: p.report,
     jobId,
     names: { ...p.names, job_name: p.names?.job_name ?? p.job_name },
+    schedule: p.schedule,
   });
 }
 
