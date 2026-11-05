@@ -514,6 +514,7 @@ export function fromSpreadsheets(
 
   for (const { sheet, table, kind } of read) {
     const label = sheet.name || (kind ?? "sheet").replace(/_/g, " ");
+    const from = sheet.name ? `${sheet.name}: ` : "";
     if (!kind) {
       unread.push(label);
       continue;
@@ -613,7 +614,7 @@ export function fromSpreadsheets(
         out.held.push({
           kind: "budget lines",
           count: kept,
-          why: `${label}: these cost codes have no matching SOV line and no client price, so they are kept on the job's archive rather than guessed onto the contract.`,
+          why: `${from}these cost codes have no matching SOV line and no client price, so they are kept on the job's archive rather than guessed onto the contract.`,
           archived: true,
         });
       if (added && !matched)
@@ -652,7 +653,7 @@ export function fromSpreadsheets(
         out.held.push({
           kind: "estimate lines",
           count: Object.keys(out.archive.estimate_lines ?? {}).length,
-          why: `${label}: the SOV came from another export, so the estimate is kept on the job's archive.`,
+          why: `${from}the SOV came from another export, so the estimate is kept on the job's archive.`,
           archived: true,
         });
       } else {
@@ -688,7 +689,7 @@ export function fromSpreadsheets(
         out.held.push({
           kind: "commitment change orders",
           count: body.length,
-          why: `${label}: change orders with subs and suppliers, not the owner. Kept on the job's archive with the commitments.`,
+          why: `${from}change orders with subs and suppliers, not the owner. Kept on the job's archive with the commitments.`,
           archived: true,
         });
         continue;
@@ -892,7 +893,17 @@ export function fromSpreadsheets(
       out.held.push({
         kind: what.replace(/ \(.*/, ""),
         count,
-        why: `${label}: ${plural(count, what.replace(/s( \(|$)/, "$1"), what)}${cols.status !== undefined ? `, ${open} still open` : ""}. Athena keeps them on the job's archive for now; they don't become live records yet.`,
+        why: `${from}${[
+          kind === "commitments" ? "subcontracts and purchase orders" : "",
+          cols.status !== undefined ? `${open} still open` : "",
+        ]
+          .filter(Boolean)
+          .map((s, i) => (i ? s : s[0].toUpperCase() + s.slice(1)))
+          .join(", ")
+          .replace(
+            /(.)$/,
+            "$1. ",
+          )}Athena keeps them on the job's archive for now; they don't become live records yet.`,
         archived: true,
       });
     }
