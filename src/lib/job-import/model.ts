@@ -87,6 +87,17 @@ export const importActivity = z.object({
   duration_days: z.number().int().min(0).max(5000).nullable(),
   pct_complete: z.number().min(0).max(100).nullable(),
   predecessors: z.array(text(20)).max(20),
+  /** Typed logic with lag in working days, when the source keeps it (P6, MS Project). */
+  links: z
+    .array(
+      z.object({
+        id: text(20),
+        type: z.enum(["FS", "SS", "FF", "SF"]),
+        lag: z.number().int().min(-5000).max(5000),
+      }),
+    )
+    .max(20)
+    .optional(),
   actual_start: day.nullable().optional(),
   actual_finish: day.nullable().optional(),
   remaining_days: z.number().int().min(0).max(5000).nullable().optional(),

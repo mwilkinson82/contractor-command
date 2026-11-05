@@ -26,6 +26,8 @@ import { cardWidgetMeta } from "../cards/widget";
 import { IMPORT_SOURCES, ImportInputError, type ImportJob } from "../../job-import/model";
 import { fromOverwatch } from "../../job-import/overwatch";
 import { SHEET_KINDS, fromSpreadsheets } from "../../job-import/spreadsheet";
+import { readImportFile, type ScheduleFile } from "../../job-import/files";
+import { fromMspdi, fromXer, isMspdi, isXer } from "../../job-import/schedule-files";
 import {
   appliedCard,
   nothingToSave,
@@ -47,10 +49,14 @@ const FILE_MAX_BYTES = 20 * 1024 * 1024;
 
 export const OVERWATCH_EXPORT_HOW =
   "In Overwatch, open the job, click ··· at the top of the project page and choose Export for Athena. It downloads one .json file; attach that file here.";
+export const PROCORE_EXPORT_HOW =
+  "In Procore, open the project and download: the schedule's original .xer or .mpp file (Documents > Schedules, or ask your scheduler), the Budget as CSV, the latest owner invoice as CSV, Change Orders as CSV, RFIs as CSV, Submittals as XLSX, and Inspections, Observations, Punch List and Commitments as CSV. Put them in one ZIP (or use the Project Archive ZIP Procore emails) and attach it here.";
+export const BUILDERTREND_EXPORT_HOW =
+  "In Buildertrend, open the job and export to Excel: the Schedule (List view, More Actions, Export to Excel), the Job Costing Budget, the Estimate, Change Orders and Daily Logs, showing every column in each saved view first. Put them in one ZIP and attach it here.";
 export const FULL_ACCESS_HOW =
   "Importing onto a job that's already in Athena needs full access to that job. Ask your company's owner to add you to the job, or to run the import. Nothing was saved.";
 
-export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one: ${OVERWATCH_EXPORT_HOW} Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Only when the member asks in their own words to replace or redo a job's schedule from the export, and the job's CPM came from an import, call review with replace_schedule true; ask them first and say that the imported CPM gets a new recalculated version and earlier versions stay in history. Never use replace_schedule otherwise. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
+export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one from their system, one step at a time: Overwatch: ${OVERWATCH_EXPORT_HOW} Procore: ${PROCORE_EXPORT_HOW} Buildertrend: ${BUILDERTREND_EXPORT_HOW} One file per review: a ZIP of several exports, an Excel workbook, a P6 .xer, an MS Project XML or a CSV; Athena recognizes each file from its columns. After the card, offer to add what the card says is missing. Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Only when the member asks in their own words to replace or redo a job's schedule from the export, and the job's CPM came from an import, call review with replace_schedule true; ask them first and say that the imported CPM gets a new recalculated version and earlier versions stay in history. Never use replace_schedule otherwise. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
 
 /** Fills the job's contract completion from the saved import, only when the job has none. */
 export async function fillCompletion(sb: Sb, batch: string): Promise<void> {
@@ -111,7 +117,7 @@ function cardResult(card: CardModel, extra: Record<string, unknown>, rule: strin
 }
 
 const sheet = z.object({
-  kind: z.enum(SHEET_KINDS),
+  kind: z.enum(SHEET_KINDS).optional(),
   text: z.string().min(1).max(1_000_000),
   name: z.string().trim().max(120).optional(),
 });
@@ -120,6 +126,8 @@ export function readExport(args: {
   source: (typeof IMPORT_SOURCES)[number];
   export_text?: string;
   sheets?: z.infer<typeof sheet>[];
+  /** A P6 .xer or MS Project XML schedule that came with the export. */
+  schedule_file?: ScheduleFile | null;
   job_number?: string;
   job_name?: string;
   customer?: string;
@@ -144,21 +152,57 @@ export function readExport(args: {
       jobName: args.job_name,
     });
   }
-  const sheets = args.sheets?.length
-    ? args.sheets
-    : args.export_text?.trim()
-      ? [{ kind: "sov" as const, text: args.export_text }]
-      : [];
-  if (!args.job_number || !args.job_name)
-    throw new ImportInputError("Give the job number and job name for a spreadsheet import.");
-  return fromSpreadsheets(sheets, {
+  const text = args.export_text?.trim() ? args.export_text : "";
+  const scheduleFile =
+    args.schedule_file ??
+    (isXer(text)
+      ? { kind: "xer" as const, text, name: "the P6 file" }
+      : isMspdi(text)
+        ? { kind: "mspdi" as const, text, name: "the MS Project file" }
+        : null);
+  const sheets = args.sheets?.length ? args.sheets : text && !scheduleFile ? [{ text }] : [];
+  const schedule = scheduleFile
+    ? (scheduleFile.kind === "xer" ? fromXer : fromMspdi)(scheduleFile.text, {
+        system: args.source,
+        jobNumber: args.job_number,
+        jobName: args.job_name,
+      })
+    : null;
+  if (schedule && !sheets.length) return schedule;
+  const jobNumber = args.job_number || schedule?.job.job_number;
+  const jobName = args.job_name || schedule?.job.name;
+  if (!jobNumber || !jobName)
+    throw new ImportInputError(
+      "Which job number and job name should this be in Athena? The export files don't carry them.",
+    );
+  const job = fromSpreadsheets(sheets, {
     system: args.source,
-    job_number: args.job_number,
-    name: args.job_name,
+    job_number: jobNumber,
+    name: jobName,
     customer: args.customer ?? null,
     original_contract: args.original_contract ?? null,
     retainage_pct: args.retainage_pct ?? null,
+    completion_date: schedule?.job.completion_date ?? null,
   });
+  return schedule ? withScheduleFile(job, schedule, scheduleFile!.name) : job;
+}
+
+/** The native schedule file wins over a schedule spreadsheet: it carries logic, calendar and data date. */
+export function withScheduleFile(job: ImportJob, schedule: ImportJob, name: string): ImportJob {
+  if (job.schedule.length)
+    job.problems.push(
+      `The schedule comes from ${name}, which keeps the logic and calendar; the schedule spreadsheet is left out.`,
+    );
+  job.schedule = schedule.schedule;
+  job.schedule_wbs = schedule.schedule_wbs;
+  job.schedule_calendar = schedule.schedule_calendar;
+  job.schedule_data_date = schedule.schedule_data_date;
+  job.job.completion_date ??= schedule.job.completion_date;
+  job.problems = job.problems.filter((p) => !/carries no working calendar/.test(p));
+  job.problems.push(...schedule.problems);
+  job.held.push(...schedule.held);
+  for (const [table, rows] of Object.entries(schedule.archive)) job.archive[table] = rows;
+  return job;
 }
 
 /** The PM question after an import, or null when the job's PM can already be emailed. */
@@ -256,7 +300,7 @@ export const jobImport = defineTool({
     retainage_pct: z.number().min(0).max(100).optional(),
     export_text: z.string().max(2_000_000).optional(),
     file: drawingFile,
-    sheets: z.array(sheet).max(6).optional(),
+    sheets: z.array(sheet).max(20).optional(),
     daily_days: z.number().int().min(0).max(3650).optional(),
     batch_id: z.string().uuid().optional(),
     import_key: z.string().trim().max(64).optional(),
@@ -321,20 +365,48 @@ export const jobImport = defineTool({
           "Which system is this export from: Overwatch, Procore, Buildertrend or a spreadsheet?",
         );
       let exportText = args.export_text;
-      if (!exportText?.trim() && !args.sheets?.length && args.file?.download_url) {
-        try {
-          const bytes = await fetchAllowedFile(args.file.download_url, FILE_MAX_BYTES);
-          exportText = new TextDecoder("utf-8", { fatal: false })
-            .decode(bytes)
-            .replace(/^\uFEFF/, "");
-        } catch (e) {
-          if (e instanceof FileRejected) throw new ToolError(e.message.replace(/stored/, "saved"));
-          throw e;
-        }
-      }
+      let sheets = args.sheets;
+      let scheduleFile: ScheduleFile | null = null;
+      const fileNotes: string[] = [];
       let imported: ImportJob;
       try {
-        imported = readExport({ ...args, export_text: exportText, source: args.source });
+        if (!exportText?.trim() && !sheets?.length && args.file?.download_url) {
+          let bytes: Uint8Array;
+          try {
+            bytes = await fetchAllowedFile(args.file.download_url, FILE_MAX_BYTES);
+          } catch (e) {
+            if (e instanceof FileRejected)
+              throw new ToolError(e.message.replace(/stored/, "saved"));
+            throw e;
+          }
+          const read = await readImportFile(bytes, args.file.file_name ?? "export");
+          if (args.source === "overwatch")
+            exportText =
+              read.overwatch ??
+              new TextDecoder("utf-8", { fatal: false }).decode(bytes).replace(/^\uFEFF/, "");
+          sheets = read.sheets;
+          scheduleFile = read.schedule;
+          fileNotes.push(...read.problems);
+          if (read.other.length) {
+            const n = read.other.length;
+            const names = read.other.slice(0, 5).map((o) => o.name.split("/").pop());
+            fileNotes.push(
+              `${n === 1 ? "1 file" : `${n} files`} in the export (PDFs, photos or drawings) ${n === 1 ? "isn't" : "aren't"} read into this import: ${names.join(", ")}${n > 5 ? " and more" : ""}. Add them to the job's documents.`,
+            );
+          }
+          if (args.source !== "overwatch" && !sheets.length && !scheduleFile)
+            throw new ImportInputError(
+              "Athena found no export it can read in that file. Attach the CSV or Excel exports, a ZIP of them, or the P6 .xer schedule.",
+            );
+        }
+        imported = readExport({
+          ...args,
+          export_text: exportText,
+          sheets,
+          schedule_file: scheduleFile,
+          source: args.source,
+        });
+        imported.problems.push(...fileNotes.slice(0, 200 - imported.problems.length));
       } catch (e) {
         if (e instanceof ImportInputError) throw new ToolError(`${e.message} Nothing was saved.`);
         throw e;

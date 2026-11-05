@@ -20466,7 +20466,7 @@
               ]
             },
             "sheets": {
-              "maxItems": 6,
+              "maxItems": 20,
               "type": "array",
               "items": {
                 "type": "object",
@@ -20479,7 +20479,13 @@
                       "rfis",
                       "submittals",
                       "schedule",
-                      "dailies"
+                      "dailies",
+                      "budget",
+                      "estimate",
+                      "inspections",
+                      "observations",
+                      "commitments",
+                      "punch_list"
                     ]
                   },
                   "text": {
@@ -20493,7 +20499,6 @@
                   }
                 },
                 "required": [
-                  "kind",
                   "text"
                 ]
               }
