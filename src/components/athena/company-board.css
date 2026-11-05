@@ -363,7 +363,8 @@
   color: var(--ath-ink, #18314f);
   font-weight: 600;
 }
-.cb-btn {
+/* Scoped under .ath-page so the shell's link blue (.ath-page a) never recolors a button's text. */
+.ath-page .cb-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -377,20 +378,64 @@
   font-weight: 650;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  min-height: 36px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.cb-btn:hover {
+.ath-page .cb-btn:hover {
   background: #22508a;
   border-color: #22508a;
+  color: #fff;
 }
-.cb-btn.cb-ghost {
+.ath-page .cb-btn.cb-ghost {
   background: #fff;
   color: #183b63;
   border-color: #c9d7e8;
 }
-.cb-btn.cb-ghost:hover {
+.ath-page .cb-btn.cb-ghost:hover {
   background: #f1f6fc;
   border-color: #9fb6d3;
+  color: #183b63;
+}
+
+/* The page shell styles every <button> as a white link-blue box (.ath-page button), which would
+   turn the editor's blue Save button white. Put the account page's own button styles back. */
+.ath-page .cb-editor .aa-btn {
+  min-height: 38px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ath-page .cb-editor .aa-btn-sm {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.ath-page .cb-editor .aa-btn-primary {
+  background: var(--aa-blue, #2563eb);
+  color: #fff;
+}
+.ath-page .cb-editor .aa-btn-primary:hover:not(:disabled) {
+  background: var(--aa-blue-deep, #1d4ed8);
+}
+.ath-page .cb-editor .aa-btn-ghost {
+  background: var(--aa-card, #fff);
+  border-color: var(--aa-line, #dfe7f0);
+  color: var(--aa-ink, #18314f);
+}
+.ath-page .cb-editor .aa-btn-ghost:hover:not(:disabled) {
+  background: var(--aa-bg, #f5f8fc);
+  border-color: #b9cbe0;
+}
+.ath-page .cb-editor .aa-btn-danger {
+  background: var(--aa-bad, #b42318);
+  color: #fff;
+}
+.ath-page .cb-editor .aa-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* The account page's company editor, moved here unchanged, without the account page's own frame. */

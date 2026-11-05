@@ -434,7 +434,7 @@ export function CompanyBoard({ companyId }: { companyId: string }) {
                   <p className="cb-empty">{money.isLoading ? "Reading each job's contract, billing and cost…" : "The money summary could not be read right now."}</p>
                 )}
                 <div className="cb-change">
-                  <a className="cb-btn" href={`/r/portfolio/${companyId}`}>
+                  <a className="cb-btn cb-ghost" href={`/r/portfolio/${companyId}`}>
                     Open the portfolio board
                   </a>
                   <span>Every job's contract, billing, cost and IOR</span>
