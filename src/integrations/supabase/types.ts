@@ -5235,6 +5235,145 @@ export type Database = {
           },
         ]
       }
+      mcp_job_contract_versions: {
+        Row: {
+          contract_id: string
+          reason: string | null
+          recorded_at: string
+          recorded_by: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          contract_id: string
+          reason?: string | null
+          recorded_at?: string
+          recorded_by: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          contract_id?: string
+          reason?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_contract_versions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_job_contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_job_contracts: {
+        Row: {
+          company_id: string
+          cost_code: string | null
+          counterparty: string
+          created_at: string
+          created_by: string
+          document_id: string | null
+          id: string
+          job_id: string
+          kind: string
+          note: string | null
+          party_id: string | null
+          po_id: string | null
+          sent_on: string | null
+          signed_on: string | null
+          source: string
+          status: string
+          tag: string | null
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+          value_cents: number | null
+          version: number
+        }
+        Insert: {
+          company_id: string
+          cost_code?: string | null
+          counterparty: string
+          created_at?: string
+          created_by?: string
+          document_id?: string | null
+          id?: string
+          job_id: string
+          kind: string
+          note?: string | null
+          party_id?: string | null
+          po_id?: string | null
+          sent_on?: string | null
+          signed_on?: string | null
+          source: string
+          status: string
+          tag?: string | null
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          value_cents?: number | null
+          version?: number
+        }
+        Update: {
+          company_id?: string
+          cost_code?: string | null
+          counterparty?: string
+          created_at?: string
+          created_by?: string
+          document_id?: string | null
+          id?: string
+          job_id?: string
+          kind?: string
+          note?: string | null
+          party_id?: string | null
+          po_id?: string | null
+          sent_on?: string | null
+          signed_on?: string | null
+          source?: string
+          status?: string
+          tag?: string | null
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          value_cents?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_contracts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_job_contracts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_job_contracts_party_id_fkey"
+            columns: ["party_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_project_parties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_job_contracts_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_job_deadlines: {
         Row: {
           active: boolean
@@ -10600,6 +10739,8 @@ export type Database = {
       mcp_is_pm_ref: { Args: { _label: string; _pm: string }; Returns: boolean }
       mcp_is_super_view: { Args: { _job: string }; Returns: boolean }
       mcp_is_test_caller: { Args: never; Returns: boolean }
+      mcp_job_contract_rows: { Args: { _job: string }; Returns: Json }
+      mcp_job_contract_save: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_job_create: {
         Args: {
           _company: string

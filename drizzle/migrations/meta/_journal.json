@@ -624,6 +624,13 @@
       "when": 1793850479434,
       "tag": "0088_athena_company_address",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1793850611774,
+      "tag": "0089_athena_job_contracts",
+      "breakpoints": true
     }
   ]
 }
