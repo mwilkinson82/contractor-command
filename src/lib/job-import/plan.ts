@@ -675,7 +675,9 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
           duration: a.milestone ? 0 : a.duration_days,
           start: a.start,
           finish: a.finish,
-          predecessors: a.predecessors.map((id) => ({ id, type: "FS" as const, lag: 0 })),
+          predecessors: a.links?.length
+            ? a.links.map((l) => ({ id: l.id, type: l.type, lag: l.lag }))
+            : a.predecessors.map((id) => ({ id, type: "FS" as const, lag: 0 })),
           total_float: null,
           critical: null,
           pct_complete: done100 ? 100 : a.pct_complete,
@@ -728,7 +730,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
         schedule = {
           source_id: job.job.source_id,
           data_date: savedDate,
-          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${sourceMilestones ? ` (${plural(sourceMilestones, "milestone")})` : ""}${addedNames.length ? `, plus Athena's ${joinList(addedNames)} milestone${addedNames.length === 1 ? "" : "s"}` : ""}, logic as ${from} had it, ${calculated.ok ? `calculated on ${from}'s working calendar with data date ${savedDate} and ${from}'s baseline captured` : "dates as reported"}, not cost loaded.`,
+          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${sourceMilestones ? ` (${plural(sourceMilestones, "milestone")})` : ""}${addedNames.length ? `, plus Athena's ${joinList(addedNames)} milestone${addedNames.length === 1 ? "" : "s"}` : ""}, logic as ${from} had it, ${calculated.ok ? `calculated on ${from}'s working calendar with data date ${savedDate} and ${job.schedule.every((a) => a.baseline_start && a.baseline_finish) ? `${from}'s baseline` : "the as-planned baseline"} captured` : "dates as reported"}, not cost loaded.`,
           activity_count: planned.length,
           milestones: sourceMilestones + withMilestones.ids.length,
           data: prepared.data,
