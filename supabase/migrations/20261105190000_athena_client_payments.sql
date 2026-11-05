@@ -6,6 +6,10 @@
 -- Only the app server writes payments, from Stripe events it re-reads from Stripe itself. A paid payment is booked
 -- as a billing receipt on the job and applied to the pay application when its billing record can take it; a refund
 -- reverses that. Connecting and settings are the company owner's.
+--
+-- Wire and check payments arrive outside Athena. A member with full job access records them on a submitted or
+-- certified pay application; each is booked the same way (receipt, applied to the pay application) with no Athena
+-- fee, and the client page counts it. No bank or wire details are stored or shown.
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
@@ -71,8 +75,34 @@ CREATE TABLE IF NOT EXISTS public.mcp_stripe_connect_events (
   processed_at timestamptz
 );
 
+-- Wire and check payments recorded by the contractor's team on a pay application. Reference is the wire reference
+-- or check number as the team typed it. A mistake is voided, which reverses its booking; nothing is deleted.
+CREATE TABLE IF NOT EXISTS public.mcp_recorded_payments (
+  id uuid PRIMARY KEY,
+  company_id uuid NOT NULL REFERENCES public.mcp_companies(id) ON DELETE CASCADE,
+  job_id uuid NOT NULL REFERENCES public.mcp_jobs(id) ON DELETE CASCADE,
+  invoice_id uuid NOT NULL REFERENCES public.mcp_billing_invoices(id),
+  method text NOT NULL CHECK (method IN ('wire', 'check')),
+  amount_cents bigint NOT NULL CHECK (amount_cents > 0 AND amount_cents <= 9000000000000),
+  received_on date NOT NULL,
+  reference text NOT NULL CHECK (length(btrim(reference)) BETWEEN 1 AND 80),
+  note text CHECK (note IS NULL OR length(btrim(note)) BETWEEN 1 AND 500),
+  receipt_id uuid NOT NULL REFERENCES public.mcp_billing_receipts(id),
+  allocation_id uuid NOT NULL REFERENCES public.mcp_billing_allocations(id),
+  recorded_by uuid NOT NULL,
+  recorded_at timestamptz NOT NULL DEFAULT now(),
+  voided_at timestamptz,
+  voided_by uuid,
+  void_reason text CHECK (void_reason IS NULL OR length(btrim(void_reason)) BETWEEN 1 AND 500),
+  CHECK ((voided_at IS NULL) = (voided_by IS NULL) AND (voided_at IS NULL) = (void_reason IS NULL))
+);
+CREATE INDEX IF NOT EXISTS mcp_recorded_payments_invoice ON public.mcp_recorded_payments (invoice_id, received_on DESC);
+-- The same wire or check can't be recorded twice on a job.
+CREATE UNIQUE INDEX IF NOT EXISTS mcp_recorded_payments_reference
+  ON public.mcp_recorded_payments (job_id, method, lower(btrim(reference))) WHERE voided_at IS NULL;
+
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['mcp_company_payments','mcp_portal_payments','mcp_stripe_connect_events'] LOOP
+  FOREACH t IN ARRAY ARRAY['mcp_company_payments','mcp_portal_payments','mcp_stripe_connect_events','mcp_recorded_payments'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC, anon, authenticated', t);
     EXECUTE format('GRANT ALL ON public.%I TO service_role', t);
@@ -248,7 +278,15 @@ BEGIN
     'card', coalesce(cp.card_enabled, false), 'bank', coalesce(cp.bank_enabled, false), 'card_max_cents', coalesce(cp.card_max_cents, 0),
     'payments', coalesce((SELECT jsonb_agg(mcp_private.portal_payment_json(p) ORDER BY p.created_at DESC)
       FROM public.mcp_portal_payments p WHERE p.access_id IN (SELECT x.id FROM public.mcp_portal_access x WHERE x.job_id = a.job_id)
-        AND p.status <> 'expired'), '[]'::jsonb));
+        AND p.status <> 'expired'), '[]'::jsonb),
+    -- Wire and check payments the team recorded, per shared pay application: the total and the latest one.
+    'recorded', coalesce((SELECT jsonb_agg(jsonb_build_object('item_id', i.id, 'amount_cents', r.total,
+        'method', r.method, 'received_on', r.received_on) ORDER BY i.shared_at DESC)
+      FROM public.mcp_portal_items i
+      JOIN LATERAL (SELECT sum(x.amount_cents) AS total,
+          CASE WHEN count(DISTINCT x.method) > 1 THEN 'mixed' ELSE min(x.method) END AS method, max(x.received_on) AS received_on
+        FROM public.mcp_recorded_payments x WHERE x.invoice_id = i.ref_id AND x.job_id = i.job_id AND x.voided_at IS NULL) r ON r.total IS NOT NULL
+      WHERE i.job_id = a.job_id AND i.kind = 'pay_app' AND i.withdrawn_at IS NULL), '[]'::jsonb));
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_portal_payments_state(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_portal_payments_state(uuid, text) TO service_role;
@@ -269,7 +307,9 @@ BEGIN
   IF it.id IS NULL OR it.kind <> 'pay_app' THEN RETURN jsonb_build_object('status', 'invalid'); END IF;
   SELECT * INTO d FROM public.mcp_portal_decisions WHERE item_id = it.id;
   IF d.decision IS DISTINCT FROM 'approved' THEN RETURN jsonb_build_object('status', 'not_approved'); END IF;
-  due := nullif(it.view->'totals'->>'current_due_cents', '')::bigint;
+  due := nullif(it.view->'totals'->>'current_due_cents', '')::bigint
+    - coalesce((SELECT sum(amount_cents) FROM public.mcp_recorded_payments
+                 WHERE invoice_id = it.ref_id AND job_id = it.job_id AND voided_at IS NULL), 0);
   IF due IS NULL OR due <= 0 THEN RETURN jsonb_build_object('status', 'nothing_due'); END IF;
   SELECT * INTO cp FROM public.mcp_company_payments WHERE company_id = a.company_id;
   acct := CASE WHEN cp.mode = 'live' THEN cp.account_live ELSE cp.account_test END;
@@ -454,3 +494,139 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_portal_pay_refunded(text, text, bigint) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mcp_portal_pay_refunded(text, text, bigint) TO service_role;
+
+-- ---------- wire and check payments the team records ----------
+
+-- The full-access check for recording payments, with its own message.
+CREATE OR REPLACE FUNCTION mcp_private.recorded_payments_job(_job uuid) RETURNS public.mcp_jobs
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE j public.mcp_jobs;
+BEGIN
+  PERFORM public.mcp_assert_active();
+  IF auth.uid() IS NULL OR public.mcp_job_scope(_job) IS DISTINCT FROM 'full' THEN
+    RAISE EXCEPTION 'MCP_BAD:Recording payments needs full access to the job.';
+  END IF;
+  SELECT * INTO j FROM public.mcp_jobs WHERE id = _job;
+  RETURN j;
+END $$;
+REVOKE ALL ON FUNCTION mcp_private.recorded_payments_job(uuid) FROM PUBLIC, anon, authenticated, service_role;
+
+-- A pay application's billing position and every payment on it: what's due, what's been applied, what's left,
+-- the wire and check payments recorded (voided ones included, marked), and payments made on the client page.
+CREATE OR REPLACE FUNCTION public.mcp_pay_app_payments(_job uuid, _application uuid) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE j public.mcp_jobs; inv public.mcp_billing_invoices; v public.mcp_billing_invoice_versions; applied bigint; credits bigint; pending bigint;
+BEGIN
+  j := mcp_private.recorded_payments_job(_job);
+  SELECT * INTO inv FROM public.mcp_billing_invoices WHERE id = _application AND job_id = j.id AND kind = 'pay_application';
+  IF inv.id IS NULL THEN RETURN jsonb_build_object('status', 'not_found'); END IF;
+  SELECT * INTO v FROM public.mcp_billing_invoice_versions WHERE invoice_id = inv.id ORDER BY version DESC LIMIT 1;
+  applied := coalesce((SELECT sum(CASE WHEN reversal_of IS NULL THEN amount_cents ELSE -amount_cents END)
+    FROM public.mcp_billing_allocations WHERE invoice_id = inv.id), 0);
+  credits := public.mcp_billing_posted_credits(j.id, inv.id, NULL)::bigint;
+  -- A bank payment from the client page that hasn't cleared isn't applied yet, but it will be.
+  pending := coalesce((SELECT sum(p.amount_cents) FROM public.mcp_portal_payments p JOIN public.mcp_portal_items i ON i.id = p.item_id
+    WHERE i.ref_id = inv.id AND p.job_id = j.id AND p.status = 'processing'), 0);
+  RETURN jsonb_build_object('status', 'ok', 'application_id', inv.id, 'number', inv.document_number, 'state', v.status,
+    'can_record', v.status IN ('submitted', 'certified'),
+    'net_due_cents', v.net_due_cents, 'credits_cents', credits, 'applied_cents', applied, 'pending_cents', pending,
+    'remaining_cents', greatest(v.net_due_cents - credits - applied - pending, 0),
+    'recorded', coalesce((SELECT jsonb_agg(jsonb_build_object('id', r.id, 'method', r.method, 'amount_cents', r.amount_cents,
+        'received_on', r.received_on, 'reference', r.reference, 'note', r.note, 'recorded_at', r.recorded_at,
+        'recorded_by', coalesce(nullif(btrim(m.display_name), ''), 'A team member'), 'voided', r.voided_at IS NOT NULL,
+        'void_reason', r.void_reason) ORDER BY r.received_on DESC, r.recorded_at DESC)
+      FROM public.mcp_recorded_payments r LEFT JOIN public.mcp_company_members m ON m.company_id = r.company_id AND m.user_id = r.recorded_by
+      WHERE r.invoice_id = inv.id AND r.job_id = j.id), '[]'::jsonb),
+    'online', coalesce((SELECT jsonb_agg(mcp_private.portal_payment_json(p) ORDER BY p.created_at DESC)
+      FROM public.mcp_portal_payments p JOIN public.mcp_portal_items i ON i.id = p.item_id
+      WHERE i.ref_id = inv.id AND p.job_id = j.id AND p.status NOT IN ('open', 'expired')), '[]'::jsonb));
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_pay_app_payments(uuid, uuid) FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.mcp_pay_app_payments(uuid, uuid) TO authenticated;
+
+-- Records a wire or check the contractor received on a submitted or certified pay application: a billing receipt on
+-- the job, applied to the pay application. Partial payments are fine; more than what's left is refused. _id is the
+-- caller's request id, so a retry returns the same payment instead of recording it twice. No Athena fee.
+CREATE OR REPLACE FUNCTION public.mcp_pay_app_record_payment(_job uuid, _application uuid, _id uuid, _method text,
+  _amount_cents bigint, _received_on date, _reference text, _note text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE j public.mcp_jobs; inv public.mcp_billing_invoices; v public.mcp_billing_invoice_versions; r public.mcp_recorded_payments;
+  rid uuid := gen_random_uuid(); aid uuid := gen_random_uuid(); left_cents bigint; word text; ref text := btrim(coalesce(_reference, ''));
+  note text := nullif(btrim(coalesce(_note, '')), '');
+BEGIN
+  j := mcp_private.recorded_payments_job(_job);
+  IF _id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:A request id is required.'; END IF;
+  SELECT * INTO r FROM public.mcp_recorded_payments WHERE id = _id;
+  IF r.id IS NOT NULL THEN
+    IF r.job_id <> j.id OR r.invoice_id IS DISTINCT FROM _application OR r.method IS DISTINCT FROM _method
+       OR r.amount_cents IS DISTINCT FROM _amount_cents OR r.received_on IS DISTINCT FROM _received_on OR r.reference IS DISTINCT FROM ref THEN
+      RAISE EXCEPTION 'MCP_BAD:This request was already used for a different payment.';
+    END IF;
+    RETURN jsonb_build_object('status', 'ok', 'id', r.id, 'already_recorded', true);
+  END IF;
+  IF _method IS NULL OR _method NOT IN ('wire', 'check') THEN RAISE EXCEPTION 'MCP_BAD:Choose wire or check.'; END IF;
+  IF _amount_cents IS NULL OR _amount_cents <= 0 OR _amount_cents > 9000000000000 THEN RAISE EXCEPTION 'MCP_BAD:Enter the amount received.'; END IF;
+  IF _received_on IS NULL OR _received_on > current_date + 1 OR _received_on < current_date - 3650 THEN
+    RAISE EXCEPTION 'MCP_BAD:Enter the date the money arrived.';
+  END IF;
+  IF length(ref) NOT BETWEEN 1 AND 80 THEN
+    RAISE EXCEPTION 'MCP_BAD:%', CASE WHEN _method = 'check' THEN 'Enter the check number.' ELSE 'Enter the wire reference.' END;
+  END IF;
+  IF note IS NOT NULL AND length(note) > 500 THEN RAISE EXCEPTION 'MCP_BAD:Keep the note under 500 characters.'; END IF;
+  SELECT * INTO inv FROM public.mcp_billing_invoices WHERE id = _application AND job_id = j.id AND kind = 'pay_application' FOR UPDATE;
+  IF inv.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:That pay application isn''t on this job.'; END IF;
+  SELECT * INTO v FROM public.mcp_billing_invoice_versions WHERE invoice_id = inv.id ORDER BY version DESC LIMIT 1;
+  IF v.status NOT IN ('submitted', 'certified') THEN RAISE EXCEPTION 'MCP_BAD:Record payments on a submitted or certified pay application.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.mcp_recorded_payments WHERE job_id = j.id AND method = _method AND lower(btrim(reference)) = lower(ref) AND voided_at IS NULL) THEN
+    RAISE EXCEPTION 'MCP_BAD:%', CASE WHEN _method = 'check' THEN 'That check number is already recorded on this job.' ELSE 'That wire reference is already recorded on this job.' END;
+  END IF;
+  left_cents := v.net_due_cents - public.mcp_billing_posted_credits(j.id, inv.id, NULL)::bigint
+    - coalesce((SELECT sum(CASE WHEN reversal_of IS NULL THEN amount_cents ELSE -amount_cents END) FROM public.mcp_billing_allocations WHERE invoice_id = inv.id), 0)
+    - coalesce((SELECT sum(p.amount_cents) FROM public.mcp_portal_payments p JOIN public.mcp_portal_items i ON i.id = p.item_id
+        WHERE i.ref_id = inv.id AND p.job_id = j.id AND p.status = 'processing'), 0);
+  IF _amount_cents > left_cents THEN
+    RAISE EXCEPTION 'MCP_BAD:That''s more than the % left on this pay application.', to_char(greatest(left_cents, 0) / 100.0, 'FM$999,999,999,990.00');
+  END IF;
+  word := CASE WHEN _method = 'check' THEN 'Check ' ELSE 'Wire ' END;
+  INSERT INTO public.mcp_billing_receipts (id, job_id, company_id, receipt_date, source, amount_cents, recorded_by)
+  VALUES (rid, j.id, j.company_id, _received_on, word || ref || ' for ' || inv.document_number || ' (recorded ' || right(_id::text, 12) || ')',
+    _amount_cents, auth.uid());
+  INSERT INTO public.mcp_billing_allocations (id, job_id, receipt_id, invoice_id, amount_cents, effective_date, source, recorded_by)
+  VALUES (aid, j.id, rid, inv.id, _amount_cents, _received_on, word || ref, auth.uid());
+  INSERT INTO public.mcp_recorded_payments (id, company_id, job_id, invoice_id, method, amount_cents, received_on, reference, note,
+    receipt_id, allocation_id, recorded_by)
+  VALUES (_id, j.company_id, j.id, inv.id, _method, _amount_cents, _received_on, ref, note, rid, aid, auth.uid());
+  RETURN jsonb_build_object('status', 'ok', 'id', _id, 'already_recorded', false,
+    'remaining_cents', greatest(left_cents - _amount_cents, 0));
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_pay_app_record_payment(uuid, uuid, uuid, text, bigint, date, text, text) FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.mcp_pay_app_record_payment(uuid, uuid, uuid, text, bigint, date, text, text) TO authenticated;
+
+-- Voids a recorded payment entered by mistake: takes it back off the pay application and the receipt. The record
+-- stays, marked voided with the reason. Voiding twice changes nothing.
+CREATE OR REPLACE FUNCTION public.mcp_pay_app_void_payment(_job uuid, _payment uuid, _reason text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE j public.mcp_jobs; r public.mcp_recorded_payments; left_on_alloc bigint; reason text := btrim(coalesce(_reason, ''));
+BEGIN
+  j := mcp_private.recorded_payments_job(_job);
+  SELECT * INTO r FROM public.mcp_recorded_payments WHERE id = _payment AND job_id = j.id FOR UPDATE;
+  IF r.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:That payment isn''t on this job.'; END IF;
+  IF r.voided_at IS NOT NULL THEN RETURN jsonb_build_object('status', 'ok', 'id', r.id, 'already_voided', true); END IF;
+  IF length(reason) NOT BETWEEN 1 AND 500 THEN RAISE EXCEPTION 'MCP_BAD:Say why this payment is being removed.'; END IF;
+  SELECT a.amount_cents - coalesce((SELECT sum(x.amount_cents) FROM public.mcp_billing_allocations x WHERE x.reversal_of = a.id), 0)
+    INTO left_on_alloc FROM public.mcp_billing_allocations a WHERE a.id = r.allocation_id;
+  IF left_on_alloc > 0 THEN
+    INSERT INTO public.mcp_billing_allocations (id, job_id, receipt_id, invoice_id, amount_cents, reversal_of, effective_date, source, recorded_by)
+    SELECT gen_random_uuid(), job_id, receipt_id, invoice_id, left_on_alloc, id, current_date, 'Voided: ' || reason, auth.uid()
+      FROM public.mcp_billing_allocations WHERE id = r.allocation_id;
+  END IF;
+  INSERT INTO public.mcp_billing_receipt_reversals (id, job_id, receipt_id, amount_cents, effective_date, source, recorded_by)
+  SELECT gen_random_uuid(), j.id, r.receipt_id, b.amount_cents - coalesce((SELECT sum(x.amount_cents) FROM public.mcp_billing_receipt_reversals x WHERE x.receipt_id = b.id), 0),
+    current_date, 'Voided: ' || reason, auth.uid()
+    FROM public.mcp_billing_receipts b WHERE b.id = r.receipt_id
+     AND b.amount_cents > coalesce((SELECT sum(x.amount_cents) FROM public.mcp_billing_receipt_reversals x WHERE x.receipt_id = b.id), 0);
+  UPDATE public.mcp_recorded_payments SET voided_at = now(), voided_by = auth.uid(), void_reason = reason WHERE id = r.id;
+  RETURN jsonb_build_object('status', 'ok', 'id', r.id, 'already_voided', false);
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_pay_app_void_payment(uuid, uuid, text) FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.mcp_pay_app_void_payment(uuid, uuid, text) TO authenticated;

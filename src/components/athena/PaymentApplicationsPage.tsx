@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BoardSignIn } from "./BoardSignIn";
 import { AccountingWorkspace } from "./AccountingWorkspace";
 import { PaymentApplicationDetail } from "./PaymentApplicationDetail";
+import { PayAppPayments } from "./PayAppPayments";
 import {
   applicationSchema,
   appMoney,
@@ -729,6 +730,10 @@ export function PaymentApplicationsPage({
           {saved && !edit && !saved.working_state && (
             <>
               <PaymentApplicationDetail jobId={jobId} saved={saved} />
+              {saved.version === saved.latest_version &&
+                ["submitted", "certified"].includes(saved.body.state) && (
+                  <PayAppPayments jobId={jobId} applicationId={saved.application_id} />
+                )}
               <div className="pa-actions">
                 <button onClick={() => void download(saved)}>Download saved PDF</button>
                 {saved.version === saved.latest_version &&

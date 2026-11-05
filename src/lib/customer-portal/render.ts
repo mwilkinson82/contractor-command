@@ -978,19 +978,67 @@ function payPill(i: PayApp, dated = false): string {
 // ---------- paying an approved pay application online ----------
 
 type PortalPayment = NonNullable<PortalPage["payments"]>["payments"][number];
+type RecordedPayment = NonNullable<PortalPage["payments"]>["recorded"][number];
 const SETTLED = ["processing", "paid", "partially_refunded", "refunded"];
-/** The payment that settles this pay application, if one is paid or on its way. */
+/** The online payment that settles this pay application, if one is paid or on its way. */
 const settledPayment = (p: PortalPage, i: PayApp): PortalPayment | null =>
   p.payments?.payments.find((x) => x.item_id === i.id && SETTLED.includes(x.status)) ?? null;
+/** Wire and check payments the contractor recorded on this pay application, if any. */
+const recordedFor = (p: PortalPage, i: PayApp): RecordedPayment | null =>
+  p.payments?.recorded?.find((x) => x.item_id === i.id && x.amount_cents > 0) ?? null;
 const byWord = (m: string | null) => (m === "bank" ? " by bank" : m === "card" ? " by card" : "");
+const recordedWord = (m: RecordedPayment["method"]) =>
+  m === "wire" ? "by wire" : m === "check" ? "by check" : "by wire and check";
 
-/** The pill a pay application shows once paid online, or null to show its decision. */
+type PayState =
+  | { kind: "online"; x: PortalPayment }
+  | { kind: "recorded"; r: RecordedPayment; left: number };
+/** How this pay application stands on payment: paid in full by wire or check wins, then a payment made here,
+ * then a part paid by wire or check, then a refund made here. */
+function payState(p: PortalPage, i: PayApp): PayState | null {
+  const online = settledPayment(p, i);
+  const r = recordedFor(p, i);
+  const left = r ? Math.max(i.view.totals.current_due_cents - r.amount_cents, 0) : 0;
+  if (r && left === 0) return { kind: "recorded", r, left };
+  if (online && online.status !== "refunded") return { kind: "online", x: online };
+  if (r) return { kind: "recorded", r, left };
+  return online ? { kind: "online", x: online } : null;
+}
+
+/** The pill a pay application shows once paid, or null to show its decision. */
 function paidPill(p: PortalPage, i: PayApp): string | null {
-  const x = settledPayment(p, i);
-  if (!x) return null;
-  if (x.status === "processing") return `<span class="pill wait">Payment on its way</span>`;
-  if (x.status === "refunded") return `<span class="pill neutral">Refunded</span>`;
+  const s = payState(p, i);
+  if (!s) return null;
+  if (s.kind === "recorded")
+    return s.left === 0
+      ? `<span class="pill ok">Paid</span>`
+      : `<span class="pill wait">Partly paid</span>`;
+  if (s.x.status === "processing") return `<span class="pill wait">Payment on its way</span>`;
+  if (s.x.status === "refunded") return `<span class="pill neutral">Refunded</span>`;
   return `<span class="pill ok">Paid</span>`;
+}
+
+/** The word under the amount due on the billing card. */
+function paidWord(p: PortalPage, i: PayApp): string | null {
+  const s = payState(p, i);
+  if (!s) return null;
+  if (s.kind === "recorded") return s.left === 0 ? "paid" : `${usd(s.left)} still due`;
+  return s.x.status === "processing"
+    ? "payment on its way"
+    : s.x.status === "refunded"
+      ? "refunded"
+      : "paid";
+}
+
+const recordedLine = (r: RecordedPayment) =>
+  `Received ${usd(r.amount_cents)} ${recordedWord(r.method)}${r.received_on ? ` on ${longDate(r.received_on)}` : ""}.`;
+
+/** A wire or check payment the contractor recorded: paid in full, or a part with the rest still due. */
+function recordedBox(p: PortalPage, r: RecordedPayment, left: number): string {
+  const fine = `<p class="fine">${esc(`${p.contractor.name} recorded this payment. Questions about it go to your project team.`)}</p>`;
+  if (left === 0)
+    return `<section class="panel pp"><div class="pp-done"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div><b>Paid</b><span>${esc(recordedLine(r))}</span></div></div>${fine}</section>`;
+  return `<section class="panel pp"><div class="panel-head"><h2>Partly paid</h2><span class="pill wait">${esc(`${usd(left)} still due`)}</span></div><p class="pp-line">${esc(recordedLine(r))}</p>${fine}</section>`;
 }
 
 /** Where the customer's online payment stands, once there is one. */
@@ -1013,10 +1061,13 @@ function paidBox(x: PortalPayment): string {
 function payBox(p: PortalPage, i: PayApp): string {
   const pay = p.payments;
   if (!pay || i.decision?.decision !== "approved") return "";
-  const settled = settledPayment(p, i);
-  if (settled) return paidBox(settled);
-  const due = i.view.totals.current_due_cents;
-  if (!pay.accepting || due <= 0) return "";
+  const state = payState(p, i);
+  if (state?.kind === "online" && state.x.status !== "refunded") return paidBox(state.x);
+  if (state?.kind === "recorded" && state.left === 0) return recordedBox(p, state.r, 0);
+  const part = state?.kind === "recorded" ? state.r : null;
+  const due = state?.kind === "recorded" ? state.left : i.view.totals.current_due_cents;
+  if (!pay.accepting || due <= 0)
+    return part ? recordedBox(p, part, due) : state?.kind === "online" ? paidBox(state.x) : "";
   const cardOk = pay.card && due <= pay.card_max_cents;
   const btn = (method: "bank" | "card", label: string, primary: boolean) =>
     `<form method="post">${hidden(p, { action: "pay", item: i.id, method })}<button class="btn${primary ? "" : " secondary"} block" type="submit">${label}</button></form>`;
@@ -1024,7 +1075,7 @@ function payBox(p: PortalPage, i: PayApp): string {
     pay.bank ? btn("bank", "Pay by bank", true) : "",
     cardOk ? btn("card", "Pay by card", !pay.bank) : "",
   ].join("");
-  if (!buttons) return "";
+  if (!buttons) return part ? recordedBox(p, part, due) : "";
   const last = p.payments?.payments.find((x) => x.item_id === i.id);
   const failed =
     last?.status === "failed"
@@ -1040,7 +1091,10 @@ function payBox(p: PortalPage, i: PayApp): string {
   const how = pay.bank
     ? "You'll finish on a secure Stripe page. Bank payments take a few business days to clear."
     : "You'll finish on a secure Stripe page.";
-  return `<section class="panel pp"><div class="panel-head"><h2>${esc(`Pay ${usd(due)}`)}</h2></div><p class="sub">${esc(`You approved ${itemLabel(i)}. Pay it here and ${p.contractor.name} gets it directly.`)}</p>${test}${failed}<div class="pp-btns">${buttons}</div>${cardNote}<p class="fine">${esc(how)}</p></section>`;
+  const received = part
+    ? `<p class="pp-line">${esc(`${recordedLine(part)} ${usd(due)} is left to pay.`)}</p>`
+    : "";
+  return `<section class="panel pp"><div class="panel-head"><h2>${esc(`Pay ${usd(due)}`)}</h2></div><p class="sub">${esc(`You approved ${itemLabel(i)}. Pay it here and ${p.contractor.name} gets it directly.`)}</p>${received}${test}${failed}<div class="pp-btns">${buttons}</div>${cardNote}<p class="fine">${esc(how)}</p></section>`;
 }
 
 /** The plain-words math: work done and stored, less what you hold back, less what you already approved. */
@@ -1118,18 +1172,13 @@ function billing(p: PortalPage): string {
     return `<section class="panel"><div class="panel-head"><h2>Billing</h2></div><p class="empty">No pay applications shared with you yet.</p></section>`;
   const latest = apps[0]!;
   const v = latest.view;
-  const paid = settledPayment(p, latest);
-  const dueWord = paid
-    ? paid.status === "processing"
-      ? "payment on its way"
-      : paid.status === "refunded"
-        ? "refunded"
-        : "paid"
-    : latest.decision
+  const dueWord =
+    paidWord(p, latest) ??
+    (latest.decision
       ? latest.decision.decision === "approved"
         ? "approved"
         : "declined"
-      : "due now";
+      : "due now");
   const head = `<section class="panel pay-card"><div class="pay-head"><div><p class="eyebrow">${esc(`Latest pay application · ${period(v)}`)}</p><h2>${esc(itemLabel(latest))}</h2></div>${paidPill(p, latest) ?? payPill(latest)}</div><p class="pay-due">${esc(usd(v.totals.current_due_cents))}<span>${esc(dueWord)}</span></p>${latest.decision ? "" : dueChip(p, latest.due_on, "Approve")}${payMath(v)}<div class="form-actions"><a class="btn${latest.decision ? " secondary" : ""}" href="${esc(href(p, "billing", { i: latest.id }))}">${latest.decision ? "View" : "Review and approve"}</a></div></section>`;
   const lines = `<section class="panel"><div class="panel-head"><h2>Work by line</h2><span class="meta">${esc(`Work through ${longDate(v.period_end)}`)}</span></div>${payLines(v)}</section>`;
   const history = `<section class="panel"><div class="panel-head"><h2>Billing history</h2><span class="meta">${apps.length} ${apps.length === 1 ? "pay application" : "pay applications"}</span></div>${apps

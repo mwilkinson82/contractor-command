@@ -1641,6 +1641,37 @@ describe("paying an approved pay application online", () => {
     expect((await page(d, `/c/${ACCESS}?s=billing`)).html).not.toContain(">Pay by bank</button>");
   });
 
+  it("counts wire and check payments the contractor recorded, and asks only for what's left", async () => {
+    const rec = (amount_cents: number, method = "check", accepting = true) => ({
+      ...STATE,
+      accepting,
+      recorded: [{ item_id: PAY_OLD, amount_cents, method, received_on: "2026-11-03" }],
+    });
+    const part = payDeps(rec(500_000));
+    const { html } = await page(part.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(html).toContain("<h2>Pay $8,500.00</h2>");
+    expect(html).toContain("Received $5,000.00 by check on");
+    expect(html).toContain("$8,500.00 is left to pay.");
+    expect(html).toContain('<span class="pill wait">Partly paid</span>');
+    // Not taking payments here: the part paid still shows, with what's left.
+    const closed = payDeps(rec(500_000, "check", false));
+    const c = (await page(closed.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html;
+    expect(c).toContain("<h2>Partly paid</h2>");
+    expect(c).toContain("$8,500.00 still due");
+    expect(c).not.toContain("<h2>Pay $");
+    // Paid in full by wire: paid, no way to pay, and no bank or wire details anywhere.
+    const full = payDeps(rec(1_350_000, "wire"));
+    const f = (await page(full.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html;
+    expect(f).toContain("<b>Paid</b><span>Received $13,500.00 by wire on");
+    expect(f).toContain("Northline Builders recorded this payment.");
+    expect(f).not.toContain("<h2>Pay $");
+    expect(f).not.toMatch(/routing|account number|wire instructions|swift/i);
+    const both = payDeps(rec(1_350_000, "mixed"));
+    expect((await page(both.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).toContain(
+      "by wire and check",
+    );
+  });
+
   it("keeps card off over the contractor's card limit and when they turned it off", async () => {
     const { d } = payDeps({ ...STATE, card_max_cents: 1_000_000 });
     const { html } = await page(d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);

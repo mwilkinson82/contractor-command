@@ -1819,6 +1819,118 @@ describe.sequential("client payments", () => {
     await expect(as(owner)("SELECT * FROM mcp_company_payments")).rejects.toThrow();
   });
 
+  it("records wire and check payments on the pay application, books them like a client page payment, and voids a mistake", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const req = (n: number) => `00000000-0000-4000-8000-00000000f0${n.toString().padStart(2, "0")}`;
+    const record = (
+      id: string,
+      method: string,
+      amount: number,
+      ref: string,
+      user = pm,
+      note: string | null = null,
+    ) =>
+      member("mcp_pay_app_record_payment", [job2, app, id, method, amount, today, ref, note], user);
+    const applied = async () =>
+      (
+        await db.query<{ n: string }>(
+          "SELECT coalesce(sum(CASE WHEN reversal_of IS NULL THEN amount_cents ELSE -amount_cents END),0)::text AS n FROM mcp_billing_allocations WHERE invoice_id=$1",
+          [app],
+        )
+      ).rows[0]!.n;
+    // The client page payment above was refunded in full, so the whole amount is open again.
+    expect(await member("mcp_pay_app_payments", [job2, app], pm)).toMatchObject({
+      status: "ok",
+      can_record: true,
+      net_due_cents: 1350000,
+      remaining_cents: 1350000,
+      recorded: [],
+      online: [expect.objectContaining({ status: "refunded" })],
+    });
+    await expect(record(req(1), "check", 500000, "1042", outsider)).rejects.toThrow();
+    await expect(record(req(1), "cash", 500000, "1042")).rejects.toThrow(/wire or check/);
+    await expect(record(req(1), "check", 500000, "  ")).rejects.toThrow(/check number/);
+    await expect(record(req(1), "wire", 1350001, "FW-88")).rejects.toThrow(
+      /more than the \$13,500.00 left/,
+    );
+    expect(await record(req(1), "check", 500000, "1042", pm, "Mailed to the office")).toMatchObject(
+      {
+        status: "ok",
+        already_recorded: false,
+        remaining_cents: 850000,
+      },
+    );
+    // A retry of the same request records nothing new; the same id for something else is refused.
+    expect(await record(req(1), "check", 500000, "1042")).toMatchObject({ already_recorded: true });
+    await expect(record(req(1), "check", 400000, "1042")).rejects.toThrow(/different payment/);
+    await expect(record(req(2), "check", 100000, " 1042 ")).rejects.toThrow(/already recorded/);
+    expect(await applied()).toBe("500000");
+    const receipt = (
+      await db.query<Row>(
+        "SELECT amount_cents, source FROM mcp_billing_receipts WHERE job_id=$1 AND source LIKE 'Check 1042%'",
+        [job2],
+      )
+    ).rows;
+    expect(receipt).toEqual([
+      { amount_cents: 500000, source: `Check 1042 for 7 (recorded ${req(1).slice(-12)})` },
+    ]);
+    // The client page counts it, and asks only for what's left.
+    expect((await server("mcp_portal_payments_state", [accessP, sessP])).recorded).toContainEqual({
+      item_id: item,
+      amount_cents: 500000,
+      method: "check",
+      received_on: today,
+    });
+    expect(await pay()).toMatchObject({ status: "ok", amount_cents: 850000 });
+    expect(await record(req(3), "wire", 850000, "FW-88")).toMatchObject({ remaining_cents: 0 });
+    expect(await pay()).toEqual({ status: "nothing_due" });
+    expect((await server("mcp_portal_payments_state", [accessP, sessP])).recorded).toContainEqual({
+      item_id: item,
+      amount_cents: 1350000,
+      method: "mixed",
+      received_on: today,
+    });
+    await expect(record(req(4), "wire", 1, "FW-89")).rejects.toThrow(/\$0.00 left/);
+    // A mistake is voided with a reason: it comes back off the pay application and the receipt.
+    const check = (await member("mcp_pay_app_payments", [job2, app], pm)).recorded.find(
+      (r: J) => r.method === "check",
+    );
+    expect(check).toMatchObject({
+      amount_cents: 500000,
+      reference: "1042",
+      note: "Mailed to the office",
+      voided: false,
+    });
+    await expect(member("mcp_pay_app_void_payment", [job2, check.id, " "], pm)).rejects.toThrow(
+      /why/,
+    );
+    await expect(
+      member("mcp_pay_app_void_payment", [job2, check.id, "Entered twice"], outsider),
+    ).rejects.toThrow();
+    expect(
+      await member("mcp_pay_app_void_payment", [job2, check.id, "Check bounced"], pm),
+    ).toMatchObject({ already_voided: false });
+    expect(
+      await member("mcp_pay_app_void_payment", [job2, check.id, "Check bounced"], pm),
+    ).toMatchObject({ already_voided: true });
+    expect(await applied()).toBe("850000");
+    const rev = await db.query<{ n: string }>(
+      "SELECT sum(r.amount_cents)::text AS n FROM mcp_billing_receipt_reversals r JOIN mcp_billing_receipts b ON b.id=r.receipt_id WHERE b.source LIKE 'Check 1042%'",
+    );
+    expect(rev.rows[0]!.n).toBe("500000");
+    const after = await member("mcp_pay_app_payments", [job2, app], pm);
+    expect(after.remaining_cents).toBe(500000);
+    expect(after.recorded.find((r: J) => r.id === check.id)).toMatchObject({
+      voided: true,
+      void_reason: "Check bounced",
+    });
+    expect(await pay()).toMatchObject({ amount_cents: 500000 });
+    // The replacement check can carry the same number once the first is voided.
+    expect(await record(req(5), "check", 500000, "1042")).toMatchObject({ remaining_cents: 0 });
+    await expect(as(owner)("SELECT * FROM mcp_recorded_payments")).rejects.toThrow();
+    await expect(member("mcp_pay_app_payments", [job2, app], outsider)).rejects.toThrow();
+  });
+
   it("applies twice, rolls back cleanly and applies again", async () => {
     const up = readFileSync(
       "supabase/migrations/20261105190000_athena_client_payments.sql",

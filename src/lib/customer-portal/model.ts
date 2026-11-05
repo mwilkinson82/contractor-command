@@ -206,6 +206,18 @@ export const portalPaymentsSchema = z.object({
   bank: z.boolean(),
   card_max_cents: z.number().int(),
   payments: z.array(portalPaymentSchema).max(500),
+  /** Wire and check payments the contractor recorded, per shared pay application. */
+  recorded: z
+    .array(
+      z.object({
+        item_id: UUID,
+        amount_cents: z.number().int(),
+        method: z.enum(["wire", "check", "mixed"]),
+        received_on: z.string().nullable(),
+      }),
+    )
+    .max(500)
+    .default([]),
 });
 export type PortalPayments = Omit<z.infer<typeof portalPaymentsSchema>, "status">;
 
