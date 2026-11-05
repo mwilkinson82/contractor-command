@@ -296,7 +296,7 @@ describe("no vendor names on the new member-facing pieces", () => {
             !l.trim().startsWith("//") &&
             !l.includes("import ") &&
             !l.includes("supabase as unknown as AccountDb") &&
-            !l.includes("supabase.rpc as unknown as Rpc"),
+            !l.includes("supabase.rpc.bind(supabase) as unknown as Rpc"),
         )
         .join("\n");
       // Client payments names Stripe on purpose: the contractor connects their own Stripe account and finds

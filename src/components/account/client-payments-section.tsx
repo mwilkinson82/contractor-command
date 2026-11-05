@@ -26,7 +26,7 @@ type Rpc = (
   fn: string,
   args: Record<string, unknown>,
 ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-const rpc = supabase.rpc as unknown as Rpc;
+const rpc = supabase.rpc.bind(supabase) as unknown as Rpc;
 
 const plainError = (m: string | undefined) =>
   m?.startsWith("MCP_BAD:") ? m.slice(8) : "That didn't save. Try again in a moment.";
