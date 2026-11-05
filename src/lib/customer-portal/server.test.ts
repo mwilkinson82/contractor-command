@@ -506,6 +506,15 @@ describe("package choice follows the job's contract stage", () => {
     return html.replace(/>Change orders</g, "><"); // the page's own tab name
   };
 
+  it("keeps the approved compare look inside the client page's own styles", async () => {
+    const html = await page(false);
+    const gbb = html.slice(html.indexOf('<div class="gbb">'));
+    expect(gbb).toContain('<section class="gbb-hero">');
+    expect(gbb).toContain('<div class="gbb-act">');
+    // The client page styles bare .hero (blue blueprint hero) and .act (grey card); the compare uses neither.
+    expect(gbb).not.toMatch(/class="(?:hero|act)"/);
+  });
+
   it("before a contract, choosing sets the proposal price and never says change order", async () => {
     const html = await page(false);
     expect(html).toContain("its total becomes your proposal price");
