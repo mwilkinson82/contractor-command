@@ -43,6 +43,7 @@ import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation 
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
+import { ROLE_ANSWER_HOW, ROLE_GATE_KEY, SELF_PERFORM_GATE_KEY, ROLE_GUIDANCE, ROLE_LABEL, parseContractorRole, roleOutcome, roleQuestionText } from "../contractor-role";
 import { MARKETS, PRICING, SHOPS, WAGE_RULES, WORK_QUESTION_KEYS, YES_NO, nextWorkQuestion, readCompanyWorkProfile, readWorkProfile, tailoredScopeAsk, workPrechecked, workProfileSummary, workQuestionGuidance, workQuestionText, workQuestionsLeft } from "../work-profile";
 
 const uuid = z.string().uuid();
@@ -1222,7 +1223,7 @@ type NextCheck = { key: string; label: string | null; section: string | null; ca
 export const nextQuestion = defineTool({
   name: "next_question",
   title: "Next question",
-  description: "Returns the next setup question for a job.",
+  description: "Returns the next job setup checklist question for a job, never the estimate gap check, which estimate_gap_answer walks.",
   inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: laArg.optional() },
   annotations: { ...WRITE, idempotentHint: true },
   handler: (args, ctx) =>
@@ -1301,6 +1302,20 @@ export const nextQuestion = defineTool({
         const todo = ["scope", "contract", "handoff", "budget", "warranty"].filter((m) => !have.has(m));
         return guide(text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`), JOB_SETUP_SOFTWARE_BLOCK);
       }
+      if (q.key === ROLE_GATE_KEY) {
+        // Four roles, never "GC or sub": a trade contractor can hold the prime contract and self-perform.
+        const [{ data: pos }, { data: co }] = await Promise.all([
+          sb.from("mcp_job_facts").select("value").eq("job_id", job.job_id).eq("module", "scope").eq("key", "position").eq("status", "known").maybeSingle(),
+          job.company_id ? sb.from("mcp_companies").select("company_role").eq("id", job.company_id).maybeSingle() : Promise.resolve({ data: null }),
+        ]);
+        const left = q.total - q.index + wLeft;
+        return guide({
+          ...text(
+            `${P}${auto}Setup question ${q.index} — ${left === 0 ? "last one" : `${left} more after this`} (Contractor role) [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${roleQuestionText({ position: pos?.value, companyRole: (co as { company_role?: string | null } | null)?.company_role })}\n\n${ROLE_ANSWER_HOW}\nCall answer with job_number, check_key and role.`,
+          ),
+          structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: left, choices: ["general_contractor", "prime_trade", "subcontractor", "sub_tier"], auto_answered: jobNumberAuto ? "job_number_assigned" : null },
+        }, ...ROLE_GUIDANCE);
+      }
       const confirm = q.record_value != null;
       const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
       return guide({
@@ -1326,6 +1341,7 @@ export const answer = defineTool({
     check_key: z.string().min(1).max(100).optional(),
     lookahead_help: z.enum(["accept", "decline"]).optional(),
     response: tri.optional(),
+    role: z.string().trim().max(120).optional(),
     detail: z.string().max(10_000).optional(),
     owner: z.string().max(200).optional(),
     due_date: date.optional(),
@@ -1432,6 +1448,45 @@ export const answer = defineTool({
         return {
           ...text(`${P}Recorded.${itemNotes(made)}${left ? "" : `\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}`}\nNext: next_question.`),
           structuredContent: { recorded: JSON.parse(JSON.stringify(facts)) as Record<string, string | number | null>, items: made.map((m) => itemOut(m)!) },
+        };
+      }
+      if (args.check_key === ROLE_GATE_KEY && args.response !== "unknown" && args.response !== "na") {
+        // "yes" from a host still on the old two-answer question means general contractor; a bare "no" doesn't say which of the other three.
+        const role = parseContractorRole(args.role) ?? parseContractorRole(args.detail) ?? (args.response === "yes" ? "general_contractor" : null);
+        if (!role)
+          return guide({
+            ...text(`${P}Not recorded yet. Which one: general contractor, prime trade contractor self-performing, subcontractor to the GC, or sub-tier? Answer with role.`),
+            structuredContent: { recorded: null, choices: ["general_contractor", "prime_trade", "subcontractor", "sub_tier"] },
+          }, ...ROLE_GUIDANCE);
+        const out = roleOutcome(role);
+        // Already answered (often "yes" on the old GC-or-sub question): correct the role in place instead of refusing it as "not the current question".
+        const current = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
+        const { data: before } = current?.key === ROLE_GATE_KEY
+          ? { data: null }
+          : await sb.from("mcp_job_answers").select("answer").eq("job_id", job.job_id).eq("check_key", ROLE_GATE_KEY).maybeSingle();
+        const correcting = Boolean(before);
+        const r = correcting
+          ? { recorded: out.gate, item: null }
+          : await rpc<{ recorded: string; item: ItemResult | null }>(sb, "mcp_answer", {
+              _job: job.job_id, _key: args.check_key, _answer: out.gate, _detail: ROLE_LABEL[role], _owner: args.owner ?? null, _needed_by: args.due_date ?? null,
+            });
+        // mcp_answer files every "no" as a sub; a prime trade contractor is not one, so the role's own flags go on after it.
+        await rpc(sb, "mcp_set_flags", { _job: job.job_id, _flags: out.flags, _source: "member_answer" });
+        await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: { position: out.position, contractor_role: role }, _source: "member_answer" });
+        // "Self-performing" was part of the answer, so setup's next gate (are we self-performing any work?) is answered with it, visibly.
+        let also = "";
+        if (role === "prime_trade" && !correcting) {
+          const nx = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
+          if (nx?.key === SELF_PERFORM_GATE_KEY) {
+            await rpc(sb, "mcp_answer", { _job: job.job_id, _key: SELF_PERFORM_GATE_KEY, _answer: "yes", _detail: "Prime trade contractor, self-performing (from the role answer).", _owner: null, _needed_by: null });
+            also = ` Also answered for you: "${nx.prompt}" yes, since you self-perform. Say so if that's wrong and I'll change it.`;
+          }
+        }
+        await settleFlagConfirms(sb, job);
+        await audit(sb, job, "answer", correcting ? "contractor_role_corrected" : "contractor_role_answer", args.check_key);
+        return {
+          ...text(`${P}${correcting ? "Changed your role on this job to" : "Recorded:"} ${ROLE_LABEL[role]}.${itemNote(r.item)}${also}\nNext: next_question.`),
+          structuredContent: { recorded: role, item_id: r.item?.item_id ?? null, item_type: r.item?.item_type ?? null },
         };
       }
       if (!args.response) throw new ToolError("answer needs response yes, no, na or unknown.");

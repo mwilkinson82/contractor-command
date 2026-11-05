@@ -1427,7 +1427,7 @@ export const estimateGapAnswer = defineTool({
   name: "estimate_gap_answer",
   title: "Gap check answer",
   description:
-    "Saves the estimator's answer to one estimate gap, or clears it, and returns the gap check progress, the live board link and the next question to ask.",
+    "Starts or continues the estimate gap check walk-through when called with just the job number, or saves or clears the estimator's answer to one gap, and returns the progress, the live board link and the next question to ask.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
@@ -1749,7 +1749,15 @@ export const estimateStatus = defineTool({
       const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
       await audit(sb, job, "estimate_status", "view_estimate_status", null);
       const view = renderStatus(`${named(job)}`, state, loaded.accuracy);
-      return reply(view);
+      // The gap check rides along, so "where are we" and "walk the gap check" land on the same next question.
+      const board = await gapBoard(sb, job.job_id).catch(() => null);
+      if (!board?.items.length) return reply(view);
+      const check = gapCheckBlock(job.job_id, board.items);
+      return reply({
+        text: `${view.text}\n\n${check.text}`,
+        structured: { ...view.structured, gap_check: check.structured },
+        guidance: [...view.guidance, ...GAP_CHECK_GUIDANCE],
+      });
     }),
 });
 

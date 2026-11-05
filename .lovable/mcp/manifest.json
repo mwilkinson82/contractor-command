@@ -2856,7 +2856,7 @@
       {
         "name": "next_question",
         "title": "Next question",
-        "description": "Returns the next setup question for a job.",
+        "description": "Returns the next job setup checklist question for a job, never the estimate gap check, which estimate_gap_answer walks.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -2901,8 +2901,8 @@
           "idempotentHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -2943,6 +2943,10 @@
                 "na",
                 "unknown"
               ]
+            },
+            "role": {
+              "type": "string",
+              "maxLength": 120
             },
             "detail": {
               "type": "string",
@@ -8486,8 +8490,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -21222,7 +21226,7 @@
       {
         "name": "estimate_gap_answer",
         "title": "Gap check answer",
-        "description": "Saves the estimator's answer to one estimate gap, or clears it, and returns the gap check progress, the live board link and the next question to ask.",
+        "description": "Starts or continues the estimate gap check walk-through when called with just the job number, or saves or clears the estimator's answer to one gap, and returns the progress, the live board link and the next question to ask.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
