@@ -158,6 +158,28 @@ export function inferCard(tool: string, raw: string, structured: Record<string, 
 
   if (tool === "onboarding") {
     const saved = /^Saved\./m.test(text);
+    const wq = structured.work_question as
+      | { number?: number; ask?: string; choices?: string[]; prechecked?: string[]; left?: number }
+      | undefined;
+    if (wq?.ask) {
+      // A kinds-of-work question is open: the card asks it, with its choices and what the profile already says.
+      const pre = new Set(wq.prechecked ?? []);
+      return {
+        ...base,
+        state: "ask",
+        title: saved ? "Saved. Next question" : "Kinds of work",
+        progress: wq.number ? { done: wq.number, total: 8 } : null,
+        ask: { prompt: `Question ${wq.number ?? 1} of 8: ${wq.ask}` },
+        sections: [
+          {
+            heading: pre.size ? "Choices (checked ones are already on your profile)" : "Choices",
+            kind: "chips",
+            rows: (wq.choices ?? []).map((ch) => ({ cells: [pre.has(ch) ? `✓ ${ch}` : ch], tone: pre.has(ch) ? ("known" as const) : undefined })),
+          },
+        ],
+        next_move: "Pick your answer, or say skip.",
+      };
+    }
     return {
       ...base,
       state: saved ? "result" : "progress",

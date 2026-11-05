@@ -191,3 +191,35 @@ describe("migration", () => {
     expect(sql).not.toMatch(/^\s*(BEGIN|COMMIT|ROLLBACK)\s*;/im);
   });
 });
+
+describe("kinds-of-work fixes from the first ChatGPT run (Nov 5)", () => {
+  it("pre-checks the markets the company profile already lists", async () => {
+    const { workPrechecked, workQuestionText } = await import("@/lib/mcp/work-profile");
+    const q = workQuestions()[0];
+    expect(workPrechecked(q, ["commercial", "public"])).toEqual(["Low-bid public work", "Private commercial"]);
+    expect(workPrechecked(q, ["residential"])).toEqual([]);
+    expect(workPrechecked(workQuestions()[1], ["commercial"])).toEqual([]);
+    expect(workQuestionText(q, 8, ["Private commercial"])).toContain("Already on your profile: Private commercial");
+  });
+
+  it("tells an AI with an out-of-date tool list to have the member refresh, never that Athena can't save", async () => {
+    const { workQuestionGuidance } = await import("@/lib/mcp/work-profile");
+    const g = workQuestionGuidance(workQuestions()[0], ["Private commercial"]);
+    expect(g).toContain("Show Private commercial already checked");
+    expect(g).toContain('If your onboarding tool has no "save_work_profile" action');
+    expect(g).toContain("Refresh Athena in your AI app's connector settings");
+    expect(g).toContain("Say it is saved only after save_work_profile answers Saved.");
+  });
+
+  it("the onboarding card asks the open question with its choices, checked ones marked", async () => {
+    const { inferCard } = await import("@/lib/mcp/cards/infer");
+    const card = inferCard("onboarding", "Company profile:\nCompany: ALP Construction", {
+      work_question: { number: 1, ask: "What kind of work does your company do? Pick all that fit.", choices: ["Low-bid public work", "Private commercial", "Skip"], prechecked: ["Private commercial"], left: 8 },
+    });
+    expect(card.state).toBe("ask");
+    expect(card.ask?.prompt).toBe("Question 1 of 8: What kind of work does your company do? Pick all that fit.");
+    expect(card.sections![0].rows.map((r) => r.cells[0])).toEqual(["Low-bid public work", "✓ Private commercial", "Skip"]);
+    expect(card.next_move).toBe("Pick your answer, or say skip.");
+    expect(inferCard("onboarding", "Company profile:\nCompany: ALP", {}).next_move).toBe("Tell me what is still missing.");
+  });
+});

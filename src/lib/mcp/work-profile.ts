@@ -129,7 +129,29 @@ export function workProfileDone(profile: WorkProfile | null | undefined): boolea
   return nextWorkQuestion(profile) === null;
 }
 
-export function workQuestionText(q: WorkQuestion, left: number): string {
+/**
+ * Choices the company profile already answers, to show pre-checked. Only markets has a source today: the older
+ * work_types (public, commercial). Residential could be renovation or custom homes, so it pre-checks neither.
+ */
+export function workPrechecked(q: WorkQuestion, workTypes: readonly string[] | null | undefined): string[] {
+  if (q.key !== "markets" || !workTypes?.length) return [];
+  const out: string[] = [];
+  if (workTypes.includes("public")) out.push(MARKET_LABEL.public_low_bid);
+  if (workTypes.includes("commercial")) out.push(MARKET_LABEL.private_commercial);
+  return out;
+}
+
+/** What the connected AI does with an open question. Written for hosts whose saved tool list may be out of date. */
+export function workQuestionGuidance(q: WorkQuestion, prechecked: readonly string[]): string {
+  return [
+    `Next: ask the member only this question, in these plain words, with its choices${prechecked.length ? `. Show ${prechecked.join(" and ")} already checked, because the company profile lists them; the member can change that` : ""}.`,
+    `Save the answer with onboarding action "save_work_profile" (${WORK_ANSWER_FIELD[q.key]}), or work_skip ["${q.key}"] if they skip it. If they say to skip all of it or do it later, send work_skip with every key still open.`,
+    "Say it is saved only after save_work_profile answers Saved. Then ask the next question it returns, one per reply, before the first job.",
+    'If your onboarding tool has no "save_work_profile" action, the member\'s Athena connection is out of date. Do not say Athena can\'t save it. Tell them: "Your Athena connection needs a refresh to save these answers. Refresh Athena in your AI app\'s connector settings, or disconnect and reconnect it, then start a new chat and send: Athena, let\'s set up the kinds of work we do."',
+  ].join(" ");
+}
+
+export function workQuestionText(q: WorkQuestion, left: number, prechecked: readonly string[] = []): string {
   const how =
     q.answer === "several"
       ? "Pick all that fit, or skip."
@@ -143,6 +165,7 @@ export function workQuestionText(q: WorkQuestion, left: number): string {
     "",
     q.ask,
     `Choices: ${q.choices.join(" · ")}`,
+    ...(prechecked.length ? [`Already on your profile: ${prechecked.join(", ")}`] : []),
     how,
   ].join("\n");
 }

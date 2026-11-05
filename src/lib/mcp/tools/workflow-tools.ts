@@ -43,7 +43,7 @@ import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation 
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
-import { MARKETS, PRICING, SHOPS, WAGE_RULES, WORK_ANSWER_FIELD, WORK_QUESTION_KEYS, YES_NO, nextWorkQuestion, readCompanyWorkProfile, readWorkProfile, tailoredScopeAsk, workProfileSummary, workQuestionText, workQuestionsLeft } from "../work-profile";
+import { MARKETS, PRICING, SHOPS, WAGE_RULES, WORK_QUESTION_KEYS, YES_NO, nextWorkQuestion, readCompanyWorkProfile, readWorkProfile, tailoredScopeAsk, workPrechecked, workProfileSummary, workQuestionGuidance, workQuestionText, workQuestionsLeft } from "../work-profile";
 
 const uuid = z.string().uuid();
 const laArg = z.string().trim().min(1).max(64);
@@ -208,6 +208,8 @@ export const onboarding = defineTool({
       const work = readWorkProfile(wp.raw);
       const nextWork = wp.available ? nextWorkQuestion(work) : null;
       const workLines = workProfileSummary(work);
+      const prechecked = nextWork ? workPrechecked(nextWork, c.work_types) : [];
+      const workAsk = nextWork ? workQuestionText(nextWork, workQuestionsLeft(work), prechecked) : null;
       return {
         ...text(
           [
@@ -227,11 +229,11 @@ export const onboarding = defineTool({
             `Athena v${ATHENA_VERSION}`,
             "",
             nextWork
-              ? `${workQuestionText(nextWork, workQuestionsLeft(work))}\n\nNext: ask the member only this question, in these plain words, with its choices. Save the answer with onboarding action "save_work_profile" (${WORK_ANSWER_FIELD[nextWork.key]}), or work_skip ["${nextWork.key}"] if they skip it. If they say to skip all of it or do it later, send work_skip with every key still open. Then ask the next question it returns, one per reply, before the first job.`
+              ? `${workAsk}\n\n${workQuestionGuidance(nextWork, prechecked)}`
               : 'Next: create a job with intake section "create_job" and a job_number.',
           ].join("\n"),
         ),
-        structuredContent: { company_id: cid!, ...(nextWork ? { work_question: { key: nextWork.key, number: nextWork.number, choices: nextWork.choices } } : {}) },
+        structuredContent: { company_id: cid!, ...(nextWork ? { work_question: { key: nextWork.key, number: nextWork.number, ask: nextWork.ask, choices: nextWork.choices, prechecked, left: workQuestionsLeft(work) } } : {}) },
       };
     }),
 });
