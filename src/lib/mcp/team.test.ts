@@ -186,9 +186,13 @@ describe("seats", () => {
     expect(MIG).toMatch(/'limit', \(SELECT 1 \+ coalesce\(/);
     expect(seatLimitFromError("MCP_SEAT_LIMIT:6:6")).toEqual({ used: 6, limit: 6 });
   });
-  it("add seats is off by default: no checkout", async () => {
-    const r = await call(teamAddSeats, { seats: 2, confirmed: true });
+  it("add seats sends the owner to the account page and never makes a payment link in chat", async () => {
+    const r = await call(teamAddSeats, { seats: 2 });
     expect(r.structuredContent.checkout).toBeNull();
+    expect(r.structuredContent.url).toBe("https://app.meetathena.io/account#team");
+    expect(r.content[0].text).toMatch(/To add 2 seats, open Team & access/);
+    expect(r.content[0].text).toMatch(/\$49 per seat per month/);
+    expect(r.content[0].text).not.toMatch(/stripe|checkout\.stripe/i);
   });
 });
 

@@ -63,7 +63,8 @@ const ALIASES: Record<string, AccountSection> = {
   billing: "billing",
   plan: "billing",
   subscription: "billing",
-  seats: "billing",
+  seats: "team",
+  "add seats": "team",
   projects: "projects",
   jobs: "projects",
 };

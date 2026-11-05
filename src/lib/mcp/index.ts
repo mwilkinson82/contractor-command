@@ -12,7 +12,7 @@ import { JOB_IMPORT_RULE, jobImport } from "./tools/job-import-tools";
 import "./widget-bridge";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_VERSION } from "./server-info-branding";
-import { ATHENA_ROUTE_LINE, GREETING_RULE } from "./greeting";
+import { GREETING_RULE } from "./greeting";
 import { PROJECT_HOME_ROUTE_RULE } from "./board-url";
 import { EMAIL_DRAFT_ONLY_RULE } from "./email-safety";
 import { REFUSAL_RULE, secureTool } from "./security";
@@ -116,8 +116,6 @@ export default defineMcp({
     PROJECT_HOME_ROUTE_RULE +
     " Athena powered by ALP, construction agents. " +
     GREETING_RULE +
-    " " +
-    ATHENA_ROUTE_LINE +
     " Drawing measurements use sheet_calibrate and takeoff_geometry. Geometry is the quantity; the member's connected AI reads Athena's stored tiles and proposes locations, Athena verifies and calculates, and only the estimator accepts. At estimating intake, ask the member to choose their strongest available image-reading model with deeper reasoning. Reconcile measured scope with drawing notes, specifications and contract through cited gap analysis, identifying unread context and specific verification questions. Unlocated or pending geometry cannot form a final bid. Never back-solve locations to match a typed quantity. A drawing attached in chat goes to drawing_set_import with its host-supplied file original, subject to the existing estimating plan and storage checks. Never store a drawing as a contract or specification to bypass unavailable drawing storage. Drawing imports from Google Drive or Dropbox → drawing_set_import with drawing.source_url and sheets in PDF page order; upload bytes through drawing.content_base64 when the connected AI must authenticate the download. Mark up a stored drawing → drawing_markup, never ask for a re-upload. To analyze new findings, use operation prepare, inspect the returned original sheet, then save supplied annotations. Coordinates are normalized 0..1 from the top-left of that image. Unlocated findings remain in the key; never guess positions, quantities or claim a review when no findings were established. " +
     ' Use dates, logic, float, and amounts from the tool result exactly. If a forecast total does not equal the contract, show "Doesn\'t tie: off by $X" and do not draw the chart. Show each tool result as written. Do not offer a consulting option. Do not assume the job type, owner, client type, sector, or pricing model. The job number is required when creating a job. Ask each setup question. Do not answer it for the member. Pass each contract clause exactly as written, one clause per entry, with its section number. Do not summarize a clause unless the member asks. End every SOV reply with the delivery question from the result, word for word. ' +
     EMAIL_DRAFT_ONLY_RULE +

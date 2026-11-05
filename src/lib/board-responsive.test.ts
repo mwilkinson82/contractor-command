@@ -81,6 +81,7 @@ vi.mock("@/lib/athena-host-current", () => ({
 vi.mock("@/lib/account-team.functions", () => ({
   getSeatPurchaseStatus: state.calls,
   sendTeamInviteEmail: state.calls,
+  startSeatCheckout: state.calls,
 }));
 vi.mock("@/lib/board-link.functions", () => ({
   openBoardPage: state.calls,

@@ -224,7 +224,7 @@ describe("0.8.22 vendor names never reach a host", () => {
     const list = await toolsList(ALL.map(secureTool));
     expect(JSON.stringify(list)).not.toMatch(VENDOR_RE);
     const strings: string[] = [
-      REFUSAL_RULE.replace("Never name the software vendors behind Athena.", ""),
+      REFUSAL_RULE,
     ];
     for (const mod of [visible, views, styled, emailSafety] as Record<string, unknown>[])
       for (const v of Object.values(mod)) {

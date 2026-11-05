@@ -65,10 +65,10 @@ describe("plan line", () => {
 });
 
 describe("add seats", () => {
-  it("keeps the $49 price and never offers a payment link", () => {
+  it("keeps the $49 price and never prints a payment link", () => {
     expect(SEATS_COMING_SOON).toContain("$49 per seat per month");
     expect(addSeatsMessage(false)).toMatch(/coming soon/);
-    expect(addSeatsMessage(true)).toMatch(/ask Athena in chat/);
+    expect(addSeatsMessage(true)).toMatch(/How many seats/);
     for (const m of [addSeatsMessage(true), addSeatsMessage(false)])
       expect(m).not.toMatch(/stripe|checkout|https?:/i);
   });

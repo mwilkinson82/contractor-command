@@ -1,15 +1,13 @@
 // v0.8.22 (staged): Team section on /account. Owners manage seats, invites, roles, job access and removals through
 // the same database functions as Athena's team tools. Non-owners see a read-only line. Navy/blue/gray; red only for errors.
 import { useCallback, useEffect, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { Loader2, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSeatPurchaseStatus } from "@/lib/account-team.functions";
+import { AddSeats } from "./add-seats";
 import {
   ROLE_LABEL,
   SEAT_PRICE_LABEL,
   TEAM_ROLES,
-  addSeatsMessage,
   inviteMember,
   inviteSavedMessage,
   loadAccountTeam,
@@ -53,11 +51,9 @@ export function useAccountTeam() {
 }
 
 export function TeamSection({ state, loading, reload }: ReturnType<typeof useAccountTeam>) {
-  const seatStatusFn = useServerFn(getSeatPurchaseStatus);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{
     user?: string;
@@ -124,16 +120,6 @@ export function TeamSection({ state, loading, reload }: ReturnType<typeof useAcc
     );
     if (done) setInv({ email: "", name: "", role: "pm", jobs: [] });
   }
-  async function onAddSeats() {
-    setSeatMsg(null);
-    let enabled = false;
-    try {
-      enabled = (await seatStatusFn()).checkoutEnabled === true;
-    } catch {
-      enabled = false;
-    }
-    setSeatMsg(addSeatsMessage(enabled)); // Never opens a payment page from here.
-  }
 
   return (
     <Shell>
@@ -145,11 +131,16 @@ export function TeamSection({ state, loading, reload }: ReturnType<typeof useAcc
           {seatSummary(team.seats)}
           {left != null ? ` · ${left} open` : ""}
         </p>
-        <button type="button" className={secondary} onClick={onAddSeats} disabled={busy}>
-          Add seats · {SEAT_PRICE_LABEL}
-        </button>
       </div>
-      {seatMsg && <p className="mt-2 text-[12px] text-[#374151]">{seatMsg}</p>}
+      <div className="mt-2">
+        <AddSeats
+          companyId={co}
+          buttonClassName={secondary}
+          primaryClassName={primary}
+          noteClassName="mt-2 text-[12px] text-[#374151]"
+          label={`Add seats · ${SEAT_PRICE_LABEL}`}
+        />
+      </div>
 
       <ul className="mt-5 divide-y divide-[#E5E7EB] rounded-xl border border-[#E5E7EB]">
         {team.members.map((m) => {

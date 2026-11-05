@@ -68,10 +68,14 @@ export function seatsLeft(s: Seats | null | undefined): number | null {
 }
 
 // ---- Add seats ---------------------------------------------------------------------------------------------------
-export const SEATS_COMING_SOON = `Adding seats here is coming soon. Extra seats are ${SEAT_PRICE_LABEL}. Ask Athena in chat and we'll set it up with you.`;
-export const SEATS_VIA_CHAT = `To add seats, ask Athena in chat ("add 2 seats"). Extra seats are ${SEAT_PRICE_LABEL}.`;
+export const SEATS_COMING_SOON = `Adding seats online is coming soon. Extra seats are ${SEAT_PRICE_LABEL}. Email support@meetathena.io and we'll set it up with you.`;
+export const SEATS_PICK = `How many seats do you want to add? Extra seats are ${SEAT_PRICE_LABEL}. You'll finish on a secure payment page.`;
+export const SEATS_DONE =
+  "Thanks. Your new seats show up here as soon as the payment goes through.";
+export const SEATS_FAILED =
+  "We couldn't open the payment page. Nothing was charged. Try again, or email support@meetathena.io.";
 export function addSeatsMessage(checkoutEnabled: boolean): string {
-  return checkoutEnabled ? SEATS_VIA_CHAT : SEATS_COMING_SOON;
+  return checkoutEnabled ? SEATS_PICK : SEATS_COMING_SOON;
 }
 
 // ---- Errors and inputs -------------------------------------------------------------------------------------------
