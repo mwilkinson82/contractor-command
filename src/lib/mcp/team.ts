@@ -43,7 +43,7 @@ export function seatLine(s: Seats): string {
 }
 
 export const SEAT_LIMIT_MESSAGE = (used: number, limit: number) =>
-  `You're at your seat limit (${used} of ${limit}, counting pending invites), so no invite was sent. Want to add seats? Extra seats are ${SEAT_PRICE_LABEL}.`;
+  `You're at your seat limit (${used} of ${limit}, counting pending invites), so no invite was sent. The company owner can add seats on the Athena account page, under Team & access.`;
 
 /** Parse the database's MCP_SEAT_LIMIT:<used>:<limit> error. */
 export function seatLimitFromError(message: string | undefined): { used: number; limit: number } | null {
