@@ -4,7 +4,7 @@ import { renderBriefHtml } from "./cards/brief-html";
 import { renderMarkdown } from "./cards/markdown";
 import { INBOX_SECTION, type BriefJob } from "./morning-brief";
 import { buildPmBrief, workDaysBetween } from "./morning-brief-pm";
-import { focusCpm, loadFocusData, type FocusAct, type FocusData } from "./morning-brief-focus";
+import { focusCpm, focusSubmittals, loadFocusData, type FocusAct, type FocusData } from "./morning-brief-focus";
 import { cardWidgetHtml } from "./cards/widget";
 import { nativeCardHtml } from "./cards/native";
 
@@ -121,6 +121,28 @@ describe("PM morning brief", () => {
     expect(money).toContain("$3,410,000");
     expect(money).toContain("Match needed");
     expect(money).toContain("Add it to the PM meeting");
+  });
+
+  it("reads the saved submittal log instead of saying none are logged", () => {
+    const submittals = focusSubmittals([
+      { number: "26 24 16-01", revision: 0, title: "Panelboards", status: "revise_and_resubmit", ball_in_court: "sub", ball_in_court_name: "Summit Ridge Electric", due_back: "2026-11-04" },
+      { number: "26 32 13-01", revision: 0, title: "Standby generator and ATS", status: "in_review", ball_in_court: "architect_engineer", ball_in_court_name: "Northbank Architects", due_back: "2026-11-11" },
+      { number: "26 05 19-01", revision: 0, title: "Wire and cable", status: "approved", ball_in_court: "gc", due_back: "2026-10-29" },
+      { number: "26 24 13-01", revision: 0, title: "Switchgear", status: "rejected", ball_in_court: "sub", due_back: "2026-10-20" },
+      { number: "26 24 13-01", revision: 1, title: "Switchgear", status: "in_review", ball_in_court: "architect_engineer", due_back: "2026-11-13" },
+    ]);
+    expect(submittals).toHaveLength(4);
+    const job = { ...JOB, items: [] } as BriefJob;
+    const { doc } = buildPmBrief({ jobs: [job], focus: new Map([[job.job_id, { ...FOCUS, submittals }]]), now: NOW, firstName: "Marshall" });
+    const section = JSON.stringify(doc.sections[3]);
+    expect(section).not.toContain("No submittals are logged");
+    expect(section).toContain("26 24 16-01 Panelboards");
+    expect(section).toContain("Revise and resubmit · with Sub, Summit Ridge Electric · was due Nov 4");
+    expect(section).toContain("26 32 13-01 Standby generator and ATS");
+    expect(section).not.toContain("Wire and cable");
+    expect(section).toContain("3 submittals");
+    const empty = buildPmBrief({ jobs: [job], focus: new Map([[job.job_id, { ...FOCUS, submittals: [] }]]), now: NOW, firstName: "Marshall" });
+    expect(JSON.stringify(empty.doc.sections[3])).toContain("No submittals are logged");
   });
 
   it("keeps money off a superintendent's brief", () => {

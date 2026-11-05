@@ -7,7 +7,7 @@ import { clockLabel } from "./field-reminder";
 import { dedupeOpenRows, dueOf, isOverdue, itemName, openItemFeed } from "./open-feed";
 import type { CardModel, CardRow, CardSection } from "./cards/model";
 import type { ChaseRow } from "./submittal-chase";
-import type { FocusAct, FocusData } from "./morning-brief-focus";
+import { openSubmittals, type FocusAct, type FocusData } from "./morning-brief-focus";
 import {
   briefView,
   classifyItem,
@@ -82,6 +82,15 @@ const dmd = (d: string) => `${DOW3[dow(d)]} ${md(d)}`;
 const longDay = (d: string) => `${DOW[dow(d)]}, ${MON[+d.slice(5, 7) - 1].replace("May", "May")} ${+d.slice(8, 10)}`;
 export const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const SUBMITTAL_STATUS_WORDS: Record<string, string> = {
+  not_started: "Not started",
+  in_prep: "In prep",
+  submitted: "Submitted",
+  in_review: "In review",
+  revise_and_resubmit: "Revise and resubmit",
+  rejected: "Rejected",
+};
+const BALL_WORDS: Record<string, string> = { sub: "Sub", gc: "GC", architect_engineer: "Architect or engineer", owner: "Owner" };
 const clip = (s: string, n = 90) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
 /** Working days from a to b (b later), on the schedule's calendar. Mask bit 1<<day, Sunday = 0. */
@@ -453,7 +462,25 @@ function coSection(c: Ctx, chases: ChaseRow[]): BriefSectionDoc | null {
       buttons: [{ label: "Chase it", prompt: `Chase submittal ${ch.number} revision ${ch.revision} on ${c.label}.`, kind: "secondary" }],
     });
   }
-  const hasSubmittalLog = items.some((it) => classifyItem(it) === "submittal") || chases.some((ch) => ch.job_id === c.job.job_id);
+  // The saved log itself: what's still moving, soonest due first, after any chases above.
+  const chased = new Set(chases.filter((ch) => !ch.job_id || ch.job_id === c.job.job_id).map((ch) => ch.number.trim().toLowerCase()));
+  const moving = openSubmittals(c.focus.submittals)
+    .filter((s) => !chased.has(s.number.trim().toLowerCase()))
+    .sort((a, b) => (a.due || "9").localeCompare(b.due || "9"));
+  if (c.view !== "superintendent") {
+    for (const s of moving.slice(0, Math.max(0, 3 - Math.min(seen.size, 3)))) {
+      const late = !!s.due && s.due < today;
+      const who = [BALL_WORDS[s.ball ?? ""] ?? null, s.ball_name].filter(Boolean).join(", ");
+      rows.push({
+        title: `${s.number} ${clip(s.title, 60)}`,
+        detail: [SUBMITTAL_STATUS_WORDS[s.status] ?? "Open", who ? `with ${who}` : null, s.due ? `${late ? "was due" : "due"} ${md(s.due)}` : null].filter(Boolean).join(" · "),
+        tone: late ? "bad" : null,
+        href: hrefOf(c.job, "submittals"),
+        buttons: [{ label: "Open the log", prompt: `Show me the submittal log for ${c.label}.`, kind: "secondary" }],
+      });
+    }
+  }
+  const hasSubmittalLog = items.some((it) => classifyItem(it) === "submittal") || chases.some((ch) => ch.job_id === c.job.job_id) || (c.focus.submittals?.length ?? 0) > 0;
   if (!hasSubmittalLog && c.view !== "superintendent") {
     rows.push({
       title: `No submittals are logged on ${c.label}`,
@@ -461,7 +488,7 @@ function coSection(c: Ctx, chases: ChaseRow[]): BriefSectionDoc | null {
       buttons: [{ label: "Set up the log", prompt: `Set up the submittal log for ${c.label}.`, kind: "secondary" }],
     });
   }
-  const submittals = items.filter((it) => classifyItem(it) === "submittal").length;
+  const submittals = Math.max(items.filter((it) => classifyItem(it) === "submittal").length, openSubmittals(c.focus.submittals).length);
   const rfis = items.filter((it) => classifyItem(it) === "rfi").length;
   return {
     step: 4,
