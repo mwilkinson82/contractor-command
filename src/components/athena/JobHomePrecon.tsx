@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PHASE_LABEL,
+  checkWaiting,
   creditState,
+  installmentWords,
   nextInstallment,
   preconMoney,
   preconNextStep,
@@ -88,22 +90,27 @@ export function preconBoardStep(a: PreconAgreement, jobNumber: string): NextStep
     return null;
   const title = preconNextStep(a);
   const inv = nextInstallment(a);
-  const ask = inv
-    ? `Send pre-con invoice ${inv.index} for job ${jobNumber} to the owner's client page.`
-    : a.status === "draft"
-      ? `The pre-con agreement for job ${jobNumber} went to the owner.`
-      : a.status === "sent"
-        ? `The owner signed the pre-con agreement for job ${jobNumber}.`
-        : a.status === "closed"
-          ? credit === "waiting"
-            ? `Move the pre-con credit change order on job ${jobNumber} to the owner.`
-            : `Add the pre-con credit to the contract on job ${jobNumber} as a change order.`
-          : `The owner approved the final drawings for job ${jobNumber}.`;
+  const check = checkWaiting(a);
+  const ask = check
+    ? `Set the check pickup for pre-con invoice ${check.invoice.number} on job ${jobNumber}.`
+    : inv
+      ? `Send pre-con payment ${inv.index} for job ${jobNumber} to the owner's client page.`
+      : a.status === "draft"
+        ? `Send the pre-con agreement for job ${jobNumber} to the owner's client page to sign.`
+        : a.status === "sent"
+          ? a.portal && a.portal.decision?.decision !== "declined"
+            ? `The owner signed the pre-con agreement for job ${jobNumber} on paper.`
+            : `Send the pre-con agreement for job ${jobNumber} to the owner's client page to sign.`
+          : a.status === "closed"
+            ? credit === "waiting"
+              ? `Move the pre-con credit change order on job ${jobNumber} to the owner.`
+              : `Add the pre-con credit to the contract on job ${jobNumber} as a change order.`
+            : `The owner approved the final drawings for job ${jobNumber}.`;
   return {
     title,
     detail:
       "Copy this into your Athena chat and Athena takes it from there. Nothing goes to the owner from here.",
-    label: inv ? `Invoice ${usd(inv.amount_cents)}` : "Copy for Athena",
+    label: check ? "Set pickup" : inv ? `Invoice ${usd(inv.amount_cents)}` : "Copy for Athena",
     ask,
     href: null,
   } as NextStep;
@@ -115,9 +122,13 @@ const statusLine = (a: PreconAgreement) =>
       ? `Won${a.closed_on ? ` ${a.closed_on}` : ""}: the owner hired you to build`
       : `Closed${a.closed_on ? ` ${a.closed_on}` : ""}: the owner kept the drawings`
     : a.status === "signed"
-      ? `Signed by ${a.signed_name ?? "the owner"}${a.signed_on ? ` on ${a.signed_on}` : ""}`
+      ? `Signed by ${a.signed_name ?? "the owner"}${a.signed_on ? ` on ${a.signed_on}` : ""}${a.signature ? " on the client page" : ""}`
       : a.status === "sent"
-        ? `Sent to the owner${a.sent_on ? ` ${a.sent_on}` : ""}`
+        ? a.portal?.decision?.decision === "declined"
+          ? `Declined by ${a.portal.decision.typed_name}`
+          : a.portal
+            ? `On the owner's client page to sign${a.portal.due_on ? ` by ${a.portal.due_on}` : ""}`
+            : `Sent to the owner${a.sent_on ? ` ${a.sent_on}` : ""}`
         : "Draft, not sent yet";
 
 /** The pre-con section of the board: only on jobs that have an agreement. */
@@ -141,9 +152,9 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
           <dd>
             {usd(a.price_cents)}
             <small>
-              {a.billing === "full"
-                ? "Billed at signing"
-                : "Half at signing, half at final drawings"}
+              {a.installments.length === 1
+                ? `Paid ${installmentWords(a.installments[0]!)}`
+                : `${a.installments.length} payments`}
             </small>
           </dd>
         </div>
@@ -195,6 +206,19 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
             <span style={{ width: `${hoursPct}%` }} />
           </div>
         </div>
+        {a.installments.length > 1 ? (
+          <ul className="jb-files" aria-label="Payments">
+            {a.installments.map((i, n) => (
+              <li key={n}>
+                <b>Payment {n + 1}</b>
+                <span>
+                  {usd(i.amount_cents)} {installmentWords(i)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {a.signature ? <SignatureRecord a={a} /> : null}
         <details className="jb-precon-more">
           <summary>Price build-up and invoices</summary>
           <div className="jb-table-wrap">
@@ -265,7 +289,7 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
                         ? "Paid"
                         : settled
                           ? `${usd(settled)} paid`
-                          : "Open"}
+                          : (checkLine(a, i.id) ?? "Open")}
                     </span>
                   </li>
                 );
@@ -294,6 +318,50 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
         </details>
       </div>
     </section>
+  );
+}
+
+/** "Paying by check, pickup Nov 10" on an open pre-con invoice, or null. */
+function checkLine(a: PreconAgreement, invoiceId: string): string | null {
+  const c = (a.checks ?? []).find((x) => x.invoice_id === invoiceId);
+  if (!c) return null;
+  if (c.pickup_on)
+    return `Check pickup ${c.pickup_on}${c.pickup_window ? `, ${c.pickup_window}` : ""}`;
+  return c.requested_at ? "Paying by check, set a pickup date" : null;
+}
+
+/** What the owner signed on their client page, kept for the record. */
+function SignatureRecord({ a }: { a: PreconAgreement }) {
+  const sig = a.signature!;
+  const rows: [string, string][] = [
+    ["Signed by", `${sig.typed_name} (${sig.email})`],
+    [
+      "When",
+      new Date(sig.decided_at).toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    ],
+    ["Confirmed", sig.code_verified ? "With a code emailed to the owner" : "Without a code"],
+    ...(sig.consent ? ([["Electronic consent", sig.consent]] as [string, string][]) : []),
+    ...(sig.ip || sig.user_agent
+      ? ([["From", [sig.ip, sig.user_agent].filter(Boolean).join(" · ")]] as [string, string][])
+      : []),
+    ["Document fingerprint", sig.fingerprint],
+    ["Exact words agreed", sig.statement],
+  ];
+  return (
+    <details className="jb-precon-more">
+      <summary>Signed on the client page</summary>
+      <dl className="jb-sig">
+        {rows.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
   );
 }
 

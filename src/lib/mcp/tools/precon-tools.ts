@@ -17,7 +17,9 @@ import {
   PHASE_LABEL,
   PHASE_STRIP,
   PRECON_PHASES,
+  checkWaiting,
   creditState,
+  installmentWords,
   nextInstallment,
   preconMoney,
   preconNextStep,
@@ -30,6 +32,15 @@ import {
 } from "../../precon/model";
 import { companyLogoUrl } from "../document-email-brand";
 import { notifyAll } from "./customer-portal-tools";
+import {
+  portalUrl,
+  preconDueWords,
+  preconTerms,
+  wholePrice,
+  type PreconAgreementView,
+} from "../../customer-portal/model";
+import { checkPickupEmail, sendPortalEmail } from "../../customer-portal/email";
+import { newToken } from "../file-share";
 
 export {
   PRECON_PHASES,
@@ -125,11 +136,12 @@ export function preconCard(p: PreconPayload, note?: string | null): CardModel {
       rows: [
         {
           cells: [
-            a.billing === "full"
-              ? `Billed in full at signing`
-              : `Billed ${usd(a.installments[0]?.amount_cents)} at signing and ${usd(a.installments[1]?.amount_cents)} at final drawings`,
+            a.installments.length === 1
+              ? `Paid ${installmentWords(a.installments[0]!)}`
+              : `Paid in ${a.installments.length} payments: ${a.installments.map((i) => `${usd(i.amount_cents)} ${installmentWords(i)}`).join(", ")}`,
           ],
         },
+        ...(a.own_terms ?? []).map((t) => ({ cells: [`Also agreed: ${t}`] })),
         {
           cells: [
             a.owner_owns_drawings
@@ -152,6 +164,29 @@ export function preconCard(p: PreconPayload, note?: string | null): CardModel {
       ],
     },
   ];
+  const sig = a.signature;
+  if (sig)
+    sections.push({
+      heading: "Signed on the client page",
+      kind: "table",
+      columns: ["", ""],
+      rows: [
+        { cells: ["Signed by", `${sig.typed_name} <${sig.email}>`] },
+        { cells: ["When", new Date(sig.decided_at).toUTCString().replace("GMT", "UTC")] },
+        {
+          cells: [
+            "Confirmed",
+            sig.code_verified ? "With a code emailed to the owner" : "Without a code",
+          ],
+        },
+        ...(sig.consent ? [{ cells: ["Electronic consent", sig.consent] }] : []),
+        ...(sig.ip || sig.user_agent
+          ? [{ cells: ["From", [sig.ip, sig.user_agent].filter(Boolean).join(" · ")] }]
+          : []),
+        { cells: ["Document fingerprint", sig.fingerprint] },
+        { cells: ["Exact words agreed", sig.statement] },
+      ],
+    });
   const cc = a.credit_change;
   if (a.invoices.length || cc)
     sections.push({
@@ -168,7 +203,7 @@ export function preconCard(p: PreconPayload, note?: string | null): CardModel {
               ? "Paid"
               : i.status === "void"
                 ? "Void"
-                : "Open",
+                : (checkLabel(a, i.id) ?? "Open"),
           ],
           refId: i.id,
         })),
@@ -207,6 +242,64 @@ export function preconCard(p: PreconPayload, note?: string | null): CardModel {
   };
 }
 
+/** "Owner paying by check, pickup Nov 10" on an open invoice, or null. */
+function checkLabel(a: PreconAgreement, invoiceId: string): string | null {
+  const c = (a.checks ?? []).find((x) => x.invoice_id === invoiceId);
+  if (!c) return null;
+  if (c.pickup_on)
+    return `Check pickup ${c.pickup_on}${c.pickup_window ? `, ${c.pickup_window}` : ""}`;
+  return c.requested_at ? "Owner paying by check, pickup not set yet" : null;
+}
+
+/** The agreement as the owner would see it on their page, for reading the terms back before saving or sending. */
+export function ownerView(
+  a: PreconAgreement,
+  job: string,
+  change: {
+    payments?: { amount_cents: number; due: string; on?: string | null; when?: string | null }[];
+    own_terms?: string[];
+    construction_line?: boolean;
+  } = {},
+): PreconAgreementView {
+  const pays = change.payments?.length
+    ? change.payments.map((p, n) => ({
+        index: n + 1,
+        amount_cents: p.amount_cents,
+        due: p.due as PreconAgreementView["payments"][number]["due"],
+        on: p.on ?? null,
+        when: p.when
+          ? p.when.charAt(0).toLowerCase() + p.when.slice(1).replace(/[.;,]+$/, "")
+          : null,
+      }))
+    : a.installments.map((i, n) => ({
+        index: n + 1,
+        amount_cents: i.amount_cents,
+        due: i.when,
+        on: i.on ?? null,
+        when: i.step ?? null,
+      }));
+  return {
+    title: `Pre-construction agreement · ${job}`,
+    price_cents: a.price_cents,
+    design_partner: a.design_partner,
+    design_role: a.design_role,
+    design_days: a.design_days,
+    includes: a.includes,
+    payments: pays,
+    owner_owns_drawings: a.owner_owns_drawings,
+    credit_days: a.credit ? a.credit_days : null,
+    own_terms: change.own_terms ?? a.own_terms ?? [],
+    construction_line: change.construction_line ?? a.construction_line ?? true,
+  };
+}
+
+/** The terms read back word for word, numbered as the owner sees them. */
+export function termsReadBack(v: PreconAgreementView, company: string, job: string): string {
+  return preconTerms(v, company, job)
+    .map((t, n) => `${n + 1}. ${t.heading}. ${t.text}`)
+    .join("\n");
+}
+
 async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (
     sb.rpc as unknown as (
@@ -237,9 +330,21 @@ export const precon = defineTool({
     "Actions: get; save (terms, before signing, with expected_version from get, 0 for a new agreement); step (sent, signed with the signer's name, drawings_approved, hours as a running total, won, lost, reopen); issue_invoice (sends the next installment to the owner's client page as a bill they can pay by card or bank, with no fee build-up on it); apply_credit (the fee credit goes on the construction contract as a deductive change order the owner approves: without change_order_id it says how to make it with change_order_record, with one it links it). " +
     "Pre-con is optional per job: only start one when the member says this job has a pre-construction agreement. Read every amount, date and name from what the member says; never mark the agreement sent or signed, or the drawings approved, unless the member said so. " +
     "issue_invoice reaches the owner and apply_credit changes the job's money: show the member what goes out first and call with confirmed true only after their yes. " +
+    "Owners sign on their client page: terms saves this agreement's own payments (each an amount in cents and when it's due: signing, final_drawings, date with on, or step with when in the owner's words like \"when you approve the schematic design\"; they must add up to the price), the contractor's own extra terms (own_terms, up to 10 sentences, word for word) and whether to show the standard construction line. Every agreement's terms are different, so ask the member for the payments and anything else they want in it before sending; read them back exactly as the owner will see them and save with confirmed true only on their yes. " +
+    "send_to_client_page puts the agreement on the owner's client page to sign (due_on is the sign-by date), and emails them; the owner reads what they get, who draws it, the payments and the terms (never the fee build-up), agrees to sign electronically, and signs with a code we email them and their typed name. Changing the terms after sending takes it off their page until it's sent again. Show the member who gets it and call with confirmed true only after their yes. " +
+    "When an owner says they're paying a pre-con bill by check, check_pickup sets when the contractor collects it (on, pickup_window like \"9:00 to 10:00 AM\", pickup_place, pickup_by); the owner sees it on their page and by email. Read it back and call with confirmed true only after the member's yes. Record the check itself as a payment once it's in hand. " +
     "After each call, walk the member to the next step on the card (for example: Did the owner sign it? Send invoice 2 for $8,500 to the owner's client page? Add the pre-con credit to the contract as a change order?).",
   inputSchema: {
-    action: z.enum(["get", "save", "step", "issue_invoice", "apply_credit"]),
+    action: z.enum([
+      "get",
+      "save",
+      "step",
+      "issue_invoice",
+      "apply_credit",
+      "terms",
+      "send_to_client_page",
+      "check_pickup",
+    ]),
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().uuid().optional(),
     expected_version: z
@@ -340,6 +445,37 @@ export const precon = defineTool({
       .uuid()
       .optional()
       .describe("apply_credit: the deductive change order that carries the credit."),
+    payments: z
+      .array(
+        z.object({
+          amount_cents: z.number().int().min(1),
+          due: z.enum(["signing", "final_drawings", "date", "step"]),
+          on: date.optional(),
+          when: text(120).optional(),
+        }),
+      )
+      .max(12)
+      .optional()
+      .describe("terms: the owner's payments in order; they must add up to the agreement price."),
+    own_terms: z
+      .array(text(600).min(1))
+      .max(10)
+      .optional()
+      .describe("terms: the contractor's own extra terms, word for word."),
+    construction_line: z
+      .boolean()
+      .optional()
+      .describe(
+        "terms: show the line that building needs its own construction contract. Default true.",
+      ),
+    invoice_id: z
+      .string()
+      .uuid()
+      .optional()
+      .describe("check_pickup: the pre-con invoice; default the one the owner is paying by check."),
+    pickup_window: text(60).optional().describe("check_pickup: the time, like 9:00 to 10:00 AM."),
+    pickup_place: text(200).optional().describe("check_pickup: where, like the job site."),
+    pickup_by: text(120).optional().describe("check_pickup: who collects it."),
     confirmed: z.boolean().optional(),
   },
   annotations: {
@@ -396,6 +532,168 @@ export const precon = defineTool({
             ...(args.hours !== undefined ? { hours: args.hours } : {}),
           },
         });
+      } else if (
+        args.action === "terms" ||
+        args.action === "send_to_client_page" ||
+        args.action === "check_pickup"
+      ) {
+        const cur = await read();
+        const a = cur.agreement;
+        if (!a)
+          throw new ToolError(
+            "This job has no pre-construction agreement. Start one first. Nothing was saved.",
+          );
+        const company =
+          (await memberCompanies(sb)).find((c) => c.id === job.company_id)?.name ?? "Your company";
+        const who = (cur.portal_customers ?? []).map((x) => `${x.name} <${x.email}>`).join(", ");
+        if (args.action === "terms") {
+          if (
+            args.payments === undefined &&
+            args.own_terms === undefined &&
+            args.construction_line === undefined
+          )
+            throw new ToolError(
+              "Send the payments, your own terms or the construction line. Nothing was saved.",
+            );
+          if (args.payments?.length) {
+            const total = args.payments.reduce((t, p) => t + p.amount_cents, 0);
+            if (total !== a.price_cents)
+              throw new ToolError(
+                `The payments add up to ${usd(total)}, and the agreement price is ${usd(a.price_cents)}. Make them match. Nothing was saved.`,
+              );
+          }
+          const v = ownerView(a, job.name, {
+            payments: args.payments,
+            own_terms: args.own_terms,
+            construction_line: args.construction_line,
+          });
+          if (!args.confirmed) {
+            payload = cur;
+            note = `Here are the terms exactly as the owner will read them:\n${termsReadBack(v, company, job.name)}\nShould I save these terms on the agreement?`;
+          } else {
+            payload = await rpc<PreconPayload>(sb, "mcp_precon_terms_save", {
+              _job: job.job_id,
+              _p: {
+                expected_version: a.version,
+                ...(args.payments !== undefined
+                  ? {
+                      payments: args.payments.map((p) => ({
+                        amount_cents: p.amount_cents,
+                        due: p.due,
+                        ...(p.due === "date" ? { on: p.on } : {}),
+                        ...(p.due === "step" ? { when: p.when } : {}),
+                      })),
+                    }
+                  : {}),
+                ...(args.own_terms !== undefined ? { own_terms: args.own_terms } : {}),
+                ...(args.construction_line !== undefined
+                  ? { construction_line: args.construction_line }
+                  : {}),
+              },
+            });
+            note = `Saved the terms (v${payload.agreement?.version}).${a.portal ? " The earlier version came off the owner's client page, so send it again for them to sign." : ""}`;
+          }
+        } else if (args.action === "send_to_client_page") {
+          if (!args.confirmed) {
+            payload = cur;
+            const v = ownerView(a, job.name);
+            note = !who
+              ? "Nobody has a client page on this job yet. Invite the owner with customer_portal invite first, then I'll send the agreement."
+              : `Ready to put the ${wholePrice(a.price_cents)} pre-construction agreement on ${who}'s client page to sign${args.due_on ? `, sign by ${args.due_on}` : ""}, with an email that it's there. They'll see what they get, who draws it, the payments (${v.payments.map((p) => `${wholePrice(p.amount_cents)} ${preconDueWords(p)}`).join(", ")}) and these terms, never your fee build-up:\n${termsReadBack(v, company, job.name)}\nThey agree to sign electronically and sign with a code we email them and their typed name. Should I send it?`;
+          } else {
+            const r = await rpc<
+              PreconPayload & {
+                label: string;
+                recipients: { access_id: string; email: string; name: string }[];
+              }
+            >(sb, "mcp_precon_portal_send", {
+              _job: job.job_id,
+              _p: { expected_version: a.version, ...(args.due_on ? { due_on: args.due_on } : {}) },
+            });
+            payload = { ...cur, agreement: r.agreement };
+            const sent =
+              args.notify === false
+                ? ["No email went out; it shows on their client page."]
+                : await notifyAll(
+                    { recipients: r.recipients, company, job_name: job.name },
+                    "decision",
+                    r.label,
+                    await companyLogoUrl(sb, job.company_id),
+                    "precon_agreement",
+                  );
+            note = ["Sent the agreement to the owner's client page to sign.", ...sent].join(" ");
+          }
+        } else {
+          const waiting = checkWaiting(a);
+          const invoiceId = args.invoice_id ?? waiting?.invoice.id;
+          const inv = a.invoices.find((i) => i.id === invoiceId);
+          if (!inv)
+            throw new ToolError("Say which pre-con invoice the check is for. Nothing was set.");
+          if (!args.on)
+            throw new ToolError("Say the day you'll collect the check. Nothing was set.");
+          const day = new Date(`${args.on}T12:00:00Z`).toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            timeZone: "UTC",
+          });
+          const owner = cur.portal_customers?.[0]?.name ?? "The owner";
+          if (!args.confirmed) {
+            payload = cur;
+            note = `Set the check pickup for ${inv.number} (${wholePrice(inv.net_due_cents)}) on ${day}${args.pickup_window ? `, ${args.pickup_window}` : ""}${args.pickup_place ? ` at ${args.pickup_place}` : ""}${args.pickup_by ? `, with ${args.pickup_by} collecting` : ""}? ${owner} sees it on their page${who ? " and gets an email" : ""}.`;
+          } else {
+            const r = await rpc<
+              PreconPayload & {
+                number: string;
+                amount_cents: number;
+                pickup_on: string;
+                pickup_window: string | null;
+                pickup_place: string | null;
+                pickup_by: string | null;
+                recipients: { access_id: string; email: string; name: string }[];
+              }
+            >(sb, "mcp_precon_check_pickup", {
+              _job: job.job_id,
+              _p: {
+                invoice_id: inv.id,
+                on: args.on,
+                ...(args.pickup_window ? { window: args.pickup_window } : {}),
+                ...(args.pickup_place ? { place: args.pickup_place } : {}),
+                ...(args.pickup_by ? { by: args.pickup_by } : {}),
+              },
+            });
+            payload = { ...cur, agreement: r.agreement };
+            const logo = await companyLogoUrl(sb, job.company_id);
+            const sent: string[] = [];
+            if (args.notify !== false)
+              for (const x of r.recipients) {
+                const res = await sendPortalEmail(
+                  checkPickupEmail({
+                    to: x.email,
+                    name: x.name,
+                    company,
+                    jobName: job.name,
+                    amount: wholePrice(r.amount_cents),
+                    day,
+                    window: r.pickup_window,
+                    place: r.pickup_place,
+                    by: r.pickup_by,
+                    link: `${portalUrl(x.access_id)}?s=billing`,
+                    logo,
+                    nonce: newToken(),
+                  }),
+                );
+                sent.push(
+                  `${x.email}: ${res === "sent" ? "emailed" : res === "off" ? "not emailed (customer email is off)" : "email failed"}`,
+                );
+              }
+            note = [
+              `Done. ${owner} has the pickup date. When you have the check, tell me and I'll record it as paid.`,
+              ...sent,
+            ].join(" ");
+          }
+        }
       } else {
         const cur = await read();
         const a = cur.agreement;
@@ -409,13 +707,13 @@ export const precon = defineTool({
               a.status !== "signed" && a.status !== "closed"
                 ? "The owner hasn't signed the agreement yet. Nothing was billed."
                 : a.invoices.filter((i) => i.status !== "void").length < a.installments.length
-                  ? "The second payment is due at final drawings. Tell me when the owner approves them. Nothing was billed."
+                  ? "The next payment is due when the owner approves the final drawings. Tell me when they do. Nothing was billed."
                   : "Every installment is already billed. Nothing was billed.",
             );
           const who = (cur.portal_customers ?? []).map((x) => `${x.name} <${x.email}>`).join(", ");
           if (!args.confirmed) {
             payload = cur;
-            note = `Ready to send invoice ${next.index} for ${usd(next.amount_cents)}${args.due_on ? `, due ${args.due_on}` : ""} to ${who ? `${who} on their client page, with an email that it's there` : "the owner's client page (nobody has one on this job yet, so invite the owner first or it waits there)"}. They can pay by card or bank there. They see what the agreement includes, never your fee build-up. Say yes and I'll send it.`;
+            note = `Ready to send payment ${next.index} for ${usd(next.amount_cents)} (due ${next.words})${args.due_on ? `, pay by ${args.due_on}` : ""} to ${who ? `${who} on their client page, with an email that it's there` : "the owner's client page (nobody has one on this job yet, so invite the owner first or it waits there)"}. They can pay there by card or bank when your payments are set up, or tell you they're paying by check. They see what the agreement includes, never your fee build-up. Say yes and I'll send it.`;
           } else {
             const r = await rpc<
               PreconPayload & {
