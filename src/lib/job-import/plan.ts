@@ -168,6 +168,21 @@ function sovKeys(lines: ImportJob["sov"]): string[] {
   return lines.map((_, i) => String(i + 1).padStart(width, "0"));
 }
 
+const CONTRACT_FACT_LABELS: Record<string, string> = {
+  contract_value: "the contract value",
+  contract_value_basis: "the contract value basis",
+  executed_change_orders: "the executed change orders",
+  retainage: "retainage",
+  customer: "the customer",
+  substantial_completion: "the substantial completion date",
+};
+
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   const job = importJob.parse(raw);
   const from = SOURCE_NAME[job.source.system];
@@ -191,11 +206,19 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     contractFacts.retainage = `${job.contract.retainage_pct}%`;
   if (job.job.customer) contractFacts.customer = job.job.customer;
   if (job.job.completion_date) contractFacts.substantial_completion = job.job.completion_date;
+  const keptContract: string[] = [];
   for (const key of Object.keys(contractFacts)) {
     if ((ctx.contract_keys ?? []).includes(key)) {
-      kept.push(`Contract ${key.replace(/_/g, " ")} already on the job; kept Athena's.`);
+      keptContract.push(CONTRACT_FACT_LABELS[key] ?? key.replace(/_/g, " "));
       delete contractFacts[key];
     }
+  }
+  if (keptContract.length) {
+    const list = joinList(keptContract);
+    const verb = keptContract.length === 1 ? "is" : "are";
+    kept.push(
+      `${list.charAt(0).toUpperCase()}${list.slice(1)} ${verb} already on the job; kept Athena's.`,
+    );
   }
 
   // SOV, opening balances, budget
