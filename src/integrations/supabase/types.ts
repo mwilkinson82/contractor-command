@@ -7093,6 +7093,86 @@ export type Database = {
           },
         ]
       }
+      mcp_portal_check_requests: {
+        Row: {
+          access_id: string | null
+          company_id: string
+          created_at: string
+          id: string
+          item_id: string
+          job_id: string
+          note: string | null
+          pickup_by: string | null
+          pickup_on: string | null
+          pickup_place: string | null
+          pickup_set_at: string | null
+          pickup_set_by: string | null
+          pickup_window: string | null
+          requested_at: string | null
+        }
+        Insert: {
+          access_id?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          item_id: string
+          job_id: string
+          note?: string | null
+          pickup_by?: string | null
+          pickup_on?: string | null
+          pickup_place?: string | null
+          pickup_set_at?: string | null
+          pickup_set_by?: string | null
+          pickup_window?: string | null
+          requested_at?: string | null
+        }
+        Update: {
+          access_id?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          job_id?: string
+          note?: string | null
+          pickup_by?: string | null
+          pickup_on?: string | null
+          pickup_place?: string | null
+          pickup_set_at?: string | null
+          pickup_set_by?: string | null
+          pickup_window?: string | null
+          requested_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_check_requests_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_check_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_check_requests_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_check_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_portal_codes: {
         Row: {
           access_id: string
@@ -7142,6 +7222,7 @@ export type Database = {
           access_id: string
           choice: string | null
           code_verified: boolean
+          consent: string | null
           decided_at: string
           decision: string
           email: string
@@ -7158,6 +7239,7 @@ export type Database = {
           access_id: string
           choice?: string | null
           code_verified: boolean
+          consent?: string | null
           decided_at?: string
           decision: string
           email: string
@@ -7174,6 +7256,7 @@ export type Database = {
           access_id?: string
           choice?: string | null
           code_verified?: boolean
+          consent?: string | null
           decided_at?: string
           decision?: string
           email?: string
@@ -7606,6 +7689,7 @@ export type Database = {
           billing: string
           closed_on: string | null
           company_id: string
+          construction_line: boolean
           created_at: string
           created_by: string
           credit: boolean
@@ -7625,9 +7709,13 @@ export type Database = {
           job_id: string
           note: string | null
           outcome: string | null
+          own_terms: Json
           owner_owns_drawings: boolean
+          payments: Json
+          portal_item_id: string | null
           price_cents: number
           sent_on: string | null
+          signed_decision_id: string | null
           signed_name: string | null
           signed_on: string | null
           signed_via: string | null
@@ -7641,6 +7729,7 @@ export type Database = {
           billing?: string
           closed_on?: string | null
           company_id: string
+          construction_line?: boolean
           created_at?: string
           created_by?: string
           credit?: boolean
@@ -7660,9 +7749,13 @@ export type Database = {
           job_id: string
           note?: string | null
           outcome?: string | null
+          own_terms?: Json
           owner_owns_drawings?: boolean
+          payments?: Json
+          portal_item_id?: string | null
           price_cents?: number
           sent_on?: string | null
+          signed_decision_id?: string | null
           signed_name?: string | null
           signed_on?: string | null
           signed_via?: string | null
@@ -7676,6 +7769,7 @@ export type Database = {
           billing?: string
           closed_on?: string | null
           company_id?: string
+          construction_line?: boolean
           created_at?: string
           created_by?: string
           credit?: boolean
@@ -7695,9 +7789,13 @@ export type Database = {
           job_id?: string
           note?: string | null
           outcome?: string | null
+          own_terms?: Json
           owner_owns_drawings?: boolean
+          payments?: Json
+          portal_item_id?: string | null
           price_cents?: number
           sent_on?: string | null
+          signed_decision_id?: string | null
           signed_name?: string | null
           signed_on?: string | null
           signed_via?: string | null
@@ -7727,6 +7825,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_precon_agreements_portal_item_id_fkey"
+            columns: ["portal_item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_precon_agreements_signed_decision_id_fkey"
+            columns: ["signed_decision_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_decisions"
             referencedColumns: ["id"]
           },
         ]
@@ -12522,6 +12634,17 @@ export type Database = {
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
       mcp_portal_brand: { Args: { _access: string }; Returns: Json }
+      mcp_portal_check_request: {
+        Args: {
+          _access: string
+          _ip: string
+          _item: string
+          _note: string
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
       mcp_portal_code_issue: {
         Args: {
           _access: string
@@ -12632,6 +12755,23 @@ export type Database = {
         Args: { _body: string; _job: string; _title: string; _week_of: string }
         Returns: Json
       }
+      mcp_portal_precon_sign: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _consent: string
+          _decision: string
+          _fingerprint: string
+          _ip: string
+          _item: string
+          _note: string
+          _session_hash: string
+          _statement: string
+          _typed_name: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
       mcp_portal_revoke: {
         Args: { _access: string; _job: string }
         Returns: Json
@@ -12683,13 +12823,22 @@ export type Database = {
         Args: { _item: string; _job: string }
         Returns: Json
       }
+      mcp_precon_check_pickup: {
+        Args: { _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_precon_get: { Args: { _job: string }; Returns: Json }
       mcp_precon_invoice_share: {
         Args: { _job: string; _p: Json }
         Returns: Json
       }
+      mcp_precon_portal_send: {
+        Args: { _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_precon_save: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_precon_step: { Args: { _job: string; _p: Json }; Returns: Json }
+      mcp_precon_terms_save: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_progress_photo_create: {
         Args: {
           _activity: string

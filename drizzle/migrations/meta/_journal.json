@@ -722,6 +722,20 @@
       "when": 1793893119322,
       "tag": "0102_athena_precon",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1793904147082,
+      "tag": "0103_athena_precon_signing",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1793904353190,
+      "tag": "0104_athena_precon_signing_repo_exact",
+      "breakpoints": true
     }
   ]
 }
