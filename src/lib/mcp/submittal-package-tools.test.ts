@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { replyCodeFor } from "../submittal-replies/reply-link";
 import { PDFDocument } from "pdf-lib";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
@@ -149,6 +150,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261030130000_athena_submittal_log_approval_only.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030140000_athena_sov_contract_total_guard.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030160000_athena_submittal_package_delivery_link.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261105161000_athena_submittal_replies.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(
@@ -641,6 +643,20 @@ describe("real package handlers with local DB and immutable storage", () => {
       },
     });
     const d = draft.structuredContent;
+    // The reviewer's return page and capture address ride on every package email; the same draft twice is one row.
+    const code = await replyCodeFor(a.download_url);
+    expect(d.draft!.cc).toEqual([`submittals+${code}@meetathena.io`]);
+    expect(d.draft!.body).toContain(`https://app.meetathena.io/r/submittal-return/${code}`);
+    expect((d as Record<string, unknown>).reply_capture).toMatchObject({ address: `submittals+${code}@meetathena.io`, reply_to_supported: false });
+    const redraft = await call(submittalDelivery, {
+      action: "draft",
+      job_number: "2701",
+      submittal_id: sid,
+      kind: "package",
+      package_id: a.id,
+      draft: { to: "reviewer@example.com", cc: d.draft!.cc, subject: "Job 2701 fictional package", body: d.draft!.body, link: a.download_url },
+    });
+    expect(redraft.structuredContent.delivery_id).toBe(d.delivery_id);
     await call(submittalDelivery, {
       action: "approve",
       job_number: "2701",

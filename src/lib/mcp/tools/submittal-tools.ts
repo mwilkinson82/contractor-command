@@ -39,6 +39,8 @@ import { money } from "../sov";
 import { todayIn } from "../deadlines";
 import { dueOf, isOverdue, openItemFeed } from "../open-feed";
 import { scheduleSubmittalGroups, type ScheduleActivity, type TrackingItem } from "../schedule-submittals";
+import { REPLY_ACTIONS } from "../../submittal-replies/reply-link";
+import { presentReplies, type ReplyList } from "../../submittal-replies/present";
 
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
@@ -200,6 +202,19 @@ export async function resolveSubmittalJob(sb: Sb, jobNumber: string | undefined,
   return resolveJob(sb, picked.job_number, picked.company_id, need);
 }
 
+/** Returned submittals on a job (mcp_submittal_replies_list). Null before the replies migration is applied. */
+async function readReplies(sb: Sb, jobId: string, needsReviewOnly = false): Promise<ReplyList | null> {
+  const result = await (sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string; code?: string } | null }>)(
+    "mcp_submittal_replies_list",
+    { _job: jobId, _submittal: null, _needs_review_only: needsReviewOnly, _limit: 50 },
+  );
+  if (result.error) {
+    if (isMissingFunction(result.error)) return null;
+    dbError(result.error);
+  }
+  return result.data as ReplyList;
+}
+
 function submittalViewOnly(args: { spec_section?: string; title?: string; number?: string; submittal_id?: string }): boolean {
   return !args.spec_section?.trim() && !args.title?.trim() && !args.number?.trim() && !args.submittal_id;
 }
@@ -245,10 +260,12 @@ function whichJobCard(tool: "submittal_log" | "submittals_list" | "submittals_im
 export const submittalLog = defineTool({
   name: "submittal_log",
   title: "Hey Athena, log a submittal",
-  description: "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall.",
+  description: "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall. confirm_reply sets the status from a reviewer's emailed reply (response_id from submittals_list returned) once the member names it.",
   inputSchema: {
-    action: z.enum(["add", "update", "resubmit"]),
+    action: z.enum(["add", "update", "resubmit", "confirm_reply"]),
     job_number: jobNumber.optional(),
+    response_id: z.string().uuid().optional(),
+    reply_action: z.enum([...REPLY_ACTIONS, "none"]).optional(),
     company_id: companyId,
     submittal_id: z.string().uuid().optional(),
     number: z.string().trim().max(40).optional(),
@@ -274,6 +291,27 @@ export const submittalLog = defineTool({
   annotations: SAVE,
   handler: (args, ctx) =>
     run("submittal_log", ctx, { jobNumber: args.job_number }, async (sb) => {
+      if (args.action === "confirm_reply") {
+        // An emailed reply is not a status until the member says which one. The database updates the log and its
+        // history the same way as any status change.
+        if (!args.response_id || !args.reply_action)
+          throw new ToolError("Which reply, and what status did the reviewer give it? Nothing was saved.");
+        const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, "full");
+        if (!job) return whichJobCard("submittal_log", await listCompaniesAndJobs(sb, args.company_id, "submittal_log"));
+        const done = await call<{ number?: string; action_label?: string; review_status?: string }>(sb, "mcp_submittal_reply_confirm", {
+          _job: job.job_id,
+          _response: args.response_id,
+          _action: args.reply_action,
+        });
+        await audit(sb, job, "submittal_log", "confirm_reply", args.response_id);
+        const list = (await readReplies(sb, job.job_id)) ?? { can_confirm: true, needs_review: 0, replies: [] };
+        const note =
+          done.review_status === "dismissed"
+            ? `Marked the reply on ${done.number ?? "the submittal"} as not a return. The log did not change.`
+            : `${done.number ?? "The submittal"} is now ${done.action_label ?? "updated"} on the log.`;
+        const presented = presentReplies(job.job_number, job.name, list, note);
+        return cardResult(presented.text, presented.card, { read_only: false, needs_review: list.needs_review });
+      }
       const view = submittalViewOnly(args);
       const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, view ? undefined : "full");
       if (!job) return whichJobCard("submittal_log", await listCompaniesAndJobs(sb, args.company_id, "submittal_log"));
@@ -314,13 +352,14 @@ export const submittalLog = defineTool({
 export const submittalsList = defineTool({
   name: "submittals_list",
   title: "Submittal log and overdue submittals",
-  description: "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
+  description: "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active. returned true lists submittals the architect or engineer sent back, and emailed replies that still need a status.",
   inputSchema: {
     job_number: jobNumber.optional(),
     company_id: companyId,
     status: z.enum(SUBMITTAL_STATUSES).optional(),
     overdue: z.boolean().optional(),
     ball_in_court: z.enum(BALL_PARTIES).optional(),
+    returned: z.boolean().optional(),
   },
   annotations: READ,
   handler: (args, ctx) =>
@@ -330,6 +369,16 @@ export const submittalsList = defineTool({
       if (job.scope !== "full" && job.scope !== "super") throw new ToolError(FULL_ACCESS_MESSAGE);
       // mcp_submittals for this job id only. Company membership is the row policy (full or super).
       // The living-report reader is not called: it returns the whole CPM and its change log and can sit until the host times out.
+      if (args.returned) {
+        const list = (await readReplies(sb, job.job_id)) ?? { can_confirm: false, needs_review: 0, replies: [] };
+        const presented = presentReplies(job.job_number, job.name, list);
+        return cardResult(presented.text, presented.card, {
+          read_only: job.scope !== "full",
+          can_confirm: list.can_confirm,
+          needs_review: list.needs_review,
+          replies: list.replies.map((r) => ({ id: r.id, number: r.number, source: r.source, review_status: r.review_status, action: r.action })),
+        });
+      }
       return showListedLog(sb, job, { status: args.status, overdue: args.overdue, ball: args.ball_in_court });
     }),
 });

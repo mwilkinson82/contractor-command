@@ -2,7 +2,7 @@ import {changeSections} from "../change-orders";
 import { submittalHistoryOrder } from "../../submittal-history-order";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { dbError, run, text, type Sb } from "../guard";
+import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { boardFor, resolveSubmittalJob } from "./submittal-tools";
 import { guide } from "../visible";
 import type { CardModel, CardRow } from "../cards/model";
@@ -31,6 +31,13 @@ import type { SubmittalRecordPayload } from "../../submittal-record-page";
 import { submittalBuildTime } from "../../submittal-build-time";
 import { requestSections } from "../request-log";
 import { packagePurpose } from "../package-purpose";
+import {
+  replyAddress,
+  replyCodeFor,
+  replyCodeHash,
+  replyPageUrl,
+  withReplyCapture,
+} from "../../submittal-replies/reply-link";
 
 /** One line per piece: short name, what, who, status, whether a file is stored, and the id any host can pass back. */
 function pieceLine(item: PackageContext["items"][number], n: number): string {
@@ -695,6 +702,33 @@ export const submittalDelivery = defineTool({
           await readScopedDelivery(sb, job.job_id, sid, args.delivery_id!, args.package_id),
           args.draft_key!,
         );
+      // A package email carries the reviewer's return page and the capture address, from one reply code per
+      // package link. The member's Gmail tool cannot set Reply-To, so the capture address rides in CC.
+      let draftArgs = args;
+      let capture: { page_url: string; address: string } | null = null;
+      if (args.action === "draft" && args.kind === "package" && args.draft && args.package_id) {
+        const link = data.package?.id === args.package_id ? data.package.download_url : null;
+        const code = link ? await replyCodeFor(link) : null;
+        if (code) {
+          const issued = await (
+            sb.rpc as unknown as (
+              f: string,
+              a: Record<string, unknown>,
+            ) => Promise<{ error: { message: string; code?: string } | null }>
+          )("mcp_submittal_reply_link_issue", {
+            _job: job.job_id,
+            _submittal: sid,
+            _package: args.package_id,
+            _token_hash: await replyCodeHash(code),
+          });
+          // Before the replies migration is applied the package email goes out as it always has.
+          if (issued.error && !isMissingFunction(issued.error)) dbError(issued.error);
+          if (!issued.error) {
+            capture = { page_url: replyPageUrl(code), address: replyAddress(code) };
+            draftArgs = { ...args, draft: withReplyCapture(args.draft, code) };
+          }
+        }
+      }
       const saved = await submittalRpc<{
         id: string;
         draft_key: string;
@@ -707,8 +741,10 @@ export const submittalDelivery = defineTool({
         _submittal: sid,
         _action: args.action,
         // The host that approved or recorded this send goes on the project-record event; no host sends a conversation id yet.
-        _p: { ...args, host: callHost(ctx), thread_ref: null },
+        _p: { ...draftArgs, host: callHost(ctx), thread_ref: null },
       });
+      const sentCapture =
+        saved.draft.cc.find((c) => /^submittals\+[0-9a-f]{32}@/i.test(c)) ?? capture?.address ?? null;
       const warning = args.action === "record_sent" ? sentBodyWarning(saved.draft, args.sent_body) : null;
       const reuse = pairGuidance(saved.id, saved.draft_key);
       const lines = [
@@ -757,6 +793,15 @@ export const submittalDelivery = defineTool({
           already_approved: saved.already_approved === true,
           // The email card re-drafts and approves with these ids; nothing here is new to the caller.
           kind: args.kind ?? "package",
+          ...(sentCapture
+            ? {
+                reply_capture: {
+                  address: sentCapture,
+                  page_url: capture?.page_url ?? null,
+                  reply_to_supported: false,
+                },
+              }
+            : {}),
           submittal_id: sid,
           package_item_id: args.package_item_id ?? null,
           job_number: job.job_number,
@@ -764,6 +809,11 @@ export const submittalDelivery = defineTool({
           ...(warning ? { warning } : {}),
         }),
         reuse,
+        ...(sentCapture
+          ? [
+              `Keep ${sentCapture} in CC exactly as saved: it is how Athena captures the reviewer's reply. The body carries the reviewer's return page.`,
+            ]
+          : []),
         saved.sent_at
           ? "This send is already recorded. Show the card; do not send it again. Never re-draft after approval."
           : saved.approved_at
