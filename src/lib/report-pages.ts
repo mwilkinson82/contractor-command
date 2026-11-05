@@ -1,7 +1,8 @@
 import { CLIENT_BRAND_FONTS, CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from "./client-brand";
 import { reportSurface } from "./report-surface";
-import { healthHtml, lookaheadHtml, narrativeHtml } from "./cpm-reports";
-import { comparisonHtml, delaysHtml, ganttHtml, ganttModel, ganttSummary, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
+import { healthHtml, narrativeHtml } from "./cpm-reports";
+import { athenaControlsCss } from "./athena-controls";
+import { comparisonHtml, delaySnapshotsHtml, delaysHtml, ganttHtml, ganttModel, ganttSummary, logicChangesHtml, lookaheadGanttHtml, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
 import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
 // Pure logic: URLs, payload types and one HTML renderer shared by the signed-in page and the owner share link.
@@ -227,20 +228,31 @@ function scheduleView(p: JobPayload, context?: ReportContext): string {
         `<p data-completion-mismatch="true" style="margin:-4px 0 12px;padding:10px 12px;border:1px solid #F5C26B;border-radius:8px;background:#FFF8EB;font-size:13px;color:${NAVY}"><strong>Check the contract completion.</strong> ${esc(`The contract completion on file, ${shortDay(s.contractCompletion)}, is ${Math.abs(s.completionMismatch)} working days ${s.completionMismatch > 0 ? "after" : "before"} the baseline finish of ${shortDay(s.baselineFinish)}. Delay is measured to the baseline finish until the contract date is confirmed.`)}</p>`,
       );
     if (s.longestLine) out.push(`<p data-longest-path="true" style="margin:-4px 0 16px;font-size:13px;color:${NAVY}"><strong>Longest path:</strong> ${esc(s.longestLine)}</p>`);
-    out.push(card(ganttHtml(input)));
-    out.push(card(narrativeHtml(input)));
-    const look = lookaheadHtml(input);
-    if (look) out.push(card(look));
-    const milestones = milestoneHtml(input),
-      compare = comparisonHtml(input),
-      windows = windowsHtml(input),
-      delays = delaysHtml(input);
-    if (milestones) out.push(card(milestones));
-    if (compare) out.push(card(compare));
-    if (windows) out.push(card(windows));
-    if (delays) out.push(card(delays));
-    out.push(card(healthHtml(input)));
-    out.push(logicList());
+    // Three screens on one page, switched with CSS: the Gantt keeps the full width of its screen.
+    const reports = [
+      ["cpm-compare", "Update comparison", comparisonHtml(input)],
+      ["cpm-milestones", "Milestones", milestoneHtml(input)],
+      ["cpm-logic-changes", "Logic changes", logicChangesHtml(input)],
+      ["cpm-windows", "Windows analysis", windowsHtml(input)],
+      ["cpm-delay-snapshots", "Delay snapshots", delaySnapshotsHtml(input)],
+      ["cpm-delays", "Delay events", delaysHtml(input)],
+      ["cpm-narrative", "Narrative", narrativeHtml(input)],
+      ["cpm-health", "Schedule health", healthHtml(input)],
+    ].filter(([, , html]) => html);
+    const look = lookaheadGanttHtml(input);
+    const tabs = [
+      ["s", "Schedule", `<small>${acts.length}</small>`],
+      ...(look ? [["l", "Lookahead", ""]] : []),
+      ["r", "Reports", `<small>${reports.length}</small>`],
+    ];
+    const reportIndex = `<nav class="ath-rep-index" aria-label="Reports">${reports.map(([id, label]) => `<a href="#rep-${id}">${esc(label)}</a>`).join("")}</nav>`;
+    out.push(
+      `<style>${athenaControlsCss(".ath-sched")}.ath-sched .ath-panel{display:none}${tabs.map(([k]) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-panel[data-tab="${k}"]`).join(",")}{display:block}${tabs.map(([k]) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-tabs label[for="ath-tab-${k}"]`).join(",")}{color:${NAVY};border-bottom-color:${NAVY}}.ath-sched .ath-rep-index{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.ath-sched .ath-rep-index a{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;border:1px solid #DFE7F0;background:#fff;color:${NAVY};font-weight:600;font-size:12.5px;text-decoration:none}.ath-sched .ath-rep-index a:hover{background:#EAF0F8;border-color:#C9D5E4}.ath-sched .ath-panel>.ath-rep{scroll-margin-top:12px}@media print{.ath-sched .ath-tabs,.ath-sched .ath-rep-index{display:none}}</style>` +
+        `<div class="ath-sched">${tabs.map(([k], i) => `<input class="ath-sr" type="radio" name="ath-tab" id="ath-tab-${k}"${i === 0 ? " checked" : ""}>`).join("")}<nav class="ath-tabs" aria-label="Schedule screens">${tabs.map(([k, l, extra]) => `<label for="ath-tab-${k}">${l} ${extra}</label>`).join("")}</nav>` +
+        `<section class="ath-panel" data-tab="s">${ganttHtml(input)}</section>` +
+        (look ? `<section class="ath-panel" data-tab="l">${look}</section>` : "") +
+        `<section class="ath-panel" data-tab="r">${reportIndex}${reports.map(([id, , html]) => `<div class="ath-rep" id="rep-${id}" data-report="${id}">${card(html)}</div>`).join("")}${logicList()}</section></div>`,
+    );
     return out.join("");
   }
   const crit = dated.filter((a) => a.critical).length;

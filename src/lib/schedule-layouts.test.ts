@@ -172,8 +172,9 @@ describe("activity codes and saved layouts", () => {
     expect(m.scale).toBe(7);
     // The code column shows the value name, and the code filter lists every value.
     expect(html).toMatch(/class="cpm-c c-k0">Level 1</);
-    expect(html).toContain('<optgroup label="Area">');
-    expect(html).toContain("Responsible trade: Electrical");
+    // Each code gets its own filter chip, so Responsible trade filters the whole schedule.
+    expect(html).toContain('<span>Area</span><select id="cpm-code0">');
+    expect(html).toMatch(/<span>Responsible trade<\/span><select id="cpm-code1">[^]*>Electrical<\/option>/);
   });
 
   it("shows no layout picker on a share page, and the default view without a layout", () => {
