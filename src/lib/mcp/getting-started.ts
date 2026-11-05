@@ -126,7 +126,11 @@ export function firstJobCard(company: boolean): CardModel {
         [company ? FIRST_JOB_QUESTION.company : FIRST_JOB_QUESTION.noCompany],
         true,
       ),
-      choices(["Start a job", "How do I bring my documents?", "What can Athena show me?"]),
+      choices(
+        company
+          ? ["Start a job", "Tell Athena the kinds of work we do", "How do I bring my documents?"]
+          : ["Start a job", "How do I bring my documents?", "What can Athena show me?"],
+      ),
       bringExisting(),
       workingTogether(),
     ],
@@ -137,8 +141,8 @@ export function firstJobCard(company: boolean): CardModel {
 export function firstJobGuidance(company: boolean): string {
   return (
     (company
-      ? "The card asks for the job number and name. A reply with both is their explicit request to start that job: confirm the number and name back, then use intake section create_job. If either is missing, ask only for the missing one. The scope question follows; never assume job type."
-      : "The card asks for the company name. A reply with a name is their explicit request to save it: use onboarding action save_company only for the company they named. Then ask for the job number and name, one question at a time.") +
+      ? "The card asks for the job number and name. A reply with both is their explicit request to start that job: confirm the number and name back, then use intake section create_job. If either is missing, ask only for the missing one. The scope question follows; never assume job type. \"Tell Athena the kinds of work we do\" means onboarding action read, then its questions one per reply."
+      : "The card asks for the company name. A reply with a name is their explicit request to save it: use onboarding action save_company only for the company they named. The save returns the first kinds-of-work question: ask it and each one after it, one per reply, saving each with onboarding action save_work_profile, and let them skip any or all. Then ask for the job number and name.") +
     " Ask one question per reply and offer short choices where they fit. " +
     GETTING_STARTED_GUIDANCE
   );
