@@ -114,7 +114,7 @@ export const customerPortal = defineTool({
   name: "customer_portal",
   title: "Customer page",
   description:
-    "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
+    "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the customer should see, client_number) for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -140,6 +140,7 @@ export const customerPortal = defineTool({
     item_id: z.string().uuid().optional(),
     application_id: z.string().uuid().optional(),
     application_number: z.string().trim().min(1).max(120).optional(),
+    client_number: z.string().trim().min(1).max(40).optional(),
     due_on: z.iso.date().optional(),
     notify: z.boolean().optional(),
     confirmed: z.boolean().optional(),
@@ -201,7 +202,7 @@ export const customerPortal = defineTool({
             share_selection:
               "Preview the proposal with selection_proposal first, then ask the member to confirm sharing it on the customer page. Nothing was shared.",
             share_pay_app:
-              "Show the member the pay application number, the period, the amount due now and the approve-by date the customer will see, and ask them to confirm sharing it for the customer's approval. Nothing was shared.",
+              "Show the member the name the customer will see (Pay application and the number), the period, the amount due now and the approve-by date, and ask them to confirm sharing it for the customer's approval. If the saved number reads like an internal code rather than a plain number (for example WC-2810-PA-NOV-2026-DRAFT), ask the member what their customer should see it called, like 2, and pass that as client_number; the saved pay application keeps its own number. Nothing was shared.",
             withdraw:
               "Ask the member to confirm taking this item back from the customer page. Nothing changed.",
           };
@@ -437,6 +438,7 @@ export const customerPortal = defineTool({
             _number: args.application_id ? null : (args.application_number ?? null),
             _expected_version: args.expected_version ?? null,
             _due_on: args.due_on ?? null,
+            _client_number: args.client_number ?? null,
           });
           await audit(sb, job, "customer_portal", "share_pay_app", r.item_id);
           const sent =

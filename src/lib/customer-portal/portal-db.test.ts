@@ -127,6 +127,7 @@ beforeAll(async () => {
     "0058_payment_application_contract_basis",
     "0059_conversational_payment_drafts",
     "0081_athena_portal_pay_apps",
+    "0082_athena_portal_pay_app_client_number",
   ])
     await db.exec(readFileSync(`drizzle/migrations/${f}.sql`, "utf8"));
 
@@ -1070,6 +1071,86 @@ describe.sequential("customer page pay applications", () => {
       decision: "approved",
       email: "rosa@example.com",
     });
+  });
+
+  it("reads a plain saved number as it is and asks for a name when it looks like a code", async () => {
+    const plain = async (n: string) =>
+      (await db.query<Row>("SELECT mcp_private.portal_pay_app_plain($1) AS ok", [n])).rows[0]!.ok;
+    for (const n of [
+      "2",
+      "#2",
+      " 12 ",
+      "Pay application 2",
+      "application #3",
+      "Pay app 4",
+      "App 5",
+    ])
+      expect(await plain(n), n).toBe(true);
+    for (const n of ["WC-2810-PA-NOV-2026-DRAFT", "2026-11", "PA-2", "Draft 2", "", "12345"])
+      expect(await plain(n), n).toBe(false);
+  });
+
+  it("shows the customer the name the member gives, and never changes the saved number", async () => {
+    // An application saved under a code-like number (as older drafts were), set up directly: a second application on
+    // this job would have to carry the first one forward, which this test is not about.
+    const coded = crypto.randomUUID();
+    const number = "WC-2716-PA-NOV-2026-DRAFT";
+    await db.query(
+      `INSERT INTO mcp_payment_applications (id, job_id, company_id, number, created_by)
+       SELECT $1, job_id, company_id, $2, created_by FROM mcp_payment_applications WHERE id = $3`,
+      [coded, number, app],
+    );
+    await db.query(
+      `INSERT INTO mcp_payment_application_versions (application_id, version, job_id, body, calculation, billing_version, recorded_by)
+       SELECT $1, 1, job_id, jsonb_set(body, '{number}', to_jsonb($2::text)), calculation, billing_version, recorded_by
+         FROM mcp_payment_application_versions WHERE application_id = $3 ORDER BY version DESC LIMIT 1`,
+      [coded, number, app],
+    );
+    const shareAs = (name: string | null) =>
+      member("mcp_portal_share_pay_app", [job2, coded, null, null, due, name]);
+    // Left unnamed, the code never reaches the customer: the member is asked what to call it.
+    await expect(
+      member("mcp_portal_share_pay_app", [job2, coded, null, null, due]),
+    ).rejects.toThrow(/saved as "WC-2716-PA-NOV-2026-DRAFT".*client_number.*Nothing was shared/);
+    await expect(shareAs("x".repeat(41))).rejects.toThrow(/40 characters/);
+    // From chat, the member names it; the page, the label and the emails all use that name.
+    const named = await tool({
+      action: "share_pay_app",
+      job_number: "2716",
+      application_id: coded,
+      client_number: "2",
+      due_on: due,
+      notify: false,
+      confirmed: true,
+    });
+    const text = named.content[0]!.text;
+    expect(text).toContain("Shared Pay application 2 (version 1)");
+    expect(text).not.toContain(number);
+    const item = named.structuredContent!.item_id as string;
+    const first = (await view()).items.find((i: J) => i.id === item);
+    expect(first.view.number).toBe("2");
+    expect(JSON.stringify(first)).not.toContain(number);
+    // A re-share without a name keeps the name it was shared under.
+    const again = await shareAs(null);
+    expect(again).toMatchObject({ item_id: item, number: "2", label: "Pay application 2" });
+    expect(again.fingerprint).toBe(first.fingerprint);
+    // Renaming an undecided share moves its frozen view and fingerprint with it.
+    const renamed = await shareAs("Pay application 3");
+    expect(renamed).toMatchObject({ item_id: item, label: "Pay application 3" });
+    expect(renamed.fingerprint).not.toBe(first.fingerprint);
+    const shown = (await view()).items.find((i: J) => i.id === item);
+    expect(shown).toMatchObject({ fingerprint: renamed.fingerprint });
+    expect(shown.view.number).toBe("Pay application 3");
+    expect((await decide(item, "declined", null, first.fingerprint)).status).toBe("changed");
+    expect(
+      (await member("mcp_portal_list", [job2])).items.find((i: J) => i.item_id === item),
+    ).toMatchObject({ label: "Pay application 3" });
+    // The saved pay application keeps its own number.
+    const saved = await db.query<Row>(
+      "SELECT DISTINCT body->>'number' AS n FROM mcp_payment_application_versions WHERE application_id=$1",
+      [coded],
+    );
+    expect(saved.rows).toEqual([{ n: number }]);
   });
 });
 
