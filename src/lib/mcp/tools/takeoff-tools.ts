@@ -3,6 +3,7 @@ import { z } from "zod";
 import { run } from "../guard";
 import { resolveJob, WhichCompanyAsk, audit } from "../jobs";
 import { errorCard, errorMessage } from "../error-card";
+import { sheetAccessResult } from "../drawing-set";
 import {
   engineRpc,
   decideGeometry,
@@ -151,6 +152,8 @@ export const sheetCalibrate = defineTool({
           });
         } catch (error) {
           if (error instanceof WhichCompanyAsk) throw error;
+          const blocked = sheetAccessResult(error);
+          if (blocked) return blocked;
           return errorCard(
             "Drawing calibration",
             errorMessage(error, "The calibration could not be confirmed."),
@@ -668,6 +671,8 @@ export const takeoffGeometry = defineTool({
           return viewEngine(sb, job, await requiredSnapshot(sb, job), page, extra);
         } catch (error) {
           if (error instanceof WhichCompanyAsk) throw error;
+          const blocked = sheetAccessResult(error);
+          if (blocked) return blocked;
           return errorCard(
             "Drawing takeoff",
             errorMessage(

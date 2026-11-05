@@ -3,8 +3,11 @@ import { jsPDF } from "jspdf";
 import { bytesToBase64 } from "./estimating-sheet";
 import { drawingSource, downloadDrawingSource, FILE_MAX_BYTES, sha256Hex, validateFile } from "./file-share";
 import { markupColor, renderDrawingMarkup } from "./drawing-markup-render";
-import { DRAWING_BUCKET, DRAWING_MAX_BYTES, MARKUP_DELETE_REFUSAL, ORIGINAL_DELETE_REFUSAL, drawingBucket, removeDrawing, storeDrawingSet, storedSheet, type DrawingRecord } from "./drawing-set";
+import { DRAWING_BUCKET, DRAWING_MAX_BYTES, LARGE_SHEET_PREVIEW_MESSAGE, MARKUP_DELETE_REFUSAL, ORIGINAL_DELETE_REFUSAL, SHEET_PREVIEW_MAX_BYTES, SheetPreviewUnavailable, attachSheetPages, drawingBucket, loadSheetPages, removeDrawing, sheetAccessResult, storeDrawingSet, storedSheet, type DrawingRecord } from "./drawing-set";
 import { attachAthenaCard } from "./cards/attach";
+import { clearSourceCache } from "./takeoff/cache";
+import { loadStoredPage } from "./takeoff/service";
+import { readFileSync } from "node:fs";
 
 const state = vi.hoisted(() => ({
   records: [] as Record<string, unknown>[],
@@ -18,6 +21,7 @@ const state = vi.hoisted(() => ({
   deny: false,
   downloads: [] as string[],
   buckets: [] as string[],
+  sizes: new Map<string, number>(),
 }));
 vi.mock("./guard", () => ({
   run: async (_t: string, _c: unknown, _o: unknown, fn: (sb: unknown) => unknown) => fn(fakeSb()),
@@ -149,6 +153,18 @@ function fakeSb() {
           data: { signedUrl: `https://files.example.com/${path}?signed=1` },
           error: null,
         }),
+        list: async (dir: string) => {
+          const names = new Set<string>();
+          for (const p of state.objects.keys()) if (p.startsWith(`${dir}/`)) names.add(p);
+          for (const p of state.sizes.keys()) if (p.startsWith(`${dir}/`)) names.add(p);
+          return {
+            data: [...names].map((p) => ({
+              name: p.slice(dir.length + 1),
+              metadata: { size: state.sizes.get(p) ?? state.objects.get(p)?.byteLength ?? 0 },
+            })),
+            error: null,
+          };
+        },
         remove: async (paths: string[]) => {
           state.removed.push(...paths);
           paths.forEach((p) => {
@@ -198,6 +214,7 @@ beforeEach(() => {
   state.deny = false;
   state.downloads = [];
   state.buckets = [];
+  state.sizes.clear();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -850,5 +867,195 @@ describe("annotation rendering", () => {
       "2026-10-22T20:00:00Z",
     );
     expect(new TextDecoder().decode(output.slice(0, 5))).toBe("%PDF-");
+  });
+});
+
+const REV1 = "206ee7b7-1111-4111-8111-111111111111";
+const REV2 = "0643b784-2222-4222-8222-222222222222";
+const REV3 = "0643b784-3333-4333-8333-333333333333";
+const volumePath = "c1/j1/drawing-volume/source.pdf";
+
+describe("large drawing sheets and revision choice", () => {
+  beforeEach(() => clearSourceCache());
+
+  async function volume(rows: [string, string, string[]][]) {
+    const bytes = pdf("G-0003");
+    const hash = await sha256Hex(bytes);
+    state.objects.set(volumePath, bytes);
+    state.objectBuckets.set(volumePath, "athena-files");
+    for (const [id, version, names] of rows) {
+      state.records.push({
+        id,
+        kind: "source",
+        filename: "Volume.pdf",
+        path: volumePath,
+        storage_bucket: "athena-files",
+        source_key: "file:volume.pdf",
+        content_hash: hash,
+        sheets: names,
+        version: Number(version),
+        created_at: `2026-10-0${version}T00:00:00Z`,
+      });
+    }
+    return bytes;
+  }
+
+  it("opens a passed revision that already has sheet names, even when a newer revision exists", async () => {
+    await volume([
+      [REV1, "1", ["Cover", "G-0003"]],
+      [REV2, "2", ["Cover", "G-0003"]],
+      [REV3, "3", ["Cover", "G-0003", "A-100"]],
+    ]);
+    state.downloads = [];
+    const opened = await storedSheet(fakeSb(), job, [], "G-0003", { sourceId: REV2 });
+    expect(opened.record.id).toBe(REV2);
+    expect(opened.redirectNotice).toBeNull();
+    expect(opened.page).toBe(2);
+    expect(opened.png.length).toBeGreaterThan(8);
+    expect(state.downloads).toContain(volumePath);
+  });
+
+  it("redirects an empty passed revision to the newest indexed revision and says so", async () => {
+    await volume([
+      [REV1, "1", []],
+      [REV2, "2", ["Cover", "G-0003"]],
+    ]);
+    const opened = await call(drawingMarkup, {
+      job_number: "2701",
+      sheet: "G-0003",
+      source_id: REV1,
+      operation: "prepare",
+    });
+    expect(opened.structuredContent.source).toMatchObject({ id: REV2, version: 2 });
+    expect(opened.structuredContent.page).toBe(2);
+    expect(JSON.stringify(opened)).toContain(
+      "Showing revision 2 — revision 1 has no sheet index",
+    );
+    const page = await loadStoredPage(
+      fakeSb() as never,
+      { ...job, job_number: "2701", name: "Test Construction" } as never,
+      "G-0003",
+      REV1,
+    );
+    expect(page.source.id).toBe(REV2);
+    expect(page.sheet).toBe("G-0003");
+    expect(page.redirectNotice).toBe("Showing revision 2 — revision 1 has no sheet index");
+  });
+
+  it("with no source id, picks the newest revision that has the sheet", async () => {
+    await volume([
+      [REV1, "1", []],
+      [REV2, "2", ["Cover", "G-0003"]],
+      [REV3, "3", ["Cover", "G-0003"]],
+    ]);
+    const opened = await storedSheet(fakeSb(), job, [], "G-0003");
+    expect(opened.record.id).toBe(REV3);
+    expect(opened.redirectNotice).toBeNull();
+    const page = await loadStoredPage(
+      fakeSb() as never,
+      { ...job, job_number: "2701", name: "Test Construction" } as never,
+      "G-0003",
+    );
+    expect(page.source.id).toBe(REV3);
+    expect(page.redirectNotice).toBeNull();
+  });
+
+  it("returns a sheet-names card from takeoff when no revision has an index, without downloading", async () => {
+    await volume([[REV1, "1", []]]);
+    state.downloads = [];
+    await expect(
+      loadStoredPage(
+        fakeSb() as never,
+        { ...job, job_number: "2701", name: "Test Construction" } as never,
+        "G-0003",
+        REV1,
+      ),
+    ).rejects.toThrow(/sheet names are needed/);
+    expect(state.downloads).not.toContain(volumePath);
+    const shown = sheetAccessResult(
+      await loadStoredPage(
+        fakeSb() as never,
+        { ...job, job_number: "2701", name: "Test Construction" } as never,
+        "G-0003",
+        REV1,
+      ).catch((error: unknown) => error),
+    );
+    expect(shown).toBeTruthy();
+    const text = JSON.stringify(shown);
+    expect(text).toContain("Drawing stored — sheet names needed");
+    expect(text).toContain("#1E5FED");
+    expect(text.toLowerCase()).not.toContain("lovable");
+  });
+
+  it("does not download a large drawing when opening or loading a takeoff page", async () => {
+    await volume([[REV2, "2", ["Cover", "G-0003"]]]);
+    state.sizes.set(volumePath, 27 * 1024 * 1024);
+    expect(state.sizes.get(volumePath)).toBeGreaterThan(SHEET_PREVIEW_MAX_BYTES);
+    state.downloads = [];
+    const opened = await call(drawingMarkup, {
+      job_number: "2701",
+      sheet: "G-0003",
+      source_id: REV2,
+      operation: "prepare",
+    });
+    const openedText = JSON.stringify(opened);
+    expect(openedText).toContain(LARGE_SHEET_PREVIEW_MESSAGE);
+    expect(openedText).toContain(`#page=2`);
+    expect(openedText).toContain("#1E5FED");
+    expect(state.downloads).not.toContain(volumePath);
+    state.downloads = [];
+    await expect(
+      loadStoredPage(
+        fakeSb() as never,
+        { ...job, job_number: "2701", name: "Test Construction" } as never,
+        "G-0003",
+        REV2,
+      ),
+    ).rejects.toBeInstanceOf(SheetPreviewUnavailable);
+    expect(state.downloads).not.toContain(volumePath);
+    const takeoff = sheetAccessResult(
+      await loadStoredPage(
+        fakeSb() as never,
+        { ...job, job_number: "2701", name: "Test Construction" } as never,
+        "G-0003",
+        REV2,
+      ).catch((error: unknown) => error),
+    );
+    expect(JSON.stringify(takeoff)).toContain(LARGE_SHEET_PREVIEW_MESSAGE);
+    state.downloads = [];
+    const pages = await loadSheetPages(
+      fakeSb(),
+      job,
+      [{ name: "Volume.pdf", kind: "base", path: volumePath, sheets: ["Cover", "G-0003"] }],
+      ["G-0003"],
+    );
+    expect(pages).toEqual([
+      expect.objectContaining({
+        sheet: "G-0003",
+        page: 2,
+        png: null,
+        note: LARGE_SHEET_PREVIEW_MESSAGE,
+      }),
+    ]);
+    expect(pages[0].signedUrl).toContain("#page=2");
+    expect(state.downloads).not.toContain(volumePath);
+    const attached = attachSheetPages({ content: [{ type: "text", text: "Takeoff" }] }, pages);
+    expect(attached.content[0].text).toContain(LARGE_SHEET_PREVIEW_MESSAGE);
+    expect(attached.content.find((block) => block.type === "image")).toBeUndefined();
+  });
+
+  it("leaves contract, spec, and submittal file reads outside the drawing size guard", () => {
+    for (const file of [
+      "src/lib/mcp/tools/workflow-tools.ts",
+      "src/lib/mcp/tools/file-upload-tool.ts",
+      "src/lib/mcp/tools/submittal-package-tools.ts",
+      "src/lib/mcp/tools/submittal-tools.ts",
+      "src/lib/mcp/contract-clauses.ts",
+    ]) {
+      const source = readFileSync(file, "utf8");
+      expect(source).not.toContain("sheetPreviewBlocked");
+      expect(source).not.toContain("SHEET_PREVIEW_MAX_BYTES");
+      expect(source).not.toContain("SheetPreviewUnavailable");
+    }
   });
 });

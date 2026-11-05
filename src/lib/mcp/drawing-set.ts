@@ -1,6 +1,10 @@
 import { DRAWING_MARKUP_REQUIRED, drawingMarkupCard } from "./drawing-markup";
 import { boundedPdfPageCount, normalizePageCount, pageCountFromSource, type PdfRead } from "./pdf-page-count";
-import { htmlBlock } from "./cards/markdown";
+import { htmlBlock, renderMarkdown } from "./cards/markdown";
+import { renderHtml } from "./cards/html";
+import type { CardModel } from "./cards/model";
+import { cardWidgetMeta } from "./cards/widget";
+import { guide } from "./visible";
 // Stored drawing sets. New originals use a dedicated private drawing bucket; #190
 // originals remain in athena-files. Both use the same guarded
 // company/job path file_share uses. The document entry keeps its old fields and gains
@@ -24,6 +28,13 @@ import {
 } from "./file-share";
 
 export const DRAWING_URL_SECONDS = 15 * 60;
+/**
+ * Raster preview (download + PDFium) stops above this stored-object size.
+ * The upload-time content hash is trusted; the original is not re-read to open a sheet.
+ */
+export const SHEET_PREVIEW_MAX_BYTES = 25 * 1024 * 1024;
+export const LARGE_SHEET_PREVIEW_MESSAGE =
+  "Sheet preview isn't available for this large set yet.";
 export const DRAWING_BUCKET = "athena-drawings";
 /** New original drawings. file_share and generated markup PDFs stay on FILE_MAX_BYTES. */
 export const DRAWING_MAX_BYTES = 100 * 1024 * 1024;
@@ -124,8 +135,10 @@ export type DrawingRecord = {
 export type SheetPage = {
   sheet: string;
   page: number;
-  png: Uint8Array;
+  png: Uint8Array | null;
   signedUrl: string;
+  /** Set when the page was not rasterized. The signed URL still opens the PDF. */
+  note?: string;
 };
 
 type Bucket = {
@@ -143,6 +156,20 @@ type Bucket = {
     seconds: number,
   ) => Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>;
   remove: (paths: string[]) => Promise<{ error: { message: string } | null }>;
+  /** Metadata only. Never the object body. */
+  list?: (
+    prefix: string,
+    options?: { search?: string; limit?: number },
+  ) => Promise<{
+    data:
+      | {
+          name: string;
+          metadata?: { size?: number | string; contentLength?: number | string } | null;
+          size?: number | string;
+        }[]
+      | null;
+    error: { message: string } | null;
+  }>;
 };
 
 export type DrawingStore = {
@@ -759,9 +786,297 @@ export async function indexStoredDrawingSet(
 export class DrawingSheetIndexRequired extends ToolError {
   constructor(public record: DrawingRecord) {
     super(
-      "This drawing is stored, but its sheet names need to be indexed. No older drawing was substituted.",
+      "This PDF is stored but its sheet names are needed. Save its page order once in the drawing library; no re-upload is needed. This drawing is stored, but its sheet names need to be indexed. No older drawing was substituted.",
     );
   }
+}
+
+/** Same source line: shared source_key, or the same stored object (path + content hash). */
+export function sameDrawingLineage(a: DrawingRecord, b: DrawingRecord): boolean {
+  if (a.source_key && b.source_key && a.source_key === b.source_key) return true;
+  return Boolean(a.path && a.path === b.path && a.content_hash && a.content_hash === b.content_hash);
+}
+
+/** A later revision in this lineage that already has sheet names. Never an older set. Prefers one that contains `sheet`. */
+export function newestIndexedRevision(
+  records: DrawingRecord[],
+  passed: DrawingRecord,
+  sheet?: string,
+): DrawingRecord | undefined {
+  const indexed = records.filter(
+    (row) =>
+      row.id !== passed.id &&
+      (row.version || 0) > (passed.version || 0) &&
+      sameDrawingLineage(row, passed) &&
+      Array.isArray(row.sheets) &&
+      row.sheets.length > 0,
+  );
+  indexed.sort((a, b) => (b.version || 0) - (a.version || 0));
+  if (sheet) {
+    const named = indexed.find((row) => sheetPageIndex(row.sheets, sheet) != null);
+    if (named) return named;
+  }
+  return indexed[0];
+}
+
+export function revisionRedirectNotice(from: DrawingRecord, to: DrawingRecord): string {
+  return `Showing revision ${to.version} — revision ${from.version} has no sheet index`;
+}
+
+function finiteBytes(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Size recorded on the drawing row, when the registry or a caller already has it. */
+export function recordedDrawingBytes(record: DrawingRecord): number | null {
+  const extra = record as DrawingRecord & {
+    size?: unknown;
+    size_bytes?: unknown;
+    byte_size?: unknown;
+    metadata?: { size?: unknown; contentLength?: unknown } | null;
+  };
+  return (
+    finiteBytes(extra.size) ??
+    finiteBytes(extra.size_bytes) ??
+    finiteBytes(extra.byte_size) ??
+    finiteBytes(extra.metadata?.size) ??
+    finiteBytes(extra.metadata?.contentLength)
+  );
+}
+
+function objectByteSize(row: {
+  metadata?: { size?: number | string; contentLength?: number | string } | null;
+  size?: number | string;
+}): number | null {
+  return (
+    finiteBytes(row.metadata?.size) ??
+    finiteBytes(row.metadata?.contentLength) ??
+    finiteBytes(row.size)
+  );
+}
+
+/** Byte size from the record, a storage listing, or a HEAD. Never downloads the object. */
+export async function storedDrawingByteSize(
+  sb: DrawingStore,
+  record: Pick<DrawingRecord, "path" | "storage_bucket"> & Partial<DrawingRecord>,
+): Promise<number | null> {
+  const recorded = recordedDrawingBytes(record as DrawingRecord);
+  if (recorded != null) return recorded;
+  const storage = bucket(sb, drawingBucket(record));
+  const slash = record.path.lastIndexOf("/");
+  const dir = slash >= 0 ? record.path.slice(0, slash) : "";
+  const name = slash >= 0 ? record.path.slice(slash + 1) : record.path;
+  // HEAD is only a fallback after a listing that did not include a size.
+  // Stores without a listing API keep the small-file download path.
+  if (typeof storage.list !== "function") return null;
+  let listedSize: number | null = null;
+  try {
+    const listed = await storage.list(dir, { search: name, limit: 100 });
+    const object = listed.data?.find((row) => row.name === name);
+    listedSize = object ? objectByteSize(object) : null;
+  } catch {
+    listedSize = null;
+  }
+  if (listedSize != null) return listedSize;
+  try {
+    const signed = await storage.createSignedUrl(record.path, 120);
+    const raw = signed.data?.signedUrl;
+    if (!raw || signed.error) return null;
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    if (!url.hostname.endsWith(".supabase.co")) return null;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2500);
+    try {
+      const res = await fetch(url.href, { method: "HEAD", signal: ctrl.signal });
+      return finiteBytes(res.headers.get("content-length"));
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** True when the stored PDF is too large to rasterize in the worker. Unknown size is not treated as large. */
+export async function sheetPreviewBlocked(
+  sb: DrawingStore,
+  record: Pick<DrawingRecord, "path" | "storage_bucket"> & Partial<DrawingRecord>,
+): Promise<boolean> {
+  const size = await storedDrawingByteSize(sb, record);
+  return size != null && size > SHEET_PREVIEW_MAX_BYTES;
+}
+
+export function pdfPageFragment(signedUrl: string, page: number): string {
+  return `${signedUrl.split("#")[0]}#page=${page}`;
+}
+
+export async function signedPdfPageUrl(
+  sb: DrawingStore,
+  record: Pick<DrawingRecord, "path" | "storage_bucket">,
+  page: number,
+): Promise<string | null> {
+  try {
+    const signed = await bucket(sb, drawingBucket(record)).createSignedUrl(
+      record.path,
+      DRAWING_URL_SECONDS,
+    );
+    const raw = signed.data?.signedUrl;
+    if (!raw || signed.error) return null;
+    return pdfPageFragment(raw, page);
+  } catch {
+    return null;
+  }
+}
+
+export function largeSheetPreviewCard(input: {
+  sheet: string;
+  page: number;
+  filename: string;
+  signedUrl: string | null;
+  job?: string | null;
+  notice?: string | null;
+  pageCount?: number | null;
+}): CardModel {
+  return {
+    state: "result",
+    show_state: false,
+    title: `${input.sheet} · Sheet preview`,
+    job: input.job ?? null,
+    sections: [
+      {
+        heading: "Large drawing set",
+        kind: "list",
+        rows: [
+          { cells: [LARGE_SHEET_PREVIEW_MESSAGE] },
+          ...(input.notice ? [{ cells: [input.notice] }] : []),
+          ...(input.pageCount ? [{ cells: [`${input.pageCount} PDF pages`] }] : []),
+          input.signedUrl
+            ? {
+                cells: [`Open ${input.filename} at page ${input.page}`, input.signedUrl],
+                href: input.signedUrl,
+              }
+            : {
+                cells: [
+                  "The private PDF link could not be created. Try again; no upload is needed.",
+                ],
+              },
+        ],
+      },
+    ],
+    next_move: "Open the stored PDF at this sheet's page. The original file is unchanged.",
+  };
+}
+
+export function sheetNamesNeededCard(record?: DrawingRecord | null, job?: string | null): CardModel {
+  return {
+    state: "ask",
+    show_state: false,
+    title: "Drawing stored — sheet names needed",
+    job: job ?? null,
+    sections: [
+      {
+        heading: "Sheet index",
+        kind: "list",
+        rows: [
+          {
+            cells: [
+              record
+                ? `${record.filename} (revision ${record.version}) is stored, but its sheet names are needed.`
+                : "This PDF is stored, but its sheet names are needed.",
+            ],
+          },
+          { cells: ["Save the sheet names in PDF page order once. No re-upload is needed."] },
+        ],
+      },
+    ],
+    ask: { prompt: "What are the sheet names, in PDF page order?" },
+    next_move:
+      "Sheet names are needed before this sheet can be opened. No older drawing was substituted.",
+  };
+}
+
+export function withRevisionNotice(card: CardModel, notice?: string | null): CardModel {
+  if (!notice) return card;
+  return {
+    ...card,
+    sections: [
+      { heading: "Drawing revision", kind: "list", rows: [{ cells: [notice] }] },
+      ...(card.sections ?? []),
+    ],
+  };
+}
+
+function renderAthenaCard(card: CardModel) {
+  const html = renderHtml(card);
+  const body = `${renderMarkdown(card)}\n\n${htmlBlock(html)}`;
+  return guide(
+    {
+      content: [{ type: "text" as const, text: body, _meta: { ...cardWidgetMeta } }],
+      structuredContent: { card, html },
+      _meta: { ...cardWidgetMeta },
+    },
+    "Show this card. Do not say the tool could not be used.",
+  );
+}
+
+/** Styled card for a large-set preview or a stored PDF that still has no sheet names. */
+export function sheetAccessResult(error: unknown) {
+  if (error instanceof SheetPreviewUnavailable) return renderAthenaCard(error.card);
+  if (error instanceof DrawingSheetIndexRequired) return renderAthenaCard(sheetNamesNeededCard(error.record));
+  return null;
+}
+
+export class SheetPreviewUnavailable extends Error {
+  readonly card: CardModel;
+  readonly signedUrl: string;
+  readonly record: DrawingRecord;
+  readonly sheet: string;
+  readonly page: number;
+  constructor(
+    card: CardModel,
+    record: DrawingRecord,
+    sheet: string,
+    page: number,
+    signedUrl: string,
+  ) {
+    super(LARGE_SHEET_PREVIEW_MESSAGE);
+    this.name = "SheetPreviewUnavailable";
+    this.card = card;
+    this.record = record;
+    this.sheet = sheet;
+    this.page = page;
+    this.signedUrl = signedUrl;
+  }
+}
+
+async function refuseLargeSheet(
+  sb: DrawingStore,
+  record: DrawingRecord,
+  sheet: string,
+  page: number,
+  notice?: string | null,
+): Promise<void> {
+  const signedUrl = await signedPdfPageUrl(sb, record, page);
+  throw new SheetPreviewUnavailable(
+    largeSheetPreviewCard({
+      sheet,
+      page,
+      filename: record.filename,
+      signedUrl,
+      notice,
+      pageCount: record.page_count,
+    }),
+    record,
+    sheet,
+    page,
+    signedUrl ?? "",
+  );
 }
 
 /** Current imported revisions first, then legacy #190 document entries. Original paths never change. */
@@ -774,26 +1089,52 @@ export async function storedSheet(
 ) {
   const records = await drawingRecords(sb, job);
   const selectedName = selected?.filename?.trim().toLowerCase();
-  // The identity returned by storage outranks a host's renamed attachment label.
-  const matches = (row: DrawingRecord) =>
-    selected?.sourceId
-      ? row.id === selected.sourceId
-      : !selectedName || row.filename.toLowerCase() === selectedName;
-  const chosen = records.find(
-    (row) => matches(row) && drawingOwned(row.path, job.company_id, job.job_id),
-  );
-  if (chosen && !chosen.sheets.length) throw new DrawingSheetIndexRequired(chosen);
-  let record = records.find(
-    (row) =>
-      matches(row) &&
-      sheetPageIndex(row.sheets, requested) != null &&
-      drawingOwned(row.path, job.company_id, job.job_id),
-  );
-  if (!record) {
-    if (selected?.sourceId)
+  const owned = (row: DrawingRecord) => drawingOwned(row.path, job.company_id, job.job_id);
+  // A filename limits the no-id search. A passed source id is matched by id alone.
+  const nameMatches = (row: DrawingRecord) =>
+    !selectedName || row.filename.toLowerCase() === selectedName;
+  let redirectedFrom: DrawingRecord | null = null;
+  let record: DrawingRecord | undefined;
+  if (selected?.sourceId) {
+    const passed = records.find((row) => row.id === selected.sourceId && owned(row));
+    if (!passed)
       throw new ToolError(
         "The selected source does not contain this sheet on this job. No other drawing was substituted.",
       );
+    // A revision that already has sheet names is used exactly. An empty index
+    // may move forward to the newest same-lineage revision that has names.
+    if (passed.sheets?.length) {
+      if (sheetPageIndex(passed.sheets, requested) == null)
+        throw new ToolError(
+          "The selected source does not contain this sheet on this job. No other drawing was substituted.",
+        );
+      record = passed;
+    } else {
+      const newer = newestIndexedRevision(records.filter(owned), passed, requested);
+      if (!newer) throw new DrawingSheetIndexRequired(passed);
+      if (sheetPageIndex(newer.sheets, requested) == null)
+        throw new ToolError(
+          `Sheet ${requested} is not in ${newer.filename} (revision ${newer.version}). No older drawing was substituted.`,
+        );
+      record = newer;
+      redirectedFrom = passed;
+    }
+  } else {
+    // Records are newest first. An unindexed set that was just stored must not
+    // fall through to an older drawing. A later revision of that same set may.
+    const pool = records.filter((row) => nameMatches(row) && owned(row));
+    const newest = pool[0];
+    if (newest && !newest.sheets?.length) {
+      const forward = newestIndexedRevision(pool, newest, requested);
+      if (forward && sheetPageIndex(forward.sheets, requested) != null) {
+        record = forward;
+        redirectedFrom = newest;
+      } else throw new DrawingSheetIndexRequired(newest);
+    } else {
+      record = pool.find((row) => sheetPageIndex(row.sheets, requested) != null);
+    }
+  }
+  if (!record) {
     const doc = documents.find(
       (row) =>
         (!selectedName || row.name.toLowerCase() === selectedName) &&
@@ -809,6 +1150,20 @@ export async function storedSheet(
       throw new ToolError(
         `Sheet ${requested} is not indexed on this job. Name its stored drawing set and page order; do not re-upload a set already stored.`,
       );
+    const probe = {
+      id: "",
+      path: doc.path,
+      filename: doc.name,
+      content_hash: "",
+      source_key: `file:${doc.name.toLowerCase()}`,
+      source_url: null,
+      sheets: doc.sheets ?? [],
+      version: 0,
+      created_at: "",
+    } satisfies DrawingRecord;
+    const docIndex = sheetPageIndex(doc.sheets, requested)!;
+    if (await sheetPreviewBlocked(sb, probe))
+      await refuseLargeSheet(sb, probe, doc.sheets?.[docIndex] ?? requested, docIndex + 1);
     const file = await bucket(sb).download(doc.path);
     if (file.error || !file.data)
       throw new ToolError(
@@ -827,10 +1182,14 @@ export async function storedSheet(
     });
   }
   const index = sheetPageIndex(record.sheets, requested)!;
+  const notice = redirectedFrom ? revisionRedirectNotice(redirectedFrom, record) : null;
+  if (await sheetPreviewBlocked(sb, record))
+    await refuseLargeSheet(sb, record, record.sheets[index] ?? requested, index + 1, notice);
   const file = await bucket(sb, drawingBucket(record)).download(record.path);
   if (file.error || !file.data)
     throw new ToolError("The stored drawing could not be opened. Try again; no upload is needed.");
   const bytes = new Uint8Array(await file.data.arrayBuffer());
+  // Small files still confirm the upload-time fingerprint. Large sets never reach this read.
   if ((await sha256Hex(bytes)) !== record.content_hash)
     throw new ToolError(
       "The stored drawing does not match its saved fingerprint. Review the source revision before marking it up.",
@@ -840,7 +1199,13 @@ export async function storedSheet(
     throw new ToolError(
       "The sheet index points beyond the stored PDF. Correct the sheet index; no upload is needed.",
     );
-  return { record, sheet: record.sheets[index], page: index + 1, png };
+  return {
+    record,
+    sheet: record.sheets[index],
+    page: index + 1,
+    png,
+    redirectNotice: notice,
+  };
 }
 
 export async function removeDrawing(
@@ -898,6 +1263,31 @@ export async function loadSheetPages(
       if (index == null) continue;
       const record = records.find((r) => r.path === doc.path);
       const sourceBucket = bucket(sb, drawingBucket(record));
+      const sized =
+        record ??
+        ({
+          id: "",
+          path: doc.path,
+          filename: doc.name,
+          content_hash: "",
+          source_key: "",
+          source_url: null,
+          sheets: doc.sheets ?? [],
+          version: 0,
+          created_at: "",
+        } satisfies DrawingRecord);
+      if (await sheetPreviewBlocked(sb, sized)) {
+        const pageNo = index + 1;
+        const signedUrl = (await signedPdfPageUrl(sb, sized, pageNo)) ?? "";
+        pages.push({
+          sheet,
+          page: pageNo,
+          png: null,
+          signedUrl,
+          note: LARGE_SHEET_PREVIEW_MESSAGE,
+        });
+        continue;
+      }
       const file = await sourceBucket.download(doc.path);
       if (file.error || !file.data) continue;
       const bytes = new Uint8Array(await file.data.arrayBuffer());
@@ -921,8 +1311,28 @@ type PageResult = {
 /** Leave the result alone when there is no stored page. */
 export function attachSheetPages<R extends PageResult>(result: R, pages: SheetPage[]): R {
   if (!pages.length) return result;
+  const deferred = pages.filter((page) => page.note);
+  const previewCard = deferred.length
+    ? largeSheetPreviewCard({
+        sheet: deferred[0].sheet,
+        page: deferred[0].page,
+        filename: "Drawing set",
+        signedUrl: deferred[0].signedUrl || null,
+        notice: deferred
+          .map((page) => `${page.sheet} · page ${page.page}`)
+          .join("; "),
+      })
+    : null;
   const note = pages
-    .map((page) => `${sheetPageLine(page.sheet, page.page)}\nPage link: ${page.signedUrl}`)
+    .map((page) =>
+      [
+        page.note,
+        sheetPageLine(page.sheet, page.page),
+        page.signedUrl ? `Page link: ${page.signedUrl}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
     .join("\n\n");
   const lines = Array.isArray(result.structuredContent?.lines)
     ? (result.structuredContent.lines as {
@@ -954,11 +1364,16 @@ export function attachSheetPages<R extends PageResult>(result: R, pages: SheetPa
   if (first >= 0)
     content[first] = {
       ...content[first],
-      text: `${note}\n${DRAWING_MARKUP_REQUIRED}\n\n${content[first].text ?? ""}${markup.map((m) => `\n\n${htmlBlock(m.html)}`).join("")}`,
+      text: `${note}\n${DRAWING_MARKUP_REQUIRED}\n\n${content[first].text ?? ""}${markup.map((m) => `\n\n${htmlBlock(m.html)}`).join("")}${previewCard ? `\n\n${htmlBlock(renderHtml(previewCard))}` : ""}`,
     };
-  else content.unshift({ type: "text", text: note });
+  else
+    content.unshift({
+      type: "text",
+      text: previewCard ? `${note}\n\n${htmlBlock(renderHtml(previewCard))}` : note,
+    });
   for (const page of pages) {
-    content.push({ type: "image", data: bytesToBase64(page.png), mimeType: "image/png" });
+    if (page.png?.length)
+      content.push({ type: "image", data: bytesToBase64(page.png), mimeType: "image/png" });
   }
   return {
     ...result,
@@ -966,10 +1381,17 @@ export function attachSheetPages<R extends PageResult>(result: R, pages: SheetPa
     structuredContent: {
       ...(result.structuredContent ?? {}),
       ...(markup.length ? { markup } : {}),
+      ...(previewCard
+        ? {
+            preview_unavailable: true,
+            ...(result.structuredContent?.card ? {} : { card: previewCard }),
+          }
+        : {}),
       sheet_pages: pages.map((page) => ({
         sheet: page.sheet,
         page: page.page,
         signed_url: page.signedUrl,
+        ...(page.note ? { preview: "unavailable" as const, note: page.note } : {}),
       })),
     },
   };

@@ -4,10 +4,18 @@ import { ToolError, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { dbError, type Sb } from "../guard";
 import { type Job, named } from "../jobs";
 import {
+  DrawingSheetIndexRequired,
   drawingRecords,
+  largeSheetPreviewCard,
+  newestIndexedRevision,
   readStoredDrawingBytes,
+  revisionRedirectNotice,
+  sheetPreviewBlocked,
+  signedPdfPageUrl,
+  SheetPreviewUnavailable,
   sheetPageIndex,
   type DrawingRecord,
+  type DrawingStore,
 } from "../drawing-set";
 
 import { bytesToBase64 } from "../estimating-sheet";
@@ -48,6 +56,12 @@ export type StoredPage = {
   bytes: Uint8Array;
   inspection: SheetInspection;
   space: ReturnType<typeof sheetSpace>;
+  /** Set when an empty passed revision was replaced by a newer indexed one. */
+  redirectNotice?: string | null;
+};
+export type StoredSourcePick = {
+  record: DrawingRecord;
+  redirectedFrom: DrawingRecord | null;
 };
 /** One line per stored set, so a host can pass source_id on the next call. */
 export function describeStoredSets(sources: DrawingRecord[]): string {
@@ -63,24 +77,29 @@ export function describeStoredSets(sources: DrawingRecord[]): string {
     "."
   );
 }
-/** The stored set that holds the sheet. Without a source_id, every set on the job is searched and the
- *  newest revision that contains the sheet wins, the same rule drawing_markup uses; the newest set on the
- *  job is never assumed to be the right one. */
-export function resolveStoredSource(
+/** The stored set that holds the sheet. A passed source id that already has sheet names is used
+ *  exactly. An empty index, or no source id, uses the newest revision that has sheet names.
+ *  Records arrive newest first. The newest set on the job is never assumed to be the right one. */
+export function selectStoredSource(
   sources: DrawingRecord[],
   sheet: string,
   sourceId?: string,
-): DrawingRecord {
+): StoredSourcePick {
   const selected = sourceId ? sources.find((s) => s.id === sourceId) : undefined;
   if (sourceId && !selected)
     throw new ToolError(
       `No stored drawing set has source_id ${sourceId} on this job. ${describeStoredSets(sources)} No older drawing was substituted.`,
     );
   if (selected) {
-    if (!selected.sheets.length)
-      throw new ToolError(
-        "This PDF is stored but its sheet names are needed. Save its page order once in the drawing library; no re-upload is needed.",
-      );
+    if (!selected.sheets?.length) {
+      const newer = newestIndexedRevision(sources, selected, sheet);
+      if (!newer) throw new DrawingSheetIndexRequired(selected);
+      if (sheetPageIndex(newer.sheets, sheet) == null)
+        throw new ToolError(
+          `Sheet ${sheet} is not in ${newer.filename} (revision ${newer.version}). No older drawing was substituted.`,
+        );
+      return { record: newer, redirectedFrom: selected };
+    }
     if (sheetPageIndex(selected.sheets, sheet) == null) {
       const elsewhere = sources.filter((s) => sheetPageIndex(s.sheets, sheet) != null);
       throw new ToolError(
@@ -91,22 +110,33 @@ export function resolveStoredSource(
           " No older drawing was substituted.",
       );
     }
-    return selected;
+    return { record: selected, redirectedFrom: null };
   }
-  // Records arrive newest first, so the first set holding the sheet is its newest revision.
+  // Newest first. An empty index on the newest stored set is not a reason to open an older set.
+  const newest = sources[0];
+  if (newest && !newest.sheets?.length) {
+    const forward = newestIndexedRevision(sources, newest, sheet);
+    if (forward && sheetPageIndex(forward.sheets, sheet) != null)
+      return { record: forward, redirectedFrom: newest };
+    throw new DrawingSheetIndexRequired(newest);
+  }
   const holder = sources.find((s) => sheetPageIndex(s.sheets, sheet) != null);
-  if (holder) return holder;
+  if (holder) return { record: holder, redirectedFrom: null };
   if (!sources.length)
     throw new ToolError(
       "Choose a drawing set stored on this job. No other source was substituted.",
     );
-  if (sources.every((s) => !s.sheets.length))
-    throw new ToolError(
-      "This PDF is stored but its sheet names are needed. Save its page order once in the drawing library; no re-upload is needed.",
-    );
+  if (sources.every((s) => !s.sheets?.length)) throw new DrawingSheetIndexRequired(sources[0]);
   throw new ToolError(
     `Sheet ${sheet} is not in any stored set on this job. ${describeStoredSets(sources)} No older drawing was substituted.`,
   );
+}
+export function resolveStoredSource(
+  sources: DrawingRecord[],
+  sheet: string,
+  sourceId?: string,
+): DrawingRecord {
+  return selectStoredSource(sources, sheet, sourceId).record;
 }
 export async function loadStoredPage(
   sb: Sb,
@@ -115,8 +145,32 @@ export async function loadStoredPage(
   sourceId?: string,
 ): Promise<StoredPage> {
   const sources = await drawingRecords(sb, job);
-  const source = resolveStoredSource(sources, sheet, sourceId);
+  const picked = selectStoredSource(sources, sheet, sourceId);
+  const source = picked.record;
   const index = sheetPageIndex(source.sheets, sheet)!;
+  const redirectNotice = picked.redirectedFrom
+    ? revisionRedirectNotice(picked.redirectedFrom, source)
+    : null;
+  // Size comes from the stored record or object metadata. A large original is not downloaded.
+  if (await sheetPreviewBlocked(sb as unknown as DrawingStore, source)) {
+    const page = index + 1;
+    const signedUrl = await signedPdfPageUrl(sb as unknown as DrawingStore, source, page);
+    throw new SheetPreviewUnavailable(
+      largeSheetPreviewCard({
+        sheet: source.sheets[index],
+        page,
+        filename: source.filename,
+        signedUrl,
+        job: named(job),
+        notice: redirectNotice,
+        pageCount: source.page_count,
+      }),
+      source,
+      source.sheets[index],
+      page,
+      signedUrl ?? "",
+    );
+  }
   // Read/hash validation is shared with direct imports; a source reference alone
   // never establishes ownership or authorizes a different bucket/job.
   const bytes = await cachedSource(
@@ -131,6 +185,7 @@ export async function loadStoredPage(
     bytes,
     inspection,
     space: sheetSpace(source, index + 1, inspection),
+    redirectNotice,
   };
 }
 /** A review row is red only for a recorded risk: a conflict between the documents that holds the bid.
@@ -394,6 +449,12 @@ export async function viewEngine(
         const file = d as { filename: string; url: string };
         return { cells: [file.filename], href: file.url };
       }),
+    });
+  if (page?.redirectNotice)
+    card.sections?.unshift({
+      heading: "Drawing revision",
+      kind: "list",
+      rows: [{ cells: [page.redirectNotice] }],
     });
   const { renderPdfiumPage } = await import("../pdf-renderer");
   const review = parseState({
