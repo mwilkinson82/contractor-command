@@ -132,6 +132,23 @@ export function useNotificationsCount(jobId: string, token?: string): number | n
   return useJobNotices(jobId, token).unread;
 }
 
+/** The left nav entry: a bell, the word Notifications and a red count when something is new. */
+export function NotificationsNavLink({ jobId, token }: { jobId: string; token?: string }) {
+  const { signedIn, unread } = useJobNotices(jobId, token);
+  if (!signedIn) return null;
+  return (
+    <a href="#notifications" className="jh-nav-icon" aria-label={bellLabel(unread)}>
+      <Bell size={16} aria-hidden="true" />
+      Notifications
+      {unread ? (
+        <span className="jh-count" aria-hidden="true">
+          {badgeText(unread)}
+        </span>
+      ) : null}
+    </a>
+  );
+}
+
 /** The board's top bar bell. A red count only when something is new; it scrolls to the Notifications panel. */
 export function NotificationsBell({ jobId, token }: { jobId: string; token?: string }) {
   const { signedIn, unread } = useJobNotices(jobId, token);
@@ -251,6 +268,8 @@ export function JobHomeNotifications({ jobId, token, companyId }: BoardProps) {
     if (!ok) setFailed("That could not be marked read. Try again.");
     return ok;
   };
+  // A share-link view with no signed-in member shows nothing: notices are for the team.
+  if (!notices.signedIn && !notices.loading) return null;
   return (
     <div className="jh-panel jhn-panel">
       <div className="jhn-head">
@@ -276,9 +295,7 @@ export function JobHomeNotifications({ jobId, token, companyId }: BoardProps) {
         ) : null}
       </div>
       <div className="jh-panel-body jhn-body">
-        {!notices.signedIn && !notices.loading ? (
-          <p>Sign in to see this job's notifications.</p>
-        ) : notices.loading ? (
+        {notices.loading ? (
           <p role="status">Loading notifications…</p>
         ) : notices.error || !list ? (
           <p>

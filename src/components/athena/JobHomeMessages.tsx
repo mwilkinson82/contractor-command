@@ -146,6 +146,8 @@ export function JobHomeMessages({
   });
   const threads = !q.error && Array.isArray(q.data) ? (q.data as MessageThread[]) : null;
   const waiting = threads?.filter(threadWaiting).length ?? 0;
+  // A share-link view with no signed-in member shows nothing.
+  if (!session && !loading) return null;
   return (
     <div className="jh-panel jhn-panel jhm-panel" id={MESSAGES_ANCHOR}>
       <div className="jhn-head">
@@ -155,9 +157,7 @@ export function JobHomeMessages({
         </h2>
       </div>
       <div className="jh-panel-body jhn-body">
-        {!session && !loading ? (
-          <p>Sign in to see and answer client messages.</p>
-        ) : loading || q.isLoading ? (
+        {loading || q.isLoading ? (
           <p role="status">Loading client messages…</p>
         ) : !threads ? (
           <p>

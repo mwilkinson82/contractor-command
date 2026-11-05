@@ -64,6 +64,8 @@ export function JobNoticeEmailSettings({
       setBusy(null);
     }
   };
+  // A share-link view with no signed-in member shows nothing.
+  if (!session && !loading) return null;
   return (
     <div className="jh-panel jhn-panel jhe-panel" id={NOTICE_EMAILS_ANCHOR}>
       <div className="jhn-head">
@@ -74,9 +76,7 @@ export function JobNoticeEmailSettings({
           Choose which roles get an email for each kind of notice on this job. Everyone on the job
           still sees every notice they have access to on the board.
         </p>
-        {!session && !loading ? (
-          <p>Sign in to see who gets this job's emails.</p>
-        ) : loading || q.isLoading ? (
+        {loading || q.isLoading ? (
           <p role="status">Loading email choices…</p>
         ) : !grid ? (
           <p>
