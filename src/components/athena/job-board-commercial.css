@@ -627,6 +627,30 @@
 .jb-precon-more[open] > * + * {
   margin-top: 10px;
 }
+.jb-sig {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.jb-sig div {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  gap: 12px;
+}
+.jb-sig dt {
+  font-weight: 600;
+  color: #5b6472;
+}
+.jb-sig dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .jb-sig div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
 .jb-precon-offer {
   display: flex;
   gap: 14px;

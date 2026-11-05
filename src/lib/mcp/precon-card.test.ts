@@ -71,12 +71,16 @@ describe("pre-con card", () => {
     expect(preconNextStep(null)).toMatch(/start a pre-construction agreement/);
     expect(preconNextStep({ ...base, status: "draft" })).toMatch(/^Send the agreement/);
     expect(preconNextStep({ ...base, status: "sent" })).toMatch(/Did the owner sign/);
-    expect(preconNextStep(base)).toBe("Send invoice 1 for $8,500 to the owner's client page?");
+    expect(preconNextStep(base)).toBe(
+      "Send payment 1 for $8,500, due when you sign, to the owner's client page?",
+    );
     const one = { ...base, invoices: [inv(1, 850_000)] };
     expect(nextInstallment(one)).toBeNull();
     expect(preconNextStep(one)).toMatch(/final drawings/);
     const drawings = { ...one, drawings_approved_on: "2026-11-01", phase: "estimate" as const };
-    expect(preconNextStep(drawings)).toBe("Send invoice 2 for $8,500 to the owner's client page?");
+    expect(preconNextStep(drawings)).toBe(
+      "Send payment 2 for $8,500, due when you approve the final drawings, to the owner's client page?",
+    );
     const both = { ...drawings, invoices: [inv(1, 850_000), inv(2, 0)] };
     expect(preconNextStep(both)).toMatch(/Build the estimate/);
     expect(preconMoney(both)).toEqual({
@@ -130,7 +134,7 @@ describe("pre-con card", () => {
     const build = card.sections![1]!;
     expect(build.rows.at(-1)?.cells).toEqual(["Agreement price", "56", "$17,000"]);
     expect(card.sections![2]!.rows[0]!.cells[0]).toBe(
-      "Billed $8,500 at signing and $8,500 at final drawings",
+      "Paid in 2 payments: $8,500 when you sign, $8,500 when you approve the final drawings",
     );
   });
 

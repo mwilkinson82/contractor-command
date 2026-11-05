@@ -96,7 +96,14 @@ const view = () => ({
   ],
 });
 
-function deps(over: Partial<{ view: unknown; decide: unknown; issue: unknown }> = {}) {
+function deps(
+  over: Partial<{
+    view: unknown;
+    decide: unknown;
+    issue: unknown;
+    rpcs: Record<string, unknown>;
+  }> = {},
+) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
   const mail: PortalEmail[] = [];
   let n = 0;
@@ -123,6 +130,7 @@ function deps(over: Partial<{ view: unknown; decide: unknown; issue: unknown }> 
           : { status: "signed_out" };
       if (fn === "mcp_portal_decide")
         return over.decide ?? { status: "ok", decision_id: "d1", pm_email: "pat@example.com" };
+      if (over.rpcs && fn in over.rpcs) return over.rpcs[fn];
       return { status: "ok" };
     },
     signPhotos: async (paths) =>
@@ -1818,5 +1826,217 @@ describe("paying an approved pay application online", () => {
   it("thanks the customer when Stripe sends them back", async () => {
     const { html } = await page(payDeps().d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}&paid=1`);
     expect(html).toContain("Stripe is confirming your payment");
+  });
+});
+
+const PRECON = "00000000-0000-4000-8000-0000000000e1";
+const BILL = "00000000-0000-4000-8000-0000000000e2";
+const preconView = (extra: Record<string, unknown> = {}) => ({
+  ...view(),
+  items: [
+    {
+      id: PRECON,
+      kind: "precon_agreement",
+      shared_on: "2026-11-05",
+      due_on: "2026-11-12",
+      fingerprint: FP,
+      view: {
+        title: "Pre-construction agreement · Harbor Point Dental",
+        price_cents: 1_700_000,
+        design_partner: "Rivera Architecture",
+        design_role: "Architect",
+        design_days: 35,
+        includes: ["Schematic design", "Construction drawings"],
+        payments: [
+          { index: 1, amount_cents: 500_000, due: "signing", on: null, when: null },
+          {
+            index: 2,
+            amount_cents: 1_200_000,
+            due: "step",
+            on: null,
+            when: "when you approve the schematic design",
+          },
+        ],
+        owner_owns_drawings: true,
+        credit_days: 90,
+        own_terms: ["Two rounds of design changes are included."],
+        construction_line: true,
+      },
+      decision: null,
+    },
+  ],
+  ...extra,
+});
+
+describe("pre-construction agreement", () => {
+  it("shows the Agreement tab with the contractor's terms and never the fee build-up", async () => {
+    const { d } = deps({ view: preconView() });
+    const html = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement&i=${PRECON}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(html).toContain(">Agreement<");
+    expect(html).toContain("Rivera Architecture");
+    expect(html).toContain("Two rounds of design changes are included.");
+    expect(html).toContain("when you approve the schematic design");
+    expect(html).toContain("Sign the agreement");
+    expect(html).not.toMatch(/hourly|markup|design fee/i);
+    expect(html).not.toMatch(/<script/i);
+    // Without anything shared, the tab doesn't show and the link opens Home.
+    const { d: d2 } = deps();
+    const plain = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement`, { cookie: true }), ACCESS, d2)
+    ).text();
+    expect(plain).not.toContain("?s=agreement");
+  });
+
+  it("signs with consent, a code and the typed name, then sends the owner their copy", async () => {
+    const { d, calls, mail } = deps({
+      view: preconView(),
+      rpcs: {
+        mcp_portal_precon_sign: {
+          status: "ok",
+          decision_id: "pd1",
+          decided_at: "2026-11-05T20:30:00Z",
+          customer: "Rosa Delgado",
+          customer_email: "rosa@example.com",
+          job_id: "j1",
+          job_name: "Harbor Point Dental",
+          job_number: "2715",
+          pm_email: "pat@example.com",
+          pm_name: "Pat Lee",
+          label: "Pre-construction agreement",
+          signed_on: "2026-11-05",
+          bill: { item_id: BILL, number: "PC-2715-1", amount_cents: 500_000 },
+        },
+      },
+    });
+    const csrf = await csrfFor(SESSION);
+    const confirm = await (
+      await handlePortal(
+        req(`/c/${ACCESS}?s=agreement&i=${PRECON}&step=confirm&sent=1`, { cookie: true }),
+        ACCESS,
+        d,
+      )
+    ).text();
+    expect(confirm).toContain('name="consent"');
+    expect(confirm).toContain("I agree to do this electronically");
+    const base = {
+      action: "decide",
+      item: PRECON,
+      decision: "signed",
+      fingerprint: FP,
+      typed_name: "Rosa Delgado",
+      code: "123456",
+      agree: "1",
+      csrf,
+    };
+    const noConsent = await handlePortal(
+      await post(`/c/${ACCESS}`, base, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(noConsent.headers.get("location")).toContain("e=consent");
+    expect(calls.some((c) => c.fn === "mcp_portal_precon_sign")).toBe(false);
+
+    const ok = await handlePortal(
+      await post(`/c/${ACCESS}`, { ...base, consent: "1" }, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(ok.headers.get("location")).toContain("ok=signed");
+    const signed = calls.find((c) => c.fn === "mcp_portal_precon_sign")!.args;
+    expect(signed).toMatchObject({
+      _decision: "signed",
+      _typed_name: "Rosa Delgado",
+      _fingerprint: FP,
+      _code_hash: await codeHash(ACCESS, "123456"),
+    });
+    expect(signed._consent).toContain("sign this agreement electronically");
+    expect(signed._statement).toContain("$17,000");
+    const copy = mail.find((m) => m.to === "rosa@example.com")!;
+    expect(copy).toBeTruthy();
+    expect(copy.text).toContain("Two rounds of design changes are included.");
+    expect(copy.text).toContain("Rosa Delgado");
+    expect(mail.some((m) => m.to === "pat@example.com")).toBe(true);
+  });
+
+  it("lets the owner say they're paying a bill by check, and shows the pickup once it's set", async () => {
+    const bill = {
+      id: BILL,
+      kind: "service_invoice",
+      shared_on: "2026-11-05",
+      due_on: null,
+      fingerprint: FP,
+      view: {
+        number: "PC-2715-1",
+        stage: "bill",
+        title: "Pre-construction payment 1 of 2 · Harbor Point Dental",
+        work_order: "Pre-construction agreement",
+        site_address: null,
+        issue: null,
+        lines: [{ description: "Payment 1", detail: null, amount_cents: 500_000 }],
+        signoff: null,
+        totals: { subtotal_cents: 500_000, credit_cents: 0, current_due_cents: 500_000 },
+        note: null,
+      },
+      decision: null,
+    };
+    const v = preconView();
+    const { d, calls } = deps({
+      view: { ...v, items: [...v.items, bill], check_items: [BILL] },
+      rpcs: {
+        mcp_portal_check_request: {
+          status: "ok",
+          request_id: "cr1",
+          again: false,
+          job_id: "j1",
+          job_name: "Harbor Point Dental",
+          job_number: "2715",
+          customer: "Rosa Delgado",
+          pm_email: "pat@example.com",
+          number: "PC-2715-1",
+          label: "PC-2715-1",
+          amount_cents: 500_000,
+          note: null,
+        },
+      },
+    });
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=billing&i=${BILL}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain("Pay by check");
+    expect(page).not.toContain("Pay by card");
+    const csrf = await csrfFor(SESSION);
+    const r = await handlePortal(
+      await post(`/c/${ACCESS}`, { action: "check_request", item: BILL, csrf }, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(r.headers.get("location")).toContain("ok=check");
+    expect(calls.some((c) => c.fn === "mcp_portal_check_request")).toBe(true);
+
+    const set = deps({
+      view: {
+        ...v,
+        items: [...v.items, bill],
+        check_items: [BILL],
+        checks: [
+          {
+            item_id: BILL,
+            requested_at: "2026-11-05T21:00:00Z",
+            note: null,
+            pickup_on: "2026-11-10",
+            pickup_window: "9:00 to 10:00 AM",
+            pickup_place: "the job site",
+            pickup_by: "Pat Lee",
+          },
+        ],
+      },
+    });
+    const after = await (
+      await handlePortal(req(`/c/${ACCESS}?s=billing&i=${BILL}`, { cookie: true }), ACCESS, set.d)
+    ).text();
+    expect(after).toContain("9:00 to 10:00 AM");
+    expect(after).toContain("Pat Lee");
   });
 });

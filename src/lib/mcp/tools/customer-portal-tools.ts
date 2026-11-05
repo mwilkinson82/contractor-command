@@ -124,7 +124,13 @@ async function notify(
   label: string | undefined,
   accessFor: (r: Recipient) => string | null,
   logo: string | null = null,
-  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice",
+  item?:
+    | "change_order"
+    | "selection"
+    | "pay_app"
+    | "work_order"
+    | "service_invoice"
+    | "precon_agreement",
 ) {
   const out: string[] = [];
   for (const r of recipients) {
@@ -620,7 +626,13 @@ export async function notifyAll(
   kind: "update" | "decision",
   label?: string,
   logo: string | null = null,
-  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice",
+  item?:
+    | "change_order"
+    | "selection"
+    | "pay_app"
+    | "work_order"
+    | "service_invoice"
+    | "precon_agreement",
 ): Promise<string[]> {
   return notify(
     r.recipients,

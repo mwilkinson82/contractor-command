@@ -128,6 +128,140 @@ export const serviceInvoiceViewSchema = z
   .strict();
 export type ServiceInvoiceView = z.infer<typeof serviceInvoiceViewSchema>;
 
+/** A pre-construction agreement for the owner to sign: what they get, who draws it, the price, the payments and the
+ * terms, in the contractor's words. A strict whitelist: the fee build-up (design fee, hours, markup) never reaches it. */
+export const preconPaymentSchema = z
+  .object({
+    index: z.number().int().min(1).max(12),
+    amount_cents: cents,
+    due: z.enum(["signing", "final_drawings", "date", "step"]),
+    on: nstr,
+    when: nstr,
+  })
+  .strict();
+export type PreconPayment = z.infer<typeof preconPaymentSchema>;
+export const preconAgreementViewSchema = z
+  .object({
+    title: z.string(),
+    price_cents: cents,
+    design_partner: nstr,
+    design_role: nstr,
+    design_days: z.number().int().nullable(),
+    includes: z.array(z.string()).max(12),
+    payments: z.array(preconPaymentSchema).min(1).max(12),
+    owner_owns_drawings: z.boolean(),
+    credit_days: z.number().int().nullable(),
+    own_terms: z.array(z.string()).max(10),
+    construction_line: z.boolean(),
+  })
+  .strict();
+export type PreconAgreementView = z.infer<typeof preconAgreementViewSchema>;
+
+const longDate = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+/** A price as an agreement reads it: "$17,000", "$5,250.50". */
+export const wholePrice = (c: number, currency = "USD") =>
+  displayPrice(c, currency).replace(/\.00$/, "");
+/** When a payment is due, read after its amount: "when you sign", "on December 1, 2026". Same words as the SQL. */
+export function preconDueWords(p: Pick<PreconPayment, "due" | "on" | "when">): string {
+  if (p.due === "signing") return "when you sign";
+  if (p.due === "final_drawings") return "when you approve the final drawings";
+  if (p.due === "date" && p.on) return `on ${longDate(p.on)}`;
+  return p.when ?? "as agreed";
+}
+/** "When you sign", for a heading or a row label. */
+export const preconDueLabel = (p: Pick<PreconPayment, "due" | "on" | "when">) => {
+  const w = preconDueWords(p);
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+const NUMBER_WORD = [
+  "",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+];
+const joinAnd = (xs: string[]) =>
+  xs.length <= 1
+    ? (xs[0] ?? "")
+    : xs.length === 2
+      ? `${xs[0]} and ${xs[1]}`
+      : `${xs.slice(0, -1).join(", ")}, and ${xs[xs.length - 1]}`;
+
+/**
+ * The agreement's terms, in order, as the owner reads and signs them: each a heading and its sentence. Built from the
+ * agreement itself (the contractor's own payments and own terms), so every agreement reads its own way. Wording shown to
+ * and approved by Marshall (attorney) in the Nov 5 preview.
+ */
+export function preconTerms(
+  v: PreconAgreementView,
+  company: string,
+  job: string,
+  currency = "USD",
+): { heading: string; text: string }[] {
+  const money = (c: number) => wholePrice(c, currency);
+  const partner = v.design_partner
+    ? ` works with ${v.design_partner}${v.design_role ? `, the ${v.design_role},` : ""} to design ${job}`
+    : ` designs ${job}`;
+  const out = [
+    {
+      heading: "What you get",
+      text: `${company}${partner} and gives you everything listed under What you get.${
+        v.design_days ? ` Design is planned to take about ${v.design_days} days from signing.` : ""
+      }`,
+    },
+  ];
+  const pays = v.payments;
+  out.push({
+    heading: "Price and payments",
+    text:
+      pays.length === 1
+        ? `The price is ${money(v.price_cents)}, paid ${preconDueWords(pays[0]!)}.`
+        : `The price is ${money(v.price_cents)}, paid in ${NUMBER_WORD[pays.length] ?? pays.length} payments: ${joinAnd(
+            pays.map((p) => `${money(p.amount_cents)} ${preconDueWords(p)}`),
+          )}.`,
+  });
+  if (v.owner_owns_drawings)
+    out.push({
+      heading: "Your drawings",
+      text: "You own the final drawings and can use them with any builder.",
+    });
+  if (v.credit_days)
+    out.push({
+      heading: "Credit toward building",
+      text: `If you hire ${company} to build the project within ${v.credit_days} days of the final drawings, the full ${money(v.price_cents)} is credited to your construction contract.`,
+    });
+  for (const t of v.own_terms) out.push({ heading: "Also agreed", text: t });
+  if (v.construction_line)
+    out.push({
+      heading: "Construction",
+      text: "This agreement covers design and pre-construction only. Building the project needs its own construction contract.",
+    });
+  return out;
+}
+
+/** The owner's agreement to do business electronically, stored word for word with the signature. Approved by Marshall, Nov 5. */
+export function preconConsent(company: string, email: string): string {
+  return `I agree to review and sign this agreement electronically. ${company} can send me the agreement, my signed copy and notices about it by email at ${email} and on this page. I can ask ${company} for a paper copy at no charge, and I can stop doing business electronically by telling them. That doesn't undo anything I've already signed.`;
+}
+/** The signature statement. Approved by Marshall, Nov 5. */
+export function preconStatement(company: string, job: string, price: string): string {
+  return `I have read the pre-construction agreement from ${company} for ${job}, ${price}, and I agree to its terms as shown on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
+}
+
 /** What a work order approval is for, in the customer's words: a fixed total, or the actual time up to the limit. */
 export function workOrderPrice(v: WorkOrderView, currency = "USD"): string {
   const t = v.totals;
@@ -144,7 +278,7 @@ export function payAppLabel(number: string): string {
 
 const decisionSchema = z
   .object({
-    decision: z.enum(["approved", "declined", "chosen"]),
+    decision: z.enum(["approved", "declined", "chosen", "signed"]),
     choice: z.enum(["good", "better", "best"]).nullable(),
     typed_name: z.string(),
     decided_at: z.string(),
@@ -168,8 +302,24 @@ export const portalItemSchema = z.discriminatedUnion("kind", [
   z
     .object({ ...itemBase, kind: z.literal("service_invoice"), view: serviceInvoiceViewSchema })
     .strict(),
+  z
+    .object({ ...itemBase, kind: z.literal("precon_agreement"), view: preconAgreementViewSchema })
+    .strict(),
 ]);
 export type PortalItem = z.infer<typeof portalItemSchema>;
+
+export const portalCheckSchema = z
+  .object({
+    item_id: UUID,
+    requested_at: nstr,
+    note: nstr,
+    pickup_on: nstr,
+    pickup_window: nstr,
+    pickup_place: nstr,
+    pickup_by: nstr,
+  })
+  .strict();
+export type PortalCheck = z.infer<typeof portalCheckSchema>;
 
 export const portalViewSchema = z
   .object({
@@ -216,6 +366,10 @@ export const portalViewSchema = z
       .array(z.object({ name: z.string(), date: z.string(), done: z.boolean() }).strict())
       .max(40),
     items: z.array(portalItemSchema),
+    /** Bills the owner can pay by check from this page (pre-con bills for now). */
+    check_items: z.array(UUID).optional(),
+    /** The owner paying by check, and the pickup the contractor set. */
+    checks: z.array(portalCheckSchema).optional(),
   })
   .strict();
 export type PortalView = z.infer<typeof portalViewSchema>;

@@ -159,7 +159,13 @@ export function noticeEmail(a: {
   kind: "update" | "decision";
   label?: string;
   /** What was shared for a decision. A pay application asks for approval and says so. */
-  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice";
+  item?:
+    | "change_order"
+    | "selection"
+    | "pay_app"
+    | "work_order"
+    | "service_invoice"
+    | "precon_agreement";
   /** The contractor's saved logo, an https URL; their name shows when there is none. */
   logo?: string | null;
   nonce: string;
@@ -167,6 +173,7 @@ export function noticeEmail(a: {
   const payApp = a.kind === "decision" && a.item === "pay_app";
   const workOrder = a.kind === "decision" && a.item === "work_order";
   const bill = a.kind === "decision" && a.item === "service_invoice";
+  const precon = a.kind === "decision" && a.item === "precon_agreement";
   // A pay application goes by the name the contractor confirmed when sharing it, exactly as written.
   const what = payApp ? a.label || "a payment application" : (a.label ?? "something");
   const line =
@@ -178,7 +185,9 @@ export function noticeEmail(a: {
           ? `${a.company} sent work order ${what} for ${a.jobName}. Review it and approve it before the work starts.`
           : bill
             ? `${a.company} sent ${what} for ${a.jobName}. You can pay it on your page.`
-            : `${a.company} shared ${what} on ${a.jobName}. It needs your decision.`;
+            : precon
+              ? `${a.company} sent the pre-construction agreement for ${a.jobName}. Review it and sign it on your page.`
+              : `${a.company} shared ${what} on ${a.jobName}. It needs your decision.`;
   return {
     to: a.to,
     key: `portal-notice:${a.nonce}`,
@@ -192,7 +201,9 @@ export function noticeEmail(a: {
             ? `${a.company} sent a work order for your approval: ${a.label ?? a.jobName}`
             : bill
               ? `${a.company} sent you a bill: ${a.label ?? a.jobName}`
-              : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
+              : precon
+                ? `${a.company} sent your pre-construction agreement to sign: ${a.jobName}`
+                : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
     text: [
       `Hi ${a.name},`,
       "",
@@ -215,9 +226,11 @@ export function noticeEmail(a: {
               ? "A work order needs your approval"
               : bill
                 ? "You have a bill to pay"
-                : "Something needs your decision",
+                : precon
+                  ? "Your pre-construction agreement is ready to sign"
+                  : "Something needs your decision",
       lines: [`Hi ${esc(firstName(a.name))},`, esc(line)],
-      button: { label: "Open your project page", href: a.link },
+      button: { label: precon ? "Review and sign" : "Open your project page", href: a.link },
       foot: `You get these emails because ${esc(a.company)} invited you to this project page.`,
       legal: CUSTOMER_LEGAL,
     }),
@@ -328,6 +341,150 @@ export function decisionEmail(a: {
         ...(a.next ? [esc(a.next)] : []),
       ],
       foot: `Reference: ${esc(a.reference)}. Ask Athena for the customer page list on this job to see the record.`,
+      legal: "Athena powered by ALP · app.meetathena.io",
+    }),
+  };
+}
+
+/**
+ * The owner's copy of the pre-construction agreement they signed on their page: every term, word for word, and the
+ * signature record (name, time, the emailed code, the consent they gave and the document fingerprint).
+ */
+export function preconCopyEmail(a: {
+  to: string;
+  name: string;
+  company: string;
+  jobName: string;
+  /** The day they signed, as the page shows it. */
+  signedOn: string;
+  terms: { heading: string; text: string }[];
+  typedName: string;
+  /** When they signed, in UTC words. */
+  signedAt: string;
+  fingerprint: string;
+  consent: string;
+  statement: string;
+  link: string;
+  logo?: string | null;
+  decisionId: string;
+}): PortalEmail {
+  const line = `You signed the pre-construction agreement with ${a.company} for ${a.jobName} on ${a.signedOn}. This is your copy.`;
+  const record = `Signed by ${a.typedName}, ${a.signedAt}, confirmed with a code emailed to ${a.to}. Document fingerprint ${a.fingerprint}.`;
+  const box = (html: string) =>
+    `<span style="display:block;padding:12px 14px;border-left:3px solid ${EMAIL_BLUE};background:#F2F6FF;border-radius:0 8px 8px 0;overflow-wrap:anywhere;word-break:break-word">${html}</span>`;
+  return {
+    to: a.to,
+    key: `portal-precon-copy:${a.decisionId}`,
+    fromName: customerFromName(a.company),
+    subject: `Your signed pre-construction agreement: ${a.jobName}`.slice(0, 180),
+    text: [
+      `Hi ${a.name},`,
+      "",
+      line,
+      "",
+      ...a.terms.map((t, n) => `${n + 1}. ${t.heading}. ${t.text}`),
+      "",
+      `You agreed: ${a.consent}`,
+      "",
+      `You signed: ${a.statement}`,
+      "",
+      record,
+      "",
+      `See it on your project page: ${a.link}`,
+      "",
+      CUSTOMER_LEGAL,
+    ].join("\n"),
+    html: frame({
+      brand: { contractor: a.company, logo: a.logo },
+      tagline: "Client page",
+      preview: line,
+      heading: "Your signed pre-construction agreement",
+      lines: [
+        `Hi ${esc(firstName(a.name))},`,
+        esc(line),
+        ...a.terms.map((t, n) => `${n + 1}. <b>${esc(t.heading)}.</b> ${esc(t.text)}`),
+        box(`<b>You agreed:</b> ${esc(a.consent)}`),
+        box(`<b>You signed:</b> ${esc(a.statement)}`),
+        `<span style="display:block;font-size:13px;line-height:20px;word-break:break-all">${esc(record)}</span>`,
+      ],
+      button: { label: "Open your project page", href: a.link },
+      foot: `Keep this email for your records. You can ask ${esc(a.company)} for a paper copy at no charge.`,
+      legal: CUSTOMER_LEGAL,
+    }),
+  };
+}
+
+/** Tells the owner when the contractor will collect their check. */
+export function checkPickupEmail(a: {
+  to: string;
+  name: string;
+  company: string;
+  jobName: string;
+  amount: string;
+  /** "Tue, Nov 10, 2026" */
+  day: string;
+  window: string | null;
+  place: string | null;
+  by: string | null;
+  link: string;
+  logo?: string | null;
+  nonce: string;
+}): PortalEmail {
+  const line = `${a.company} will collect your ${a.amount} check for ${a.jobName} on ${a.day}${a.window ? `, ${a.window}` : ""}${a.place ? `, at ${a.place}` : ""}.`;
+  const who = a.by ? `${a.by} from ${a.company} will pick it up.` : null;
+  return {
+    to: a.to,
+    key: `portal-check-pickup:${a.nonce}`,
+    fromName: customerFromName(a.company),
+    subject: `Your check pickup is set: ${a.jobName}`.slice(0, 180),
+    text: [
+      `Hi ${a.name},`,
+      "",
+      line,
+      ...(who ? ["", who] : []),
+      "",
+      `See it on your project page: ${a.link}`,
+      "",
+      CUSTOMER_LEGAL,
+    ].join("\n"),
+    html: frame({
+      brand: { contractor: a.company, logo: a.logo },
+      tagline: "Client page",
+      preview: line,
+      heading: "Your check pickup is set",
+      lines: [`Hi ${esc(firstName(a.name))},`, esc(line), ...(who ? [esc(who)] : [])],
+      button: { label: "Open your project page", href: a.link },
+      foot: `You get these emails because ${esc(a.company)} invited you to this project page.`,
+      legal: CUSTOMER_LEGAL,
+    }),
+  };
+}
+
+/** Tells the job's PM the owner is paying a bill by check, when the job notice can't be recorded. */
+export function checkTeamEmail(a: {
+  to: string;
+  customer: string;
+  jobName: string;
+  jobNumber: string;
+  number: string;
+  amount: string;
+  note: string | null;
+  reference: string;
+}): PortalEmail {
+  const line = `${a.customer} wants to pay invoice ${a.number}, ${a.amount}, by check for ${a.jobNumber} ${a.jobName}.`;
+  const next = "Tell Athena when you'll collect it and they'll see the date on their page.";
+  return {
+    to: a.to,
+    key: `portal-check:${a.reference}`,
+    subject: `Owner paying by check: ${a.number}`,
+    text: [line, ...(a.note ? ["", `Their note: ${a.note}`] : []), "", next].join("\n"),
+    html: frame({
+      brand: "athena",
+      tagline: "Athena powered by ALP",
+      preview: line,
+      heading: "Owner is paying by check",
+      lines: [esc(line), ...(a.note ? [`Their note: ${esc(a.note)}`] : []), esc(next)],
+      foot: `Reference: ${esc(a.reference)}.`,
       legal: "Athena powered by ALP · app.meetathena.io",
     }),
   };
