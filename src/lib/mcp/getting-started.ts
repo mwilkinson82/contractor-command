@@ -105,38 +105,41 @@ export function plainGettingStarted(card: CardModel = gettingStartedCard()): str
   return lines.join("\n").trim();
 }
 
+// First run asks one question with the answer typed right in the chat, instead of a command to remember.
+export const FIRST_JOB_QUESTION = {
+  company:
+    "What's the job number and name? For example: 2701, Harbor Clinic. Just type it here and we'll build its saved record together.",
+  noCompany:
+    "What's your company name? Just type it here. Then we'll add the job number and name.",
+} as const;
+
 export function firstJobCard(company: boolean): CardModel {
   return {
     presentation: "onboarding",
     state: "result",
     show_state: false,
     title: "Your first job starts here.",
-    job: "No saved jobs yet. Start with one useful task.",
+    job: "No saved jobs yet. Let's add your first one.",
     sections: [
       list(
-        "Start a job",
-        [
-          company
-            ? "Tell me “start a job” with its job number and name. We will build its saved record together."
-            : "Tell me “start a job” and your company name. Then we will add the job number and name.",
-        ],
+        "First question",
+        [company ? FIRST_JOB_QUESTION.company : FIRST_JOB_QUESTION.noCompany],
         true,
       ),
       choices(["Start a job", "How do I bring my documents?", "What can Athena show me?"]),
       bringExisting(),
       workingTogether(),
     ],
-    next_move:
-      "Start a job, or tell me where your existing project information lives. You can begin without all the documents.",
+    next_move: "Type your answer, or tap a choice. You can begin without all the documents.",
   };
 }
 
 export function firstJobGuidance(company: boolean): string {
   return (
     (company
-      ? "If they choose to start a job, ask for its number and name; use intake section create_job only after their explicit request. The scope question follows; never assume job type."
-      : "If they choose to start a job, ask for the company name; use onboarding action save_company only for the requested company. Then ask for the job number and name.") +
-    " " +
+      ? "The card asks for the job number and name. A reply with both is their explicit request to start that job: confirm the number and name back, then use intake section create_job. If either is missing, ask only for the missing one. The scope question follows; never assume job type."
+      : "The card asks for the company name. A reply with a name is their explicit request to save it: use onboarding action save_company only for the company they named. Then ask for the job number and name, one question at a time.") +
+    " Ask one question per reply and offer short choices where they fit. " +
     GETTING_STARTED_GUIDANCE
   );
 }

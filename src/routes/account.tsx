@@ -42,7 +42,13 @@ import {
   useClientPaymentsState,
 } from "@/components/account/client-payments-section";
 import { getSeatPurchaseStatus } from "@/lib/account-team.functions";
-import { setupSteps } from "@/lib/account-profile";
+import {
+  CONNECT_GUIDE_URL,
+  FIRST_JOB_MESSAGE,
+  setupSteps,
+  type SetupProgress,
+} from "@/lib/account-profile";
+import { getSetupProgress } from "@/lib/account-setup.functions";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
@@ -62,6 +68,27 @@ type AosLink = {
   verified_at: string | null;
   last_sync_at: string | null;
 };
+
+/** Connected AI and saved jobs for the setup checklist; null until read, or if the read fails. */
+function useSetupProgress(companyId: string | null): SetupProgress | null {
+  const read = useServerFn(getSetupProgress);
+  const [progress, setProgress] = useState<SetupProgress | null>(null);
+  useEffect(() => {
+    setProgress(null);
+    if (!companyId) return;
+    let alive = true;
+    void read({ data: { companyId } }).then(
+      (p) => {
+        if (alive) setProgress(p ?? null);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [companyId, read]);
+  return progress;
+}
 
 function ProjectHomes() {
   const [jobs, setJobs] = useState<ProjectHomeJob[]>([]);
@@ -100,7 +127,12 @@ function ProjectHomes() {
       <div className="aa-card">
         <h2>No projects yet</h2>
         <p>
-          In your connected chat, ask Athena to “Start a job.” Your saved projects will appear here.
+          In your connected chat, send “{FIRST_JOB_MESSAGE}” Athena walks you through it, and your saved
+          projects appear here.
+        </p>
+        <p>
+          Haven't put Athena in your AI yet?{" "}
+          <a href={CONNECT_GUIDE_URL}>Show me how to connect</a>
         </p>
       </div>
     );
@@ -135,6 +167,7 @@ function AccountPage() {
   const athenaCompanyId = athenaHost ? (athena.state?.companyId ?? null) : null;
   const companyProfile = useCompanyProfile(athenaCompanyId);
   const clientPayments = useClientPaymentsState(athenaCompanyId);
+  const setupProgress = useSetupProgress(athenaCompanyId);
   const seatStatusFn = useServerFn(getSeatPurchaseStatus);
   const [inviteEmailEnabled, setInviteEmailEnabled] = useState(false);
   useEffect(() => {
@@ -523,6 +556,7 @@ function AccountPage() {
                 members: team?.members.length ?? seatsNow?.members ?? 1,
                 pending: team?.pending.length ?? seatsNow?.pending ?? 0,
                 payments: clientPayments,
+                progress: setupProgress,
               })
             : undefined
         }

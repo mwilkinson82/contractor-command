@@ -120,9 +120,20 @@ export type SetupInput = {
   pending: number;
   /** Client payments as the account page reads them; null or missing reads as not set up. */
   payments?: ClientPaymentsState | null;
+  /**
+   * Whether Athena has answered this member in a connected AI app, and how many jobs the company has saved.
+   * Left out until the account page has read them, so the two steps don't flash "not done" while loading.
+   */
+  progress?: SetupProgress | null;
 };
+export type SetupProgress = { connected: boolean; jobs: number };
+
+/** Where a member learns to put Athena in ChatGPT, Claude or Grok Bot. */
+export const CONNECT_GUIDE_URL = "https://meetathena.io/connect/";
+/** The first message every connect screen gives. */
+export const FIRST_JOB_MESSAGE = "Athena, let's set up my first job.";
 export type SetupStep = {
-  id: "profile" | "team" | "payments";
+  id: "connect" | "first-job" | "profile" | "team" | "payments";
   label: string;
   detail: string;
   done: boolean;
@@ -154,11 +165,41 @@ export function paymentsStep(s: ClientPaymentsState | null | undefined): SetupSt
   return { ...base, detail, done: true, doneLabel: "Connected" };
 }
 
+/** The two steps that get a new member working: Athena in their AI, then their first job. */
+export function startSteps(progress: SetupProgress): SetupStep[] {
+  const jobs = Math.max(0, Math.floor(progress.jobs));
+  return [
+    {
+      id: "connect",
+      label: "Connect Athena to your AI",
+      detail: progress.connected
+        ? "Athena is answering you in your AI app"
+        : "Not yet. Takes about 3 minutes, once, on a computer",
+      done: progress.connected,
+      doneLabel: "Connected",
+      href: CONNECT_GUIDE_URL,
+      action: "Show me how",
+    },
+    {
+      id: "first-job",
+      label: "Set up your first job",
+      detail:
+        jobs > 0
+          ? `${jobs} ${jobs === 1 ? "job" : "jobs"} saved`
+          : `In your connected chat, send: ${FIRST_JOB_MESSAGE}`,
+      done: jobs > 0,
+      href: "#projects",
+      action: "See projects",
+    },
+  ];
+}
+
 export function setupSteps(i: SetupInput): SetupStep[] {
   const p = i.profile;
   const profileDone = !!(p?.name?.trim() && p.logo_url);
   const people = i.members + i.pending;
   return [
+    ...(i.progress ? startSteps(i.progress) : []),
     {
       id: "profile",
       label: "Company profile and logo",

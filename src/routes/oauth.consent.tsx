@@ -8,6 +8,9 @@ import { consentClientLabel, consentConnectTitle } from "@/lib/consent-client-la
 import { getAuthorizationDetails, decideAuthorization, getAuthUser } from "@/lib/oauth-consent-api";
 import { TERMS_LINK_TEXT, TERMS_REQUIRED_MESSAGE, TERMS_TEXT_AFTER, TERMS_TEXT_BEFORE, TERMS_URL, canApproveConnect, recordTermsAcceptance, type AccountDb } from "@/lib/account-team";
 import { AthenaStartTip } from "@/components/athena/start-tip";
+import { ATHENA_TRIAL_URL } from "@/lib/login-copy";
+// The connect guide's first message, so every screen gives the member the same next step.
+import { FIRST_JOB_MESSAGE } from "@/lib/account-profile";
 
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -191,18 +194,30 @@ function Consent() {
     >
       <div className="space-y-4 text-[13px] text-foreground/80">
         {!allowed && (
-          <div role="alert" className="space-y-3 rounded-lg border-2 border-destructive/60 bg-destructive/5 p-4">
+          <div role="alert" className="space-y-3 rounded-lg border-2 border-destructive/60 bg-destructive/5 p-4" data-consent="no-plan">
             <p className="text-[14px] font-semibold text-destructive">
-              Signed in as {email || "an unknown account"} — switch accounts
+              {email || "This account"} doesn't have Athena yet
             </p>
-            <p className="text-foreground/75">{NO_ENTITLEMENT_MESSAGE} Approve is turned off.</p>
+            <p className="text-foreground/75">
+              {NO_ENTITLEMENT_MESSAGE} Start a free trial, then come back and connect again. Or switch to the email
+              on your Athena plan.
+            </p>
+            {/* New tab, so this connect request stays open while they sign up. */}
+            <a
+              href={ATHENA_TRIAL_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="block w-full rounded-lg bg-primary px-4 py-2.5 text-center font-medium text-primary-foreground"
+            >
+              Start 7-day free trial
+            </a>
             <button
               type="button"
               disabled={busy}
               onClick={switchAccount}
-              className="w-full rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground disabled:opacity-60"
+              className="w-full rounded-lg border border-primary px-4 py-2.5 font-medium text-primary disabled:opacity-60"
             >
-              Switch account
+              Use a different email
             </button>
           </div>
         )}
@@ -259,6 +274,14 @@ function Consent() {
             Deny
           </button>
         </div>
+        {allowed && (
+          <div className="rounded-lg border border-border bg-muted/45 p-3 text-foreground/80" data-consent="next-step">
+            <p className="font-medium text-foreground">Next, after you approve</p>
+            <p className="mt-1">
+              Start a new chat in {clientLabel} and send: <strong>{FIRST_JOB_MESSAGE}</strong>
+            </p>
+          </div>
+        )}
       </div>
     </AuthCard>
   );

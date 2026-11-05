@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { TemplateEntry } from "./registry";
-import { AthenaAuthEmail, ATHENA_AUTH_COPY } from "./athena-auth-email";
+import { AthenaAuthEmail, ATHENA_AUTH_COPY, athenaSignInSubject } from "./athena-auth-email";
 
 // Athena sign-in email for the direct login path (requestMemberMagicLink).
 // Chosen for any sign-in started on the Athena host or from an AI app connect.
@@ -22,7 +22,9 @@ export default AthenaMagicLinkEmail;
 
 export const template = {
   component: AthenaMagicLinkEmail,
-  subject: ATHENA_SIGN_IN_SUBJECT,
+  // With a typed code, the subject leads with it; without one it stays "Sign in to Athena".
+  subject: (data: Record<string, unknown>) =>
+    athenaSignInSubject(typeof data.otpCode === "string" ? data.otpCode : undefined),
   displayName: "Athena magic link",
   previewData: { confirmationUrl: "https://app.meetathena.io/auth/callback" },
 } satisfies TemplateEntry;

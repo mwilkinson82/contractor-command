@@ -79,13 +79,51 @@ export function athenaAuthSubject(kind: AthenaAuthKind): string {
   return ATHENA_AUTH_COPY[kind].subject;
 }
 
+/** Digits only, 6 to 10 long, or null. Keeps anything else out of a subject line. */
+function subjectCode(code?: string): string | null {
+  const digits = (code ?? "").replace(/\s+/g, "");
+  return /^\d{6,10}$/.test(digits) ? digits : null;
+}
+
+/**
+ * Sign-in subject. With a code, the code leads ("48213907 is your Athena sign-in code") so it shows
+ * in the inbox list and phones can offer it to the sign-in page.
+ */
+export function athenaSignInSubject(code?: string): string {
+  const digits = subjectCode(code);
+  return digits ? `${digits} is your Athena sign-in code` : ATHENA_AUTH_COPY.magiclink.subject;
+}
+
+export const ATHENA_CODE_FIRST_BODY =
+  "Type this code on the Athena page you have open. It works once, so use the newest email only.";
+export const ATHENA_CONNECT_CODE_BODY =
+  "Type this code on the Athena page you have open to finish connecting your AI app. It works once, so use the newest email only.";
+export const ATHENA_SAME_DEVICE_LINE = "Signing in on this same phone or computer? Tap the button instead.";
+
 export const AthenaAuthEmail = ({ kind, confirmationUrl, code, connecting, newEmail }: AthenaAuthEmailProps) => {
   const copy = ATHENA_AUTH_COPY[kind];
-  const body = kind === "magiclink" && connecting ? ATHENA_CONNECT_BODY : copy.body;
+  // A sign-in email that carries a code leads with the code: the member usually has the sign-in page
+  // open on a computer, and the button would sign in whichever device opened the email instead.
+  const codeFirst = kind === "magiclink" && Boolean(code);
+  const body = codeFirst
+    ? connecting
+      ? ATHENA_CONNECT_CODE_BODY
+      : ATHENA_CODE_FIRST_BODY
+    : kind === "magiclink" && connecting
+      ? ATHENA_CONNECT_BODY
+      : copy.body;
   const showButton = Boolean(copy.button && confirmationUrl && kind !== "code");
+  const preview = kind === "magiclink" || kind === "code" ? athenaSignInSubject(code) : copy.subject;
+  const button = showButton ? (
+    <Section style={{ margin: codeFirst ? "8px 0 8px" : "28px 0 8px" }}>
+      <Button href={confirmationUrl} style={s.button}>
+        {copy.button}
+      </Button>
+    </Section>
+  ) : null;
   return (
     <Html lang="en" dir="ltr">
-      <Preview>{copy.subject}</Preview>
+      <Preview>{preview}</Preview>
       <Body style={s.main}>
         <Container style={s.container}>
           <Section style={s.header}>
@@ -100,21 +138,22 @@ export const AthenaAuthEmail = ({ kind, confirmationUrl, code, connecting, newEm
                 New email: <strong style={{ color: ATHENA_NAVY }}>{newEmail}</strong>
               </Text>
             ) : null}
-            {showButton ? (
-              <Section style={{ margin: "28px 0 8px" }}>
-                <Button href={confirmationUrl} style={s.button}>
-                  {copy.button}
-                </Button>
-              </Section>
-            ) : null}
-            {code ? (
+            {codeFirst ? (
               <>
-                {showButton ? (
-                  <Text style={s.text}>Or type this code on the sign-in page you already have open:</Text>
-                ) : null}
                 <Text style={s.code}>{code}</Text>
+                {showButton ? (
+                  <>
+                    <Text style={{ ...s.text, margin: "20px 0 4px" }}>{ATHENA_SAME_DEVICE_LINE}</Text>
+                    {button}
+                  </>
+                ) : null}
               </>
-            ) : null}
+            ) : (
+              <>
+                {button}
+                {code ? <Text style={s.code}>{code}</Text> : null}
+              </>
+            )}
             <Text style={s.footer}>
               If you didn't ask for this, you can safely ignore this email. Nobody can sign in without this link or code.
             </Text>
