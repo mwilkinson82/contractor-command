@@ -67,6 +67,10 @@ export const scheduleSettings = z
     calendars: z.array(scheduleCalendar).min(1).max(50),
     finish_convention: z.literal("inclusive-last-work-day"),
     out_of_sequence: z.literal("retained-logic"),
+    /** What the critical flag means. Default longest-path: the driving chain to completion. */
+    critical_definition: z.enum(["longest-path", "total-float"]).optional(),
+    /** Float paths to rank after the longest path (P6 multiple float paths). Default 3. */
+    float_path_count: z.number().int().min(1).max(10).optional(),
   })
   .strict();
 export const scheduleRequest = z

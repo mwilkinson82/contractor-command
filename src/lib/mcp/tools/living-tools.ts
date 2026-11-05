@@ -160,6 +160,19 @@ const SHOW_UNSAVED_BILLING =
 const stamp = (g: Got) => `Version v${g.version} · Last updated ${g.updated_at ? new Date(g.updated_at).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "Needed"}${g.updated_by_name ? `, ${g.updated_by_name}` : ""} · Data date ${g.data_date ?? "Needed"}`;
 const logLines = (g: Got) => (g.change_log ?? []).slice(0, 5).map((c) => `- v${c.version} · ${c.at.slice(0, 10)} · ${c.who ?? "member"} · ${c.what}${c.why ? ` (why: ${c.why})` : ""}`);
 
+/** Longest path and ranked float paths from a calculated version, as the engine saved them. */
+function pathLines(control: ReturnType<typeof readScheduleControl>): string[] {
+  const c = control?.calculation;
+  if (c?.status !== "calculated" || !c.float_paths?.length) return [];
+  const crit = c.critical_definition === "total-float" ? "total float ≤ 0" : "longest path";
+  return [
+    `Critical means ${crit}. Longest path: ${(c.longest_path ?? []).join(" → ") || "none (all work complete)"}.`,
+    ...c.float_paths
+      .filter((p) => p.rank > 1)
+      .map((p) => `Float path ${p.rank} (TF ${p.total_float} WD): ${p.activity_ids.join(" → ")}.`),
+  ];
+}
+
 // ---------- cpm_activities ----------
 export const cpmActivities = defineTool({
   name: "cpm_activities",
@@ -204,6 +217,7 @@ export const cpmActivities = defineTool({
         `Contract completion: ${g.contract_completion_date ?? "Needed"}`,
         `Count check: ${showMoney ? count.line : `${count.dated} of ${count.expected} activities dated.`}${count.complete ? "" : ` Missing dates: ${count.missing.join(", ")}.`}`,
         ...(tie ? [`Tie: ${tie.line}`] : []),
+        ...pathLines(control),
         ...ganttSpec,
         ...(showMoney && of.length ? [`Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}`] : []),
         ...(showMoney ? [loaded ? `Earned to date: ${money(earnedToDate(acts))}` : NOT_COST_LOADED] : []),

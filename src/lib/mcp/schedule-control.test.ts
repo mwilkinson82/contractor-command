@@ -537,4 +537,73 @@ describe("source-grounded draft notice", () => {
     });
     expect(calendar.notice.due).toBe("2026-10-10");
   });
+
+  it("ranks the longest path and float paths, never flags completed work, and keeps free float and driving ties", () => {
+    // A -> B -> C -> End is the long chain; A -> X -> End has 4 days of float;
+    // A -> Y -> End has 6. A is complete at the data date.
+    const first = prepareSchedule(null, 0, {
+      operation: "recalculate",
+      data_date: "2026-10-05",
+      settings,
+      initial_activities: [
+        act("A", 5),
+        act("B", 5, { predecessors: [{ id: "A" }] }),
+        act("C", 5, { predecessors: [{ id: "B" }] }),
+        act("X", 6, { predecessors: [{ id: "A" }] }),
+        act("Y", 4, { predecessors: [{ id: "A" }] }),
+        act("End", 0, { predecessors: [{ id: "C" }, { id: "X" }, { id: "Y" }] }),
+      ],
+    }).data;
+    const r = prepareSchedule(first, 1, {
+      operation: "recalculate",
+      data_date: "2026-10-12",
+      updates: [
+        {
+          id: "A",
+          actual_start: "2026-10-05",
+          actual_finish: "2026-10-09",
+          remaining_duration: 0,
+          pct_complete: 100,
+        },
+      ],
+    });
+    const c = r.control.calculation;
+    expect(c.critical_definition).toBe("longest-path");
+    expect(c.longest_path).toEqual(["B", "C", "End"]);
+    expect(c.float_paths!.map((p) => [p.rank, p.total_float, p.activity_ids])).toEqual([
+      [1, 0, ["B", "C", "End"]],
+      [2, 4, ["X"]],
+      [3, 6, ["Y"]],
+    ]);
+    expect(r.critical_path).toEqual(["B", "C", "End"]);
+    const by = new Map(r.data.activities!.map((a) => [a.id, a]));
+    expect(by.get("A")!.critical).toBe(false);
+    expect(by.get("X")!.critical).toBe(false);
+    expect(c.activity_results!.X).toEqual({
+      free_float: 4,
+      driving_predecessors: ["A"],
+      float_path: 2,
+    });
+    expect(c.activity_results!.End.driving_predecessors).toEqual(["C"]);
+    expect(c.activity_results!.A.free_float).toBeNull();
+  });
+  it("flags total float at or under zero as critical when the schedule asks for it", () => {
+    const d = prepareSchedule(null, 0, {
+      operation: "recalculate",
+      data_date: "2026-10-05",
+      settings: { ...settings, critical_definition: "total-float", float_path_count: 1 },
+      initial_activities: [
+        act("A", 5),
+        act("M", 0, { predecessors: [{ id: "A" }], finish_no_later_than: "2026-10-07" }),
+        act("N", 3, { finish_no_later_than: "2026-10-06" }),
+      ],
+    });
+    const by = new Map(d.data.activities!.map((a) => [a.id, a]));
+    expect([by.get("A")!.critical, by.get("M")!.critical, by.get("N")!.critical]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(d.control.calculation.float_paths).toHaveLength(1);
+  });
 });

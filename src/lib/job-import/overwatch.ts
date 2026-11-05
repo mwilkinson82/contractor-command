@@ -627,7 +627,61 @@ export function fromOverwatch(
     idOf.set(str(a.id), id);
     if (str(a.activity_id)) idOf.set(str(a.activity_id), id);
   }
-  const wbsIds = new Set(rows(x.schedule_wbs_sections).map((w) => str(w.id)));
+  const wbsRows = rows(x.schedule_wbs_sections);
+  const wbsIds = new Set(wbsRows.map((w) => str(w.id)));
+  // Overwatch's work week: weekday numbers worked, 0 = Sunday (getUTCDay), plus holidays.
+  const workDays = (Array.isArray(p.schedule_workdays) ? p.schedule_workdays : [])
+    .map((d) => Math.trunc(num(d)))
+    .filter((d, i, all) => d >= 0 && d <= 6 && all.indexOf(d) === i)
+    .sort();
+  const holidays = (Array.isArray(p.schedule_holidays) ? p.schedule_holidays : [])
+    .map((d) => toDay(d))
+    .filter((d): d is string => !!d);
+  if (workDays.length) out.schedule_calendar = { work_days: workDays, holidays };
+  // Overwatch figures an activity's duration as working days from its start
+  // through its finish on this calendar (planned_duration_days can be a
+  // calendar-day count), so Athena counts the same way.
+  const working = (from: string | null, to: string | null) => {
+    if (!workDays.length || !from || !to || to < from) return null;
+    const off = new Set(holidays);
+    let n = 0;
+    for (
+      let d = Date.parse(`${from}T00:00:00Z`);
+      d <= Date.parse(`${to}T00:00:00Z`);
+      d += 86400000
+    ) {
+      const iso = new Date(d).toISOString().slice(0, 10);
+      if (workDays.includes(new Date(d).getUTCDay()) && !off.has(iso)) n++;
+      if (n > 5000) return null;
+    }
+    return n;
+  };
+  // Activities name their section by division ("06 - Wood / Framing" is
+  // Framing under 06 - Wood) when the row has no section id.
+  const wbsById = new Map(wbsRows.map((w) => [str(w.id), w]));
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const wbsPath = (w: Row, depth = 0): string => {
+    const parent = wbsById.get(str(w.parent_id));
+    return parent && depth < 20 ? `${wbsPath(parent, depth + 1)} / ${str(w.name)}` : str(w.name);
+  };
+  const byPath = new Map<string, string>();
+  const byName = new Map<string, string[]>();
+  for (const w of wbsRows) {
+    byPath.set(norm(wbsPath(w)), str(w.id));
+    byName.set(norm(str(w.name)), [...(byName.get(norm(str(w.name))) ?? []), str(w.id)]);
+  }
+  const sectionFor = (a: Row) => {
+    if (wbsIds.has(str(a.wbs_section_id))) return str(a.wbs_section_id);
+    const div = norm(str(a.division));
+    if (!div) return null;
+    const named = byName.get(div);
+    return byPath.get(div) ?? (named?.length === 1 ? named[0] : null);
+  };
+  const updates = rows(x.schedule_updates)
+    .map((u) => toDay(u.data_date) ?? toDay(u.update_date))
+    .filter((d): d is string => !!d)
+    .sort();
+  if (updates.length) out.schedule_data_date = updates[updates.length - 1];
   const unknownLinks: string[] = [];
   out.schedule = acts.map((a) => {
     const id = idOf.get(str(a.id))!;
@@ -646,9 +700,13 @@ export function fromOverwatch(
       start: toDay(a.actual_start_date) ?? toDay(a.forecast_start_date) ?? toDay(a.start_date),
       finish: toDay(a.actual_finish_date) ?? toDay(a.forecast_finish_date) ?? toDay(a.finish_date),
       duration_days:
-        a.planned_duration_days == null
+        (num(a.planned_duration_days) === 0 && a.planned_duration_days != null
+          ? 0
+          : (working(toDay(a.baseline_start_date), toDay(a.baseline_finish_date)) ??
+            working(toDay(a.start_date), toDay(a.finish_date)))) ??
+        (a.planned_duration_days == null
           ? null
-          : Math.max(0, Math.trunc(num(a.planned_duration_days))),
+          : Math.max(0, Math.trunc(num(a.planned_duration_days)))),
       pct_complete:
         a.percent_complete == null ? null : Math.min(100, Math.max(0, num(a.percent_complete))),
       predecessors: preds,
@@ -658,7 +716,9 @@ export function fromOverwatch(
         a.remaining_duration_days == null || a.remaining_duration_days === ""
           ? null
           : Math.max(0, Math.trunc(num(a.remaining_duration_days))),
-      wbs: wbsIds.has(str(a.wbs_section_id)) ? `wbs:${str(a.wbs_section_id)}` : null,
+      wbs: sectionFor(a) ? `wbs:${sectionFor(a)}` : null,
+      baseline_start: toDay(a.baseline_start_date),
+      baseline_finish: toDay(a.baseline_finish_date),
     };
   });
   rows(x.schedule_milestones)
@@ -685,6 +745,7 @@ export function fromOverwatch(
       source_id: `wbs:${str(w.id)}`,
       name: clip(w.name, 160) || `Section ${i + 1}`,
       order: i,
+      parent: wbsIds.has(str(w.parent_id)) ? `wbs:${str(w.parent_id)}` : null,
     }));
   if (unknownLinks.length)
     out.problems.push(

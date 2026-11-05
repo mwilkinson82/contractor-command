@@ -159,6 +159,202 @@ export const usd = (cents: number) =>
 const dollars = (cents: number) => Math.round(cents) / 100;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+const DAY_MS = 86400000;
+const isoDay = (n: number) => new Date(n).toISOString().slice(0, 10);
+const dayMs = (s: string) => Date.parse(`${s}T00:00:00Z`);
+const shortDay = (s: string) =>
+  new Date(dayMs(s)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * The source's plan as Athena's calculated CPM, in one saved version: the
+ * as-planned network on the source's own calendar is calculated at the
+ * project start and captured as the baseline, then the recorded progress is
+ * applied and the schedule recalculated at the data date. The source rows stay
+ * in the job's archive, so the reported dates are not lost. Any refusal falls
+ * back to the reported-dates import.
+ */
+function calculateImported(
+  job: ImportJob,
+  reported: Activity[],
+  wbs: { id: string; name: string; parent_id: string | null; order: number }[],
+  from: string,
+  exportDay: string,
+):
+  | { ok: true; data: LivingData; data_date: string; notes: string[] }
+  | { ok: false; reason: string } {
+  const cal = job.schedule_calendar!;
+  const off = new Set(cal.holidays);
+  const works = (t: number) =>
+    cal.work_days.includes(new Date(t).getUTCDay()) && !off.has(isoDay(t));
+  const nextWork = (s: string) => {
+    let t = dayMs(s) + DAY_MS;
+    for (let i = 0; i < 400 && !works(t); i++) t += DAY_MS;
+    return isoDay(t);
+  };
+  const firstWork = (s: string) => (works(dayMs(s)) ? s : nextWork(s));
+  const workingDays = (fromDay: string, toDay: string) => {
+    let n = 0;
+    for (let t = dayMs(fromDay); t <= dayMs(toDay) && n <= 5000; t += DAY_MS) if (works(t)) n++;
+    return n;
+  };
+  const rows = new Map(job.schedule.map((a) => [a.id, a]));
+  const notes: string[] = [];
+  const starts = job.schedule
+    .flatMap((a) => [a.baseline_start, a.actual_start, a.start])
+    .filter((d): d is string => !!d)
+    .sort();
+  if (!starts.length) return { ok: false, reason: "no activity has a start date" };
+  const projectStart = firstWork(starts[0]);
+  const missing = reported.filter((a) => a.duration == null).map((a) => a.id);
+  if (missing.length)
+    return { ok: false, reason: `no duration for ${missing.slice(0, 5).join(", ")}` };
+  // The data date: the source's own status date, or the next working day after
+  // the latest progress it recorded. Never later than the export.
+  const actuals = reported
+    .flatMap((a) => [a.actual_start, a.actual_finish])
+    .filter((d): d is string => !!d)
+    .sort();
+  const latest = actuals[actuals.length - 1];
+  let dataDate = job.schedule_data_date ?? (latest ? nextWork(latest) : projectStart);
+  if (dataDate < projectStart) dataDate = projectStart;
+  if (dataDate > exportDay && exportDay >= projectStart) dataDate = exportDay;
+  if (!job.schedule_data_date)
+    notes.push(
+      latest
+        ? `${from} keeps no status date for the schedule, so the data date is ${shortDay(dataDate)}, the next working day after the latest progress ${from} recorded (${shortDay(latest)}). The next schedule update moves it forward.`
+        : `No progress was recorded in ${from}, so the data date is the project start, ${shortDay(dataDate)}.`,
+    );
+  const bits = cal.work_days.reduce((m, d) => m | (1 << d), 0);
+  const days = [...cal.work_days].sort().map((d) => WEEKDAY[d]);
+  const settings = {
+    project_start: projectStart,
+    default_calendar_id: "job",
+    calendars: [
+      {
+        id: "job",
+        name: `${from} ${days.length === 1 ? days[0] : `${days[0]}–${days[days.length - 1]}`}`.slice(
+          0,
+          160,
+        ),
+        work_days: bits,
+        holidays: [...cal.holidays].sort(),
+        hours_per_day: 8,
+      },
+    ],
+    finish_convention: "inclusive-last-work-day" as const,
+    out_of_sequence: "retained-logic" as const,
+    critical_definition: "longest-path" as const,
+  };
+  // As planned: no progress, the source's baseline dates as the reported dates.
+  const planned: Activity[] = reported.map((a) => {
+    const r = rows.get(a.id);
+    const { actual_start: _as, actual_finish: _af, remaining_duration: _rd, ...rest } = a;
+    void _as;
+    void _af;
+    void _rd;
+    return {
+      ...rest,
+      start: r?.baseline_start ?? a.start,
+      finish: r?.baseline_finish ?? a.finish,
+      pct_complete: 0,
+    };
+  });
+  // Progress at the data date. In-progress work without a remaining duration
+  // keeps the source's forecast finish; with no forecast, its percent complete.
+  const derived: string[] = [];
+  const dropped: string[] = [];
+  const unstarted: string[] = [];
+  const progress = reported.flatMap((a) => {
+    const r = rows.get(a.id);
+    const as = a.actual_start && a.actual_start < dataDate ? a.actual_start : null;
+    const af = as && a.actual_finish && a.actual_finish < dataDate ? a.actual_finish : null;
+    if ((a.actual_start && !as) || (a.actual_finish && !af)) dropped.push(a.id);
+    if (!as) {
+      if (!a.pct_complete) return [];
+      unstarted.push(a.id);
+      return [{ id: a.id, pct_complete: 0 }];
+    }
+    if (af)
+      return [
+        { id: a.id, actual_start: as, actual_finish: af, remaining_duration: 0, pct_complete: 100 },
+      ];
+    let remaining = a.remaining_duration ?? null;
+    if (remaining == null) {
+      const forecast = r?.finish && r.finish >= dataDate ? workingDays(dataDate, r.finish) : null;
+      remaining =
+        forecast && forecast > 0
+          ? forecast
+          : Math.max(1, Math.ceil((a.duration ?? 0) * (1 - (a.pct_complete ?? 0) / 100)));
+      derived.push(a.id);
+    }
+    return [
+      {
+        id: a.id,
+        actual_start: as,
+        remaining_duration: Math.max(a.duration === 0 ? 0 : 1, remaining),
+        pct_complete: Math.min(99, Math.max(0, a.pct_complete ?? 0)),
+      },
+    ];
+  });
+  try {
+    // The baseline is the source's own record when every activity carries
+    // baseline dates; otherwise Athena's calculation of the as-planned network.
+    const recorded = job.schedule.every((a) => a.baseline_start && a.baseline_finish);
+    let v = prepareSchedule(null, 0, {
+      operation: "organize",
+      data_date: projectStart,
+      initial_activities: planned as never,
+      ...(wbs.length ? { wbs } : {}),
+    });
+    if (!recorded)
+      v = prepareSchedule(v.data, 1, {
+        operation: "recalculate",
+        data_date: projectStart,
+        settings,
+      });
+    v = prepareSchedule(v.data, 1, {
+      operation: "baseline",
+      data_date: projectStart,
+      baseline: { id: "BL1", name: `${from} baseline`, status: "accepted" },
+    });
+    v = prepareSchedule(v.data, 1, {
+      operation: "recalculate",
+      data_date: dataDate,
+      settings,
+      updates: progress as never,
+    });
+    notes.push(
+      recorded
+        ? `${from}'s baseline dates are kept as the job's baseline (BL1), so every update compares to them.`
+        : `Some activities had no ${from} baseline dates, so the baseline (BL1) is Athena's calculation of the plan with no progress.`,
+    );
+    if (derived.length)
+      notes.push(
+        `${from} had no remaining duration for ${derived.join(", ")}, so each keeps ${from}'s forecast finish (or its percent complete where there was no forecast).`,
+      );
+    if (unstarted.length)
+      notes.push(
+        `${unstarted.join(", ")} show${unstarted.length === 1 ? "s" : ""} percent complete in ${from} with no actual start before the data date, so ${unstarted.length === 1 ? "it stays" : "they stay"} scheduled at 0% until an actual start is recorded.`,
+      );
+    if (dropped.length)
+      notes.push(
+        `Actual dates on or after the data date are left off for ${dropped.join(", ")}, so that work stays scheduled.`,
+      );
+    return { ok: true, data: v.data, data_date: dataDate, notes };
+  } catch (e) {
+    if (e instanceof ScheduleInputError) return { ok: false, reason: e.message.replace(/\.$/, "") };
+    if (e instanceof Error && e.name === "ZodError")
+      return { ok: false, reason: "the dates or durations don't fit Athena's schedule rules" };
+    throw e;
+  }
+}
+
 /** SOV item numbers: the source's own CSI-style item when every line has a unique one, else 01, 02, ... */
 function sovKeys(lines: ImportJob["sov"]): string[] {
   const codes = lines.map((l) => (l.cost_code ?? "").trim());
@@ -458,33 +654,44 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
               : {}),
         };
       });
+      const sectionIds = new Set((job.schedule_wbs ?? []).map((w) => w.source_id));
       const wbs = (job.schedule_wbs ?? []).map((w) => ({
         id: w.source_id,
         name: w.name,
-        parent_id: null,
+        parent_id: w.parent && sectionIds.has(w.parent) ? w.parent : null,
         order: w.order,
       }));
       try {
         if (activities.length > 400)
           throw new ScheduleInputError("it has more than Athena's 400 activities.");
-        const prepared = prepareSchedule(null, 0, {
-          operation: "organize",
-          data_date: dataDate,
-          initial_activities: activities as never,
-          ...(wbs.length ? { wbs } : {}),
-        });
+        const organized = () =>
+          prepareSchedule(null, 0, {
+            operation: "organize",
+            data_date: dataDate,
+            initial_activities: activities as never,
+            ...(wbs.length ? { wbs } : {}),
+          });
+        const calculated = job.schedule_calendar
+          ? calculateImported(job, activities, wbs, from, dataDate)
+          : { ok: false as const, reason: `${from} sent no working calendar` };
+        const prepared = calculated.ok ? calculated : { ...organized(), notes: [] as string[] };
         const check = checkSave("cpm", prepared.data, null, null);
         if (!check.ok) throw new ScheduleInputError(check.problems.join(" "));
         const milestones = job.schedule.filter((a) => a.milestone).length;
+        const savedDate = calculated.ok ? calculated.data_date : dataDate;
         schedule = {
           source_id: job.job.source_id,
-          data_date: dataDate,
-          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${milestones ? ` (${plural(milestones, "milestone")})` : ""}, logic as ${from} had it, not cost loaded.`,
+          data_date: savedDate,
+          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${milestones ? ` (${plural(milestones, "milestone")})` : ""}, logic as ${from} had it, ${calculated.ok ? `calculated on ${from}'s working calendar with data date ${savedDate} and ${from}'s baseline captured` : "dates as reported"}, not cost loaded.`,
           activity_count: activities.length,
           milestones,
           data: prepared.data,
         };
-        fixes.push(...notes);
+        fixes.push(...notes, ...prepared.notes);
+        if (!calculated.ok && job.schedule_calendar)
+          fixes.push(
+            `The schedule came in with ${from}'s reported dates only, so float and the critical path wait for a recalculation: ${calculated.reason}.`,
+          );
       } catch (e) {
         if (!(e instanceof ScheduleInputError)) throw e;
         fixes.push(
