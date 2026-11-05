@@ -4,6 +4,7 @@ import { ImportInputError, importJob, toCents, toDay } from "./model";
 import { fromOverwatch } from "./overwatch";
 import { fromSpreadsheets, parseTable } from "./spreadsheet";
 import { appliedCard, nothingToSave, planImport, reviewCard } from "./plan";
+import { iorRollup, readIorModel } from "../ior-model";
 
 const sample = () =>
   JSON.parse(readFileSync("src/lib/job-import/fixtures/overwatch-sample.json", "utf8"));
@@ -145,6 +146,289 @@ describe("Overwatch export", () => {
   });
 });
 
+describe("Overwatch export, format 2 (whole job)", () => {
+  const v2 = () =>
+    JSON.parse(readFileSync("src/lib/job-import/fixtures/overwatch-v2-sample.json", "utf8"));
+  const job = fromOverwatch(v2());
+
+  it("reads the same job, SOV and change orders as version 1, now with cost and probability", () => {
+    expect(() => importJob.parse(job)).not.toThrow();
+    expect(job.sov.map((l) => l.scheduled_cents)).toEqual([5_000_000, 11_850_000, 8_600_000]);
+    expect(job.change_orders.map((c) => [c.number, c.cost_cents, c.probability])).toEqual([
+      ["CO-01", 450_000, 100],
+      ["CO-02", -120_000, 100],
+      ["CO-03", 610_000, 60],
+      ["CO-04", 180_000, 100],
+      ["CO-05", 70_000, 100],
+    ]);
+  });
+
+  it("builds the IOR from the project, cost codes, change orders and open exposures", () => {
+    const ior = job.ior!;
+    expect(ior).toMatchObject({
+      original_contract: 250000,
+      original_cost_budget: 210000,
+      actual_cost_to_date: 95000,
+      cost_growth: 9000,
+      phase: "Middle",
+      percent_complete: 42,
+      baseline_completion: "2027-03-31",
+      forecast_completion: "2027-04-15",
+    });
+    // Denied and entered-in-error change orders stay off, as on Overwatch's IOR.
+    expect(
+      ior.change_orders.map((c) => [c.number, c.status, c.cost_amount, c.probability]),
+    ).toEqual([
+      ["CO-01", "Approved", 4500, 100],
+      ["CO-02", "Approved", -1200, 100],
+      ["CO-03", "Pending", 6100, 60],
+    ]);
+    // E-Hold -> E, C-Hold -> C, Both -> one of each, None and closed -> off.
+    expect(ior.exposures.map((e) => [e.source_id, e.hold, e.dollar_risk, e.probability])).toEqual([
+      ["exposure:e1", "E", 12000, 50],
+      ["exposure:e2", "C", 8000, 25],
+      ["exposure:e3:E", "E", 7500, 40],
+      ["exposure:e3:C", "C", 7500, 40],
+    ]);
+    expect(ior.exposures[0]).toMatchObject({
+      category: "owner_decision",
+      response: "recover",
+      owner: "Pat Example",
+      opened: "2026-09-01",
+      next_review: "2026-11-15",
+      next_move: "Release when: Owner signs finish schedule",
+    });
+    expect(job.held.find((h) => h.kind === "exposures with no hold")).toMatchObject({
+      count: 1,
+      archived: true,
+    });
+  });
+
+  it("matches Overwatch's held amounts, with a Both risk in E and C", () => {
+    const plan = planImport(job, { job_exists: false });
+    const read = readIorModel({ ior_model: plan.package.ior!.model });
+    expect(read.problems).toEqual([]);
+    const r = iorRollup(read.model!);
+    // e1 6,000 + e3 (4,000 weighted less 1,000 released) 3,000; e2 2,000 + e3 3,000.
+    expect([r.eHold, r.cHold]).toEqual([900_000, 500_000]);
+  });
+
+  it("archives every row in the file, keyed by its own id", () => {
+    expect(Object.keys(job.archive.exposures)).toEqual(["e1", "e2", "e3", "e4", "e5"]);
+    expect(job.archive.projects["p-1"]).toMatchObject({ phase: "Middle" });
+    expect(Object.keys(job.archive.billing_forecast_settings)).toEqual(["p-1"]);
+    // Rows with no id get a stable hash, the same on every read.
+    const keys = Object.keys(job.archive.billing_line_items);
+    expect(keys).toHaveLength(3);
+    expect(keys.every((k) => /^row:[0-9a-f]{16}$/.test(k))).toBe(true);
+    expect(Object.keys(fromOverwatch(v2()).archive.billing_line_items)).toEqual(keys);
+    expect(job.archive).not.toHaveProperty("counts");
+    expect(job.archive).not.toHaveProperty("left_out");
+  });
+
+  it("holds back only what isn't live in Athena yet, with honest reasons", () => {
+    const plan = planImport(job, { job_exists: false });
+    const held = plan.held.join(" ");
+    expect(held).toMatch(/1 project document: Each file's name and storage path/);
+    expect(held).not.toMatch(/cost actual|subcontract|exposure|decision|inspection|schedule|RFI/);
+    expect(plan.archived.join(" ")).toMatch(/earlier pay application/);
+  });
+
+  it("shows the IOR, the archive by group and the PCO cost on the card", () => {
+    const plan = planImport(job, { job_exists: false });
+    expect(plan.counts).toMatchObject({ ior: 1, archive_rows: 48, change_orders: 1 });
+    expect(plan.package.change_orders[0].cost_cents).toBe(610_000);
+    const card = reviewCard(plan, "3101", false);
+    const saved = card.sections?.[0].rows.map((r) => r.cells[0]).join(" | ");
+    expect(saved).toMatch(
+      /IOR, version 1: 4 risks \(E-holds \$9,000\.00, C-holds \$5,000\.00\), 3 change orders with cost/,
+    );
+    expect(saved).toMatch(
+      /Read-only archive of every Overwatch record: 48 records \(Job 1, Commercial /,
+    );
+    expect(saved).toMatch(/our cost on 1 goes to the IOR only, never on the PCO/);
+    const cos = card.sections?.find((s) => s.heading === "Open change orders");
+    expect(cos?.columns).toEqual(["CO", "Title", "Amount", "Our cost"]);
+    expect(cos?.rows[0].cells).toEqual([
+      "CO-03",
+      "Relocate nurse station wall",
+      "$8,750.50",
+      "$6,100.00",
+    ]);
+  });
+
+  it("keeps Athena's IOR and skips archived rows on a rerun onto an existing job", () => {
+    const plan = planImport(job, {
+      job_exists: true,
+      scope: "full",
+      has_ior: true,
+      archived: ["exposures:e1", "projects:p-1"],
+    });
+    expect(plan.package.ior).toBeNull();
+    expect(plan.kept.join(" ")).toMatch(/already has an IOR in Athena; kept Athena's/);
+    expect(plan.counts.archive_rows).toBe(46);
+    expect(plan.package.archive?.exposures).not.toHaveProperty("e1");
+  });
+
+  it("leaves the IOR out, and says why, when the file has no phase or no CO cost", () => {
+    const x = v2();
+    delete x.project.phase;
+    const noPhase = fromOverwatch(x);
+    expect(noPhase.ior).toBeNull();
+    expect(noPhase.held.find((h) => h.kind === "exposures")?.why).toMatch(/phase/);
+    const y = v2();
+    delete y.change_orders[2].cost_amount;
+    expect(fromOverwatch(y).held.find((h) => h.kind === "exposures")?.why).toMatch(
+      /change-order cost/,
+    );
+  });
+
+  it("refuses a format version Athena doesn't read", () => {
+    const x = v2();
+    x.format_version = 3;
+    expect(() => fromOverwatch(x)).toThrow(/versions 1 and 2/);
+  });
+
+  it("drops the archive with a plain fix if the package would be too large", () => {
+    const x = v2();
+    x.cost_actuals = Array.from({ length: 4000 }, (_, i) => ({
+      id: `big-${i}`,
+      note: "x".repeat(1500),
+    }));
+    const plan = planImport(fromOverwatch(x), { job_exists: false });
+    expect(plan.package.archive).toBeNull();
+    expect(plan.counts.archive_rows).toBe(0);
+    expect(plan.fixes.join(" ")).toMatch(/archive is too large/);
+    expect(plan.package.ior).not.toBeNull();
+  });
+});
+
+describe("Overwatch export: schedule, RFIs and job logs", () => {
+  const v2 = () =>
+    JSON.parse(readFileSync("src/lib/job-import/fixtures/overwatch-v2-sample.json", "utf8"));
+  const job = fromOverwatch(v2());
+
+  it("organizes the schedule as CPM version 1: logic FS 0, milestones as milestone activities, no dollars", () => {
+    const plan = planImport(job, { job_exists: false });
+    const sched = plan.package.schedule;
+    expect(sched).toMatchObject({ activity_count: 3, milestones: 1, data_date: "2026-11-04" });
+    const acts = (sched?.data as { activities: Record<string, unknown>[] }).activities;
+    expect(acts.map((a) => [a.id, a.duration, a.pct_complete])).toEqual([
+      ["A100", 10, 100],
+      ["A200", 22, 60],
+      ["MS-01", 0, null],
+    ]);
+    expect(acts[1].predecessors).toEqual([{ id: "A100", type: "FS", lag: 0 }]);
+    expect(acts[2]).toMatchObject({ activity_type: "milestone-finish", start: "2027-04-14" });
+    expect(acts.every((a) => a.value === null)).toBe(true);
+    const saved = reviewCard(plan, "3101", false)
+      .sections?.[0].rows.map((r) => r.cells[0])
+      .join(" | ");
+    expect(saved).toMatch(/CPM, version 1: 3 activities with 1 milestone, .*not cost loaded/);
+  });
+
+  it("keeps Athena's CPM when the job has one", () => {
+    const plan = planImport(job, { job_exists: true, scope: "full", has_cpm: true });
+    expect(plan.package.schedule).toBeNull();
+    expect(plan.counts.schedule_activities).toBe(0);
+    expect(plan.kept.join(" ")).toMatch(/already has a CPM in Athena; kept Athena's/);
+  });
+
+  it("leaves out a schedule with broken logic and says why, saving the rest", () => {
+    const x = v2();
+    x.schedule_activities[0].predecessor_activity_ids = ["A200"];
+    const plan = planImport(fromOverwatch(x), { job_exists: false });
+    expect(plan.package.schedule).toBeNull();
+    expect(plan.fixes.join(" ")).toMatch(/schedule can't come in as Athena's CPM yet/);
+    expect(plan.counts.sov_lines).toBe(3);
+  });
+
+  it("records RFIs as handled outside Athena, answered or still waiting, never re-sent", () => {
+    const plan = planImport(job, { job_exists: false });
+    expect(
+      plan.package.rfis?.map((r) => [
+        r.payload.source_number,
+        r.payload.sent_on,
+        r.payload.answered_on,
+      ]),
+    ).toEqual([
+      ["RFI-001", "2026-10-05", null],
+      ["RFI-002", "2026-10-01", "2026-10-06"],
+    ]);
+    expect(plan.package.rfis?.[1].payload.answer_text).toBe(
+      "Use the stud anchor in detail 4/A501.",
+    );
+    const saved = reviewCard(plan, "3101", false)
+      .sections?.[0].rows.map((r) => r.cells[0])
+      .join(" | ");
+    expect(saved).toMatch(
+      /RFI log: 2 RFIs recorded as handled outside Athena \(1 answered, 1 sent and waiting\); none is re-sent/,
+    );
+  });
+
+  it("maps decisions, claims with events, and inspections with their reinspection link", () => {
+    const plan = planImport(job, { job_exists: false });
+    expect(plan.package.decisions).toEqual([
+      expect.objectContaining({
+        source_id: "decision:d1",
+        payload: expect.objectContaining({
+          status: "open",
+          exposure_ref: "Owner finish selections late",
+        }),
+      }),
+    ]);
+    expect(plan.package.claims?.[0]).toMatchObject({
+      change_order: "change_order:c3",
+      payload: {
+        number: "CL-001",
+        claim_type: "extension_of_time",
+        money_claimed_cents: 1_250_000,
+      },
+    });
+    expect(plan.package.claims?.[0].events.map((e) => e.payload.event_type)).toEqual([
+      "submitted",
+      "received",
+    ]);
+    expect(
+      plan.package.inspections?.map((i) => [
+        i.source_id,
+        i.parent,
+        i.payload.result,
+        i.payload.attempt,
+      ]),
+    ).toEqual([
+      ["inspection:i1", null, "pass", 1],
+      ["inspection:i2", null, "fail", 1],
+      ["inspection:i3", "inspection:i2", "pending", 2],
+    ]);
+    expect(plan.held.join(" ")).not.toMatch(/decision|claim|inspection/);
+  });
+
+  it("skips logs, RFIs and the schedule that came in on an earlier import", () => {
+    const plan = planImport(job, {
+      job_exists: true,
+      scope: "full",
+      imported: [
+        "rfi:rfi:r1",
+        "rfi:rfi:r2",
+        "decision:decision:d1",
+        "claim:claim:cl1",
+        "inspection:inspection:i1",
+        "inspection:inspection:i2",
+        "inspection:inspection:i3",
+        `schedule:${job.job.source_id}`,
+      ],
+    });
+    expect(plan.counts).toMatchObject({
+      schedule_activities: 0,
+      rfis: 0,
+      decisions: 0,
+      claims: 0,
+      inspections: 0,
+    });
+  });
+});
+
 describe("spreadsheet export", () => {
   const sov = `Item No,Description of Work,Cost Code,Scheduled Value,Work Completed to Date,Retainage
 1,General conditions,01-000,"$50,000.00","20,000.00",2000
@@ -215,7 +499,18 @@ describe("import plan and review", () => {
       change_orders: 1,
       submittals: 2,
       dailies: 1,
+      ior: 0,
+      archive_rows: 29,
+      schedule_activities: 2,
+      rfis: 1,
+      decisions: 0,
+      claims: 0,
+      inspections: 0,
     });
+    // A version 1 file has no change-order cost, so no IOR; its rows still go to the archive.
+    expect(plan.package.version).toBe(3);
+    expect(plan.package.ior).toBeNull();
+    expect(plan.archived.join(" ")).toMatch(/rejected or void change order/);
     expect(plan.package.contract_facts).toMatchObject({
       contract_value: 250000,
       executed_change_orders: 4500,
@@ -246,9 +541,10 @@ describe("import plan and review", () => {
     expect(plan.package.dailies[0].transcript).toMatch(
       /^Imported from Overwatch\. Work performed: Hung board/,
     );
-    expect(plan.held.join(" ")).toMatch(/1 RFI \(1 open\)/);
-    expect(plan.held.join(" ")).toMatch(/2 schedule activities/);
-    expect(plan.held.join(" ")).toMatch(/daily with no work quantities/);
+    expect(plan.held.join(" ")).not.toMatch(/RFI|schedule/);
+    expect(plan.package.rfis).toHaveLength(1);
+    expect(plan.package.schedule?.activity_count).toBe(2);
+    expect(plan.archived.join(" ")).toMatch(/daily with no work quantities/);
   });
 
   it("keeps what Athena already has and skips what came in before", () => {
@@ -302,6 +598,7 @@ describe("import plan and review", () => {
     expect(card.sections?.map((s) => s.heading)).toEqual([
       "Will be saved",
       "Open change orders",
+      "Kept in the archive, not live in Athena",
       "Staying in Overwatch for now",
       "Check before you say yes",
     ]);
@@ -320,7 +617,11 @@ describe("import plan and review", () => {
       budget_keys: ["01-000", "09-200", "26-000"],
       submittals: ["092900-01#0", "260519-01#1"],
       daily_dates: ["2026-11-02"],
-      imported: ["change_order:change_order:c3"],
+      imported: ["change_order:change_order:c3", "rfi:rfi:r1"],
+      has_cpm: true,
+      archived: Object.entries(job.archive).flatMap(([t, rows]) =>
+        Object.keys(rows).map((id) => `${t}:${id}`),
+      ),
     });
     expect(nothingToSave(rerun)).toBe(true);
     expect(reviewCard(rerun, "3101", true).ask).toBeNull();
@@ -332,6 +633,9 @@ describe("import plan and review", () => {
         job_created: true,
         sov_lines: 3,
         change_orders: 1,
+        ior: 1,
+        ior_risks: 4,
+        archive_rows: 42,
         skipped: ["A daily for 2026-11-02 is already on the job; kept it."],
       },
       "3101",
@@ -342,6 +646,8 @@ describe("import plan and review", () => {
       "Created job 3101",
       "SOV: 3 lines",
       "1 PCO draft, not sent",
+      "IOR version 1 with 4 risks",
+      "Archive: 42 records, read-only",
     ]);
   });
 });

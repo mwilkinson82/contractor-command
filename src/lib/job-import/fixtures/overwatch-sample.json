@@ -216,9 +216,7 @@
       "finish_date": "2026-10-15",
       "planned_duration_days": 22,
       "percent_complete": 60,
-      "predecessor_activity_ids": [
-        "A100"
-      ]
+      "predecessor_activity_ids": ["A100"]
     }
   ],
   "daily_reports": [

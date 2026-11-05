@@ -31,6 +31,10 @@ export const importChangeOrder = z.object({
   status: z.enum(["approved", "pending", "rejected", "void"]),
   date: day.nullable(),
   schedule_days: z.number().int().min(-3650).max(3650).nullable(),
+  /** Our cost of the change, when the source keeps one (Overwatch v2). Never sent to the owner. */
+  cost_cents: cents.nullable(),
+  /** Chance a pending change is approved, 0 to 100, when the source keeps one. */
+  probability: z.number().min(0).max(100).nullable(),
 });
 
 export const importRfi = z.object({
@@ -41,6 +45,10 @@ export const importRfi = z.object({
   open: z.boolean(),
   sent_on: day.nullable(),
   due_on: day.nullable(),
+  /** The answer as the source recorded it, when it was answered outside Athena. */
+  answer_text: text(12000).nullable().optional(),
+  answered_on: day.nullable().optional(),
+  answered_by: text(320).nullable().optional(),
 });
 
 export const SUBMITTAL_STATUSES = [
@@ -79,6 +87,125 @@ export const importActivity = z.object({
   duration_days: z.number().int().min(0).max(5000).nullable(),
   pct_complete: z.number().min(0).max(100).nullable(),
   predecessors: z.array(text(20)).max(20),
+  actual_start: day.nullable().optional(),
+  actual_finish: day.nullable().optional(),
+  remaining_days: z.number().int().min(0).max(5000).nullable().optional(),
+  /** source_id of the WBS section (schedule_wbs) the activity sits under. */
+  wbs: sourceId.nullable().optional(),
+  milestone: z.boolean().optional(),
+});
+
+export const importWbs = z.object({
+  source_id: sourceId,
+  name: text(160),
+  order: z.number().int().min(0).max(10000),
+});
+
+const money = cents.refine((n) => n >= 0, "Amount can't be negative.");
+/** Link to another imported record by its source_id (resolved through the import ledger at save). */
+const sourceLink = sourceId.nullable();
+
+export const CLAIM_TYPES = [
+  "delay",
+  "extension_of_time",
+  "delay_damages",
+  "acceleration",
+  "disruption",
+  "other",
+] as const;
+export const CLAIM_STATUSES = [
+  "in_preparation",
+  "submitted",
+  "pending_review",
+  "under_review",
+  "reviewed",
+  "resolved",
+  "rejected",
+  "withdrawn",
+] as const;
+export const CLAIM_EVENTS = [
+  "submitted",
+  "received",
+  "reviewed",
+  "meeting",
+  "returned_for_revision",
+  "resubmitted",
+  "resolved",
+  "other",
+] as const;
+export const importClaim = z.object({
+  source_id: sourceId,
+  number: text(40),
+  claim_type: z.enum(CLAIM_TYPES),
+  title: text(200),
+  description: text(12000),
+  status: z.enum(CLAIM_STATUSES),
+  money_claimed_cents: money,
+  money_awarded_cents: money,
+  time_claimed_days: z.number().int().min(0).max(3650),
+  time_awarded_days: z.number().int().min(0).max(3650),
+  submitted_on: day.nullable(),
+  resolved_on: day.nullable(),
+  outcome: text(4000).nullable(),
+  owner_name: text(120).nullable(),
+  exposure_ref: text(300).nullable(),
+  change_order: sourceLink,
+  events: z
+    .array(
+      z.object({
+        source_id: sourceId,
+        event_type: z.enum(CLAIM_EVENTS),
+        event_date: day.nullable(),
+        revision_number: z.number().int().min(0).max(99),
+        note: text(4000).nullable(),
+      }),
+    )
+    .max(200),
+});
+
+export const INSPECTION_STATUSES = [
+  "planned",
+  "requested",
+  "scheduled",
+  "passed",
+  "failed",
+  "partial",
+  "cancelled",
+] as const;
+export const INSPECTION_RESULTS = ["pending", "pass", "fail", "partial", "cancelled"] as const;
+export const importInspection = z.object({
+  source_id: sourceId,
+  inspection_type: text(120),
+  authority: text(200).nullable(),
+  location: text(200).nullable(),
+  inspector: text(120).nullable(),
+  responsible_party: text(120).nullable(),
+  status: z.enum(INSPECTION_STATUSES),
+  result: z.enum(INSPECTION_RESULTS),
+  requested_on: day.nullable(),
+  scheduled_on: day.nullable(),
+  completed_on: day.nullable(),
+  attempt: z.number().int().min(1).max(99),
+  reinspection_required: z.boolean(),
+  cost_impact_cents: cents,
+  schedule_impact_weeks: z.number().min(-520).max(520).nullable(),
+  notes: text(4000).nullable(),
+  corrective_action: text(4000).nullable(),
+  risk_ref: text(300).nullable(),
+  parent: sourceLink,
+});
+
+export const DECISION_STATUSES = ["open", "in_progress", "decided", "withdrawn"] as const;
+export const importDecision = z.object({
+  source_id: sourceId,
+  decision: text(2000),
+  status: z.enum(DECISION_STATUSES),
+  owner_name: text(120).nullable(),
+  due_on: day.nullable(),
+  impact: text(2000).nullable(),
+  notes: text(4000).nullable(),
+  exposure_ref: text(300).nullable(),
+  change_order: sourceLink,
 });
 
 export const importDailyLine = z.object({
@@ -104,11 +231,81 @@ export const importDaily = z.object({
   lines: z.array(importDailyLine).max(80),
 });
 
+// IOR: the shape Athena's IOR page reads as data.ior_model (src/lib/ior-model.ts).
+// Money here is DOLLARS, as ior_model keeps it, not cents.
+const dollarAmount = z.number().min(-90_000_000_000).max(90_000_000_000);
+export const importIorChangeOrder = z.object({
+  number: text(40),
+  description: text(300),
+  status: z.enum(["Approved", "Pending"]),
+  contract_amount: dollarAmount,
+  cost_amount: dollarAmount,
+  probability: z.number().min(0).max(100),
+});
+export const IOR_CATEGORIES = [
+  "owner_decision",
+  "design_drift",
+  "trade_performance",
+  "procurement",
+  "schedule_compression",
+  "allowance_overrun",
+  "field_change",
+  "closeout_punch",
+  "other",
+] as const;
+export const importIorExposure = z.object({
+  source_id: sourceId,
+  title: text(300),
+  category: z.enum(IOR_CATEGORIES),
+  response: z.enum(["eliminate", "recover", "offset", "accept"]),
+  hold: z.enum(["E", "C"]),
+  dollar_risk: z.number().min(0).max(90_000_000_000),
+  probability: z.number().min(0).max(100),
+  owner: text(80).nullable(),
+  opened: day.nullable(),
+  next_review: day.nullable(),
+  next_move: text(300).nullable(),
+  status: text(40).nullable(),
+});
+export const importIor = z.object({
+  source_id: sourceId,
+  original_contract: z.number().positive().max(90_000_000_000),
+  original_cost_budget: z.number().min(0).max(90_000_000_000).nullable(),
+  cost_growth: dollarAmount,
+  cost_growth_note: text(300).nullable(),
+  actual_cost_to_date: z.number().min(0).max(90_000_000_000),
+  phase: z.enum(["Early", "Middle", "Late"]),
+  percent_complete: z.number().min(0).max(100),
+  baseline_completion: day.nullable(),
+  forecast_completion: day.nullable(),
+  change_orders: z.array(importIorChangeOrder).max(500),
+  exposures: z.array(importIorExposure).max(1000),
+});
+
+/**
+ * The archive: every source row, as the source stored it, keyed by source table
+ * and then by the row's own id. Kept read-only on the job so nothing is lost,
+ * including rows Athena also mapped into its own records.
+ */
+export const ARCHIVE_TABLE = /^[a-z][a-z0-9_]{0,62}$/;
+export const ARCHIVE_MAX_ROWS = 50_000;
+export const importArchive = z
+  .record(
+    z.string().regex(ARCHIVE_TABLE),
+    z.record(z.string().min(1).max(200), z.record(z.string(), z.unknown())),
+  )
+  .refine(
+    (a) => Object.values(a).reduce((n, t) => n + Object.keys(t).length, 0) <= ARCHIVE_MAX_ROWS,
+    `The archive holds more than ${ARCHIVE_MAX_ROWS} rows.`,
+  );
+
 /** What the source holds that this import does not bring in, said plainly. */
 export const importHeld = z.object({
   kind: text(60),
   count: z.number().int().min(0),
   why: text(400),
+  /** True when the rows themselves are kept in the job's read-only archive. */
+  archived: z.boolean().optional(),
 });
 
 export const importJob = z.object({
@@ -139,7 +336,13 @@ export const importJob = z.object({
   rfis: z.array(importRfi).max(1000),
   submittals: z.array(importSubmittal).max(1000),
   schedule: z.array(importActivity).max(400),
+  schedule_wbs: z.array(importWbs).max(400).optional(),
+  decisions: z.array(importDecision).max(1000).optional(),
+  claims: z.array(importClaim).max(500).optional(),
+  inspections: z.array(importInspection).max(1000).optional(),
   dailies: z.array(importDaily).max(1000),
+  ior: importIor.nullable(),
+  archive: importArchive,
   held: z.array(importHeld).max(40),
   problems: z.array(text(400)).max(200),
 });
@@ -151,6 +354,12 @@ export type ImportSubmittal = z.infer<typeof importSubmittal>;
 export type ImportDaily = z.infer<typeof importDaily>;
 export type ImportActivity = z.infer<typeof importActivity>;
 export type ImportRfi = z.infer<typeof importRfi>;
+export type ImportIor = z.infer<typeof importIor>;
+export type ImportClaim = z.infer<typeof importClaim>;
+export type ImportInspection = z.infer<typeof importInspection>;
+export type ImportDecision = z.infer<typeof importDecision>;
+export type ImportIorExposure = z.infer<typeof importIorExposure>;
+export type ImportArchive = z.infer<typeof importArchive>;
 
 export class ImportInputError extends Error {}
 
@@ -210,6 +419,8 @@ export function emptyImport(system: ImportSource, label: string): ImportJob {
     submittals: [],
     schedule: [],
     dailies: [],
+    ior: null,
+    archive: {},
     held: [],
     problems: [],
   };

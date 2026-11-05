@@ -34,7 +34,7 @@ import { guide } from "../visible";
 import { cedarOutcome } from "../../ior-outcome";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
-  activityLine, checkSave, costLoadTotal, countCheck, draftBillingFromSchedule, earnedToDate, iorSectionsText, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, resolveDataDate, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
+  activityLine, checkSave, costLoadTotal, isCostLoaded, NOT_COST_LOADED, countCheck, draftBillingFromSchedule, earnedToDate, iorSectionsText, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, resolveDataDate, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
   type Activity, type LivingData, type LivingReportType,
   CPM_GANTT_SPEC,
 } from "../living";
@@ -186,7 +186,9 @@ export const cpmActivities = defineTool({
       const acts = (data.activities ?? []) as Activity[];
       const count = countCheck(acts, Math.max(acts.length, g.activity_count ?? 0));
       const contract = showMoney ? await contractTotal(sb, job) : null;
-      const tie = showMoney ? tieCheck(costLoadTotal(acts), contract) : null;
+      const loaded = isCostLoaded(acts);
+      // A plain CPM (no activity values) has nothing to tie or earn; it says so instead.
+      const tie = showMoney && loaded ? tieCheck(costLoadTotal(acts), contract) : null;
       const control = readScheduleControl(data);
       const tia = controlledTiaResult(control) ?? tiaResult(data.tia ?? null);
       const ganttSpec = control ? CPM_GANTT_SPEC.map((line, i) => i === 3 ? "3. Controlled schedule bars: blue actual periods use only saved actual_start/actual_finish and split at the saved data date for in-progress work. Percent complete remains reported work progress and does not invent dates. Remaining work is green noncritical/red critical; unknown actual dates have no blue as-built segment. Use zero-duration diamonds. Draw the active baseline's saved date bars beneath current bars and show WBS paths from schedule_control.wbs." : i === 5 ? "5. Data date: a thin vertical line at the saved data date; show Needed if missing. Do not replace it with today." : line) : CPM_GANTT_SPEC;
@@ -204,7 +206,7 @@ export const cpmActivities = defineTool({
         ...(tie ? [`Tie: ${tie.line}`] : []),
         ...ganttSpec,
         ...(showMoney && of.length ? [`Owner-furnished (schedule-only, $0.00 in ALP billing): ${of.map((a) => a.id).join(", ")}.${ofValued.length ? ` Saved with a value that is excluded here: ${ofValued.map((a) => `${a.id} ${money(a.value ?? 0)}`).join(", ")}.` : ""}`] : []),
-        ...(showMoney ? [`Earned to date: ${money(earnedToDate(acts))}`] : []),
+        ...(showMoney ? [loaded ? `Earned to date: ${money(earnedToDate(acts))}` : NOT_COST_LOADED] : []),
         ...(delay ? [delay.line] : tia ? [`Delay fragnet result (${tia.fragnet}): ${tia.math} ${tia.statement}`] : []),
         ...ganttPins(delay),
         "",
@@ -225,7 +227,8 @@ export const cpmActivities = defineTool({
             count_check: count,
             tie,
             contract_total: contract, contract_total_display: contract === null ? null : money(contract),
-            earned_to_date: showMoney ? earnedToDate(acts) : null,
+            cost_loaded: loaded,
+            earned_to_date: showMoney && loaded ? earnedToDate(acts) : null,
             tia,
             delay,
             identified_delay_activity_id: identifiedDelayActivityId(data as Record<string, unknown>),
@@ -287,10 +290,17 @@ export const livingReportGet = defineTool({
             `${SHOW_UNSAVED_BILLING} Pass data.billing from this result.`,
           );
         }
+        const cpm = await getReport(sb, job, "cpm");
+        const plainCpm = cpm.found && !isCostLoaded((cpm.data?.activities ?? []) as Activity[]);
         const presented = presentPayApp({
           state: "ask", show_state: false, title: "Pay App & Billing Forecast", job: named(job),
-          sections: [{ heading: "Needed", kind: "list", rows: [{ cells: ["Billed to date"] }, { cells: ["Latest pay app (SOV lines)"] }] }],
-          next_move: "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule after the PM approves.",
+          sections: [
+            ...(plainCpm ? [{ heading: "From the schedule", kind: "list" as const, rows: [{ cells: [NOT_COST_LOADED] }] }] : []),
+            { heading: "Needed", kind: "list", rows: [{ cells: ["Billed to date"] }, { cells: ["Latest pay app (SOV lines)"] }] },
+          ],
+          next_move: plainCpm
+            ? "Send the billed-to-date figure, the latest pay app and a monthly forecast; the saved CPM has no values to spread."
+            : "Send the billed-to-date figure and the latest pay app; Athena builds the forecast from the saved schedule after the PM approves.",
         });
         return guide(
           { ...presented, structuredContent: { ...presented.structuredContent, found: false, report_type: type, version: 0 } },
