@@ -10,16 +10,18 @@
 // - So the white card and the body text are plain colours with no background image. Gmail then darkens the whole
 //   card evenly and the text stays readable. A forced-white background would stay white on iOS while the text
 //   flipped pale on top of it, which is the unreadable email we shipped on Nov 4.
-// - The two things that must look the same everywhere, the button and the sign-in code, sit on blue panels that
-//   carry the blue three ways: bgcolor, an inline one-colour gradient (iOS keeps background images), and the same
-//   gradient from the style block (Gmail for Android reads gradients only from there). Their white text is wrapped
-//   in the screen/difference blend spans, which only match inside Gmail (`u + .body`), so iOS can't flip it dark.
+// - The sign-in code keeps its pale blue box and navy digits, also as plain colours, so it darkens with the card.
+// - The button keeps its blue three ways: bgcolor, an inline one-colour gradient (iOS keeps background images), and
+//   the same gradient from the style block (Gmail for Android reads gradients only from there). Its white label is
+//   wrapped in the screen/difference blend spans, which only match inside Gmail (`u + .body`), so iOS can't flip it.
+// - On a computer and in light mode, every client shows the designed look: white card, blue button, pale code box.
 
 export const EMAIL_LOGO = "https://app.meetathena.io/brand/athena/email/athena-mark-180.png";
 export const EMAIL_BLUE = "#1E5FED";
 export const EMAIL_NAVY = "#0F1E3D";
-/** Panel blue: deep enough that Gmail for Android doesn't treat it as a light colour to darken. */
-export const EMAIL_PANEL = "#1D4ED8";
+/** The button's blue, the same blue as the design. */
+export const EMAIL_PANEL = EMAIL_BLUE;
+const CODE_BOX = "#F2F6FF";
 const SLATE = "#3B4A66";
 const MUTED = "#6B7488";
 const LINE = "#E3E8F2";
@@ -86,7 +88,7 @@ export function emailShell(f: EmailFrame): string {
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px"><tr><td class="ath-panel" bgcolor="${EMAIL_PANEL}" style="border-radius:10px;${panelStyle}"><a class="ath-panel" href="${esc(f.button.href)}" style="display:inline-block;padding:14px 26px;border-radius:10px;${panelStyle};color:#FFFFFF;font-size:15px;font-weight:700;text-decoration:none">${keepWhite(esc(f.button.label))}</a></td></tr></table>`
     : "";
   const code = f.code
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px"><tr><td class="ath-panel" align="center" bgcolor="${EMAIL_PANEL}" style="padding:16px 18px;border-radius:12px;${panelStyle};color:#FFFFFF;font-family:Menlo,Consolas,monospace;font-size:30px;line-height:36px;font-weight:700;letter-spacing:8px;text-align:center">${keepWhite(esc(f.code))}</td></tr></table>`
+    ? `<p style="margin:8px 0 4px;padding:14px 18px;border:1px solid ${LINE};border-radius:10px;background-color:${CODE_BOX};color:${EMAIL_NAVY};font-family:Menlo,Consolas,monospace;font-size:30px;line-height:36px;font-weight:700;letter-spacing:8px;text-align:center">${esc(f.code)}</p>`
     : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(f.heading)}</title><style>${EMAIL_HEAD_CSS}</style></head><body class="body" style="margin:0;padding:32px 12px;background-color:#FFFFFF;font-family:${FONT}">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(f.preview)}</div>

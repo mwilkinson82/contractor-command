@@ -647,26 +647,25 @@ describe("customer emails", () => {
     expect(invite.html).not.toContain("Customer page");
     expect(invite.html).toContain('href="https://app.meetathena.io/c/i/x"');
     expect(code.html).toContain(">Your sign-in code</h1>");
-    expect(code.html).toMatch(
-      /letter-spacing:8px[^>]*><span class="gm-screen"><span class="gm-diff">123456</,
-    );
+    expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
   });
-  it("stay readable in the Gmail phone apps' dark mode, with the button and code kept blue and white", () => {
+  it("keep the designed look on a computer and stay readable in the Gmail phone apps' dark mode", () => {
     expect(invite.html).toContain('<meta name="supported-color-schemes" content="light">');
     expect(invite.html).toContain('<body class="body"');
     // No forced-white background: on iOS it stays white while Gmail flips the text pale on top of it.
     expect(invite.html).not.toContain("linear-gradient(#FFFFFF");
     expect(code.html).not.toContain("linear-gradient(#F2F6FF");
-    // Button and code sit on locked blue panels, from the style block (Android) and inline (iOS).
+    // The button keeps the design's blue, from the style block (Android) and inline (iOS).
     expect(invite.html).toMatch(
-      /\.ath-panel\{[^}]*background-image:linear-gradient\(#1D4ED8,#1D4ED8\)/,
+      /\.ath-panel\{[^}]*background-image:linear-gradient\(#1E5FED,#1E5FED\)/,
     );
     expect(invite.html).toMatch(/u \+ \.body \.gm-screen\{[^}]*mix-blend-mode:screen/);
     expect(invite.html).toContain(
       '<span class="gm-screen"><span class="gm-diff">Open your project page</span></span>',
     );
+    // The code keeps its pale blue box and navy digits as plain colours, so dark mode darkens it with the card.
     expect(code.html).toMatch(
-      /class="ath-panel"[^>]*background-image:linear-gradient\(#1D4ED8,#1D4ED8\)[^>]*><span class="gm-screen"><span class="gm-diff">123456<\/span><\/span><\/td>/,
+      /background-color:#F2F6FF;color:#0F1E3D;[^>]*letter-spacing:8px[^>]*>123456<\/p>/,
     );
   });
   it("show the contractor's saved logo when there is one, and only an https one", () => {
