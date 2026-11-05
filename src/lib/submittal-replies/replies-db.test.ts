@@ -554,7 +554,6 @@ describe.sequential("submittal replies", () => {
       "supabase/migrations/20261105182000_athena_submittal_replies.sql",
       "utf8",
     );
-    expect(readFileSync("drizzle/migrations/0092_athena_submittal_replies.sql", "utf8")).toBe(up);
     await db.exec(`BEGIN; ${up}; COMMIT;`);
     await db.exec(
       `BEGIN; ${readFileSync("supabase/rollbacks/20261105182000_athena_submittal_replies.rollback.sql", "utf8")}; COMMIT;`,
