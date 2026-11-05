@@ -684,9 +684,7 @@ export const precon = defineTool({
                     nonce: newToken(),
                   }),
                 );
-                sent.push(
-                  emailedLine(x.email, res),
-                );
+                sent.push(emailedLine(x.email, res));
               }
             note = [
               `Done. ${owner} has the pickup date. When you have the check, tell me and I'll record it as paid.`,

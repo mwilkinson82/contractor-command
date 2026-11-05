@@ -159,9 +159,7 @@ async function notify(
         nonce: newToken(),
       }),
     );
-    out.push(
-      emailedLine(r.email, res),
-    );
+    out.push(emailedLine(r.email, res));
   }
   return out;
 }

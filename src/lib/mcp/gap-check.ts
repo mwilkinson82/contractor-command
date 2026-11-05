@@ -173,7 +173,9 @@ export const TEMP_UTILITY_RE =
 export function titleInSentence(title: string): string {
   const t = title.replace(/^\s*G-?\d+[.:)]?\s+/i, "").trim() || title.trim();
   const first = t.split(/\s/)[0] ?? "";
-  return /^[A-Z][a-z]/.test(first) && !/[A-Z0-9]/.test(first.slice(1)) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+  return /^[A-Z][a-z]/.test(first) && !/[A-Z0-9]/.test(first.slice(1))
+    ? t.charAt(0).toLowerCase() + t.slice(1)
+    : t;
 }
 
 /** The question Athena asks for a gap with no question of its own. */

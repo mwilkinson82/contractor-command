@@ -27,10 +27,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
   },
   beforeLoad: ({ params }) => {
     const page = hostedPageName(params.page);
-    if (
-      !isUuid(params.jobId) ||
-      !(JOB_BOARD_PAGES as readonly string[]).includes(page)
-    )
+    if (!isUuid(params.jobId) || !(JOB_BOARD_PAGES as readonly string[]).includes(page))
       throw notFound();
   },
   component: JobReportPage,
