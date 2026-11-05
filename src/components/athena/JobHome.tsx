@@ -396,6 +396,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             title: "Project record",
             detail: "Everything logged on this job, with who and when. Export for a dispute",
             page: "record",
+            group: "record",
           },
           {
             title: "Indicated Outcome Report",
@@ -426,6 +427,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       "ior",
       "purchase-orders",
     ],
+    record: ["record"],
   };
   const inGroup = (group: string) =>
     (ORDER[group] ?? []).flatMap((page) =>
@@ -436,6 +438,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
     { id: "field", title: "Field" },
     { id: "logs", title: "Logs" },
     { id: "money", title: "Money" },
+    { id: "record", title: "Project record" },
   ]
     .map((g) => ({ ...g, tiles: inGroup(g.id) }))
     .filter((g) => g.tiles.length > 0);
@@ -503,15 +506,18 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       title: "Contracts & specs",
       links: commercialOn ? [{ key: "contracts", label: "Contracts", href: "#contracts" }] : [],
     },
-    ...tileGroups.map((g) => ({
-      id: g.id,
-      title: g.title,
-      links: g.tiles.map((t) => ({ key: t.page, label: t.title, href: href(t.page) })),
-    })),
+    ...tileGroups
+      .filter((g) => g.id !== "record")
+      .map((g) => ({
+        id: g.id,
+        title: g.title,
+        links: g.tiles.map((t) => ({ key: t.page, label: t.title, href: href(t.page) })),
+      })),
     {
       id: "record",
       title: "Project record",
       links: [
+        ...inGroup("record").map((t) => ({ key: t.page, label: t.title, href: href(t.page) })),
         {
           key: "communications",
           label: "Latest Athena job communications",
