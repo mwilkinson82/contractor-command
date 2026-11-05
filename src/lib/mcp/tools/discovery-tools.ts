@@ -8,6 +8,7 @@ import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
 import { guide } from "../visible";
+import { pmReachable } from "../pm-setup";
 import { JOBS_RESPONSE_GUIDANCE, jobsResponseText, jobsLegacyHtml } from "../jobs-response";
 import { ambiguousCompanyMessage } from "../company-choice";
 
@@ -41,17 +42,24 @@ function shown<T extends Record<string, unknown>>(card: CardModel, facts: T) {
 
 export async function readJobs(sb: Sb, named?: string) {
   const companies = discoveryCompanies(await memberCompanies(sb), named);
-  let jobs: { job_number: string; name: string | null; company_id: string }[] = [];
+  let jobs: { job_number: string; name: string | null; company_id: string; no_pm?: boolean }[] = [];
   if (companies.length) {
-    const { data, error } = await sb
+    const ids = companies.map((c) => c.id);
+    // The PM columns flag jobs with no PM Athena can email; without them the list still reads.
+    const withPm = await sb
       .from("mcp_jobs")
-      .select("job_number, name, company_id")
-      .in(
-        "company_id",
-        companies.map((c) => c.id),
-      );
+      .select("job_number, name, company_id, pm_user_id, pm_email")
+      .in("company_id", ids);
+    const { data, error } = withPm.error
+      ? await sb.from("mcp_jobs").select("job_number, name, company_id").in("company_id", ids)
+      : withPm;
     if (error) throw new Error(error.message);
-    jobs = ((data ?? []) as typeof jobs).sort(
+    type Row = { job_number: string; name: string | null; company_id: string; pm_user_id?: string | null; pm_email?: string | null };
+    jobs = ((data ?? []) as Row[])
+      .map(({ pm_user_id, pm_email, ...j }) =>
+        withPm.error ? j : { ...j, no_pm: !pmReachable({ pm_user_id, pm_email }) },
+      )
+      .sort(
       (a, b) =>
         a.company_id.localeCompare(b.company_id) || a.job_number.localeCompare(b.job_number),
     );
