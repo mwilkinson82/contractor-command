@@ -6399,6 +6399,27 @@ export type Database = {
           },
         ]
       }
+      mcp_morning_brief_email_sends: {
+        Row: {
+          created_at: string
+          message_id: string | null
+          sent_on: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          message_id?: string | null
+          sent_on: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          message_id?: string | null
+          sent_on?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mcp_morning_brief_sends: {
         Row: {
           body: string
@@ -6422,6 +6443,7 @@ export type Database = {
       }
       mcp_morning_brief_settings: {
         Row: {
+          email_enabled: boolean
           enabled: boolean
           send_local: string
           time_zone: string
@@ -6429,6 +6451,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          email_enabled?: boolean
           enabled?: boolean
           send_local?: string
           time_zone?: string
@@ -6436,6 +6459,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          email_enabled?: boolean
           enabled?: boolean
           send_local?: string
           time_zone?: string
@@ -11718,6 +11742,10 @@ export type Database = {
         Returns: Json
       }
       mcp_board_link_revoke: { Args: { _token_hash: string }; Returns: Json }
+      mcp_brief_as_user: {
+        Args: { _args: Json; _fn: string; _user: string }
+        Returns: Json
+      }
       mcp_buyout_get: {
         Args: { _company: string; _job?: string }
         Returns: Json
@@ -12569,6 +12597,21 @@ export type Database = {
       mcp_member_role: { Args: { _company: string }; Returns: string }
       mcp_morning_brief_candidates: { Args: never; Returns: Json }
       mcp_morning_brief_card_status: { Args: never; Returns: Json }
+      mcp_morning_brief_email_candidates: { Args: never; Returns: Json }
+      mcp_morning_brief_email_claim: {
+        Args: { _day: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_email_get: { Args: never; Returns: Json }
+      mcp_morning_brief_email_release: {
+        Args: { _day: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_email_sent: {
+        Args: { _day: string; _id: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_email_set: { Args: { _on: boolean }; Returns: Json }
       mcp_morning_brief_feed: { Args: never; Returns: Json }
       mcp_morning_brief_feed_for: { Args: { _user: string }; Returns: Json }
       mcp_morning_brief_mark_sent: {
