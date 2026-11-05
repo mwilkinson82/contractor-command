@@ -575,6 +575,13 @@
       "when": 1793841770534,
       "tag": "0081_athena_portal_choice_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793842041584,
+      "tag": "0082_athena_portal_pay_apps",
+      "breakpoints": true
     }
   ]
 }

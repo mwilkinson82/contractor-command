@@ -10335,6 +10335,16 @@ export type Database = {
         Args: { _expected_version: number; _job: string; _submittal: string }
         Returns: Json
       }
+      mcp_portal_share_pay_app: {
+        Args: {
+          _application: string
+          _due_on: string
+          _expected_version: number
+          _job: string
+          _number: string
+        }
+        Returns: Json
+      }
       mcp_portal_share_selection: {
         Args: { _expected_version: number; _job: string }
         Returns: Json
