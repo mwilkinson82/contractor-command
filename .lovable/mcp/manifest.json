@@ -426,8 +426,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -446,8 +446,10 @@
                 "edit",
                 "answer",
                 "close",
-                "reopen"
-              ]
+                "reopen",
+                "record_outside"
+              ],
+              "description": "record_outside (RFI only): log an RFI that was sent and/or answered outside Athena, by email or another system. It is never sent from Athena and carries no send receipt."
             },
             "request_id": {
               "type": "string",
@@ -705,6 +707,70 @@
                 "received_from",
                 "received_at"
               ]
+            },
+            "source": {
+              "description": "record_outside: where it was handled, such as email or Procore.",
+              "type": "string",
+              "maxLength": 80
+            },
+            "source_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "sent_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sent_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answer_text": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 12000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answered_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answered_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -713,8 +779,7 @@
             "request_id"
           ],
           "additionalProperties": false
-        },
-        "outputSchema": null
+        }
       },
       {
         "name": "rfc_log",
@@ -776,8 +841,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -796,8 +861,10 @@
                 "edit",
                 "answer",
                 "close",
-                "reopen"
-              ]
+                "reopen",
+                "record_outside"
+              ],
+              "description": "record_outside (RFI only): log an RFI that was sent and/or answered outside Athena, by email or another system. It is never sent from Athena and carries no send receipt."
             },
             "request_id": {
               "type": "string",
@@ -1055,6 +1122,70 @@
                 "received_from",
                 "received_at"
               ]
+            },
+            "source": {
+              "description": "record_outside: where it was handled, such as email or Procore.",
+              "type": "string",
+              "maxLength": 80
+            },
+            "source_number": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "sent_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sent_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answer_text": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 12000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answered_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "answered_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": [
@@ -1063,8 +1194,534 @@
             "request_id"
           ],
           "additionalProperties": false
+        }
+      },
+      {
+        "name": "project_log",
+        "title": "Claims, inspections and owner decisions",
+        "description": "Reads one of the job's logs: the claims register (claims and their events), the inspection log, or the owner decision log.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
         },
-        "outputSchema": null
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "log": {
+              "type": "string",
+              "enum": [
+                "claims",
+                "inspections",
+                "decisions"
+              ]
+            },
+            "number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "job_number",
+            "log"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "project_log_record",
+        "title": "Record a claim, inspection or owner decision",
+        "description": "Adds or updates an entry on the claims register, inspection log or owner decision log, or adds an event to a claim. Nothing is sent to anyone.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "log": {
+              "type": "string",
+              "enum": [
+                "claims",
+                "inspections",
+                "decisions"
+              ]
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "update",
+                "event"
+              ]
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "claim_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "inspection_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "decision_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 12000
+            },
+            "claim_type": {
+              "type": "string",
+              "enum": [
+                "delay",
+                "extension_of_time",
+                "delay_damages",
+                "acceleration",
+                "disruption",
+                "other"
+              ]
+            },
+            "money_claimed_cents": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "money_awarded_cents": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "time_claimed_days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            },
+            "time_awarded_days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            },
+            "submitted_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resolved_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "delay_event_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "claim_item_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "event_type": {
+              "type": "string",
+              "enum": [
+                "submitted",
+                "received",
+                "reviewed",
+                "meeting",
+                "returned_for_revision",
+                "resubmitted",
+                "resolved",
+                "other"
+              ]
+            },
+            "event_date": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "revision_number": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "inspection_type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "authority": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "inspector": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "responsible_party": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "pass",
+                "fail",
+                "partial",
+                "cancelled"
+              ]
+            },
+            "requested_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scheduled_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "completed_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 99
+            },
+            "reinspection_required": {
+              "type": "boolean"
+            },
+            "cost_impact_cents": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "schedule_impact_weeks": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": -520,
+                  "maximum": 520
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "corrective_action": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "risk_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "owner_name": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "owner_email": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 320,
+                  "format": "email",
+                  "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "due_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "impact": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decided_on": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "outcome": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "selection_id": {
+              "description": "A selection on the job's selection board this decision is about. Read only.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "description": "Claims: in_preparation, submitted, pending_review, under_review, reviewed, resolved, rejected, withdrawn. Inspections: planned, requested, scheduled, passed, failed, partial, cancelled. Decisions: open, in_progress, decided, withdrawn.",
+              "type": "string",
+              "maxLength": 40
+            },
+            "change_order_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "exposure_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "job_number",
+            "log",
+            "action",
+            "request_id"
+          ],
+          "additionalProperties": false
+        }
       },
       {
         "name": "jobs_list",

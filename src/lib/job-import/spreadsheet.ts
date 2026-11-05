@@ -296,6 +296,8 @@ export function fromSpreadsheets(
           status: coStatusWord(get(r, "status")),
           date: toDay(get(r, "date")),
           schedule_days: Number.isFinite(days) ? Math.max(-3650, Math.min(3650, days)) : null,
+          cost_cents: null,
+          probability: null,
         });
       });
     } else if (sheet.kind === "rfis") {

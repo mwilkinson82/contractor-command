@@ -152,10 +152,6 @@ const post = async (
   body: Record<string, string>,
   opts: { cookie?: boolean; origin?: string | null } = {},
 ) => req(path, { method: "POST", body: new URLSearchParams(body).toString(), ...opts });
-const BLUE = /#0071e3|#2563eb|#2997ff|#1d4ed8|#3b82f6|\bblue\b/i;
-/** The page's own UI has no blue. The one exception is the small blue Athena A in the "Powered by Athena" footer. */
-const withoutAthenaMark = (html: string) =>
-  html.replace(/<span class="ath-cb-powered"[\s\S]*?<\/span>/g, "");
 
 describe("same-origin posts", () => {
   const at = (h: Record<string, string>) =>
@@ -269,15 +265,17 @@ describe("customer page", () => {
     expect((await handlePortal(req("/c/not-a-uuid"), "not-a-uuid", d)).status).toBe(404);
   });
 
-  it("renders every section in the approved look, with signed photos and no storage paths or scripts", async () => {
+  it("renders every section in the Athena blue client look, with signed photos and no storage paths or scripts", async () => {
     const { d } = deps();
     for (const s of PORTAL_SECTIONS) {
       const r = await handlePortal(req(`/c/${ACCESS}?s=${s}`, { cookie: true }), ACCESS, d);
       const html = await r.text();
       expect(r.status, s).toBe(200);
       expect(html, s).not.toMatch(/<script/i);
-      expect(withoutAthenaMark(html), s).not.toMatch(BLUE);
-      expect(html, s).toContain("Powered by Athena</span></footer>");
+      // Approved Nov 5: Athena blue hero over white cards, Powered by Athena in the footer.
+      expect(html, s).toContain('<section class="hero">');
+      expect(html, s).toContain("linear-gradient(160deg,#2f6cf2,#1a47c7)");
+      expect(html, s).toContain("Powered by Athena");
       expect(html, s).not.toContain("secret-path");
       expect(html, s).toContain('aria-current="page"');
       expect(html, s).toContain("@media (max-width:640px)");
@@ -653,18 +651,24 @@ describe("customer emails", () => {
     expect(code.html).toContain(">Your sign-in code</h1>");
     expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
   });
-  it("keep their blue and white in the Gmail phone apps' dark mode", () => {
+  it("keep the designed look on a computer and stay readable in the Gmail phone apps' dark mode", () => {
     expect(invite.html).toContain('<meta name="supported-color-schemes" content="light">');
     expect(invite.html).toContain('<body class="body"');
-    expect(invite.html).toContain("background-image:linear-gradient(#FFFFFF,#FFFFFF)");
-    expect(invite.html).toContain(
-      `background-image:linear-gradient(${ATHENA_BLUE},${ATHENA_BLUE})`,
+    // No forced-white background: on iOS it stays white while Gmail flips the text pale on top of it.
+    expect(invite.html).not.toContain("linear-gradient(#FFFFFF");
+    expect(code.html).not.toContain("linear-gradient(#F2F6FF");
+    // The button keeps the design's blue, from the style block (Android) and inline (iOS).
+    expect(invite.html).toMatch(
+      /\.ath-panel\{[^}]*background-image:linear-gradient\(#1E5FED,#1E5FED\)/,
     );
     expect(invite.html).toMatch(/u \+ \.body \.gm-screen\{[^}]*mix-blend-mode:screen/);
     expect(invite.html).toContain(
       '<span class="gm-screen"><span class="gm-diff">Open your project page</span></span>',
     );
-    expect(code.html).toContain("background-image:linear-gradient(#F2F6FF,#F2F6FF)");
+    // The code keeps its pale blue box and navy digits as plain colours, so dark mode darkens it with the card.
+    expect(code.html).toMatch(
+      /background-color:#F2F6FF;color:#0F1E3D;[^>]*letter-spacing:8px[^>]*>123456<\/p>/,
+    );
   });
   it("show the contractor's saved logo when there is one, and only an https one", () => {
     const base = {
@@ -739,7 +743,7 @@ describe("the contractor's saved logo on the customer page", () => {
     const page = await (
       await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).toContain(`<img class="logo-img" src="${LOGO}" alt="Northline Builders">`);
+    expect(page).toContain(`<img class="co-img" src="${LOGO}" alt="Northline Builders">`);
     expect(asked.every((a) => a === ACCESS)).toBe(true);
   });
 
@@ -751,7 +755,7 @@ describe("the contractor's saved logo on the customer page", () => {
     const page = await (
       await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).not.toContain(`class="logo-img"`);
+    expect(page).not.toContain(`class="co-img"`);
     expect(page).toContain("<b>Northline Builders</b>");
   });
 });

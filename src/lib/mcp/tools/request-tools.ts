@@ -117,7 +117,11 @@ function recordTool(kind: RequestKind) {
       "Creates or edits a numbered request package, captures a response, or explicitly closes/reopens it; attachments, PDF builds and approved delivery use the shared submittal package tools.",
     inputSchema: {
       ...ids,
-      action: z.enum(["create", "edit", "answer", "close", "reopen"]),
+      action: z
+        .enum(["create", "edit", "answer", "close", "reopen", "record_outside"])
+        .describe(
+          "record_outside (RFI only): log an RFI that was sent and/or answered outside Athena, by email or another system. It is never sent from Athena and carries no send receipt.",
+        ),
       request_id: z.string().uuid(),
       submittal_id: z.string().uuid().optional(),
       number: z.string().trim().min(1).max(40).optional(),
@@ -144,12 +148,26 @@ function recordTool(kind: RequestKind) {
           references: z.array(reference).max(40).optional(),
         })
         .optional(),
+      source: z
+        .string()
+        .trim()
+        .max(80)
+        .optional()
+        .describe("record_outside: where it was handled, such as email or Procore."),
+      source_number: z.string().trim().max(40).optional(),
+      sent_on: date.nullable().optional(),
+      sent_to: z.string().trim().max(120).nullable().optional(),
+      answer_text: z.string().max(12000).nullable().optional(),
+      answered_on: date.nullable().optional(),
+      answered_by: z.string().trim().max(320).nullable().optional(),
     },
     annotations: save,
     handler: (args, ctx) =>
       run(name, ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
         const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, "full");
         if (!job) throw new ToolError("Name the job for this request.");
+        if (args.action === "record_outside" && kind !== "rfi")
+          throw new ToolError("Only an RFI can be recorded as handled outside Athena.");
         if (args.action === "create") {
           const gaps = requestContentGaps(args);
           if (!args.title?.trim()) gaps.unshift("A title for the request");
@@ -186,13 +204,15 @@ function recordTool(kind: RequestKind) {
         void _companyId;
         const saved = await rpc<{ saved_id: string; number?: string; already_applied: boolean }>(
           sb,
-          "mcp_request_record",
-          {
-            _job: job.job_id,
-            _kind: kind,
-            _action: action,
-            _p: { ...fields, host: callHost(ctx) },
-          },
+          action === "record_outside" ? "mcp_request_record_outside" : "mcp_request_record",
+          action === "record_outside"
+            ? { _job: job.job_id, _p: { ...fields, host: callHost(ctx) } }
+            : {
+                _job: job.job_id,
+                _kind: kind,
+                _action: action,
+                _p: { ...fields, host: callHost(ctx) },
+              },
         );
         try {
           const [payload, board] = await Promise.all([

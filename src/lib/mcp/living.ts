@@ -13,7 +13,7 @@ import { IOR_MODEL_KEY, iorModelText, readIorModel } from "../ior-model";
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
 export const LIVING_LABEL: Record<LivingReportType, string> = {
-  cpm: "Cost-loaded CPM",
+  cpm: "CPM",
   billing_forecast: "Billing forecast",
   ior: "IOR",
   dashboard: "PM dashboard",
@@ -141,6 +141,21 @@ export function tieCheck(forecast: number, contract: number | null): Tie {
     line: `Doesn't tie: off by ${money(Math.abs(fromCents(d)))} (${d > 0 ? "over" : "under"} the contract; forecast ${money(forecast)}, contract ${money(contract)}).`,
   };
 }
+
+/**
+ * A CPM is cost loaded when any activity carries a dollar value other than $0
+ * (owner-furnished included, so a mis-valued owner item is still caught).
+ * Partial loading rule: once ANY activity has a value, the schedule is cost
+ * loaded and its billable values must tie to the contract to the cent, an
+ * activity with no value counting as $0. A schedule with no values at all is a
+ * plain CPM: IDs, logic and durations alone. Athena never spreads dollars onto
+ * one by itself.
+ */
+export const isCostLoaded = (acts: Activity[]) =>
+  acts.some((a) => typeof a.value === "number" && Number.isFinite(a.value) && a.value !== 0);
+/** Said plainly when billing or earned value is asked of a CPM with no dollars. */
+export const NOT_COST_LOADED =
+  "The saved CPM isn't cost loaded (no activity carries a value), so a billing forecast or earned value from the schedule isn't available. Load values that tie to the contract, or forecast billing another way.";
 
 export const costLoadTotal = (acts: Activity[]) =>
   fromCents(acts.reduce((s, a) => s + cents(billableValue(a)), 0));
@@ -409,7 +424,8 @@ export function checkSave(
   }
   let tie: Tie | null = null;
   let ft: number | null = null;
-  if (TIED_TYPES.includes(type)) {
+  // A CPM ties only when it is cost loaded (isCostLoaded); a plain CPM saves with no tie.
+  if (type === "billing_forecast" || (type === "cpm" && isCostLoaded(acts))) {
     ft = type === "cpm" ? costLoadTotal(acts) : forecastTotal(next.billing);
     tie = tieCheck(ft, contract);
     if (!tie.ties) problems.push(tie.line);

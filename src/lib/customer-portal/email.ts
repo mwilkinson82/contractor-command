@@ -3,6 +3,9 @@
 import { outboundEmailDisabled } from "../mcp/email-safety";
 import { postResendEmail } from "../support/resend-send";
 import { esc } from "./render";
+import { EMAIL_BLUE, EMAIL_LOGO, EMAIL_NAVY, emailShell } from "../email/athena-shell";
+
+export { EMAIL_BLUE, EMAIL_LOGO, EMAIL_NAVY };
 
 export const PORTAL_FROM_DEFAULT = "Athena <team@meetathena.io>";
 /**
@@ -45,82 +48,9 @@ export function portalEmailEnabled(env: Env = runtimeEnv()): boolean {
   return env.ATHENA_PORTAL_EMAIL_ENABLED === "true" && !outboundEmailDisabled(env);
 }
 
-// Same look as Athena's own sign-in emails (src/lib/email-templates/athena-auth-email.tsx): white card, blue tagline,
-// navy heading, slate text, blue button, boxed code. Customer emails are client-facing, so the contractor leads up top
-// (their saved logo, or their name in type) and Athena is the small A and "Powered by Athena" under the card. The
-// copy to the PM is Athena's own and keeps the Athena mark.
-export const EMAIL_LOGO = "https://app.meetathena.io/brand/athena/email/athena-mark-180.png";
-export const EMAIL_BLUE = "#1E5FED";
-export const EMAIL_NAVY = "#0F1E3D";
-const SLATE = "#3B4A66";
-const MUTED = "#6B7488";
-const LINE = "#E3E8F2";
-const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-
-// Gmail's phone apps repaint emails dark: Android darkens flat light backgrounds and turns white text dark, iOS
-// inverts everything. Gmail leaves background images alone, so every fill also carries a one-colour gradient; Gmail
-// wraps the message so `u + .body` matches only there, where blend modes put the button's white label back.
-const WHITE = "linear-gradient(#FFFFFF,#FFFFFF)";
-const BLUE = `linear-gradient(${EMAIL_BLUE},${EMAIL_BLUE})`;
-const GMAIL_KEEP_LIGHT =
-  ":root{color-scheme:light;supported-color-schemes:light}u + .body .gm-screen{background:#000;mix-blend-mode:screen;display:inline-block}u + .body .gm-diff{background:#000;mix-blend-mode:difference;display:inline-block}";
-const BRAND_FONT =
-  "Inter,'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif";
-
-type Frame = {
-  /** Who leads up top: the contractor on customer emails, Athena on the copy to the PM. */
-  brand: { contractor: string; logo?: string | null } | "athena";
-  /** Blue line under the brand. */
-  tagline: string;
-  /** Inbox preview line. */
-  preview: string;
-  heading: string;
-  /** Paragraphs, already escaped. */
-  lines: string[];
-  button?: { label: string; href: string };
-  code?: string;
-  /** Small print above the rule, already escaped. */
-  after?: string;
-  /** Muted lines under the rule, already escaped. */
-  foot: string;
-  legal: string;
-};
-
-/** Only an https image may stand in for the contractor's name. */
-const safeLogo = (url: string | null | undefined): string | null =>
-  url && /^https:\/\/[^\s"'<>]+$/i.test(url) ? url : null;
-
-function top(brand: Frame["brand"]): string {
-  if (brand === "athena")
-    return `<img src="${EMAIL_LOGO}" width="56" height="56" alt="Athena" style="display:block;width:56px;height:56px;border:0">`;
-  const logo = safeLogo(brand.logo);
-  return logo
-    ? `<img src="${esc(logo)}" height="48" alt="${esc(brand.contractor)}" style="display:block;height:48px;max-width:240px;width:auto;border:0">`
-    : `<p style="margin:0;color:#111827;font-family:${BRAND_FONT};font-size:22px;line-height:28px;font-weight:700;letter-spacing:-0.2px">${esc(brand.contractor)}</p>`;
-}
-
-function frame(f: Frame): string {
-  const p = (html: string) =>
-    `<p style="margin:0 0 12px;color:${SLATE};font-size:15px;line-height:24px">${html}</p>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(f.heading)}</title><style>${GMAIL_KEEP_LIGHT}</style></head><body class="body" style="margin:0;padding:32px 12px;background:#FFFFFF;background-image:${WHITE};font-family:${FONT}">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(f.preview)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="background:#FFFFFF;background-image:${WHITE}"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:520px;border:1px solid ${LINE};border-radius:14px;background:#FFFFFF;background-image:${WHITE};border-collapse:separate">
-<tr><td style="padding:32px 36px 0">
-${top(f.brand)}
-<p style="margin:14px 0 0;color:${EMAIL_BLUE};font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase">${esc(f.tagline)}</p>
-</td></tr>
-<tr><td style="padding:8px 36px 32px">
-<h1 style="margin:18px 0 12px;color:${EMAIL_NAVY};font-size:26px;line-height:32px;font-weight:800">${esc(f.heading)}</h1>
-${f.lines.map(p).join("\n")}
-${f.button ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px"><tr><td bgcolor="${EMAIL_BLUE}" style="border-radius:10px;background:${EMAIL_BLUE};background-image:${BLUE}"><a href="${esc(f.button.href)}" style="display:inline-block;padding:14px 26px;border-radius:10px;background:${EMAIL_BLUE};background-image:${BLUE};color:#FFFFFF;font-size:15px;font-weight:700;text-decoration:none"><span class="gm-screen"><span class="gm-diff">${esc(f.button.label)}</span></span></a></td></tr></table>` : ""}
-${f.code ? `<p style="margin:8px 0 4px;padding:14px 18px;border:1px solid ${LINE};border-radius:10px;background:#F2F6FF;background-image:linear-gradient(#F2F6FF,#F2F6FF);color:${EMAIL_NAVY};font-family:Menlo,Consolas,monospace;font-size:30px;font-weight:700;letter-spacing:8px;text-align:center">${esc(f.code)}</p>` : ""}
-${f.after ? `<p style="margin:16px 0 0;color:${SLATE};font-size:13px;line-height:21px">${f.after}</p>` : ""}
-<p style="margin:28px 0 0;padding-top:18px;border-top:1px solid ${LINE};color:${MUTED};font-size:12px;line-height:19px">${f.foot}</p>
-</td></tr></table>
-<p style="margin:18px 0 0;color:${MUTED};font-size:11px;line-height:16px;text-align:center">${f.brand === "athena" ? "" : `<img src="${EMAIL_LOGO}" width="16" height="16" alt="" style="display:inline-block;width:16px;height:16px;border:0;vertical-align:-4px;margin-right:5px">`}${esc(f.legal)}</p>
-</td></tr></table></body></html>`;
-}
+// Every customer email uses Athena's one email shell (src/lib/email/athena-shell.ts), which also explains how it
+// survives the Gmail phone apps' dark mode.
+const frame = emailShell;
 
 const CUSTOMER_LEGAL = "Powered by Athena";
 const firstName = (n: string) => n.trim().split(/\s+/)[0] || n;
