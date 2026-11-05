@@ -187,4 +187,7 @@ describe("migration", () => {
     expect(sql).toContain("company_work_profile_update");
     expect(sql).not.toMatch(/DROP |DELETE FROM|TRUNCATE/i);
   });
+  it("leaves the transaction to the Lovable migration tool", () => {
+    expect(sql).not.toMatch(/^\s*(BEGIN|COMMIT|ROLLBACK)\s*;/im);
+  });
 });
