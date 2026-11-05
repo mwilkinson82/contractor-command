@@ -1,0 +1,20 @@
+-- Rollback for 20261105150000_athena_job_notices.sql: removes job notices, their reads, email choices and email log.
+SET LOCAL lock_timeout = '5s';
+DROP FUNCTION IF EXISTS public.mcp_job_notice_prefs_set(uuid, text, text, boolean);
+DROP FUNCTION IF EXISTS public.mcp_job_notice_prefs_get(uuid);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_manager(uuid);
+DROP FUNCTION IF EXISTS public.mcp_my_notices(timestamptz, boolean, integer);
+DROP FUNCTION IF EXISTS public.mcp_job_notices_mark_read(uuid, uuid[]);
+DROP FUNCTION IF EXISTS public.mcp_job_notices_list(uuid, integer);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_json(public.mcp_job_notices, uuid);
+DROP FUNCTION IF EXISTS public.mcp_job_notice_email_result(uuid, text, text);
+DROP FUNCTION IF EXISTS public.mcp_job_notice_record(uuid, text, text, text, text, text, text, uuid, jsonb, text, text);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_add(uuid, text, text, text, text, text, text, uuid, jsonb, text, text);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_recipients(uuid, text);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_wants(uuid, text, text);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_default(text, text);
+DROP FUNCTION IF EXISTS mcp_private.job_notice_field_topic(text);
+DROP TABLE IF EXISTS public.mcp_job_notice_emails;
+DROP TABLE IF EXISTS public.mcp_job_notice_prefs;
+DROP TABLE IF EXISTS public.mcp_job_notice_reads;
+DROP TABLE IF EXISTS public.mcp_job_notices;
