@@ -14,6 +14,7 @@ import {
 } from "./model";
 import {
   itemLabel,
+  longDate,
   PORTAL_HEADERS,
   PORTAL_SECTIONS,
   renderGone,
@@ -42,6 +43,13 @@ export function choiceNextForPm(
   if (r.under_contract === false)
     return "The job has no contract value on file yet, so this is a proposal approval, not a change order. Carry the package total into the contract.";
   return null;
+}
+
+/** The PM's next step after the customer decides on a pay application. The page never certifies it or changes billing. */
+export function payAppNextForPm(decision: string): string {
+  return decision === "approved"
+    ? "Nothing in billing changed: the pay application is not certified and no payment is recorded. Record the actual certificate on the pay application when it comes in."
+    : "Nothing in billing changed. Read their note, then revise the pay application and share it again.";
 }
 
 export type PortalDeps = {
@@ -369,7 +377,8 @@ export async function handlePortal(
   if (typeof view === "string") return goneFor(view, access);
   const item = view.items.find((i) => i.id === f.item);
   if (!item) return redirect(`${self}?e=not_open`);
-  const sec = item.kind === "change_order" ? "changes" : "selections";
+  const sec: PortalSection =
+    item.kind === "change_order" ? "changes" : item.kind === "pay_app" ? "billing" : "selections";
   const at = (extra: Record<string, string>) =>
     `${self}?${new URLSearchParams({ s: sec, i: item.id, ...extra }).toString()}`;
   if (item.decision) return redirect(at({ e: "not_open" }));
@@ -427,7 +436,8 @@ export async function handlePortal(
         ),
       );
     const validKind =
-      (item.kind === "change_order" && (decision === "approved" || decision === "declined")) ||
+      ((item.kind === "change_order" || item.kind === "pay_app") &&
+        (decision === "approved" || decision === "declined")) ||
       (item.kind === "selection" && decision === "chosen" && choice !== null);
     if (!validKind || typed.length < 2 || typed.length > 120) return back("invalid");
     if (needsCode && f.agree !== "1") return back("agree");
@@ -446,16 +456,24 @@ export async function handlePortal(
               price: displayPrice(item.view.price_cents, "USD"),
               scheduleDays: item.view.schedule_days,
             })
-          : approvalStatement({
-              kind: "selection",
-              company,
-              label,
-              price: displayPrice(
-                item.view.proposal.packages.find((k) => k.tier === choice)!.total_cents,
-                item.view.proposal.currency,
-              ),
-              choice: TIER_NAME[choice!],
-            });
+          : item.kind === "pay_app"
+            ? approvalStatement({
+                kind: "pay_app",
+                company,
+                label,
+                price: displayPrice(item.view.totals.current_due_cents, "USD"),
+                periodEnd: longDate(item.view.period_end),
+              })
+            : approvalStatement({
+                kind: "selection",
+                company,
+                label,
+                price: displayPrice(
+                  item.view.proposal.packages.find((k) => k.tier === choice)!.total_cents,
+                  item.view.proposal.currency,
+                ),
+                choice: TIER_NAME[choice!],
+              });
     const note = (f.note ?? "").trim().slice(0, 2000) || null;
     const res = await deps
       .rpc("mcp_portal_decide", {
@@ -494,7 +512,12 @@ export async function handlePortal(
             choice: choice ? TIER_NAME[choice] : null,
             note,
             reference: `Customer page decision ${r.decision_id ?? ""}`.trim(),
-            next: decision === "chosen" ? choiceNextForPm(r, item) : null,
+            next:
+              decision === "chosen"
+                ? choiceNextForPm(r, item)
+                : item.kind === "pay_app"
+                  ? payAppNextForPm(decision!)
+                  : null,
           }),
         );
       return redirect(at({ ok: decision! }));
