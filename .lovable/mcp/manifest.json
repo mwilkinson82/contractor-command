@@ -13954,7 +13954,7 @@
       {
         "name": "schedule_workflow",
         "title": "Prepare WBS, schedule update or delay comparison",
-        "description": "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending.",
+        "description": "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending. import_xer turns a Primavera P6 XER file's text into a first-import draft for a job with no saved schedule; export_xer returns the saved schedule as XER text for P6.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -13980,8 +13980,20 @@
               "enum": [
                 "inspect",
                 "prepare",
-                "draft_notice"
+                "draft_notice",
+                "import_xer",
+                "export_xer"
               ]
+            },
+            "xer_text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 5000000
+            },
+            "xer_project": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
             },
             "base_version": {
               "type": "integer",
