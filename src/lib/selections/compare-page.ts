@@ -45,7 +45,7 @@ export const COMPARE_CSS = `
 .gbb *{box-sizing:border-box}
 .gbb .pr-in{position:absolute;opacity:0;pointer-events:none}
 .gbb .cols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));column-gap:32px;padding:0 var(--pad)}
-.gbb .hero{text-align:center;padding:64px var(--pad) 36px}
+.gbb .gbb-hero{text-align:center;padding:64px var(--pad) 36px}
 .gbb .eyebrow{font-size:13px;color:var(--ink-2);margin:0 0 10px;font-weight:500;letter-spacing:0;text-transform:none}
 .gbb h1{font:600 clamp(32px,5vw,52px)/1.06 inherit;font-family:inherit;letter-spacing:-.035em;margin:0 0 14px;text-wrap:balance}
 .gbb .intro{font-size:19px;line-height:1.42;color:var(--ink-2);max-width:38ch;margin:0 auto;letter-spacing:-.015em}
@@ -62,7 +62,7 @@ export const COMPARE_CSS = `
 .gbb .th .nm{font-size:24px;font-weight:600;line-height:1.15;letter-spacing:-.025em}
 .gbb .th .tot{font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
 .gbb .th .dl{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
-.gbb .th .act{margin-top:10px}
+.gbb .th .gbb-act{margin-top:10px}
 .gbb .th.chosen .nm::after{content:"  ✓";color:var(--gold)}
 .gbb .btn{display:inline-block;border:0;cursor:pointer;background:var(--brand);color:var(--brand-ink);text-decoration:none;font:500 14px/1.2 inherit;font-family:inherit;padding:8px 18px;border-radius:999px;transition:transform .2s ease,opacity .2s}
 .gbb .btn:hover{opacity:.86;transform:translateY(-1px)}
@@ -103,7 +103,7 @@ export const COMPARE_CSS = `
 @media (max-width:900px){.gbb{--pad:28px}.gbb .cols{column-gap:20px}.gbb .th .nm{font-size:20px}.gbb .big{font-size:32px}.gbb .big.inc{font-size:22px;line-height:32px}.gbb .model{font-size:15.5px}}
 @media (max-width:560px){
   .gbb{--n:2;--pad:18px;font-size:14px}.gbb .cols{column-gap:14px}
-  .gbb .hero{padding:40px 20px 24px}.gbb .intro{font-size:16px}
+  .gbb .gbb-hero{padding:40px 20px 24px}.gbb .intro{font-size:16px}
   .gbb .pair{display:flex}
   .gbb .pin{padding-top:12px;padding-bottom:12px}
   .gbb .th .nm{font-size:18px}.gbb .th .tot{font-size:14px}.gbb .th .dl{font-size:12px}
@@ -146,7 +146,7 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
     .map((k, i) => {
       const base = k.tier === v.base_tier;
       const act = o.action?.(k.tier) ?? null;
-      return `<div class="th t${i + 1}${chosen === k.tier ? " chosen" : ""}"><span class="tag${chosen === k.tier ? " rec" : ""}">${tierTag(v, k.tier, chosen)}</span><span class="nm">${TIER_LABEL[k.tier]}</span><span class="tot">${esc(price(k.total_cents))}</span><span class="dl">${base ? "Your base price" : `${esc(plus(k.difference_cents))} ${k.difference_cents >= 0 ? "upgrade" : "change"}`}</span>${act ? `<div class="act">${act}</div>` : ""}</div>`;
+      return `<div class="th t${i + 1}${chosen === k.tier ? " chosen" : ""}"><span class="tag${chosen === k.tier ? " rec" : ""}">${tierTag(v, k.tier, chosen)}</span><span class="nm">${TIER_LABEL[k.tier]}</span><span class="tot">${esc(price(k.total_cents))}</span><span class="dl">${base ? "Your base price" : `${esc(plus(k.difference_cents))} ${k.difference_cents >= 0 ? "upgrade" : "change"}`}</span>${act ? `<div class="gbb-act">${act}</div>` : ""}</div>`;
     })
     .join("");
   const lines = v.selections
@@ -202,7 +202,7 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
       return `<section class="line"><div class="line-h"><h2>${esc(s.title)}</h2><span>${esc(qty)} in every package</span></div><div class="cols">${heads}</div>${rows ? `<div class="rows">${rows}</div>` : ""}</section>`;
     })
     .join("");
-  const hero = `<section class="hero">${o.eyebrow ? `<p class="eyebrow">${esc(o.eyebrow)}</p>` : ""}<h1>${esc(v.title)}</h1>${v.intro ? `<p class="intro">${esc(v.intro)}</p>` : ""}<p class="how">${esc(howUpgradesWork(v, o.underContract))}</p>${chosen ? `<p class="chosen-note">You chose ${TIER_LABEL[chosen]}</p>` : o.note ? `<p class="how">${esc(o.note)}</p>` : ""}</section>`;
+  const hero = `<section class="gbb-hero">${o.eyebrow ? `<p class="eyebrow">${esc(o.eyebrow)}</p>` : ""}<h1>${esc(v.title)}</h1>${v.intro ? `<p class="intro">${esc(v.intro)}</p>` : ""}<p class="how">${esc(howUpgradesWork(v, o.underContract))}</p>${chosen ? `<p class="chosen-note">You chose ${TIER_LABEL[chosen]}</p>` : o.note ? `<p class="how">${esc(o.note)}</p>` : ""}</section>`;
   return `<div class="gbb"><input class="pr-in" type="radio" name="gbb-pair" id="pr-gb" checked><input class="pr-in" type="radio" name="gbb-pair" id="pr-bB"><input class="pr-in" type="radio" name="gbb-pair" id="pr-gB">${hero}<div class="pair"><div class="seg" role="radiogroup" aria-label="Packages to compare"><label for="pr-gb">Good · Better</label><label for="pr-bB">Better · Best</label><label for="pr-gB">Good · Best</label></div></div><div class="pin cols">${pin}</div><div>${lines}</div></div>`;
 }
 
