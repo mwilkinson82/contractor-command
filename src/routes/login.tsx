@@ -339,6 +339,15 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
               placeholder="Your password"
               autoComplete="current-password"
               required
+              hint={
+                <Link
+                  to="/forgot-password"
+                  className="text-[12px] text-clay hover:underline"
+                  data-signin="set-password"
+                >
+                  Forgot or never set a password?
+                </Link>
+              }
             />
             {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
             <AuthSubmit
