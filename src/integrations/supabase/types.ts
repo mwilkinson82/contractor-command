@@ -10282,6 +10282,7 @@ export type Database = {
       }
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
+      mcp_portal_brand: { Args: { _access: string }; Returns: Json }
       mcp_portal_code_issue: {
         Args: {
           _access: string
