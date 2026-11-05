@@ -166,11 +166,23 @@ export function conditionalSentence(text: string): string | null {
 export const TEMP_UTILITY_RE =
   /\btemp(orary|\.)?\s+(power|electric(al)?|lighting|heat(ing)?|utilit(y|ies)|service|generator)\b|\btemp(orary)? heat\b/i;
 
+/**
+ * A gap title as it reads mid-sentence: drop a leading list code ("G02 ", "G-2: ") and lower only the
+ * first word, so sheet names, acronyms and types keep their case ("Type E", "RTU", "E1").
+ */
+export function titleInSentence(title: string): string {
+  const t = title.replace(/^\s*G-?\d+[.:)]?\s+/i, "").trim() || title.trim();
+  const first = t.split(/\s/)[0] ?? "";
+  return /^[A-Z][a-z]/.test(first) && !/[A-Z0-9]/.test(first.slice(1))
+    ? t.charAt(0).toLowerCase() + t.slice(1)
+    : t;
+}
+
 /** The question Athena asks for a gap with no question of its own. */
 export function defaultQuestion(g: { title: string; conditional?: boolean }): string {
   if (g.conditional)
-    return `If the owner says no, are you carrying ${g.title.toLowerCase()} for the whole job, delays included?`;
-  return `Are you carrying ${g.title.toLowerCase()}, or is it covered somewhere else?`;
+    return `If the owner says no, are you carrying ${titleInSentence(g.title)} for the whole job, delays included?`;
+  return `Are you carrying ${titleInSentence(g.title)}, or is it covered somewhere else?`;
 }
 
 /** Mark a gap whose own words hand over owner power "if capacity allows". It holds the bid. */

@@ -53,9 +53,25 @@ describe("job board sign-in return", () => {
     expect(boardSignInReturn(`https://evil.example${billing}`)).toBeUndefined();
   });
 
+  it("returns to every signed-in-only board, so none is a dead end when signed out", () => {
+    for (const page of ["record", "daily-log", "estimate", "gap-check", "buyout"]) {
+      expect(boardSignInReturn(`/r/job/${JOB}/${page}?t=old`)).toBe(`/r/job/${JOB}/${page}`);
+    }
+    expect(boardSignInReturn(`/r/job/${JOB}/daily-log?from=2026-10-01&to=2026-10-31`)).toBe(
+      `/r/job/${JOB}/daily-log?from=2026-10-01&to=2026-10-31`,
+    );
+    expect(boardSignInReturn(`/r/job/${JOB}/not-a-board`)).toBeUndefined();
+  });
+
   it("retains production ranges and exact daily dates through sign-in", () => {
-    expect(boardSignInReturn(`/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29&utm_source=chatgpt`)).toBe(`/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29`);
-    expect(boardSignInReturn(`/r/job/${JOB}/daily?date=2026-10-28&t=old`)).toBe(`/r/job/${JOB}/daily?date=2026-10-28`);
+    expect(
+      boardSignInReturn(
+        `/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29&utm_source=chatgpt`,
+      ),
+    ).toBe(`/r/job/${JOB}/production?from=2026-10-28&to=2026-10-29`);
+    expect(boardSignInReturn(`/r/job/${JOB}/daily?date=2026-10-28&t=old`)).toBe(
+      `/r/job/${JOB}/daily?date=2026-10-28`,
+    );
   });
 
   it("rejects open redirects and anything that is not this origin's job board", () => {

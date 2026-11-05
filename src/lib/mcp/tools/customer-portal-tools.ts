@@ -116,6 +116,15 @@ function messagesText(head: string, l: JobMessages): string {
 const SAFE =
   "The customer page shows only what is shared: weekly updates you post, photos marked customer-safe, a daily summary (date, weather, crew, work done; no issues, delays, safety notes or costs), schedule milestones, and the change orders, selections and pay applications you share.";
 
+/** One full sentence per recipient, so it reads cleanly after the note it follows. */
+export function emailedLine(email: string, res: string): string {
+  return res === "sent"
+    ? `Emailed ${email}.`
+    : res === "off"
+      ? `Didn't email ${email}: customer email is off.`
+      : `The email to ${email} failed.`;
+}
+
 async function notify(
   recipients: Recipient[],
   jobName: string,
@@ -150,9 +159,7 @@ async function notify(
         nonce: newToken(),
       }),
     );
-    out.push(
-      `${r.email}: ${res === "sent" ? "emailed" : res === "off" ? "not emailed (customer email is off)" : "email failed"}`,
-    );
+    out.push(emailedLine(r.email, res));
   }
   return out;
 }
