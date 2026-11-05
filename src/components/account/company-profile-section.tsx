@@ -21,7 +21,7 @@ type Rpc = (
   fn: string,
   args: Record<string, unknown>,
 ) => PromiseLike<{ error: { message: string } | null }>;
-const rpc = supabase.rpc as unknown as Rpc;
+const rpc = supabase.rpc.bind(supabase) as unknown as Rpc;
 const LOGO_BUCKET = "company-logos";
 
 export function useCompanyProfile(companyId: string | null) {
