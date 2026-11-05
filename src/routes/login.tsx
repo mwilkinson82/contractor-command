@@ -11,7 +11,12 @@ import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost, currentHostname } from "@/lib/athena-host-current";
 import { isLovableHost } from "@/lib/athena-host";
 import { completeAthenaCodeSignIn } from "@/lib/athena-code-sign-in";
-import { loginCopy } from "@/lib/login-copy";
+import {
+  ATHENA_RESEND_SECONDS,
+  ATHENA_SUPPORT_MAILTO,
+  ATHENA_TRIAL_URL,
+  loginCopy,
+} from "@/lib/login-copy";
 import { boundedStep } from "@/lib/consent-loading";
 import { postSignInDefault } from "@/lib/athena-routes";
 
@@ -73,6 +78,8 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
   const [codeSent, setCodeSent] = useState(initialCodeSent);
   const [isHydrated, setIsHydrated] = useState(false);
   const [code, setCode] = useState("");
+  const [resendIn, setResendIn] = useState(initialCodeSent ? ATHENA_RESEND_SECONDS : 0);
+  const [resent, setResent] = useState(false);
 
   function requestMagicLinkWithTimeout(emailAddress: string) {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -100,6 +107,13 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // Count down to the next "Resend code" so a member never wonders whether to ask again.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
 
   useEffect(() => {
     if (athenaBrand) return;
@@ -136,8 +150,26 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
     try {
       await requestMagicLinkWithTimeout(email.trim());
       setCodeSent(true);
+      setResent(false);
+      setResendIn(ATHENA_RESEND_SECONDS);
     } catch {
       setErr("We could not confirm your request. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAthenaResend() {
+    if (busy || resendIn > 0) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await requestMagicLinkWithTimeout(email.trim());
+      setCode("");
+      setResent(true);
+      setResendIn(ATHENA_RESEND_SECONDS);
+    } catch {
+      setErr("We could not send a new code. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -219,17 +251,51 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
             />
             {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
             <AuthSubmit busy={busy} label="Continue" busyLabel="Checking code" />
-            <button
-              type="button"
-              className="mx-auto block text-[12px] font-medium text-clay hover:underline"
-              onClick={() => {
-                setErr(null);
-                setCode("");
-                setCodeSent(false);
-              }}
+            {resent && (
+              <p className="text-center text-[12px] text-foreground/75" role="status">
+                We sent a new code. Use the newest email.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[12px] font-medium">
+              <button
+                type="button"
+                className="min-h-[44px] text-clay hover:underline disabled:cursor-default disabled:text-foreground/50 disabled:no-underline"
+                disabled={busy || resendIn > 0}
+                onClick={onAthenaResend}
+                data-signin="resend-code"
+              >
+                {resendIn > 0
+                  ? `Resend code in 0:${String(resendIn).padStart(2, "0")}`
+                  : "Resend code"}
+              </button>
+              <button
+                type="button"
+                className="min-h-[44px] text-clay hover:underline"
+                onClick={() => {
+                  setErr(null);
+                  setCode("");
+                  setResent(false);
+                  setResendIn(0);
+                  setCodeSent(false);
+                }}
+              >
+                Use a different email
+              </button>
+            </div>
+            <div
+              className="rounded-xl border border-border bg-muted/45 p-4 text-[12px] leading-relaxed text-foreground/75"
+              data-signin="no-email-help"
             >
-              Try a different email
-            </button>
+              No email after 2 minutes? Check spam. This email may not have an Athena plan yet.{" "}
+              <a className="font-medium text-clay hover:underline" href={ATHENA_TRIAL_URL}>
+                Start a 7-day free trial
+              </a>{" "}
+              or{" "}
+              <a className="font-medium text-clay hover:underline" href={ATHENA_SUPPORT_MAILTO}>
+                get help
+              </a>
+              .
+            </div>
           </form>
         ) : (
           <form onSubmit={onAthenaEmailSubmit} className="space-y-5" data-signin="email-code">
@@ -250,6 +316,12 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
               label="Email me a sign-in code"
               busyLabel={busy ? "Sending code" : "Email me a sign-in code"}
             />
+            <p className="text-center text-[12px] text-foreground/75" data-signin="new-member">
+              New to Athena?{" "}
+              <a className="font-medium text-clay hover:underline" href={ATHENA_TRIAL_URL}>
+                Start your 7-day free trial
+              </a>
+            </p>
           </form>
         )}
       </AuthCard>

@@ -4,7 +4,7 @@ import { sendLovableEmail } from "@lovable.dev/email-js";
 import { TEMPLATES } from "@/lib/email-templates/registry";
 import { MEMBER_REPLY_TO } from "@/lib/email/reply-to";
 import { template as athenaMagicLinkTemplate } from "@/lib/email-templates/athena-magic-link";
-import { AthenaAuthEmail, athenaAuthSubject } from "@/lib/email-templates/athena-auth-email";
+import { AthenaAuthEmail, athenaSignInSubject } from "@/lib/email-templates/athena-auth-email";
 import { hubOrigin } from "@/lib/auth-origins";
 import { ATHENA_FROM, ATHENA_SENDER_DOMAIN } from "@/lib/email/athena-sender";
 
@@ -208,7 +208,7 @@ export async function sendLoginNudgeNow({
   const plainText = await render(element, { plainText: true });
   const subject =
     variant === "athena-code"
-      ? athenaAuthSubject("code")
+      ? athenaSignInSubject(otpCode)
       : typeof entry.subject === "function"
         ? entry.subject(props)
         : entry.subject;

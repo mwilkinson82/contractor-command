@@ -15,6 +15,11 @@ export const ATHENA_LOGIN_LOGO = "/brand/athena/athena-lockup-blue.svg";
 export const ATHENA_SUPPORT_EMAIL = "support@meetathena.io";
 export const ATHENA_SUPPORT_MAILTO = `mailto:${ATHENA_SUPPORT_EMAIL}?subject=${encodeURIComponent("Help signing in to Athena")}`;
 
+/** Where a new contractor starts a trial: the pricing section on the marketing site. */
+export const ATHENA_TRIAL_URL = "https://meetathena.io/#pricing";
+/** Seconds before "Resend code" is offered again. */
+export const ATHENA_RESEND_SECONDS = 30;
+
 export type LoginCopyInput = {
   athena: boolean;
   fromConnect: boolean;

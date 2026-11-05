@@ -121,7 +121,7 @@ describe("sendLoginNudgeNow variants", () => {
       otpCode: "482913",
     });
     const p = m.send.mock.calls[0][0];
-    expect(p.subject).toBe("Your Athena sign-in code");
+    expect(p.subject).toBe("482913 is your Athena sign-in code");
     expect(p.from).toBe("Athena <no-reply@notify.mail.alpcontractorcircle.com>");
     expect(p.html).toContain("482913");
     expect(p.text).toContain("482913");
