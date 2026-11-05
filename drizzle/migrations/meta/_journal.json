@@ -666,6 +666,13 @@
       "when": 1793856251010,
       "tag": "0094_athena_notices_owner_fallback",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1793860181006,
+      "tag": "0095_athena_job_import_completion",
+      "breakpoints": true
     }
   ]
 }
