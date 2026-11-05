@@ -4,7 +4,7 @@ import { renderBriefHtml } from "./cards/brief-html";
 import { renderMarkdown } from "./cards/markdown";
 import { INBOX_SECTION, type BriefJob } from "./morning-brief";
 import { buildPmBrief, workDaysBetween } from "./morning-brief-pm";
-import { focusCpm, type FocusAct, type FocusData } from "./morning-brief-focus";
+import { focusCpm, loadFocusData, type FocusAct, type FocusData } from "./morning-brief-focus";
 import { cardWidgetHtml } from "./cards/widget";
 import { nativeCardHtml } from "./cards/native";
 
@@ -168,6 +168,25 @@ describe("PM morning brief", () => {
     });
     expect(parsed?.acts[0]).toMatchObject({ party: "sub", subco: "Bayline Drywall", pct: 40 });
     expect(parsed?.work_days_mask).toBe(126);
+  });
+
+  it("calls the database as the client itself, so saved schedules load", async () => {
+    const seen: string[] = [];
+    const client = {
+      marker: "client",
+      rpc(this: { marker?: string }, fn: string) {
+        if (this?.marker !== "client") throw new Error("rpc lost its client");
+        seen.push(fn);
+        if (fn === "mcp_living_report_get") return Promise.resolve({ data: { found: true, version: 8, data_date: "2026-06-25", data: { activities: [{ id: "A1", name: "Drywall", start: "2026-06-22", finish: "2026-07-03", duration: 10 }] } }, error: null });
+        return Promise.resolve({ data: null, error: null });
+      },
+      from() {
+        throw new Error("no tables in this test");
+      },
+    };
+    const data = await loadFocusData(client as never, JOB, "2026-11-05");
+    expect(seen).toContain("mcp_living_report_get");
+    expect(data.cpm?.acts[0]?.name).toBe("Drywall");
   });
 
   it("ships card scripts that parse, with buttons allowed through the sanitizer", () => {

@@ -265,7 +265,7 @@ export function focusPay(context: unknown): FocusData["pay"] {
 
 /** Loads the deeper facts for one job. Superintendents get the schedule and dailies only; money stays out. */
 export async function loadFocusData(sb: Sb, job: BriefJob, today: string): Promise<FocusData> {
-  const call = sb.rpc as unknown as Call;
+  const call = sb.rpc.bind(sb) as unknown as Call;
   const full = job.scope === "full";
   const rpc = (fn: string, args: Record<string, unknown>) =>
     quiet(async () => {
