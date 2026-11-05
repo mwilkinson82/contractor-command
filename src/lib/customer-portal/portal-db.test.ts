@@ -130,6 +130,7 @@ beforeAll(async () => {
     "0082_athena_portal_pay_app_client_number",
   ])
     await db.exec(readFileSync(`drizzle/migrations/${f}.sql`, "utf8"));
+  await load("20261105150000_athena_gbb_change_terms");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -672,7 +673,7 @@ describe.sequential("customer page", () => {
     });
   });
 
-  it("under contract, a package upgrade drafts a change order carrying the signed choice", async () => {
+  it("under contract, a package pick approves the change order for the signed price and time", async () => {
     await db.query(
       "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'contract','contract_value','1250000','known','member_answer',$2)",
       [job, owner],
@@ -683,10 +684,21 @@ describe.sequential("customer page", () => {
       [job],
     );
     const before = await member("mcp_residential_selections_get", [job]);
+    const board = willowCreekTypeE(true) as J;
+    board.proposal.change_terms = {
+      good: { schedule_days: 0, added_cents: 0, added_note: "" },
+      better: { schedule_days: 0, added_cents: 0, added_note: "" },
+      best: {
+        schedule_days: 2,
+        added_cents: 15000,
+        added_note: "Extra blocking for heavier fixtures",
+      },
+      reviewed_on: "2026-11-05",
+    };
     const saved = await member("mcp_residential_selections_save", [
       job,
       before.version,
-      JSON.stringify(willowCreekTypeE(true)),
+      JSON.stringify(board),
     ]);
     const shared = await member("mcp_portal_share_selection", [job, saved.version]);
     const v0 = await server("mcp_portal_view", [access, sessionHash, null, null]);
@@ -714,31 +726,47 @@ describe.sequential("customer page", () => {
       null,
       null,
     ]);
-    expect(r).toMatchObject({ status: "ok", under_contract: true });
+    expect(r).toMatchObject({ status: "ok", under_contract: true, schedule_days: 2 });
     const best = shared.view.proposal.packages.find((k: J) => k.tier === "best");
+    expect(best).toMatchObject({ schedule_days: 2, added_cents: 15000 });
     expect(r.difference_cents).toBe(best.difference_cents);
     expect(r.change_order_number).toMatch(/^PCO-\d{3}$/);
+    expect(r.co_number).toMatch(/^CO-\d{3}$/);
     const co = (
       await db.query<{ details: J }>(
         "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
         [r.change_order_id],
       )
     ).rows[0]!.details as J;
+    // One approval: the signed pick is the change order approval, for the signed price and the stated time.
     expect(co).toMatchObject({
-      state: "draft",
+      state: "approved",
       origin: "owner",
+      co_number: r.co_number,
+      schedule_days: 2,
+      total_cents: best.difference_cents,
+      decision: { by: expect.stringContaining("Rosa Delgado"), email_code_verified: true },
       customer_choice: {
         tier: "best",
+        schedule_days: 2,
+        added_cents: 15000,
         by: expect.stringContaining("Rosa Delgado"),
         email_code_verified: true,
       },
+    });
+    expect(co.scope).toContain("The additional time necessary for this change is 2 days.");
+    expect(co.lines.reduce((t: number, l: J) => t + l.amount_cents, 0)).toBe(best.difference_cents);
+    expect(co.lines.at(-1)).toMatchObject({
+      category: "other",
+      description: "Extra blocking for heavier fixtures",
+      amount_cents: 15000,
     });
     expect(co.customer_choice.difference_cents).toBe(best.difference_cents);
     expect(JSON.stringify(co)).not.toMatch(/cost_cents|found_price|assumptions/);
     const hist = await db.query("SELECT action FROM mcp_change_history WHERE submittal_id=$1", [
       r.change_order_id,
     ]);
-    expect(hist.rows).toEqual([{ action: "create" }]);
+    expect(hist.rows).toEqual([{ action: "approve" }]);
   });
 
   it("closes the page when the inviter loses full access, and when access is revoked", async () => {

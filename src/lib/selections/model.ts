@@ -114,6 +114,31 @@ export const selectionSchema = z
     }
   });
 
+/**
+ * What one package changes beyond its products' price difference. Every change order carries money
+ * and time, so the contractor states both before the customer sees the proposal: extra schedule days
+ * and any added cost (extra install labor, for example). Both are 0 unless the contractor says
+ * otherwise. The base package is the contract scope, so its terms are always read as 0.
+ */
+export const packageTermsSchema = z
+  .object({
+    schedule_days: z.number().int().min(0).max(3650),
+    added_cents: z.number().int().min(0).max(MAX_CENTS),
+    // Customer-facing: what the added cost is for, e.g. "Extra install labor for the vertical heads".
+    added_note: text(300),
+  })
+  .strict();
+
+export const changeTermsSchema = z
+  .object({
+    good: packageTermsSchema,
+    better: packageTermsSchema,
+    best: packageTermsSchema,
+    // Set only when the member confirms the terms (set_change_terms with confirmed true).
+    reviewed_on: date,
+  })
+  .strict();
+
 export const proposalSchema = z
   .object({
     // Customer-facing heading and introduction.
@@ -129,6 +154,8 @@ export const proposalSchema = z
     valid_until: date,
     // Customer-facing terms and exclusions.
     terms: text(2000),
+    // Extra time and added cost per package. Older boards have none: read as 0, not reviewed.
+    change_terms: changeTermsSchema.optional(),
   })
   .strict()
   .superRefine((proposal, ctx) => {
@@ -183,6 +210,25 @@ export type Selection = z.infer<typeof selectionSchema>;
 export type Proposal = z.infer<typeof proposalSchema>;
 export type Accepted = z.infer<typeof acceptedSchema>;
 export type Board = z.infer<typeof boardSchema>;
+export type PackageTerms = z.infer<typeof packageTermsSchema>;
+export type ChangeTerms = z.infer<typeof changeTermsSchema>;
+
+const noTerms = (): PackageTerms => ({ schedule_days: 0, added_cents: 0, added_note: "" });
+export const defaultChangeTerms = (): ChangeTerms => ({
+  good: noTerms(),
+  better: noTerms(),
+  best: noTerms(),
+  reviewed_on: null,
+});
+
+/** The board's change terms, or 0 time and 0 added cost (not reviewed) when it has none. */
+export const changeTermsOf = (board: Board): ChangeTerms =>
+  board.proposal.change_terms ?? defaultChangeTerms();
+
+/** One package's terms. The base package is the contract scope, so it never adds time or cost. */
+export function packageTerms(board: Board, tier: OptionName): PackageTerms {
+  return tier === board.proposal.base_tier ? noTerms() : changeTermsOf(board)[tier];
+}
 
 export const emptyBoard = (): Board => ({
   currency: null,

@@ -18,6 +18,7 @@ export type PortalState = {
 export type NextStepId =
   | "fix_wording"
   | "add_terms"
+  | "set_change_terms"
   | "invite_customer"
   | "send_to_client_page"
   | "view_only_link"
@@ -48,6 +49,8 @@ export function proposalNextSteps(
   view: CustomerProposal,
   version: number,
   portal: PortalState | null,
+  /** The member confirmed each upgrade's extra time and added cost on this version. */
+  termsReviewed = false,
 ): NextStep[] {
   const steps: NextStep[] = [];
   const chosen = view.accepted?.tier ?? portal?.chosen_on_client_page ?? null;
@@ -76,6 +79,20 @@ export function proposalNextSteps(
       detail: `${!view.valid_until ? "No date the prices are good until" : "No terms"}${!view.valid_until && !view.terms.trim() ? " and no terms" : ""} yet. Optional, but most contractors set both before sending.`,
       how: "selection_board set_proposal with valid_until and terms the member gives",
     });
+
+  if (!termsReviewed) {
+    const ups = view.packages.filter((p) => p.tier !== view.base_tier);
+    const set = ups.filter((p) => (p.schedule_days ?? 0) > 0 || (p.added_cents ?? 0) > 0);
+    const tiers = ups.map((p) => TIER_LABEL[p.tier]).join(" and ");
+    steps.push({
+      id: "set_change_terms",
+      label: "Set the time and any extra charge for each upgrade",
+      detail: set.length
+        ? `Confirm the extra time and extra charge on ${tiers} before the customer sees them.`
+        : `Every change carries money and time. ${tiers} are set to no added time and no extra charge beyond the product price. Confirm that, or enter extra days and any extra charge, like extra install labor. The customer sees it right before they sign.`,
+      how: "selection_board set_change_terms: show its card first, then call it again with confirmed true after the member says yes",
+    });
+  }
 
   const customers = portal?.customers ?? [];
   if (portal && !customers.length)

@@ -1,4 +1,4 @@
--- Rollback for 20261105150000_athena_job_notices.sql: removes job notices, their reads, email choices and email log.
+-- Rollback for 20261105151500_athena_job_notices.sql: removes job notices, their reads, email choices and email log.
 SET LOCAL lock_timeout = '5s';
 DROP FUNCTION IF EXISTS public.mcp_job_notice_prefs_set(uuid, text, text, boolean);
 DROP FUNCTION IF EXISTS public.mcp_job_notice_prefs_get(uuid);

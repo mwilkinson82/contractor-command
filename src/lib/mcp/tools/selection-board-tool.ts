@@ -3,12 +3,15 @@ import { z } from "zod";
 import {
   boardSchema,
   boardSummary,
+  changeTermsOf,
+  defaultChangeTerms,
   differenceFromAllowance,
   ESTIMATE_LINE_REF,
   extended,
   httpsUrl,
   normalizeUrl,
   optionNames,
+  packageTerms,
   proposalSchema,
   type Board,
   type Option,
@@ -46,6 +49,8 @@ import {
 } from "../../selections/line-checks";
 import { suggestLines, type LineCandidate } from "../../selections/line-candidates";
 import { proposalNextSteps, type PortalState } from "../../selections/proposal-next-steps";
+import { timeLabel, timeSentence } from "../../selections/change-terms";
+import type { CardModel } from "../cards/model";
 import { parseState } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { jobTimeZone, named, resolveJob } from "../jobs";
@@ -164,11 +169,12 @@ function contractorText(board: Board, version: number, today: string): string[] 
   for (const p of review.packages) {
     const t = totals[p.tier];
     lines.push(
-      `${tierLabel(p.tier)}: proposal total ${money(t.total_cents, code)} · ${signed(t.difference_cents, code)} vs base · selections price ${money(p.selections.price_cents, code)}, cost ${money(p.selections.cost_cents, code)}, margin ${money(p.selections.margin_cents, code)} (${percent(p.selections.margin_bp)}), markup ${percent(p.selections.markup_bp)}`,
+      `${tierLabel(p.tier)}: proposal total ${money(t.total_cents, code)} · ${signed(t.difference_cents, code)} vs base${p.tier === board.proposal.base_tier ? "" : ` · ${timeLabel(packageTerms(board, p.tier).schedule_days)} · added cost ${money(packageTerms(board, p.tier).added_cents, code)}${packageTerms(board, p.tier).added_note ? ` (${packageTerms(board, p.tier).added_note})` : ""}`} · selections price ${money(p.selections.price_cents, code)}, cost ${money(p.selections.cost_cents, code)}, margin ${money(p.selections.margin_cents, code)} (${percent(p.selections.margin_bp)}), markup ${percent(p.selections.markup_bp)}`,
     );
   }
   lines.push(
     "Margin and markup cover the selections only; the base price's own cost is not on this board.",
+    `Extra time and added cost per upgrade: ${changeTermsOf(board).reviewed_on ? `confirmed ${changeTermsOf(board).reviewed_on}` : "NOT CONFIRMED (set with set_change_terms before sending to the client page)"}`,
   );
   if (board.accepted)
     lines.push(
@@ -193,7 +199,7 @@ export function customerText(view: CustomerProposal): string[] {
   lines.push("");
   for (const p of view.packages)
     lines.push(
-      `${tierLabel(p.tier)}: ${money(p.total_cents, code)}${p.tier === view.base_tier ? " (base proposal)" : ` · ${signed(p.difference_cents, code)} vs base`}`,
+      `${tierLabel(p.tier)}: ${money(p.total_cents, code)}${p.tier === view.base_tier ? " (base proposal)" : ` · ${signed(p.difference_cents, code)} vs base · ${timeSentence(p.schedule_days ?? 0)}${p.added_cents ? ` Includes ${money(p.added_cents, code)}${p.added_note ? ` for ${p.added_note}` : " added cost"}.` : ""}`}`,
     );
   for (const s of view.selections) {
     lines.push("", `${s.title} · ${s.quantity} ${s.unit}`);
@@ -369,6 +375,76 @@ const proposalPatch = z
   .partial()
   .strict();
 
+const packageTermsPatch = z
+  .object({
+    schedule_days: z.number().int().min(0).max(3650),
+    added_cents: z.number().int().min(0).max(999_999_999_999),
+    added_note: z
+      .string()
+      .trim()
+      .max(300)
+      .describe("What the added cost is for, as the customer reads it, e.g. Extra install labor."),
+  })
+  .partial()
+  .strict();
+const changeTermsPatch = z
+  .object({ good: packageTermsPatch, better: packageTermsPatch, best: packageTermsPatch })
+  .partial()
+  .strict();
+
+/**
+ * The card the contractor sees before an upgrade goes to the customer: each upgrade package with its
+ * product difference, extra time and added cost, and what the customer will read before they sign.
+ */
+export function changeTermsCard(board: Board, jobLabel: string, confirmed: boolean): CardModel {
+  const code = board.currency;
+  const totals = packageTotals(board);
+  const ups = optionNames.filter((t) => t !== board.proposal.base_tier);
+  return {
+    state: confirmed ? "result" : "ask",
+    show_state: false,
+    title: confirmed ? "Time and cost confirmed" : "Time and cost for each upgrade",
+    job: jobLabel,
+    sections: [
+      {
+        heading: `Upgrades from ${tierLabel(board.proposal.base_tier)}`,
+        kind: "table",
+        columns: ["Package", "Products", "Added cost", "Extra time", "Change to the contract"],
+        rows: ups.map((t) => {
+          const terms = packageTerms(board, t);
+          const d = totals[t].difference_cents;
+          return {
+            cells: [
+              tierLabel(t),
+              d === null ? "Not priced" : signed(d - terms.added_cents, code),
+              terms.added_cents
+                ? `${money(terms.added_cents, code)}${terms.added_note ? ` · ${terms.added_note}` : ""}`
+                : "None",
+              timeLabel(terms.schedule_days),
+              d === null ? "Not priced" : signed(d, code),
+            ],
+          };
+        }),
+      },
+      {
+        heading: "What the customer reads before they sign",
+        kind: "list",
+        rows: ups.map((t) => ({
+          cells: [`${tierLabel(t)}: ${timeSentence(packageTerms(board, t).schedule_days)}`],
+        })),
+      },
+    ],
+    ask: confirmed
+      ? null
+      : {
+          prompt: `Does ${ups.map(tierLabel).join(" or ")} need extra time or added cost beyond the product price? Both stay at 0 unless you change them.`,
+        },
+    next_move: confirmed
+      ? "Next: send the proposal to the customer's client page."
+      : "Enter any extra days and added cost (with what it's for), or confirm none.",
+  };
+}
+
 const comparisonLineSchema = z
   .object({
     estimate_line_ref: z.string().regex(ESTIMATE_LINE_REF),
@@ -529,7 +605,7 @@ export const selectionBoard = defineTool({
   name: "selection_board",
   title: "Good, Better, Best selections",
   description:
-    "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
+    "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), sets each upgrade package's extra schedule days and added cost before it goes to the customer (set_change_terms, 0 by default), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -543,6 +619,7 @@ export const selectionBoard = defineTool({
       "review_price",
       "apply_markup",
       "set_proposal",
+      "set_change_terms",
       "remove_selection",
       "save",
     ]),
@@ -583,6 +660,11 @@ export const selectionBoard = defineTool({
       .regex(/^[A-Z]{3}$/)
       .optional(),
     proposal: proposalPatch.optional(),
+    change_terms: changeTermsPatch
+      .optional()
+      .describe(
+        "set_change_terms only: extra schedule days and added cost beyond the product price for each upgrade package, as the member gives them. Leave a package out to keep it as is; both default to 0. The base package is the contract scope and takes none.",
+      ),
     review_base_price: z.boolean().optional(),
     confirmed: z.boolean().optional(),
     board: boardSchema.optional(),
@@ -618,7 +700,9 @@ export const selectionBoard = defineTool({
         const current = writes ? await readBoard(sb, job.job_id) : null;
         // A comparison only touches the lines it names, so it can save on the version read here.
         const expected =
-          args.action === "save_comparison" && args.expected_version === undefined
+          (args.action === "save_comparison" ||
+            (args.action === "set_change_terms" && args.confirmed !== true)) &&
+          args.expected_version === undefined
             ? current?.version
             : args.expected_version;
         if (current && current.version !== needVersion(expected))
@@ -877,6 +961,58 @@ export const selectionBoard = defineTool({
             next!.proposal.base_reviewed_on = today;
             grant = { base: true };
           }
+        } else if (args.action === "set_change_terms") {
+          const base = next!.proposal.base_tier;
+          if (args.change_terms?.[base])
+            throw new ToolError(
+              `${tierLabel(base)} is the base package, already in the contract price, so it takes no extra time or added cost. Set them on the upgrades. Nothing was saved.`,
+            );
+          const terms = structuredClone(next!.proposal.change_terms ?? defaultChangeTerms());
+          for (const t of optionNames) Object.assign(terms[t], args.change_terms?.[t] ?? {});
+          next!.proposal.change_terms = terms;
+          if (args.confirmed !== true) {
+            // Show the card and ask; nothing is saved until the member confirms.
+            const shown = boardSchema.parse(next!);
+            return guide(
+              {
+                ...text(
+                  [
+                    `${named(job)} · Time and added cost for each upgrade (not saved yet)`,
+                    ...optionNames
+                      .filter((t) => t !== base)
+                      .map((t) => {
+                        const k = packageTerms(shown, t);
+                        return `${tierLabel(t)}: ${timeLabel(k.schedule_days)} · added cost ${money(k.added_cents, shown.currency)}${k.added_note ? ` (${k.added_note})` : ""} · the customer reads: "${timeSentence(k.schedule_days)}"`;
+                      }),
+                    "",
+                    "Every change order carries money and time. Both stay at 0 unless the member changes them.",
+                  ].join("\n"),
+                ),
+                structuredContent: {
+                  saved: false,
+                  version: current!.version,
+                  change_terms: terms,
+                  packages: packageTotals(shown),
+                  card: changeTermsCard(shown, named(job), false),
+                  internal: true,
+                } as unknown as JsonValueInput,
+              },
+              "Show this card and ask the member, for each upgrade package, whether it needs extra schedule days or added cost beyond the product price (extra install labor, for example), with a few words on what the added cost is for. Both default to 0.",
+              "When they answer, or say none is needed, call set_change_terms again with expected_version, their numbers in change_terms, and confirmed true. Confirming 0 is a real answer: it tells the customer no added time is needed.",
+              "If the member isn't sure how many days a change needs, say a schedule update can work it out; for now take the number they give.",
+            );
+          }
+          grant = { terms: true };
+          next!.proposal.change_terms = { ...terms, reviewed_on: today };
+          brief.push(
+            `Time and added cost confirmed: ${optionNames
+              .filter((t) => t !== base)
+              .map((t) => {
+                const k = terms[t];
+                return `${tierLabel(t)} ${timeLabel(k.schedule_days).toLowerCase()}, added cost ${money(k.added_cents, next!.currency)}`;
+              })
+              .join("; ")}.`,
+          );
         } else if (args.action === "remove_selection") {
           if (!args.selection_id)
             throw new ToolError("Send the selection_id to remove. Nothing was saved.");
@@ -895,6 +1031,12 @@ export const selectionBoard = defineTool({
           );
         } else if (args.action === "save") {
           next = args.board!;
+          // A full save that leaves the time and cost out keeps them; only set_change_terms changes them.
+          if (!next.proposal.change_terms && current!.board.proposal.change_terms)
+            next = {
+              ...next,
+              proposal: { ...next.proposal, change_terms: current!.board.proposal.change_terms },
+            };
         }
 
         // Only a confirmed review in this call can set a review date; a change
@@ -1089,7 +1231,12 @@ export const selectionProposal = defineTool({
               "Help the member fix these with selection_board. Nothing was shared.",
             );
           const view = customerProposal(saved.board, saved.version);
-          const steps = proposalNextSteps(view, saved.version, await portalState(sb, job.job_id));
+          const steps = proposalNextSteps(
+            view,
+            saved.version,
+            await portalState(sb, job.job_id),
+            changeTermsOf(saved.board).reviewed_on !== null,
+          );
           return guide(
             {
               ...text(
