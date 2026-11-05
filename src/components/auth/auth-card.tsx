@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { ContractorCircleBrand } from "@/components/brand/contractor-circle-brand";
 import {
   ATHENA_LOGIN_COLORS as C,
@@ -204,6 +206,8 @@ export function AuthField({
   autoComplete?: string;
   inputMode?: "numeric" | "email" | "text";
 }) {
+  const isPassword = type === "password";
+  const [shown, setShown] = useState(false);
   return (
     <div>
       <label
@@ -212,18 +216,35 @@ export function AuthField({
       >
         {label}
       </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        required={required}
-        autoFocus={autoFocus}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        className="mt-2 h-11 w-full rounded-lg border border-border bg-card px-3.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground/55 focus:border-clay focus:ring-2 focus:ring-clay/15"
-      />
+      <div className="relative mt-2">
+        <input
+          id={id}
+          type={isPassword && shown ? "text" : type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          required={required}
+          autoFocus={autoFocus}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          autoCapitalize={isPassword ? "none" : undefined}
+          spellCheck={isPassword ? false : undefined}
+          className={`h-11 w-full rounded-lg border border-border bg-card px-3.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground/55 focus:border-clay focus:ring-2 focus:ring-clay/15${isPassword ? " pr-11" : ""}`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShown((v) => !v)}
+            aria-label={shown ? "Hide password" : "Show password"}
+            aria-pressed={shown}
+            aria-controls={id}
+            data-password-toggle
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay/30"
+          >
+            {shown ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+          </button>
+        )}
+      </div>
       {hint && <div className="mt-2">{hint}</div>}
     </div>
   );
