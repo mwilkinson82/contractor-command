@@ -277,6 +277,8 @@ export function decisionEmail(a: {
   choice: string | null;
   note: string | null;
   reference: string;
+  /** What the choice means for the job: a drafted change order under contract, a proposal approval before. */
+  next?: string | null;
 }): PortalEmail {
   const what =
     a.decision === "approved"
@@ -292,6 +294,7 @@ export function decisionEmail(a: {
     text: [
       line,
       ...(a.note ? ["", `Their note: ${a.note}`] : []),
+      ...(a.next ? ["", a.next] : []),
       "",
       `Reference: ${a.reference}. Ask Athena for the customer page list on this job to see the record.`,
     ].join("\n"),
@@ -305,7 +308,11 @@ export function decisionEmail(a: {
           : a.decision === "declined"
             ? "Customer declined"
             : "Customer made a choice",
-      lines: [esc(line), ...(a.note ? [`Their note: ${esc(a.note)}`] : [])],
+      lines: [
+        esc(line),
+        ...(a.note ? [`Their note: ${esc(a.note)}`] : []),
+        ...(a.next ? [esc(a.next)] : []),
+      ],
       foot: `Reference: ${esc(a.reference)}. Ask Athena for the customer page list on this job to see the record.`,
       legal: "Athena powered by ALP · app.meetathena.io",
     }),

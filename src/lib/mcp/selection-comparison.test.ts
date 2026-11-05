@@ -276,6 +276,9 @@ describe("pricing options with a markup", () => {
       base_price_cents: 100_000,
       base_reviewed_on: "2026-11-04",
     };
+    // A customer view needs a photo on every option.
+    for (const sel of board.selections)
+      for (const o of Object.values(sel.options)) o.photo_url = "https://img.example.com/head.jpg";
     const view = JSON.stringify(customerProposal(board, 2));
     expect(view).not.toContain("found");
     expect(view).not.toContain("cost");

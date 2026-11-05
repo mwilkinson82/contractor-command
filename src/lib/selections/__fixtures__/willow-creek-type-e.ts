@@ -100,7 +100,7 @@ export function willowCreekTypeE(reviewed = true): Board {
             ],
             source_url:
               "https://www.platt.com/p/1845879/lithonia-lighting/basket-led-lensed-troffer-2x4/193047763523/lit2blt440l940",
-            photo_url: null,
+            photo_url: "https://images.example.com/lithonia-2blt4-40l-940.jpg",
             found_price_cents: 27133,
             found_at: "Platt list price",
             found_on: "2026-11-04",

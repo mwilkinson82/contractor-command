@@ -7,3 +7,8 @@ export const gbbSql = () =>
     .filter((f) => f.endsWith(".sql"))
     .sort()
     .map((f) => readFileSync(`${GBB_SQL_DIR}/${f}`, "utf8"));
+
+/** The contract-stage migration that follows the release-proposal parts (customer view without product links). */
+export const CHOICE_STAGE_MIGRATION =
+  "supabase/migrations/20261104200000_athena_proposal_choice_stage.sql";
+export const choiceStageSql = () => readFileSync(CHOICE_STAGE_MIGRATION, "utf8");

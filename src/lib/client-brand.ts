@@ -7,10 +7,6 @@ import type { jsPDF } from "jspdf";
 
 export const POWERED_BY_ATHENA = "Powered by Athena";
 
-/** The A icon as a hosted PNG, for email, where SVG doesn't draw. Same address the sign-in emails use. */
-export const ATHENA_EMAIL_MARK_URL =
-  "https://app.meetathena.io/brand/athena/email/athena-mark-180.png";
-
 /** Athena blue, the A icon's one color at small sizes. The two-tone mark loses its light crossbar on white. */
 export const ATHENA_BLUE = "#2563EB";
 
@@ -57,14 +53,6 @@ export const CLIENT_BRAND_NAME_FONT = '"Inter","Segoe UI",system-ui,-apple-syste
 /** One small line: the A icon and "Powered by Athena", for the bottom corner of a client page. */
 export function poweredByAthenaHtml(): string {
   return `<span class="ath-cb-powered" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font:500 12px/20px ${CLIENT_BRAND_NAME_FONT};color:#6B7280">${athenaMarkSvg(16)}${POWERED_BY_ATHENA}</span>`;
-}
-
-/**
- * Email footer line. Mail apps don't draw SVG, so the icon is the hosted PNG of the mark.
- * `markUrl` must be an absolute https address on Athena's own host.
- */
-export function poweredByAthenaEmailHtml(markUrl: string): string {
-  return `<p style="margin:22px 0 0;font:500 12px/16px Arial,Helvetica,sans-serif;color:#65788E"><img src="${markUrl}" width="16" height="16" alt="" style="display:inline-block;vertical-align:-3px;margin-right:6px;border:0">${POWERED_BY_ATHENA}</p>`;
 }
 
 type Rgb = readonly [number, number, number];

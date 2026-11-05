@@ -23,6 +23,27 @@ import {
 } from "./render";
 import { displayPrice } from "../selections/format";
 
+/** The PM's next step after a package choice. Under contract a change order is drafted; before, the choice is a proposal approval. */
+export function choiceNextForPm(
+  r: {
+    under_contract?: boolean;
+    difference_cents?: number | null;
+    change_order_number?: string | null;
+  },
+  item: PortalView["items"][number],
+): string | null {
+  const currency = item.kind === "selection" ? item.view.proposal.currency : "USD";
+  const diff =
+    typeof r.difference_cents === "number" ? displayPrice(r.difference_cents, currency) : null;
+  if (r.change_order_number)
+    return `The job is under contract, so Athena drafted change order ${r.change_order_number} for the package difference${diff ? ` of ${diff}` : ""} with the signed choice attached. Price it and send it to the customer for approval.`;
+  if (r.under_contract)
+    return "The job is under contract and this package is already in the contract price, so no change order was drafted.";
+  if (r.under_contract === false)
+    return "The job has no contract value on file yet, so this is a proposal approval, not a change order. Carry the package total into the contract.";
+  return null;
+}
+
 export type PortalDeps = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
   signPhotos: (paths: string[]) => Promise<Map<string, string>>;
@@ -454,7 +475,13 @@ export async function handlePortal(
       .catch(() => null);
     const st = status(res);
     if (st === "ok") {
-      const r = res as { decision_id?: string; pm_email?: string | null };
+      const r = res as {
+        decision_id?: string;
+        pm_email?: string | null;
+        under_contract?: boolean;
+        difference_cents?: number | null;
+        change_order_number?: string | null;
+      };
       if (r.pm_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.pm_email))
         await deps.send(
           decisionEmail({
@@ -467,6 +494,7 @@ export async function handlePortal(
             choice: choice ? TIER_NAME[choice] : null,
             note,
             reference: `Customer page decision ${r.decision_id ?? ""}`.trim(),
+            next: decision === "chosen" ? choiceNextForPm(r, item) : null,
           }),
         );
       return redirect(at({ ok: decision! }));
