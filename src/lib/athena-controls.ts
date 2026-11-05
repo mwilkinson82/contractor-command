@@ -46,7 +46,7 @@ ${s} .ath-seg label{display:inline-flex;flex:0 0 auto;align-items:center;height:
 ${s} .ath-seg label:hover{background:#fff;color:${c.ink};box-shadow:0 1px 2px rgba(30,58,95,.10)}
 ${s} .ath-seg .ath-sr:checked+label{background:${c.pressed};color:#fff;box-shadow:0 1px 3px rgba(30,58,95,.28)}
 ${s} .ath-seg .ath-sr:focus-visible+label{outline:2px solid ${c.focus};outline-offset:1px}
-${s} .ath-ibtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid ${c.line};background:#fff;color:${c.ink};cursor:pointer;flex:0 0 auto;transition:background .12s,border-color .12s,box-shadow .12s}
+${s} .ath-ibtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid ${c.line};background:#fff;color:${c.ink};cursor:pointer;flex:0 0 auto;transition:background .12s,border-color .12s,box-shadow .12s}${s} button.ath-ibtn{min-height:0;padding:0;font:inherit;font-weight:600}${s} .ath-ibtn svg{flex:none}
 ${s} .ath-ibtn:hover{background:${c.hover};border-color:${c.lineStrong};box-shadow:0 1px 3px rgba(30,58,95,.12)}
 ${s} .ath-ibtn:active{box-shadow:none;background:${c.line}}
 ${s} .ath-ibtn:focus-visible,${s} .ath-sr:focus-visible+.ath-ibtn,${s} .ath-menu-btn:focus-visible{outline:2px solid ${c.focus};outline-offset:2px}
