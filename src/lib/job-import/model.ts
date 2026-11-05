@@ -93,12 +93,23 @@ export const importActivity = z.object({
   /** source_id of the WBS section (schedule_wbs) the activity sits under. */
   wbs: sourceId.nullable().optional(),
   milestone: z.boolean().optional(),
+  /** The source's own baseline dates, kept as the job's first baseline. */
+  baseline_start: day.nullable().optional(),
+  baseline_finish: day.nullable().optional(),
+});
+
+/** The source's working calendar: weekdays worked (0 = Sunday) and holidays. */
+export const importScheduleCalendar = z.object({
+  work_days: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+  holidays: z.array(day).max(1000),
 });
 
 export const importWbs = z.object({
   source_id: sourceId,
   name: text(160),
   order: z.number().int().min(0).max(10000),
+  /** source_id of the parent section; absent or null at the top level. */
+  parent: sourceId.nullable().optional(),
 });
 
 const money = cents.refine((n) => n >= 0, "Amount can't be negative.");
@@ -337,6 +348,9 @@ export const importJob = z.object({
   submittals: z.array(importSubmittal).max(1000),
   schedule: z.array(importActivity).max(400),
   schedule_wbs: z.array(importWbs).max(400).optional(),
+  schedule_calendar: importScheduleCalendar.nullable().optional(),
+  /** The source's own status date for the schedule, when it keeps one. */
+  schedule_data_date: day.nullable().optional(),
   decisions: z.array(importDecision).max(1000).optional(),
   claims: z.array(importClaim).max(500).optional(),
   inspections: z.array(importInspection).max(1000).optional(),

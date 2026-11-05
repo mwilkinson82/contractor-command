@@ -5,6 +5,8 @@ import { fromOverwatch } from "./overwatch";
 import { fromSpreadsheets, parseTable } from "./spreadsheet";
 import { appliedCard, nothingToSave, planImport, reviewCard } from "./plan";
 import { iorRollup, readIorModel } from "../ior-model";
+import { readScheduleControl } from "../mcp/schedule-control";
+import type { LivingData } from "../mcp/living";
 
 const sample = () =>
   JSON.parse(readFileSync("src/lib/job-import/fixtures/overwatch-sample.json", "utf8"));
@@ -707,6 +709,125 @@ describe("import plan and review", () => {
     );
     expect(appliedCard({ already_applied: true }, "2717", "overwatch").next_move).toMatch(
       /Nothing more to save/,
+    );
+  });
+});
+
+describe("Overwatch schedule on its own calendar", () => {
+  // Mon–Sat work week, a WBS tree, activities that name their section by
+  // division, Overwatch baseline dates, and progress with no remaining days.
+  const x = () => {
+    const v = JSON.parse(
+      readFileSync("src/lib/job-import/fixtures/overwatch-v2-sample.json", "utf8"),
+    );
+    v.project.schedule_workdays = [1, 2, 3, 4, 5, 6];
+    v.project.schedule_holidays = [];
+    v.schedule_milestones = [];
+    v.schedule_wbs_sections = [
+      { id: "w-06", name: "06 - Wood", sort_order: 10, parent_id: null },
+      { id: "w-fr", name: "Framing", sort_order: 10, parent_id: "w-06" },
+      { id: "w-99", name: "99 - Closeout", sort_order: 20, parent_id: null },
+    ];
+    const row = (id: string, name: string, division: string, s: string, f: string, extra = {}) => ({
+      id: `r-${id}`,
+      activity_id: id,
+      name,
+      division,
+      start_date: s,
+      finish_date: f,
+      baseline_start_date: s,
+      baseline_finish_date: f,
+      forecast_start_date: s,
+      forecast_finish_date: f,
+      planned_duration_days: Math.round((Date.parse(f) - Date.parse(s)) / 864e5) + 1,
+      percent_complete: 0,
+      predecessor_activity_ids: [],
+      ...extra,
+    });
+    v.schedule_activities = [
+      row("A100", "Framing", "06 - Wood / Framing", "2026-03-02", "2026-03-14", {
+        percent_complete: 100,
+        actual_start_date: "2026-03-02",
+        actual_finish_date: "2026-03-14",
+        sort_order: 1,
+      }),
+      row("A200", "Sheathing", "06 - Wood / Framing", "2026-03-16", "2026-03-28", {
+        percent_complete: 50,
+        actual_start_date: "2026-03-16",
+        forecast_finish_date: "2026-04-01",
+        predecessor_activity_ids: ["A100"],
+        sort_order: 2,
+      }),
+      row("A300", "Punch", "99 - Closeout", "2026-03-30", "2026-04-04", {
+        predecessor_activity_ids: ["A200"],
+        sort_order: 3,
+      }),
+      row("A400", "Touch-up", "99 - Closeout", "2026-03-30", "2026-03-31", {
+        predecessor_activity_ids: ["A100"],
+        sort_order: 4,
+      }),
+    ];
+    return v;
+  };
+
+  it("reads the calendar, counts working days, and keeps the WBS tree and division sections", () => {
+    const job = fromOverwatch(x());
+    expect(job.schedule_calendar).toEqual({ work_days: [1, 2, 3, 4, 5, 6], holidays: [] });
+    // Mar 2–14 is 13 calendar days and 12 Mon–Sat working days.
+    expect(job.schedule.map((a) => a.duration_days)).toEqual([12, 12, 6, 2]);
+    expect(job.schedule_wbs?.find((w) => w.name === "Framing")?.parent).toBe("wbs:w-06");
+    expect(job.schedule.map((a) => a.wbs)).toEqual([
+      "wbs:w-fr",
+      "wbs:w-fr",
+      "wbs:w-99",
+      "wbs:w-99",
+    ]);
+  });
+
+  it("saves a calculated CPM with Overwatch's baseline, the data date after the last progress, and the longest path", () => {
+    const plan = planImport(fromOverwatch(x()), { job_exists: false });
+    const sched = plan.package.schedule!;
+    expect(sched.data_date).toBe("2026-03-17");
+    const data = sched.data as LivingData;
+    const control = readScheduleControl(data)!;
+    expect(control.calculation.status).toBe("calculated");
+    expect(control.settings).toMatchObject({
+      project_start: "2026-03-02",
+      critical_definition: "longest-path",
+    });
+    expect(control.settings!.calendars[0].work_days).toBe(0b1111110);
+    expect(control.wbs.find((w) => w.name === "Framing")?.parent_id).toBe("wbs:w-06");
+    expect(control.baselines[0]).toMatchObject({ id: "BL1", name: "Overwatch baseline" });
+    expect(control.baselines[0].activities.map((a) => a.finish)).toEqual([
+      "2026-03-14",
+      "2026-03-28",
+      "2026-04-04",
+      "2026-03-31",
+    ]);
+    const acts = new Map(data.activities!.map((a) => [a.id, a]));
+    // In progress with no remaining days keeps Overwatch's forecast finish.
+    expect(acts.get("A200")).toMatchObject({
+      remaining_duration: 14,
+      finish: "2026-04-01",
+      critical: true,
+    });
+    expect(acts.get("A100")!.critical).toBe(false);
+    expect(acts.get("A400")!.critical).toBe(false);
+    expect(control.calculation.longest_path).toEqual(["A200", "A300"]);
+    expect(control.calculation.activity_results!.A400.free_float).toBeGreaterThan(0);
+    expect(plan.fixes.join(" ")).toMatch(/data date is Mar 17, 2026/);
+    expect(plan.fixes.join(" ")).toMatch(/baseline dates are kept as the job's baseline/);
+  });
+
+  it("keeps percent complete with no actual start scheduled, and says so", () => {
+    const v = x();
+    v.schedule_activities[1].actual_start_date = null;
+    const plan = planImport(fromOverwatch(v), { job_exists: false });
+    const data = plan.package.schedule!.data as LivingData;
+    expect(readScheduleControl(data)!.calculation.status).toBe("calculated");
+    expect(data.activities!.find((a) => a.id === "A200")).toMatchObject({ pct_complete: 0 });
+    expect(plan.fixes.join(" ")).toMatch(
+      /A200 shows percent complete in Overwatch with no actual start/,
     );
   });
 });

@@ -63,8 +63,31 @@ export type ScheduleControl = {
     engine?: string;
     data_date: string;
     warnings: string[];
+    /** What `critical` means on this version's activities. */
+    critical_definition?: CriticalDefinition;
+    /** Driving chain to the completion activity, earliest first. Remaining work only. */
+    longest_path?: string[];
+    /** Ranked float paths (1 = longest path), each earliest first. */
+    float_paths?: FloatPathSummary[];
+    /** Per-activity results the engine computes beyond dates and total float. */
+    activity_results?: Record<string, ActivityAnalysis>;
   };
   analysis?: ScheduleAnalysis;
+};
+export type CriticalDefinition = "longest-path" | "total-float";
+export type FloatPathSummary = {
+  rank: number;
+  /** Lowest total float on the path, in project working days. */
+  total_float: number;
+  activity_ids: string[];
+};
+export type ActivityAnalysis = {
+  /** Working days the activity can slip before it delays any successor. Null once complete. */
+  free_float: number | null;
+  /** Predecessors whose relationship drives this activity's remaining dates. */
+  driving_predecessors: string[];
+  /** Float path rank (1 = longest path), null when outside the ranked paths or complete. */
+  float_path: number | null;
 };
 export const starterWbs = (): WbsNode[] => [
   { id: "general-requirements", name: "General Requirements", parent_id: null, order: 0 },
@@ -330,10 +353,10 @@ function calculate(activities: Activity[], control: ScheduleControl, dataDate: s
   const errors = result.diagnostics.filter((d) => d.severity === "error");
   if (errors.length) fail(errors.map((d) => d.message).join(" "));
   const outputs = new Map(result.activities.map((a) => [a.id, a]));
-  const next = activities.map((a) => {
+  const days = (minutes: number, hours: number) => Math.round((minutes / (hours * 60)) * 1e6) / 1e6;
+  const dated = activities.map((a) => {
     const r = outputs.get(a.id) ?? fail(`Calculation omitted ${a.id}.`);
     const clock = clocks.get(calId(a))!;
-    const hours = clock.hoursPerDay;
     // An actual start is history, not remaining start slack. Measuring from it
     // would make a driving in-progress activity look noncritical by elapsed days.
     const floatMinutes =
@@ -341,22 +364,132 @@ function calculate(activities: Activity[], control: ScheduleControl, dataDate: s
         ? clock.diffWork(r.earlyFinish, r.lateFinish)
         : r.totalFloatMinutes;
     return {
-      ...a,
-      pct_complete: a.actual_finish ? 100 : a.pct_complete,
-      start: a.actual_start ?? iso(r.earlyStart),
-      finish: a.actual_finish ?? iso(r.earlyFinish),
-      total_float: Math.round((floatMinutes / (hours * 60)) * 1e6) / 1e6,
-      critical: floatMinutes <= 0,
+      a: {
+        ...a,
+        pct_complete: a.actual_finish ? 100 : a.pct_complete,
+        start: a.actual_start ?? iso(r.earlyStart),
+        finish: a.actual_finish ?? iso(r.earlyFinish),
+        total_float: days(floatMinutes, clock.hoursPerDay),
+      },
+      r,
+      floatMinutes,
+      hours: clock.hoursPerDay,
     };
   });
+  const paths = rankFloatPaths(
+    dated.map(({ a, r }) => ({
+      id: a.id,
+      complete: !!a.actual_finish,
+      total_float: a.total_float,
+      early_finish: r.earlyFinish,
+      open_finish: r.isOpenFinish,
+      milestone: a.duration === 0,
+      driving: r.drivingPredecessors.map((d) => d.otherActivityId),
+    })),
+    settings.float_path_count ?? 3,
+  );
+  const definition: CriticalDefinition = settings.critical_definition ?? "longest-path";
+  const onLongest = new Set(paths[0]?.activity_ids ?? []);
+  const rank = new Map(paths.flatMap((p) => p.activity_ids.map((id) => [id, p.rank] as const)));
+  const next = dated.map(({ a, floatMinutes }) => ({
+    ...a,
+    // Completed work has no float left to protect, so it is never critical.
+    critical: a.actual_finish
+      ? false
+      : definition === "longest-path"
+        ? onLongest.has(a.id)
+        : floatMinutes <= 0,
+  }));
+  const activityResults: Record<string, ActivityAnalysis> = Object.fromEntries(
+    dated.map(({ a, r, hours }) => [
+      a.id,
+      {
+        free_float: a.actual_finish ? null : Math.max(0, days(r.freeFloatMinutes, hours)),
+        driving_predecessors: r.drivingPredecessors.map((d) => d.otherActivityId),
+        float_path: rank.get(a.id) ?? null,
+      },
+    ]),
+  );
   return {
     activities: next,
     warnings: result.diagnostics.filter((d) => d.severity !== "error").map((d) => d.message),
-    critical_path: next
-      .filter((a) => a.critical)
-      .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id))
-      .map((a) => a.id),
+    critical_definition: definition,
+    longest_path: paths[0]?.activity_ids ?? [],
+    float_paths: paths,
+    activity_results: activityResults,
+    critical_path:
+      definition === "longest-path"
+        ? (paths[0]?.activity_ids ?? [])
+        : next
+            .filter((a) => a.critical)
+            .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id))
+            .map((a) => a.id),
   };
+}
+
+type PathInput = {
+  id: string;
+  complete: boolean;
+  total_float: number;
+  early_finish: number;
+  open_finish: boolean;
+  milestone: boolean;
+  driving: string[];
+};
+/**
+ * Longest path and multiple float paths, the way P6 ranks them by total float:
+ * path 1 walks driving relationships back from the activity that finishes last
+ * (the completion milestone when there is one); each later path starts at the
+ * lowest-float remaining activity not yet on a path (latest finish breaks ties)
+ * and walks its own driving predecessors. Completed work is history, not a path.
+ */
+export function rankFloatPaths(rows: PathInput[], count: number): FloatPathSummary[] {
+  const open = rows.filter((r) => !r.complete);
+  if (!open.length) return [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const order = new Map(rows.map((r, i) => [r.id, i]));
+  const assigned = new Map<string, number>();
+  const walk = (id: string, rank: number, into: string[]) => {
+    const r = byId.get(id);
+    if (!r || r.complete || assigned.has(id)) return;
+    assigned.set(id, rank);
+    into.push(id);
+    for (const p of r.driving) walk(p, rank, into);
+  };
+  const endpoint = [...open].sort(
+    (a, b) =>
+      b.early_finish - a.early_finish ||
+      Number(b.open_finish) - Number(a.open_finish) ||
+      Number(b.milestone) - Number(a.milestone) ||
+      order.get(b.id)! - order.get(a.id)!,
+  )[0];
+  const seeds = [...open].sort(
+    (a, b) =>
+      a.total_float - b.total_float ||
+      b.early_finish - a.early_finish ||
+      order.get(a.id)! - order.get(b.id)!,
+  );
+  const paths: FloatPathSummary[] = [];
+  const add = (seed: PathInput) => {
+    const ids: string[] = [];
+    walk(seed.id, paths.length + 1, ids);
+    if (!ids.length) return;
+    const sorted = ids.sort(
+      (a, b) =>
+        byId.get(a)!.early_finish - byId.get(b)!.early_finish || order.get(a)! - order.get(b)!,
+    );
+    paths.push({
+      rank: paths.length + 1,
+      total_float: Math.min(...sorted.map((id) => byId.get(id)!.total_float)),
+      activity_ids: sorted,
+    });
+  };
+  add(endpoint);
+  for (const seed of seeds) {
+    if (paths.length >= count) break;
+    if (!assigned.has(seed.id)) add(seed);
+  }
+  return paths;
 }
 
 const snapshot = (activities: Activity[]): Activity[] =>
@@ -487,6 +620,10 @@ export function prepareSchedule(
       engine: ENGINE2_VERSION,
       data_date: request.data_date,
       warnings: before.warnings,
+      critical_definition: before.critical_definition,
+      longest_path: before.longest_path,
+      float_paths: before.float_paths,
+      activity_results: before.activity_results,
     };
     delete control.analysis;
     if (request.operation === "tia") {
@@ -615,6 +752,9 @@ export function prepareSchedule(
       activities = after.activities;
       criticalPath = after.critical_path;
       control.calculation.warnings = after.warnings;
+      control.calculation.longest_path = after.longest_path;
+      control.calculation.float_paths = after.float_paths;
+      control.calculation.activity_results = after.activity_results;
     }
   } else if (request.operation === "baseline") {
     const baseline =
