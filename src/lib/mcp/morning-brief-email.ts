@@ -147,17 +147,25 @@ function moves(m: NonNullable<BriefDoc["moves"]>): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0 14px;border:1px solid ${EMAIL_LINE};border-radius:12px;background-color:${SOFT};border-collapse:separate"><tr><td style="padding:14px 16px"><p style="margin:0 0 6px;color:${EMAIL_NAVY};font-size:15px;line-height:21px;font-weight:800">${esc(m.title)}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${items}</table></td></tr></table>`;
 }
 
+/** The day the email is sent, then when the schedule was last updated, then the rest of the brief's line.
+ * The brief itself can read a stale schedule as of an earlier day; an inbox should still show today's date. */
+export function briefEmailWhen(doc: BriefDoc): string {
+  const [briefDay = "", ...rest] = doc.when.split(" · ");
+  const day = doc.sentDay || briefDay;
+  return [day, doc.scheduleUpdated ? `Schedule last updated ${doc.scheduleUpdated}` : "", ...rest].filter(Boolean).join(" · ");
+}
+
 /** "Good morning, Marshall. 2717 is running 4 work days late" */
 export function briefEmailSubject(doc: BriefDoc): string {
   const rest = doc.when.split(" · ").slice(1).filter(Boolean);
-  const day = doc.when.split(" · ")[0] ?? "";
+  const day = doc.sentDay || (doc.when.split(" · ")[0] ?? "");
   const tail = rest.length ? rest.join(", ") : `Your brief for ${day}`.trim();
   const subject = `${doc.greeting} ${tail.charAt(0).toUpperCase()}${tail.slice(1)}`.replace(/\s+/g, " ").trim();
   return subject.length > 140 ? `${subject.slice(0, 137).trimEnd()}...` : subject;
 }
 
 function plain(doc: BriefDoc): string {
-  const out: string[] = [doc.greeting, doc.when, ""];
+  const out: string[] = [doc.greeting, briefEmailWhen(doc), ""];
   if (doc.finish) out.push(`Contract finish ${doc.finish.contract}. Forecast ${doc.finish.forecast}. ${doc.finish.variance}.`, "");
   if (doc.moves) {
     out.push(doc.moves.title);
@@ -189,18 +197,20 @@ export type BriefEmail = { subject: string; html: string; text: string };
 
 export function renderBriefEmail(doc: BriefDoc): BriefEmail {
   const parts: string[] = [];
-  if (doc.badge) parts.push(`<p style="margin:0 0 8px;color:${EMAIL_MUTED};font-size:12px;line-height:18px">${esc(doc.badge)}</p>`);
+  // The header line already says when the schedule was last updated.
+  if (doc.badge && !doc.scheduleUpdated) parts.push(`<p style="margin:0 0 8px;color:${EMAIL_MUTED};font-size:12px;line-height:18px">${esc(doc.badge)}</p>`);
   if (doc.finish) parts.push(finishStrip(doc.finish));
   if (doc.moves) parts.push(moves(doc.moves));
   const secs = doc.sections.map(section).filter(Boolean).join("");
   if (secs) parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">${secs}</table>`);
   const subject = briefEmailSubject(doc);
+  const when = briefEmailWhen(doc);
   const html = emailShell({
     brand: "athena",
     tagline: "Morning brief",
-    preview: doc.when,
+    preview: when,
     heading: doc.greeting,
-    lines: [esc(doc.when)],
+    lines: [esc(when)],
     body: parts.join("\n"),
     width: 600,
     button: { label: "Open today's brief", href: BRIEF_EMAIL_PAGE },

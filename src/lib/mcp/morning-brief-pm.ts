@@ -55,6 +55,10 @@ export type BriefDoc = {
   greeting: string;
   when: string;
   badge?: string | null;
+  /** The member's own day, even when the brief reads a stale schedule as of an earlier day. The email leads with it. */
+  sentDay?: string | null;
+  /** The focus job's schedule data date, as "Oct 25". */
+  scheduleUpdated?: string | null;
   finish?: { contract: string; forecast: string; variance: string; late: boolean } | null;
   moves?: { title: string; heading: string; items: { lead: string; rest: string }[] } | null;
   sections: BriefSectionDoc[];
@@ -717,6 +721,8 @@ export function buildPmBrief(input: PmBriefInput): PmBrief {
     greeting: input.firstName ? `Good morning, ${input.firstName}.` : "Good morning.",
     when: whenBits.join(" · "),
     badge: primary?.focus.cpm?.data_date ? `Schedule updated ${md(primary.focus.cpm.data_date)}` : null,
+    sentDay: longDay(jobToday(settings.time_zone, now)),
+    scheduleUpdated: primary?.focus.cpm?.data_date ? md(primary.focus.cpm.data_date) : null,
     finish,
     moves: primary ? movesFor(primary, sections) : null,
     sections,
