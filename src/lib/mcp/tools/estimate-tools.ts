@@ -99,6 +99,22 @@ import {
   savedDrawingAnnotations,
 } from "../drawing-markup-render";
 import { WhichCompanyAsk, audit, named, resolveJob } from "../jobs";
+import {
+  ANSWER_LABEL,
+  COVERED_BY,
+  answerProblem,
+  answerSummary,
+  collapseRepeats,
+  columnOf,
+  defaultQuestion,
+  exposureText,
+  flagConditional,
+  nextGap,
+  parseBoard,
+  progress,
+  type GapCheckItem,
+} from "../gap-check";
+import { PAGE_ORIGIN } from "../../report-pages";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { renderHtml } from "../cards/html";
 import type { CardModel } from "../cards/model";
@@ -334,6 +350,18 @@ const gapIn = z.object({
   unit: z.string().trim().max(20).optional(),
   element: z.string().trim().max(80).optional(),
   line_no: z.number().int().min(1).max(9999).optional(),
+  question: z
+    .string()
+    .trim()
+    .max(500)
+    .optional(),
+  conditional: z
+    .boolean()
+    .optional(),
+  condition_text: z.string().trim().max(500).optional(),
+  exposure_low: z.number().finite().min(0).nullable().optional(),
+  exposure_high: z.number().finite().min(0).nullable().optional(),
+  schedule_activity: z.string().trim().max(200).optional(),
 });
 const rateIn = z.object({
   line_no: z.number().int().min(1).max(9999).optional(),
@@ -388,17 +416,68 @@ const asBids = (rows: BidArg[]): SubBid[] =>
       exclusion: l.exclusion ?? null,
     })),
   }));
+/** Reworded repeats (another code, another sheet cited) fold into one gap with both citations. */
 function dedupeGaps(rows: GapIn[]): GapIn[] {
-  const seen = new Set<string>();
-  const out: GapIn[] = [];
-  for (const g of rows) {
-    const key = `${g.title.trim()}|${g.sheet.trim()}|${g.spec_section.trim()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(g);
-  }
-  return out;
+  return collapseRepeats(rows.map((g) => flagConditional(g)));
 }
+
+const gapCheckUrl = (jobId: string) => `${PAGE_ORIGIN}/r/job/${jobId}/gap-check`;
+
+/** The live board's view of the gaps, or null while the gap check storage isn't on this database yet. */
+async function gapBoard(sb: Sb, jobId: string): Promise<ReturnType<typeof parseBoard> | null> {
+  try {
+    return parseBoard(await rpc(sb, "mcp_estimate_gap_board", { _job: jobId }));
+  } catch (e) {
+    if (e instanceof ToolError && /not available/.test(e.message)) return null;
+    throw e;
+  }
+}
+
+function askFor(g: GapCheckItem) {
+  return {
+    ref: g.ref,
+    title: g.title,
+    question: g.question ?? defaultQuestion(g),
+    why: g.reasoning,
+    exposure: exposureText(g),
+    holds_bid: g.holds_bid,
+    conditional: g.conditional,
+    condition: g.condition_text,
+    citations: g.citations,
+  };
+}
+
+function gapCheckBlock(jobId: string, items: GapCheckItem[]) {
+  const p = progress(items);
+  const next = nextGap(items);
+  const lines = [
+    p.met
+      ? `Gap check met: all ${p.total} gaps answered and none still holds the bid.`
+      : `Gap check: ${p.answered} of ${p.total} answered, ${p.holding} still hold the bid.`,
+    `Live board: ${gapCheckUrl(jobId)}`,
+  ];
+  if (next) {
+    const ask = askFor(next);
+    lines.push(
+      `Next: ${ask.ref} ${ask.title}${ask.exposure ? ` (${ask.exposure} at risk)` : ""}. ${ask.question}`,
+    );
+  }
+  return {
+    text: lines.join("\n"),
+    structured: {
+      board_url: gapCheckUrl(jobId),
+      progress: p,
+      next: next ? askFor(next) : null,
+      answers: Object.keys(ANSWER_LABEL),
+    },
+  };
+}
+
+const GAP_CHECK_GUIDANCE = [
+  "Walk the estimator through the gap check one gap at a time: ask the next question exactly as given, then save the answer with estimate_gap_answer before asking the next one.",
+  "The four answers are: I'm carrying it (with the dollars), it's covered elsewhere (say where), I understand and it goes in the proposal as a qualification, or ask an RFI before bid.",
+  "Share the live board link once. It moves as answers are saved in this chat, and answers the estimator makes on the board come back here.",
+];
 const asLine = (l: LineArg): LineIn => ({
   ...l,
   method: typeof l.method === "string" ? l.method.trim() : undefined,
@@ -1305,15 +1384,22 @@ export const estimateGapAnalysis = defineTool({
             holds_bid: false,
           })),
         ];
+        const answered = new Set([
+          ...prior.gaps.filter((g) => g.answer).map((g) => g.ref),
+          ...prior.verdicts.map((v) => v.gap_ref).filter((r): r is string => Boolean(r)),
+        ]);
         const merged = alignGapsToTakeoff(
-          preserveGapList(
-            prior.gaps,
-            dedupeGaps([
-              ...keepUnexplainedGaps(args.items as GapIn[], reviewed.explained),
-              ...implied,
-              ...found,
-              ...fromReview,
-            ]),
+          collapseRepeats(
+            preserveGapList(
+              prior.gaps,
+              dedupeGaps([
+                ...keepUnexplainedGaps(args.items as GapIn[], reviewed.explained),
+                ...implied,
+                ...found,
+                ...fromReview,
+              ]),
+            ),
+            answered,
           ),
           prior.lines,
         );
@@ -1323,10 +1409,109 @@ export const estimateGapAnalysis = defineTool({
         const state = settle(loaded.lines, loaded.gaps, loaded.verdicts, loaded.setup);
         await audit(sb, job, "estimate_gap_analysis", "save_estimate_gaps", null);
         const view = renderGaps(`${named(job)}`, loaded.gaps, state, reviewed.outOfScope);
-        return reply(view);
+        const board = await gapBoard(sb, job.job_id);
+        if (!board) return reply(view);
+        const check = gapCheckBlock(job.job_id, board.items);
+        return reply({
+          text: `${view.text}\n\n${check.text}`,
+          structured: { ...view.structured, gap_check: check.structured },
+          guidance: [...view.guidance, ...GAP_CHECK_GUIDANCE],
+        });
       } catch (e) {
         caught(e);
       }
+    }),
+});
+
+export const estimateGapAnswer = defineTool({
+  name: "estimate_gap_answer",
+  title: "Gap check answer",
+  description:
+    "Saves the estimator's answer to one estimate gap, or clears it, and returns the gap check progress, the live board link and the next question to ask.",
+  inputSchema: {
+    job_number: jobNumber,
+    company_id: companyId,
+    gap: z.string().trim().max(12).optional(),
+    answer: z.enum(["carrying", "covered", "understood", "rfi"]).optional(),
+    amount: z.number().finite().min(0).optional(),
+    covered_by: z.enum(COVERED_BY).optional(),
+    note: z.string().trim().max(1000).optional(),
+    qualification: z.string().trim().max(1000).optional(),
+    rfi_question: z.string().trim().max(1000).optional(),
+    clear: z.boolean().optional(),
+  },
+  annotations: SAVE,
+  handler: (args, ctx) =>
+    run("estimate_gap_answer", ctx, { jobNumber: args.job_number, companyId: args.company_id }, async (sb) => {
+      const job = await resolveJob(sb, args.job_number, args.company_id, "write");
+      const before = await gapBoard(sb, job.job_id);
+      if (!before)
+        throw new ToolError("The gap check isn't switched on for this workspace yet. Nothing was changed.");
+      if (!before.items.length)
+        return reply({
+          text: `${named(job)}: no gaps yet. Run the gap analysis first, then answer them here one at a time.`,
+          structured: { report: "Gap check", board_url: gapCheckUrl(job.job_id), progress: progress([]), next: null },
+          guidance: ["Run estimate_gap_analysis before the gap check."],
+        });
+      let saved: string | null = null;
+      let pushback: string | null = null;
+      const ref = args.gap?.trim().toUpperCase().replace(/^G(\d)/, "G-$1");
+      if (ref) {
+        const gap = before.items.find((g) => g.ref === ref && columnOf(g) !== "dropped");
+        if (!gap) throw new ToolError(`${ref} isn't an open gap on ${named(job)}. Nothing was changed.`);
+        if (args.clear) {
+          await rpc(sb, "mcp_estimate_gap_answer_clear", { _job: job.job_id, _gap: ref });
+          saved = `${ref} is back in To answer.`;
+        } else if (args.answer) {
+          const input = {
+            answer: args.answer,
+            amount: args.amount ?? null,
+            covered_by: args.covered_by ?? null,
+            note: args.note ?? null,
+            qualification: args.qualification ?? null,
+            question: args.rfi_question ?? null,
+          };
+          pushback = answerProblem(gap, input);
+          if (!pushback) {
+            await rpc(sb, "mcp_estimate_gap_answer_save", {
+              _job: job.job_id,
+              _gap: ref,
+              _answer: input.answer,
+              _amount: input.amount,
+              _covered_by: input.covered_by,
+              _note: input.note,
+              _qualification: input.qualification,
+              _question: input.question,
+              _source: "chat",
+            });
+            await audit(sb, job, "estimate_gap_answer", "save_estimate_gap_answer", ref);
+          }
+        }
+      }
+      const after = saved || !pushback ? ((await gapBoard(sb, job.job_id)) ?? before) : before;
+      const now = ref ? after.items.find((g) => g.ref === ref) : undefined;
+      if (now?.answer && !saved && !pushback) saved = `${ref} saved: ${answerSummary(now.answer)}.`;
+      const check = gapCheckBlock(job.job_id, after.items);
+      const head = pushback
+        ? `${ref} not saved. ${pushback}`
+        : saved ?? `${named(job)} gap check.`;
+      return reply({
+        text: `${head}\n${check.text}`,
+        structured: {
+          report: "Gap check",
+          job: named(job),
+          saved: Boolean(saved),
+          pushback,
+          gap: now ? askFor(now) : null,
+          ...check.structured,
+        },
+        guidance: pushback
+          ? [
+              "Tell the estimator why it wasn't saved, in your own plain words, and ask the same gap again. Don't move on.",
+              ...GAP_CHECK_GUIDANCE,
+            ]
+          : GAP_CHECK_GUIDANCE,
+      });
     }),
 });
 

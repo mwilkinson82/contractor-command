@@ -28,7 +28,14 @@ type Line = {
   missing_input?: string | null;
   exclusion?: string | null;
 };
-type Gap = { ref: string; title: string; severity?: string; holds_bid?: boolean; sheet?: string };
+type Gap = {
+  ref: string;
+  title: string;
+  severity?: string;
+  holds_bid?: boolean;
+  sheet?: string;
+  answer?: { answer?: string } | null;
+};
 
 const SEVERITY: Record<string, string> = {
   hard: "Holds the bid",
@@ -67,7 +74,10 @@ export function JobEstimatePage({ jobId }: { jobId: string }) {
         company,
         overview: estimateOverview(e.data, b.error ? null : b.data, x.error ? [] : x.data),
         lines: raw?.takeoff?.lines ?? [],
-        gaps: (raw?.gaps ?? []).filter((gap) => !answered.has(gap.ref)),
+        gaps: (raw?.gaps ?? []).filter((gap) =>
+          gap.answer?.answer ? gap.answer.answer === "rfi" : !answered.has(gap.ref),
+        ),
+        gapTotal: (raw?.gaps ?? []).length,
         gbb: g.error ? null : gbbOverview(g.data, false),
       };
     },
@@ -80,7 +90,7 @@ export function JobEstimatePage({ jobId }: { jobId: string }) {
     );
   if (!session) return <BoardSignIn returnTo={`/r/job/${jobId}/estimate`} />;
   if (!q.data) return <ProjectReadUnavailable />;
-  const { jobNumber, jobName, company, overview: e, lines, gaps, gbb } = q.data;
+  const { jobNumber, jobName, company, overview: e, lines, gaps, gapTotal, gbb } = q.data;
   return (
     <main className="job-home">
       <div className="jh-shell">
@@ -183,6 +193,13 @@ export function JobEstimatePage({ jobId }: { jobId: string }) {
                     <p className="jb-empty">No measured takeoff PDF saved yet.</p>
                   )}
                   <h2 style={{ marginTop: 18 }}>Open questions</h2>
+                  {gapTotal ? (
+                    <div className="jb-actions" style={{ marginTop: 8 }}>
+                      <a className="jb-btn jb-btn-primary" href={`/r/job/${jobId}/gap-check`}>
+                        {gaps.length ? "Open the gap check" : "Review the gap check"}
+                      </a>
+                    </div>
+                  ) : null}
                   {gaps.length ? (
                     <ul className="jb-files">
                       {gaps.slice(0, 12).map((gap) => (
