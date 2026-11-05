@@ -312,9 +312,21 @@ async function chaseRowsQuiet(sb: Sb, scope?: BriefJobScope): Promise<ChaseRow[]
  * open items, money, other jobs, and "What don't I know yet?". Shared by the morning_brief tool and
  * the /today page. Read-only.
  */
-export async function composePmBrief(sb: Sb, input: { companyId?: string; scope?: BriefJobScope; now?: Date; settings?: BriefSettings }) {
+export async function composePmBrief(
+  sb: Sb,
+  input: {
+    companyId?: string;
+    scope?: BriefJobScope;
+    now?: Date;
+    settings?: BriefSettings;
+    /** Jobs already read from the member's own feed (the daily email). Skips the table reads. */
+    preloaded?: { hasCompany: boolean; jobs: BriefJob[] };
+    /** false leaves out notices (the daily email reads as the member without their sign-in). */
+    notices?: boolean;
+  },
+) {
   const now = input.now ?? new Date();
-  const loaded = await loadBriefJobs(sb, input.companyId, input.scope);
+  const loaded = input.preloaded ?? (await loadBriefJobs(sb, input.companyId, input.scope));
   const stored = input.settings ?? (await briefSettingsQuiet(sb));
   // With no saved time zone, read the morning in the jobs' own zone.
   const zone = loaded.jobs.find((job) => job.time_zone)?.time_zone;
@@ -328,7 +340,7 @@ export async function composePmBrief(sb: Sb, input: { companyId?: string; scope?
   );
   const [chases, notices, firstName] = await Promise.all([
     chaseRowsQuiet(sb, input.scope),
-    loadNoticeBrief(sb as never, { jobId: input.scope?.job_id }).catch(() => null),
+    input.notices === false ? Promise.resolve(null) : loadNoticeBrief(sb as never, { jobId: input.scope?.job_id }).catch(() => null),
     memberFirstName(sb),
   ]);
   const built = buildPmBrief({ jobs: loaded.jobs, focus, settings, now, firstName, chases, notices: notices ?? null });

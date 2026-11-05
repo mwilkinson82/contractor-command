@@ -1,5 +1,6 @@
-// Morning brief web push. The cron caller is the service role, every 5 minutes.
-// Members use their own sign-in token. No email.
+// Morning brief web push and daily email. The cron caller is the service role, every 5 minutes.
+// Members use their own sign-in token. The email stays off unless ATHENA_BRIEF_EMAIL_ENABLED is "true"
+// and the member turned it on for themselves. It only ever goes to the member's own sign-in address.
 // VAPID keys are ATHENA_VAPID_PUBLIC_KEY and ATHENA_VAPID_PRIVATE_KEY. They are not committed.
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -9,6 +10,8 @@ import type { Sb } from "@/lib/mcp/guard";
 import { briefJobsFromFeed, composePmBrief, readBriefSettings } from "@/lib/mcp/morning-brief-load";
 import { briefPageMarkup, dispatchMorningBriefs, MORNING_BRIEF_CRON } from "@/lib/mcp/morning-brief-push";
 import type { PushSendLog } from "@/lib/mcp/field-push-send";
+import { briefEmailEnabled, renderBriefEmail } from "@/lib/mcp/morning-brief-email";
+import { runBriefEmails, sendBriefEmail } from "@/lib/mcp/morning-brief-email-send";
 
 function envUrl(): string | undefined {
   return process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -58,7 +61,13 @@ export const Route = createFileRoute("/api/athena/morning-brief")({
         }
         if (url.searchParams.get("status") === "1") {
           const subscribed = await sb.rpc("mcp_user_push_subscribed");
-          return Response.json({ subscribed: subscribed.data === true });
+          const ready = briefEmailEnabled();
+          const mail = ready ? await sb.rpc("mcp_morning_brief_email_get") : null;
+          const saved = (mail?.data ?? null) as { email_enabled?: boolean; email?: string | null } | null;
+          return Response.json({
+            subscribed: subscribed.data === true,
+            email: ready && !mail?.error ? { on: saved?.email_enabled === true, address: saved?.email ?? null } : null,
+          });
         }
         try {
           const gate = sb as unknown as Sb;
@@ -76,6 +85,7 @@ export const Route = createFileRoute("/api/athena/morning-brief")({
         if (!token || !base) return Response.json({ error: "Unauthorized" }, { status: 401 });
         let body: {
           action?: string;
+          on?: boolean;
           subscription?: { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
         } = {};
         try {
@@ -116,7 +126,8 @@ export const Route = createFileRoute("/api/athena/morning-brief")({
               if (saved.error) throw new Error("Could not turn off the dead subscription.");
             },
           });
-          return Response.json({ sent: result.sent, failed: result.failed, cron: MORNING_BRIEF_CRON });
+          const email = await runBriefEmails(admin).catch(() => ({ sent: 0, failed: 0, skipped: 0, error: "Morning brief email failed." }));
+          return Response.json({ sent: result.sent, failed: result.failed, email, cron: MORNING_BRIEF_CRON });
         }
         const pub = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         if (!pub) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -134,6 +145,30 @@ export const Route = createFileRoute("/api/athena/morning-brief")({
           });
           if (saved.error) return Response.json({ error: "Could not save the morning briefing." }, { status: 400 });
           return Response.json({ saved: true });
+        }
+        if (body.action === "email_set" || body.action === "email_test") {
+          if (!briefEmailEnabled()) return Response.json({ error: "The morning brief email isn't switched on yet." }, { status: 503 });
+          if (body.action === "email_set") {
+            if (typeof body.on !== "boolean") return Response.json({ error: "Say on or off." }, { status: 400 });
+            const saved = await sb.rpc("mcp_morning_brief_email_set", { _on: body.on });
+            if (saved.error) return Response.json({ error: "Could not save the morning brief email." }, { status: 400 });
+            const row = saved.data as { email_enabled?: boolean; email?: string | null } | null;
+            return Response.json({ on: row?.email_enabled === true, address: row?.email ?? null });
+          }
+          const to = userData.user.email;
+          if (!to) return Response.json({ error: "Your account has no email address." }, { status: 400 });
+          try {
+            const gate = sb as unknown as Sb;
+            const settings = await readBriefSettings(gate);
+            const built = await composePmBrief(gate, { settings });
+            const mail = renderBriefEmail(built.doc);
+            // One test every ten minutes, to the member's own sign-in address only.
+            const slot = Math.floor(Date.now() / 600000);
+            await sendBriefEmail({ ...mail, subject: `Test: ${mail.subject}`, to, key: `brief-email-test:${userData.user.id}:${slot}` });
+            return Response.json({ sent: true, address: to });
+          } catch {
+            return Response.json({ error: "Could not send the test email." }, { status: 400 });
+          }
         }
         return Response.json({ error: "Unknown action." }, { status: 400 });
       },

@@ -21,6 +21,9 @@ export function MorningBriefPushBar({ showBoardLink = true }: { showBoardLink?: 
   const [note, setNote] = useState<string | null>(null);
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Null until the server says the daily email is switched on for Athena.
+  const [mail, setMail] = useState<{ on: boolean; address: string | null } | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
 
   useEffect(() => {
     const standalone =
@@ -37,8 +40,9 @@ export function MorningBriefPushBar({ showBoardLink = true }: { showBoardLink?: 
         if (!header || !alive) return;
         const res = await fetch("/api/athena/morning-brief?status=1", { headers: { Authorization: header } });
         if (!res.ok || !alive) return;
-        const body = (await res.json()) as { subscribed?: boolean };
+        const body = (await res.json()) as { subscribed?: boolean; email?: { on: boolean; address: string | null } | null };
         if (alive && body.subscribed) setOn(true);
+        if (alive && body.email) setMail(body.email);
       } catch {
         // The button still turns the briefing on.
       }
@@ -93,6 +97,38 @@ export function MorningBriefPushBar({ showBoardLink = true }: { showBoardLink?: 
     }
   }
 
+  async function mailAction(action: "email_set" | "email_test", turnOn?: boolean) {
+    setMailBusy(true);
+    setNote(null);
+    try {
+      const header = await authHeader();
+      if (!header) {
+        setNote("Sign in to change the morning brief email.");
+        return;
+      }
+      const res = await fetch("/api/athena/morning-brief", {
+        method: "POST",
+        headers: { Authorization: header, "Content-Type": "application/json" },
+        body: JSON.stringify(action === "email_set" ? { action, on: turnOn } : { action }),
+      });
+      const body = (await res.json()) as { on?: boolean; address?: string | null; sent?: boolean; error?: string };
+      if (!res.ok) {
+        setNote(body.error || "Could not change the morning brief email.");
+        return;
+      }
+      if (action === "email_set") {
+        setMail({ on: body.on === true, address: body.address ?? mail?.address ?? null });
+        setNote(body.on ? `Your brief will be emailed to ${body.address ?? "you"} each morning.` : "The morning brief email is off.");
+      } else {
+        setNote(`Sent a test brief to ${body.address ?? "your email"}.`);
+      }
+    } catch {
+      setNote("Could not change the morning brief email.");
+    } finally {
+      setMailBusy(false);
+    }
+  }
+
   return (
     <div
       data-screen="morning-brief-push"
@@ -111,6 +147,27 @@ export function MorningBriefPushBar({ showBoardLink = true }: { showBoardLink?: 
         <a href="/today" style={{ marginLeft: 12, color: NAVY, fontWeight: 700, fontSize: 14 }}>
           Open today's brief
         </a>
+      ) : null}
+      {mail ? (
+        <div data-screen="morning-brief-email" style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <label style={{ display: "inline-flex", gap: 8, alignItems: "center", color: NAVY, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={mail.on}
+              disabled={mailBusy}
+              onChange={(e) => void mailAction("email_set", e.target.checked)}
+            />
+            Email me my brief each morning{mail.address ? ` (${mail.address})` : ""}
+          </label>
+          <button
+            type="button"
+            onClick={() => void mailAction("email_test")}
+            disabled={mailBusy}
+            style={{ background: "#fff", color: NAVY, border: `1px solid ${GRAY}`, borderRadius: 8, padding: "6px 10px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+          >
+            Send me a test
+          </button>
+        </div>
       ) : null}
       {note ? <p style={{ margin: "8px 0 0", color: NAVY, fontSize: 14 }}>{note}</p> : null}
     </div>
