@@ -540,11 +540,11 @@ export const customerPortal = defineTool({
             [
               head,
               `Shared "${r.title}" for the customer to choose Good, Better or Best. They see the same view as the proposal link: no costs, margin or notes.`,
-              "Their choice is recorded on the selection board with their typed name and an emailed code. The estimate, contract and billing do not change.",
+              "Their choice is recorded on the selection board with their typed name and an emailed code. Before a contract, it sets the proposal price. On a job under contract, choosing an upgrade approves a change order for the difference, with the added time you set, and it shows in the change order log. The estimate does not change.",
               ...(r.recipients.length ? sent : ["No customer has access yet. Invite them first."]),
               "",
               r.recipients.length
-                ? "What happens next: they open their client page, pick Good, Better or Best, type their name and confirm with an emailed code. Athena emails the job's PM when they choose."
+                ? "What happens next: they open their client page, pick Good, Better or Best, type their name and confirm with an emailed code. Athena emails the job's PM and posts it on the project board when they choose."
                 : "Next: invite the customer to their client page. They'll see this proposal as soon as they sign in.",
             ].join("\n"),
           );
