@@ -23,6 +23,7 @@ import { normalizeRole } from "./team";
 import { listedJobs } from "./tools/workflow-tools";
 import { ToolError } from "@lovable.dev/mcp-js";
 import { chaseBriefRows, type ChaseRow } from "./submittal-chase";
+import { loadNoticeBrief } from "./notice-brief";
 
 type RawItem = {
   id?: string;
@@ -284,6 +285,9 @@ export async function loadMorningBrief(sb: Sb, companyId?: string, scope?: Brief
     settings = undefined;
   }
   const built = buildMorningBrief({ jobs: loaded.jobs, hasCompany: loaded.hasCompany, settings });
+  // Client approvals and questions since the last brief lead the job side. A missing notice feed adds nothing.
+  const since = await loadNoticeBrief(sb as never, { jobId: scope?.job_id });
+  if (since) built.card.sections = [since, ...(built.card.sections ?? [])];
   built.card = ensureBriefCard(built.card);
   try {
     const due = await sb.rpc("mcp_submittal_chase_due");

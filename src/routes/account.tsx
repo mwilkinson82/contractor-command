@@ -36,6 +36,7 @@ import { OrganizationProfile } from "@/components/account/organization-profile";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
+import { AccountNotices, useAccountNotices } from "@/components/account/account-notices";
 
 const LOGO_BUCKET = "company-logos";
 
@@ -125,6 +126,7 @@ function AccountPage() {
   const tier = athena.state?.seats?.tier ?? null;
   const rate = planRate(tier);
   const athenaHost = onAthenaHost();
+  const accountNotices = useAccountNotices(athenaHost);
 
   useEffect(() => {
     if (!company) return;
@@ -460,6 +462,8 @@ function AccountPage() {
         }
         team={<TeamSection {...athena} />}
         projects={<ProjectHomes />}
+        notices={<AccountNotices />}
+        noticeCount={accountNotices.data?.filter((n) => !n.read).length ?? null}
         briefing={<MorningBriefPushBar />}
         guide={<AthenaStartTip />}
       />

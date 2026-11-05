@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
+  Bell,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -17,13 +18,14 @@ import {
 } from "lucide-react";
 import "./athena-account.css";
 
-type Section = "overview" | "company" | "team" | "billing" | "projects";
+type Section = "overview" | "company" | "team" | "billing" | "projects" | "notices";
 const sections = [
   { id: "overview", label: "Overview", Icon: LayoutGrid },
   { id: "company", label: "Organization profile", Icon: Building2 },
   { id: "team", label: "Team & access", Icon: Users },
   { id: "billing", label: "Plan & billing", Icon: CreditCard },
   { id: "projects", label: "Your projects", Icon: FolderOpen },
+  { id: "notices", label: "Notifications", Icon: Bell },
 ] as const;
 const copy: Record<Section, { title: string; description: string }> = {
   overview: {
@@ -46,6 +48,10 @@ const copy: Record<Section, { title: string; description: string }> = {
     title: "Your projects",
     description: "Pick up where you left off. Open a saved project workspace.",
   },
+  notices: {
+    title: "Notifications",
+    description: "What came back from clients, reviewers, subs and suppliers on every job.",
+  },
 };
 
 export type AthenaAccountLayoutProps = {
@@ -66,6 +72,10 @@ export type AthenaAccountLayoutProps = {
   projects: ReactNode;
   briefing: ReactNode;
   guide: ReactNode;
+  /** Notices across every job. The section is left out when the page passes none. */
+  notices?: ReactNode;
+  /** Unread notices across every job, for the red count in the nav. */
+  noticeCount?: number | null;
 };
 
 /** Athena presentation only. Account forms and every server permission stay with their existing owners. */
@@ -129,18 +139,25 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
         </div>
         <p className="aa-eyebrow aa-nav-label">Account</p>
         <nav aria-label="Account sections" className="aa-nav">
-          {sections.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              aria-current={section === id ? "page" : undefined}
-              onClick={() => navigate(id)}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-              {section === id ? <ChevronRight size={16} /> : null}
-            </button>
-          ))}
+          {sections
+            .filter((item) => item.id !== "notices" || props.notices !== undefined)
+            .map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                aria-current={section === id ? "page" : undefined}
+                onClick={() => navigate(id)}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+                {id === "notices" && props.noticeCount ? (
+                  <span className="aa-nav-count" aria-label={`${props.noticeCount} unread`}>
+                    {props.noticeCount > 99 ? "99+" : props.noticeCount}
+                  </span>
+                ) : null}
+                {section === id ? <ChevronRight size={16} /> : null}
+              </button>
+            ))}
         </nav>
         {props.canViewSupport ? (
           <div className="aa-admin-slot">
@@ -332,6 +349,15 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
           >
             {props.projects}
           </section>
+          {props.notices !== undefined ? (
+            <section
+              className="aa-existing aa-notices-wrap"
+              hidden={section !== "notices"}
+              aria-label="Notifications"
+            >
+              {props.notices}
+            </section>
+          ) : null}
           <footer className="aa-footer">
             <span>Built for the people who build.</span>
             <span>Athena by ALP</span>
