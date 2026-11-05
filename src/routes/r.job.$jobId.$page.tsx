@@ -12,6 +12,7 @@ import { JobHome } from "@/components/athena/JobHome";
 import { JobEstimatePage } from "@/components/athena/JobEstimatePage";
 import { GapCheckPage } from "@/components/athena/GapCheckPage";
 import { DailyRangeReportPage } from "@/components/athena/DailyRangeReportPage";
+import { ProjectRecordPage } from "@/components/athena/ProjectRecordPage";
 import { readBoardToken } from "@/lib/mcp/board-url";
 
 export const Route = createFileRoute("/r/job/$jobId/$page")({
@@ -37,6 +38,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
         page !== "accounting" &&
         page !== "production" &&
         page !== "daily-log" &&
+        page !== "record" &&
         !(JOB_PAGES as readonly string[]).includes(page))
     )
       throw notFound();
@@ -69,6 +71,8 @@ function JobReportPage() {
         photos={search.photos}
       />
     );
+  if (hostedPageName(page) === "record")
+    return <ProjectRecordPage jobId={jobId} from={search.from} to={search.to} />;
   if (hostedPageName(page) === "accounting") {
     let selected = null;
     let recordDates = {};
