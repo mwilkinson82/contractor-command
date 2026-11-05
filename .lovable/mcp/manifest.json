@@ -19665,6 +19665,27 @@
               "type": "string",
               "maxLength": 2000000
             },
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            },
             "sheets": {
               "maxItems": 6,
               "type": "array",

@@ -572,6 +572,21 @@ describe("import plan and review", () => {
     expect(plan.kept).toContain("The contract value is already on the job; kept Athena's.");
   });
 
+  it("adds nothing twice when an older export runs after a newer one", () => {
+    const old = fromOverwatch(sample());
+    const keyless = Object.keys(old.archive.change_order_allocations ?? {});
+    expect(keyless.length).toBeGreaterThan(0);
+    expect(keyless.every((k) => k.startsWith("row:"))).toBe(true);
+    const plan = planImport(old, {
+      job_exists: true,
+      scope: "full",
+      has_ior: true,
+      archived: ["change_order_allocations:some-id-from-a-newer-export"],
+    });
+    expect(plan.package.archive?.change_order_allocations).toBeUndefined();
+    expect(plan.held.join(" ")).not.toMatch(/IOR can't come in/);
+  });
+
   it("lists every kept contract fact on one plain line", () => {
     const plan = planImport(job, {
       job_exists: true,
@@ -663,5 +678,35 @@ describe("import plan and review", () => {
       "IOR version 1 with 4 risks",
       "Archive: 42 records, read-only",
     ]);
+    expect(card.next_move).toMatch(
+      /^Open change orders are drafts\..*open job 3101's board so you can check the IOR\?$/,
+    );
+  });
+
+  it("says the kept contract facts once, in words, and offers the next step", () => {
+    const card = appliedCard(
+      {
+        schedule_activities: 20,
+        decisions: 4,
+        skipped: [
+          "Contract contract value is already on the job; kept it.",
+          "Contract retainage is already on the job; kept it.",
+          "The job already has an SOV; the imported SOV and opening balances were not written.",
+        ],
+      },
+      "2717",
+      "overwatch",
+    );
+    const kept = card.sections?.[1].rows.map((r) => r.cells[0]);
+    expect(kept).toEqual([
+      "The contract value and retainage were already on the job; kept them as they were.",
+      "The job already has an SOV; the imported SOV and opening balances were not written.",
+    ]);
+    expect(card.next_move).toBe(
+      "Next: want me to open job 2717's board so you can check the CPM and the job logs?",
+    );
+    expect(appliedCard({ already_applied: true }, "2717", "overwatch").next_move).toMatch(
+      /Nothing more to save/,
+    );
   });
 });

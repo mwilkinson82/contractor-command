@@ -14,6 +14,9 @@ import {
 } from "../jobs";
 import { guide } from "../visible";
 import { pmReachable, pmSetupNext, readTeammates } from "../pm-setup";
+import { drawingFile } from "../drawing-file-input";
+import { fetchAllowedFile } from "../file-upload";
+import { FileRejected } from "../file-share";
 import type { CardModel } from "../cards/model";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
@@ -37,9 +40,15 @@ const SAVE = {
   openWorldHint: false,
 } as const;
 const JOB_NUMBER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
+/** An attached export file; the package itself stays under the stage's 6 MB cap. */
+const FILE_MAX_BYTES = 20 * 1024 * 1024;
 
-export const JOB_IMPORT_RULE =
-  " When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied, then show its card. Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.";
+export const OVERWATCH_EXPORT_HOW =
+  "In Overwatch, open the job, click ··· at the top of the project page and choose Export for Athena. It downloads one .json file; attach that file here.";
+export const FULL_ACCESS_HOW =
+  "Importing onto a job that's already in Athena needs full access to that job. Ask your company's owner to add you to the job, or to run the import. Nothing was saved.";
+
+export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one: ${OVERWATCH_EXPORT_HOW} Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
 
 async function call<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (
@@ -84,7 +93,7 @@ export function readExport(args: {
 }): ImportJob {
   if (args.source === "overwatch") {
     if (!args.export_text?.trim())
-      throw new ImportInputError("Paste or attach the Overwatch job export (the JSON file).");
+      throw new ImportInputError(`Attach the Overwatch job export. ${OVERWATCH_EXPORT_HOW}`);
     let parsed: unknown;
     try {
       parsed = JSON.parse(args.export_text);
@@ -143,6 +152,58 @@ async function importPmAsk(
   return { note: next.lines.join(" "), ask: next.guidance.join(" ") };
 }
 
+/** The job number the Overwatch export carries itself, before any number named at import time. */
+export function overwatchJobNumber(exportText: string | undefined): string | null {
+  try {
+    const p = (JSON.parse(exportText ?? "") as { project?: { job_number?: unknown } }).project;
+    const n = typeof p?.job_number === "string" ? p.job_number.trim() : "";
+    return n || null;
+  } catch {
+    return null;
+  }
+}
+
+const sameName = (a: string, b: string) => {
+  const norm = (x: string) =>
+    x
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const x = norm(a);
+  const y = norm(b);
+  return !x || !y || x === y || x.includes(y) || y.includes(x);
+};
+
+/**
+ * Lines for "Check before you say yes" when the export may be headed to the
+ * wrong job: a job number that differs from the export's own, or an existing
+ * Athena job whose name doesn't match the export's.
+ */
+export function destinationChecks(input: {
+  source: string;
+  exportNumber: string | null;
+  exportName: string;
+  target: string;
+  context: ImportContext;
+}): string[] {
+  const { exportNumber, exportName, target, context } = input;
+  const from = input.source === "overwatch" ? "Overwatch" : "the export";
+  const out: string[] = [];
+  const named = exportName ? ` (${exportName})` : "";
+  if (exportNumber && exportNumber.toLowerCase() !== target.toLowerCase()) {
+    out.push(
+      context.job_exists
+        ? `This export is job ${exportNumber}${named} in ${from}, going onto Athena job ${target}${context.name ? `, ${context.name}` : ""}. Say yes only if that's the right job.`
+        : `This export is job ${exportNumber}${named} in ${from}. There is no job ${target} in Athena yet, so this makes a new job ${target}. If you meant a job that's already in Athena, tell me its number.`,
+    );
+  } else if (context.job_exists && context.name && !sameName(context.name, exportName)) {
+    out.push(
+      `Athena's job ${target} is named ${context.name}, and this export is ${exportName || "unnamed"}. Say yes only if they're the same job.`,
+    );
+  }
+  return out;
+}
+
 export const jobImport = defineTool({
   name: "job_import",
   title: "Import a job from Overwatch, Procore or a spreadsheet",
@@ -158,6 +219,7 @@ export const jobImport = defineTool({
     original_contract: z.number().min(0).max(90_000_000_000).optional(),
     retainage_pct: z.number().min(0).max(100).optional(),
     export_text: z.string().max(2_000_000).optional(),
+    file: drawingFile,
     sheets: z.array(sheet).max(6).optional(),
     daily_days: z.number().int().min(0).max(3650).optional(),
     batch_id: z.string().uuid().optional(),
@@ -205,9 +267,21 @@ export const jobImport = defineTool({
         throw new ToolError(
           "Which system is this export from: Overwatch, Procore, Buildertrend or a spreadsheet?",
         );
+      let exportText = args.export_text;
+      if (!exportText?.trim() && !args.sheets?.length && args.file?.download_url) {
+        try {
+          const bytes = await fetchAllowedFile(args.file.download_url, FILE_MAX_BYTES);
+          exportText = new TextDecoder("utf-8", { fatal: false })
+            .decode(bytes)
+            .replace(/^\uFEFF/, "");
+        } catch (e) {
+          if (e instanceof FileRejected) throw new ToolError(e.message.replace(/stored/, "saved"));
+          throw e;
+        }
+      }
       let imported: ImportJob;
       try {
-        imported = readExport({ ...args, source: args.source });
+        imported = readExport({ ...args, export_text: exportText, source: args.source });
       } catch (e) {
         if (e instanceof ImportInputError) throw new ToolError(`${e.message} Nothing was saved.`);
         throw e;
@@ -247,11 +321,17 @@ export const jobImport = defineTool({
         _job_number: jobNumber,
         _source: imported.source.system,
       });
-      if (context.job_exists && context.scope !== "full")
-        throw new ToolError(
-          "This needs full access to the job. Your role can't do it. Nothing was saved.",
-        );
+      if (context.job_exists && context.scope !== "full") throw new ToolError(FULL_ACCESS_HOW);
       const plan = planImport(imported, context);
+      plan.fixes.unshift(
+        ...destinationChecks({
+          source: imported.source.system,
+          exportNumber: args.source === "overwatch" ? overwatchJobNumber(exportText) : null,
+          exportName: imported.job.name,
+          target: jobNumber,
+          context,
+        }),
+      );
       const card = reviewCard(plan, jobNumber, context.job_exists);
       if (nothingToSave(plan))
         return cardResult(
