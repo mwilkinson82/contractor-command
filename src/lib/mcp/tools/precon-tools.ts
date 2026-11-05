@@ -31,7 +31,7 @@ import {
   type PreconPhase,
 } from "../../precon/model";
 import { companyLogoUrl } from "../document-email-brand";
-import { notifyAll } from "./customer-portal-tools";
+import { emailedLine, notifyAll } from "./customer-portal-tools";
 import {
   portalUrl,
   preconDueWords,
@@ -684,9 +684,7 @@ export const precon = defineTool({
                     nonce: newToken(),
                   }),
                 );
-                sent.push(
-                  `${x.email}: ${res === "sent" ? "emailed" : res === "off" ? "not emailed (customer email is off)" : "email failed"}`,
-                );
+                sent.push(emailedLine(x.email, res));
               }
             note = [
               `Done. ${owner} has the pickup date. When you have the check, tell me and I'll record it as paid.`,
