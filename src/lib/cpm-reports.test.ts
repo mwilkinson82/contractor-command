@@ -9,7 +9,7 @@ import {
   scheduleHealth,
   scheduleNarrative,
 } from "./cpm-reports";
-import { renderReportBody } from "./report-pages";
+import { renderReportBody, scheduleLookaheadHtml } from "./report-pages";
 import { ganttModel, ganttSummary } from "./cpm-gantt";
 
 const act = (
@@ -171,6 +171,29 @@ describe("schedule reports", () => {
     // Reports sit on their own tab, after the Gantt and the lookahead, not stacked under the Gantt.
     expect(page.indexOf('id="cpm-gantt"')).toBeLessThan(page.indexOf('id="cpm-lookahead-gantt"'));
     expect(page.indexOf('data-tab="r"')).toBeLessThan(page.indexOf('id="cpm-narrative"'));
+  });
+
+  it("prints only the schedule screen on show, never the dashboard tiles above it (Marshall, Nov 5)", () => {
+    const payload = {
+      page: "schedule" as const,
+      job_number: "QA-1",
+      job_name: "Print Test",
+      company: "ALP Construction",
+      report: { found: true, version: 3, data_date: "2026-03-09", contract_completion_date: "2026-03-20", contract_total: 1250000, data: input().data },
+    };
+    const page = renderReportBody(payload);
+    // On screen the contract tile stays; in print everything outside the schedule screens is hidden.
+    expect(page).toContain("Contract");
+    expect(page).toContain("@media print{body :not(.ath-sched):not(:has(.ath-sched)):not(.ath-sched *){display:none!important}");
+    expect(page).toContain(".ath-sched .ath-tabs,.ath-sched .ath-rep-index,.ath-sched .ath-sr{display:none!important}");
+    // A small print title names the job, the screen and the data date.
+    expect(page).toMatch(/class="ath-print-title"><strong>QA-1 Print Test<span data-for="s"> · Schedule<\/span><span data-for="l"> · Lookahead<\/span>/);
+    expect(page).toContain("ALP Construction · Data date 03/09/26");
+    // The page's script redraws just the lookahead section at a zoom, from the same input.
+    const look = scheduleLookaheadHtml(payload, { 3: 2 });
+    expect(look).toContain('id="cpm-lookahead-gantt"');
+    expect(look).toContain('data-w="3" data-g="f"');
+    expect(scheduleLookaheadHtml({ ...payload, page: "ior" } as never, {})).toBe("");
   });
 
   it("leads with the forecast against the baseline and flags a contract date far from it", () => {

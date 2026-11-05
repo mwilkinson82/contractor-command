@@ -6293,7 +6293,7 @@
       {
         "name": "lookahead_pdf",
         "title": "Lookahead as a PDF file (for email)",
-        "description": "Builds the job's two-week lookahead as a PDF and returns a download link.",
+        "description": "Builds the job's two-week lookahead as a PDF and returns a download link; with a saved CPM it matches the schedule page, 1 to 6 weeks from the data date grouped by total float, start, WBS or any activity code, with stacked code filters, the data date line and the End of lookahead period line.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,

@@ -15,6 +15,7 @@ import {
   logicChanges,
   logicChangesHtml,
   lookaheadGanttHtml,
+  lookaheadScale,
   lookaheadPlan,
   milestoneHtml,
   viewItems,
@@ -386,6 +387,34 @@ describe("round 3: start status, lookahead Gantt, reports", () => {
     expect(html).toContain("End of lookahead period");
     expect(html).toContain('data-window-end-line="true"');
     expect(html).toContain('data-date-marker="true"');
+  });
+
+  it("lookahead full screen, timescale zoom and one-window redraw (Marshall, Nov 5)", () => {
+    const base = lookaheadGanttHtml(input());
+    expect(base).toContain('id="cpml-fs"');
+    expect(base).toMatch(/for="cpml-fs" aria-label="Full screen"/);
+    expect(base).toContain('data-cpml-zoom="fit"');
+    expect(base).toContain('data-cpml-zoom="in"');
+    expect(base).toContain('data-cpml-zoom="out"');
+    // Zoom buttons and the grab cursor only show where the page's script runs.
+    expect(base).toContain(".cpml .cpml-zoom{display:none");
+    expect(base).toContain("[data-cpm-js] .cpml .cpml-zoom{display:inline-flex}");
+    const width = (html: string, w: number) =>
+      Number(new RegExp(`data-w="${w}" data-g="f"[^]*?calc\\(var\\(--cpm-left\\) \\+ ([\\d.]+)px\\)`).exec(html)?.[1]);
+    expect(width(base, 2)).toBe(15 * 60 + 14);
+    const half = lookaheadGanttHtml(input(), 3, { 2: 0.5 });
+    expect(width(half, 2)).toBe(15 * 30 + 14);
+    // Never tighter than a readable day.
+    expect(lookaheadScale(6, 0.01)).toBe(6.5);
+    expect(lookaheadScale(1, 100)).toBe(240);
+    const one = lookaheadGanttHtml(input(), 3, {}, { w: 4, g: "w" });
+    expect((one.match(/class="cpm-law"/g) ?? []).length).toBe(1);
+    expect(one).toContain('data-w="4" data-g="w"');
+  });
+
+  it("the frozen table covers its row line, so Gantt drawings never show under it", () => {
+    const html = ganttHtml(input());
+    expect(html).toMatch(/\.cpmx \.cpm-l\{align-self:flex-start;box-sizing:border-box;height:calc\(100% \+ 1px\);margin-bottom:-1px;border-bottom:1px solid/);
   });
 
   it("plans the lookahead PDF like the page: weeks, groups and stacked code filters", () => {
