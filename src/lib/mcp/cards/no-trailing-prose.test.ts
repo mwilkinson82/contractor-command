@@ -192,3 +192,18 @@ describe("the card instruction is the last word, and the widget is unchanged", (
     );
   });
 });
+
+describe("the card is the action surface, the host AI adds its own read", () => {
+  it("asks for a short read and one next step instead of silence, and replaces the old closing", () => {
+    expect(CARD_SHOWN).toMatch(/own short read and one next step/);
+    expect(CARD_SHOWN).not.toMatch(/Do not add text/);
+    const out = sealCardReply("lookahead_get", {
+      content: [{ type: "text", text: "Rows\n\nCard shown. Do not add text." }],
+      structuredContent: {
+        card: { title: "Lookahead", state: "ok" },
+        assistant_guidance: ["Card shown. Do not add text."],
+      },
+    }) as { structuredContent: { assistant_guidance: string[] } };
+    expect(out.structuredContent.assistant_guidance).toEqual([CARD_SHOWN]);
+  });
+});

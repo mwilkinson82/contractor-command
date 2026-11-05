@@ -5,7 +5,14 @@
 import { TEXT_CARD_TOOLS } from "./native";
 import { CARD_WIDGET_URI } from "./widget";
 
-export const CARD_SHOWN = "Card shown. Do not add text.";
+/**
+ * The card is the action surface: figures, status and buttons. The host AI keeps every fact (they stay in the
+ * tool text) and adds its own short read and one next step, instead of restating the card. Pickers still wait.
+ */
+export const CARD_SHOWN =
+  "Card shown. Give your own short read and one next step; do not repeat the card line by line.";
+/** The earlier closing, still written by a few tool texts; stripped and replaced like the current one. */
+export const LEGACY_CARD_SHOWN = "Card shown. Do not add text.";
 export const CARD_SHOWN_PICK = "Card shown. Do not add text; wait for the user's pick.";
 
 /** Selection cards. Which-job is detected from structuredContent.which_job. */
@@ -27,7 +34,7 @@ export function cardClosing(pick: boolean): string {
 
 function stripClosing(text: string): string {
   let t = text.trim();
-  const closings = [CARD_SHOWN_PICK, CARD_SHOWN];
+  const closings = [CARD_SHOWN_PICK, CARD_SHOWN, LEGACY_CARD_SHOWN];
   let changed = true;
   while (changed) {
     changed = false;
@@ -92,7 +99,9 @@ function withGuidance(
   closing: string,
 ): Record<string, unknown> {
   const prior = Array.isArray(sc?.assistant_guidance) ? (sc.assistant_guidance as unknown[]) : [];
-  const guidance = prior.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK);
+  const guidance = prior.filter(
+    (g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK && g !== LEGACY_CARD_SHOWN,
+  );
   guidance.push(closing);
   return { ...(sc ?? {}), assistant_guidance: guidance };
 }
@@ -121,7 +130,8 @@ export function sealCardReply<R>(tool: string, result: R): R {
           : block,
       );
   const structuredContent = withGuidance(res.structuredContent, closing);
-  if (structuredContent["openai/outputTemplate"] === CARD_WIDGET_URI) delete structuredContent["openai/outputTemplate"];
+  if (structuredContent["openai/outputTemplate"] === CARD_WIDGET_URI)
+    delete structuredContent["openai/outputTemplate"];
   const template = res._meta?.["openai/outputTemplate"];
   if (
     typeof template === "string" &&
@@ -133,7 +143,9 @@ export function sealCardReply<R>(tool: string, result: R): R {
   const out: Record<string, unknown> = { ...res, content, structuredContent };
   if (Array.isArray(res.guidance)) {
     out.guidance = [
-      ...res.guidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK),
+      ...res.guidance.filter(
+        (g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK && g !== LEGACY_CARD_SHOWN,
+      ),
       closing,
     ];
   }

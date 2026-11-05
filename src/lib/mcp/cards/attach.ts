@@ -6,6 +6,7 @@ import { cardWidgetMeta } from "./widget";
 import {
   CARD_SHOWN,
   CARD_SHOWN_PICK,
+  LEGACY_CARD_SHOWN,
   applyCardClosing,
   cardClosing,
   stripSpokenPreview,
@@ -236,7 +237,7 @@ export function attachAthenaCard<R>(tool: string, result: R): R {
       html,
       ...(askJob ? { which_job: true } : {}),
       assistant_guidance: [
-        ...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK),
+        ...priorGuidance.filter((g) => g !== CARD_SHOWN && g !== CARD_SHOWN_PICK && g !== LEGACY_CARD_SHOWN),
         closing,
       ],
     };
