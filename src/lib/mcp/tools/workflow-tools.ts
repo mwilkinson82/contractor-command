@@ -1142,7 +1142,7 @@ async function attachToLookahead(sb: Sb, itemId: string, lookaheadId: string) {
   await stampItemRev(sb, itemId, lookaheadId);
 }
 
-async function lookaheadForJob(sb: Sb, job: Job, input: string) {
+export async function lookaheadForJob(sb: Sb, job: Job, input: string) {
   let id = input.trim();
   if (/^latest$/i.test(id)) {
     const pick = pickLatestLookahead(await lookaheadRows(sb, job));

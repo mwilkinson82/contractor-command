@@ -73,6 +73,7 @@ import { Route as CAccessRouteImport } from './routes/c.$access'
 import { Route as ControlPlanPacketIdRouteImport } from './routes/control-plan.$packetId'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as FTokenRouteImport } from './routes/f.$token'
+import { Route as LTokenRouteImport } from './routes/l.$token'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as SchedulerProjectIdRouteImport } from './routes/scheduler.$projectId'
 import { Route as ToolsCosNavigatorRouteImport } from './routes/tools.cos-navigator'
@@ -436,6 +437,11 @@ const FTokenRoute = FTokenRouteImport.update({
   path: '/f/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LTokenRoute = LTokenRouteImport.update({
+  id: '/l/$token',
+  path: '/l/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OauthConsentRoute = OauthConsentRouteImport.update({
   id: '/oauth/consent',
   path: '/oauth/consent',
@@ -704,6 +710,7 @@ export interface FileRoutesByFullPath {
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/f/$token': typeof FTokenRoute
+  '/l/$token': typeof LTokenRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -809,6 +816,7 @@ export interface FileRoutesByTo {
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/f/$token': typeof FTokenRoute
+  '/l/$token': typeof LTokenRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -915,6 +923,7 @@ export interface FileRoutesById {
   '/control-plan/$packetId': typeof ControlPlanPacketIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/f/$token': typeof FTokenRoute
+  '/l/$token': typeof LTokenRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/scheduler/$projectId': typeof SchedulerProjectIdRoute
   '/tools/cos-navigator': typeof ToolsCosNavigatorRoute
@@ -1022,6 +1031,7 @@ export interface FileRouteTypes {
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/f/$token'
+    | '/l/$token'
     | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -1127,6 +1137,7 @@ export interface FileRouteTypes {
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/f/$token'
+    | '/l/$token'
     | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -1232,6 +1243,7 @@ export interface FileRouteTypes {
     | '/control-plan/$packetId'
     | '/email/unsubscribe'
     | '/f/$token'
+    | '/l/$token'
     | '/oauth/consent'
     | '/scheduler/$projectId'
     | '/tools/cos-navigator'
@@ -1338,6 +1350,7 @@ export interface RootRouteChildren {
   ControlPlanPacketIdRoute: typeof ControlPlanPacketIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   FTokenRoute: typeof FTokenRoute
+  LTokenRoute: typeof LTokenRoute
   OauthConsentRoute: typeof OauthConsentRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AosIndexRoute: typeof AosIndexRoute
@@ -1827,6 +1840,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/l/$token': {
+      id: '/l/$token'
+      path: '/l/$token'
+      fullPath: '/l/$token'
+      preLoaderRoute: typeof LTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oauth/consent': {
       id: '/oauth/consent'
       path: '/oauth/consent'
@@ -2196,6 +2216,7 @@ const rootRouteChildren: RootRouteChildren = {
   ControlPlanPacketIdRoute: ControlPlanPacketIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   FTokenRoute: FTokenRoute,
+  LTokenRoute: LTokenRoute,
   OauthConsentRoute: OauthConsentRoute,
   AdminIndexRoute: AdminIndexRoute,
   AosIndexRoute: AosIndexRoute,
