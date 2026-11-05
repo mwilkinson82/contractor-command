@@ -12,6 +12,7 @@ import {
 } from "../getting-started";
 import { run, text, type Sb } from "../guard";
 import { guide } from "../visible";
+import type { CardSection } from "../cards/model";
 
 const READ = {
   readOnlyHint: true,
@@ -22,15 +23,24 @@ const READ = {
 export async function gettingStartedReply(
   sb: Sb,
   focus: "overview" | "documents" | "cost_codes" = "overview",
+  /** Hello only: what came back since yesterday, shown under the saved jobs. */
+  since?: (sb: Sb) => Promise<CardSection | null>,
 ) {
   await claimGettingStarted(sb);
   const found = await memberJobs(sb as never);
-  const card =
+  const base =
     focus !== "overview"
       ? sourceGuidanceCard(focus, found)
       : found.jobs.length
         ? startedWithJobsCard(found.jobs)
         : firstJobCard(found.company);
+  const extra = since && focus === "overview" && found.jobs.length ? await since(sb) : null;
+  const card = extra
+    ? {
+        ...base,
+        sections: [...(base.sections ?? []).slice(0, 1), extra, ...(base.sections ?? []).slice(1)],
+      }
+    : base;
   return guide(
     {
       ...text(renderGettingStarted(card)),

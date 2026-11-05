@@ -19,6 +19,8 @@ import { FULL_ACCESS_MESSAGE, WhichCompanyAsk, audit, resolveJob } from "../jobs
 import { loadMorningBrief } from "../morning-brief-load";
 import { chooseJob, listCompaniesAndJobs, listedJobs, soleJob } from "./workflow-tools";
 import { guide } from "../visible";
+import { loadNoticeBrief } from "../notice-brief";
+import type { CardSection } from "../cards/model";
 
 const jobNumber = z.string().trim().max(40).optional();
 const companyId = z.string().trim().max(200).optional();
@@ -29,8 +31,9 @@ const figure = z.number().min(0).max(1_000_000_000).optional();
 const percent = z.number().min(0).max(100).optional();
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 
-function present(flow: FlowName, stage: string, data: FlowData) {
-  const card = buildFlowCard(flow, stage, data);
+function present(flow: FlowName, stage: string, data: FlowData, lead?: CardSection | null) {
+  const built = buildFlowCard(flow, stage, data);
+  const card = lead ? { ...built, sections: [lead, ...(built.sections ?? [])] } : built;
   const html = renderHtml({ ...card, show_state: false });
   const stages = [...stagesFor(flow)];
   const pendingSchedule = (stage === "schedule" || stage === "crews") && card.state === "ask";
@@ -143,7 +146,16 @@ async function lead(flow: FlowName, args: { job_number?: string; company_id?: st
     data.dailyUrl = links.daily ?? null;
     data.photosUrl = links.photos ?? null;
   }
-  return present(flow, stage, data);
+  // The job's morning hitlist opens with what came back from the client and the field since yesterday.
+  const since =
+    flow === "pm_morning" &&
+    stage === stages[0] &&
+    args.sample !== true &&
+    !args.note &&
+    isUuid(job.job_id)
+      ? await loadNoticeBrief(sb as never, { jobId: job.job_id, max: 5 })
+      : null;
+  return present(flow, stage, data, since);
 }
 
 export const pmMeeting = defineTool({

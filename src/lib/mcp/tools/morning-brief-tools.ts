@@ -5,6 +5,7 @@ import { errorCard, errorMessage } from "../error-card";
 import { run } from "../guard";
 import { resolveJob } from "../jobs";
 import { gettingStartedReply } from "./getting-started-tool";
+import { loadNoticeBrief } from "../notice-brief";
 import { loadMorningBrief, presentSettings, readBriefSettings, saveBriefSettings } from "../morning-brief-load";
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
@@ -27,7 +28,9 @@ export const athenaHello = defineTool({
     run("athena_hello", ctx, {}, (sb) => {
       // Retain the existing argument schema for connected hosts; entry shows saved choices.
       void args;
-      return gettingStartedReply(sb);
+      return gettingStartedReply(sb, "overview", (db) =>
+        loadNoticeBrief(db as never, { max: 3, window: "day" }),
+      );
     }),
 });
 
