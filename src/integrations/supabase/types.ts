@@ -2436,6 +2436,7 @@ export type Database = {
           trades: string[]
           updated_at: string
           website: string | null
+          work_profile: Json
           work_types: string[]
         }
         Insert: {
@@ -2458,6 +2459,7 @@ export type Database = {
           trades?: string[]
           updated_at?: string
           website?: string | null
+          work_profile?: Json
           work_types?: string[]
         }
         Update: {
@@ -2480,6 +2482,7 @@ export type Database = {
           trades?: string[]
           updated_at?: string
           website?: string | null
+          work_profile?: Json
           work_types?: string[]
         }
         Relationships: []
@@ -11292,6 +11295,10 @@ export type Database = {
         Returns: string
       }
       mcp_company_tier: { Args: { _company: string }; Returns: string }
+      mcp_company_work_profile_save: {
+        Args: { _company: string; _p: Json }
+        Returns: Json
+      }
       mcp_contract_check_key: { Args: { _key: string }; Returns: boolean }
       mcp_contract_document_save: {
         Args: { _job: string; _p: Json }
