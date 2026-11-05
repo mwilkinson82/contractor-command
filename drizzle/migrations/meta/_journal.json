@@ -687,6 +687,13 @@
       "when": 1793883794454,
       "tag": "0097_athena_payment_proofs",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1793888046133,
+      "tag": "0098_athena_gap_check",
+      "breakpoints": true
     }
   ]
 }

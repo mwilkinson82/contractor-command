@@ -4070,22 +4070,82 @@ export type Database = {
           },
         ]
       }
+      mcp_estimate_gap_answers: {
+        Row: {
+          amount: number | null
+          answer: string
+          answered_by: string
+          company_id: string
+          covered_by: string | null
+          gap_ref: string
+          job_id: string
+          note: string | null
+          qualification: string | null
+          question: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          answer: string
+          answered_by?: string
+          company_id: string
+          covered_by?: string | null
+          gap_ref: string
+          job_id: string
+          note?: string | null
+          qualification?: string | null
+          question?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          answer?: string
+          answered_by?: string
+          company_id?: string
+          covered_by?: string | null
+          gap_ref?: string
+          job_id?: string
+          note?: string | null
+          qualification?: string | null
+          question?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_estimate_gap_answers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_estimate_gap_items: {
         Row: {
           active: boolean
           category: string
+          citations: Json
           company_id: string
+          condition_text: string | null
+          conditional: boolean
           created_at: string
           detail: string | null
           element: string | null
+          exposure_high: number | null
+          exposure_low: number | null
           holds_bid: boolean
           id: string
           job_id: string
           kind: string
           line_no: number | null
           qty: number | null
+          question: string | null
           reasoning: string
           ref: string
+          schedule_activity: string | null
           severity: string
           sheet: string
           spec_section: string
@@ -4095,18 +4155,25 @@ export type Database = {
         Insert: {
           active?: boolean
           category: string
+          citations?: Json
           company_id: string
+          condition_text?: string | null
+          conditional?: boolean
           created_at?: string
           detail?: string | null
           element?: string | null
+          exposure_high?: number | null
+          exposure_low?: number | null
           holds_bid?: boolean
           id?: string
           job_id: string
           kind: string
           line_no?: number | null
           qty?: number | null
+          question?: string | null
           reasoning: string
           ref: string
+          schedule_activity?: string | null
           severity: string
           sheet: string
           spec_section: string
@@ -4116,18 +4183,25 @@ export type Database = {
         Update: {
           active?: boolean
           category?: string
+          citations?: Json
           company_id?: string
+          condition_text?: string | null
+          conditional?: boolean
           created_at?: string
           detail?: string | null
           element?: string | null
+          exposure_high?: number | null
+          exposure_low?: number | null
           holds_bid?: boolean
           id?: string
           job_id?: string
           kind?: string
           line_no?: number | null
           qty?: number | null
+          question?: string | null
           reasoning?: string
           ref?: string
+          schedule_activity?: string | null
           severity?: string
           sheet?: string
           spec_section?: string
@@ -11524,6 +11598,25 @@ export type Database = {
         }
         Returns: Json
       }
+      mcp_estimate_gap_answer_clear: {
+        Args: { _gap: string; _job: string }
+        Returns: Json
+      }
+      mcp_estimate_gap_answer_save: {
+        Args: {
+          _amount: number
+          _answer: string
+          _covered_by: string
+          _gap: string
+          _job: string
+          _note: string
+          _qualification: string
+          _question: string
+          _source: string
+        }
+        Returns: Json
+      }
+      mcp_estimate_gap_board: { Args: { _job: string }; Returns: Json }
       mcp_estimate_gaps_save: {
         Args: { _items: Json; _job: string }
         Returns: Json
