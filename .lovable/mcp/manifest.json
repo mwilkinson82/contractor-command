@@ -6897,7 +6897,6 @@
               "maxLength": 200
             },
             "seats": {
-              "description": "How many seats the owner mentioned, if any",
               "type": "integer",
               "minimum": 1,
               "maximum": 500

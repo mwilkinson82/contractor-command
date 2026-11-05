@@ -184,7 +184,7 @@ export const teamAddSeats = defineTool({
     "Gives the company owner the account page link where they add seats at $49 per seat per month.",
   inputSchema: {
     company_id: companyId,
-    seats: z.number().int().min(1).max(500).optional().describe("How many seats the owner mentioned, if any"),
+    seats: z.number().int().min(1).max(500).optional(),
     confirmed: z.literal(true).optional(),
   },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
