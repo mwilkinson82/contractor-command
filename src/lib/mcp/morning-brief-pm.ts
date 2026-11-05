@@ -114,7 +114,8 @@ function previousWorkDay(d: string, mask: number | null): string {
 
 const remainingOf = (a: FocusAct) => !a.actual_finish && a.pct < 100;
 const workingOn = (a: FocusAct, d: string) => !a.milestone && remainingOf(a) && !!a.start && !!a.finish && a.start <= d && a.finish >= d;
-const who = (a: FocusAct) => (a.party === "self" ? "Self-perform" : a.subco ?? (a.party === "sub" ? "Subcontractor" : "Crew"));
+// With no responsible party coded on the activity, name none rather than guess "Crew".
+const who = (a: FocusAct): string | null => (a.party === "self" ? "Self-perform" : a.subco ?? (a.party === "sub" ? "Subcontractor" : null));
 const floatText = (a: FocusAct) => (a.critical ? "critical path" : a.total_float != null ? `${a.total_float} days float` : "");
 const LONG_LEAD = /fabricat|deliver|procure|order|long[- ]?lead|manufactur|lead time|package/i;
 
@@ -229,7 +230,7 @@ function ganttActs(c: Ctx): GanttAct[] {
       pct: a.pct,
       critical: a.critical,
       party: a.party,
-      meta: `${who(a)} · ${md(a.start!)} to ${md(a.finish!)}`,
+      meta: [who(a), `${md(a.start!)} to ${md(a.finish!)}`].filter(Boolean).join(" · "),
       tag: [a.pct ? `${a.pct}%` : null, a.critical ? "Critical" : a.total_float != null ? `${a.total_float}d float` : null].filter(Boolean).join(" · "),
     }));
 }
@@ -247,7 +248,7 @@ function todaySection(c: Ctx): BriefSectionDoc | null {
     const left = a.remaining != null ? `${plural(a.remaining, "day")} left, ` : "";
     const when = starting ? `starts ${dmd(a.start!)}` : `${left}done ${dmd(a.finish!)}`;
     return {
-      title: `${who(a)}: ${a.name}`,
+      title: who(a) ? `${who(a)}: ${a.name}` : a.name,
       detail: [when, floatText(a)].filter(Boolean).join(" · "),
       tone: a.critical ? "bad" : null,
       checks: checksFor(a, c.label),
