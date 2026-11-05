@@ -525,6 +525,11 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   // Held kinds are already plural ("exposures", "Earlier pay applications").
   for (const h of job.held) {
     const kind = h.kind.toLowerCase();
+    // An older file can't bring the IOR, but the job already has one: nothing is missing.
+    if (kind === "exposures" && !job.ior && ctx.has_ior) {
+      kept.push("The job already has an IOR in Athena; kept Athena's.");
+      continue;
+    }
     (h.archived ? archivedNotes : held).push(
       `${plural(h.count, kind.replace(/s$/, ""), kind)}: ${h.why}`,
     );
@@ -562,11 +567,15 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
 
   // Archive: every source row not already archived on this job.
   const already = new Set(ctx.archived ?? []);
+  const archivedTables = new Set([...already].map((k) => k.slice(0, k.indexOf(":"))));
   let archive: ImportArchive = {};
   let archiveRows = 0;
   for (const [table, list] of Object.entries(job.archive)) {
     for (const [id, row] of Object.entries(list)) {
       if (already.has(`${table}:${id}`)) continue;
+      // A row with no id of its own (older exports) can't be matched to the copy a
+      // newer export keyed by id, so once the job holds that table it adds nothing.
+      if (id.startsWith("row:") && archivedTables.has(table)) continue;
       (archive[table] ??= {})[id] = row;
       archiveRows++;
     }
@@ -812,7 +821,37 @@ export function appliedCard(
     n("claims") ? `Claims: ${n("claims")}` : null,
     n("inspections") ? `Inspections: ${n("inspections")}` : null,
   ].filter((r): r is string => !!r);
-  const skipped = Array.isArray(result.skipped) ? (result.skipped as string[]) : [];
+  const raw = Array.isArray(result.skipped) ? (result.skipped as string[]) : [];
+  // The save names each kept contract fact by its key ("Contract contract value is
+  // already on the job; kept it."); say them once, in words.
+  const contractKept: string[] = [];
+  const skipped: string[] = [];
+  for (const line of raw) {
+    const m = /^Contract (.+) is already on the job; kept it\.$/.exec(line);
+    if (m) {
+      const key = m[1].replace(/ /g, "_");
+      contractKept.push(CONTRACT_FACT_LABELS[key] ?? m[1]);
+    } else skipped.push(line);
+  }
+  if (contractKept.length) {
+    const list = joinList(contractKept);
+    skipped.unshift(
+      `${list.charAt(0).toUpperCase()}${list.slice(1)} ${contractKept.length === 1 ? "was" : "were"} already on the job; kept them as they were.`,
+    );
+  }
+  const next: string[] = [];
+  if (n("change_orders"))
+    next.push("Open change orders are drafts. Review each one before it goes to the owner.");
+  const opened = [
+    n("ior") ? "the IOR" : null,
+    n("schedule_activities") ? "the CPM" : null,
+    n("decisions") || n("claims") || n("inspections") ? "the job logs" : null,
+  ].filter((x): x is string => !!x);
+  next.push(
+    result.already_applied
+      ? `Nothing more to save. Want me to open job ${jobNumber}'s board?`
+      : `Next: want me to open job ${jobNumber}'s board${opened.length ? ` so you can check ${joinList(opened)}` : ""}?`,
+  );
   return {
     state: "result",
     title: result.already_applied
@@ -824,8 +863,6 @@ export function appliedCard(
       listSection("Saved", rows.length ? rows : ["Nothing new"], "known"),
       listSection("Kept as it was", skipped, "known"),
     ].filter((s): s is CardSection => !!s),
-    next_move: n("change_orders")
-      ? "Open change orders are drafts. Review each one before it goes to the owner."
-      : null,
+    next_move: next.join(" "),
   };
 }

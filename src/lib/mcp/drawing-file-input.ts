@@ -22,6 +22,7 @@ const FILE_TOOLS = new Set([
   "billing_document_upload",
   "job_cost_receipt",
   "job_cost_original",
+  "job_import",
   "progress_photo_save",
 ]);
 export function drawingFileMeta(name: string): Record<string, unknown> {

@@ -966,3 +966,54 @@ describe("job import save", () => {
     await expect(query("SELECT * FROM mcp_import_batches")).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("job import by a regular member", () => {
+  const pm = "00000000-0000-4000-8000-000000000a06";
+  const est = "00000000-0000-4000-8000-000000000a07";
+  const member = async (id: string, role: string) => {
+    await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
+      id,
+      `${id.slice(-2)}@example.com`,
+    ]);
+    await db.query("INSERT INTO test_active_members VALUES ($1)", [id]);
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,$3,$4)",
+      [company, id, role, `QA ${role}`],
+    );
+  };
+  beforeAll(async () => {
+    await member(pm, "pm");
+    await member(est, "estimating");
+  });
+
+  it("lets a PM import a new job, and the PM can then use it", async () => {
+    const x = v2();
+    x.project.job_number = "4101";
+    const { batch_id, package_hash } = await stage(x, pm);
+    const result = await rpc<Record<string, unknown>>(
+      "mcp_job_import_apply",
+      [batch_id, package_hash, true],
+      pm,
+    );
+    expect(result).toMatchObject({ job_created: true, already_applied: false });
+    expect(Number(result.claims)).toBeGreaterThan(0);
+    expect(Number(result.inspections)).toBeGreaterThan(0);
+    const scope = await query("SELECT public.mcp_job_scope($1) AS s", [result.job_id], pm);
+    expect(scope.rows[0].s).toBe("full");
+    const again = await stage(x, pm);
+    expect(Object.values(again.plan.counts).every((n) => n === 0)).toBe(true);
+  });
+
+  it("tells a PM who isn't on a job, and an estimator, that the job needs full access", async () => {
+    const ctx = await rpc<ImportContext>(
+      "mcp_job_import_context",
+      [company, "3101", "overwatch"],
+      pm,
+    );
+    expect(ctx).toMatchObject({ job_exists: true });
+    expect(ctx.scope).not.toBe("full");
+    const x = sample();
+    await expect(stage(x, pm)).rejects.toThrow(/full access/);
+    await expect(stage(x, est)).rejects.toThrow(/full access/);
+  });
+});
