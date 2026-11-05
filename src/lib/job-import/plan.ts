@@ -392,6 +392,9 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
+/** Calendar days a source's project completion may sit from its baseline activities' finish. */
+const COMPLETION_MISMATCH_DAYS = 7;
+
 export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   const job = importJob.parse(raw);
   const from = SOURCE_NAME[job.source.system];
@@ -415,6 +418,24 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     contractFacts.retainage = `${job.contract.retainage_pct}%`;
   if (job.job.customer) contractFacts.customer = job.job.customer;
   if (job.job.completion_date) contractFacts.substantial_completion = job.job.completion_date;
+  // The source's project completion should match its own baseline activities. When they disagree, the
+  // member says which is the contract date, because delay is measured against it.
+  const baselineEnd = job.schedule
+    .map((a) => a.baseline_finish)
+    .filter((d): d is string => !!d)
+    .sort()
+    .pop();
+  if (job.job.completion_date && baselineEnd) {
+    const gap = Math.round(
+      (Date.parse(`${job.job.completion_date.slice(0, 10)}T00:00:00Z`) -
+        Date.parse(`${baselineEnd.slice(0, 10)}T00:00:00Z`)) /
+        86_400_000,
+    );
+    if (Math.abs(gap) > COMPLETION_MISMATCH_DAYS)
+      fixes.push(
+        `${from}'s project completion is ${shortDay(job.job.completion_date)}, but its baseline activities finish ${shortDay(baselineEnd)}, ${Math.abs(gap)} days ${gap > 0 ? "earlier" : "later"}. Which is the contract completion date? Athena measures delay against it, so say which one to use before you say yes.`,
+      );
+  }
   const keptContract: string[] = [];
   for (const key of Object.keys(contractFacts)) {
     if ((ctx.contract_keys ?? []).includes(key)) {

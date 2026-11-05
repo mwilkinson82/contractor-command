@@ -831,6 +831,9 @@ function legendHtml(m: Model): string {
   return `<div class="cpm-legend" aria-label="Legend"><span>${sw(ACT)}Actual</span><span>${sw(CRIT)}${m.definition === "longest-path" ? "Remaining, longest path" : "Remaining, critical (TF ≤ 0)"}</span><span>${sw(NEG)}Remaining, negative float</span><span>${sw(POS)}Remaining, positive float</span><span>${sw(`repeating-linear-gradient(45deg,${CRIT} 0 3px,#F6C2BF 3px 6px)`)}Delay fragnet</span><span>${sw(BL, "height:4px")}Baseline</span>${m.prior ? `<span>${sw("#8FB0DD", "height:4px")}Last update</span>` : ""}<span>${sw(FLT, "height:2px")}Total float</span><span><svg width="11" height="11" aria-hidden="true"><path d="M5.5 0l5.5 5.5-5.5 5.5L0 5.5z" fill="${INK}"/></svg>Milestone</span><span><svg width="22" height="8" aria-hidden="true"><path d="M0 4h15" stroke="${INK}" stroke-width="1.4"/><path d="M15 1l6 3-6 3z" fill="${INK}"/></svg>Driving tie</span><span><svg width="22" height="8" aria-hidden="true"><path d="M0 4h15" stroke="${FLT}" stroke-dasharray="3 2"/><path d="M15 1l6 3-6 3z" fill="${FLT}"/></svg>Non-driving tie</span><span>${sw(BLUE, "width:2px;height:12px")}Data date</span>${m.cc !== null ? `<span>${sw(`repeating-linear-gradient(${INK} 0 3px,transparent 3px 5px)`, "width:2px;height:12px")}Contract completion</span>` : ""}</div>`;
 }
 
+/** Working days a contract completion may sit from the baseline finish before Athena asks which is right. */
+export const COMPLETION_MISMATCH_WD = 5;
+
 /** Headline numbers for the top of the page. */
 export function ganttSummary(m: Model) {
   const driver = m.longest.map((id) => m.byId.get(id)).find((r) => r && !r.done && !r.milestone);
@@ -840,11 +843,24 @@ export function ganttSummary(m: Model) {
       : null;
   const versusContract =
     m.cc !== null && m.forecast !== null ? workDaysBetween(m.cc, m.forecast, m.projectCal) : null;
+  // A contract completion far from the baseline's own finish is a date to confirm, not float: measured
+  // against it, a job running behind its plan reads as early.
+  const contractVsBaseline =
+    m.cc !== null && m.baselineFinish !== null
+      ? workDaysBetween(m.baselineFinish, m.cc, m.projectCal)
+      : null;
+  const completionMismatch =
+    contractVsBaseline !== null && Math.abs(contractVsBaseline) > COMPLETION_MISMATCH_WD
+      ? contractVsBaseline
+      : null;
   return {
     forecast: m.forecast,
     baselineFinish: m.baselineFinish,
+    contractCompletion: m.cc,
     versusBaseline,
     versusContract,
+    /** Working days from the baseline finish to the contract completion, when they disagree by more than a few days. */
+    completionMismatch,
     calendarDaysVsBaseline:
       m.baselineFinish !== null && m.forecast !== null
         ? Math.round((m.forecast - m.baselineFinish) / DAY)

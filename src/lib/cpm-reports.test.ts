@@ -10,6 +10,7 @@ import {
   scheduleNarrative,
 } from "./cpm-reports";
 import { renderReportBody } from "./report-pages";
+import { ganttModel, ganttSummary } from "./cpm-gantt";
 
 const act = (
   id: string,
@@ -168,5 +169,40 @@ describe("schedule reports", () => {
     for (const id of ["cpm-narrative", "cpm-lookahead", "cpm-health"])
       expect(page).toContain(`id="${id}"`);
     expect(page.indexOf('id="cpm-gantt"')).toBeLessThan(page.indexOf('id="cpm-narrative"'));
+  });
+
+  it("leads with the forecast against the baseline and flags a contract date far from it", () => {
+    const ok = scheduleNarrative(input())[0];
+    expect(ok).toContain("driven by its logic and recorded progress");
+    expect(ok.indexOf("baseline finish")).toBeLessThan(ok.indexOf("contract completion"));
+    expect(ok).not.toContain("isn't used to measure delay");
+    // A contract date months after the plan would make a job behind its baseline read as early.
+    const far = { ...input(), contractCompletion: "2026-06-30" };
+    const s = ganttSummary(ganttModel(far));
+    expect(s.completionMismatch).toBeGreaterThan(5);
+    const first = scheduleNarrative(far)[0];
+    expect(first).toContain("the baseline finish of");
+    expect(first).toContain("The contract completion on file, 06/30/26,");
+    expect(first).toContain("isn't used to measure delay until the contract date is confirmed");
+    expect(first).not.toMatch(/early|before the contract/);
+    const cpli = scheduleHealth(far).find((h) => h.id === 13)!;
+    expect(cpli.note).toContain("Measured to the baseline finish");
+    expect(cpli.value).toBe(
+      scheduleHealth({ ...far, contractCompletion: null }).find((h) => h.id === 13)!.value,
+    );
+    const page = renderReportBody({
+      page: "schedule",
+      job_number: "QA-1",
+      report: {
+        found: true,
+        version: 3,
+        data_date: "2026-03-09",
+        contract_completion_date: "2026-06-30",
+        data: far.data,
+      },
+    });
+    expect(page).toContain('data-completion-mismatch="true"');
+    expect(page).toContain("Variance to baseline");
+    expect(page).not.toContain("WD early");
   });
 });

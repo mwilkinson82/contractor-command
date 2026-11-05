@@ -196,18 +196,34 @@ function scheduleView(p: JobPayload): string {
     // Calculated schedules get the P6-style page: logic, longest and float paths, filters, inspector, print.
     const input = { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date };
     const s = ganttSummary(ganttModel(input));
-    const late = s.versusContract ?? s.versusBaseline;
-    const against = s.versusContract !== null ? "contract" : "baseline";
+    // The logic-driven forecast leads against the baseline finish, so delay shows; the contract date is a
+    // second yardstick only when it agrees with the plan.
+    const variance = (n: number) => (n > 0 ? `${n} WD late` : n < 0 ? `${-n} WD early` : "On time");
+    const late = s.versusBaseline ?? (s.completionMismatch === null ? s.versusContract : null);
+    const against = s.versusBaseline !== null ? "baseline" : "contract";
+    const contractTile =
+      s.contractCompletion === null
+        ? []
+        : s.completionMismatch !== null
+          ? [tile("Contract completion", `${shortDay(s.contractCompletion)} · confirm`, true)]
+          : s.versusBaseline !== null && s.versusContract !== null
+            ? [tile("Variance to contract", variance(s.versusContract), s.versusContract > 0)]
+            : [];
     out.push(
       tiles([
         tile("Data date", r.data_date ? shortDay(Date.parse(`${r.data_date.slice(0, 10)}T00:00:00Z`)) : "Needed"),
         tile("Forecast completion", s.forecast === null ? "Needed" : shortDay(s.forecast), (late ?? 0) > 0),
-        tile(`Variance to ${against}`, late === null ? "No baseline" : late > 0 ? `${late} WD late` : late < 0 ? `${-late} WD early` : "On time", (late ?? 0) > 0),
+        tile(`Variance to ${against}`, late === null ? "No baseline" : variance(late), (late ?? 0) > 0),
+        ...contractTile,
         tile("Longest path driver", s.driverId ?? (control.calculation.status === "calculated" ? "Complete" : "Not calculated")),
         tile("Float paths", String(s.pathCount)),
         ...(isNum(r.contract_total) ? [tile("Contract", money(r.contract_total))] : []),
       ]),
     );
+    if (s.completionMismatch !== null && s.contractCompletion !== null && s.baselineFinish !== null)
+      out.push(
+        `<p data-completion-mismatch="true" style="margin:-4px 0 12px;padding:10px 12px;border:1px solid #F5C26B;border-radius:8px;background:#FFF8EB;font-size:13px;color:${NAVY}"><strong>Check the contract completion.</strong> ${esc(`The contract completion on file, ${shortDay(s.contractCompletion)}, is ${Math.abs(s.completionMismatch)} working days ${s.completionMismatch > 0 ? "after" : "before"} the baseline finish of ${shortDay(s.baselineFinish)}. Delay is measured to the baseline finish until the contract date is confirmed.`)}</p>`,
+      );
     if (s.longestLine) out.push(`<p data-longest-path="true" style="margin:-4px 0 16px;font-size:13px;color:${NAVY}"><strong>Longest path:</strong> ${esc(s.longestLine)}</p>`);
     out.push(card(ganttHtml(input)));
     out.push(card(narrativeHtml(input)));
