@@ -8,6 +8,11 @@
 // `left_out`. Both read here.
 import {
   ARCHIVE_TABLE,
+  CLAIM_EVENTS,
+  CLAIM_STATUSES,
+  CLAIM_TYPES,
+  INSPECTION_RESULTS,
+  INSPECTION_STATUSES,
   clip,
   emptyImport,
   IOR_CATEGORIES,
@@ -47,21 +52,27 @@ const HELD_TABLES: Record<string, string> = {
   project_documents: "Files need their own copy step; this import moves records, not files.",
   daily_report_attachments: "Daily photos and attachments need their own copy step.",
   exposures: "The IOR risk register is rebuilt in Athena's living IOR report, not copied.",
-  decisions: "Owner decisions are not mapped yet.",
-  project_claims: "Claims are not mapped yet.",
-  project_inspections: "Inspections are not mapped yet.",
+  decisions:
+    "This export carries only a count; export again from Overwatch to bring the decisions.",
+  project_claims:
+    "This export carries only a count; export again from Overwatch to bring the claims.",
+  project_inspections:
+    "This export carries only a count; export again from Overwatch to bring the inspections.",
   project_selections: "Selections are not mapped yet.",
   schedule_milestones: "Milestones come with the schedule step.",
 };
 
-/** Rows the archive keeps, but that are not live Athena records yet (phase B). */
+/** Rows the archive keeps, but that are not live Athena records yet. */
 const ARCHIVED_HELD: Record<string, string> = {
-  decisions: "Kept read-only in the job's archive; owner decisions are not a live Athena log yet.",
-  project_claims: "Kept read-only in the job's archive; claims are not a live Athena log yet.",
-  project_inspections:
-    "Kept read-only in the job's archive; inspections are not a live Athena log yet.",
   project_documents:
     "Each file's name and storage path is kept in the job's archive; the files themselves copy in a later file step.",
+};
+
+const INSPECTION_RESULT_OF_STATUS: Record<string, string> = {
+  passed: "pass",
+  failed: "fail",
+  partial: "partial",
+  cancelled: "cancelled",
 };
 
 export const OVERWATCH_FORMAT = "overwatch.job_export";
@@ -570,6 +581,11 @@ export function fromOverwatch(
       open: !toDay(r.date_returned) && !["a", "aan"].includes(str(r.status).toLowerCase()),
       sent_on: toDay(r.date_submitted),
       due_on: toDay(r.due_date),
+      // Overwatch keeps the reply in comments once the RFI is returned; it
+      // doesn't record who answered.
+      answer_text: toDay(r.date_returned) ? clip(r.comments, 12000) || null : null,
+      answered_on: toDay(r.date_returned),
+      answered_by: null,
     }));
   out.submittals = log
     .filter((r) => str(r.kind) !== "rfi")
@@ -598,11 +614,34 @@ export function fromOverwatch(
       };
     });
 
-  out.schedule = rows(x.schedule_activities)
-    .sort((a, b) => num(a.sort_order) - num(b.sort_order))
-    .map((a) => ({
+  // Schedule: activities keep Overwatch's activity IDs and logic. Overwatch
+  // stores predecessors as a plain list (no relationship type or lag), so each
+  // becomes finish-to-start with no lag. A predecessor may be written as the
+  // activity ID or the row id; both resolve. Milestones join as zero-duration
+  // finish milestones after the activities. No dollar values: Overwatch has
+  // none per activity, and Athena never spreads them.
+  const acts = rows(x.schedule_activities).sort((a, b) => num(a.sort_order) - num(b.sort_order));
+  const idOf = new Map<string, string>();
+  for (const a of acts) {
+    const id = clip(a.activity_id, 20) || clip(a.id, 20);
+    idOf.set(str(a.id), id);
+    if (str(a.activity_id)) idOf.set(str(a.activity_id), id);
+  }
+  const wbsIds = new Set(rows(x.schedule_wbs_sections).map((w) => str(w.id)));
+  const unknownLinks: string[] = [];
+  out.schedule = acts.map((a) => {
+    const id = idOf.get(str(a.id))!;
+    const preds = (Array.isArray(a.predecessor_activity_ids) ? a.predecessor_activity_ids : [])
+      .map((v) => {
+        const hit = idOf.get(str(v));
+        if (!hit && str(v)) unknownLinks.push(`${id} -> ${clip(v, 40)}`);
+        return hit ?? "";
+      })
+      .filter((v, i, all) => v && v !== id && all.indexOf(v) === i)
+      .slice(0, 20);
+    return {
       source_id: `activity:${str(a.id)}`,
-      id: clip(a.activity_id, 20) || clip(a.id, 20),
+      id,
       name: clip(a.name, 160) || clip(a.activity_id, 160),
       start: toDay(a.actual_start_date) ?? toDay(a.forecast_start_date) ?? toDay(a.start_date),
       finish: toDay(a.actual_finish_date) ?? toDay(a.forecast_finish_date) ?? toDay(a.finish_date),
@@ -612,10 +651,141 @@ export function fromOverwatch(
           : Math.max(0, Math.trunc(num(a.planned_duration_days))),
       pct_complete:
         a.percent_complete == null ? null : Math.min(100, Math.max(0, num(a.percent_complete))),
-      predecessors: (Array.isArray(a.predecessor_activity_ids) ? a.predecessor_activity_ids : [])
-        .map((v) => clip(v, 20))
-        .filter(Boolean)
-        .slice(0, 20),
+      predecessors: preds,
+      actual_start: toDay(a.actual_start_date),
+      actual_finish: toDay(a.actual_finish_date),
+      remaining_days:
+        a.remaining_duration_days == null || a.remaining_duration_days === ""
+          ? null
+          : Math.max(0, Math.trunc(num(a.remaining_duration_days))),
+      wbs: wbsIds.has(str(a.wbs_section_id)) ? `wbs:${str(a.wbs_section_id)}` : null,
+    };
+  });
+  rows(x.schedule_milestones)
+    .sort((a, b) => num(a.sort_order) - num(b.sort_order))
+    .forEach((m, i) => {
+      const date = toDay(m.forecast_date) ?? toDay(m.baseline_date);
+      let id = `MS-${String(i + 1).padStart(2, "0")}`;
+      while (idOf.has(id)) id = `${id}A`;
+      out.schedule.push({
+        source_id: `milestone:${str(m.id) || i}`,
+        id,
+        name: clip(m.name, 160) || `Milestone ${i + 1}`,
+        start: date,
+        finish: date,
+        duration_days: 0,
+        pct_complete: null,
+        predecessors: [],
+        milestone: true,
+      });
+    });
+  out.schedule_wbs = rows(x.schedule_wbs_sections)
+    .sort((a, b) => num(a.sort_order) - num(b.sort_order))
+    .map((w, i) => ({
+      source_id: `wbs:${str(w.id)}`,
+      name: clip(w.name, 160) || `Section ${i + 1}`,
+      order: i,
+    }));
+  if (unknownLinks.length)
+    out.problems.push(
+      `${unknownLinks.length} schedule logic link${unknownLinks.length === 1 ? "" : "s"} point${unknownLinks.length === 1 ? "s" : ""} at an activity not in the export and ${unknownLinks.length === 1 ? "is" : "are"} left off: ${unknownLinks.slice(0, 5).join(", ")}.`,
+    );
+
+  // Owner decisions, claims (with their events) and inspections, from a file
+  // that carries their rows. Links to an Overwatch change order resolve at save
+  // through the import ledger; a link to an exposure is kept by its title, as
+  // the IOR names it.
+  const exposureTitle = new Map(
+    rows(x.exposures).map((e) => [str(e.id), clip(e.title, 300) || clip(e.description, 300)]),
+  );
+  const coLink = (v: unknown) => (str(v) ? `change_order:${str(v)}` : null);
+  const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
+    (allowed as readonly string[]).includes(str(v)) ? (str(v) as T) : fallback;
+  out.decisions = rows(x.decisions)
+    .filter((d) => clip(d.decision, 2000))
+    .map((d) => ({
+      source_id: `decision:${str(d.id)}`,
+      decision: clip(d.decision, 2000),
+      // Overwatch: open, in_progress, resolved, overdue. Overdue is a date
+      // fact Athena reads from the due date, so it comes in open.
+      status:
+        str(d.status) === "resolved"
+          ? ("decided" as const)
+          : str(d.status) === "in_progress"
+            ? ("in_progress" as const)
+            : ("open" as const),
+      owner_name: clip(d.owner, 120) || null,
+      due_on: toDay(d.due_date),
+      impact: clip(d.impact, 2000) || null,
+      notes: clip(d.notes, 4000) || null,
+      exposure_ref: exposureTitle.get(str(d.linked_exposure_id)) || null,
+      change_order: coLink(d.linked_co_id),
+    }));
+  const claimEvents = rows(x.project_claim_events);
+  out.claims = rows(x.project_claims).map((c, i) => ({
+    source_id: `claim:${str(c.id)}`,
+    number: clip(c.claim_number, 40) || `CL-${String(i + 1).padStart(3, "0")}`,
+    claim_type: pick(c.claim_type, CLAIM_TYPES, "other"),
+    title: clip(c.title, 200) || clip(c.description, 200) || `Claim ${i + 1}`,
+    description: clip(c.description, 12000),
+    status: pick(c.status, CLAIM_STATUSES, "in_preparation"),
+    money_claimed_cents: Math.max(0, toCents(c.money_claimed) ?? 0),
+    money_awarded_cents: Math.max(0, toCents(c.money_awarded) ?? 0),
+    time_claimed_days: Math.max(0, Math.trunc(num(c.time_claimed_days))),
+    time_awarded_days: Math.max(0, Math.trunc(num(c.time_awarded_days))),
+    submitted_on: toDay(c.submitted_at),
+    resolved_on: toDay(c.resolved_at),
+    outcome: clip(c.outcome, 4000) || null,
+    owner_name: clip(c.owner, 120) || null,
+    exposure_ref: exposureTitle.get(str(c.risk_exposure_id)) || null,
+    change_order: coLink(c.change_order_id),
+    events: claimEvents
+      .filter((e) => str(e.claim_id) === str(c.id))
+      .sort((a, b) => (toDay(a.event_date) ?? "").localeCompare(toDay(b.event_date) ?? ""))
+      .map((e) => ({
+        source_id: `claim_event:${str(e.id)}`,
+        event_type: pick(e.event_type, CLAIM_EVENTS, "other"),
+        event_date: toDay(e.event_date),
+        revision_number: Math.min(99, Math.max(0, Math.trunc(num(e.revision_number)))),
+        note: clip(e.note, 4000) || null,
+      })),
+  }));
+  // Parents before their reinspections, so each parent resolves first.
+  const insp = rows(x.project_inspections);
+  const depth = (r: Row, seen = 0): number => {
+    const parent = insp.find((p) => str(p.id) === str(r.parent_inspection_id));
+    return parent && seen < 50 ? 1 + depth(parent, seen + 1) : 0;
+  };
+  out.inspections = [...insp]
+    .sort((a, b) => depth(a) - depth(b) || num(a.attempt_number) - num(b.attempt_number))
+    .map((r) => ({
+      source_id: `inspection:${str(r.id)}`,
+      inspection_type: clip(r.inspection_type, 120) || "Inspection",
+      authority: clip(r.authority, 200) || null,
+      location: clip(r.location, 200) || null,
+      inspector: clip(r.inspector, 120) || null,
+      responsible_party: clip(r.responsible_party, 120) || null,
+      status: pick(r.status, INSPECTION_STATUSES, "planned"),
+      // Overwatch can leave the result unset on a closed inspection; its status says it.
+      result: pick(
+        r.result || INSPECTION_RESULT_OF_STATUS[str(r.status)],
+        INSPECTION_RESULTS,
+        "pending",
+      ),
+      requested_on: toDay(r.requested_date),
+      scheduled_on: toDay(r.scheduled_date),
+      completed_on: toDay(r.completed_date),
+      attempt: Math.min(99, Math.max(1, Math.trunc(num(r.attempt_number) || 1))),
+      reinspection_required: r.required_reinspection === true,
+      cost_impact_cents: toCents(r.cost_impact) ?? 0,
+      schedule_impact_weeks:
+        r.schedule_impact_weeks == null || r.schedule_impact_weeks === ""
+          ? null
+          : num(r.schedule_impact_weeks),
+      notes: clip(r.notes, 4000) || null,
+      corrective_action: clip(r.corrective_action, 4000) || null,
+      risk_ref: exposureTitle.get(str(r.risk_exposure_id)) || null,
+      parent: str(r.parent_inspection_id) ? `inspection:${str(r.parent_inspection_id)}` : null,
     }));
 
   // Dailies: the recent window only. Older logs stay in Overwatch as the record.

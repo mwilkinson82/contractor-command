@@ -22,18 +22,21 @@ of the same job replaces the older one.
 
 ## What comes in
 
-| Old system                                                                                                                                                                                                    | Athena                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Job number, name, PM                                                                                                                                                                                          | New job (or the existing job, full access only)                                                                         |
-| Original contract, approved change orders, retainage, customer                                                                                                                                                | Contract facts `contract_value`, `executed_change_orders`, `retainage`, `customer`, `contract_value_basis`              |
-| SOV lines (Overwatch cost buckets plus approved CO allocations)                                                                                                                                               | Official SOV, fee 0% with basis "Imported from …"                                                                       |
-| Billing to date from the latest sent pay app                                                                                                                                                                  | `mcp_import_opening_balances` per SOV line (work, stored, retainage). Pay app preparation does not read it yet.         |
-| Original budget per cost code                                                                                                                                                                                 | Budget facts                                                                                                            |
-| Pending change orders                                                                                                                                                                                         | Priced PCO drafts (`mcp_change_record` create + price). Not sent.                                                       |
-| Submittal log                                                                                                                                                                                                 | `mcp_submittal_log` import rows, source `imported`                                                                      |
-| Dailies with work quantities, last 28 days                                                                                                                                                                    | `mcp_daily_report_save`, only on dates with no Athena daily                                                             |
-| IOR (format 2): project contract, cost budget, phase, % complete, completion dates; cost codes' actual and forecast to complete; approved and pending change orders with cost and probability; open exposures | Version 1 of the job's IOR living report (`data.ior_model`, via `mcp_living_report_save`), only when the job has no IOR |
-| Every row in the file, every table (format 1 or 2)                                                                                                                                                            | `mcp_import_archive`: read-only, one row per source table and row id, as the source stored it                           |
+| Old system                                                                                                                                                                                                    | Athena                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Job number, name, PM                                                                                                                                                                                          | New job (or the existing job, full access only)                                                                                                                      |
+| Original contract, approved change orders, retainage, customer                                                                                                                                                | Contract facts `contract_value`, `executed_change_orders`, `retainage`, `customer`, `contract_value_basis`                                                           |
+| SOV lines (Overwatch cost buckets plus approved CO allocations)                                                                                                                                               | Official SOV, fee 0% with basis "Imported from …"                                                                                                                    |
+| Billing to date from the latest sent pay app                                                                                                                                                                  | `mcp_import_opening_balances` per SOV line (work, stored, retainage). Pay app preparation does not read it yet.                                                      |
+| Original budget per cost code                                                                                                                                                                                 | Budget facts                                                                                                                                                         |
+| Pending change orders                                                                                                                                                                                         | Priced PCO drafts (`mcp_change_record` create + price). Not sent.                                                                                                    |
+| Submittal log                                                                                                                                                                                                 | `mcp_submittal_log` import rows, source `imported`                                                                                                                   |
+| Dailies with work quantities, last 28 days                                                                                                                                                                    | `mcp_daily_report_save`, only on dates with no Athena daily                                                                                                          |
+| IOR (format 2): project contract, cost budget, phase, % complete, completion dates; cost codes' actual and forecast to complete; approved and pending change orders with cost and probability; open exposures | Version 1 of the job's IOR living report (`data.ior_model`, via `mcp_living_report_save`), only when the job has no IOR                                              |
+| Schedule activities, WBS sections and milestones                                                                                                                                                              | Version 1 of the job's CPM (`mcp_living_report_save`, type `cpm`), organized with `schedule_workflow`'s organize path, not cost loaded, only when the job has no CPM |
+| RFIs (submittal log rows of kind `rfi`)                                                                                                                                                                       | Athena's RFI log, recorded as handled outside Athena (`mcp_request_record_outside`); never sent from Athena                                                          |
+| Owner decisions, claims with their events, inspections (format 2)                                                                                                                                             | The owner decision log, claims register and inspection log (`mcp_job_log_record`)                                                                                    |
+| Every row in the file, every table (format 1 or 2)                                                                                                                                                            | `mcp_import_archive`: read-only, one row per source table and row id, as the source stored it                                                                        |
 
 Athena never overwrites: a known contract fact, an existing SOV, a budget cost
 code, a submittal number and revision, a daily already on the job, or an IOR the
@@ -93,22 +96,93 @@ export of up to 2,000,000 characters, so an export that fits the tool fits the
 batch. The archive is capped at 50,000 rows; if the package would pass 5.5 MB the
 archive is left out with a line on the card and everything else still saves.
 
+### Schedule
+
+The schedule becomes version 1 of the job's CPM, only when the job has no CPM
+(otherwise the card says "kept Athena's"). It goes through the same organize
+path as `schedule_workflow` (`initial_activities`), so Athena checks IDs,
+logic and dates the way it checks a CPM a member builds.
+
+- Each activity keeps its ID, name, duration, start and finish, percent
+  complete, actual start and finish and remaining duration. An actual finish
+  makes it 100% complete; an actual finish with no actual start is left off and
+  listed.
+- Predecessors come in as finish-to-start with lag 0 (Overwatch keeps no link
+  type or lag). A link to an activity not in the export is left off and listed.
+- WBS sections become Athena WBS groups. Milestones become milestone
+  activities `MS-01`, `MS-02` … with duration 0 on their forecast date (or
+  baseline date when there is no forecast).
+- No dollars. The CPM is not cost loaded and nothing spreads the contract onto
+  it. Schedule updates, activity history and delay fragments stay in the
+  archive.
+- If Athena can't organize the schedule (a logic loop, more than 400
+  activities), it is left out with a line saying why, and everything else saves.
+
+### CPM without cost loading
+
+A CPM saves with activity IDs, logic and durations alone. The partial-loading
+rule: a CPM is cost loaded once any activity carries a value other than 0 (an
+owner-furnished value counts). Then every billable value must add up to the
+contract to the cent, and an activity with no value counts as $0. A billing
+forecast always ties. On a CPM that isn't cost loaded, `cpm_activities` and the
+billing forecast say plainly that a billing forecast or earned value from the
+schedule isn't available; they never spread dollars.
+
+### RFIs handled outside Athena
+
+An imported RFI, or one a member records with `rfi_record` action
+`record_outside`, goes on Athena's RFI log marked "outside Athena", with where it
+was handled, its number there, the date sent and to whom, and the answer, its
+date and who gave it when known.
+
+- Sent with no answer: state `sent_outside`, shown as "Sent outside Athena".
+  An answer is then captured the usual way (`rfi_record` action `answer`).
+- Answered: state `answered`; the answer text comes from Overwatch's comments
+  (or a line saying none was recorded).
+- No sent date: a draft.
+
+It is never sent from Athena and has no send receipt. RFIs sent through Athena
+keep their rule: status `submitted` still needs a send receipt, and an answer
+can only be captured against a sent question. A reopened RFI is a new Athena
+draft without the outside marker.
+
+### Job logs
+
+Three logs, read with `project_log` and written with `project_log_record`
+(`log`: `claims`, `inspections` or `decisions`). Full job access reads and
+writes all three; a Super reads and records inspections only, never their cost.
+Every write carries a `request_id` for safe retries, and updates go by record
+version.
+
+- Claims register (`mcp_claims`, `mcp_claim_events`): number, type, status,
+  money and time claimed and awarded, dates, outcome. A claim may link a delay
+  event (`mcp_delay_events`), and so that event's claim open item, plus a
+  change order and an IOR risk by title.
+- Inspection log (`mcp_inspections`): type, authority, status and result,
+  requested, scheduled and completed dates, attempt, reinspection, cost and
+  schedule impact. A reinspection points at the inspection it follows.
+- Owner decision log (`mcp_decisions`): what needs deciding, owner, due date,
+  impact, outcome. It may link a change order, an IOR risk and a selection on
+  the job's Good, Better, Best selection board (`selection_id`). That link is
+  checked against the board when written and is read only: the board and its
+  contract are unchanged. Overwatch's own selections are archived, not put on
+  the board.
+
+Overwatch statuses map as named; decision `resolved` is `decided`, and
+`overdue` comes in `open` (Athena works out overdue from the due date). An
+inspection with no result takes it from its status (passed is pass).
+
 ## What is not live in Athena yet
 
-With a format 2 file these are in the archive, read-only, and the card says so:
-
-- RFIs. Athena's RFI log tracks RFIs it sends; a "sent outside Athena" state is
-  the next step.
-- The CPM schedule. It comes in through `schedule_workflow`, which ties
-  activities to the SOV.
-- Owner decisions, claims, inspections, and files (the archive keeps each file's
-  name and storage path; the files copy in a later step).
+Files: the archive keeps each file's name and storage path; the files copy in a
+later step.
 
 Archived and counted on the card, but not separate Athena records: earlier pay
 apps (the latest one becomes the opening balance), actual costs, subcontracts
-and payments, selections, rejected and void change orders, exposures with no
-hold, and dailies with no quantities or older than the window. A format 1 file
-carries only counts for most of these; they stay in Overwatch.
+and payments, selections, schedule updates and delay fragments, rejected and
+void change orders, exposures with no hold, and dailies with no quantities or
+older than the window. A format 1 file carries only counts for most of these;
+they stay in Overwatch.
 
 ## Overwatch job export format
 
@@ -170,3 +244,20 @@ replaces `mcp_job_import_context` (adds `has_ior`, `archived`),
 (adds the IOR and archive steps; every earlier step unchanged). A package with
 an IOR or archive is version 2, so a database without this migration refuses it
 instead of saving part of it.
+
+`supabase/migrations/20261105100000_athena_job_logs.sql` (same content as
+`drizzle/migrations/0080_athena_job_logs.sql`; stage only; needs
+20261105090000 first):
+
+- Replaces `mcp_living_report_save` so a CPM ties only when cost loaded.
+- Allows RFI state `sent_outside` and adds `mcp_request_record_outside`; patches
+  `mcp_request_record` and `mcp_request_rows` to treat it as sent and mark
+  `recorded_outside`.
+- Adds `mcp_claims`, `mcp_claim_events`, `mcp_inspections`, `mcp_decisions` and
+  `mcp_job_log_operations`: read by full job access, no direct writes.
+- Adds `mcp_job_log_record` and `mcp_job_log_rows`.
+- Replaces the import's context (adds `has_cpm`), stage (accepts package version 3) and apply (adds the schedule, RFI, decision, claim and inspection steps).
+
+A package with any of these is version 3.
+Rollback: `supabase/rollbacks/20261105100000_athena_job_logs.rollback.sql`
+(keeps the log tables and their rows).

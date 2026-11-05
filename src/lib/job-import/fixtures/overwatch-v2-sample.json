@@ -228,6 +228,17 @@
       "status": "pending",
       "date_submitted": "2026-10-05",
       "due_date": "2026-10-12"
+    },
+    {
+      "id": "r2",
+      "kind": "rfi",
+      "number": "RFI-002",
+      "item": "Door frame anchors",
+      "description": "Which anchor applies at the metal stud wall?",
+      "status": "a",
+      "date_submitted": "2026-10-01",
+      "date_returned": "2026-10-06",
+      "comments": "Use the stud anchor in detail 4/A501."
     }
   ],
   "schedule_activities": [
@@ -388,12 +399,72 @@
       "notes": ""
     }
   ],
-  "project_claims": [],
+  "project_claims": [
+    {
+      "id": "cl1",
+      "project_id": "p-1",
+      "claim_number": "CL-001",
+      "claim_type": "extension_of_time",
+      "title": "Late owner finish selections",
+      "description": "Owner finish selections arrived 15 days after the schedule date.",
+      "status": "submitted",
+      "money_claimed": 12500,
+      "money_awarded": 0,
+      "time_claimed_days": 15,
+      "time_awarded_days": 0,
+      "submitted_at": "2026-10-20T15:00:00Z",
+      "resolved_at": null,
+      "outcome": null,
+      "owner": "Example Health",
+      "risk_exposure_id": "e1",
+      "change_order_id": "c3"
+    }
+  ],
+  "project_claim_events": [
+    {
+      "id": "ce1",
+      "claim_id": "cl1",
+      "event_type": "submitted",
+      "event_date": "2026-10-20",
+      "revision_number": 0,
+      "note": "Sent with schedule fragment."
+    },
+    {
+      "id": "ce2",
+      "claim_id": "cl1",
+      "event_type": "received",
+      "event_date": "2026-10-22",
+      "revision_number": 0,
+      "note": null
+    }
+  ],
   "project_inspections": [
     {
       "id": "i1",
       "inspection_type": "Framing",
       "status": "passed"
+    },
+    {
+      "id": "i2",
+      "inspection_type": "Above-ceiling",
+      "authority": "City building department",
+      "status": "failed",
+      "result": "fail",
+      "scheduled_date": "2026-10-28",
+      "completed_date": "2026-10-28",
+      "attempt_number": 1,
+      "required_reinspection": true,
+      "cost_impact": 800,
+      "notes": "Missing fire caulk at two penetrations."
+    },
+    {
+      "id": "i3",
+      "inspection_type": "Above-ceiling",
+      "authority": "City building department",
+      "status": "scheduled",
+      "scheduled_date": "2026-11-06",
+      "attempt_number": 2,
+      "parent_inspection_id": "i2"
     }
   ],
   "cost_actuals": [
@@ -428,7 +499,9 @@
     {
       "id": "m1",
       "name": "Substantial completion",
-      "date": "2027-03-31"
+      "baseline_date": "2027-03-31",
+      "forecast_date": "2027-04-14",
+      "sort_order": 1
     }
   ],
   "project_documents": [
@@ -444,21 +517,22 @@
     "change_order_allocations": 2,
     "billing_applications": 3,
     "billing_line_items": 3,
-    "submittal_log_entries": 4,
+    "submittal_log_entries": 5,
     "schedule_activities": 2,
     "daily_reports": 3,
     "daily_wip_entries": 2,
     "exposures": 5,
     "exposure_allocations": 0,
     "decisions": 1,
-    "project_claims": 0,
-    "project_inspections": 1,
+    "project_claims": 1,
+    "project_inspections": 3,
     "cost_actuals": 1,
     "subcontracts": 1,
     "subcontractors": 1,
     "billing_forecast_settings": 1,
     "schedule_milestones": 1,
-    "project_documents": 1
+    "project_documents": 1,
+    "project_claim_events": 2
   },
   "left_out": [
     {

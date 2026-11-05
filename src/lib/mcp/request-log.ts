@@ -11,8 +11,28 @@ export type RequestRow = {
   revision: number;
   state: "draft" | "sent" | "answered" | "closed";
   transmittal_number: number;
-  request_details: RequestDetails;
+  /** Sent and/or answered outside Athena: recorded here, never sent from Athena, no send receipt. */
+  recorded_outside?: boolean;
+  request_details: RequestDetails & { outside?: OutsideRecord };
 };
+export type OutsideRecord = {
+  source?: string | null;
+  source_number?: string | null;
+  sent_on?: string | null;
+  sent_to?: string | null;
+  answered_on?: string | null;
+  answered_by?: string | null;
+};
+
+/** One plain line for a request recorded outside Athena. */
+export function outsideLine(o: OutsideRecord): string {
+  const where = [o.source || "another system", o.source_number].filter(Boolean).join(" ");
+  const sent = o.sent_on ? `sent ${o.sent_on}${o.sent_to ? ` to ${o.sent_to}` : ""}` : "not sent";
+  const answered = o.answered_on
+    ? `, answered ${o.answered_on}${o.answered_by ? ` by ${o.answered_by}` : ""}`
+    : "";
+  return `Recorded outside Athena (${where}): ${sent}${answered}. Not sent from Athena; there is no Athena send receipt.`;
+}
 export type RequestLogPayload = {
   job_id: string;
   job_number: string;
@@ -40,8 +60,19 @@ export function requestOverdue(row: RequestRow, today: string): boolean {
   );
 }
 
-export function requestSections(details: RequestDetails): CardSection[] {
+export function requestSections(
+  details: RequestDetails & { outside?: OutsideRecord },
+): CardSection[] {
   return [
+    ...(details.outside
+      ? [
+          {
+            heading: "Handled outside Athena",
+            kind: "list" as const,
+            rows: [{ cells: [outsideLine(details.outside)] }],
+          },
+        ]
+      : []),
     ...requestContent(details).map((section) => ({
       heading: section.heading,
       kind: "list" as const,
@@ -106,7 +137,9 @@ export function requestLogCard(
                 row.title,
                 row.state === "draft"
                   ? "Draft, not sent"
-                  : row.state[0].toUpperCase() + row.state.slice(1),
+                  : row.state[0].toUpperCase() +
+                    row.state.slice(1) +
+                    (row.recorded_outside ? " outside Athena" : ""),
                 row.state === "sent"
                   ? row.request_details.recipient_name || "Recipient not named"
                   : "Contractor",

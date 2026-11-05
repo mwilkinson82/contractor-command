@@ -3,6 +3,8 @@
 // The package shape is what public.mcp_job_import_apply reads.
 import type { CardModel, CardRow, CardSection } from "../mcp/cards/model";
 import { heldCents, readIorModel } from "../ior-model";
+import { checkSave, type Activity, type LivingData } from "../mcp/living";
+import { prepareSchedule, ScheduleInputError } from "../mcp/schedule-control";
 import { importJob, type ImportArchive, type ImportJob, type ImportSource } from "./model";
 import { archiveGroup } from "./overwatch";
 
@@ -25,6 +27,8 @@ export type ImportContext = {
   has_ior?: boolean;
   /** source_table:source_id already in the job's import archive from this source */
   archived?: string[];
+  /** True when the job already has a CPM living report (any version). */
+  has_cpm?: boolean;
 };
 
 /**
@@ -35,8 +39,11 @@ export type ImportContext = {
 export const PACKAGE_MAX_BYTES = 5_500_000;
 
 export type ImportPackage = {
-  /** 1: the original package. 2: adds ior and archive (needs migration 20261105090000). */
-  version: 1 | 2;
+  /**
+   * 1: the original package. 2: adds ior and archive (migration 20261105090000).
+   * 3: adds schedule, rfis, decisions, claims and inspections (20261105100000).
+   */
+  version: 1 | 2 | 3;
   source: { system: ImportSource; label: string; exported_at: string | null };
   job: { source_id: string; name: string; pm_name: string | null; pm_email: string | null };
   billing: { last_application: string | null; period_to: string | null };
@@ -50,6 +57,27 @@ export type ImportPackage = {
   ior?: PlannedIor | null;
   /** Rows to add to the job's read-only archive: table -> source id -> row. */
   archive?: ImportArchive | null;
+  /** Version 1 of the job's CPM, organized from the source (no cost loading). */
+  schedule?: PlannedSchedule | null;
+  rfis?: { source_id: string; payload: Record<string, unknown> }[];
+  decisions?: PlannedLog[];
+  claims?: (PlannedLog & { events: { source_id: string; payload: Record<string, unknown> }[] })[];
+  inspections?: (PlannedLog & { parent: string | null })[];
+};
+
+type PlannedSchedule = {
+  source_id: string;
+  data_date: string;
+  what: string;
+  activity_count: number;
+  milestones: number;
+  data: LivingData;
+};
+/** change_order: source_id of a change order brought in earlier, resolved at save. */
+type PlannedLog = {
+  source_id: string;
+  change_order: string | null;
+  payload: Record<string, unknown>;
 };
 
 type PlannedIor = {
@@ -334,21 +362,143 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
       );
   }
 
-  // Not brought in yet
-  const keptInArchive = (table: string) =>
-    inArchive(table) ? " They are kept read-only in the job's archive until then." : "";
-  if (job.rfis.length) {
-    const open = job.rfis.filter((r) => r.open).length;
-    held.push(
-      inArchive("submittal_log_entries")
-        ? `${plural(job.rfis.length, "RFI")} (${open} open): Athena's RFI log only tracks RFIs it sends.${keptInArchive("submittal_log_entries")}`
-        : `${plural(job.rfis.length, "RFI")} (${open} open): Athena's RFI log only tracks RFIs it sends, so these stay in ${from} for now.`,
-    );
+  // RFIs: recorded in Athena's RFI log as sent and/or answered outside Athena.
+  // Never sent from Athena, so they carry no send receipt and say so.
+  const rfis: NonNullable<ImportPackage["rfis"]> = [];
+  for (const r of job.rfis) {
+    if (done.has(`rfi:${r.source_id}`)) continue;
+    const answered = r.answered_on ?? null;
+    rfis.push({
+      source_id: r.source_id,
+      payload: {
+        title: r.title || `RFI ${r.number}`,
+        question: r.question || r.title || `RFI ${r.number}`,
+        condition: r.title || r.question || `RFI ${r.number}`,
+        source: from,
+        source_number: r.number,
+        sent_on: r.sent_on,
+        due_date: r.due_on,
+        answer_text: answered
+          ? r.answer_text || `Returned in ${from} on ${answered}; no answer text was recorded.`
+          : null,
+        answered_on: answered,
+        answered_by: r.answered_by ?? null,
+      },
+    });
   }
-  if (job.schedule.length)
-    held.push(
-      `${plural(job.schedule.length, "schedule activity", "schedule activities")}: the CPM comes in through Athena's schedule step, which ties activities to the SOV.${keptInArchive("schedule_activities")}`,
-    );
+
+  // Schedule: version 1 of the job's CPM through the organize path, only when
+  // the job has none. IDs, logic, durations and dates as reported; no dollars.
+  let schedule: PlannedSchedule | null = null;
+  if (job.schedule.length) {
+    if (ctx.has_cpm) kept.push("The job already has a CPM in Athena; kept Athena's.");
+    else if (done.has(`schedule:${job.job.source_id}`))
+      kept.push("The schedule came in on an earlier import.");
+    else {
+      const dataDate =
+        job.source.exported_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+      const notes: string[] = [];
+      const activities: Activity[] = job.schedule.map((a) => {
+        let actualFinish = a.actual_finish ?? null;
+        if (actualFinish && !a.actual_start) {
+          notes.push(
+            `${a.id} has an actual finish but no actual start in ${from}; the finish is left off.`,
+          );
+          actualFinish = null;
+        }
+        const done100 = !!actualFinish;
+        if (done100 && a.pct_complete != null && a.pct_complete !== 100)
+          notes.push(
+            `${a.id} has an actual finish, so it comes in 100% complete (${from} showed ${a.pct_complete}%).`,
+          );
+        return {
+          id: a.id,
+          name: a.name || a.id,
+          duration: a.milestone ? 0 : a.duration_days,
+          start: a.start,
+          finish: a.finish,
+          predecessors: a.predecessors.map((id) => ({ id, type: "FS" as const, lag: 0 })),
+          total_float: null,
+          critical: null,
+          pct_complete: done100 ? 100 : a.pct_complete,
+          value: null,
+          sov_line: null,
+          cost_code: null,
+          ...(a.wbs ? { wbs_id: a.wbs } : {}),
+          ...(a.milestone ? { activity_type: "milestone-finish" as const } : {}),
+          ...(a.actual_start ? { actual_start: a.actual_start } : {}),
+          ...(actualFinish ? { actual_finish: actualFinish } : {}),
+          ...(done100
+            ? { remaining_duration: 0 }
+            : a.remaining_days != null
+              ? { remaining_duration: a.remaining_days }
+              : {}),
+        };
+      });
+      const wbs = (job.schedule_wbs ?? []).map((w) => ({
+        id: w.source_id,
+        name: w.name,
+        parent_id: null,
+        order: w.order,
+      }));
+      try {
+        if (activities.length > 400)
+          throw new ScheduleInputError("it has more than Athena's 400 activities.");
+        const prepared = prepareSchedule(null, 0, {
+          operation: "organize",
+          data_date: dataDate,
+          initial_activities: activities as never,
+          ...(wbs.length ? { wbs } : {}),
+        });
+        const check = checkSave("cpm", prepared.data, null, null);
+        if (!check.ok) throw new ScheduleInputError(check.problems.join(" "));
+        const milestones = job.schedule.filter((a) => a.milestone).length;
+        schedule = {
+          source_id: job.job.source_id,
+          data_date: dataDate,
+          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${milestones ? ` (${plural(milestones, "milestone")})` : ""}, logic as ${from} had it, not cost loaded.`,
+          activity_count: activities.length,
+          milestones,
+          data: prepared.data,
+        };
+        fixes.push(...notes);
+      } catch (e) {
+        if (!(e instanceof ScheduleInputError)) throw e;
+        fixes.push(
+          `The schedule can't come in as Athena's CPM yet, so it is left out: ${e.message}${inArchive("schedule_activities") ? " The rows are kept in the job's archive." : ""}`,
+        );
+      }
+    }
+  }
+
+  // Owner decisions, claims with their events, and inspections.
+  const coLink = (id: string | null) => (id ? id : null);
+  const decisions: PlannedLog[] = (job.decisions ?? [])
+    .filter((d) => !done.has(`decision:${d.source_id}`))
+    .map(({ source_id, change_order, ...payload }) => ({
+      source_id,
+      change_order: coLink(change_order),
+      payload,
+    }));
+  const claims: NonNullable<ImportPackage["claims"]> = (job.claims ?? [])
+    .filter((c) => !done.has(`claim:${c.source_id}`))
+    .map(({ source_id, change_order, events, ...payload }) => ({
+      source_id,
+      change_order: coLink(change_order),
+      payload,
+      events: events.map(({ source_id: id, ...e }) => ({ source_id: id, payload: e })),
+    }));
+  const inspections: NonNullable<ImportPackage["inspections"]> = (job.inspections ?? [])
+    .filter((i) => !done.has(`inspection:${i.source_id}`))
+    .map(({ source_id, parent, ...payload }) => ({
+      source_id,
+      parent,
+      change_order: null,
+      payload,
+    }));
+  const phaseB =
+    !!schedule || rfis.length + decisions.length + claims.length + inspections.length > 0;
+
   // Held kinds are already plural ("exposures", "Earlier pay applications").
   for (const h of job.held) {
     const kind = h.kind.toLowerCase();
@@ -400,7 +550,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   }
 
   const pkg: ImportPackage = {
-    version: ior || archiveRows ? 2 : 1,
+    version: phaseB ? 3 : ior || archiveRows ? 2 : 1,
     source: {
       system: job.source.system,
       label: job.source.label,
@@ -420,7 +570,8 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     change_orders: changeOrders,
     submittals,
     dailies,
-    ...(ior || archiveRows ? { ior, archive: archiveRows ? archive : null } : {}),
+    ...(ior || archiveRows || phaseB ? { ior, archive: archiveRows ? archive : null } : {}),
+    ...(phaseB ? { schedule, rfis, decisions, claims, inspections } : {}),
   };
   const bytes = new TextEncoder().encode(JSON.stringify(pkg)).length;
   if (bytes > PACKAGE_MAX_BYTES && pkg.archive) {
@@ -430,7 +581,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     pkg.archive = null;
     archive = {};
     archiveRows = 0;
-    if (!pkg.ior) {
+    if (!pkg.ior && !phaseB) {
       pkg.version = 1;
       delete pkg.ior;
       delete pkg.archive;
@@ -449,6 +600,11 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
       dailies: dailies.length,
       ior: ior ? 1 : 0,
       archive_rows: archiveRows,
+      schedule_activities: schedule ? schedule.activity_count : 0,
+      rfis: rfis.length,
+      decisions: decisions.length,
+      claims: claims.length,
+      inspections: inspections.length,
     },
     kept,
     held,
@@ -534,6 +690,25 @@ export function reviewCard(plan: ImportPlan, jobNumber: string, jobExists: boole
         .join(", ")})`,
     );
   }
+  if (p.schedule)
+    create.push(
+      `CPM, version 1: ${plural(p.schedule.activity_count, "activity", "activities")}${p.schedule.milestones ? ` with ${plural(p.schedule.milestones, "milestone")}` : ""}, logic and dates as ${from} had them, not cost loaded`,
+    );
+  if (c.rfis) {
+    const answered = (p.rfis ?? []).filter((r) => r.payload.answered_on).length;
+    const sent = (p.rfis ?? []).filter((r) => r.payload.sent_on && !r.payload.answered_on).length;
+    create.push(
+      `RFI log: ${plural(c.rfis, "RFI")} recorded as handled outside Athena (${answered} answered, ${sent} sent and waiting${c.rfis - answered - sent ? `, ${c.rfis - answered - sent} never sent, as drafts` : ""}); none is re-sent`,
+    );
+  }
+  if (c.decisions) create.push(`Owner decision log: ${plural(c.decisions, "decision")}`);
+  if (c.claims) {
+    const events = (p.claims ?? []).reduce((t, cl) => t + cl.events.length, 0);
+    create.push(
+      `Claims register: ${plural(c.claims, "claim")}${events ? ` with ${plural(events, "event")}` : ""}`,
+    );
+  }
+  if (c.inspections) create.push(`Inspection log: ${plural(c.inspections, "inspection")}`);
   const costed = p.change_orders.some((co) => co.cost_cents != null);
   const sections = [
     listSection("Will be saved", create, "known"),
@@ -606,6 +781,13 @@ export function appliedCard(
     n("dailies") ? plural(n("dailies"), "daily report", "daily reports") : null,
     n("ior") ? `IOR version 1 with ${plural(n("ior_risks"), "risk")}` : null,
     n("archive_rows") ? `Archive: ${plural(n("archive_rows"), "record")}, read-only` : null,
+    n("schedule_activities")
+      ? `CPM version 1 with ${plural(n("schedule_activities"), "activity", "activities")}`
+      : null,
+    n("rfis") ? `RFI log: ${plural(n("rfis"), "RFI")} recorded outside Athena` : null,
+    n("decisions") ? `Owner decisions: ${n("decisions")}` : null,
+    n("claims") ? `Claims: ${n("claims")}` : null,
+    n("inspections") ? `Inspections: ${n("inspections")}` : null,
   ].filter((r): r is string => !!r);
   const skipped = Array.isArray(result.skipped) ? (result.skipped as string[]) : [];
   return {
