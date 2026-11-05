@@ -84,7 +84,11 @@ export function useJobCommercial(input: {
         rpc("mcp_project_purchase_orders_get", { _job: jobId }),
       ]);
       if (p.error && c.error) throw new Error("Contracts unavailable.");
-      return { contracts: c.error ? null : c.data, pos: p.error ? null : p.data, posFailed: !!p.error };
+      return {
+        contracts: c.error ? null : c.data,
+        pos: p.error ? null : p.data,
+        posFailed: !!p.error,
+      };
     },
   });
   const contracted = contractValue !== null;
@@ -107,10 +111,21 @@ export function useJobCommercial(input: {
 
 export type JobCommercial = ReturnType<typeof useJobCommercial>;
 
-export function StageStrip({ stage }: { stage: number }) {
+/** Pre-con jobs start two stages earlier: the agreement, then the design. */
+const PRECON_STAGES = [
+  ["Pre-con", "Agreement"],
+  ["Design", "Drawings"],
+] as const;
+
+export function StageStrip({ stage, precon }: { stage: number; precon?: boolean }) {
+  const stages = precon ? [...PRECON_STAGES, ...STAGES] : STAGES;
   return (
-    <ol className="jb-stages" aria-label="Where this job stands">
-      {STAGES.map(([name, detail], i) => (
+    <ol
+      className="jb-stages"
+      data-precon={precon ? "true" : undefined}
+      aria-label="Where this job stands"
+    >
+      {stages.map(([name, detail], i) => (
         <li
           key={name}
           data-state={i < stage ? "done" : i === stage ? "now" : "later"}
@@ -136,7 +151,15 @@ export function stageOf(c: JobCommercial, fieldStarted: boolean): number {
 }
 
 /** Copies an ask for the member's Athena chat. Nothing is sent or saved from the board. */
-export function CopyAsk({ ask, label, primary }: { ask: string; label: string; primary?: boolean }) {
+export function CopyAsk({
+  ask,
+  label,
+  primary,
+}: {
+  ask: string;
+  label: string;
+  primary?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <span>
@@ -165,7 +188,13 @@ export function CopyAsk({ ask, label, primary }: { ask: string; label: string; p
   );
 }
 
-export function NextStepCard({ step, href }: { step: NextStep | null; href: (p: string) => string }) {
+export function NextStepCard({
+  step,
+  href,
+}: {
+  step: NextStep | null;
+  href: (p: string) => string;
+}) {
   if (!step) return null;
   return (
     <section className="jb-card jb-next" aria-label="Athena next step">
@@ -427,8 +456,8 @@ function ProposalCard({
         </div>
       ) : !contracted ? (
         <p className="jb-empty">
-          No Good, Better, Best options yet. Offer upgrades by asking Athena to set them up from
-          the estimate.
+          No Good, Better, Best options yet. Offer upgrades by asking Athena to set them up from the
+          estimate.
         </p>
       ) : null}
       <div className="jb-actions">
@@ -470,7 +499,9 @@ export function EstimateProposalSection({
         ) : (
           <article className="jb-card">
             <h3>Estimate</h3>
-            <p className="jb-empty">The estimate is unavailable right now. Nothing is assumed empty.</p>
+            <p className="jb-empty">
+              The estimate is unavailable right now. Nothing is assumed empty.
+            </p>
           </article>
         )}
         <ProposalCard
@@ -557,7 +588,9 @@ export function ContractsSection({
     <section className="jb-section" id="contracts" aria-labelledby="jb-contracts-head">
       <div className="jb-section-head">
         <h2 id="jb-contracts-head">Contracts</h2>
-        <p className="jh-small">Every agreement on this job: who it's with, what it covers, where it stands.</p>
+        <p className="jh-small">
+          Every agreement on this job: who it's with, what it covers, where it stands.
+        </p>
       </div>
       {c.contractsQuery.isLoading ? (
         <div className="jb-card">
@@ -630,7 +663,9 @@ export function ContractsSection({
               <p className="jb-empty">No contracts on this job yet.</p>
             )}
             {c.posFailed ? (
-              <p className="jh-small">Purchase orders are unavailable right now, so none are listed.</p>
+              <p className="jh-small">
+                Purchase orders are unavailable right now, so none are listed.
+              </p>
             ) : null}
             {!o.recordAvailable ? (
               <p className="jh-small">
@@ -656,7 +691,11 @@ export function ContractsSection({
             </div>
           </div>
           {c.contracted && c.g?.exists ? (
-            <GbbCard g={c.g} jobNumber={jobNumber} heading="Good, Better, Best options on this contract" />
+            <GbbCard
+              g={c.g}
+              jobNumber={jobNumber}
+              heading="Good, Better, Best options on this contract"
+            />
           ) : null}
         </>
       )}

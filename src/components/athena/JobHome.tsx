@@ -26,6 +26,13 @@ import { JobHomeNotifications, NotificationsBell, NotificationsNavLink } from ".
 import { JobHomeChangeOrders } from "./JobHomeChangeOrders";
 import { JobHomeMessages } from "./JobHomeMessages";
 import { JobNoticeEmailSettings } from "./JobNoticeEmailSettings";
+import {
+  PreconOffer,
+  PreconSection,
+  preconBoardStep,
+  preconStage,
+  usePrecon,
+} from "./JobHomePrecon";
 import "./project-overview.css";
 import {
   ContractsSection,
@@ -194,6 +201,13 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
     userId: session?.user.id,
     contractValue:
       full && session && !financial.error ? (financial.data?.contract.amount ?? null) : null,
+  });
+  const precon = usePrecon({
+    jobId,
+    companyId: jobs.data?.find((j) => j.id === jobId)?.company_id,
+    enabled: !!base && full && !!session,
+    visible,
+    userId: session?.user.id,
   });
   if (loading || field.isLoading)
     return (
@@ -375,7 +389,12 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           : accountingMoney(payment(key)?.cents ?? null);
   const comms = full && session && !communications.error ? communications.data : undefined;
   const commercialOn = full && !!session;
-  const stage = stageOf(commercial, today?.found === true);
+  const pre = commercialOn ? precon.a : null;
+  const stage = preconStage(pre, stageOf(commercial, today?.found === true));
+  const preStep = pre ? preconBoardStep(pre, base.job_number ?? "") : null;
+  // Offer pre-con only where the company said it sells it, and only before an estimate or contract exists.
+  const offerPrecon =
+    commercialOn && !pre && precon.offer && !commercial.contracted && !commercial.e;
   const estimateFirst = !commercial.contracted;
   const estimateSection = (
     <EstimateProposalSection c={commercial} jobNumber={base.job_number ?? ""} href={href} />
@@ -425,6 +444,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             <NotificationsNavLink jobId={jobId} token={token} />
             {commercialOn ? (
               <>
+                {pre ? (
+                  <a href="#precon" className="jh-nav-icon">
+                    Pre-construction
+                  </a>
+                ) : null}
                 <a href="#estimate" className="jh-nav-icon">
                   Estimate &amp; proposal
                 </a>
@@ -461,8 +485,15 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             ) : null}
             {commercialOn ? (
               <>
-                <StageStrip stage={stage} />
-                <NextStepCard step={nextStepOf(commercial, base.job_number ?? "")} href={href} />
+                <StageStrip stage={stage} precon={!!pre} />
+                <NextStepCard
+                  step={preStep ?? nextStepOf(commercial, base.job_number ?? "")}
+                  href={href}
+                />
+                {offerPrecon ? <PreconOffer jobNumber={base.job_number ?? ""} /> : null}
+                {pre && pre.status !== "closed" ? (
+                  <PreconSection a={pre} jobNumber={base.job_number ?? ""} />
+                ) : null}
                 {estimateFirst ? estimateSection : contractsSection}
               </>
             ) : null}
@@ -568,6 +599,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
               </p>
             )}
             {commercialOn ? (estimateFirst ? contractsSection : estimateSection) : null}
+            {pre && pre.status === "closed" ? (
+              <PreconSection a={pre} jobNumber={base.job_number ?? ""} />
+            ) : null}
             <div className="jh-columns">
               <section className="jh-panel" aria-labelledby="jh-schedule">
                 <h2 id="jh-schedule">Schedule &amp; next work</h2>

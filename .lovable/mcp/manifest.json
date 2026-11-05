@@ -20992,6 +20992,225 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "precon",
+        "title": "Pre-construction",
+        "description": "The pre-construction agreement on a job: a contractor sells the owner the design phase before there are drawings to price. The price is the designer's fee (architect, draftsman, engineer) plus an optional markup, plus the contractor's own hours (coordination, constructability, schedule and lead times, means and methods, the estimate) at one hourly rate. Athena computes the price; never type one. The owner keeps the drawings. Billing is in full at signing, or split half at signing and half at final drawings. An optional credit applies the fee to the construction contract if the owner signs within a window of days after final drawings. Actions: get; save (terms, before signing, with expected_version from get, 0 for a new agreement); step (sent, signed with the signer's name, drawings_approved, hours as a running total, won, lost, reopen); issue_invoice (the next installment, recorded as an ordinary billing invoice and linked); apply_credit (posts the fee as a credit against a submitted pay application, then links it). Pre-con is optional per job: only start one when the member says this job has a pre-construction agreement. Read every amount, date and name from what the member says; never mark the agreement sent or signed, or the drawings approved, unless the member said so. issue_invoice and apply_credit record money on the job: show the member the invoice or credit first and call with confirmed true only after their yes. Nothing is sent to the owner by this tool. After each call, walk the member to the next step on the card (for example: Did the owner sign it? Issue invoice 2 for $8,500? Apply the pre-con credit to the first pay application?).",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "save",
+                "step",
+                "issue_invoice",
+                "apply_credit"
+              ]
+            },
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "expected_version": {
+              "description": "The agreement version from get; 0 to start a new agreement.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "design_partner": {
+              "description": "Who draws it: the architect's or draftsman's firm.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "design_role": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "architect",
+                    "draftsman",
+                    "engineer",
+                    "designer",
+                    "other"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "design_fee_cents": {
+              "description": "The designer's fee to the contractor, in cents.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "design_days": {
+              "description": "How long the designer needs, in days.",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "design_markup_bps": {
+              "description": "Markup on the design fee in basis points (1000 = 10%).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "hourly_rate_cents": {
+              "description": "The contractor's hourly rate for their own time, in cents.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "time_lines": {
+              "description": "The contractor's own time, in quarter hours.",
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "hours": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 2000
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "label",
+                  "hours"
+                ]
+              }
+            },
+            "includes": {
+              "description": "What the owner gets, in the contractor's words.",
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "billing": {
+              "type": "string",
+              "enum": [
+                "full",
+                "split"
+              ]
+            },
+            "credit": {
+              "description": "Is the fee credited to the construction contract if the owner hires the contractor?",
+              "type": "boolean"
+            },
+            "credit_days": {
+              "description": "Days after final drawings the credit stays open. Default 90.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 730
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "signed",
+                "drawings_approved",
+                "hours",
+                "won",
+                "lost",
+                "reopen"
+              ]
+            },
+            "on": {
+              "description": "The date the step happened. Default today.",
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "signed_name": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "signed_via": {
+              "type": "string",
+              "enum": [
+                "client_page",
+                "paper",
+                "email"
+              ]
+            },
+            "hours": {
+              "description": "Total hours used so far against the agreement.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "pay_application_id": {
+              "description": "The construction pay application the credit applies to.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }
