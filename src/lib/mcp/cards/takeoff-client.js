@@ -1056,6 +1056,7 @@
       selectedGeometry = null;
       selectedPoint = -1;
       showList();
+      revealLine();
       overlay();
       showReadStatus();
     }
@@ -1393,10 +1394,33 @@
       draft = [];
       holes = [];
       // The side list opens the selected line; switching lines redraws it.
-      if (lineChanged || !selected.isConnected) showList();
-      else showSelected();
+      if (lineChanged || !selected.isConnected) {
+        showList();
+        revealLine();
+      } else showSelected();
       showReadStatus();
       notice("Inspect mode. Saved marks are not changed by selecting them.");
+    }
+    // The line just picked moves to the top of the side panel, so the eye only has to
+    // move right to read it. Only the panel scrolls; the drawing stays where it is.
+    function revealLine() {
+      var card = list.querySelector(".line.sel");
+      if (!card) return;
+      var box = card.parentNode;
+      while (box && box.nodeType === 1 && box !== document.body) {
+        var style = window.getComputedStyle(box);
+        if (
+          /(auto|scroll)/.test(style.overflowY || style.overflow) &&
+          box.scrollHeight > box.clientHeight
+        )
+          break;
+        box = box.parentNode;
+      }
+      if (!box || box.nodeType !== 1 || box === document.body) return;
+      box.scrollTop = Math.max(
+        0,
+        card.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 6,
+      );
     }
     var suppressPinClick = false;
     // The selected pin gets a pulsing ring and crosshair in its line's color so the
@@ -1721,8 +1745,10 @@
             ? "Moving points on the selected mark. Nothing changes until you save."
             : mode === "calibrate"
               ? "Click both ends of a dimension you know, then type its length."
-              : (TOOL_HINTS[mode] || "Click on the sheet to place points.") +
-                (draft.length ? " Not saved yet: " + draftWords() + "." : "");
+              : areaPick
+                ? "Click two opposite corners of the floor plan. Your AI will count only inside that box."
+                : (TOOL_HINTS[mode] || "Click on the sheet to place points.") +
+                  (draft.length ? " Not saved yet: " + draftWords() + "." : "");
       svg.querySelectorAll("circle,path,text").forEach(function (e) {
         e.remove();
       });
@@ -2117,6 +2143,11 @@
     function showPreview() {
       if (mode === "calibrate") {
         preview.textContent = draft.length + " of 2 ends placed.";
+      } else if (areaPick) {
+        preview.textContent =
+          draft.length < 2
+            ? "Click two opposite corners of the floor plan, like top left and bottom right."
+            : "Box drawn. Click Use this box, or Undo point to redo a corner.";
       } else if (!draft.length) {
         preview.textContent = TOOL_HINTS[mode] || "";
       } else {
@@ -2301,12 +2332,12 @@
         areaBounds.width === 1 &&
         areaBounds.height === 1;
       confirmBox(
-        "Confirm count area: " +
-          area.name +
-          (whole
-            ? ". This is the WHOLE SHEET, including every plan and detail."
-            : ". Only this boundary will be read; everything outside is excluded.") +
-          " No quantity or scale is saved by this confirmation.",
+        (whole
+          ? "Count across the whole sheet? Your AI will count every plan, detail, schedule and legend on it, which can double count."
+          : "Count only inside \u201c" +
+            area.name +
+            "\u201d? Your AI will count marks inside this box and skip everything outside it, like schedules and the title block.") +
+          " Nothing is counted or measured yet.",
         function () {
           act("takeoff_geometry", {
             operation: "scope",
@@ -2314,6 +2345,11 @@
             count_area: area,
             confirm: true,
           });
+        },
+        {
+          yes: whole ? "Count the whole sheet" : "Count inside this box",
+          no: "Keep editing",
+          near: edit.hidden ? areaBox : edit,
         },
       );
     }
@@ -2395,7 +2431,7 @@
         mode === "calibrate"
           ? "Measure a known dimension"
           : areaPick
-            ? "Count area: " + (region.value.trim() || "unnamed")
+            ? "Where your AI counts: " + (region.value.trim() || "unnamed box")
             : "Drawing on " + (line ? "L" + line.line_no + " · " + line.item : "the selected line");
       depthBox.hidden = !(
         !areaPick &&
@@ -2406,7 +2442,7 @@
       openingBox.hidden = areaPick || (mode !== "polygon" && mode !== "rect");
       calBox.hidden = mode !== "calibrate";
       saveBox.replaceChildren();
-      if (areaPick) saveBox.append(button("Confirm count area", confirmCountArea, "primary"));
+      if (areaPick) saveBox.append(button("Use this box", confirmCountArea, "primary"));
       else if (mode !== "calibrate") saveBox.append(saveGeometry);
       saveBox.append(undoPoint);
       showPreview();
@@ -2493,34 +2529,40 @@
           "note small",
         ),
         stated,
-        button("Use this printed scale", function () {
-          if (!stated.value.trim() || !region.value.trim())
-            return notice("Type the printed scale first.");
-          var existing = sc.engine.calibrations.find(function (c) {
-            return (
-              c.source_id === sc.source.id && c.page === sc.source.page && c.region === region.value
+        button(
+          "Use this printed scale",
+          function () {
+            if (!stated.value.trim() || !region.value.trim())
+              return notice("Type the printed scale first.");
+            var existing = sc.engine.calibrations.find(function (c) {
+              return (
+                c.source_id === sc.source.id &&
+                c.page === sc.source.page &&
+                c.region === region.value
+              );
+            });
+            confirmBox(
+              "Use " +
+                stated.value.trim() +
+                " for " +
+                region.value +
+                "? It's only right if this PDF is printed at full size. You can check a known dimension any time.",
+              function () {
+                act("sheet_calibrate", {
+                  operation: "save",
+                  region: region.value,
+                  bounds: regionBounds(),
+                  stated_scale: stated.value.trim(),
+                  confirm_true_size: true,
+                  confirm_reference: true,
+                  expected_version: existing ? existing.version : 0,
+                });
+              },
+              { yes: "Use " + stated.value.trim(), no: "Cancel", near: scaleBox },
             );
-          });
-          confirmBox(
-            "Use " +
-              stated.value.trim() +
-              " for " +
-              region.value +
-              "? It's only right if this PDF is printed at full size. You can check a known dimension any time.",
-            function () {
-              act("sheet_calibrate", {
-                operation: "save",
-                region: region.value,
-                bounds: regionBounds(),
-                stated_scale: stated.value.trim(),
-                confirm_true_size: true,
-                confirm_reference: true,
-                expected_version: existing ? existing.version : 0,
-              });
-            },
-            { yes: "Use " + stated.value.trim(), no: "Cancel", near: scaleBox },
-          );
-        }),
+          },
+          "primary",
+        ),
       );
     }
     // Only a sheet with more than one saved scale needs a choice.
@@ -2530,17 +2572,38 @@
       cal.hidden = true;
       scaleBox.append(cal);
     }
+    // The count area is the box your AI counts inside, so the legend, schedules, details
+    // and title block never get counted as fixtures. Most sheets need it set once.
+    var areaNames = [];
+    (sc.engine.passes || []).forEach(function (p) {
+      var a = p.pass_summary && p.pass_summary.count_area;
+      if (
+        p.source_id === sc.source.id &&
+        p.page === sc.source.page &&
+        a &&
+        a.confirmed &&
+        areaNames.indexOf(a.name) < 0
+      )
+        areaNames.push(a.name);
+    });
     var areaBox = node("section", null, "panel");
     areaBox.append(
-      node("h2", "Count area"),
-      region,
+      node("h2", "Where your AI counts"),
       node(
         "p",
-        "Counts need a confirmed plan or room area, not a scale. Mark its two opposite corners on the sheet, then confirm.",
+        areaNames.length
+          ? "Your AI counts inside: " + areaNames.join(", ") + "."
+          : "Not set yet. Your AI sets it when it starts a read, or you can draw it yourself.",
+        "small",
+      ),
+      node(
+        "p",
+        "This is one box around the floor plan. Your AI counts only inside it, so the legend, fixture schedule, details and title block don't get counted as fixtures. On a lighting plan like E1, draw it around the plan and leave out the schedules and the title block.",
         "note small",
       ),
-      button("Choose count area", chooseCountArea),
-      button("Confirm count area", confirmCountArea),
+      node("h3", "Name for the box"),
+      region,
+      button(areaNames.length ? "Draw a new box" : "Draw the box", chooseCountArea, "primary"),
     );
     setupBox.append(areaBox);
     var advanced = node("details", null, "panel");
@@ -2552,6 +2615,7 @@
         "note small",
       ),
       bounds,
+      button("Count inside these bounds", confirmCountArea),
       node("p", "Show your AI one stored 200 dpi region of this sheet.", "note small"),
       tileSelect,
       tileRead,
@@ -2614,12 +2678,22 @@
       selected.append(node("h3", kindName), node("p", facts.join(" · "), "note small"));
       var actions = node("div", null, "tools");
       actions.append(
-        button("Close-up of this spot", function () {
-          act("takeoff_geometry", {
-            operation: "crop",
-            crop_point: g.shape.points[Math.max(0, selectedPoint)],
-          });
-        }),
+        // A close-up is the sheet itself, zoomed in on the spot: instant, sharp, and
+        // you can drag it around to see what surrounds the mark.
+        button(
+          g.shape.kind === "pins" ? "Zoom in on this pin" : "Zoom in on this mark",
+          function () {
+            var spot = g.shape.points[Math.max(0, selectedPoint)];
+            if (!validPoint(spot)) return;
+            setZoom(Math.max(zoom, 6));
+            centerOn(spot);
+            notice(
+              "Zoomed in on " +
+                (g.shape.kind === "pins" ? "pin " + (Math.max(0, selectedPoint) + 1) : "the mark") +
+                ". Drag the sheet to look around; Fit shows the whole sheet again.",
+            );
+          },
+        ),
         button("Change history", function () {
           act("takeoff_geometry", { operation: "history", geometry_id: g.geometry_id });
         }),
