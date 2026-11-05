@@ -4498,6 +4498,61 @@ export type Database = {
           },
         ]
       }
+      mcp_import_archive: {
+        Row: {
+          batch_id: string
+          company_id: string
+          created_at: string
+          job_id: string
+          row: Json
+          source_id: string
+          source_system: string
+          source_table: string
+        }
+        Insert: {
+          batch_id: string
+          company_id: string
+          created_at?: string
+          job_id: string
+          row: Json
+          source_id: string
+          source_system: string
+          source_table: string
+        }
+        Update: {
+          batch_id?: string
+          company_id?: string
+          created_at?: string
+          job_id?: string
+          row?: Json
+          source_id?: string
+          source_system?: string
+          source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_import_archive_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_import_archive_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_import_archive_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_import_batches: {
         Row: {
           actor_id: string
