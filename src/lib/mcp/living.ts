@@ -8,7 +8,7 @@ import { DEFAULT_TZ, addCountedDays, addDays, federalHolidays, todayIn } from ".
 import { asReportNumber, formatReportNumber, isIdentifierKey, isMoneyKey, isPercentKey } from "../report-format";
 import { iorHoldSummary, isContingencyHoldTotal, isExposureHoldTotal } from "../ior-hold-summary";
 import { cedarOutcome } from "../ior-outcome";
-import { IOR_MODEL_KEY, iorModelText, readIorModel } from "../ior-model";
+import { IOR_MODEL_KEY, iorModelText, readIorModel, withCpmFinish, type IorCpmFinish } from "../ior-model";
 
 export const LIVING_REPORT_TYPES = ["cpm", "billing_forecast", "ior", "dashboard"] as const;
 export type LivingReportType = (typeof LIVING_REPORT_TYPES)[number];
@@ -627,7 +627,8 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
     if (label && href) lines.push(`${label}: ${href}`);
   }
   const data = sc?.data && typeof sc.data === "object" && !Array.isArray(sc.data) ? (sc.data as Record<string, unknown>) : null;
-  const sections = sc?.no_financials === true ? [] : iorSectionsText(data, { jobId: typeof sc?.job_id === "string" ? sc.job_id : null, version: typeof sc?.version === "number" ? sc.version : undefined, contract_total: sc?.contract_total, forecast_total: sc?.forecast_total });
+  const cpm = sc?.cpm_finish && typeof sc.cpm_finish === "object" && typeof (sc.cpm_finish as IorCpmFinish).forecast === "string" ? (sc.cpm_finish as IorCpmFinish) : null;
+  const sections = sc?.no_financials === true ? [] : iorSectionsText(data, { jobId: typeof sc?.job_id === "string" ? sc.job_id : null, version: typeof sc?.version === "number" ? sc.version : undefined, contract_total: sc?.contract_total, forecast_total: sc?.forecast_total, cpm });
   if (sections.length) lines.push("", ...sections);
   if (typeof sc?.version === "number") {
     const who = textOf(sc.updated_by);
@@ -650,11 +651,12 @@ export function iorPlainReply(sc: Record<string, unknown> | null | undefined): s
 }
 
 /** Readable IOR sections. Links, the version line, and the change log stay where the tool already prints them. */
-export function iorSectionsText(data: Record<string, unknown> | null | undefined, context?: { jobId?: string | null; version?: number; contract_total?: unknown; forecast_total?: unknown }): string[] {
+export function iorSectionsText(data: Record<string, unknown> | null | undefined, context?: { jobId?: string | null; version?: number; contract_total?: unknown; forecast_total?: unknown; cpm?: IorCpmFinish | null }): string[] {
   if (!data) return [];
-  // A structured IOR is the source of truth: chat gets the same numbers as the IOR page.
+  // A structured IOR is the source of truth: chat gets the same numbers as the IOR page,
+  // with its finish from the job's CPM when it has one.
   const { model } = readIorModel(data);
-  if (model) return iorModelText(model, todayIn(DEFAULT_TZ));
+  if (model) return iorModelText(withCpmFinish(model, context?.cpm), todayIn(DEFAULT_TZ));
   const lines: string[] = [];
   const outcome = cedarOutcome(context?.jobId, { ...context, data });
   const holds = outcome ? null : iorHoldSummary(data);

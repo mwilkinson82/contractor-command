@@ -97,11 +97,22 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate }: { 
       // (no full read, no re-render).
       const st = await rpc("mcp_report_page_stamp", args);
       if (st.error) throw st.error;
-      const stamp = typeof st.data === "string" ? st.data : null;
+      let stamp = typeof st.data === "string" ? st.data : null;
+      // The IOR also redraws when its job's CPM is saved again, since its finish comes from there.
+      if (stamp !== null && args._page === "ior") {
+        const cs = await rpc("mcp_report_page_stamp", { ...args, _page: "schedule" });
+        stamp = `${stamp}#${!cs.error && typeof cs.data === "string" ? cs.data : "none"}`;
+      }
       if (prev && stamp !== null && prev.stamp === stamp) return prev;
       const { data, error } = await rpc("mcp_report_page_get", args);
       if (error) throw error;
-      const payload = data as PagePayload;
+      let payload = data as PagePayload;
+      // The IOR's finish follows the job's CPM. Read it with the member's own access; no schedule, no change.
+      if (payload.page === "ior" && args._page === "ior") {
+        const cpm = await rpc("mcp_report_page_get", { ...args, _page: "schedule" });
+        const sched = !cpm.error ? (cpm.data as PagePayload | null) : null;
+        if (sched && sched.page === "schedule") payload = { ...payload, schedule: sched.report };
+      }
       if (payload.page === "photos" && payload.photos?.length) {
         const photos = await Promise.all(payload.photos.map(async (ph) => {
           if (ph.url || !ph.storage_path) return ph;

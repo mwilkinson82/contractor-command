@@ -125,7 +125,7 @@ describe("Athena's IOR view", () => {
   });
 
   it("shows the finish date, the hold guide and the math", () => {
-    expect(html).toContain("42 days late</span> against baseline.");
+    expect(html).toContain("42 days late</span> against the baseline.");
     expect(html).toContain("$5,150 short of the 3% I'd hold this phase.");
     expect(html).toContain("Risk-adjusted contract</span><span>$3,529,500");
     expect(html).toContain("@container ior (max-width:620px)");

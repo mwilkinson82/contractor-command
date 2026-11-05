@@ -50,6 +50,53 @@ async function withPhotoUrls(payload: PagePayload): Promise<PagePayload> {
   return { ...payload, photos };
 }
 
+/**
+ * The IOR's finish follows the job's CPM. Read with the service role only after the token has
+ * authorized this job's IOR, which needs full scope, and full scope can already read the schedule.
+ * Read directly, not by opening the schedule link again, so the link's view count stays true.
+ */
+async function withIorSchedule(payload: PagePayload, jobId: string): Promise<PagePayload> {
+  if (payload.page !== "ior") return payload;
+  const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+  const key = env(["SUPABASE_SERVICE_ROLE_KEY"]);
+  if (!url || !key) return payload;
+  try {
+    const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    const [rep, job] = await Promise.all([
+      sb
+        .from("mcp_living_reports")
+        .select("version, data_date, data")
+        .eq("job_id", jobId)
+        .eq("report_type", "cpm")
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      sb.from("mcp_jobs").select("contract_completion_date").eq("id", jobId).maybeSingle(),
+    ]);
+    if (rep.error || !rep.data) return payload;
+    const row = rep.data as {
+      version: number;
+      data_date: string | null;
+      data: Record<string, unknown> | null;
+    };
+    const cd =
+      (job.data as { contract_completion_date?: string | null } | null)?.contract_completion_date ??
+      null;
+    return {
+      ...payload,
+      schedule: {
+        found: true,
+        version: row.version,
+        data_date: row.data_date,
+        data: row.data ?? {},
+        contract_completion_date: cd,
+      },
+    };
+  } catch {
+    return payload;
+  }
+}
+
 const RecordInput = z.object({
   token: z.string().trim().max(80),
   jobId: z.string().uuid(),
@@ -159,7 +206,8 @@ export const openBoardPage = createServerFn({ method: "GET" })
           : "unknown";
       return { status: refused, payload: null };
     }
-    const payload = (row as { payload?: PagePayload | null }).payload;
+    let payload = (row as { payload?: PagePayload | null }).payload;
     if (!payload || payload.page !== data.page) return { status: "denied", payload: null };
+    if (payload.page === "ior") payload = await withIorSchedule(payload, data.jobId);
     return { status: "ok", payload: JSON.stringify(await withPhotoUrls(payload)) };
   });

@@ -57,7 +57,49 @@ export type IorModel = {
   last_forecast_completion: string | null;
   change_orders: IorChangeOrder[];
   exposures: IorExposure[];
+  /** Set at read time when the finish dates come from the job's CPM, never saved. */
+  schedule_source?: IorScheduleSource | null;
 };
+
+export type IorScheduleSource = {
+  version: number | null;
+  data_date: string | null;
+  /** What the CPM forecast is measured against; "ior" when the CPM has no baseline or contract date. */
+  against: "baseline" | "contract" | "ior";
+  /** Working days late (+) or early (−) from the CPM; null when it isn't calculated. */
+  work_days: number | null;
+};
+
+/** The CPM's forecast finish (see ior-schedule.ts cpmFinish). */
+export type IorCpmFinish = {
+  forecast: string;
+  against: string | null;
+  againstKind: "baseline" | "contract" | null;
+  workDays: number | null;
+  version: number | null;
+  dataDate: string | null;
+};
+
+/**
+ * The IOR reads its finish from the CPM when the job has one. The imported or saved
+ * IOR dates stay only as the fallback for a job with no schedule.
+ */
+export function withCpmFinish(m: IorModel, f: IorCpmFinish | null | undefined): IorModel {
+  if (!f) return m;
+  return {
+    ...m,
+    forecast_completion: f.forecast,
+    baseline_completion: f.against ?? m.baseline_completion,
+    // The last IOR's forecast came from another source, so "moved since the last IOR" would mislead.
+    last_forecast_completion: null,
+    schedule_source: {
+      version: f.version,
+      data_date: f.dataDate,
+      against: f.against ? (f.againstKind ?? "contract") : "ior",
+      work_days: f.against ? f.workDays : null,
+    },
+  };
+}
 
 const CATEGORIES: IorCategory[] = ["owner_decision", "design_drift", "trade_performance", "procurement", "schedule_compression", "allowance_overrun", "field_change", "closeout_punch", "other"];
 const RESPONSES: IorResponse[] = ["eliminate", "recover", "offset", "accept"];
@@ -297,6 +339,21 @@ export function daysBetween(a: string, b: string): number {
 const dollars = (c: number) => `${c < 0 ? "−" : ""}$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
 
 /** Overwatch's warning rules, worded the way Athena says them. `today` is YYYY-MM-DD in the job's time zone. */
+/** How far the forecast finish sits from the date it is measured against, in the CPM's working days when it has them. */
+export function iorSlip(m: IorModel): { n: number; unit: "day" | "working day" } | null {
+  if (!m.baseline_completion || !m.forecast_completion) return null;
+  const wd = m.schedule_source?.work_days;
+  return wd != null ? { n: wd, unit: "working day" } : { n: daysBetween(m.baseline_completion, m.forecast_completion), unit: "day" };
+}
+
+export const slipText = (s: { n: number; unit: string }) => `${s.n} ${s.unit}${Math.abs(s.n) === 1 ? "" : "s"}`;
+
+/** What the forecast finish is compared to, in words. */
+export function againstLabel(m: IorModel): string {
+  const a = m.schedule_source?.against;
+  return a === "baseline" ? "baseline finish" : a === "contract" ? "contract completion" : "baseline";
+}
+
 /** True when a risk's next review date has passed. */
 export function isReviewOverdue(e: IorExposure, today: string): boolean {
   return !!e.next_review && daysBetween(e.next_review, today) > 0;
@@ -312,11 +369,9 @@ export function iorFlags(m: IorModel, r: IorRollup, today: string): IorFlag[] {
   if (!r.costKnown) out.push({ high: true, title: "No cost budget is saved.", detail: "Margin can't be read until one is." });
   if (r.costKnown && r.pendingCost > 2_500_000 && r.eHold < r.eTarget)
     out.push({ high: true, title: "Pending change orders aren't reserved.", detail: `${dollars(r.pendingCost)} of pending change-order cost is live and E-holds are ${dollars(r.eHold)}, under the ${dollars(r.eTarget)} I'd hold this phase.` });
-  if (m.baseline_completion && m.forecast_completion) {
-    const slip = daysBetween(m.baseline_completion, m.forecast_completion);
-    if (slip > 0 && !m.exposures.some(isScheduleLinked))
-      out.push({ high: false, title: `The schedule slipped ${slip} days with no schedule exposure logged.`, detail: "Put a dollar figure on it so the holds cover it." });
-  }
+  const slip = iorSlip(m);
+  if (slip && slip.n > 0 && !m.exposures.some(isScheduleLinked))
+    out.push({ high: false, title: `The schedule slipped ${slipText(slip)} with no schedule exposure logged.`, detail: "Put a dollar figure on it so the holds cover it." });
   // A risk holding nothing has nothing to review, so it never nags.
   const live = m.exposures.filter((e) => heldCents(e) > 0);
   for (const e of live) {
@@ -363,9 +418,12 @@ export function iorModelText(m: IorModel, today: string): string[] {
     );
   } else lines.push("Gross profit: Not available, no cost budget is saved.");
   lines.push(`E-holds: ${dollars(r.eHold)} (guide ${r.ePct}% of remaining cost: ${dollars(r.eTarget)}) · C-holds: ${dollars(r.cHold)} (guide ${r.cPct}%: ${dollars(r.cTarget)})`);
-  if (m.baseline_completion && m.forecast_completion) {
-    const slip = daysBetween(m.baseline_completion, m.forecast_completion);
-    lines.push(`Finish: forecast ${m.forecast_completion}, baseline ${m.baseline_completion} (${slip > 0 ? `${slip} days late` : slip < 0 ? `${-slip} days early` : "on baseline"})`);
+  const slip = iorSlip(m);
+  if (slip) {
+    const src = m.schedule_source;
+    const from = src ? ` (from the CPM${src.version != null ? ` v${src.version}` : ""}${src.data_date ? `, data date ${src.data_date}` : ""}; it outranks the imported dates)` : "";
+    const how = slip.n > 0 ? `${slipText(slip)} late` : slip.n < 0 ? `${slipText({ ...slip, n: -slip.n })} early` : "on time";
+    lines.push(`Finish${from}: forecast ${m.forecast_completion}, ${againstLabel(m)} ${m.baseline_completion} (${how})`);
   }
   if (m.exposures.length) {
     lines.push("Risks");

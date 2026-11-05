@@ -6,7 +6,10 @@ import {
   daysBetween,
   heldCents,
   iorFlags,
+  againstLabel,
+  iorSlip,
   isReviewBeforeOpened,
+  slipText,
   isReviewOverdue,
   iorRollup,
   isScheduleLinked,
@@ -327,11 +330,16 @@ export function renderAthenaIor(m: IorModel, opts: { today: string; version?: nu
     if (!m.baseline_completion || !m.forecast_completion) {
       return `<section class="block"><div class="bh"><h3 class="wide">Finish date</h3></div><div class="empty">Save a baseline and forecast finish and I'll show how far the date has moved.</div></section>`;
     }
-    const slip = daysBetween(m.baseline_completion, m.forecast_completion);
+    const slip = iorSlip(m)!;
+    const src = m.schedule_source;
     const moved = m.last_forecast_completion ? daysBetween(m.last_forecast_completion, m.forecast_completion) : null;
-    const side = moved == null ? "First reading" : moved === 0 ? "No change since the last IOR" : `${moved > 0 ? "Slipped" : "Gained"} ${Math.abs(moved)} ${Math.abs(moved) === 1 ? "day" : "days"} since the last IOR`;
-    const say = slip > 0 ? `Forecasting <span class="neg">${slip} ${slip === 1 ? "day" : "days"} late</span> against baseline.` : slip < 0 ? `Forecasting <span class="pos">${-slip} ${slip === -1 ? "day" : "days"} early</span>.` : "On baseline.";
-    return `<section class="block"><div class="bh"><h3 class="wide">Finish date</h3><span class="side">${side}</span></div><p class="sched-say">${say}</p>${timeline(m.baseline_completion, m.forecast_completion, opts.today)}<div class="facts"><span>Forecast <b>${fullDate(m.forecast_completion)}</b></span><span>Baseline <b>${fullDate(m.baseline_completion)}</b></span><span>Schedule-linked risks <b>${m.exposures.filter(isScheduleLinked).length}</b></span></div></section>`;
+    const side = src
+      ? `From the CPM${src.version != null ? ` v${src.version}` : ""}${src.data_date ? ` · data date ${esc(fullDate(src.data_date))}` : ""}`
+      : moved == null ? "First reading" : moved === 0 ? "No change since the last IOR" : `${moved > 0 ? "Slipped" : "Gained"} ${Math.abs(moved)} ${Math.abs(moved) === 1 ? "day" : "days"} since the last IOR`;
+    const against = againstLabel(m);
+    const say = slip.n > 0 ? `Forecasting <span class="neg">${slipText(slip)} late</span> against the ${against}.` : slip.n < 0 ? `Forecasting <span class="pos">${slipText({ ...slip, n: -slip.n })} early</span>.` : `On the ${against}.`;
+    const label = against.charAt(0).toUpperCase() + against.slice(1);
+    return `<section class="block"><div class="bh"><h3 class="wide">Finish date</h3><span class="side">${side}</span></div><p class="sched-say">${say}</p>${timeline(m.baseline_completion, m.forecast_completion, opts.today)}<div class="facts"><span>Forecast <b>${fullDate(m.forecast_completion)}</b></span><span>${label} <b>${fullDate(m.baseline_completion)}</b></span><span>Schedule-linked risks <b>${m.exposures.filter(isScheduleLinked).length}</b></span></div></section>`;
   })();
   h.push(`<div class="two">${schedule}<section class="block"><div class="bh"><h3 class="wide">Money held for risk</h3><span class="side">${m.phase} phase guide</span></div>${meter("E-holds", "Specific risks priced now", r.eHold, r.eTarget, r.ePct)}${meter("C-holds", "General contingency", r.cHold, r.cTarget, r.cPct)}<p class="note">Guide is ${pctOf(r.ePct)} E and ${pctOf(r.cPct)} C of remaining cost (${money(r.remainingCost)}). The dark tick marks the guide.</p></section></div>`);
 
