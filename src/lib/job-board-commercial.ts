@@ -84,7 +84,13 @@ export function estimateOverview(
   const answered = new Set(
     verdicts.map((v) => str(v.gap_ref)).filter((r): r is string => !!r),
   );
-  const open = gaps.filter((g) => !answered.has(String(g.ref ?? "")));
+  // A gap check answer settles a gap, except an RFI, which stays open until it's answered.
+  const gapAnswer = (g: Raw) => str(obj(g.answer)?.answer);
+  const open = gaps.filter((g) => {
+    const a = gapAnswer(g);
+    if (a) return a === "rfi";
+    return !answered.has(String(g.ref ?? ""));
+  });
   const b = obj(bid);
   const pricing = obj(b?.pricing);
   const priced = new Set<number>();
