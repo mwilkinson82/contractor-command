@@ -3,6 +3,7 @@
 // one database transaction, only with the member's yes and that card's key.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
+import { looseBoolean } from "../loose-boolean";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import {
   WhichCompanyAsk,
@@ -259,8 +260,8 @@ export const jobImport = defineTool({
     daily_days: z.number().int().min(0).max(3650).optional(),
     batch_id: z.string().uuid().optional(),
     import_key: z.string().trim().max(64).optional(),
-    confirmed: z.boolean().optional(),
-    replace_schedule: z.boolean().optional(),
+    confirmed: looseBoolean().optional(),
+    replace_schedule: looseBoolean().optional(),
   },
   annotations: SAVE,
   handler: (args, ctx) =>
