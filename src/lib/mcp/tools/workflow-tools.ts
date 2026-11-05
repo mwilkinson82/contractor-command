@@ -22,7 +22,7 @@ import { pmSetupNext, readTeammates } from "../pm-setup";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
-import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, pageLine, scheduleWindowLabel, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
+import { dataDateRule, pickLatestLookahead, type LaRow, emptyCard, lookaheadView, lookaheadModel, entryLine, lookaheadWindow, lookaheadDates, lookaheadSourceLine, pageLine, scheduleWindowLabel, windowActivities, type LaItem, type LaModel, type SAct } from "../styled-views";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
@@ -1683,13 +1683,15 @@ export const lookaheadGet = defineTool({
       const [d, items, rev] = await Promise.all([lookaheadData(sb, job, la), savedLookaheadItems(sb, job, la.id), currentRev(sb, la.id)]);
       const win = lookaheadWindow(la, d.dataDate);
       const activities = win ? windowActivities(d.acts, win.start, win.end) : [];
+      const activitySource = win ? lookaheadSourceLine(win.end, d.dataDate, d.version) : null;
       const context: CardSection[] = [{ heading: "Window", kind: "list", rows: [
         { cells: [win ? `${win.start} to ${win.end}` : "Window dates needed", rev == null ? "" : `Rev ${rev}`] },
         ...(d.dataDate ? [{ cells: [dataDateRule(d.dataDate, d.version)] }] : []),
+        ...(activitySource && d.acts.length ? [{ cells: [activitySource] }] : []),
         ...(win?.note ? [{ cells: [win.note] }] : []),
-      ] }, { heading: "Schedule activities in this window", kind: "table", columns: ["Activity", "Start", "Finish"],
-        rows: activities.length ? activities.map((a) => ({ cells: [scheduleWindowLabel(a), a.start?.slice(0, 10) || "Needed", a.finish?.slice(0, 10) || "Needed"] }))
-          : [{ cells: [d.acts.length ? "No saved activities overlap this window" : "No saved CPM activities yet", "", ""] }],
+      ] }, { heading: "Schedule activities in this window", kind: "table", columns: ["Activity", "Start", "Finish", "% complete", "Total float"],
+        rows: activities.length ? activities.map((a) => { const dt = lookaheadDates(a); return { cells: [scheduleWindowLabel(a), dt.start, dt.finish, dt.pct, dt.float] }; })
+          : [{ cells: [d.acts.length ? "No open CPM activities in this window" : "No saved CPM activities yet", "", "", "", ""] }],
       }];
       // Match the existing report's job obligations, not just this lookahead's attached rows.
       // A saved set may have four open future items while the job still has three overdue obligations.
@@ -1697,7 +1699,7 @@ export const lookaheadGet = defineTool({
       const card = savedLookaheadCard(named(job), d.ref, items, d.today, context, jobOverdue);
       const html = renderHtml(card);
       return { ...text(`${renderMarkdown(card)}\n\n${html}`),
-        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, as_of: d.today, overdue_scope: jobOverdue ? "job" : "saved_items", overdue_items: jobOverdue ?? items.filter((item) => item.status === "open" && item.due && item.due < d.today), activities, items, card, html },
+        structuredContent: { lookahead_ref: d.ref, revision: rev, window: win, data_date: d.dataDate, cpm_version: d.version, activity_source: activitySource, as_of: d.today, overdue_scope: jobOverdue ? "job" : "saved_items", overdue_items: jobOverdue ?? items.filter((item) => item.status === "open" && item.due && item.due < d.today), activities, items, card, html },
         _meta: { ...cardWidgetMeta } };
     }),
 });
@@ -2102,7 +2104,7 @@ async function styledLookahead(sb: Sb, job: Job, la: { id: string; start_date?: 
   const url = board.lookahead ?? null;
   if (!d.win)
     return { model: null, view: `${url ? `${pageLine("lookahead", url)}\n\n` : ""}${emptyCard("lookahead", title, d.acts.length ? "Pick a window that overlaps the saved schedule, or send this window's schedule export." : "Send the schedule export (or save the CPM) and Athena fills the lookahead from it.", d.acts.length ? [] : ["Schedule export or saved CPM"])}` };
-  const view = lookaheadView({ title, ref: d.ref, start: d.win.start, end: d.win.end, dataDate: d.dataDate, acts: d.acts, items: d.items, highlight, pageUrl: url, today: d.today });
+  const view = lookaheadView({ title, ref: d.ref, start: d.win.start, end: d.win.end, dataDate: d.dataDate, acts: d.acts, items: d.items, highlight, pageUrl: url, today: d.today, version: d.version });
   const model = lookaheadModel(d.win.start, d.win.end, d.acts, d.items, { today: d.today, dataDate: d.dataDate });
   return { model, view: [view, ...(d.note ? ["", d.note] : []), ...(d.dataDate ? ["", dataDateRule(d.dataDate, d.version)] : []), "", LOOKAHEAD_EMAIL_LINE].join("\n") };
 }

@@ -176,7 +176,7 @@ export const lookaheadPdfTool = defineTool({
       const data = await lookaheadData(sb, job, args.lookahead_id ?? "latest");
       if (!data.win) throw new ToolError(`${prefix(job)}There's no lookahead window or saved schedule to put in a PDF yet. Send the schedule export (or save the CPM) first. Nothing was made.`);
       const brand = await pdfContractorBrand(sb, job.company_id);
-      const bytes = lookaheadPdf({ title: named(job), ref: data.ref, start: data.win.start, end: data.win.end, dataDate: data.dataDate, acts: data.acts, items: data.items, today: data.today, brand });
+      const bytes = lookaheadPdf({ title: named(job), ref: data.ref, start: data.win.start, end: data.win.end, dataDate: data.dataDate, acts: data.acts, items: data.items, today: data.today, brand, version: data.version });
       let f: ReturnType<typeof validateFile>;
       try { f = validateFile(bytes, lookaheadPdfName(job.job_number, data.win.start, data.win.end)); } catch (e) { if (e instanceof FileRejected) throw new ToolError(e.message); throw e; }
       const { id, link, exp } = await storeFile(sb, job, "schedule", f, bytes, args.expires_in_days);

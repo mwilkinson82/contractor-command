@@ -4,6 +4,8 @@ import type { EngineActivity, EngineRelationship } from "../scheduler/engine2/ty
 import type { Activity, LivingData } from "./living";
 import {
   scheduleRequest,
+  type ActivityCode,
+  type ScheduleLayout,
   type ScheduleRequest,
   type ScheduleSettings,
   type WbsNode,
@@ -82,6 +84,12 @@ export type ScheduleControl = {
   update_history?: UpdateEntry[];
   /** Every modeled delay event, kept through later updates. One entry per event ID; a new TIA replaces it. */
   delay_register?: DelayEntry[];
+  /** P6-style activity code dictionaries. */
+  activity_codes?: ActivityCode[];
+  /** Assigned code values: activity ID → code ID → value ID. */
+  code_values?: Record<string, Record<string, string>>;
+  /** Named views: columns, sort, filter, grouping and timescale. */
+  layouts?: ScheduleLayout[];
 };
 export type UpdateEntry = {
   version: number;
@@ -140,6 +148,103 @@ export const starterWbs = (): WbsNode[] => [
   { id: "construction", name: "Construction", parent_id: null, order: 3 },
   { id: "closeout", name: "Closeout", parent_id: null, order: 4 },
 ];
+
+const touchesCodes = (r: ScheduleRequest) =>
+  !!(
+    r.activity_codes?.length ||
+    r.remove_code_ids?.length ||
+    r.code_assignments?.length ||
+    r.layouts?.length ||
+    r.remove_layout_ids?.length
+  );
+
+/** Codes, their assignments and saved layouts. They change no dates, so organize may carry them. */
+function applyCodesAndLayouts(
+  control: ScheduleControl,
+  request: ScheduleRequest,
+  activities: Map<string, Activity>,
+) {
+  if (!touchesCodes(request)) return;
+  if (request.operation === "baseline" || request.operation === "tia")
+    fail(
+      "Change activity codes and layouts with organize or recalculate, not with a baseline or TIA.",
+    );
+  for (const list of [request.activity_codes, request.layouts])
+    unique(
+      (list ?? []).map((c) => c.id),
+      list === request.layouts ? "Layout" : "Activity code",
+    );
+  let codes = clone(control.activity_codes ?? []);
+  const removeCodes = new Set(request.remove_code_ids ?? []);
+  for (const id of removeCodes)
+    if (!codes.some((c) => c.id === id)) fail(`Unknown activity code ${id}.`);
+  codes = codes.filter((c) => !removeCodes.has(c.id));
+  for (const c of request.activity_codes ?? []) {
+    unique(
+      c.values.map((v) => v.id),
+      `${c.name} value`,
+    );
+    const at = codes.findIndex((x) => x.id === c.id);
+    if (at >= 0) codes[at] = clone(c);
+    else codes.push(clone(c));
+  }
+  if (codes.length > 30) fail("A schedule holds at most 30 activity codes.");
+  const byCode = new Map(codes.map((c) => [c.id, new Set(c.values.map((v) => v.id))]));
+  const values: Record<string, Record<string, string>> = {};
+  // Keep assignments whose activity, code and value still exist.
+  for (const [act, set] of Object.entries(control.code_values ?? {}))
+    for (const [code, value] of Object.entries(set))
+      if (activities.has(act) && byCode.get(code)?.has(value)) (values[act] ??= {})[code] = value;
+  unique(
+    (request.code_assignments ?? []).map((a) => `${a.activity_id}\u0000${a.code_id}`),
+    "Code assignment",
+  );
+  for (const a of request.code_assignments ?? []) {
+    if (!activities.has(a.activity_id)) fail(`Unknown activity ${a.activity_id}.`);
+    const allowed = byCode.get(a.code_id) ?? fail(`Unknown activity code ${a.code_id}.`);
+    if (a.value_id === null) {
+      if (values[a.activity_id]) delete values[a.activity_id][a.code_id];
+      continue;
+    }
+    if (!allowed.has(a.value_id)) fail(`${a.code_id} has no value ${a.value_id}.`);
+    (values[a.activity_id] ??= {})[a.code_id] = a.value_id;
+  }
+  for (const k of Object.keys(values)) if (!Object.keys(values[k]).length) delete values[k];
+  let layouts = clone(control.layouts ?? []);
+  const removeLayouts = new Set(request.remove_layout_ids ?? []);
+  for (const id of removeLayouts)
+    if (!layouts.some((l) => l.id === id)) fail(`Unknown layout ${id}.`);
+  layouts = layouts.filter((l) => !removeLayouts.has(l.id));
+  for (const l of request.layouts ?? []) {
+    const at = layouts.findIndex((x) => x.id === l.id);
+    if (at >= 0) layouts[at] = clone(l);
+    else layouts.push(clone(l));
+  }
+  if (layouts.length > 30) fail("A schedule holds at most 30 saved layouts.");
+  const wbsIds = new Set(control.wbs.map((n) => n.id));
+  for (const l of layouts) {
+    const codeRef = (ref: string) => {
+      const id = ref.slice(5);
+      if (!byCode.has(id)) fail(`Layout ${l.name} uses unknown activity code ${id}.`);
+    };
+    l.columns.filter((c) => c.startsWith("code:")).forEach(codeRef);
+    if (new Set(l.columns).size !== l.columns.length) fail(`Layout ${l.name} repeats a column.`);
+    if (l.sort?.key.startsWith("code:")) codeRef(l.sort.key);
+    for (const w of l.filter?.wbs_ids ?? [])
+      if (!wbsIds.has(w)) fail(`Layout ${l.name} filters on unknown WBS ${w}.`);
+    for (const f of l.filter?.codes ?? []) {
+      const allowed =
+        byCode.get(f.code_id) ?? fail(`Layout ${l.name} filters on unknown code ${f.code_id}.`);
+      for (const v of f.value_ids)
+        if (!allowed.has(v)) fail(`Layout ${l.name}: ${f.code_id} has no value ${v}.`);
+    }
+    for (const a of l.filter?.activity_ids ?? [])
+      if (!activities.has(a)) fail(`Layout ${l.name} lists unknown activity ${a}.`);
+  }
+  control.activity_codes = codes;
+  control.code_values = values;
+  control.layouts = layouts;
+}
 
 export function readScheduleControl(data: unknown): ScheduleControl | null {
   const raw = (data as { schedule_control?: ScheduleControl } | null)?.schedule_control;
@@ -618,6 +723,7 @@ export function prepareSchedule(
     (request.updates ?? []).map((a) => a.id),
     "Update",
   );
+  applyCodesAndLayouts(control, request, map);
   if (
     request.operation === "organize" &&
     (request.updates?.length ||
@@ -625,7 +731,9 @@ export function prepareSchedule(
       request.delay ||
       request.baseline)
   )
-    fail("Organize changes WBS only; use recalculate to change schedule facts/settings.");
+    fail(
+      "Organize changes WBS, activity codes and layouts only; use recalculate to change schedule facts/settings.",
+    );
   if (request.operation !== "tia" && request.delay)
     fail("Delay insertion requires the tia operation.");
   if (request.operation !== "baseline" && request.baseline)

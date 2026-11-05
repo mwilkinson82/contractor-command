@@ -60,13 +60,14 @@ describe("hosted pages: lookahead, payapp, briefing", () => {
       page: "lookahead",
       job_number: "2701",
       job_name: "Harbor <Point>",
-      lookahead: null,
+      lookahead: { id: "x", start_date: "2026-10-26", end_date: "2026-11-06" },
       report: { found: true, data_date: "2026-10-19", data: { activities: acts as never } },
       items,
     });
     expect(h).toContain("Two-Week Lookahead");
     expect(h).toContain("Harbor &lt;Point&gt;");
-    expect(h).toContain("Window Oct 26, 2026 – Nov 6, 2026");
+    // Picked start Oct 26 is after the CPM data date, so the page runs two weeks from it.
+    expect(h).toContain("Window Oct 26, 2026 – Nov 8, 2026");
     expect(h).toContain("TOP 3 PRIORITIES");
     expect(h).toContain("CALENDAR");
     expect(h).toContain("#2563EB");
@@ -225,9 +226,24 @@ import {
 } from "./email-safety";
 
 describe("lookahead window comes from the CPM data date", () => {
-  it("2701: CPM 2026-10-19 → Oct 26 – Nov 6, even with a stale Nov 2–13 saved window", () => {
+  it("2701: a PM-picked start after the CPM data date is honored for two weeks", () => {
     const w = lookaheadWindow({ start_date: "2026-11-02", end_date: "2026-11-13" }, "2026-10-19")!;
-    expect([w.start, w.end, w.source]).toEqual(["2026-10-26", "2026-11-06", "cpm"]);
+    expect([w.start, w.end, w.source]).toEqual(["2026-11-02", "2026-11-15", "cpm"]);
+    expect(w.note).toBe(
+      "The lookahead starts Nov 2, 2026 as picked and runs two weeks to Nov 15, 2026 (the saved end date was Nov 13, 2026).",
+    );
+    expect(
+      lookaheadWindow({ start_date: "2026-10-19", end_date: "2026-11-01" }, "2026-10-19"),
+    ).toEqual({
+      start: "2026-10-19",
+      end: "2026-11-01",
+      source: "cpm",
+      note: null,
+    });
+  });
+  it("2701: a saved start before the CPM data date defers to the data date", () => {
+    const w = lookaheadWindow({ start_date: "2026-10-05", end_date: "2026-10-16" }, "2026-10-19")!;
+    expect([w.start, w.end, w.source]).toEqual(["2026-10-19", "2026-11-01", "cpm"]);
     expect(w.note).toMatch(
       /doesn't match the CPM data date; this view uses the CPM data date Oct 19, 2026/,
     );
@@ -245,7 +261,7 @@ describe("lookahead window comes from the CPM data date", () => {
       report: { found: true, data_date: "2026-10-19", data: { activities: acts as never } },
       items: [],
     });
-    expect(h).toContain("Window Oct 26, 2026 – Nov 6, 2026");
+    expect(h).toContain("Window Nov 2, 2026 – Nov 15, 2026");
   });
   it("data date line is the date and saved CPM version only", () => {
     expect(dataDateRule("2026-10-19", 3)).toBe("Data date: 2026-10-19 (saved CPM v3)");

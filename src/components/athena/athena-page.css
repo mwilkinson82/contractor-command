@@ -483,6 +483,9 @@
 }
 
 @media print {
+  .ath-print-hide {
+    display: none !important;
+  }
   .ath-page {
     padding: 0;
     background: #fff;

@@ -212,6 +212,21 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
+  // Saved schedule layouts open the schedule page already filtered, sorted and grouped.
+  const savedLayouts = (() => {
+    const raw = (sched?.data as { schedule_control?: { layouts?: unknown } } | undefined)
+      ?.schedule_control?.layouts;
+    return Array.isArray(raw)
+      ? raw
+          .filter(
+            (l): l is { id: string; name: string } =>
+              !!l && typeof l.id === "string" && typeof l.name === "string",
+          )
+          .slice(0, 30)
+      : [];
+  })();
+  const layoutHref = (id: string) =>
+    `/r/job/${jobId}/schedule?layout=${encodeURIComponent(id)}${token ? `&t=${encodeURIComponent(token)}` : ""}`;
   const subs =
     submittals.data?.page === "submittals" ? (submittals.data as SubmittalsPagePayload) : null;
   const today = daily.data?.page === "daily" ? (daily.data as DailyPagePayload) : null;
@@ -586,6 +601,22 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                       Two-week lookahead
                     </a>
                   </div>
+                  {savedLayouts.length ? (
+                    <div className="jh-layouts" aria-label="Saved schedule layouts">
+                      <p className="jh-small">Saved schedule layouts</p>
+                      <div className="jh-actions">
+                        {savedLayouts.map((l) => (
+                          <a
+                            key={l.id}
+                            className="jh-button jh-button-quiet"
+                            href={layoutHref(l.id)}
+                          >
+                            {l.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="jh-panel-body jh-divider">
                   <div className="jh-heading">

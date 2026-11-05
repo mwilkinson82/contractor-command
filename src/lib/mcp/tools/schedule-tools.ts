@@ -3,13 +3,23 @@ import { defineTool, ToolError, type JsonValueInput } from "@lovable.dev/mcp-js"
 import { z } from "zod";
 import { dbError, run, text } from "../guard";
 import { resolveJob, named, FULL_ACCESS_MESSAGE } from "../jobs";
-import { scheduleRequest, scheduleDate } from "../schedule-schema";
+import { scheduleRequest, scheduleDate, scheduleLayout } from "../schedule-schema";
+import {
+  layoutCatalog,
+  layoutRows,
+  scheduleLayoutUrl,
+  scopedDelay,
+  unknownRefs,
+} from "../schedule-layout-actions";
+import type { LayoutSpec } from "../../schedule-layouts";
 import {
   prepareSchedule,
+  readScheduleControl,
   schedulePortfolio,
   starterWbs,
   ScheduleInputError,
 } from "../schedule-control";
+import { projectMilestoneRequest, projectMilestonesPresent } from "../../schedule-milestones";
 import type { LivingData } from "../living";
 import { loadJobSourceClauses } from "../source-clauses";
 import { draftScheduleNotice } from "../schedule-notice";
@@ -17,16 +27,56 @@ import { scheduleToXer, xerToScheduleRequest, XerImportError } from "../schedule
 
 const json = (value: unknown): JsonValueInput => JSON.parse(JSON.stringify(value));
 
+/**
+ * A calculated schedule with no start or Substantial Completion milestone gets a
+ * note and the add_activities/updates that would add them; nothing is saved.
+ */
+function milestoneCheck(data: LivingData | null | undefined) {
+  const acts = data?.activities ?? [];
+  if (!acts.length || readScheduleControl(data)?.calculation.status !== "calculated") return null;
+  const present = projectMilestonesPresent(acts);
+  const proposal = projectMilestoneRequest(acts);
+  if (!proposal) return null;
+  const missing = [
+    ...(present.start ? [] : ["start milestone"]),
+    ...(present.finish ? [] : ["Substantial Completion milestone"]),
+  ];
+  return {
+    missing,
+    /** Member-facing line. */
+    line: `This schedule has no ${missing.join(" and no ")}. Athena can add ${missing.length === 1 ? "it" : "them"} in the next recalculated revision.`,
+    /** For the AI only. */
+    guidance: `Milestones: to add them, prepare a schedule_request recalculate at the current data date with milestones.add_activities as add_activities and milestones.updates as updates (${proposal.notes.join(" ")}). Confirm the ties with the member before saving.`,
+    add_activities: proposal.add_activities,
+    updates: proposal.updates,
+  };
+}
+
 /** Preparation is read-only. The existing approved save tool remains the only write path. */
 export const scheduleWorkflow = defineTool({
   name: "schedule_workflow",
   title: "Prepare WBS, schedule update or delay comparison",
   description:
-    "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending. import_xer turns a Primavera P6 XER file's text into a first-import draft for a job with no saved schedule; export_xer returns the saved schedule as XER text for P6.",
+    "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending. layouts lists saved schedule layouts and activity codes with the link that opens each layout (pass layout_id to open one and get its rows). query sorts and filters the schedule by any column, activity code or WBS (view: group, columns, sort, filter) and returns the rows; to save it as a layout, prepare organize with request.layouts. Activity codes are created and assigned with organize (request.activity_codes, request.code_assignments). On prepare or inspect, layout_id or view limits the delay and TIA results to that layout's activities. import_xer turns a Primavera P6 XER file's text into a first-import draft for a job with no saved schedule; export_xer returns the saved schedule as XER text for P6.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
-    action: z.enum(["inspect", "prepare", "draft_notice", "import_xer", "export_xer"]),
+    action: z.enum([
+      "inspect",
+      "prepare",
+      "draft_notice",
+      "import_xer",
+      "export_xer",
+      "layouts",
+      "query",
+    ]),
+    /** layouts: open this saved layout. prepare/inspect: limit delay and TIA results to it. */
+    layout_id: z.string().trim().min(1).max(80).optional(),
+    /** query: a one-off layout (no id or name needed). prepare/inspect: its filter scopes delay and TIA results. */
+    view: scheduleLayout
+      .omit({ id: true, name: true })
+      .extend({ columns: scheduleLayout.shape.columns.optional() })
+      .optional(),
     /** import_xer: the full text of the .xer file, exactly as exported from P6. */
     xer_text: z.string().min(1).max(5_000_000).optional(),
     /** import_xer: the P6 project ID to import when the file holds more than one project. */
@@ -56,7 +106,10 @@ export const scheduleWorkflow = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       await assertScheduleCompany(sb, job, args.company_id);
       if (job.scope !== "full") throw new ToolError(FULL_ACCESS_MESSAGE);
-      if (args.action !== "inspect" && args.action !== "export_xer" && args.version != null)
+      if (
+        !["inspect", "export_xer", "layouts", "query"].includes(args.action) &&
+        args.version != null
+      )
         throw new ToolError(
           "Revisions and notices use the current saved version; historical versions are view-only.",
         );
@@ -146,16 +199,72 @@ export const scheduleWorkflow = defineTool({
           throw e;
         }
       }
+      const control = readScheduleControl(saved.data);
+      // A saved layout or a one-off view; its filter can also scope delay and TIA results.
+      const spec: LayoutSpec | null = args.layout_id
+        ? ((control?.layouts ?? []).find((l) => l.id === args.layout_id) ??
+          (() => {
+            throw new ToolError(
+              `${named(job)} has no saved layout ${args.layout_id}. Use action layouts to list them.`,
+            );
+          })())
+        : args.view
+          ? { ...args.view, columns: args.view.columns ?? [] }
+          : null;
+      if (spec && control) {
+        const bad = unknownRefs(control, spec);
+        if (bad.length) throw new ToolError(`This schedule has no ${bad.join(", ")}.`);
+      }
+      if (args.action === "layouts" || args.action === "query") {
+        if (!saved.found || !saved.data?.activities?.length || !control)
+          throw new ToolError(`${named(job)} has no saved CPM schedule yet.`);
+        const catalog = layoutCatalog(control, job.job_id);
+        if (args.action === "query" && !spec)
+          throw new ToolError("Give a view (group, columns, sort, filter) to query.");
+        if (!spec) {
+          const lines = catalog.layouts.map((l) => `- ${l.name}: ${l.filter} · ${l.url}`);
+          const codeLines = catalog.codes.map(
+            (c) => `- ${c.name}: ${c.values.map((v) => `${v.name} (${v.activities})`).join(", ")}`,
+          );
+          return {
+            ...text(
+              `${named(job)} · Schedule v${version} · ${catalog.layouts.length} saved ${catalog.layouts.length === 1 ? "layout" : "layouts"}${lines.length ? `\n${lines.join("\n")}` : ""}\nActivity codes: ${codeLines.length ? `\n${codeLines.join("\n")}` : "none yet"}\nDefault view: ${scheduleLayoutUrl(job.job_id, null)}. No changes saved.`,
+            ),
+            structuredContent: {
+              saved: false,
+              version,
+              ...(json(catalog) as Record<string, JsonValueInput>),
+            },
+          };
+        }
+        const rows = layoutRows(saved.data, control, spec);
+        const opened = args.layout_id ? catalog.layouts.find((l) => l.id === args.layout_id) : null;
+        return {
+          ...text(
+            `${named(job)} · Schedule v${version}${opened ? ` · Layout ${opened.name}` : " · One-off view"} · ${rows.count} ${rows.count === 1 ? "activity" : "activities"} · ${rows.filter}\n${rows.table}${opened ? `\nOpen it: ${opened.url}` : "\nTo keep this view, save it as a layout with organize (request.layouts)."} No changes saved.`,
+          ),
+          structuredContent: {
+            saved: false,
+            version,
+            layout: opened ? json(opened) : null,
+            ...(json(rows) as Record<string, JsonValueInput>),
+          },
+        };
+      }
       if (args.action !== "inspect" && args.base_version !== version)
         throw new ToolError(
           `This schedule is v${version}. Load that version before preparing a revision or notice.`,
         );
-      if (args.action === "inspect")
+      if (args.action === "inspect") {
+        const milestones = milestoneCheck(saved.data);
+        const scoped =
+          spec && control && saved.data ? scopedDelay(saved.data, control, spec) : null;
         return {
           ...text(
-            `${named(job)} · Schedule ${saved.found ? `v${version}` : "not saved"}. Review the WBS and missing inputs before preparation. No changes saved.`,
+            `${named(job)} · Schedule ${saved.found ? `v${version}` : "not saved"}. Review the WBS and missing inputs before preparation. No changes saved.${milestones ? `\n${milestones.line}` : ""}${scoped ? `\nLimited to ${scoped.filter}: ${scoped.activity_count} activities, ${scoped.delay_events.length} modeled delay ${scoped.delay_events.length === 1 ? "event touches" : "events touch"} them.` : ""}`,
           ),
           structuredContent: {
+            ...(scoped ? { scoped: json(scoped) } : {}),
             found: saved.found,
             version,
             data: json(saved.data ?? null),
@@ -167,8 +276,12 @@ export const scheduleWorkflow = defineTool({
               data_date: saved.data_date ?? null,
             }),
             next: "Prepare with explicit calendars/project start for calculation, or organize only to retain imported dates. Review, then save using living_report_save with the identical schedule_request, base_version and approved=true.",
+            ...(milestones
+              ? { milestones: json(milestones), assistant_guidance: [milestones.guidance] }
+              : {}),
           },
         };
+      }
       if (args.action === "draft_notice") {
         if (!args.event || args.request)
           throw new ToolError(
@@ -209,6 +322,10 @@ export const scheduleWorkflow = defineTool({
           saved.data_date,
         );
         const a = prepared.control.analysis;
+        const milestones = milestoneCheck(prepared.data);
+        const scoped = spec
+          ? scopedDelay(prepared.data, prepared.control, spec, prepared.changes)
+          : null;
         // The TIA hands off to a time request; it never drafts or sends one by itself.
         const timeRequest =
           a && a.impact_calendar_days > 0
@@ -221,13 +338,17 @@ export const scheduleWorkflow = defineTool({
             : null;
         return {
           ...text(
-            `${named(job)} · Draft, not saved · based on v${version}.\nOperation: ${args.request.operation}. ${prepared.changes.length} activities changed.\nCalculation: ${prepared.control.calculation.status}.${prepared.control.analysis ? `\nModeled completion movement: ${prepared.control.analysis.impact_calendar_days} calendar days (${prepared.control.analysis.prior_completion} → ${prepared.control.analysis.updated_completion}). ${prepared.control.analysis.limitation}` : ""}\n${prepared.missing.map((m) => `Needed: ${m}`).join("\n")}${timeRequest ? `\nTime request: ${timeRequest.next}` : ""}\nReview this draft before saving. No notice sent.`,
+            `${named(job)} · Draft, not saved · based on v${version}.\nOperation: ${args.request.operation}. ${prepared.changes.length} activities changed.\nCalculation: ${prepared.control.calculation.status}.${prepared.control.analysis ? `\nModeled completion movement: ${prepared.control.analysis.impact_calendar_days} calendar days (${prepared.control.analysis.prior_completion} → ${prepared.control.analysis.updated_completion}). ${prepared.control.analysis.limitation}` : ""}\n${prepared.missing.map((m) => `Needed: ${m}`).join("\n")}${timeRequest ? `\nTime request: ${timeRequest.next}` : ""}${milestones ? `\n${milestones.line}` : ""}${scoped ? `\nLimited to ${scoped.filter}: ${scoped.changed_activity_ids.length} of its ${scoped.activity_count} activities changed${scoped.analysis ? `; this delay ${scoped.analysis.touches_scope ? "touches" : "does not touch"} them, and ${scoped.analysis.moved.length} of them finish later` : ""}.` : ""}\nReview this draft before saving. No notice sent.`,
           ),
           structuredContent: {
             saved: false,
             base_version: version,
             prepared: json(prepared),
             ...(timeRequest ? { time_request: timeRequest } : {}),
+            ...(scoped ? { scoped: json(scoped) } : {}),
+            ...(milestones
+              ? { milestones: json(milestones), assistant_guidance: [milestones.guidance] }
+              : {}),
             save: {
               tool: "living_report_save",
               report_type: "cpm",

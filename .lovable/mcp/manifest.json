@@ -4522,6 +4522,293 @@
                   ],
                   "additionalProperties": false
                 },
+                "activity_codes": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "values": {
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^#[0-9A-Fa-f]{6}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "values"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "remove_code_ids": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "code_assignments": {
+                  "maxItems": 4000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "activity_id": {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      "code_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "value_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "activity_id",
+                      "code_id",
+                      "value_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "layouts": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "group": {
+                        "type": "string",
+                        "enum": [
+                          "wbs",
+                          "cascade"
+                        ]
+                      },
+                      "columns": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "od",
+                                "rd",
+                                "pc",
+                                "st",
+                                "fi",
+                                "tf",
+                                "ff"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^code:[^\\s]{1,80}$"
+                            }
+                          ]
+                        }
+                      },
+                      "sort": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "id",
+                                      "name",
+                                      "od",
+                                      "rd",
+                                      "pc",
+                                      "st",
+                                      "fi",
+                                      "tf",
+                                      "ff"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "pattern": "^code:[^\\s]{1,80}$"
+                                  }
+                                ]
+                              },
+                              "dir": {
+                                "type": "string",
+                                "enum": [
+                                  "asc",
+                                  "desc"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "dir"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "filter": {
+                        "type": "object",
+                        "properties": {
+                          "wbs_ids": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            }
+                          },
+                          "codes": {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "code_id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
+                                },
+                                "value_ids": {
+                                  "minItems": 1,
+                                  "maxItems": 200,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 80
+                                  }
+                                }
+                              },
+                              "required": [
+                                "code_id",
+                                "value_ids"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "cost_codes": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 20
+                            }
+                          },
+                          "activity_ids": {
+                            "maxItems": 400,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 20
+                            }
+                          },
+                          "critical_only": {
+                            "type": "boolean"
+                          },
+                          "remaining_only": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "timescale": {
+                        "type": "string",
+                        "enum": [
+                          "week",
+                          "month",
+                          "quarter"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "group",
+                      "columns"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "remove_layout_ids": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
                 "delay": {
                   "type": "object",
                   "properties": {
@@ -13954,7 +14241,7 @@
       {
         "name": "schedule_workflow",
         "title": "Prepare WBS, schedule update or delay comparison",
-        "description": "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending. import_xer turns a Primavera P6 XER file's text into a first-import draft for a job with no saved schedule; export_xer returns the saved schedule as XER text for P6.",
+        "description": "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending. layouts lists saved schedule layouts and activity codes with the link that opens each layout (pass layout_id to open one and get its rows). query sorts and filters the schedule by any column, activity code or WBS (view: group, columns, sort, filter) and returns the rows; to save it as a layout, prepare organize with request.layouts. Activity codes are created and assigned with organize (request.activity_codes, request.code_assignments). On prepare or inspect, layout_id or view limits the delay and TIA results to that layout's activities. import_xer turns a Primavera P6 XER file's text into a first-import draft for a job with no saved schedule; export_xer returns the saved schedule as XER text for P6.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -13982,8 +14269,177 @@
                 "prepare",
                 "draft_notice",
                 "import_xer",
-                "export_xer"
+                "export_xer",
+                "layouts",
+                "query"
               ]
+            },
+            "layout_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "view": {
+              "type": "object",
+              "properties": {
+                "group": {
+                  "type": "string",
+                  "enum": [
+                    "wbs",
+                    "cascade"
+                  ]
+                },
+                "columns": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "od",
+                          "rd",
+                          "pc",
+                          "st",
+                          "fi",
+                          "tf",
+                          "ff"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^code:[^\\s]{1,80}$"
+                      }
+                    ]
+                  }
+                },
+                "sort": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "id",
+                                "name",
+                                "od",
+                                "rd",
+                                "pc",
+                                "st",
+                                "fi",
+                                "tf",
+                                "ff"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^code:[^\\s]{1,80}$"
+                            }
+                          ]
+                        },
+                        "dir": {
+                          "type": "string",
+                          "enum": [
+                            "asc",
+                            "desc"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "dir"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "filter": {
+                  "type": "object",
+                  "properties": {
+                    "wbs_ids": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      }
+                    },
+                    "codes": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "value_ids": {
+                            "minItems": 1,
+                            "maxItems": 200,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            }
+                          }
+                        },
+                        "required": [
+                          "code_id",
+                          "value_ids"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "cost_codes": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20
+                      }
+                    },
+                    "activity_ids": {
+                      "maxItems": 400,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20
+                      }
+                    },
+                    "critical_only": {
+                      "type": "boolean"
+                    },
+                    "remaining_only": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "timescale": {
+                  "type": "string",
+                  "enum": [
+                    "week",
+                    "month",
+                    "quarter"
+                  ]
+                }
+              },
+              "required": [
+                "group"
+              ],
+              "additionalProperties": false
             },
             "xer_text": {
               "type": "string",
@@ -14961,6 +15417,293 @@
                     "status"
                   ],
                   "additionalProperties": false
+                },
+                "activity_codes": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "values": {
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^#[0-9A-Fa-f]{6}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "values"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "remove_code_ids": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "code_assignments": {
+                  "maxItems": 4000,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "activity_id": {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      "code_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "value_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "activity_id",
+                      "code_id",
+                      "value_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "layouts": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "group": {
+                        "type": "string",
+                        "enum": [
+                          "wbs",
+                          "cascade"
+                        ]
+                      },
+                      "columns": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "od",
+                                "rd",
+                                "pc",
+                                "st",
+                                "fi",
+                                "tf",
+                                "ff"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^code:[^\\s]{1,80}$"
+                            }
+                          ]
+                        }
+                      },
+                      "sort": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "id",
+                                      "name",
+                                      "od",
+                                      "rd",
+                                      "pc",
+                                      "st",
+                                      "fi",
+                                      "tf",
+                                      "ff"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "pattern": "^code:[^\\s]{1,80}$"
+                                  }
+                                ]
+                              },
+                              "dir": {
+                                "type": "string",
+                                "enum": [
+                                  "asc",
+                                  "desc"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "dir"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "filter": {
+                        "type": "object",
+                        "properties": {
+                          "wbs_ids": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80
+                            }
+                          },
+                          "codes": {
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "code_id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
+                                },
+                                "value_ids": {
+                                  "minItems": 1,
+                                  "maxItems": 200,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 80
+                                  }
+                                }
+                              },
+                              "required": [
+                                "code_id",
+                                "value_ids"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "cost_codes": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 20
+                            }
+                          },
+                          "activity_ids": {
+                            "maxItems": 400,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 20
+                            }
+                          },
+                          "critical_only": {
+                            "type": "boolean"
+                          },
+                          "remaining_only": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "timescale": {
+                        "type": "string",
+                        "enum": [
+                          "week",
+                          "month",
+                          "quarter"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "group",
+                      "columns"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "remove_layout_ids": {
+                  "maxItems": 30,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
                 },
                 "delay": {
                   "type": "object",

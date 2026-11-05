@@ -1,6 +1,6 @@
 // Phone text for hosts that cannot show a card. Markdown lists only.
 // ChatGPT and Claude keep the HTML card; this is not used for them.
-import { scheduleWindowLabel } from "./styled-views";
+import { lookaheadDates, scheduleWindowLabel, type SAct } from "./styled-views";
 import { addDays } from "./deadlines";
 import { isDelayNoticeTask } from "./delay-notice";
 import type { CardModel } from "./cards/model";
@@ -157,20 +157,22 @@ export function phoneLookaheadText(sc: Sc): string | null {
   section(lines, "### Due within 7 days", due7);
   section(lines, "### Coming up", later);
   section(lines, "### Delay / risk notices", delay);
-  const activities = (Array.isArray(sc.activities) ? sc.activities : []) as {
-    name?: string | null;
-    description?: string | null;
-    id?: string | null;
-    start?: string | null;
-    finish?: string | null;
-  }[];
+  // The same CPM activity list as the card: dates with " A" when actualized, then % complete and total float.
+  const activities = (Array.isArray(sc.activities) ? sc.activities : []) as SAct[];
   const schedule = activities
     .map((activity) => {
       const line = clean(scheduleWindowLabel(activity));
-      return line ? `- ${line}` : "";
+      if (!line) return "";
+      const dt = lookaheadDates(activity);
+      const extra = [dt.pct ? `${dt.pct} complete` : "", dt.float ? `TF ${dt.float}` : ""].filter(
+        Boolean,
+      );
+      return `- ${line}${extra.length ? ` · ${extra.join(" · ")}` : ""}`;
     })
     .filter(Boolean);
-  if (schedule.length) lines.push("", "### Schedule in this window", ...schedule);
+  const source = typeof sc.activity_source === "string" ? clean(sc.activity_source) : "";
+  if (schedule.length)
+    lines.push("", "### Schedule in this window", ...(source ? [source] : []), ...schedule);
   if (resolved.length) lines.push("", `✅ Resolved: ${resolved.map((row) => splitAction(row.action ?? "Item").title).join(", ")}`);
   const next = nextMove(sc, card);
   if (next) lines.push("", `**Athena's next move:** ${next}`);

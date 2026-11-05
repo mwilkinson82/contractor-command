@@ -128,8 +128,12 @@ describe("save note vs saved dates (2701 v3 note)", () => {
 });
 
 describe("lookahead view", () => {
-  it("fills the window from the CPM data date (Oct 19 → Oct 26–Nov 6)", () => {
-    expect(windowFromDataDate("2026-10-19")).toEqual({ start: "2026-10-26", end: "2026-11-06" });
+  it("fills the window from the CPM data date: two weeks starting on it (Oct 19 → Oct 19–Nov 1)", () => {
+    expect(windowFromDataDate("2026-10-19")).toEqual({ start: "2026-10-19", end: "2026-11-01" });
+    expect(windowFromDataDate("2026-06-25T00:00:00Z")).toEqual({
+      start: "2026-06-25",
+      end: "2026-07-08",
+    });
   });
   it("renders a finished view: link, artifact rule, top 3, calendar strip, risk card, legend", () => {
     const v = lookaheadView({
@@ -156,8 +160,16 @@ describe("lookahead view", () => {
     expect(v).toContain(LOOKAHEAD_ARTIFACT_LINE);
     expect(v).not.toContain(SHOW_AS_IS);
     expect(v).toContain("### Top 3 priorities");
-    expect(v).toMatch(/\| A1020 Submit long-lead gear \| 0 \| 🔵 \| 🔵 \| 🔵 \|/);
-    expect(v).toMatch(/A1130 Underground inspection \(hold point\) \| 18 \|( {2}\|){8} 🔵INSP🔴 \|/);
+    expect(v).toContain("| Activity | Start | Finish | % | Float |");
+    expect(v).toMatch(
+      /\| A1020 Submit long-lead gear \| 2026-10-19 \| 2026-10-28 \| {2}\| 0 \| 🔵 \| 🔵 \| 🔵 \|/,
+    );
+    expect(v).toMatch(
+      /A1130 Underground inspection \(hold point\) \| 2026-11-05 \| 2026-11-05 \| {2}\| 18 \|( {2}\|){8} 🔵INSP🔴 \|/,
+    );
+    expect(v).toContain(
+      "From the saved CPM, data date 10/19/26: activities under 100% that are in progress or start by 11/06/26.",
+    );
     expect(v).toContain("### Risk cards");
     expect(v).not.toContain("D1060");
     expect(v).toContain("**Legend:**");

@@ -2,7 +2,7 @@
 // Live fail (v0.8.17, 2026-10-21 00:10 Manaus): ChatGPT was only told to "build a PDF and attach it"; it had no file,
 // called neither file_share nor email_draft, and the Gmail draft went out with nothing attached.
 import { jsPDF } from "jspdf";
-import { lookaheadModel, lookaheadAlert, shortDate, dayHead, type LaItem, type SAct } from "./styled-views";
+import { lookaheadModel, lookaheadAlert, lookaheadDates, lookaheadSourceLine, shortDate, dayHead, type LaItem, type SAct } from "./styled-views";
 import { drawContractorBrand, drawPoweredByAthena, type ContractorBrand } from "../client-brand";
 
 const BLUE: [number, number, number] = [30, 95, 237], GRAY: [number, number, number] = [156, 163, 175], NAVY: [number, number, number] = [30, 58, 95];
@@ -13,7 +13,7 @@ export const pdfText = (s: string) => s.replace(/[\u2013\u2014]/g, "-").replace(
 const plural = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
 export const lookaheadPdfName = (jobNumber: string, start: string, end: string) => `${jobNumber} Two-Week Lookahead ${start} to ${end}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
 
-export function lookaheadPdf(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; today?: string | null; brand?: ContractorBrand }): Uint8Array {
+export function lookaheadPdf(v: { title: string; ref: string; start: string; end: string; dataDate: string | null; acts: SAct[]; items: LaItem[]; today?: string | null; brand?: ContractorBrand; version?: number | null }): Uint8Array {
   const m = lookaheadModel(v.start, v.end, v.acts, v.items, { today: v.today, dataDate: v.dataDate });
   const d = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
   const W = d.internal.pageSize.getWidth(), H = d.internal.pageSize.getHeight(), X = 36;
@@ -26,6 +26,7 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   d.text(d.splitTextToSize(pdfText(`Two-Week Lookahead - ${v.title}`), W - 2 * X - 190)[0] ?? "", X, y); y += 18;
   d.setFont("helvetica", "normal"); d.setFontSize(10); color(G1);
   d.text(pdfText(`Window ${shortDate(v.start)} - ${shortDate(v.end)}${v.dataDate ? ` - Data date ${shortDate(v.dataDate)}` : ""} - Ref ${v.ref}`), X, y); y += 14;
+  d.text(pdfText(lookaheadSourceLine(v.end, v.dataDate, v.version)), X, y); y += 14;
   const c = m.counts;
   d.text(pdfText(`${plural(c.activities, "activity", "activities")} - ${c.critical} critical - ${plural(c.inspections, "inspection")} - ${plural(c.deliveries, "delivery", "deliveries")} - ${plural(c.risks, "risk")} - ${c.overdue} overdue${c.flags ? ` - ${plural(c.flags, "date to check", "dates to check")}` : ""}`), X, y); y += 22;
 
@@ -50,17 +51,20 @@ export function lookaheadPdf(v: { title: string; ref: string; start: string; end
   y += ch + 18;
 
   d.setFont("helvetica", "bold"); d.setFontSize(11); color(NAVY); d.text("CALENDAR", X, y); y += 14;
-  const idW = 52, nameW = 200, flW = 34, gx = X + idW + nameW + flW, dayW = (W - X - gx) / Math.max(m.days.length, 1);
+  // CPM columns: Start / Finish (" A" = actual) and % complete sit between the name and the float.
+  const idW = 52, nameW = 124, stW = 58, fnW = 58, pcW = 26, flW = 30, cx0 = X + idW + nameW, gx = cx0 + stW + fnW + pcW + flW, dayW = (W - X - gx) / Math.max(m.days.length, 1);
   d.setFontSize(7); color(G1);
   m.days.forEach((day, i) => { if (i === 0 || i === 5) d.text(i === 0 ? "WEEK 1" : "WEEK 2", gx + i * dayW + 2, y - 2); d.text(pdfText(dayHead(day)), gx + i * dayW + 2, y + 8); });
-  d.text("Float", X + idW + nameW, y + 8); y += 14;
+  d.text("Start", cx0, y + 8); d.text("Finish", cx0 + stW, y + 8); d.text("%", cx0 + stW + fnW, y + 8); d.text("Float", cx0 + stW + fnW + pcW, y + 8); y += 14;
   if (!m.rows.length) { d.setFontSize(9); d.text("No saved schedule activities fall in this window.", X, y + 10); y += 20; }
   for (const r of m.rows) {
     newPageIfNeeded(18);
     d.setDrawColor(243, 244, 246); d.line(X, y, W - X, y);
     d.setFont("helvetica", "bold"); d.setFontSize(8); color(NAVY); d.text(pdfText(r.a.id), X, y + 11);
     d.setFont("helvetica", "normal"); d.text(d.splitTextToSize(pdfText(r.a.name), nameW - 6)[0] ?? "", X + idW, y + 11);
-    color(Number(r.a.total_float) === 0 ? BLUE : G1); d.text(String(r.a.total_float ?? ""), X + idW + nameW, y + 11);
+    const dt = lookaheadDates(r.a);
+    color(G1); d.text(pdfText(dt.start), cx0, y + 11); d.text(pdfText(dt.finish), cx0 + stW, y + 11); d.text(pdfText(dt.pct), cx0 + stW + fnW, y + 11);
+    color(Number(r.a.total_float) === 0 ? BLUE : G1); d.text(dt.float, cx0 + stW + fnW + pcW, y + 11);
     // 0.8.21: ONE continuous rounded bar per run of bar days (Marshall: the per-day blocks looked cut into pieces).
     for (let i = 0; i < r.cells.length; i++) {
       const k = r.cells[i].kind;

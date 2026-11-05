@@ -113,6 +113,7 @@ function JobReportPage() {
       jobId={jobId}
       token={token}
       reportDate={search.date}
+      layout={search.layout}
     />
   );
 }

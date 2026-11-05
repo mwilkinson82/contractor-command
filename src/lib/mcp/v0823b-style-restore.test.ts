@@ -53,9 +53,9 @@ describe("0.8.23b lookahead result keeps the v0.8.22 drawing", () => {
 
   it("the lookahead data keeps the v0.8.22 rows and uses only blue, neutral, and red markers", () => {
     const data = dataOnly(view);
-    // Severity-aware risk markers: the routine inspection is blue; the recorded high-risk RFI stays red. Activity rows and dates are unchanged.
+    // Severity-aware risk markers: the routine inspection is blue; the recorded high-risk RFI stays red. Activity rows are unchanged; the strip adds the CPM Start / Finish / % columns and the CPM source line.
     expect(createHash("sha256").update(data).digest("hex")).toBe(
-      "798ca60d794be1c679aa6de02beacd54d918ba09337212f63ff1282ed49937a9",
+      "b8cf6af2e893755a849abbba49db434f86953580f158d7ff70c7112f1fab74de",
     );
     expect(data).toContain("2701 – Harbor Point");
     expect(data).toContain("A1110 Underground conduit rough-in");

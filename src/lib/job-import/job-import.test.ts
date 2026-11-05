@@ -339,20 +339,24 @@ describe("Overwatch export: schedule, RFIs and job logs", () => {
   it("organizes the schedule as CPM version 1: logic FS 0, milestones as milestone activities, no dollars", () => {
     const plan = planImport(job, { job_exists: false });
     const sched = plan.package.schedule;
-    expect(sched).toMatchObject({ activity_count: 3, milestones: 1, data_date: "2026-11-04" });
+    // Overwatch's own Substantial completion milestone is kept; Athena adds only the start.
+    expect(sched).toMatchObject({ activity_count: 4, milestones: 2, data_date: "2026-11-04" });
     const acts = (sched?.data as { activities: Record<string, unknown>[] }).activities;
     expect(acts.map((a) => [a.id, a.duration, a.pct_complete])).toEqual([
+      ["MS-000", 0, 0],
       ["A100", 10, 100],
       ["A200", 22, 60],
       ["MS-01", 0, null],
     ]);
-    expect(acts[1].predecessors).toEqual([{ id: "A100", type: "FS", lag: 0 }]);
-    expect(acts[2]).toMatchObject({ activity_type: "milestone-finish", start: "2027-04-14" });
+    expect(acts[0]).toMatchObject({ name: "Project Start", activity_type: "milestone-start" });
+    expect(acts[1].predecessors).toEqual([{ id: "MS-000", type: "FS", lag: 0 }]);
+    expect(acts[2].predecessors).toEqual([{ id: "A100", type: "FS", lag: 0 }]);
+    expect(acts[3]).toMatchObject({ activity_type: "milestone-finish", start: "2027-04-14" });
     expect(acts.every((a) => a.value === null)).toBe(true);
     const saved = reviewCard(plan, "3101", false)
       .sections?.[0].rows.map((r) => r.cells[0])
       .join(" | ");
-    expect(saved).toMatch(/CPM, version 1: 3 activities with 1 milestone, .*not cost loaded/);
+    expect(saved).toMatch(/CPM, version 1: 4 activities with 2 milestones, .*not cost loaded/);
   });
 
   it("keeps Athena's CPM when the job has one", () => {
@@ -529,7 +533,7 @@ describe("import plan and review", () => {
       dailies: 1,
       ior: 0,
       archive_rows: 29,
-      schedule_activities: 2,
+      schedule_activities: 4,
       rfis: 1,
       decisions: 0,
       claims: 0,
@@ -561,6 +565,8 @@ describe("import plan and review", () => {
     ]);
     expect(plan.fixes).toEqual([
       "Submittal LOOSE-1 has no spec section; it is left out until one is added.",
+      "Added start milestone MS-000 Project Start, tied FS 0 to A100 Demo.",
+      "Added finish milestone MS-999 Substantial Completion, tied FF 0 to A200 Framing.",
     ]);
     expect(plan.package.dailies[0]).toMatchObject({
       date: "2026-11-02",
@@ -571,7 +577,7 @@ describe("import plan and review", () => {
     );
     expect(plan.held.join(" ")).not.toMatch(/RFI|schedule/);
     expect(plan.package.rfis).toHaveLength(1);
-    expect(plan.package.schedule?.activity_count).toBe(2);
+    expect(plan.package.schedule?.activity_count).toBe(4);
     expect(plan.archived.join(" ")).toMatch(/daily with no work quantities/);
   });
 
@@ -864,7 +870,7 @@ describe("Overwatch schedule on its own calendar", () => {
     expect(control.baselines[0]).toMatchObject({ id: "BL1" });
     expect(control.calculation.status).toBe("calculated");
     expect(plan.counts).toMatchObject({
-      schedule_activities: 4,
+      schedule_activities: 6,
       sov_lines: 0,
       change_orders: 0,
       job: 0,
@@ -897,10 +903,12 @@ describe("Overwatch schedule on its own calendar", () => {
     expect(control.wbs.find((w) => w.name === "Framing")?.parent_id).toBe("wbs:w-06");
     expect(control.baselines[0]).toMatchObject({ id: "BL1", name: "Overwatch baseline" });
     expect(control.baselines[0].activities.map((a) => a.finish)).toEqual([
+      "2026-03-02",
       "2026-03-14",
       "2026-03-28",
       "2026-04-04",
       "2026-03-31",
+      "2026-04-04",
     ]);
     const acts = new Map(data.activities!.map((a) => [a.id, a]));
     // In progress with no remaining days keeps Overwatch's forecast finish.
@@ -911,10 +919,115 @@ describe("Overwatch schedule on its own calendar", () => {
     });
     expect(acts.get("A100")!.critical).toBe(false);
     expect(acts.get("A400")!.critical).toBe(false);
-    expect(control.calculation.longest_path).toEqual(["A200", "A300"]);
+    expect(control.calculation.longest_path).toEqual(["A200", "A300", "MS-999"]);
     expect(control.calculation.activity_results!.A400.free_float).toBeGreaterThan(0);
     expect(plan.fixes.join(" ")).toMatch(/data date is Mar 17, 2026/);
     expect(plan.fixes.join(" ")).toMatch(/baseline dates are kept as the job's baseline/);
+  });
+
+  it("adds Mobilization and Substantial Completion milestones, actualized, tied SS and FF, and in BL1", () => {
+    const v = x();
+    v.schedule_activities[0].name = "Mobilization and framing";
+    const plan = planImport(fromOverwatch(v), { job_exists: false });
+    const data = plan.package.schedule!.data as LivingData;
+    const acts = new Map(data.activities!.map((a) => [a.id, a]));
+    expect(data.activities!.map((a) => a.id)).toEqual([
+      "MS-000",
+      "A100",
+      "A200",
+      "A300",
+      "A400",
+      "MS-999",
+    ]);
+    // The start milestone is the start of mobilization: SS 0, complete at its actual start.
+    expect(acts.get("MS-000")).toMatchObject({
+      name: "Mobilization",
+      activity_type: "milestone-start",
+      duration: 0,
+      predecessors: [],
+      actual_start: "2026-03-02",
+      actual_finish: "2026-03-02",
+      pct_complete: 100,
+      remaining_duration: 0,
+      start: "2026-03-02",
+      finish: "2026-03-02",
+      wbs_id: "wbs:w-fr",
+    });
+    expect(acts.get("A100")!.predecessors).toEqual([{ id: "MS-000", type: "SS", lag: 0 }]);
+    // Substantial Completion closes every open end FF 0 and finishes with the last work.
+    expect(acts.get("MS-999")).toMatchObject({
+      name: "Substantial Completion",
+      activity_type: "milestone-finish",
+      duration: 0,
+      predecessors: [
+        { id: "A300", type: "FF", lag: 0 },
+        { id: "A400", type: "FF", lag: 0 },
+      ],
+      pct_complete: 0,
+    });
+    expect(acts.get("MS-999")!.actual_finish).toBeUndefined();
+    expect(acts.get("MS-999")!.finish).toBe(acts.get("A300")!.finish);
+    const control = readScheduleControl(data)!;
+    expect(control.calculation.status).toBe("calculated");
+    expect(control.calculation.longest_path).toEqual(["A200", "A300", "MS-999"]);
+    expect(acts.get("MS-999")).toMatchObject({ critical: true, total_float: 0 });
+    // BL1 carries both milestones on the baseline activity dates, with no progress.
+    const bl = new Map(control.baselines[0].activities.map((a) => [a.id, a]));
+    expect(bl.get("MS-000")).toMatchObject({ start: "2026-03-02", finish: "2026-03-02" });
+    expect(bl.get("MS-999")).toMatchObject({ start: "2026-04-04", finish: "2026-04-04" });
+    expect(bl.get("MS-000")!.actual_start).toBeUndefined();
+    expect(plan.package.schedule).toMatchObject({ activity_count: 6, milestones: 2 });
+    expect(plan.package.schedule!.what).toContain(
+      "plus Athena's MS-000 Mobilization and MS-999 Substantial Completion milestones",
+    );
+    const review = JSON.stringify(reviewCard(plan, "2717", false));
+    expect(review).toContain(
+      "Added start milestone MS-000 Mobilization, tied SS 0 to A100 Mobilization and framing; complete at its actual start, Mar 2, 2026.",
+    );
+    expect(review).toContain(
+      "Added finish milestone MS-999 Substantial Completion, tied FF 0 to A300 Punch and A400 Touch-up.",
+    );
+  });
+
+  it("actualizes Substantial Completion when the last work is finished, and adds none the schedule has", () => {
+    const v = x();
+    const done = (i: number, s: string, f: string) => {
+      v.schedule_activities[i].percent_complete = 100;
+      v.schedule_activities[i].actual_start_date = s;
+      v.schedule_activities[i].actual_finish_date = f;
+    };
+    done(1, "2026-03-16", "2026-03-28");
+    done(2, "2026-03-30", "2026-04-04");
+    done(3, "2026-03-30", "2026-03-31");
+    v.schedule_updates = [{ id: "u1", data_date: "2026-04-06" }];
+    const plan = planImport(fromOverwatch(v), { job_exists: false });
+    const data = plan.package.schedule!.data as LivingData;
+    const acts = new Map(data.activities!.map((a) => [a.id, a]));
+    expect(acts.get("MS-000")).toMatchObject({ name: "Project Start", actual_start: "2026-03-02" });
+    expect(acts.get("A100")!.predecessors).toEqual([{ id: "MS-000", type: "FS", lag: 0 }]);
+    expect(acts.get("MS-999")).toMatchObject({
+      actual_start: "2026-04-04",
+      actual_finish: "2026-04-04",
+      finish: "2026-04-04",
+      pct_complete: 100,
+      remaining_duration: 0,
+    });
+    expect(plan.fixes.join(" ")).toContain("complete at the last actual finish, Apr 4, 2026");
+    // Overwatch's own Substantial Completion milestone stands in for Athena's.
+    const w = x();
+    w.schedule_activities.push({
+      ...w.schedule_activities[2],
+      id: "r-M900",
+      activity_id: "M900",
+      name: "Substantial Completion",
+      planned_duration_days: 0,
+      is_milestone: true,
+      predecessor_activity_ids: ["A300", "A400"],
+    });
+    const kept = planImport(fromOverwatch(w), { job_exists: false }).package.schedule!;
+    const ids = (kept.data as LivingData).activities!.map((a) => a.id);
+    expect(ids).toContain("MS-000");
+    expect(ids).not.toContain("MS-999");
   });
 
   it("keeps percent complete with no actual start scheduled, and says so", () => {
