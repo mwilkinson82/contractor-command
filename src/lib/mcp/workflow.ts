@@ -77,7 +77,23 @@ export async function loadAnswers(sb: Sb, lookaheadId: string): Promise<Answer[]
 /** Returns the current check to ask, recording checks whose required inputs are missing as unknown. */
 export async function currentCheck(sb: Sb, la: Lookahead, tool: string) {
   const checks = await loadChecks(sb);
-  const done = new Set((await loadAnswers(sb, la.id)).map((a) => a.check_key));
+  const answers = await loadAnswers(sb, la.id);
+  // A check skipped for missing inputs is asked again once a revision supplies them. The skip row may have been written
+  // by a teammate (members only update their own answer rows), so the server clears it after the member's own read
+  // above showed this lookahead is visible to them.
+  const stale = answers
+    .filter((a) => a.status === "skipped_missing_inputs")
+    .filter((a) => {
+      const c = checks.find((x) => x.key === a.check_key);
+      return !!c && c.required_inputs.every((i) => la.provided_inputs.includes(i));
+    })
+    .map((a) => a.check_key);
+  if (stale.length) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("mcp_answers").delete().eq("lookahead_id", la.id).eq("status", "skipped_missing_inputs").in("check_key", stale);
+    if (error) throw new Error(error.message);
+  }
+  const done = new Set(answers.filter((a) => !stale.includes(a.check_key)).map((a) => a.check_key));
   for (const c of checks) {
     if (done.has(c.key)) continue;
     const missing = c.required_inputs.filter((i) => !la.provided_inputs.includes(i));
