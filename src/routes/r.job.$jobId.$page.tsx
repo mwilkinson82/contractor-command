@@ -3,7 +3,8 @@ import { AccountingRecordPage } from "@/components/athena/AccountingRecordPage";
 import { accountingContextDates, accountingTargetFromSearch } from "@/lib/accounting-record-target";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ReportPageView } from "@/components/athena/ReportPage";
-import { JOB_PAGES, hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
+import { hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
+import { JOB_BOARD_PAGES } from "@/lib/board-sign-in";
 import { PurchaseOrdersPage } from "@/components/athena/PurchaseOrdersPage";
 import { ProductionReportPage } from "@/components/athena/ProductionReportPage";
 import { AccountingReportPage } from "@/components/athena/AccountingReportPage";
@@ -28,18 +29,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
     const page = hostedPageName(params.page);
     if (
       !isUuid(params.jobId) ||
-      (page !== "payment-applications" &&
-        page !== "home" &&
-        page !== "estimate" &&
-        page !== "gap-check" &&
-        page !== "billing-records" &&
-        page !== "purchase-orders" &&
-        page !== "buyout" &&
-        page !== "accounting" &&
-        page !== "production" &&
-        page !== "daily-log" &&
-        page !== "record" &&
-        !(JOB_PAGES as readonly string[]).includes(page))
+      !(JOB_BOARD_PAGES as readonly string[]).includes(page)
     )
       throw notFound();
   },
