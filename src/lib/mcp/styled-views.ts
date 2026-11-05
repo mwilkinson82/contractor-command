@@ -17,6 +17,10 @@ export type SAct = {
   duration?: number | string | null;
   total_float?: number | string | null;
   critical?: boolean | null;
+  pct_complete?: number | string | null;
+  activity_type?: string | null;
+  actual_start?: string | null;
+  actual_finish?: string | null;
 };
 
 /** The words a person reads. A bare activity id falls back to the description. */
@@ -73,11 +77,16 @@ export function scheduleWindowLabel(a: {
   description?: string | null;
   start?: string | null;
   finish?: string | null;
+  actual_start?: string | null;
+  actual_finish?: string | null;
 }): string {
   const name = activityIdName(a);
   if (!name) return "";
-  const from = monthDay(a.start);
-  const to = monthDay(a.finish);
+  // An actualized date carries " A", as in the CPM ("May 12 A to Jun 29").
+  const fromDay = monthDay(a.actual_start ?? a.start);
+  const toDay = monthDay(a.actual_finish ?? a.finish);
+  const from = fromDay && a.actual_start ? `${fromDay} A` : fromDay;
+  const to = toDay && a.actual_finish ? `${toDay} A` : toDay;
   const span = from && to ? `, ${from} to ${to}` : from ? `, ${from}` : "";
   return `${name}${span}`;
 }
@@ -249,33 +258,49 @@ export function noteDateConflicts(
 }
 
 // ---------- lookahead from the saved CPM ----------
-/** Window when none was given: the two work weeks starting the Monday after the CPM data date (Mon–Fri, Fri of week 2). */
+/** Lookahead length: two weeks, 14 calendar days counting the start day. */
+export const LOOKAHEAD_DAYS = 14;
+/** Window when none was picked: two weeks (14 calendar days) starting on the CPM data date. */
 export function windowFromDataDate(dataDate: string): { start: string; end: string } {
-  let s = addDays(dataDate.slice(0, 10), 1);
-  while (dow(s) !== 1) s = addDays(s, 1);
-  return { start: s, end: addDays(s, 11) };
+  const start = dataDate.slice(0, 10);
+  return { start, end: addDays(start, LOOKAHEAD_DAYS - 1) };
 }
 /**
- * 0.8.17: the lookahead window always comes from the saved CPM data date (the next two work weeks), never from a stale
- * saved lookahead, a change-log note ("data date November 2") or an earlier chat. A saved window is used only when no CPM
- * data date exists. Marshall's 2701 test: CPM data date 2026-10-19 → Oct 26 – Nov 6, not Nov 2 – 13.
+ * The lookahead comes straight from the saved CPM. The window starts on the CPM data date, or on the start date the PM
+ * picked when that is on or after the data date, and runs two weeks (14 calendar days). A picked start before the data
+ * date can't show remaining work, so it defers to the data date and says so. A saved window is used as-is only when no
+ * CPM data date exists.
  */
 export function lookaheadWindow(
   saved: { start_date?: string | null; end_date?: string | null } | null | undefined,
   cpmDataDate: string | null | undefined,
 ): { start: string; end: string; source: "cpm" | "saved"; note: string | null } | null {
   if (cpmDataDate) {
-    const w = windowFromDataDate(cpmDataDate);
+    const dd = cpmDataDate.slice(0, 10);
+    const picked = saved?.start_date?.slice(0, 10) ?? null;
+    if (picked && picked >= dd) {
+      const w = windowFromDataDate(picked);
+      const savedEnd = saved?.end_date?.slice(0, 10) ?? null;
+      return {
+        ...w,
+        source: "cpm",
+        note:
+          savedEnd && savedEnd !== w.end
+            ? `The lookahead starts ${shortDate(w.start)} as picked and runs two weeks to ${shortDate(w.end)} (the saved end date was ${shortDate(savedEnd)}).`
+            : null,
+      };
+    }
+    const w = windowFromDataDate(dd);
     const differs = !!(
       saved?.start_date &&
       saved.end_date &&
-      (saved.start_date !== w.start || saved.end_date !== w.end)
+      (saved.start_date.slice(0, 10) !== w.start || saved.end_date.slice(0, 10) !== w.end)
     );
     return {
       ...w,
       source: "cpm",
       note: differs
-        ? `The saved lookahead window (${shortDate(saved!.start_date!)} – ${shortDate(saved!.end_date!)}) doesn't match the CPM data date; this view uses the CPM data date ${shortDate(cpmDataDate.slice(0, 10))}.`
+        ? `The saved lookahead window (${shortDate(saved!.start_date!.slice(0, 10))} – ${shortDate(saved!.end_date!.slice(0, 10))}) doesn't match the CPM data date; this view uses the CPM data date ${shortDate(dd)}.`
         : null,
     };
   }
@@ -293,12 +318,57 @@ export function workdays(start: string, end: string): string[] {
     if (dow(d) !== 0 && dow(d) !== 6) out.push(d);
   return out;
 }
+const day10 = (v: string | null | undefined) => (v ? v.slice(0, 10) : null);
+/** Done in the CPM: actualized finish or 100% complete. */
+export const activityDone = (a: SAct) => !!a.actual_finish || (num(a.pct_complete) ?? 0) >= 100;
+/** In progress in the CPM: actualized start and not done. */
+export const activityInProgress = (a: SAct) => !!a.actual_start && !activityDone(a);
+/**
+ * The two-week lookahead straight from the CPM: every activity under 100% that is in progress (actual start, however
+ * long ago) or starts by the window end and finishes on or after the window start; milestones in the window included.
+ * Done work is left out even when its dates overlap. An actualized start stands in for a missing start. Sorted by
+ * start, then id.
+ */
 export function windowActivities(acts: SAct[], start: string, end: string): SAct[] {
   return acts
-    .filter(
-      (a) => a.start && a.finish && a.start.slice(0, 10) <= end && a.finish.slice(0, 10) >= start,
-    )
-    .sort((a, b) => a.start!.localeCompare(b.start!) || a.id.localeCompare(b.id));
+    .filter((a) => !activityDone(a))
+    .map((a) => (a.start || !a.actual_start ? a : { ...a, start: a.actual_start }))
+    .filter((a) => {
+      if (activityInProgress(a)) return true;
+      const s = day10(a.start);
+      const f = day10(a.finish) ?? (num(a.duration) === 0 ? s : null);
+      return !!s && !!f && s <= end && f >= start;
+    })
+    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "") || a.id.localeCompare(b.id));
+}
+/** 06/25/26 */
+const mdy = (d: string) => `${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(2, 4)}`;
+/** Where the lookahead activities come from, said on every lookahead view. */
+export function lookaheadSourceLine(
+  end: string,
+  dataDate: string | null | undefined,
+  version?: number | null,
+): string {
+  const cpm = `From ${version ? `CPM v${version}` : "the saved CPM"}${dataDate ? `, data date ${mdy(dataDate.slice(0, 10))}` : ""}`;
+  return `${cpm}: activities under 100% that are in progress or start by ${mdy(end.slice(0, 10))}.`;
+}
+/** One lookahead row's CPM facts: start (" A" when actualized), finish (" A" only when finished), % complete, total float. */
+export function lookaheadDates(a: SAct): {
+  start: string;
+  finish: string;
+  pct: string;
+  float: string;
+} {
+  const s = day10(a.actual_start) ?? day10(a.start);
+  const f = day10(a.actual_finish) ?? day10(a.finish);
+  const pct = num(a.pct_complete);
+  const tf = num(a.total_float);
+  return {
+    start: s ? `${s}${a.actual_start ? " A" : ""}` : "Needed",
+    finish: f ? `${f}${a.actual_finish ? " A" : ""}` : "Needed",
+    pct: pct === null ? "" : `${pct}%`,
+    float: tf === null ? "" : String(tf),
+  };
 }
 export type LaItem = {
   id?: string | null;
@@ -509,10 +579,12 @@ export function lookaheadModel(
   const top = entries.slice(0, 3);
   const rows = acts.map((a) => {
     const risky = risks.some((e) => e.a === a);
+    // An in-progress activity with no forecast finish runs through the window.
+    const from = a.start!.slice(0, 10);
+    const to = a.finish?.slice(0, 10) ?? (isMilestone(a) ? from : end);
     const cells = days.map((d) => {
-      if (d < a.start!.slice(0, 10) || d > a.finish!.slice(0, 10))
-        return { kind: "" as Cell, risk: false };
-      const onEnd = d === a.finish!.slice(0, 10);
+      if (d < from || d > to) return { kind: "" as Cell, risk: false };
+      const onEnd = d === to;
       if (isMilestone(a)) return { kind: "mile" as Cell, risk: risky };
       if (isInspection(a)) return { kind: (onEnd ? "insp" : "") as Cell, risk: risky && onEnd };
       if (isDelivery(a)) return { kind: (onEnd ? "deliv" : "") as Cell, risk: risky && onEnd };
@@ -571,6 +643,7 @@ export function lookaheadView(v: {
   highlight?: string | null;
   pageUrl?: string | null;
   today?: string | null;
+  version?: number | null;
 }): string {
   const m = lookaheadModel(v.start, v.end, v.acts, v.items, {
     today: v.today,
@@ -581,6 +654,7 @@ export function lookaheadView(v: {
   L.push(LOOKAHEAD_ARTIFACT_LINE, "", `## ${v.title} · Two-Week Lookahead`);
   L.push(
     `**Window:** ${shortDate(v.start)} – ${shortDate(v.end)}${v.dataDate ? ` · **Data date:** ${shortDate(v.dataDate)}` : ""} · **Ref:** ${v.ref}`,
+    lookaheadSourceLine(v.end, v.dataDate, v.version),
   );
   const c = m.counts;
   L.push(
@@ -608,16 +682,18 @@ export function lookaheadView(v: {
       `${i === 0 ? "**Week 1:** " : i === 5 ? "**Week 2:** " : ""}${d === v.highlight ? "**" : ""}${DOW[dow(d)].charAt(0)} ${md(d)}${d === v.highlight ? "**" : ""}`,
   );
   L.push(
-    `| Activity | Float | ${head.join(" | ")} |`,
-    `|---|---|${m.days.map(() => "---").join("|")}|`,
+    `| Activity | Start | Finish | % | Float | ${head.join(" | ")} |`,
+    `|---|---|---|---|---|${m.days.map(() => "---").join("|")}|`,
   );
-  for (const r of m.rows)
+  for (const r of m.rows) {
+    const dt = lookaheadDates(r.a);
     L.push(
-      `| ${activityLine(r.a).replace(/\|/g, "/")} | ${num(r.a.total_float) ?? ""} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : ""}`).join(" | ")} |`,
+      `| ${activityLine(r.a).replace(/\|/g, "/")} | ${dt.start} | ${dt.finish} | ${dt.pct} | ${dt.float} | ${r.cells.map((x) => `${ICON[x.kind]}${x.risk ? "🔴" : ""}`).join(" | ")} |`,
     );
+  }
   if (!m.rows.length)
     L.push(
-      `| No saved CPM activities fall in this window | | ${m.days.map(() => "").join(" | ")} |`,
+      `| No saved CPM activities fall in this window | | | | | ${m.days.map(() => "").join(" | ")} |`,
     );
   if (m.overdue.length) {
     L.push("", "### Overdue (red #DC2626)");

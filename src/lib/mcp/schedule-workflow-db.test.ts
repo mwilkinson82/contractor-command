@@ -446,4 +446,82 @@ describe("schedule customer journey through real OAuth and local SQL", () => {
     );
     expect(readScheduleControl(d.data)!.baselines[0].activities[0].duration).toBe(5);
   });
+  it("saves activity codes and a layout, then lists, opens and queries them for the AI", async () => {
+    const save = await call("living_report_save", {
+      report_type: "cpm",
+      base_version: 6,
+      approved: true,
+      what_changed: "Synthetic area code and layout",
+      schedule_request: {
+        operation: "organize",
+        data_date: "2026-10-08",
+        activity_codes: [
+          {
+            id: "area",
+            name: "Area",
+            values: [
+              { id: "L1", name: "Level 1" },
+              { id: "L2", name: "Level 2" },
+            ],
+          },
+        ],
+        code_assignments: [
+          { activity_id: "A", code_id: "area", value_id: "L1" },
+          { activity_id: "B", code_id: "area", value_id: "L2" },
+        ],
+        layouts: [
+          {
+            id: "l2",
+            name: "Level 2 lookahead",
+            group: "cascade",
+            columns: ["rd", "st", "fi", "tf", "code:area"],
+            sort: { key: "st", dir: "asc" },
+            filter: { codes: [{ code_id: "area", value_ids: ["L2"] }] },
+          },
+        ],
+      },
+    });
+    expect(save.isError, save.text).toBe(false);
+    const d = await saved();
+    expect(d.version).toBe(7);
+    expect(readScheduleControl(d.data)!.calculation.status).toBe("calculated");
+    // Members who read the schedule see the layout too.
+    const u = user("super"),
+      sb = fakeClient(state.db!, { sub: u.id, email: u.email, role: "authenticated" });
+    const superRead = await sb.rpc("mcp_living_report_get", {
+      _job: job,
+      _type: "cpm",
+      _version: null,
+    });
+    expect(readScheduleControl((superRead.data as any).data)!.layouts![0].id).toBe("l2");
+    const list = await call("schedule_workflow", { action: "layouts" });
+    expect(list.isError, list.text).toBe(false);
+    expect(list.text).toContain("Level 2 lookahead");
+    expect(list.text).toContain(`/r/job/${job}/schedule?layout=l2`);
+    expect(list.structured.codes[0].values).toEqual([
+      { id: "L1", name: "Level 1", activities: 1 },
+      { id: "L2", name: "Level 2", activities: 1 },
+    ]);
+    const open = await call("schedule_workflow", { action: "layouts", layout_id: "l2" });
+    expect(open.isError, open.text).toBe(false);
+    expect(open.structured.rows.map((r: any) => r.id)).toEqual(["B"]);
+    expect(open.text).toContain("| ID | Activity | RD | Start | Finish | TF | Area |");
+    const query = await call("schedule_workflow", {
+      action: "query",
+      view: { group: "cascade", columns: ["fi"], sort: { key: "fi", dir: "desc" } },
+    });
+    expect(query.isError, query.text).toBe(false);
+    expect(query.structured.rows[0].id).toBe("M");
+    const unknown = await call("schedule_workflow", {
+      action: "query",
+      view: { group: "wbs", columns: ["code:phase"] },
+    });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.text).toContain("no activity code phase");
+    // The saved TIA, limited to the Level 2 layout: E1 replaced B's logic, so it touches it.
+    const scoped = await call("schedule_workflow", { action: "inspect", layout_id: "l2" });
+    expect(scoped.isError, scoped.text).toBe(false);
+    expect(scoped.structured.scoped.delay_events.map((e: any) => e.event_id)).toEqual(["E1"]);
+    expect(scoped.text).toContain("Limited to Area Level 2");
+  });
 });

@@ -11,6 +11,8 @@ import {
   type ScheduleControl,
   type ScheduleBaseline,
 } from "./mcp/schedule-control";
+import type { ScheduleLayout } from "./mcp/schedule-schema";
+import { codeValueName, describeFilter, layoutFilter } from "./schedule-layouts";
 
 const DAY = 86_400_000;
 export const CPM_ROW_PX = 28;
@@ -122,6 +124,10 @@ export type GanttRow = {
   driving: Set<string>;
   wbsTokens: string[];
   costToken: string | null;
+  /** Activity code value tokens (v<code>_<value>) for the code filter. */
+  codeTokens: string[];
+  /** Passes the open layout's filter (always true with no layout). */
+  keep: boolean;
   fragnet: boolean;
   base?: Activity;
   prior?: Activity;
@@ -135,19 +141,54 @@ type Item =
       kids: GanttRow[];
       tokens: string[];
       costs: string[];
+      codes?: string[];
     }
   | { kind: "act"; r: GanttRow };
+
+/** Columns the table sorts by; each row carries its rank under every one. Code columns add k0, k1… */
+export const SORT_KEYS = ["id", "name", "od", "rd", "pc", "st", "fi", "tf", "ff"] as const;
+type SortKey = string;
+/** Pixel width of a code column. */
+const CODE_COL_W = 104;
+/** Pixels per day for a layout's timescale. */
+const TIMESCALE_PX = { week: 7, month: 3, quarter: 1 } as const;
 
 export type GanttInput = {
   data: LivingData;
   control: ScheduleControl;
   dataDate: string | null | undefined;
   contractCompletion?: string | null;
+  /** Saved layout to open (schedule_control.layouts[].id). Unknown IDs open the default view. */
+  layout?: string | null;
+  /** Link that opens a layout, or the default view with null. Default: ?layout=<id>. */
+  layoutHref?: (id: string | null) => string;
 };
 
 /** Everything the page needs, derived once. Exported for tests and the PDF. */
-export function ganttModel({ data, control, dataDate, contractCompletion }: GanttInput) {
+export function ganttModel({
+  data,
+  control,
+  dataDate,
+  contractCompletion,
+  layout: layoutId,
+}: GanttInput) {
   const acts = data.activities ?? [];
+  const layout: ScheduleLayout | null =
+    (layoutId && control.layouts?.find((l) => l.id === layoutId)) || null;
+  const keep = layoutFilter(control, layout);
+  const codes = control.activity_codes ?? [];
+  const codeCols = codes.map((c, i) => ({
+    k: `k${i}`,
+    code: c.id,
+    label: c.name,
+    title: `Activity code: ${c.name}`,
+    w: CODE_COL_W,
+  }));
+  const codeToken = (codeId: string, valueId: string) => {
+    const ci = codes.findIndex((c) => c.id === codeId);
+    const vi = ci < 0 ? -1 : codes[ci].values.findIndex((v) => v.id === valueId);
+    return vi < 0 ? null : `v${ci}_${vi}`;
+  };
   const cals = calendars(control);
   const paths = control.wbs.length ? wbsPaths(control.wbs) : new Map<string, string>();
   const nodes = control.wbs.length ? orderedWbs(control.wbs) : [];
@@ -189,6 +230,10 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
       driving: new Set(res?.driving_predecessors ?? []),
       wbsTokens: lineage(a.wbs_id),
       costToken: a.cost_code?.trim() ? costToken.get(a.cost_code.trim())! : null,
+      codeTokens: Object.entries(control.code_values?.[a.id] ?? {})
+        .map(([c, v]) => codeToken(c, v))
+        .filter((t): t is string => !!t),
+      keep: keep(a) || fragnetIds.has(a.id),
       fragnet: fragnetIds.has(a.id),
       base: baseById.get(a.id),
       prior: priorById.get(a.id),
@@ -196,6 +241,47 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
     };
   });
   const byId = new Map(rows.map((r) => [r.a.id, r]));
+  // Rank of each activity under every sortable column, so the page can sort with CSS order alone.
+  const sortValue = (r: GanttRow, k: SortKey): number | string | null =>
+    k.startsWith("k")
+      ? codeValueName(control, r.a.id, codeCols[Number(k.slice(1))]?.code ?? "") || null
+      : k === "id"
+        ? r.a.id
+        : k === "name"
+          ? r.a.name
+          : k === "od"
+            ? (r.a.duration ?? null)
+            : k === "rd"
+              ? r.done
+                ? 0
+                : (r.a.remaining_duration ?? r.a.duration ?? null)
+              : k === "pc"
+                ? r.done
+                  ? 100
+                  : (r.a.pct_complete ?? null)
+                : k === "st"
+                  ? r.start
+                  : k === "fi"
+                    ? r.finish
+                    : k === "tf"
+                      ? r.tf
+                      : r.ff;
+  const sortKeys: string[] = [...SORT_KEYS, ...codeCols.map((c) => c.k)];
+  const order = Object.fromEntries(
+    sortKeys.map((k) => {
+      const ranked = [...rows].sort((x, y) => {
+        const a = sortValue(x, k),
+          b = sortValue(y, k);
+        if (a === null || b === null) return a === b ? x.idx - y.idx : a === null ? 1 : -1;
+        const c =
+          typeof a === "number" && typeof b === "number"
+            ? a - b
+            : String(a).localeCompare(String(b), undefined, { numeric: true });
+        return c || x.idx - y.idx;
+      });
+      return [k, new Map(ranked.map((r, i) => [r.a.id, i + 1]))];
+    }),
+  ) as Record<SortKey, Map<string, number>>;
   const succ = new Map<string, GanttRow[]>();
   for (const r of rows)
     for (const p of r.a.predecessors ?? [])
@@ -220,7 +306,15 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
     hi === null ? null : Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 2, 1);
   const days = t0 === null || t1 === null ? 0 : Math.round((t1 - t0) / DAY);
   // Readable on a phone and bounded for multi-year jobs; the page scrolls sideways either way.
-  const scale = days <= 420 ? 4 : days <= 900 ? 3 : days <= 2200 ? 2 : 1;
+  const scale = layout?.timescale
+    ? TIMESCALE_PX[layout.timescale]
+    : days <= 420
+      ? 4
+      : days <= 900
+        ? 3
+        : days <= 2200
+          ? 2
+          : 1;
   const width = Math.max(360, days * scale);
   const finishOf = (list: { finish: string | null }[]) => {
     const f = list.map((a) => day(a.finish)).filter((t): t is number => t !== null);
@@ -232,6 +326,15 @@ export function ganttModel({ data, control, dataDate, contractCompletion }: Gant
   return {
     rows,
     byId,
+    order,
+    sortKeys,
+    control,
+    codes,
+    codeCols,
+    layout,
+    layouts: control.layouts ?? [],
+    filterLine: layout ? describeFilter(control, layout) : null,
+    columns: [...GANTT_COLUMNS, ...codeCols] as Col[],
     succ,
     paths,
     nodes,
@@ -288,14 +391,18 @@ function wbsItems(m: Model, list: GanttRow[]): Item[] {
     items.push({ kind: "act", r });
   }
   for (const it of items)
-    if (it.kind === "group")
+    if (it.kind === "group") {
       it.costs = [...new Set(it.kids.map((k) => k.costToken).filter((c): c is string => !!c))];
+      it.codes = [...new Set(it.kids.flatMap((k) => k.codeTokens))];
+    }
   return items;
 }
 function pathItems(m: Model): Item[] {
   const items: Item[] = [];
   for (const p of m.floatPaths) {
-    const kids = p.activity_ids.map((id) => m.byId.get(id)).filter((r): r is GanttRow => !!r);
+    const kids = p.activity_ids
+      .map((id) => m.byId.get(id))
+      .filter((r): r is GanttRow => !!r && r.keep);
     if (!kids.length) continue;
     items.push({
       kind: "group",
@@ -304,15 +411,17 @@ function pathItems(m: Model): Item[] {
       kids,
       tokens: [...new Set(kids.flatMap((k) => k.wbsTokens))],
       costs: [...new Set(kids.map((k) => k.costToken).filter((c): c is string => !!c))],
+      codes: [...new Set(kids.flatMap((k) => k.codeTokens))],
     });
     kids.forEach((r) => items.push({ kind: "act", r }));
   }
   return items;
 }
 
-export type GanttView = "all" | "longest" | "paths" | "tf0";
+export type GanttView = "all" | "cascade" | "longest" | "paths" | "tf0";
 export const GANTT_VIEWS: [GanttView, string][] = [
-  ["all", "All activities"],
+  ["all", "By WBS"],
+  ["cascade", "Cascade"],
   ["longest", "Longest path"],
   ["paths", "Float paths"],
   ["tf0", "Total float ≤ 0"],
@@ -323,17 +432,26 @@ export function viewItems(m: Model, view: GanttView): Item[] {
     const ids = m.floatPaths[0]?.activity_ids ?? m.longest;
     return ids
       .map((id) => m.byId.get(id))
-      .filter((r): r is GanttRow => !!r)
+      .filter((r): r is GanttRow => !!r && r.keep)
       .map((r) => ({ kind: "act", r }) as Item);
   }
+  // The logic cascade: every activity in date order, no WBS bands, as P6 shows it ungrouped.
+  if (view === "cascade")
+    return m.rows
+      .filter((r) => r.keep)
+      .sort((a, b) => orderKey(a) - orderKey(b) || a.idx - b.idx)
+      .map((r) => ({ kind: "act", r }) as Item);
   if (view === "tf0")
     return wbsItems(
       m,
       m.rows
-        .filter((r) => !r.done && r.tf !== null && r.tf <= 0)
+        .filter((r) => r.keep && !r.done && r.tf !== null && r.tf <= 0)
         .sort((a, b) => orderKey(a) - orderKey(b)),
     );
-  return wbsItems(m, m.rows);
+  return wbsItems(
+    m,
+    m.rows.filter((r) => r.keep),
+  );
 }
 
 /** Pixel geometry shared by bars and logic lines. */
@@ -484,6 +602,11 @@ function axisSvg(m: Model): string {
       out.push(
         `<text x="${x + 5}" y="14" font-size="11" font-weight="600" fill="${INK}">${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}</text>`,
       );
+    // A quarter timescale is too tight for month names: label each quarter instead.
+    else if (d.getUTCMonth() % 3 === 0)
+      out.push(
+        `<text x="${x + 4}" y="14" font-size="11" font-weight="600" fill="${INK}">Q${d.getUTCMonth() / 3 + 1} ${String(d.getUTCFullYear()).slice(2)}</text>`,
+      );
     for (let w = t; w < next; w += DAY)
       if (new Date(w).getUTCDay() === 1 && m.scale >= 3) {
         const wx = g.X(w);
@@ -559,21 +682,26 @@ function rowHtml(
       s !== null && f !== null
         ? `<i class="cpm-s" data-bar="summary" style="left:${px(s)};width:${px(Math.max(8, f - s))};background:${it.color ?? INK2}"></i>`
         : "";
-    return `<div class="cpm-row cpm-grp" data-wbs="${it.tokens.join(" ")}" data-cc="${it.costs.join(" ")}" role="row"><div class="cpm-l"><span class="cpm-gl" style="color:${it.color ?? INK}" title="${esc(it.label)}">${esc(it.label)}</span></div><div class="cpm-t">${bar}</div></div>`;
+    return `<div class="cpm-row cpm-grp" data-wbs="${it.tokens.join(" ")}" data-cc="${it.costs.join(" ")}" data-code="${(it.codes ?? []).join(" ")}" role="row"><div class="cpm-l"><span class="cpm-gl" style="color:${it.color ?? INK}" title="${esc(it.label)}">${esc(it.label)}</span></div><div class="cpm-t">${bar}</div></div>`;
   }
   const r = it.r;
   const tf = r.tf === null ? "" : String(r.tf);
   const rd = r.done ? 0 : (r.a.remaining_duration ?? r.a.duration ?? "");
   const name = `<a class="cpm-c c-name" href="#cpm-a-${r.idx}" title="${esc(r.a.name)}"${r.critical ? ' style="font-weight:600"' : ""}>${esc(r.a.name)}</a>`;
+  const actual = (on: boolean) => (on ? ' <b class="cpm-A" title="Actual">A</b>' : "");
+  const dateCell = (cls: string, t: number | null, on: boolean) =>
+    `<span class="cpm-c ${cls}">${t === null ? "" : `${esc(shortDay(t))}${actual(on)}`}</span>`;
   const left =
     cell("c-id", r.a.id) +
     name +
     cell("c-od", r.a.duration ?? "") +
     cell("c-rd", rd) +
-    cell("c-st", r.start === null ? "" : `${shortDay(r.start)}${r.started ? " A" : ""}`) +
-    cell("c-fi", r.finish === null ? "" : `${shortDay(r.finish)}${r.done ? " A" : ""}`) +
+    cell("c-pc", r.done ? "100%" : r.a.pct_complete == null ? "" : `${r.a.pct_complete}%`) +
+    dateCell("c-st", r.start, r.started) +
+    dateCell("c-fi", r.finish, r.done) +
     cell("c-tf", tf, r.tf !== null && r.tf < 0 ? ' style="color:#B42318;font-weight:700"' : "") +
-    cell("c-ff", r.ff === null ? "" : r.ff);
+    cell("c-ff", r.ff === null ? "" : r.ff) +
+    m.codeCols.map((c) => cell(`c-${c.k}`, codeValueName(m.control, r.a.id, c.code))).join("");
   const status = r.done
     ? "complete"
     : r.critical
@@ -582,7 +710,8 @@ function rowHtml(
         ? "negative float"
         : "float";
   const extra = delay && delay.row === r.a.id ? delay.html : "";
-  return `<div class="cpm-row cpm-act" data-activity="${esc(r.a.id)}" data-path="${r.path ?? ""}" data-wbs="${r.wbsTokens.join(" ")}" data-cc="${r.costToken ?? ""}" role="row" aria-label="${esc(`${r.a.id} ${r.a.name}, ${status}`)}"><div class="cpm-l">${left}</div><div class="cpm-t">${barsHtml(m, r, g, view !== "all")}${extra}</div></div>`;
+  const order = m.sortKeys.map((k) => `--o-${k}:${m.order[k].get(r.a.id) ?? 0}`).join(";");
+  return `<div class="cpm-row cpm-act" style="${order}" data-activity="${esc(r.a.id)}" data-path="${r.path ?? ""}" data-wbs="${r.wbsTokens.join(" ")}" data-cc="${r.costToken ?? ""}" data-code="${r.codeTokens.join(" ")}" role="row" aria-label="${esc(`${r.a.id} ${r.a.name}, ${status}`)}"><div class="cpm-l">${left}</div><div class="cpm-t">${barsHtml(m, r, g, view !== "all")}${extra}</div></div>`;
 }
 
 /** The delay bar on the completion activity: prior to updated completion, with the modeled impact. */
@@ -627,10 +756,17 @@ function viewHtml(full: Model, view: GanttView): string {
   const m = view === "all" ? full : windowFor(full, items);
   const g = geometry(m);
   if (!items.length)
-    return `<div class="cpmv" data-view="${view}"><p class="cpm-empty">${view === "all" ? "No activities saved yet." : m.calculated ? (view === "tf0" ? "No remaining activity has total float of zero or less." : "No float paths were saved with this version.") : "Paths show once Athena calculates this schedule."}</p></div>`;
+    return `<div class="cpmv" data-view="${view}"><p class="cpm-empty">${m.layout && m.rows.some((r) => !r.keep) ? "No activity in this view matches the layout's filter." : view === "all" ? "No activities saved yet." : m.calculated ? (view === "tf0" ? "No remaining activity has total float of zero or less." : "No float paths were saved with this version.") : "Paths show once Athena calculates this schedule."}</p></div>`;
   const delay = delayMark(m, g);
   const rows = items.map((it) => rowHtml(m, it, g, view, delay)).join("");
-  const head = `<div class="cpm-row cpm-head"><div class="cpm-l cpm-lh"><span class="cpm-c c-id">ID</span><span class="cpm-c c-name">Activity</span><span class="cpm-c c-od" title="Original duration, working days">OD</span><span class="cpm-c c-rd" title="Remaining duration, working days">RD</span><span class="cpm-c c-st">Start</span><span class="cpm-c c-fi">Finish</span><span class="cpm-c c-tf" title="Total float, working days">TF</span><span class="cpm-c c-ff" title="Free float, working days">FF</span></div><div class="cpm-t">${axisSvg(m)}</div></div>`;
+  // Each heading sorts: first tap ascending, second descending, third back to the view's own order.
+  const headCells = m.columns
+    .map(
+      (c) =>
+        `<span class="cpm-c c-${c.k}" title="${esc(c.title)}"><label class="cpm-h0" for="cpm-s-${c.k}-a">${esc(c.label)}</label><label class="cpm-h1" for="cpm-s-${c.k}-d">${esc(c.label)} ▲</label><label class="cpm-h2" for="cpm-s-none">${esc(c.label)} ▼</label></span>`,
+    )
+    .join("");
+  const head = `<div class="cpm-row cpm-head"><div class="cpm-l cpm-lh">${headCells}</div><div class="cpm-t">${axisSvg(m)}</div></div>`;
   return `<div class="cpmv" data-view="${view}" style="--cpm-w:${m.width}px"><div class="cpm-scroll" tabindex="0" role="region" aria-label="${esc(GANTT_VIEWS.find((v) => v[0] === view)![1])} schedule, scroll sideways"><div class="cpm-grid cpm-fit" role="table" style="width:calc(var(--cpm-left) + ${m.width}px)">${head}<div class="cpm-body">${backdropSvg(m)}${logicSvg(m, items, g, view)}${rows}</div></div></div></div>`;
 }
 
@@ -710,10 +846,35 @@ function inspectorHtml(m: Model, r: GanttRow): string {
   )}</dl><div class="cpm-two"><div class="cpm-tbl"><div class="cpm-lbl">Predecessors</div><table><tbody>${pred.join("") || `<tr><td colspan="4">None. Open start.</td></tr>`}</tbody></table></div><div class="cpm-tbl"><div class="cpm-lbl">Successors</div><table><tbody>${succ.join("") || `<tr><td colspan="4">None. Open end.</td></tr>`}</tbody></table></div></div><p class="cpm-back"><a href="#cpm-gantt">Back to the schedule</a></p></section>`;
 }
 
-const DESKTOP_COLS = "64px 230px 36px 36px 78px 78px 40px 36px";
-const LEFT_DESKTOP = 598,
-  LEFT_TABLET = 344,
-  LEFT_PHONE = 176;
+/** Table columns. ID and Activity always show; the rest are picked on the page. Widths in px. */
+export const GANTT_COLUMNS = [
+  { k: "id", label: "ID", title: "Activity ID", w: 64, fixed: true },
+  { k: "name", label: "Activity", title: "Activity description", w: 230, fixed: true },
+  { k: "od", label: "OD", title: "Original duration, working days", w: 40, on: true },
+  { k: "rd", label: "RD", title: "Remaining duration, working days", w: 40 },
+  { k: "pc", label: "%", title: "Percent complete", w: 46 },
+  { k: "st", label: "Start", title: "Start (A = actual)", w: 86, on: true },
+  { k: "fi", label: "Finish", title: "Finish (A = actual)", w: 86, on: true },
+  { k: "tf", label: "TF", title: "Total float, working days", w: 42, on: true },
+  { k: "ff", label: "FF", title: "Free float, working days", w: 42 },
+] as const;
+export type GanttColumn = (typeof GANTT_COLUMNS)[number]["k"];
+type Col = {
+  k: string;
+  label: string;
+  title: string;
+  w: number;
+  fixed?: boolean;
+  on?: boolean;
+  /** Activity code ID, for a code column. */
+  code?: string;
+};
+/** Whether a pickable column starts on: the open layout's columns, otherwise the defaults. */
+function columnOn(m: Model, c: Col): boolean {
+  if (!m.layout) return !!c.on;
+  return m.layout.columns.includes((c.code ? `code:${c.code}` : c.k) as never);
+}
+const LEFT_PHONE = 176;
 
 function css(m: Model): string {
   const rule = (input: string, sel: string) => `.cpmx:has(${input}) ${sel}`;
@@ -735,10 +896,59 @@ function css(m: Model): string {
         `${rule(`#cpm-cc option[value="c${i}"]:checked`, `.cpm-body .cpm-row:not([data-cc~="c${i}"])`)}{display:none}`,
     )
     .join("");
-  const filtered = `${rule(`#cpm-wbs option:not([value=""]):checked`, `.cpm-logic`)},${rule(`#cpm-cc option:not([value=""]):checked`, `.cpm-logic`)}{display:none}${rule(`#cpm-wbs option:not([value=""]):checked`, `.cpm-fnote`)},${rule(`#cpm-cc option:not([value=""]):checked`, `.cpm-fnote`)}{display:block}`;
-  const fit = Math.min(1, 1540 / (LEFT_DESKTOP + m.width));
+  const filters = ["#cpm-wbs", "#cpm-cc", "#cpm-code"];
+  const filtered = `${filters.map((f) => rule(`${f} option:not([value=""]):checked`, `.cpm-logic`)).join(",")}{display:none}${filters.map((f) => rule(`${f} option:not([value=""]):checked`, `.cpm-fnote`)).join(",")}{display:block}`;
+  const shown = m.columns.filter((c) => c.fixed || columnOn(m, c));
+  const fit = Math.min(1, 1540 / (shown.reduce((t, c) => t + c.w, 0) + m.width));
+  const widths = m.columns.map((c) => `--w-${c.k}:${c.fixed ? c.w : 0}px`).join(";");
+  const left = `calc(${m.columns.map((c) => `var(--w-${c.k})`).join(" + ")})`;
+  const codesCss = m.codes
+    .flatMap((c, ci) =>
+      c.values.map(
+        (_, vi) =>
+          `${rule(`#cpm-code option[value="v${ci}_${vi}"]:checked`, `.cpm-body .cpm-row:not([data-code~="v${ci}_${vi}"])`)}{display:none}`,
+      ),
+    )
+    .join("");
+  const pick = m.columns
+    .filter((c) => !c.fixed)
+    .map(
+      (c) =>
+        `.cpmx:has(#cpm-col-${c.k}:checked){--w-${c.k}:${c.w}px}.cpmx:not(:has(#cpm-col-${c.k}:checked)) .c-${c.k}{display:none}`,
+    )
+    .join("");
+  const sorted = `.cpmx:has(.cpm-sort:not(#cpm-s-none):checked)`;
+  const sorts = m.sortKeys
+    .map(
+      (k) =>
+        `.cpmx:has(#cpm-s-${k}-a:checked) .cpm-act{order:var(--o-${k})}.cpmx:has(#cpm-s-${k}-d:checked) .cpm-act{order:calc(${m.rows.length + 1} - var(--o-${k}))}.cpmx:has(#cpm-s-${k}-a:checked) .c-${k} .cpm-h0,.cpmx:has(#cpm-s-${k}-d:checked) .c-${k} .cpm-h0{display:none}.cpmx:has(#cpm-s-${k}-a:checked) .c-${k} .cpm-h1,.cpmx:has(#cpm-s-${k}-d:checked) .c-${k} .cpm-h2{display:inline}`,
+    )
+    .join("");
   return `<style>
-.cpmx{--cpm-left:${LEFT_DESKTOP}px;color:${INK};font-size:12px}
+.cpmx{${widths};--cpm-left:${left};color:${INK};font-size:12px}
+${pick}
+.cpmx .cpm-h1,.cpmx .cpm-h2{display:none}
+.cpmx .cpm-lh label{cursor:pointer}
+.cpmx .cpm-lh label:hover{color:${BLUE}}
+${sorts}
+${sorted} .cpm-grp,${sorted} .cpm-logic{display:none}
+${sorted} .cpm-snote{display:block}
+.cpmx .cpm-body{display:flex;flex-direction:column}
+.cpmx .cpm-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid ${LINE};border-radius:8px;padding:6px 10px;font-weight:700;color:${INK};background:#fff;cursor:pointer;white-space:nowrap}
+.cpmx .cpm-btn:hover{border-color:${BLUE};color:${BLUE}}
+.cpmx .cpm-fs-off{display:none}
+.cpmx:has(#cpm-fs:checked){position:fixed;inset:0;z-index:2147483000;background:#fff;padding:14px 16px;overflow:auto}
+.cpmx:has(#cpm-fs:checked) .cpm-fs-on{display:none}
+.cpmx:has(#cpm-fs:checked) .cpm-fs-off{display:inline}
+.cpmx:has(#cpm-fs:checked) .cpm-scroll{max-height:calc(100vh - 130px);overflow:auto}
+.cpmx:has(#cpm-fs:checked) .cpm-head{position:sticky;top:0;z-index:6;background:#fff}
+html:has(#cpm-fs:checked){overflow:hidden}
+.cpmx details.cpm-cols{position:relative}
+.cpmx details.cpm-cols>summary{list-style:none}
+.cpmx details.cpm-cols>summary::-webkit-details-marker{display:none}
+.cpmx .cpm-colbox{position:absolute;z-index:8;top:calc(100% + 4px);left:0;display:grid;gap:6px;min-width:210px;padding:10px 12px;background:#fff;border:1px solid ${LINE};border-radius:10px;box-shadow:0 8px 24px rgba(30,58,95,.14)}
+.cpmx .cpm-A{font-weight:800;color:${ACT};font-size:10.5px}
+.cpmx .cpm-snote{display:none;margin:8px 0 0;color:${MUTED}}
 .cpmx .cpm-controls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 10px}
 .cpmx .cpm-sr{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
 .cpmx .cpm-pills{display:inline-flex;flex-wrap:wrap;border:1px solid ${LINE};border-radius:8px;overflow:hidden}
@@ -746,7 +956,7 @@ function css(m: Model): string {
 .cpmx .cpm-pills label:last-of-type{border-right:0}
 .cpmx .cpm-sr:checked+label{background:${BLUE};color:#fff}
 .cpmx .cpm-sr:focus-visible+label{outline:2px solid ${BLUE};outline-offset:-2px}
-.cpmx .cpm-field{display:inline-flex;gap:6px;align-items:center;color:${MUTED};font-weight:600}
+.cpmx .cpm-field{display:inline-flex;gap:6px;align-items:center;color:${MUTED};font-weight:600;white-space:nowrap;flex:0 0 auto}
 .cpmx select{font:inherit;color:${INK};border:1px solid ${LINE};border-radius:6px;padding:5px 6px;background:#fff;max-width:220px}
 .cpmx .cpm-tog{display:inline-flex;gap:5px;align-items:center;color:${INK2};font-weight:600;cursor:pointer}
 .cpmx .cpm-tog input{accent-color:${BLUE};margin:0}
@@ -757,13 +967,14 @@ ${views}
 .cpmx .cpm-grid{position:relative}
 .cpmx .cpm-row{display:flex;height:${CPM_ROW_PX}px;border-bottom:1px solid ${LINE2}}
 .cpmx .cpm-head{height:${HEAD}px;border-bottom:1px solid ${LINE}}
-.cpmx .cpm-l{position:sticky;left:0;z-index:4;flex:0 0 var(--cpm-left);width:var(--cpm-left);display:grid;grid-template-columns:${DESKTOP_COLS};align-items:center;background:#fff;box-shadow:1px 0 0 ${LINE};overflow:hidden}
+.cpmx .cpm-l{position:sticky;left:0;z-index:4;flex:0 0 var(--cpm-left);width:var(--cpm-left);display:flex;align-items:center;background:#fff;box-shadow:1px 0 0 ${LINE};overflow:hidden}
+${m.columns.map((c) => `.cpmx .cpm-l .c-${c.k}{flex:0 0 var(--w-${c.k});width:var(--w-${c.k})}`).join("")}
 .cpmx .cpm-lh{color:${MUTED};font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;align-items:end;padding-bottom:7px}
-.cpmx .cpm-c{padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.cpmx .cpm-c{box-sizing:border-box;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .cpmx .c-id{color:${INK2};font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;padding-left:8px}
 .cpmx a.c-name{color:${INK};text-decoration:none}
 .cpmx a.c-name:hover,.cpmx a.c-name:focus-visible{color:${BLUE};text-decoration:underline}
-.cpmx .c-od,.cpmx .c-rd,.cpmx .c-tf,.cpmx .c-ff{text-align:right}
+.cpmx .c-od,.cpmx .c-rd,.cpmx .c-pc,.cpmx .c-tf,.cpmx .c-ff{text-align:right}
 .cpmx .cpm-grp{background:${LINE2}}
 .cpmx .cpm-grp .cpm-l{background:${LINE2};display:flex}
 .cpmx .cpm-gl{padding:0 8px;font-weight:700;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -794,7 +1005,13 @@ ${views}
 .cpmx .cpm-axis-empty{padding:12px;color:${MUTED}}
 .cpmx .cpm-empty{margin:0;padding:16px;border:1px solid ${LINE};border-radius:10px;color:${MUTED}}
 .cpmx .cpm-fnote{display:none;margin:8px 0 0;color:${MUTED}}
-${wbs}${cc}${filtered}
+${wbs}${cc}${codesCss}${filtered}
+.cpmx .cpm-lays .cpm-colbox a{color:${INK};text-decoration:none;font-weight:600;padding:3px 0}
+.cpmx .cpm-lays .cpm-colbox a:hover{color:${BLUE}}
+.cpmx .cpm-lays .cpm-colbox a[aria-current]{color:${BLUE}}
+.cpmx .cpm-lays .cpm-colbox small{color:${MUTED};font-weight:500}
+.cpmx .cpm-laynote{margin:0 0 10px;padding:8px 10px;border:1px solid ${LINE};border-radius:8px;background:#F7F9FC;color:${INK2}}
+.cpmx .cpm-laynote a{color:${BLUE}}
 ${rule(`#cpm-lg:not(:checked)`, `.cpm-logic`)}{display:none}
 ${rule(`#cpm-cmp option[value="p"]:checked`, `.cpm-b`)},${rule(`#cpm-cmp option[value="none"]:checked`, `.cpm-b`)}{display:none}
 ${rule(`#cpm-cmp option[value="p"]:checked`, `.cpm-p`)}{display:block}
@@ -820,9 +1037,9 @@ ${rule(`#cpm-fl:not(:checked)`, `.cpm-f`)}{display:none}
 .cpmx .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 .cpmx .cpm-back{margin:12px 0 0}
 .cpmx .cpm-back a{color:${BLUE}}
-@media(max-width:899px){.cpmx{--cpm-left:${LEFT_TABLET}px}.cpmx .cpm-l{grid-template-columns:58px 168px 78px 40px}.cpmx .c-od,.cpmx .c-rd,.cpmx .c-st,.cpmx .c-ff{display:none}}
-@media(max-width:559px){.cpmx{--cpm-left:${LEFT_PHONE}px}.cpmx .cpm-l{grid-template-columns:60px 116px}.cpmx .c-fi,.cpmx .c-tf{display:none}.cpmx .cpm-pills label{padding:6px 8px}}
-@media print{@page{size:17in 11in;margin:.35in}.cpmx{--cpm-left:${LEFT_DESKTOP}px}.cpmx .cpm-l{grid-template-columns:${DESKTOP_COLS}}.cpmx .cpm-c{display:block!important}.cpmx .cpm-controls,.cpmx .cpm-insp,.cpmx .cpm-insp-hint{display:none!important}.cpmx .cpm-scroll{overflow:visible;border:0}.cpmx .cpm-fit{zoom:${fit.toFixed(3)}}.cpmx .cpm-l{position:static}.cpmx .cpm-row{break-inside:avoid}.cpmx *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media(max-width:899px){.cpmx{--w-name:168px}.cpmx .cpm-fsw{display:none}}
+@media(max-width:559px){.cpmx{--w-id:60px;--w-name:116px;--cpm-left:${LEFT_PHONE}px!important}.cpmx .cpm-l .cpm-c:not(.c-id):not(.c-name){display:none!important}.cpmx .cpm-cols:not(.cpm-lays){display:none}.cpmx .cpm-lays .cpm-colbox{min-width:0;width:min(300px,calc(100vw - 64px))}.cpmx .cpm-pills label{padding:6px 8px}}
+@media print{@page{size:17in 11in;margin:.35in}.cpmx{--w-name:230px}.cpmx:has(#cpm-fs:checked){position:static;padding:0;overflow:visible}.cpmx .cpm-scroll{max-height:none!important}html:has(#cpm-fs:checked){overflow:visible}.cpmx .cpm-controls,.cpmx .cpm-insp,.cpmx .cpm-insp-hint{display:none!important}.cpmx .cpm-scroll{overflow:visible;border:0}.cpmx .cpm-fit{zoom:${fit.toFixed(3)}}.cpmx .cpm-l{position:static}.cpmx .cpm-row{break-inside:avoid}.cpmx *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>`;
 }
 
@@ -888,10 +1105,30 @@ export function ganttHtml(input: GanttInput): string {
   const ccSelect = m.costs.length
     ? `<label class="cpm-field" for="cpm-cc">Cost code <select id="cpm-cc">${opt("", "All cost codes")}${m.costs.map((c, i) => opt(`c${i}`, c)).join("")}</select></label>`
     : `<label class="cpm-field" for="cpm-cc">Cost code <select id="cpm-cc" disabled>${opt("", "No cost codes saved")}</select></label>`;
+  const codeSelect = m.codes.length
+    ? `<label class="cpm-field" for="cpm-code">Code <select id="cpm-code">${opt("", "All codes")}${m.codes.map((c, ci) => `<optgroup label="${esc(c.name)}">${c.values.map((v, vi) => opt(`v${ci}_${vi}`, `${c.name}: ${v.name}`)).join("")}</optgroup>`).join("")}</select></label>`
+    : "";
+  const startView: GanttView = m.layout?.group === "cascade" ? "cascade" : "all";
   const pills = GANTT_VIEWS.map(
-    ([v, l], i) =>
-      `<input class="cpm-sr" type="radio" name="cpm-view" id="cpm-v-${v}"${i === 0 ? " checked" : ""}><label for="cpm-v-${v}">${esc(l)}</label>`,
+    ([v, l]) =>
+      `<input class="cpm-sr" type="radio" name="cpm-view" id="cpm-v-${v}"${v === startView ? " checked" : ""}><label for="cpm-v-${v}">${esc(l)}</label>`,
   ).join("");
+  // Layouts open by link on the signed-in page; a share page has no layout links.
+  const href = input.layoutHref ?? null;
+  const layoutLinks = [
+    `<a href="${esc(href?.(null) ?? "")}"${m.layout ? "" : ' aria-current="true"'}>Default view <small>all activities, by WBS</small></a>`,
+    ...m.layouts.map(
+      (l) =>
+        `<a href="${esc(href?.(l.id) ?? "")}" data-layout="${esc(l.id)}"${m.layout?.id === l.id ? ' aria-current="true"' : ""}>${esc(l.name)} <small>${esc(describeFilter(m.control, l))}</small></a>`,
+    ),
+  ].join("");
+  const layouts =
+    m.layouts.length && href
+      ? `<details class="cpm-cols cpm-lays"><summary class="cpm-btn">Layout: ${esc(m.layout?.name ?? "Default")}</summary><div class="cpm-colbox">${layoutLinks}</div></details>`
+      : "";
+  const sortStart = m.layout?.sort
+    ? `${m.layout.sort.key.startsWith("code:") ? (m.codeCols.find((c) => `code:${c.code}` === m.layout!.sort!.key)?.k ?? "") : m.layout.sort.key}-${m.layout.sort.dir === "desc" ? "d" : "a"}`
+    : "";
   const compare = [
     ...(m.baseline ? [opt("b", `Baseline: ${m.baseline.name}`)] : []),
     ...(m.prior ? [opt("p", `Last update: ${shortDay(day(m.prior.data_date))}`)] : []),
@@ -907,10 +1144,28 @@ export function ganttHtml(input: GanttInput): string {
         `<label class="cpm-tog" for="${id}"><input type="checkbox" id="${id}" checked> ${l}</label>`,
     )
     .join("");
-  const controls = `<div class="cpm-controls"><div class="cpm-pills" role="radiogroup" aria-label="Show">${pills}</div>${wbsSelect}${ccSelect}${cmpSelect}${toggles}</div>`;
+  const sortInputs = [
+    `<input class="cpm-sr cpm-sort" type="radio" name="cpm-sort" id="cpm-s-none"${m.sortKeys.some((k) => sortStart === `${k}-a` || sortStart === `${k}-d`) ? "" : " checked"} aria-label="View order">`,
+    ...m.sortKeys.flatMap((k) =>
+      (["a", "d"] as const).map(
+        (d) =>
+          `<input class="cpm-sr cpm-sort" type="radio" name="cpm-sort" id="cpm-s-${k}-${d}"${sortStart === `${k}-${d}` ? " checked" : ""} aria-label="Sort by ${esc(m.columns.find((c) => c.k === k)!.title)}, ${d === "a" ? "ascending" : "descending"}">`,
+      ),
+    ),
+  ].join("");
+  const colPicks = m.columns
+    .filter((c) => !c.fixed)
+    .map(
+      (c) =>
+        `<label class="cpm-tog" for="cpm-col-${c.k}"><input type="checkbox" id="cpm-col-${c.k}"${columnOn(m, c) ? " checked" : ""}> ${esc(c.title)}</label>`,
+    )
+    .join("");
+  const columns = `<details class="cpm-cols"><summary class="cpm-btn">Columns</summary><div class="cpm-colbox">${colPicks}</div></details>`;
+  const fullScreen = `<input class="cpm-sr" type="checkbox" id="cpm-fs"><label class="cpm-btn cpm-fsw" for="cpm-fs"><span class="cpm-fs-on">Full screen</span><span class="cpm-fs-off">Exit full screen</span></label>`;
+  const controls = `${sortInputs}<div class="cpm-controls"><div class="cpm-pills" role="radiogroup" aria-label="Show">${pills}</div>${layouts}${wbsSelect}${ccSelect}${codeSelect}${cmpSelect}${toggles}${columns}${fullScreen}</div>${m.layout ? `<p class="cpm-laynote" data-layout-open="${esc(m.layout.id)}"><strong>${esc(m.layout.name)}</strong> · ${esc(m.filterLine ?? "")}${href ? ` · <a href="${esc(href(null))}">Default view</a>` : ""}</p>` : ""}`;
   const views = GANTT_VIEWS.map(([v]) => viewHtml(m, v)).join("");
   const inspectors = m.rows.map((r) => inspectorHtml(m, r)).join("");
-  return `${css(m)}<div class="cpmx" id="cpm-gantt">${controls}${views}<p class="cpm-fnote">Logic lines hide while a WBS or cost code filter is on, so no line points at a hidden activity.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Print this page on tabloid landscape for the full schedule.</p>${inspectors}</div>`;
+  return `${css(m)}<div class="cpmx" id="cpm-gantt">${controls}${views}<p class="cpm-fnote">Logic lines hide while a WBS, cost code or activity code filter is on, so no line points at a hidden activity.</p><p class="cpm-snote">Sorted by a column: WBS bands and logic lines hide until you tap the heading again to return to the view's order.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Tap a column heading to sort. A next to a date means it's the actual. To save a PDF, print this page (Ctrl+P or ⌘P) and choose Save as PDF; tabloid landscape fits the full schedule.</p>${inspectors}</div>`;
 }
 
 /** One activity compared against an earlier plan: the baseline or the last update. */
@@ -989,6 +1244,18 @@ export function compareActivities(m: Model, against: Activity[]): ActivityChange
   );
 }
 
+/** With a layout open, the activities it shows and the line that says so; null shows everything. */
+function layoutScope(m: Model): { ids: Set<string>; note: string } | null {
+  if (!m.layout || m.rows.every((r) => r.keep)) return null;
+  const ids = new Set(m.rows.filter((r) => r.keep).map((r) => r.a.id));
+  return {
+    ids,
+    note: `Layout ${m.layout.name}: ${m.filterLine ?? ""}. Only its activities show here.`,
+  };
+}
+const scopeNote = (scope: ReturnType<typeof layoutScope>) =>
+  scope ? `<p class="cpmc-sum" data-layout-scope="true">${esc(scope.note)}</p>` : "";
+
 const signed = (n: number | null) => (n === null ? "" : n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
 function compareTable(
@@ -998,7 +1265,8 @@ function compareTable(
   dataDate: string | null,
   key: string,
 ): string {
-  const changes = compareActivities(m, against);
+  const scope = layoutScope(m);
+  const changes = compareActivities(m, against).filter((c) => !scope || scope.ids.has(c.id));
   const finishOf = (list: { finish: string | null }[]) => {
     const f = list.map((a) => day(a.finish)).filter((t): t is number => t !== null);
     return f.length ? Math.max(...f) : null;
@@ -1067,13 +1335,14 @@ export function comparisonHtml(input: GanttInput): string {
     )
     .join("");
   const style = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-sr{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}.cpmc .cpm-pills{display:inline-flex;flex-wrap:wrap;border:1px solid ${LINE};border-radius:8px;overflow:hidden;margin:0 0 10px}.cpmc .cpm-pills label{padding:6px 10px;cursor:pointer;color:${INK2};font-weight:600;border-right:1px solid ${LINE};white-space:nowrap}.cpmc .cpm-pills label:last-of-type{border-right:0}.cpmc .cpm-sr:checked+label{background:${BLUE};color:#fff}.cpmc .cpm-sr:focus-visible+label{outline:2px solid ${BLUE};outline-offset:-2px}.cpmc .cpmc-set{display:none}.cpmc .cpmc-set[data-against="${sets[0][0]}"]{display:block}${rules}.cpmc .cpmc-sum{margin:0 0 8px;font-size:13px}.cpmc .cpmc-none{color:${MUTED};margin:0}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}@media print{.cpmc .cpm-pills{display:none}.cpmc .cpmc-set{display:block!important;break-inside:auto}}</style>`;
-  return `${style}<div class="cpmc" id="cpm-compare"><h2>UPDATE COMPARISON</h2><div class="cpm-pills" role="radiogroup" aria-label="Compare against">${pills}</div>${sets.map(([k, label, , acts, dd]) => compareTable(m, acts, label, dd, k)).join("")}<p class="cpmc-none" style="margin-top:8px">Variances are working days on each activity's calendar. Positive means later.</p></div>`;
+  return `${style}<div class="cpmc" id="cpm-compare"><h2>UPDATE COMPARISON</h2>${scopeNote(layoutScope(m))}<div class="cpm-pills" role="radiogroup" aria-label="Compare against">${pills}</div>${sets.map(([k, label, , acts, dd]) => compareTable(m, acts, label, dd, k)).join("")}<p class="cpmc-none" style="margin-top:8px">Variances are working days on each activity's calendar. Positive means later.</p></div>`;
 }
 
 /** Milestones against the baseline and the last update, with float and any finish-by date. */
 export function milestoneHtml(input: GanttInput): string {
   const m = ganttModel(input);
-  const ms = m.rows.filter((r) => r.milestone);
+  const scope = layoutScope(m);
+  const ms = m.rows.filter((r) => r.milestone && (!scope || r.keep));
   if (!ms.length) return "";
   const v = (from: string | null | undefined, r: GanttRow) => {
     const f = day(from);
@@ -1090,7 +1359,7 @@ export function milestoneHtml(input: GanttInput): string {
     })
     .join("");
   const style = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}</style>`;
-  return `${style}<div class="cpmc" id="cpm-milestones"><h2>MILESTONES</h2><div class="cpm-tbl"><table><thead><tr><th>ID</th><th>Milestone</th><th class="cpm-n">Baseline</th>${m.prior ? `<th class="cpm-n">Last update</th>` : ""}<th class="cpm-n">Forecast / actual</th><th class="cpm-n" title="Working days">vs baseline</th>${m.prior ? `<th class="cpm-n" title="Working days">vs last update</th>` : ""}<th class="cpm-n">Total float</th><th class="cpm-n">Finish by</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  return `${style}<div class="cpmc" id="cpm-milestones"><h2>MILESTONES</h2>${scopeNote(scope)}<div class="cpm-tbl"><table><thead><tr><th>ID</th><th>Milestone</th><th class="cpm-n">Baseline</th>${m.prior ? `<th class="cpm-n">Last update</th>` : ""}<th class="cpm-n">Forecast / actual</th><th class="cpm-n" title="Working days">vs baseline</th>${m.prior ? `<th class="cpm-n" title="Working days">vs last update</th>` : ""}<th class="cpm-n">Total float</th><th class="cpm-n">Finish by</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 const tableStyle = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}.cpmc .cpmc-sum{margin:0 0 8px;color:${INK2}}</style>`;
@@ -1163,8 +1432,23 @@ export function windowsHtml(input: GanttInput): string {
 
 /** The delay event register: every modeled fragnet and its isolated completion movement, kept through later updates. */
 export function delaysHtml(input: GanttInput): string {
-  const reg = input.control.delay_register ?? [];
-  if (!reg.length) return "";
+  const scope = input.layout ? layoutScope(ganttModel(input)) : null;
+  // The layout's own activities: the fragnet the page always shows doesn't pull every event in.
+  const own = scope
+    ? new Set(
+        (input.data.activities ?? [])
+          .filter(layoutFilter(input.control, ganttModel(input).layout))
+          .map((a) => a.id),
+      )
+    : null;
+  // With a layout or code open, only events whose fragnet or affected activities fall inside it.
+  const reg = (input.control.delay_register ?? []).filter(
+    (d) => !own || [...d.fragnet_ids, ...d.affected_activity_ids].some((id) => own.has(id)),
+  );
+  if (!reg.length)
+    return scope && input.control.delay_register?.length
+      ? `${tableStyle}<div class="cpmc" id="cpm-delays"><h2>DELAY EVENTS</h2>${scopeNote(scope)}<p class="cpmc-sum">No modeled delay event touches this layout's activities.</p></div>`
+      : "";
   const rows = [...reg]
     .sort((a, b) => a.data_date.localeCompare(b.data_date) || a.event_id.localeCompare(b.event_id))
     .map(
@@ -1173,5 +1457,5 @@ export function delaysHtml(input: GanttInput): string {
     )
     .join("");
   const cd = reg.reduce((s, d) => s + Math.max(0, d.impact_calendar_days), 0);
-  return `${tableStyle}<div class="cpmc" id="cpm-delays"><h2>DELAY EVENTS</h2><p class="cpmc-sum">${esc(`${reg.length} modeled ${reg.length === 1 ? "event" : "events"} · ${cd} calendar days of modeled completion movement, each measured alone against the update it was inserted into.`)}</p><div class="cpm-tbl"><table><thead><tr><th>Event</th><th>Description</th><th class="cpm-n">Event date</th><th class="cpm-n">Data date</th><th>Fragnet</th><th class="cpm-n">Completion</th><th class="cpm-n">Modeled impact</th></tr></thead><tbody>${rows}</tbody></table></div><p class="cpmc-sum" style="margin-top:8px">Modeled impacts are not additive when events overlap, and they do not decide responsibility, concurrency or entitlement.</p></div>`;
+  return `${tableStyle}<div class="cpmc" id="cpm-delays"><h2>DELAY EVENTS</h2>${scopeNote(scope)}<p class="cpmc-sum">${esc(`${reg.length} modeled ${reg.length === 1 ? "event" : "events"} · ${cd} calendar days of modeled completion movement, each measured alone against the update it was inserted into.`)}</p><div class="cpm-tbl"><table><thead><tr><th>Event</th><th>Description</th><th class="cpm-n">Event date</th><th class="cpm-n">Data date</th><th>Fragnet</th><th class="cpm-n">Completion</th><th class="cpm-n">Modeled impact</th></tr></thead><tbody>${rows}</tbody></table></div><p class="cpmc-sum" style="margin-top:8px">Modeled impacts are not additive when events overlap, and they do not decide responsibility, concurrency or entitlement.</p></div>`;
 }

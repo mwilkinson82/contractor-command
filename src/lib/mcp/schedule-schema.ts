@@ -73,6 +73,68 @@ export const scheduleSettings = z
     float_path_count: z.number().int().min(1).max(10).optional(),
   })
   .strict();
+/** A P6-style activity code: a named dictionary of values, assigned one value per activity. */
+export const activityCode = z
+  .object({
+    id,
+    name: z.string().trim().min(1).max(60),
+    values: z
+      .array(
+        z
+          .object({
+            id,
+            name: z.string().trim().min(1).max(80),
+            color: z
+              .string()
+              .regex(/^#[0-9A-Fa-f]{6}$/)
+              .optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict();
+/** Table columns a layout can show. Code columns are `code:<code id>`. */
+export const LAYOUT_COLUMNS = ["od", "rd", "pc", "st", "fi", "tf", "ff"] as const;
+export const LAYOUT_SORT_KEYS = ["id", "name", ...LAYOUT_COLUMNS] as const;
+const layoutColumn = z.union([z.enum(LAYOUT_COLUMNS), z.string().regex(/^code:[^\s]{1,80}$/)]);
+export const scheduleLayout = z
+  .object({
+    id,
+    name: z.string().trim().min(1).max(80),
+    /** wbs: WBS bands. cascade: every activity in date order, no bands. */
+    group: z.enum(["wbs", "cascade"]),
+    columns: z.array(layoutColumn).max(20),
+    sort: z
+      .object({
+        key: z.union([z.enum(LAYOUT_SORT_KEYS), z.string().regex(/^code:[^\s]{1,80}$/)]),
+        dir: z.enum(["asc", "desc"]),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    filter: z
+      .object({
+        /** Activities under any of these WBS nodes (children included). */
+        wbs_ids: z.array(id).max(100).optional(),
+        /** Every listed code must match one of its values. */
+        codes: z
+          .array(z.object({ code_id: id, value_ids: z.array(id).min(1).max(200) }).strict())
+          .max(20)
+          .optional(),
+        cost_codes: z.array(z.string().trim().min(1).max(20)).max(100).optional(),
+        activity_ids: z.array(z.string().trim().min(1).max(20)).max(400).optional(),
+        /** Only remaining activities on the longest path or with total float of zero or less. */
+        critical_only: z.boolean().optional(),
+        /** Hide complete activities. */
+        remaining_only: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    timescale: z.enum(["week", "month", "quarter"]).optional(),
+  })
+  .strict();
 export const scheduleRequest = z
   .object({
     operation: z.enum(["organize", "recalculate", "baseline", "tia"]),
@@ -99,6 +161,21 @@ export const scheduleRequest = z
       })
       .strict()
       .optional(),
+    /** Add or replace activity codes by ID. */
+    activity_codes: z.array(activityCode).max(30).optional(),
+    remove_code_ids: z.array(id).max(30).optional(),
+    /** One value per activity and code; value_id null clears it. */
+    code_assignments: z
+      .array(
+        z
+          .object({ activity_id: z.string().max(20), code_id: id, value_id: id.nullable() })
+          .strict(),
+      )
+      .max(4000)
+      .optional(),
+    /** Add or replace saved layouts by ID. */
+    layouts: z.array(scheduleLayout).max(30).optional(),
+    remove_layout_ids: z.array(id).max(30).optional(),
     delay: z
       .object({
         event_id: id,
@@ -126,3 +203,5 @@ export const scheduleRequest = z
 export type ScheduleRequest = z.infer<typeof scheduleRequest>;
 export type ScheduleSettings = z.infer<typeof scheduleSettings>;
 export type WbsNode = z.infer<typeof wbsNode>;
+export type ActivityCode = z.infer<typeof activityCode>;
+export type ScheduleLayout = z.infer<typeof scheduleLayout>;

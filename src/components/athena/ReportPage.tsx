@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   renderReportBody,
+  scheduleLayoutHref,
   reportPageQuery,
   type PagePayload,
   type AnyPage,
@@ -74,7 +75,7 @@ function payloadCompany(payload: unknown): string | undefined {
   return typeof company === "string" && company.trim() ? company : undefined;
 }
 
-export function ReportPageView({ page, jobId, companyId, token, reportDate }: { page: AnyPage; jobId?: string; companyId?: string; token?: string; reportDate?: string }) {
+export function ReportPageView({ page, jobId, companyId, token, reportDate, layout }: { page: AnyPage; jobId?: string; companyId?: string; token?: string; reportDate?: string; layout?: string }) {
   const openLink = useServerFn(openBoardPage);
   const { session, loading: authLoading } = useAuth();
   const datedDaily = page === "daily" && reportDate !== undefined;
@@ -141,15 +142,23 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate }: { 
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
   // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
-    const body = payload ? renderReportBody(payload, { jobId }) : "";
+    const body = payload ? renderReportBody(payload, { jobId, layout: page === "schedule" ? (layout ?? null) : null, layoutHref: jobId ? scheduleLayoutHref : undefined }) : "";
     return token && body ? signSiblingLinks(body, token) : body;
-  }, [payload, token, jobId]);
+  }, [payload, token, jobId, page, layout]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <AthenaPage jobId={jobId} token={token} company={payloadCompany(payload)}>
       {page === "portfolio" && memberPayload ? (
         <div className="ath-page-bar">
           <MorningBriefPushBar />
+        </div>
+      ) : null}
+      {page === "schedule" && payload ? (
+        // The schedule page itself has no scripts, so printing to PDF is offered here.
+        <div className="ath-page-bar ath-print-hide" style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginBottom: 12 }}>
+          <button type="button" onClick={() => window.print()} style={{ background: "#1E5FED", color: "#fff", border: 0, borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: "pointer" }}>
+            Print or save as PDF
+          </button>
         </div>
       ) : null}
       {page === "field" && jobId ? (

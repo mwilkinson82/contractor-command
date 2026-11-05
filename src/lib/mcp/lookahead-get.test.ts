@@ -158,7 +158,9 @@ describe("normal lookahead read", () => {
       for (let i = 1; i <= 3; i++) expect(body).toContain(`Job obligation ${i}`);
       expect(body).toContain("## 14-day lookahead");
       expect(body).toContain("**2701 – Fictional Job**");
-      expect(body).toContain("Window: Oct 26 to Nov 6, Rev 2. Data date is Oct 19 (CPM v3).");
+      // The PM-picked start (Nov 2) is after the CPM data date, so it is honored for two weeks.
+      expect(body).toContain("Window: Nov 2 to Nov 15, Rev 2. Data date is Oct 19 (CPM v3).");
+      expect(body).toContain("From CPM v3, data date 10/19/26: activities under 100% that are in progress or start by 11/15/26.");
       expect(body).toContain("**6 saved items · 4 open · 3 overdue on the job**");
       expect(body).toContain("due Oct 14");
       expect(body).toContain("due Oct 16");
@@ -217,7 +219,7 @@ describe("normal lookahead read", () => {
     const sc = result.structuredContent;
     expect(sc.lookahead_ref).toBe("LA-31BE8");
     expect(sc.items).toHaveLength(6);
-    expect(sc.window).toMatchObject({ start: "2026-10-26", end: "2026-11-06", source: "cpm" });
+    expect(sc.window).toMatchObject({ start: "2026-11-02", end: "2026-11-15", source: "cpm" });
     expect(sc.activities).toHaveLength(1);
     expect(sc.revision).toBe(2);
     const reply = result.content[0].text;

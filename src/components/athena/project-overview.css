@@ -147,6 +147,17 @@
 .jh-button:hover {
   background: #edf4ff;
 }
+.jh-button-quiet {
+  background: #f4f8fe;
+  border-color: #cddcf0;
+  font-weight: 600;
+}
+.jh-layouts {
+  margin-top: 12px;
+}
+.jh-layouts .jh-small {
+  margin: 0 0 6px;
+}
 .jh-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

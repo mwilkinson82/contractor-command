@@ -11,7 +11,7 @@ import { ALERT_HEX } from "./mcp/alert-color";
 import { isDelayNoticeTask } from "./mcp/delay-notice";
 import { delayCallout, jobWorkingDays, type LivingData } from "./mcp/living";
 import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
-import { activityLine, activityTitle, identifiedDelayActivityId, briefingModel, dayHead, lookaheadModel, lookaheadAlert, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
+import { activityLine, activityTitle, identifiedDelayActivityId, briefingModel, dayHead, lookaheadModel, lookaheadAlert, payModel, shortDate, lookaheadWindow, lookaheadDates, lookaheadSourceLine, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
 import { renderIorLayout, type ReportNames } from "./ior-layout";
 import { formatReportNumber, money } from "./report-format";
@@ -162,7 +162,7 @@ const tiles = (t: string[]) => `<div style="display:flex;flex-wrap:wrap;gap:12px
 const stamp = (r: { version?: number; updated_at?: string | null; updated_by_name?: string | null; data_date?: string | null }) =>
   `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">v${esc(r.version)} · Last updated ${esc(r.updated_at?.slice(0, 10) ?? "")}${r.updated_by_name ? ` by ${esc(r.updated_by_name)}` : ""}${r.data_date ? ` · Data date ${esc(r.data_date)}` : ""}</p>`;
 // ---------- views ----------
-function scheduleView(p: JobPayload): string {
+function scheduleView(p: JobPayload, context?: ReportContext): string {
   const r = p.report,
     d = r.data ?? {};
   const acts = d.activities ?? [];
@@ -196,7 +196,7 @@ function scheduleView(p: JobPayload): string {
   const logicList = () => card(`<details><summary>Dependency logic (${acts.reduce((n, a) => n + (a.predecessors?.length ?? 0), 0)} links)</summary><ul>${acts.flatMap(a => (a.predecessors ?? []).map(link => `<li data-logic-from="${esc(link.id)}" data-logic-to="${esc(a.id)}">${esc(link.id)} → ${esc(a.id)} · ${esc(link.type ?? "FS")} · lag ${esc(link.lag ?? 0)} WD · ${esc(link.lag_calendar_basis ?? "project")} calendar</li>`)).join("")}</ul></details>`);
   if (control && acts.length) {
     // Calculated schedules get the P6-style page: logic, longest and float paths, filters, inspector, print.
-    const input = { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date };
+    const input = { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date, layout: context?.layout ?? null, layoutHref: context?.layoutHref };
     const s = ganttSummary(ganttModel(input));
     // The logic-driven forecast leads against the baseline finish, so delay shows; the contract date is a
     // second yardstick only when it agrees with the plan.
@@ -499,6 +499,7 @@ function lookaheadPageView(p: LookaheadPayload): string {
   const hl = dd && dd > today ? dd : today;
   const out: string[] = [];
   out.push(`<p style="margin:0 0 12px;font-size:13px;color:${G1}">Window ${esc(shortDate(win.start))} – ${esc(shortDate(win.end))}${dd ? ` · Data date ${esc(shortDate(dd))}` : ""}</p>`);
+  if (dd) out.push(`<p data-lookahead-source="true" style="margin:-6px 0 12px;font-size:12px;color:${G1}">${esc(lookaheadSourceLine(win.end, dd, r.found ? (r.version ?? null) : null))}</p>`);
   out.push(tiles([tile("Activities", String(m.counts.activities)), tile("Critical", String(m.counts.critical)), tile("Inspections", String(m.counts.inspections)), tile("Deliveries", String(m.counts.deliveries)), tile("Risks", String(m.counts.risks), m.counts.risks > 0), tile("Overdue", String(m.counts.overdue), m.counts.overdue > 0)]));
   const due = (e: LaEntry) => `Owner: ${esc(e.item.owner ?? "Needed")} · Due ${e.item.due ? `<span style="color:${e.overdue ? RED : G1};font-weight:${e.overdue ? 700 : 400}">${esc(shortDate(e.item.due))}</span>` : "Needed"}`;
   const flagsHtml = (e: LaEntry) => e.flags.map((f) => `<div style="margin-top:6px;font-size:12px;color:${NAVY};border-left:3px solid #1E5FED;padding-left:8px">${esc(f.text)}</div>`).join("");
@@ -507,7 +508,7 @@ function lookaheadPageView(p: LookaheadPayload): string {
   if (!m.rows.length) out.push(card(`<p style="margin:0;color:${G1}">No saved schedule activities fall in this window.</p><p style="margin:8px 0 0;color:${NAVY}"><strong>Next move:</strong> pick a window that overlaps the saved schedule, or send this window's schedule export.</p>`));
   else {
     const th = m.days.map((d, i) => `<th style="padding:4px 2px;font-size:11px;color:${d === hl ? BLUE : G1};text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${i === 0 ? "WEEK 1<br>" : i === 5 ? "WEEK 2<br>" : "<br>"}${esc(dayHead(d))}</th>`).join("");
-    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(shownFloat(row.a.total_float))}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
+    const rows = m.rows.map((row) => `<tr id="activity-${esc(row.a.id)}" style="border-top:1px solid ${G4}"><td style="padding:6px 8px;font-size:12px;font-weight:600;color:${NAVY}" data-id="${esc(row.a.id)}">${esc(activityTitle(row.a))}<div style="font-size:11px;font-weight:400;color:${G1}">${esc(row.a.id)} · ${esc((({ start, finish, pct }) => `${start} to ${finish}${pct ? ` · ${pct}` : ""}`)(lookaheadDates(row.a)))}</div></td><td style="padding:6px 8px;font-size:12px;color:${Number(row.a.total_float) === 0 ? BLUE : G1};text-align:center">${esc(shownFloat(row.a.total_float))}</td>${row.cells.map((c, i) => `<td style="padding:4px 2px;min-width:44px;text-align:center;${i === 5 ? `border-left:2px solid ${G3};` : ""}">${CELL_HTML[c.kind]}${c.risk ? `<span style="color:${RED}">⚑</span>` : ""}</td>`).join("")}</tr>`).join("");
     out.push(card(h2("CALENDAR") + `<div class="ath-report-table-scroll" role="region" aria-label="Lookahead calendar" tabindex="0"><table style="border-collapse:collapse;width:100%"><thead><tr style="text-align:left;font-size:12px;color:${G1}"><th style="padding:4px 8px">Activity</th><th style="padding:4px 8px">Float</th>${th}</tr></thead><tbody>${rows}</tbody></table></div>` + legend([[sw(BLUE), "Critical"], [sw(G2), "Non-critical"], ["📋", "Inspection"], ["🚚", "Delivery"], ["◆", "Milestone"], [`<span style="color:${RED}">⚑</span>`, "Risk"]])));
   }
   if (m.overdue.length) out.push(card(h2("OVERDUE") + m.overdue.map((e, n) => `<div id="item-${esc(e.item.id || String(n + 1))}" style="border:1px solid ${G3};border-left:4px solid ${RED};border-radius:10px;padding:12px;margin:0 0 8px">${badge}<strong style="color:${RED}">${esc(e.label)}</strong><span style="color:${NAVY}"> · ${due(e)}</span></div>`).join("")));
@@ -628,15 +629,17 @@ function renderReportContent(p: PagePayload, context?: ReportContext): string {
   else if (p.page === "payapp") body = payAppPageView(p);
   else if (p.page === "briefing") body = briefingPageView(p);
   else if (!p.report?.found) body = card(`<p style="margin:0;color:${G1}">Nothing saved yet. Once the ${PAGE_LABEL[p.page]} is saved in Athena, it shows here and stays up to date.</p>`);
-  else { st = stamp(p.report); body = p.page === "schedule" ? scheduleView(p as JobPayload) : iorView(p as JobPayload, context?.jobId); }
+  else { st = stamp(p.report); body = p.page === "schedule" ? scheduleView(p as JobPayload, context) : iorView(p as JobPayload, context?.jobId); }
   if (p.page === "payapp" && p.report?.found) st = stamp(p.report);
   if (p.page === "briefing") st = `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">${esc(shortDate(p.today))}</p>`;
   const foot = p.shared ? `${p.company ? `Shared by ${esc(p.company)}` : "Shared view"}${p.expires_at ? ` · link works until ${esc(p.expires_at.slice(0, 10))}` : ""}` : "Private to your company · updates when Athena saves a new version";
   return `<div class="ath-report-page" style="color:${NAVY}"><h1 class="ath-report-title" style="margin:0;color:${NAVY}">${title}</h1>${st || `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">Live view</p>`}${body}<p style="margin:24px 0 0;font-size:12px;color:${G2}">${foot}</p></div>`;
 }
 
-/** jobId links rows to job pages. */
-type ReportContext = { jobId?: string };
+/** jobId links rows to job pages. layout opens a saved schedule layout; layoutHref links to one. */
+type ReportContext = { jobId?: string; layout?: string | null; layoutHref?: (id: string | null) => string };
+/** Schedule layout links on the signed-in page; the board token is added by the page. */
+export const scheduleLayoutHref = (id: string | null) => (id ? `../schedule?layout=${encodeURIComponent(id)}` : "../schedule");
 
 /** Same responsive surface in the signed-in view and the standalone share. */
 export function renderReportBody(p: PagePayload, context?: ReportContext): string {

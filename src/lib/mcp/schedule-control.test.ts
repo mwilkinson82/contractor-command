@@ -96,7 +96,7 @@ describe("controlled Athena schedule", () => {
     expect(() => revise(plan(), { initial_activities: [act("X")] })).toThrow(/stable activity IDs/);
     expect(() =>
       revise(plan(), { operation: "organize", updates: [{ id: "A", duration: 1 }] }),
-    ).toThrow(/WBS only/);
+    ).toThrow(/Organize changes WBS, activity codes and layouts only/);
   });
   it.each(["FS", "SS", "FF", "SF"] as const)(
     "retains and propagates %s dependencies with lag",

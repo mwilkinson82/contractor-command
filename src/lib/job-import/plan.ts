@@ -5,6 +5,7 @@ import type { CardModel, CardRow, CardSection } from "../mcp/cards/model";
 import { heldCents, readIorModel } from "../ior-model";
 import { checkSave, type Activity, type LivingData } from "../mcp/living";
 import { prepareSchedule, ScheduleInputError } from "../mcp/schedule-control";
+import { alignMilestoneDates, withProjectMilestones } from "../schedule-milestones";
 import { importJob, type ImportArchive, type ImportJob, type ImportSource } from "./model";
 import { archiveGroup } from "./overwatch";
 
@@ -198,6 +199,8 @@ function calculateImported(
   wbs: { id: string; name: string; parent_id: string | null; order: number }[],
   from: string,
   exportDay: string,
+  /** Milestones Athena added: dated from the as-planned activities they tie to. */
+  addedMilestones: string[] = [],
 ):
   | { ok: true; data: LivingData; data_date: string; notes: string[] }
   | { ok: false; reason: string } {
@@ -265,7 +268,7 @@ function calculateImported(
     critical_definition: "longest-path" as const,
   };
   // As planned: no progress, the source's baseline dates as the reported dates.
-  const planned: Activity[] = reported.map((a) => {
+  const asPlanned: Activity[] = reported.map((a) => {
     const r = rows.get(a.id);
     const { actual_start: _as, actual_finish: _af, remaining_duration: _rd, ...rest } = a;
     void _as;
@@ -278,6 +281,7 @@ function calculateImported(
       pct_complete: 0,
     };
   });
+  const planned = alignMilestoneDates(asPlanned, addedMilestones);
   // Progress at the data date. In-progress work without a remaining duration
   // keeps the source's forecast finish; with no forecast, its percent complete.
   const derived: string[] = [];
@@ -699,30 +703,37 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
       try {
         if (activities.length > 400)
           throw new ScheduleInputError("it has more than Athena's 400 activities.");
+        // A P6-style CPM starts and ends on milestones; add the ones the source
+        // lacks before calculating, so they land in BL1 and the update alike.
+        const withMilestones = withProjectMilestones(activities);
+        const planned = withMilestones.activities;
         const organized = () =>
           prepareSchedule(null, 0, {
             operation: "organize",
             data_date: dataDate,
-            initial_activities: activities as never,
+            initial_activities: planned as never,
             ...(wbs.length ? { wbs } : {}),
           });
         const calculated = job.schedule_calendar
-          ? calculateImported(job, activities, wbs, from, dataDate)
+          ? calculateImported(job, planned, wbs, from, dataDate, withMilestones.ids)
           : { ok: false as const, reason: `${from} sent no working calendar` };
         const prepared = calculated.ok ? calculated : { ...organized(), notes: [] as string[] };
         const check = checkSave("cpm", prepared.data, null, null);
         if (!check.ok) throw new ScheduleInputError(check.problems.join(" "));
-        const milestones = job.schedule.filter((a) => a.milestone).length;
+        const sourceMilestones = job.schedule.filter((a) => a.milestone).length;
+        const addedNames = planned
+          .filter((a) => withMilestones.ids.includes(a.id))
+          .map((a) => `${a.id} ${a.name}`);
         const savedDate = calculated.ok ? calculated.data_date : dataDate;
         schedule = {
           source_id: job.job.source_id,
           data_date: savedDate,
-          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${milestones ? ` (${plural(milestones, "milestone")})` : ""}, logic as ${from} had it, ${calculated.ok ? `calculated on ${from}'s working calendar with data date ${savedDate} and ${from}'s baseline captured` : "dates as reported"}, not cost loaded.`,
-          activity_count: activities.length,
-          milestones,
+          what: `Imported from ${from}: ${plural(activities.length, "activity", "activities")}${sourceMilestones ? ` (${plural(sourceMilestones, "milestone")})` : ""}${addedNames.length ? `, plus Athena's ${joinList(addedNames)} milestone${addedNames.length === 1 ? "" : "s"}` : ""}, logic as ${from} had it, ${calculated.ok ? `calculated on ${from}'s working calendar with data date ${savedDate} and ${from}'s baseline captured` : "dates as reported"}, not cost loaded.`,
+          activity_count: planned.length,
+          milestones: sourceMilestones + withMilestones.ids.length,
           data: prepared.data,
         };
-        scheduleNotes.push(...notes, ...prepared.notes);
+        scheduleNotes.push(...notes, ...withMilestones.added, ...prepared.notes);
         if (!calculated.ok && job.schedule_calendar)
           scheduleNotes.push(
             `The schedule came in with ${from}'s reported dates only, so float and the critical path wait for a recalculation: ${calculated.reason}.`,

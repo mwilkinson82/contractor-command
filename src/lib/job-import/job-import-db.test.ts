@@ -165,7 +165,7 @@ describe("job import save", () => {
       dailies: 1,
       ior: 0,
       archive_rows: 29,
-      schedule_activities: 2,
+      schedule_activities: 4,
       rfis: 1,
       decisions: 0,
       claims: 0,
@@ -248,8 +248,10 @@ describe("job import save", () => {
     }>("mcp_living_report_get", [jobId, "cpm", null]);
     expect(cpm).toMatchObject({ found: true, version: 1 });
     expect(cpm.data.activities.map((a) => [a.id, a.value])).toEqual([
+      ["MS-000", null],
       ["A100", null],
       ["A200", null],
+      ["MS-999", null],
     ]);
   });
 

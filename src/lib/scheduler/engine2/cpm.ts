@@ -1197,7 +1197,13 @@ function requiredSuccStart(
       return succCal.nextWorkInstant(target);
     case "FF":
     case "SF": {
-      const finishReq = succCal.nextWorkInstant(target);
+      // A finish requirement is a position, not a start: the end of a working
+      // day (inclusive last work day) stays on that day. Snapping it like a
+      // start pushed a zero-duration successor (a finish milestone tied FF 0)
+      // to the next work day; activities with duration back-solve the same.
+      const finishReq = succCal.isWorking(target - MS_PER_MIN)
+        ? target
+        : succCal.nextWorkInstant(target);
       const dur = Math.max(0, succ.remainingDuration.minutes | 0);
       return dur === 0 ? finishReq : succCal.addWork(finishReq, -dur);
     }
