@@ -399,11 +399,6 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             group: "record",
           },
           {
-            title: "Project record",
-            detail: "Everything logged on this job, with who and when. Export for a dispute",
-            page: "record",
-          },
-          {
             title: "Indicated Outcome Report",
             detail: state(
               ior,
