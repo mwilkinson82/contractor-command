@@ -7601,6 +7601,136 @@ export type Database = {
           },
         ]
       }
+      mcp_precon_agreements: {
+        Row: {
+          billing: string
+          closed_on: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          credit: boolean
+          credit_change_id: string | null
+          credit_days: number | null
+          design_days: number | null
+          design_fee_cents: number
+          design_markup_bps: number
+          design_partner: string | null
+          design_role: string | null
+          drawings_approved_on: string | null
+          hourly_rate_cents: number
+          hours_used: number
+          id: string
+          includes: Json
+          invoice_ids: string[]
+          job_id: string
+          note: string | null
+          outcome: string | null
+          owner_owns_drawings: boolean
+          price_cents: number
+          sent_on: string | null
+          signed_name: string | null
+          signed_on: string | null
+          signed_via: string | null
+          status: string
+          time_lines: Json
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          billing?: string
+          closed_on?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string
+          credit?: boolean
+          credit_change_id?: string | null
+          credit_days?: number | null
+          design_days?: number | null
+          design_fee_cents?: number
+          design_markup_bps?: number
+          design_partner?: string | null
+          design_role?: string | null
+          drawings_approved_on?: string | null
+          hourly_rate_cents?: number
+          hours_used?: number
+          id?: string
+          includes?: Json
+          invoice_ids?: string[]
+          job_id: string
+          note?: string | null
+          outcome?: string | null
+          owner_owns_drawings?: boolean
+          price_cents?: number
+          sent_on?: string | null
+          signed_name?: string | null
+          signed_on?: string | null
+          signed_via?: string | null
+          status?: string
+          time_lines?: Json
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          billing?: string
+          closed_on?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          credit?: boolean
+          credit_change_id?: string | null
+          credit_days?: number | null
+          design_days?: number | null
+          design_fee_cents?: number
+          design_markup_bps?: number
+          design_partner?: string | null
+          design_role?: string | null
+          drawings_approved_on?: string | null
+          hourly_rate_cents?: number
+          hours_used?: number
+          id?: string
+          includes?: Json
+          invoice_ids?: string[]
+          job_id?: string
+          note?: string | null
+          outcome?: string | null
+          owner_owns_drawings?: boolean
+          price_cents?: number
+          sent_on?: string | null
+          signed_name?: string | null
+          signed_on?: string | null
+          signed_via?: string | null
+          status?: string
+          time_lines?: Json
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_precon_agreements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_precon_agreements_credit_change_id_fkey"
+            columns: ["credit_change_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_change_orders"
+            referencedColumns: ["submittal_id"]
+          },
+          {
+            foreignKeyName: "mcp_precon_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_production_rates: {
         Row: {
           activity_id: string | null
@@ -12553,6 +12683,13 @@ export type Database = {
         Args: { _item: string; _job: string }
         Returns: Json
       }
+      mcp_precon_get: { Args: { _job: string }; Returns: Json }
+      mcp_precon_invoice_share: {
+        Args: { _job: string; _p: Json }
+        Returns: Json
+      }
+      mcp_precon_save: { Args: { _job: string; _p: Json }; Returns: Json }
+      mcp_precon_step: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_progress_photo_create: {
         Args: {
           _activity: string
