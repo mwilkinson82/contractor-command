@@ -130,14 +130,26 @@ export const scheduleWorkflow = defineTool({
           args.request,
           saved.data_date,
         );
+        const a = prepared.control.analysis;
+        // The TIA hands off to a time request; it never drafts or sends one by itself.
+        const timeRequest =
+          a && a.impact_calendar_days > 0
+            ? {
+                event_id: a.event_id,
+                schedule_days: a.impact_calendar_days,
+                project_work_days: a.impact_project_work_days,
+                next: `After this TIA is saved, the member can ask for time with change_order_record: schedule_days ${a.impact_calendar_days} (calendar days; use the contract's day basis if it counts working days, ${a.impact_project_work_days} WD), event ${a.event_id} in the condition, and the saved TIA version as a reference. Ask before drafting; nothing is sent.`,
+              }
+            : null;
         return {
           ...text(
-            `${named(job)} · Draft, not saved · based on v${version}.\nOperation: ${args.request.operation}. ${prepared.changes.length} activities changed.\nCalculation: ${prepared.control.calculation.status}.${prepared.control.analysis ? `\nModeled completion movement: ${prepared.control.analysis.impact_calendar_days} calendar days (${prepared.control.analysis.prior_completion} → ${prepared.control.analysis.updated_completion}). ${prepared.control.analysis.limitation}` : ""}\n${prepared.missing.map((m) => `Needed: ${m}`).join("\n")}\nReview this draft before saving. No notice sent.`,
+            `${named(job)} · Draft, not saved · based on v${version}.\nOperation: ${args.request.operation}. ${prepared.changes.length} activities changed.\nCalculation: ${prepared.control.calculation.status}.${prepared.control.analysis ? `\nModeled completion movement: ${prepared.control.analysis.impact_calendar_days} calendar days (${prepared.control.analysis.prior_completion} → ${prepared.control.analysis.updated_completion}). ${prepared.control.analysis.limitation}` : ""}\n${prepared.missing.map((m) => `Needed: ${m}`).join("\n")}${timeRequest ? `\nTime request: ${timeRequest.next}` : ""}\nReview this draft before saving. No notice sent.`,
           ),
           structuredContent: {
             saved: false,
             base_version: version,
             prepared: json(prepared),
+            ...(timeRequest ? { time_request: timeRequest } : {}),
             save: {
               tool: "living_report_save",
               report_type: "cpm",

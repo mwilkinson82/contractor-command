@@ -8,6 +8,11 @@ export function publicScheduleControl(raw: unknown): unknown {
     for (const key of ["description", "source_refs", "assumptions", "before_activities"])
       delete analysis[key];
   }
+  if (Array.isArray(control.delay_register))
+    for (const entry of control.delay_register)
+      if (entry && typeof entry === "object")
+        for (const key of ["description", "source_refs"])
+          delete (entry as Record<string, unknown>)[key];
   if (Array.isArray(control.baselines)) {
     for (const baseline of control.baselines) {
       if (!baseline || typeof baseline !== "object" || !Array.isArray(baseline.activities))

@@ -1076,3 +1076,86 @@ export function milestoneHtml(input: GanttInput): string {
   const style = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}</style>`;
   return `${style}<div class="cpmc" id="cpm-milestones"><h2>MILESTONES</h2><div class="cpm-tbl"><table><thead><tr><th>ID</th><th>Milestone</th><th class="cpm-n">Baseline</th>${m.prior ? `<th class="cpm-n">Last update</th>` : ""}<th class="cpm-n">Forecast / actual</th><th class="cpm-n" title="Working days">vs baseline</th>${m.prior ? `<th class="cpm-n" title="Working days">vs last update</th>` : ""}<th class="cpm-n">Total float</th><th class="cpm-n">Finish by</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
+
+const tableStyle = `<style>.cpmc{color:${INK};font-size:12px}.cpmc h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em}.cpmc .cpm-tbl{overflow-x:auto}.cpmc table{border-collapse:collapse;width:100%;min-width:640px}.cpmc th{text-align:left;color:${MUTED};font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 6px;white-space:nowrap}.cpmc td{padding:5px 6px;border-top:1px solid ${LINE2};vertical-align:top}.cpmc td:first-child,.cpmc th:first-child{position:sticky;left:0;background:#fff;z-index:1}.cpmc .cpm-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.cpmc .cpm-mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}.cpmc .cpmc-sum{margin:0 0 8px;color:${INK2}}</style>`;
+const lateStyle = (n: number | null) =>
+  (n ?? 0) > 0 ? ' style="color:#B42318;font-weight:700"' : "";
+
+export type ScheduleWindow = {
+  from: string;
+  to: string;
+  completion: string;
+  /** Completion movement in the window, project working days; positive is later. */
+  movement: number | null;
+  /** Completion against the baseline at the end of the window, project working days. */
+  versus_baseline: number | null;
+  driver: string | null;
+  events: string[];
+};
+
+/** Contemporaneous windows: one window between each pair of saved updates, from the saved update history only. */
+export function scheduleWindows(input: GanttInput): ScheduleWindow[] {
+  const m = ganttModel(input);
+  const h = input.control.update_history ?? [];
+  const register = input.control.delay_register ?? [];
+  const out: ScheduleWindow[] = [];
+  for (let i = 1; i < h.length; i++) {
+    const a = h[i - 1],
+      b = h[i];
+    const pa = day(a.completion),
+      pb = day(b.completion);
+    const driverId = b.longest_path.find((id) => {
+      const r = m.byId.get(id);
+      return !r || !r.milestone;
+    });
+    out.push({
+      from: a.data_date,
+      to: b.data_date,
+      completion: b.completion,
+      movement: pa === null || pb === null ? null : workDaysBetween(pa, pb, m.projectCal),
+      versus_baseline:
+        m.baselineFinish === null || pb === null
+          ? null
+          : workDaysBetween(m.baselineFinish, pb, m.projectCal),
+      driver: driverId ?? null,
+      events: register
+        .filter((d) => d.data_date >= a.data_date && d.data_date < b.data_date)
+        .map((d) => d.event_id),
+    });
+  }
+  return out;
+}
+
+export function windowsHtml(input: GanttInput): string {
+  const w = scheduleWindows(input);
+  if (!w.length) return "";
+  const m = ganttModel(input);
+  const total = w.reduce((s, x) => s + (x.movement ?? 0), 0);
+  const worst = w.reduce(
+    (p, x) => ((x.movement ?? 0) > (p?.movement ?? 0) ? x : p),
+    null as ScheduleWindow | null,
+  );
+  const sum = `Completion moved ${signed(total)} WD over ${w.length} ${w.length === 1 ? "window" : "windows"}${worst ? `; the most, ${signed(worst.movement)} WD, between ${shortDay(day(worst.from))} and ${shortDay(day(worst.to))}` : ""}.`;
+  const rows = w
+    .map((x) => {
+      const r = x.driver ? m.byId.get(x.driver) : undefined;
+      return `<tr data-window="${esc(x.to)}"><td class="cpm-mono">${esc(shortDay(day(x.from)))} → ${esc(shortDay(day(x.to)))}</td><td class="cpm-n"><strong>${esc(shortDay(day(x.completion)))}</strong></td><td class="cpm-n"${lateStyle(x.movement)}>${esc(signed(x.movement))}</td>${m.baselineFinish !== null ? `<td class="cpm-n"${lateStyle(x.versus_baseline)}>${esc(signed(x.versus_baseline))}</td>` : ""}<td>${x.driver ? `<span class="cpm-mono">${esc(x.driver)}</span> ${esc(r?.a.name ?? "")}` : ""}</td><td>${esc(x.events.join(", "))}</td></tr>`;
+    })
+    .join("");
+  return `${tableStyle}<div class="cpmc" id="cpm-windows"><h2>WINDOWS ANALYSIS</h2><p class="cpmc-sum">${esc(sum)}</p><div class="cpm-tbl"><table><thead><tr><th>Window (data dates)</th><th class="cpm-n">Completion</th><th class="cpm-n" title="Working days">Movement</th>${m.baselineFinish !== null ? `<th class="cpm-n" title="Working days">vs baseline</th>` : ""}<th>Driving at window end</th><th>Delay events modeled</th></tr></thead><tbody>${rows}</tbody></table></div><p class="cpmc-sum" style="margin-top:8px">Each window compares two saved updates as they were calculated. Movement shows when the completion moved; it does not assign responsibility.</p></div>`;
+}
+
+/** The delay event register: every modeled fragnet and its isolated completion movement, kept through later updates. */
+export function delaysHtml(input: GanttInput): string {
+  const reg = input.control.delay_register ?? [];
+  if (!reg.length) return "";
+  const rows = [...reg]
+    .sort((a, b) => a.data_date.localeCompare(b.data_date) || a.event_id.localeCompare(b.event_id))
+    .map(
+      (d) =>
+        `<tr data-delay-event="${esc(d.event_id)}"><td class="cpm-mono">${esc(d.event_id)}</td><td style="min-width:200px">${esc(d.description ?? "")}</td><td class="cpm-n">${esc(d.event_date ? shortDay(day(d.event_date)) : "Not established")}</td><td class="cpm-n">${esc(shortDay(day(d.data_date)))}</td><td class="cpm-mono">${esc(d.fragnet_ids.join(", "))}</td><td class="cpm-n">${esc(shortDay(day(d.prior_completion)))} → ${esc(shortDay(day(d.updated_completion)))}</td><td class="cpm-n"${lateStyle(d.impact_project_work_days)}>${esc(signed(d.impact_project_work_days))} WD · ${esc(signed(d.impact_calendar_days))} CD</td></tr>`,
+    )
+    .join("");
+  const cd = reg.reduce((s, d) => s + Math.max(0, d.impact_calendar_days), 0);
+  return `${tableStyle}<div class="cpmc" id="cpm-delays"><h2>DELAY EVENTS</h2><p class="cpmc-sum">${esc(`${reg.length} modeled ${reg.length === 1 ? "event" : "events"} · ${cd} calendar days of modeled completion movement, each measured alone against the update it was inserted into.`)}</p><div class="cpm-tbl"><table><thead><tr><th>Event</th><th>Description</th><th class="cpm-n">Event date</th><th class="cpm-n">Data date</th><th>Fragnet</th><th class="cpm-n">Completion</th><th class="cpm-n">Modeled impact</th></tr></thead><tbody>${rows}</tbody></table></div><p class="cpmc-sum" style="margin-top:8px">Modeled impacts are not additive when events overlap, and they do not decide responsibility, concurrency or entitlement.</p></div>`;
+}

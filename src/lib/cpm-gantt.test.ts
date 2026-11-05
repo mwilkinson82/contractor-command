@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { prepareSchedule, readScheduleControl } from "./mcp/schedule-control";
+import { publicScheduleControl } from "./mcp/schedule-privacy";
 import type { Activity, LivingData } from "./mcp/living";
 import {
   compareActivities,
   comparisonHtml,
+  delaysHtml,
+  scheduleWindows,
+  windowsHtml,
   ganttHtml,
   ganttModel,
   ganttSummary,
@@ -266,5 +270,67 @@ describe("calculated schedule page", () => {
     });
     expect(page).toContain("MILESTONES");
     expect(page).toContain("UPDATE COMPARISON");
+  });
+
+  it("keeps a windows history and a delay register through later updates", () => {
+    let data = network();
+    // TIA at the Mar 9 update: a 3-day owner hold between B and C.
+    data = prepareSchedule(data, 3, {
+      operation: "tia",
+      data_date: "2026-03-09",
+      delay: {
+        event_id: "EV-1",
+        description: "Fictional owner hold on C",
+        event_date: "2026-03-09",
+        source_refs: ["Fictional letter 1"],
+        assumptions: [],
+        add_activities: [act("FN-1", 3, ["B"], { wbs_id: "construction" })],
+        replace_predecessors: [{ activity_id: "C", predecessors: [{ id: "FN-1", type: "FS" }] }],
+      },
+    }).data as LivingData;
+    const tia = readScheduleControl(data)!;
+    expect(tia.delay_register).toHaveLength(1);
+    expect(tia.delay_register![0]).toMatchObject({ event_id: "EV-1", impact_project_work_days: 3 });
+    // TIAs do not add an update to the history.
+    expect(tia.update_history?.map((h) => h.data_date)).toEqual(["2026-03-02", "2026-03-09"]);
+    data = prepareSchedule(data, 4, {
+      operation: "recalculate",
+      data_date: "2026-03-16",
+      updates: [{ id: "B", remaining_duration: 2, pct_complete: 60 }],
+    }).data as LivingData;
+    const control = readScheduleControl(data)!;
+    expect(control.analysis).toBeUndefined();
+    expect(control.delay_register?.map((d) => d.event_id)).toEqual(["EV-1"]);
+    expect(control.update_history?.map((h) => h.data_date)).toEqual([
+      "2026-03-02",
+      "2026-03-09",
+      "2026-03-16",
+    ]);
+    const i = { data, control, dataDate: "2026-03-16", contractCompletion: "2026-03-20" };
+    const w = scheduleWindows(i);
+    expect(w).toHaveLength(2);
+    expect(w[0]).toMatchObject({ from: "2026-03-02", to: "2026-03-09", driver: "B" });
+    expect(w[1].events).toEqual(["EV-1"]);
+    const html = windowsHtml(i);
+    expect(html).toContain("WINDOWS ANALYSIS");
+    expect(html).toContain('data-window="2026-03-16"');
+    expect(html).not.toContain("NaN");
+    const delays = delaysHtml(i);
+    expect(delays).toContain('data-delay-event="EV-1"');
+    expect(delays).toContain("+3 WD");
+    // Shared pages keep the impact but not the event's description or sources.
+    const pub = publicScheduleControl(control) as typeof control;
+    expect(pub.delay_register![0]).not.toHaveProperty("description");
+    expect(pub.delay_register![0]).not.toHaveProperty("source_refs");
+    expect(pub.delay_register![0].impact_calendar_days).toBe(
+      control.delay_register![0].impact_calendar_days,
+    );
+    // A same-date revision replaces that update's entry instead of adding one.
+    const again = prepareSchedule(data, 5, {
+      operation: "recalculate",
+      data_date: "2026-03-16",
+      updates: [{ id: "Y", duration: 5 }],
+    }).data;
+    expect(readScheduleControl(again)!.update_history?.map((h) => h.version)).toEqual([1, 3, 6]);
   });
 });
