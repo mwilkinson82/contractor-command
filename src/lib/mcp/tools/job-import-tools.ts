@@ -18,7 +18,7 @@ import { pmReachable, pmSetupNext, readTeammates } from "../pm-setup";
 import { drawingFile } from "../drawing-file-input";
 import { fetchAllowedFile } from "../file-upload";
 import { FileRejected } from "../file-share";
-import type { CardModel } from "../cards/model";
+import type { CardModel, CardSection } from "../cards/model";
 import { renderHtml } from "../cards/html";
 import { htmlBlock, renderMarkdown } from "../cards/markdown";
 import { applyCardClosing } from "../cards/silence";
@@ -26,7 +26,16 @@ import { cardWidgetMeta } from "../cards/widget";
 import { IMPORT_SOURCES, ImportInputError, type ImportJob } from "../../job-import/model";
 import { fromOverwatch } from "../../job-import/overwatch";
 import { SHEET_KINDS, fromSpreadsheets } from "../../job-import/spreadsheet";
-import { readImportFile, type ScheduleFile } from "../../job-import/files";
+import { readImportFile, type ReadFile, type ScheduleFile } from "../../job-import/files";
+import {
+  RETRY_DOCUMENTS,
+  documentsKey,
+  documentsResultSection,
+  documentsSection,
+  jobDocuments,
+  storeImportDocuments,
+  type DocumentsOutcome,
+} from "../job-import-documents";
 import { fromMspdi, fromXer, isMspdi, isXer } from "../../job-import/schedule-files";
 import {
   appliedCard,
@@ -56,7 +65,7 @@ export const BUILDERTREND_EXPORT_HOW =
 export const FULL_ACCESS_HOW =
   "Importing onto a job that's already in Athena needs full access to that job. Ask your company's owner to add you to the job, or to run the import. Nothing was saved.";
 
-export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one from their system, one step at a time: Overwatch: ${OVERWATCH_EXPORT_HOW} Procore: ${PROCORE_EXPORT_HOW} Buildertrend: ${BUILDERTREND_EXPORT_HOW} One file per review: a ZIP of several exports, an Excel workbook, a P6 .xer, an MS Project XML or a CSV; Athena recognizes each file from its columns. After the card, offer to add what the card says is missing. Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Only when the member asks in their own words to replace or redo a job's schedule from the export, and the job's CPM came from an import, call review with replace_schedule true; ask them first and say that the imported CPM gets a new recalculated version and earlier versions stay in history. Never use replace_schedule otherwise. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
+export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one from their system, one step at a time: Overwatch: ${OVERWATCH_EXPORT_HOW} Procore: ${PROCORE_EXPORT_HOW} Buildertrend: ${BUILDERTREND_EXPORT_HOW} One file per review: a ZIP of several exports, an Excel workbook, a P6 .xer, an MS Project XML or a CSV; Athena recognizes each file from its columns. After the card, offer to add what the card says is missing. Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned; when it returned documents_key, also pass documents_key and the same attached file again as file. Only when the member asks in their own words to replace or redo a job's schedule from the export, and the job's CPM came from an import, call review with replace_schedule true; ask them first and say that the imported CPM gets a new recalculated version and earlier versions stay in history. Never use replace_schedule otherwise. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
 
 /** Fills the job's contract completion from the saved import, only when the job has none. */
 export async function fillCompletion(sb: Sb, batch: string): Promise<void> {
@@ -284,6 +293,55 @@ export function destinationChecks(input: {
   return out;
 }
 
+const withSection = (list: CardModel["sections"], at: number, section: CardSection) => {
+  const out = [...(list ?? [])];
+  out.splice(at, 0, section);
+  return out;
+};
+
+/** Re-reads the attached export at save and stores its contract and spec files. Never throws. */
+async function saveDocuments(
+  sb: Sb,
+  args: {
+    file?: { download_url: string; file_name?: string };
+    documents_key?: string;
+    batch_id?: string;
+  },
+  result: Record<string, unknown>,
+  jobNumber: string,
+): Promise<DocumentsOutcome> {
+  const none: DocumentsOutcome = { stored: [], skipped: [], failed: [], note: null };
+  if (!args.file?.download_url)
+    return args.documents_key
+      ? {
+          ...none,
+          note: "The contract and spec files weren't saved because the export wasn't attached again. The import is saved; attach the same export and say save the documents.",
+          retry: RETRY_DOCUMENTS,
+        }
+      : {
+          ...none,
+          retry: `No file came with this save, so no documents were attached. If the review card listed a contract or specs to save: ${RETRY_DOCUMENTS}`,
+        };
+  let read: ReadFile;
+  try {
+    const bytes = await fetchAllowedFile(args.file.download_url, FILE_MAX_BYTES);
+    read = await readImportFile(bytes, args.file.file_name ?? "export");
+  } catch {
+    return {
+      ...none,
+      note: "The import is saved, but the export couldn't be read again, so its contract and spec files weren't saved. Attach it again and say save the documents.",
+      retry: RETRY_DOCUMENTS,
+    };
+  }
+  return storeImportDocuments(sb, {
+    documents: read.documents,
+    documentsKey: args.documents_key,
+    batchId: args.batch_id ?? "",
+    result,
+    jobNumber,
+  });
+}
+
 export const jobImport = defineTool({
   name: "job_import",
   title: "Import a job from Overwatch, Procore or a spreadsheet",
@@ -304,6 +362,7 @@ export const jobImport = defineTool({
     daily_days: z.number().int().min(0).max(3650).optional(),
     batch_id: z.string().uuid().optional(),
     import_key: z.string().trim().max(64).optional(),
+    documents_key: z.string().trim().max(64).optional(),
     confirmed: looseBoolean().optional(),
     replace_schedule: looseBoolean().optional(),
   },
@@ -348,11 +407,15 @@ export const jobImport = defineTool({
         // Best effort: an older database without the function, or any refusal, changes nothing.
         if (!result.already_applied) await fillCompletion(sb, args.batch_id);
         const card = appliedCard(result, jobNumber, args.source ?? "overwatch");
+        // The export's contract and spec files go on the saved job; a failure here never undoes the import.
+        const documents = await saveDocuments(sb, args, result, jobNumber);
+        const docSection = documentsResultSection(documents);
+        if (docSection) card.sections = withSection(card.sections, 1, docSection);
         // Client approvals and notices email the job's PM, so a job that came in without one gets the PM question.
         const pmAsk = await importPmAsk(sb, result);
         return cardResult(
           card,
-          { written: !result.already_applied, result },
+          { written: !result.already_applied, result, documents },
           pmAsk
             ? `Show this card. Then, in one short line, say: "${pmAsk.note}" and ask the PM question: ${pmAsk.ask}`
             : "Show this card. Do not add text after it.",
@@ -367,6 +430,7 @@ export const jobImport = defineTool({
       let exportText = args.export_text;
       let sheets = args.sheets;
       let scheduleFile: ScheduleFile | null = null;
+      let read: ReadFile | null = null;
       const fileNotes: string[] = [];
       let imported: ImportJob;
       try {
@@ -379,7 +443,7 @@ export const jobImport = defineTool({
               throw new ToolError(e.message.replace(/stored/, "saved"));
             throw e;
           }
-          const read = await readImportFile(bytes, args.file.file_name ?? "export");
+          read = await readImportFile(bytes, args.file.file_name ?? "export");
           if (args.source === "overwatch")
             exportText =
               read.overwatch ??
@@ -387,13 +451,6 @@ export const jobImport = defineTool({
           sheets = read.sheets;
           scheduleFile = read.schedule;
           fileNotes.push(...read.problems);
-          if (read.other.length) {
-            const n = read.other.length;
-            const names = read.other.slice(0, 5).map((o) => o.name.split("/").pop());
-            fileNotes.push(
-              `${n === 1 ? "1 file" : `${n} files`} in the export (PDFs, photos or drawings) ${n === 1 ? "isn't" : "aren't"} read into this import: ${names.join(", ")}${n > 5 ? " and more" : ""}. Add them to the job's documents.`,
-            );
-          }
           if (args.source !== "overwatch" && !sheets.length && !scheduleFile)
             throw new ImportInputError(
               "Athena found no export it can read in that file. Attach the CSV or Excel exports, a ZIP of them, or the P6 .xer schedule.",
@@ -461,7 +518,20 @@ export const jobImport = defineTool({
         }),
       );
       const card = reviewCard(plan, jobNumber, context.job_exists);
-      if (nothingToSave(plan))
+      const empty = nothingToSave(plan);
+      // Contract and spec files are stored only by a normal import's save, never at review.
+      const storing = !!read?.documents.length && !replacing && !empty;
+      if (read) {
+        let onJob: Awaited<ReturnType<typeof jobDocuments>> = [];
+        if (read.documents.length && context.job_exists && context.job_id)
+          onJob = await jobDocuments(sb, context.job_id, choice.companyId).catch(() => []);
+        const docSection = await documentsSection(read, storing, onJob);
+        if (docSection) {
+          const at = (card.sections ?? []).findIndex((s) => s.heading === "Will be saved");
+          card.sections = withSection(card.sections, at + 1, docSection);
+        }
+      }
+      if (empty)
         return cardResult(
           card,
           { written: false, nothing_new: true },
@@ -485,10 +555,13 @@ export const jobImport = defineTool({
           import_key: staged.package_hash,
           expires_at: staged.expires_at,
           counts: plan.counts,
+          ...(storing
+            ? { documents_key: await documentsKey(staged.batch_id, read!.documents) }
+            : {}),
         },
         replacing
           ? "Show this card. Do not add text after it. Replace the CPM only after a separate yes to this card, with step save, replace_schedule true, this batch_id and import_key; the review expires in 15 minutes."
-          : "Show this card. Do not add text after it. Save only after a separate yes, with step save, this batch_id and import_key; the review expires in 15 minutes.",
+          : `Show this card. Do not add text after it. Save only after a separate yes, with step save, this batch_id and import_key${storing ? ", and this documents_key with the same file again as file" : ""}; the review expires in 15 minutes.`,
       );
     }),
 });

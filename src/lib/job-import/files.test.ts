@@ -1,62 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deflateRawSync } from "node:zlib";
-import { readImportFile } from "./files";
+import { MAX_IMPORT_DOCUMENTS, readImportFile, routeDocument } from "./files";
 import { importJob } from "./model";
 import { planImport } from "./plan";
 import { readExport } from "../mcp/tools/job-import-tools";
-
-// A small ZIP writer for fixtures (deflate for every entry, as Excel does).
-const CRC = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-const crc32 = (b: Uint8Array) => {
-  let c = 0xffffffff;
-  for (const x of b) c = CRC[(c ^ x) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-};
-function zip(files: Record<string, string | Uint8Array>): Uint8Array {
-  const local: Buffer[] = [];
-  const central: Buffer[] = [];
-  let offset = 0;
-  for (const [name, content] of Object.entries(files)) {
-    const raw = typeof content === "string" ? Buffer.from(content) : Buffer.from(content);
-    const data = deflateRawSync(raw);
-    const nameBytes = Buffer.from(name);
-    const head = Buffer.alloc(30);
-    head.writeUInt32LE(0x04034b50, 0);
-    head.writeUInt16LE(20, 4);
-    head.writeUInt16LE(0x0800, 6);
-    head.writeUInt16LE(8, 8);
-    head.writeUInt32LE(crc32(raw), 14);
-    head.writeUInt32LE(data.length, 18);
-    head.writeUInt32LE(raw.length, 22);
-    head.writeUInt16LE(nameBytes.length, 26);
-    const dir = Buffer.alloc(46);
-    dir.writeUInt32LE(0x02014b50, 0);
-    dir.writeUInt16LE(20, 4);
-    dir.writeUInt16LE(20, 6);
-    dir.writeUInt16LE(0x0800, 8);
-    dir.writeUInt16LE(8, 10);
-    dir.writeUInt32LE(crc32(raw), 16);
-    dir.writeUInt32LE(data.length, 20);
-    dir.writeUInt32LE(raw.length, 24);
-    dir.writeUInt16LE(nameBytes.length, 28);
-    dir.writeUInt32LE(offset, 42);
-    local.push(head, nameBytes, data);
-    central.push(dir, nameBytes);
-    offset += head.length + nameBytes.length + data.length;
-  }
-  const dirBytes = Buffer.concat(central);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(Object.keys(files).length, 8);
-  end.writeUInt16LE(Object.keys(files).length, 10);
-  end.writeUInt32LE(dirBytes.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return new Uint8Array(Buffer.concat([...local, dirBytes, end]));
-}
+import { zip } from "../../../tests/support/zip";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const col = (i: number) => String.fromCharCode(65 + i);
@@ -148,7 +95,8 @@ describe("one attached file", () => {
       "Submittals.xlsx: Items",
     ]);
     expect(read.schedule?.kind).toBe("xer");
-    expect(read.other.map((o) => o.name)).toEqual(["Fictional Clinic/Drawings/E-101.pdf"]);
+    expect(read.drawings).toEqual(["Fictional Clinic/Drawings/E-101.pdf"]);
+    expect(read.other).toEqual([]);
 
     const job = readExport({
       source: "procore",
@@ -190,5 +138,88 @@ describe("one attached file", () => {
   it("asks for Project's XML instead of a .mpp file", async () => {
     const read = await readImportFile(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0]), "Schedule.mpp");
     expect(read.problems[0]).toMatch(/Save As > XML/);
+  });
+});
+
+const PDF = (n = 0) => new TextEncoder().encode(`%PDF-1.7 fictional ${n}`);
+// A minimal Word file: a ZIP with word/document.xml.
+const DOCX = zip({ "word/document.xml": "<w:document><w:t>Section 26 05 19</w:t></w:document>" });
+
+describe("the job's contract and spec files in an export", () => {
+  it("routes by path and name, and leaves out subs' contracts, COs, POs, invoices and waivers", () => {
+    const cases: [string, ReturnType<typeof routeDocument>][] = [
+      ["Fictional Clinic/Prime Contracts/Executed.pdf", "contract"],
+      ["Owner Contract.pdf", "contract"],
+      ["Docs/Contract Agreement.docx", "contract"],
+      ["Docs/AIA A101 2017.pdf", "contract"],
+      ["Docs/AIA_A401.pdf", "contract"],
+      ["Docs/Client Agreement.pdf", "contract"],
+      ["Specifications/Division 26.pdf", "spec"],
+      ["Docs/Project Manual Vol 1.pdf", "spec"],
+      ["Docs/Spec Book.docx", "spec"],
+      ["Docs/26 05 19 Low-Voltage Wire.pdf", "spec"],
+      ["Docs/260519.pdf", "spec"],
+      ["Drawings/Power Plan.pdf", "drawing"],
+      ["Sheets/E-101 Power Plan.pdf", "drawing"],
+      ["A2.01.pdf", "drawing"],
+      ["Docs/A101.pdf", "drawing"],
+      ["Commitments/ABC Electric Agreement.pdf", null],
+      ["Prime Contracts/Change Orders/CO 3 Agreement.pdf", null],
+      ["Docs/Subcontract Agreement.pdf", null],
+      ["Docs/Purchase Order 12 Agreement.pdf", null],
+      ["Docs/PO-12 Specifications.pdf", null],
+      ["Docs/Invoice 7 Agreement.pdf", null],
+      ["Docs/Lien Waiver Agreement.pdf", null],
+      ["Docs/Prime Contract.png", null],
+      ["Docs/Prime Contract.doc", null],
+      ["Photos/2026-01-15 site.pdf", null],
+      ["Docs/Meeting minutes.pdf", null],
+    ];
+    for (const [path, want] of cases) expect([path, routeDocument(path)]).toEqual([path, want]);
+  });
+
+  it("keeps the contract and spec bytes, one contract per job, and lists the rest", async () => {
+    const bundle = zip({
+      "Job/Prime Contracts/Exhibit list.pdf": PDF(1),
+      "Job/Prime Contracts/Prime Contract.pdf": PDF(2),
+      "Job/Specifications/26 05 19 Wire.docx": DOCX,
+      "Job/Project Manual.pdf": PDF(3),
+      "Job/Commitments/ABC Electric Subcontract.pdf": PDF(4),
+      "Job/Drawings/E-101.pdf": PDF(5),
+      "Job/Photos/site.jpg": new Uint8Array([0xff, 0xd8, 0xff]),
+    });
+    const read = await readImportFile(bundle, "Job.zip");
+    expect(read.documents.map((d) => [d.kind, d.name])).toEqual([
+      ["contract", "Job/Prime Contracts/Prime Contract.pdf"],
+      ["spec", "Job/Specifications/26 05 19 Wire.docx"],
+      ["spec", "Job/Project Manual.pdf"],
+    ]);
+    expect(read.documents[0].bytes).toEqual(PDF(2));
+    expect(read.drawings).toEqual(["Job/Drawings/E-101.pdf"]);
+    expect(read.other).toEqual([
+      { name: "Job/Commitments/ABC Electric Subcontract.pdf", bytes: PDF(4).length },
+      { name: "Job/Photos/site.jpg", bytes: 3 },
+      {
+        name: "Job/Prime Contracts/Exhibit list.pdf",
+        bytes: PDF(1).length,
+        note: "Athena keeps one contract per job",
+      },
+    ]);
+  });
+
+  it("stores at most ten documents from one export and lists the rest with a note", async () => {
+    const files: Record<string, Uint8Array> = {};
+    for (let i = 1; i <= 12; i++) files[`Specifications/Section ${i}.pdf`] = PDF(i);
+    const read = await readImportFile(zip(files), "Specs.zip");
+    expect(read.documents).toHaveLength(MAX_IMPORT_DOCUMENTS);
+    expect(read.other.map((o) => [o.name, o.note])).toEqual([
+      ["Specifications/Section 11.pdf", "over the 10-document limit for one import"],
+      ["Specifications/Section 12.pdf", "over the 10-document limit for one import"],
+    ]);
+  });
+
+  it("routes a single attached contract PDF the same way", async () => {
+    const read = await readImportFile(PDF(), "Owner Contract.pdf");
+    expect(read.documents.map((d) => d.kind)).toEqual(["contract"]);
   });
 });
