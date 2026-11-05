@@ -51,7 +51,7 @@ vi.mock("./BoardSignIn", () => ({
   BoardSignIn: ({ returnTo }: { returnTo: string }) =>
     React.createElement("div", null, `Sign in: ${returnTo}`),
 }));
-import { JobHome } from "./JobHome";
+import { JobHome, iorFigures } from "./JobHome";
 import { ProjectHomeLinks } from "./ProjectHomeLinks";
 const job = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";
@@ -268,6 +268,35 @@ describe("persistent job home", () => {
     expect(html).toContain("Indicated Outcome Report");
     expect(html).not.toContain("Items of record");
     expect(html).not.toContain("From your inbox and calendar");
+
+    // Every link sits in a menu group; the overview keeps Marshall's order.
+    for (const g of [
+      "Overview",
+      "Estimate &amp; proposal",
+      "Contracts &amp; specs",
+      "Schedule",
+      "Field",
+      "Logs",
+      "Money",
+      "Project record",
+    ])
+      expect(html).toContain(`<summary><span>${g}</span>`);
+    expect(html).toContain("Change order log");
+    expect(html).toContain("Project financials →");
+    expect(html).not.toContain("Full accounting evidence");
+    expect(html).toContain("Cost budget");
+    expect(html).toContain("Indicated gross margin");
+    const order = [
+      'id="notifications"',
+      "Current contract value",
+      'id="jh-routines"',
+      'id="jh-schedule"',
+      "More Athena can do on this job",
+      "Dig deeper on this project",
+    ].map((t) => html.indexOf(t));
+    expect(order.every((at, n) => at > 0 && (n === 0 || at > order[n - 1]))).toBe(true);
+    expect(html.match(/Copy Athena prompt/g)?.length).toBe(5);
+    expect(html).toContain('aria-label="Phase"');
   });
   it("treats missing payload fields as unavailable instead of an empty record", () => {
     fixture.rows.schedule = ok({ page: "schedule" });
@@ -284,6 +313,11 @@ describe("persistent job home", () => {
     let html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
     expect(html).not.toContain("Payment and billing");
     expect(html).not.toContain("Change orders");
+    expect(html).not.toContain("Change order log");
+    expect(html).not.toContain("Cost budget");
+    expect(html).not.toContain("Prepare the next pay app");
+    expect(html).not.toContain("<summary><span>Money</span>");
+    expect(html.match(/Copy Athena prompt/g)?.length).toBe(2);
     expect(html).not.toContain("Indicated Outcome Report");
     fixture.rows.field = {
       data: { page: "field", job_name: "Secret" },
@@ -366,5 +400,32 @@ describe("estimate, proposal and contracts on the board", () => {
     expect(html.indexOf('id="estimate"')).toBeLessThan(html.indexOf('id="contracts"'));
     expect(html).toContain("Start the estimate: add the drawings");
     expect(html).toContain("No contracts on this job yet.");
+  });
+});
+
+describe("IOR budget and margin on the money row", () => {
+  it("reads the saved IOR the same way the IOR page does and never shows unknown as zero", () => {
+    expect(iorFigures({ found: false })).toEqual({ state: "none" });
+    expect(iorFigures(null)).toBeNull();
+    expect(iorFigures({ found: true, version: 3, data: {} })).toEqual({
+      state: "unread",
+      version: 3,
+    });
+    const read = iorFigures({
+      found: true,
+      version: 4,
+      data: {
+        ior_model: {
+          original_contract: 1000000,
+          original_cost_budget: 800000,
+          cost_growth: 0,
+          phase: "Middle",
+          change_orders: [],
+          exposures: [],
+        },
+      },
+    });
+    expect(read).toMatchObject({ state: "read", version: 4, costKnown: true, cost: 80_000_000 });
+    if (read?.state === "read") expect(read.pct).toBeCloseTo(20, 5);
   });
 });

@@ -3,11 +3,13 @@ import { CARD } from "./palette";
 // A new resource identity makes hosts fetch the revised resource delivery instead of
 // replaying the old cached stream. Existing conversations can still read the old URI.
 // v4: the clean accounting-style card (no navy band, no filled table header).
-export const NATIVE_CARD_URI = "ui://athena/native-card-v4.html";
-export const PREVIOUS_NATIVE_CARD_URI = "ui://athena/native-card-v3.html";
-export const OLDER_NATIVE_CARD_URI = "ui://athena/native-card-v2.html";
+// v5: morning brief buttons (a tap sends its prompt to the chat) and lookahead toggles.
+export const NATIVE_CARD_URI = "ui://athena/native-card-v5.html";
+export const PREVIOUS_NATIVE_CARD_URI = "ui://athena/native-card-v4.html";
+export const OLDER_NATIVE_CARD_URI = "ui://athena/native-card-v3.html";
+export const OLDEST_NATIVE_CARD_URI = "ui://athena/native-card-v2.html";
 export const LEGACY_NATIVE_CARD_URI = "ui://athena/native-card.html";
-export const NATIVE_CARD_URIS = new Set([NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI, OLDER_NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI]);
+export const NATIVE_CARD_URIS = new Set([NATIVE_CARD_URI, PREVIOUS_NATIVE_CARD_URI, OLDER_NATIVE_CARD_URI, OLDEST_NATIVE_CARD_URI, LEGACY_NATIVE_CARD_URI]);
 export const NATIVE_CARD_MIME = "text/html;profile=mcp-app";
 export const NATIVE_CARD_TOOLS = new Set(["change_order_log", "change_order_record", "rfi_log", "rfi_record", "rfc_log", "rfc_record", "drawing_sets_list", "report_page_share", "resolve_item", "lookahead_get", "lookahead_list", "list_open_items", "contract_terms", "field_pay_app", "morning_brief", "athena_hello", "submittal_log", "submittals_list", "submittals_import", "submittal_chase", "submittal_package", "submittal_delivery", "job_import"]);
 /** Replies whose text is the styled markdown, plus HTML only for a host that can show a card. */
@@ -16,6 +18,8 @@ export const nativeCardMeta = { ui: { resourceUri: NATIVE_CARD_URI } } as const;
 export const nativeResourceMeta = { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true } };
 
 // No sampling, tool calls, network requests, or model-authored CSS. Render Athena's server-built HTML.
+// The one outbound message besides links: a tapped brief button sends its fixed prompt with ui/message,
+// as the member's own next message. Toggles only change attributes inside the card.
 const SCRIPT = `(function(){
 var app=document.getElementById("app"), notice=document.getElementById("link-notice"), ready=false, origin=null, lastSize="", seq=2, links=new Set();
 function send(message){window.parent.postMessage(Object.assign({jsonrpc:"2.0"},message),origin&&origin!=="null"?origin:"*")}
@@ -29,15 +33,24 @@ function openCardLink(event){
  if(!ready||url.origin!=="https://app.meetathena.io"||!url.pathname.startsWith("/r/")||url.username||url.password)return;
  var id=seq++;links.add(id);linkNote("");send({id:id,method:"ui/open-link",params:{url:url.href}});
 }
+function tapCard(event){
+ var t=event.target&&typeof event.target.closest==="function"?event.target:null;if(!t||!app.contains(t))return;
+ var tog=t.closest("button[data-set]");
+ if(tog&&tog.tagName==="BUTTON"){var root=tog.closest("[data-toggle-root]");var kv=String(tog.getAttribute("data-set")||"").split("=");if(!root||kv.length!==2||!/^[a-z]+$/.test(kv[0]))return;root.setAttribute("data-"+kv[0],kv[1]);Array.from(tog.parentNode.querySelectorAll("button[data-set]")).forEach(function(b){b.setAttribute("aria-pressed",b===tog?"true":"false")});size();return}
+ var btn=t.closest("button[data-prompt]");if(!btn||btn.tagName!=="BUTTON"||!ready||btn.getAttribute("data-sent")==="true")return;
+ var text=String(btn.getAttribute("data-prompt")||"").slice(0,500);if(!text.trim())return;
+ btn.setAttribute("data-sent","true");send({id:seq++,method:"ui/message",params:{role:"user",content:[{type:"text",text:text}]}});
+}
 function display(result){
  var sc=result&&result.structuredContent, html=sc&&sc.html;
  if(typeof html!=="string"||!html.trim()){app.textContent="Athena could not load this card. The complete reply is available in the conversation.";size();return}
  var doc=new DOMParser().parseFromString(html,"text/html");
  // Only inert card markup crosses into the view. Never execute returned scripts or event handlers.
- var allowed=new Set(["ARTICLE","HEADER","SECTION","DIV","SPAN","P","H1","H2","H3","STRONG","B","EM","UL","OL","LI","TABLE","THEAD","TBODY","TR","TH","TD","A","BR"]);
+ var allowed=new Set(["ARTICLE","HEADER","SECTION","DIV","SPAN","P","H1","H2","H3","STRONG","B","EM","UL","OL","LI","TABLE","THEAD","TBODY","TR","TH","TD","A","BR","BUTTON"]);
  doc.body.querySelectorAll("*").forEach(function(el){
   if(!allowed.has(el.tagName)){el.remove();return}
-  Array.from(el.attributes).forEach(function(a){if(!/^(class|data-[a-z-]+|aria-[a-z-]+|role|tabindex|colspan|rowspan|href)$/.test(a.name))el.removeAttribute(a.name)});
+  Array.from(el.attributes).forEach(function(a){if(!/^(class|data-[a-z-]+|aria-[a-z-]+|role|tabindex|colspan|rowspan|href|type)$/.test(a.name))el.removeAttribute(a.name)});
+  if(el.tagName==="BUTTON")el.setAttribute("type","button");
   if(el.hasAttribute("href")){var href=el.getAttribute("href");if(!/^https:\\/\\/app\\.meetathena\\.io\\/r\\//.test(href))el.removeAttribute("href");else{el.setAttribute("target","_blank");el.setAttribute("rel","noopener noreferrer")}}
  });
  // Styles are generated on the backend from Athena's fixed palette, never supplied by the model.
@@ -58,11 +71,12 @@ function receive(event){
  if(links.has(m.id)){links.delete(m.id);if(m.error||(m.result&&m.result.isError))linkNote("The host could not open this link. Open the same link from the conversation.");return}
  if(m.method==="ui/notifications/tool-result")display(m.params);
  else if(m.method==="ui/notifications/tool-cancelled"){app.textContent="Athena request cancelled.";size()}
- else if(m.method==="ui/resource-teardown"&&m.id!=null){send({id:m.id,result:{}});window.removeEventListener("message",receive);if(typeof app.removeEventListener==="function")app.removeEventListener("click",openCardLink);links.clear();if(observer)observer.disconnect()}
+ else if(m.method==="ui/resource-teardown"&&m.id!=null){send({id:m.id,result:{}});window.removeEventListener("message",receive);if(typeof app.removeEventListener==="function")app.removeEventListener("click",onCardClick);links.clear();if(observer)observer.disconnect()}
  else if(m.method==="ping"&&m.id!=null)send({id:m.id,result:{}});
 }
 window.addEventListener("message",receive);
-if(typeof app.addEventListener==="function")app.addEventListener("click",openCardLink);
+function onCardClick(event){openCardLink(event);tapCard(event)}
+if(typeof app.addEventListener==="function")app.addEventListener("click",onCardClick);
 var observer=typeof ResizeObserver!=="undefined"?new ResizeObserver(size):null;if(observer)observer.observe(document.body);
 send({id:1,method:"ui/initialize",params:{protocolVersion:"2026-01-26",appInfo:{name:"Athena card",version:"1.0.0"},appCapabilities:{availableDisplayModes:["inline"]}}});
 })();`;

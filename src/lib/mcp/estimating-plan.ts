@@ -23,7 +23,7 @@ export async function estimatingUpgrade(
   return {
     state: "result",
     show_state: false,
-    title: "Estimating with Athena Office",
+    title: "Estimating isn't on this company's plan",
     job: job.job_number,
     sections: [
       {
@@ -32,13 +32,13 @@ export async function estimatingUpgrade(
         rows: [
           {
             cells: [
-              "Drawing takeoff and estimating are included in Athena Office ($397/month), Contractor Circle and Hardcore.",
-              "Your PM plan ($197/month) keeps its project management tools. Ask your company owner to upgrade to Office when you're ready to estimate. Your saved work stays intact.",
+              "Drawing takeoff and estimating aren't included in this company's current plan. Project management tools keep working.",
+              "Your saved work stays intact. Your company owner manages the plan on the Athena account page.",
             ],
           },
         ],
       },
     ],
-    next_move: "Continue with project management, or ask your company owner about Office.",
+    next_move: "Continue with project management, or ask your company owner about estimating.",
   };
 }

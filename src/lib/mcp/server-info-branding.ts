@@ -40,13 +40,14 @@ export const ATHENA_WEBSITE_URL = ORIGIN;
 
 /** serverInfo.version and the "Athena vX" line on onboarding. */
 // 0.8.26: directory prep: seats are bought on the account page (team_add_seats links there), shorter refusal line, read tools non-destructive.
+// 0.8.27: no plan prices or upgrade prompts in chat replies (seat limit, add seats, estimating plan card); the account page shows them.
 // 0.8.25: version bump so hosts list job_import and customer_portal; customer invites go to customer_portal, never team_invite.
 // 0.8.14: living report pages at app.meetathena.io/r/ (job IOR, schedule, company portfolio; optional owner share link).
 // 0.8.12: required styled views (lookahead, pay app, reminders, emails), one alert color (alert-color.ts).
 // 0.8.11: file_share links (host uploads the file it built; Athena returns an app.meetathena.io/f/ link).
 // 0.8.10: fragnet wording, To: inside email cards, small CORS icons, Athena sign-in page.
 // 0.8.9: cpm_activities handoff, tie-to-contract guard, owner-furnished exclusion, living reports master copy.
-export const ATHENA_VERSION = "0.8.26";
+export const ATHENA_VERSION = "0.8.27";
 
 /** MCP 2025-11-25 Implementation.description. There is no publisher field in the spec. */
 export const ATHENA_DESCRIPTION = "Athena powered by ALP, construction agents. Built by ALP.";

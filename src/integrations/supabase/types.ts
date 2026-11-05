@@ -12919,6 +12919,10 @@ export type Database = {
             }
             Returns: string
           }
+      mcp_project_record_feed: {
+        Args: { _from: string; _job: string; _to: string }
+        Returns: Json
+      }
       mcp_project_record_search: {
         Args: {
           _from: string
@@ -12955,6 +12959,34 @@ export type Database = {
       }
       mcp_push_test_targets: { Args: { _job: string }; Returns: Json }
       mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
+      mcp_record_ev: {
+        Args: {
+          _at: string
+          _by: string
+          _by_group: string
+          _by_role: string
+          _happened: string
+          _how: string
+          _id: string
+          _kind: string
+          _ref_id: string
+          _ref_table: string
+          _src: string
+          _summary: string
+          _title: string
+          _to: string
+          _type: string
+        }
+        Returns: Json
+      }
+      mcp_record_role: {
+        Args: { _company: string; _user: string }
+        Returns: string
+      }
+      mcp_record_who: {
+        Args: { _company: string; _job: string; _user: string }
+        Returns: string
+      }
       mcp_reenable: {
         Args: { _job: string; _scope: string; _target: string }
         Returns: Json

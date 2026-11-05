@@ -25,8 +25,8 @@ describe("estimating company-plan boundary", () => {
   it("gives a PM-only owner a styled upgrade path on the named company", async () => {
     const sb = db("athena_pm");
     const card = await estimatingUpgrade(sb as unknown as Sb, "QA", "named-company");
-    expect(card?.title).toBe("Estimating with Athena Office");
-    expect(JSON.stringify(card)).toContain("$397/month");
+    expect(card?.title).toBe("Estimating isn't on this company's plan");
+    expect(JSON.stringify(card)).not.toMatch(/\$\d|upgrade/i);
     expect(JSON.stringify(card)).toContain("project management");
     expect(sb.rpc).toHaveBeenCalledWith("mcp_company_tier", { _company: "named-company" });
   });
