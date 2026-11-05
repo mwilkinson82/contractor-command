@@ -13,6 +13,15 @@ import { ATHENA_SERVER_ICONS } from "./server-info-branding";
 import { estimateSummaryPdf, type SummaryPdfRow } from "./estimate-summary-pdf";
 import { splitScope } from "./estimating-method";
 import { money } from "./sov";
+import {
+  answerSummary,
+  citationOf,
+  gapKey,
+  mergeCitations,
+  parseAnswer,
+  parseCitations,
+  type GapAnswer,
+} from "./gap-check";
 
 /** Same navy as the sign-in email. Blue and gray match the house palette. */
 export const ESTIMATE_NAVY = "#0F1E3D";
@@ -332,6 +341,15 @@ export type GapIn = {
   unit?: string | null;
   element?: string | null;
   line_no?: number | null;
+  /** Gap check: the one question Athena asks the estimator. */
+  question?: string | null;
+  /** A note that hands over a utility only if the owner agrees (owner's panel "if capacity allows"). */
+  conditional?: boolean;
+  condition_text?: string | null;
+  exposure_low?: number | null;
+  exposure_high?: number | null;
+  schedule_activity?: string | null;
+  citations?: string[] | null;
 };
 export type StoredGap = {
   ref: string;
@@ -348,6 +366,14 @@ export type StoredGap = {
   unit: string | null;
   element: string | null;
   line_no: number | null;
+  question?: string | null;
+  conditional?: boolean;
+  condition_text?: string | null;
+  exposure_low?: number | null;
+  exposure_high?: number | null;
+  schedule_activity?: string | null;
+  citations?: string[];
+  answer?: GapAnswer | null;
 };
 
 export type MarkName = "relevant" | "not_relevant" | "good_catch";
@@ -1231,8 +1257,17 @@ export function prepareGap(raw: GapIn, ref: string): StoredGap {
     unit: clean(raw.unit),
     element: clean(raw.element),
     line_no: raw.line_no ?? null,
+    question: clean(raw.question)?.slice(0, 500) ?? null,
+    conditional: raw.conditional === true,
+    condition_text: clean(raw.condition_text)?.slice(0, 500) ?? null,
+    exposure_low: finiteOrNull(raw.exposure_low),
+    exposure_high: finiteOrNull(raw.exposure_high),
+    schedule_activity: clean(raw.schedule_activity)?.slice(0, 200) ?? null,
+    citations: mergeCitations(raw.citations ?? [], [citationOf({ sheet, spec_section: spec, detail: raw.detail })]),
   };
 }
+const finiteOrNull = (n: number | null | undefined) =>
+  n == null || !Number.isFinite(n) || n < 0 ? null : n;
 
 export function prepareGaps(rows: GapIn[]): StoredGap[] {
   return rows.map((row, i) =>
@@ -1619,6 +1654,13 @@ export function preserveGapList(prior: StoredGap[], incoming: GapIn[]): GapIn[] 
     unit: g.unit,
     element: g.element,
     line_no: g.line_no,
+    question: g.question,
+    conditional: g.conditional,
+    condition_text: g.condition_text,
+    exposure_low: g.exposure_low,
+    exposure_high: g.exposure_high,
+    schedule_activity: g.schedule_activity,
+    citations: g.citations,
   }));
   let n = prior.reduce((m, g) => Math.max(m, Number(g.ref.replace(/^G-/, "")) || 0), 0);
   const used = new Set(prior.map((g) => g.ref));
@@ -1628,10 +1670,29 @@ export function preserveGapList(prior: StoredGap[], incoming: GapIn[]): GapIn[] 
     const spec = g.spec_section.trim();
     const byRef = g.ref && used.has(g.ref) ? kept.find((k) => k.ref === g.ref) : undefined;
     const byText = kept.find((k) => k.title === title && k.sheet === sheet && k.spec_section === spec);
-    const hit = byRef ?? byText;
+    // A reworded repeat ("G01 Permits" vs "Permits", another sheet cited) is the same gap.
+    const key = gapKey(title);
+    const byKey = key ? kept.find((k) => gapKey(k.title) === key) : undefined;
+    const hit = byRef ?? byText ?? byKey;
     if (hit?.ref) {
       const i = kept.findIndex((k) => k.ref === hit.ref);
-      kept[i] = { ...g, ref: hit.ref };
+      const was = kept[i];
+      kept[i] = {
+        ...g,
+        ref: hit.ref,
+        question: g.question ?? was.question,
+        conditional: g.conditional === true || was.conditional === true,
+        condition_text: g.condition_text ?? was.condition_text,
+        exposure_low: g.exposure_low ?? was.exposure_low,
+        exposure_high: g.exposure_high ?? was.exposure_high,
+        schedule_activity: g.schedule_activity ?? was.schedule_activity,
+        holds_bid: g.holds_bid === true || (was.conditional === true && was.holds_bid === true) ? true : g.holds_bid,
+        citations: mergeCitations(was.citations ?? [], [
+          citationOf(was),
+          citationOf({ sheet, spec_section: spec, detail: g.detail }),
+          ...(g.citations ?? []),
+        ]),
+      };
       continue;
     }
     n += 1;
@@ -1777,7 +1838,11 @@ export function settle(
     const qty = v?.corrected_qty ?? gap.qty;
     const owned = Boolean(v?.owner);
     let status: ItemStatus;
-    if (v?.mark === "not_relevant") status = "dropped";
+    const ans = gap.answer ?? null;
+    // A gap check answer is the estimator's latest word: carrying, covered or qualified settles it;
+    // an RFI keeps it open until the reply comes back.
+    if (ans) status = ans.answer === "rfi" ? "open" : "settled";
+    else if (v?.mark === "not_relevant") status = "dropped";
     else if (v && (v.mark === "relevant" || v.mark === "good_catch") && qty == null && !owned)
       status = "open";
     else if (gap.kind === "seen" && (qty != null || gap.line_no != null)) status = "settled";
@@ -1800,16 +1865,20 @@ export function settle(
       confidence: null,
       missing: null,
       exclusion: null,
-      owner: v?.owner ?? null,
+      owner: ans ? null : (v?.owner ?? null),
       // An answered check stops holding the bid once it is cleared or carries a
       // quantity; one handed to someone else still holds it until they answer.
-      holdsBid:
-        gap.holds_bid &&
-        status !== "dropped" &&
-        !(status === "settled" && v?.corrected_qty != null),
+      holdsBid: ans
+        ? gap.holds_bid && ans.answer === "rfi"
+        : gap.holds_bid &&
+          status !== "dropped" &&
+          !(status === "settled" && v?.corrected_qty != null),
       checklistKey: null,
-      followUp:
-        status === "open"
+      followUp: ans
+        ? ans.answer === "rfi"
+          ? "Waiting on the RFI answer."
+          : null
+        : status === "open"
           ? "Needs a quantity or an owner, or a not-relevant call with the reason."
           : null,
       mark: v?.mark ?? null,
@@ -1818,7 +1887,7 @@ export function settle(
       markup: null,
       material: null,
       measure: null,
-      note: v?.note ?? null,
+      note: ans ? answerSummary(ans) : (v?.note ?? null),
     });
   }
   const counts = {
@@ -2982,6 +3051,14 @@ export function parseState(raw: unknown): {
     unit: str(g.unit),
     element: str(g.element),
     line_no: num(g.line_no),
+    question: str(g.question),
+    conditional: g.conditional === true,
+    condition_text: str(g.condition_text),
+    exposure_low: num(g.exposure_low),
+    exposure_high: num(g.exposure_high),
+    schedule_activity: str(g.schedule_activity),
+    citations: parseCitations(g.citations),
+    answer: parseAnswer(g.answer),
   }));
   const verdicts: StoredVerdict[] = ((o.verdicts as Record<string, unknown>[]) ?? []).map((v) => ({
     item_kind: v.item_kind === "gap" ? "gap" : "line",

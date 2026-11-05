@@ -3,6 +3,7 @@
 import type { Doc, DocReview, GapIn, Setup } from "./estimating";
 import type { applyReviewedQuoteCoverage } from "./estimating-quote-pricing";
 import { money } from "./sov";
+import { TEMP_UTILITY_RE, conditionalSentence, defaultQuestion } from "./gap-check";
 
 export class BidError extends Error {
   constructor(message: string) {
@@ -354,6 +355,7 @@ export const REQUIREMENT_KINDS = [
   "site_safety",
   "scheduler",
   "security",
+  "temporary_utilities",
 ] as const;
 export type RequirementKind = string;
 
@@ -387,6 +389,7 @@ const REQUIREMENT_RULES: { kind: string; label: string; re: RegExp; gcOnly?: boo
     re: /full[- ]time\s+(cpm\s+)?scheduler|cpm scheduler/i,
   },
   { kind: "security", label: "Security", re: /\bsecurity\b/i, gcOnly: true },
+  { kind: "temporary_utilities", label: "Temporary power and heat", re: TEMP_UTILITY_RE },
 ];
 
 export type RequirementHit = {
@@ -397,6 +400,8 @@ export type RequirementHit = {
   sourceRef: string;
   citation: string;
   gcOnly: boolean;
+  /** The "only if the owner agrees" sentence near the hit, when the document has one. */
+  condition?: string | null;
 };
 
 /** A free-form category, or other plus a description. The example list is not required. */
@@ -459,6 +464,10 @@ export function scanText(
       sourceRef,
       citation: sentenceAround(text, m.index),
       gcOnly: Boolean(rule.gcOnly),
+      condition:
+        rule.kind === "temporary_utilities"
+          ? conditionalSentence(text.slice(Math.max(0, m.index - 400), m.index + 600))
+          : null,
     });
   }
   return hits;
@@ -508,10 +517,15 @@ export function scanProject(input: {
       sourceRef: f.source_ref,
       citation: f.citation,
       gcOnly: Boolean(rule?.gcOnly),
+      condition: conditionalSentence(`${f.citation} ${f.description ?? ""}`),
     });
   }
   const uniq = new Map<string, RequirementHit>();
-  for (const h of hits) uniq.set(`${h.kind}|${h.sourceType}|${h.sourceRef}`, h);
+  for (const h of hits) {
+    const key = `${h.kind}|${h.sourceType}|${h.sourceRef}`;
+    const was = uniq.get(key);
+    uniq.set(key, was?.condition && !h.condition ? { ...h, condition: was.condition } : h);
+  }
   return [...uniq.values()];
 }
 
@@ -535,6 +549,7 @@ export function requirementGaps(hits: RequirementHit[], role: Setup["role"]): Ga
         : h.sourceType === "contract"
           ? h.sourceRef.slice(0, 80)
           : "not in a spec section";
+    if (h.kind === "temporary_utilities") return tempUtilityGap(h, where, sheet, spec);
     return {
       kind: "verify" as const,
       category: "scope_seam" as const,
@@ -548,8 +563,36 @@ export function requirementGaps(hits: RequirementHit[], role: Setup["role"]): Ga
       spec_section: spec,
       holds_bid: h.kind === "permits" || h.kind === "special_safety",
       element: "Special requirements",
+      question: defaultQuestion({ title: h.label }),
     };
   });
+}
+
+/**
+ * Temporary power and heat. When the note lets the contractor use the owner's panel only if there's
+ * capacity or the owner agrees, it holds the bid: the facility can refuse on load, and then the
+ * contractor owns a generator and its fuel for the whole job, and longer if the job runs late.
+ */
+function tempUtilityGap(h: RequirementHit, where: string, sheet: string, spec: string): GapIn {
+  const conditional = Boolean(h.condition);
+  const reasoning = conditional
+    ? `${where}. ${h.citation} ${h.condition && !h.citation.includes(h.condition) ? h.condition : ""} The owner's power is only offered if they agree. If the facility refuses on load, you own a generator, fuel and service for the whole job, and longer if it runs late. A spare breaker on the panel isn't a yes. Carry the fallback or get the owner's agreement in writing. Sheet ${sheet}. Spec ${spec}.`
+    : `${where}. ${h.citation} Temporary power and heat run for the whole job and grow with any delay. Price it or confirm where it's carried. Sheet ${sheet}. Spec ${spec}.`;
+  return {
+    kind: "verify",
+    category: "scope_seam",
+    severity: "hard",
+    title: h.label,
+    reasoning: reasoning.replace(/\s+/g, " ").trim(),
+    sheet,
+    spec_section: spec,
+    holds_bid: true,
+    element: "Special requirements",
+    conditional,
+    condition_text: h.condition ?? null,
+    question: defaultQuestion({ title: h.label, conditional }),
+    schedule_activity: "Whole job duration",
+  };
 }
 
 export type RequirementPrice = {

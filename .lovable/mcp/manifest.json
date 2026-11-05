@@ -9402,8 +9402,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -9499,6 +9499,43 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9999
+                  },
+                  "question": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "conditional": {
+                    "type": "boolean"
+                  },
+                  "condition_text": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "exposure_low": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "exposure_high": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "schedule_activity": {
+                    "type": "string",
+                    "maxLength": 200
                   }
                 },
                 "required": [
@@ -20988,6 +21025,80 @@
           "required": [
             "job_number",
             "action"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "estimate_gap_answer",
+        "title": "Gap check answer",
+        "description": "Saves the estimator's answer to one estimate gap, or clears it, and returns the gap check progress, the live board link and the next question to ask.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "gap": {
+              "type": "string",
+              "maxLength": 12
+            },
+            "answer": {
+              "type": "string",
+              "enum": [
+                "carrying",
+                "covered",
+                "understood",
+                "rfi"
+              ]
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0
+            },
+            "covered_by": {
+              "type": "string",
+              "enum": [
+                "takeoff_line",
+                "general_conditions",
+                "sub_quote",
+                "owner_in_writing",
+                "other"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "qualification": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "rfi_question": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "clear": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number"
           ],
           "additionalProperties": false
         },
