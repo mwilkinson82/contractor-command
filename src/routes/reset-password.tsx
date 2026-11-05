@@ -8,7 +8,15 @@ import { sendTransactionalEmail } from "@/lib/email/send";
 import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Set new password — ALP Contractor Circle" }] }),
+  head: () => ({
+    meta: [
+      {
+        title: onAthenaHost()
+          ? "Choose your password — Athena"
+          : "Set new password — ALP Contractor Circle",
+      },
+    ],
+  }),
   component: ResetPasswordPage,
 });
 
@@ -19,6 +27,7 @@ function ResetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const brand = onAthenaHost() ? "athena" : "hub";
 
   // Supabase auto-consumes the recovery tokens from the URL hash. Wait one
   // tick, check for a session, and surface the right state.
@@ -110,7 +119,7 @@ function ResetPasswordPage() {
 
   if (phase === "checking") {
     return (
-      <AuthCard title="One moment." subtitle="Confirming your reset link…">
+      <AuthCard brand={brand} title="One moment." subtitle="Confirming your reset link…">
         <div />
       </AuthCard>
     );
@@ -119,6 +128,7 @@ function ResetPasswordPage() {
   if (phase === "no-session") {
     return (
       <AuthCard
+        brand={brand}
         title="Link expired."
         subtitle="This reset link is no longer valid — it may have been opened by your mail app's link preview before you clicked it. Request a fresh one and open it on a desktop browser if you can."
       >
@@ -134,14 +144,18 @@ function ResetPasswordPage() {
 
   if (phase === "done") {
     return (
-      <AuthCard title="Done." subtitle="Password updated. Taking you in…">
+      <AuthCard brand={brand} title="Done." subtitle="Password updated. Taking you in…">
         <div />
       </AuthCard>
     );
   }
 
   return (
-    <AuthCard title="New password." subtitle="Pick something you'll actually remember.">
+    <AuthCard
+      brand={brand}
+      title="New password."
+      subtitle="Pick something you'll actually remember."
+    >
       <form onSubmit={onSubmit} className="space-y-6">
         <AuthField
           id="password"
