@@ -185,7 +185,18 @@ export type GanttInput = {
   layout?: string | null;
   /** Link that opens a layout, or the default view with null. Default: ?layout=<id>. */
   layoutHref?: (id: string | null) => string;
+  /** Timescale factor from the page's drag zoom (1 = the layout's or the default scale). */
+  zoom?: number;
 };
+
+/** Bounds of the main schedule's px per day: a multi-year job still fits a screen, a day still reads when stretched. */
+const SCHED_MIN_SCALE = 0.3;
+const SCHED_MAX_SCALE = 60;
+/** Px per day on the main schedule at a zoom factor. */
+export function scheduleScale(base: number, zoom = 1): number {
+  const z = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  return Math.max(SCHED_MIN_SCALE, Math.min(SCHED_MAX_SCALE, Math.round(base * z * 100) / 100));
+}
 
 /** Everything the page needs, derived once. Exported for tests and the PDF. */
 export function ganttModel({
@@ -194,6 +205,7 @@ export function ganttModel({
   dataDate,
   contractCompletion,
   layout: layoutId,
+  zoom = 1,
 }: GanttInput) {
   const acts = data.activities ?? [];
   const layout: ScheduleLayout | null =
@@ -344,7 +356,7 @@ export function ganttModel({
     hi === null ? null : Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 2, 1);
   const days = t0 === null || t1 === null ? 0 : Math.round((t1 - t0) / DAY);
   // Readable on a phone and bounded for multi-year jobs; the page scrolls sideways either way.
-  const scale = layout?.timescale
+  const baseScale = layout?.timescale
     ? TIMESCALE_PX[layout.timescale]
     : days <= 420
       ? 4
@@ -353,6 +365,7 @@ export function ganttModel({
         : days <= 2200
           ? 2
           : 1;
+  const scale = zoom === 1 ? baseScale : scheduleScale(baseScale, zoom);
   const width = Math.max(360, days * scale);
   const finishOf = (list: { finish: string | null }[]) => {
     const f = list.map((a) => day(a.finish)).filter((t): t is number => t !== null);
@@ -387,6 +400,7 @@ export function ganttModel({
     t1,
     days,
     scale,
+    baseScale,
     width,
     projectCal,
     forecast,
@@ -677,12 +691,13 @@ function axisSvg(m: WinModel): string {
       out.push(
         `<text x="${x + 4}" y="14" font-size="11" font-weight="600" fill="${INK}">Q${d.getUTCMonth() / 3 + 1} ${String(d.getUTCFullYear()).slice(2)}</text>`,
       );
-    if (m.scale >= 12)
+    // Day letters and dates need about 18 px a day; down to 11 px the dates alone still read.
+    if (m.scale >= 11)
       for (let w = t; w < next && w < m.t1; w += DAY) {
         const wx = g.X(w),
           dow = new Date(w).getUTCDay();
         out.push(
-          `<line x1="${wx}" x2="${wx}" y1="${dow === 1 ? HEAD - 22 : HEAD - 12}" y2="${HEAD}" stroke="${LINE}"/><text x="${wx + m.scale / 2}" y="${HEAD - 14}" font-size="8.5" fill="${MUTED}" text-anchor="middle">${"SMTWTFS"[dow]}</text><text x="${wx + m.scale / 2}" y="${HEAD - 3}" font-size="9.5" font-weight="${dow === 1 ? 700 : 400}" fill="${projectWorks(m, w) ? INK : MUTED}" text-anchor="middle">${new Date(w).getUTCDate()}</text>`,
+          `<line x1="${wx}" x2="${wx}" y1="${dow === 1 ? HEAD - 22 : HEAD - 12}" y2="${HEAD}" stroke="${LINE}"/>${m.scale >= 18 ? `<text x="${wx + m.scale / 2}" y="${HEAD - 14}" font-size="8.5" fill="${MUTED}" text-anchor="middle">${"SMTWTFS"[dow]}</text>` : ""}<text x="${wx + m.scale / 2}" y="${HEAD - 3}" font-size="${m.scale >= 14 ? 9.5 : 8.5}" font-weight="${dow === 1 ? 700 : 400}" fill="${projectWorks(m, w) ? INK : MUTED}" text-anchor="middle">${new Date(w).getUTCDate()}</text>`,
         );
       }
     else for (let w = t; w < next; w += DAY)
@@ -880,7 +895,7 @@ function viewHtml(full: Model, view: GanttView): string {
     )
     .join("");
   const head = `<div class="cpm-row cpm-head"><div class="cpm-l cpm-lh">${headCells}</div><div class="cpm-t">${axisSvg(m)}</div></div>`;
-  return `<div class="cpmv" data-view="${view}" style="--cpm-w:${m.width}px"><div class="cpm-scroll" tabindex="0" role="region" aria-label="${esc(GANTT_VIEWS.find((v) => v[0] === view)?.[1] ?? "Grouped")} schedule, scroll sideways"><div class="cpm-grid cpm-fit" role="table" style="width:calc(var(--cpm-left) + ${m.width}px)">${head}<div class="cpm-body">${backdropSvg(m)}${logicSvg(m, items, g, view)}${rows}</div></div></div></div>`;
+  return `<div class="cpmv" data-view="${view}" data-days="${m.days}" data-base="${m.baseScale}" style="--cpm-w:${m.width}px"><div class="cpm-scroll" tabindex="0" role="region" aria-label="${esc(GANTT_VIEWS.find((v) => v[0] === view)?.[1] ?? "Grouped")} schedule, scroll sideways"><div class="cpm-grid cpm-fit" role="table" style="width:calc(var(--cpm-left) + ${m.width}px)">${head}<div class="cpm-body">${backdropSvg(m)}${logicSvg(m, items, g, view)}${rows}</div></div></div></div>`;
 }
 
 function inspectorHtml(m: Model, r: GanttRow): string {
@@ -992,6 +1007,28 @@ function columnOn(m: Model, c: Col): boolean {
 }
 const LEFT_PHONE = 176;
 
+/** Print zoom that fits the shown columns and the timeline on a tabloid page. */
+function printFit(m: Model): number {
+  const shown = m.columns.filter((c) => c.fixed || columnOn(m, c));
+  return Math.min(1, 1540 / (shown.reduce((t, c) => t + c.w, 0) + m.width));
+}
+
+/**
+ * The schedule's Gantt views alone, for the page's timescale drag and Fit; `only` draws just the view on screen
+ * while a drag runs. The wrapper carries the print zoom, so a printout fits the page at the zoom on screen.
+ */
+export function ganttViewsHtml(input: GanttInput, only: string | null = null): string {
+  const m = ganttModel(input);
+  return ganttViews(m, only);
+}
+
+function ganttViews(m: Model, only: string | null = null): string {
+  return [...GANTT_VIEWS.map(([v]) => v), ...m.codes.map((_, ci) => `code${ci}` as GanttView)]
+    .filter((v) => only === null || v === only)
+    .map((v) => viewHtml(m, v))
+    .join("");
+}
+
 function css(m: Model): string {
   const rule = (input: string, sel: string) => `.cpmx:has(${input}) ${sel}`;
   const views = [...GANTT_VIEWS.filter(([v]) => v !== "all"), ...m.codes.map((_, ci) => [`code${ci}`, ""] as const)]
@@ -1020,8 +1057,7 @@ function css(m: Model): string {
     .join("");
   const filters = ["#cpm-wbs", "#cpm-cc", ...m.codes.map((_, ci) => `#cpm-code${ci}`)];
   const filtered = `${filters.map((f) => rule(`${f} option:not([value=""]):checked`, `.cpm-logic`)).join(",")}{display:none}${filters.map((f) => rule(`${f} option:not([value=""]):checked`, `.cpm-fnote`)).join(",")}{display:block}`;
-  const shown = m.columns.filter((c) => c.fixed || columnOn(m, c));
-  const fit = Math.min(1, 1540 / (shown.reduce((t, c) => t + c.w, 0) + m.width));
+  const fit = printFit(m);
   const widths = m.columns.map((c) => `--w-${c.k}:${c.fixed ? c.w : 0}px`).join(";");
   const left = `calc(${m.columns.map((c) => `var(--w-${c.k})`).join(" + ")})`;
   const codesCss = m.codes
@@ -1094,6 +1130,8 @@ ${views}
 .cpmx .cpm-row{display:flex;height:${CPM_ROW_PX}px;border-bottom:1px solid ${LINE2}}
 .cpmx .cpm-head{height:${HEAD}px;border-bottom:1px solid ${LINE}}
 .cpmx .cpm-l{position:sticky;left:0;z-index:4;flex:0 0 var(--cpm-left);width:var(--cpm-left);display:flex;align-items:center;background:#fff;box-shadow:1px 0 0 ${LINE};overflow:hidden}
+/* The frozen table also covers its row line, so nothing in the Gantt (logic lines, bars, the date lines) shows under it when the timeline scrolls. */
+.cpmx .cpm-l{align-self:flex-start;box-sizing:border-box;height:calc(100% + 1px);margin-bottom:-1px;border-bottom:1px solid ${LINE2}}
 ${m.columns.map((c) => `.cpmx .cpm-l .c-${c.k}{flex:0 0 var(--w-${c.k});width:var(--w-${c.k})}`).join("")}
 .cpmx .cpm-lh{color:${MUTED};font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;align-items:end;padding-bottom:7px}
 .cpmx .cpm-c{box-sizing:border-box;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
@@ -1169,7 +1207,7 @@ ${rule(`#cpm-fl:not(:checked)`, `.cpm-f`)}{display:none}
 .cpmx .cpm-back a{color:${BLUE}}
 @media(max-width:899px){.cpmx{--w-name:168px}.cpmx .cpm-bar{flex-wrap:wrap}.cpmx .cpm-bar .ath-seg{order:2;flex:1 1 100%}.cpmx .cpm-bar-end{order:1;margin-left:0;flex:1 1 100%;justify-content:flex-end}.cpmx .cpm-bar-end .cpm-lays{margin-right:auto}.cpmx .cpm-bar-end .cpm-lays .ath-menu-box{left:0;right:auto}}
 @media(max-width:559px){.cpmx{--w-id:60px;--w-name:116px;--cpm-left:${LEFT_PHONE}px!important}.cpmx .cpm-l .cpm-c:not(.c-id):not(.c-name){display:none!important}.cpmx .cpm-cols{display:none}.cpmx .cpm-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.cpmx .cpm-filters::-webkit-scrollbar{display:none}.cpmx .cpm-layname{max-width:150px;overflow:hidden;text-overflow:ellipsis}.cpmx .ath-seg label{padding:0 10px}.cpmx .cpm-sortm span{display:none}}
-@media print{@page{size:17in 11in;margin:.35in}.cpmx{--w-name:230px}.cpmx:has(#cpm-fs:checked){position:static;padding:0;overflow:visible}.cpmx .cpm-scroll{max-height:none!important}html:has(#cpm-fs:checked){overflow:visible}.cpmx .cpm-controls,.cpmx .cpm-insp,.cpmx .cpm-insp-hint{display:none!important}.cpmx .cpm-frame{border:0;box-shadow:none}.cpmx .cpm-scroll{overflow:visible;border:0}.cpmx .cpm-fit{zoom:${fit.toFixed(3)}}.cpmx .cpm-l{position:static}.cpmx .cpm-row{break-inside:avoid}.cpmx *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media print{@page{size:17in 11in;margin:.35in}.cpmx{--w-name:230px}.cpmx:has(#cpm-fs:checked){position:static;padding:0;overflow:visible}.cpmx .cpm-scroll{max-height:none!important}html:has(#cpm-fs:checked){overflow:visible}.cpmx .cpm-controls,.cpmx .cpm-insp,.cpmx .cpm-insp-hint{display:none!important}.cpmx .cpm-frame{border:0;box-shadow:none}.cpmx .cpm-scroll{overflow:visible;border:0}.cpmx .cpm-fit{zoom:var(--cpm-pfit,${fit.toFixed(3)})}.cpmx .cpm-l{position:static}.cpmx .cpm-row{break-inside:avoid}.cpmx *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>`;
 }
 
@@ -1313,15 +1351,16 @@ export function ganttHtml(input: GanttInput): string {
     .join("");
   const columns = `<details class="ath-menu ath-menu-end cpm-cols"><summary class="ath-ibtn" aria-label="Columns" data-tip="Columns">${ICONS.columns}</summary><div class="ath-menu-box"><div class="ath-menu-title">Columns</div>${colPicks}</div></details>`;
   const fullScreen = `<input class="ath-sr cpm-sr" type="checkbox" id="cpm-fs"><label class="ath-ibtn cpm-fsw" for="cpm-fs" aria-label="Full screen" data-tip="Full screen"><span class="cpm-fs-on">${ICONS.expand}</span><span class="cpm-fs-off">${ICONS.collapse}</span></label>`;
-  const bar = `<div class="cpm-bar cpm-controls"><div class="ath-seg" role="radiogroup" aria-label="View">${pills}</div><div class="cpm-bar-end">${layouts}${groupMenu}${sortMenu}${columns}${fullScreen}</div></div>`;
+  // Shown only when the page script runs: drag the date header, or Compress, Fit and Expand, like the lookahead.
+  const zoomTools = `<span class="cpm-zoom" role="group" aria-label="Timescale"><button type="button" class="ath-ibtn" data-cpm-zoom="out" aria-label="Compress timescale" data-tip="Compress timescale">${ZOOM_OUT}</button><button type="button" class="ath-ibtn cpm-zfit" data-cpm-zoom="fit" aria-label="Fit the schedule to the screen" data-tip="Fit to screen">Fit</button><button type="button" class="ath-ibtn" data-cpm-zoom="in" aria-label="Expand timescale" data-tip="Expand timescale">${ZOOM_IN}</button></span>`;
+  const bar = `<div class="cpm-bar cpm-controls"><div class="ath-seg" role="radiogroup" aria-label="View">${pills}</div><div class="cpm-bar-end">${layouts}${groupMenu}${sortMenu}${columns}${zoomTools}${fullScreen}</div></div>`;
   const filters = `<div class="cpm-filters cpm-controls" aria-label="Filters">${codeSelects}${wbsSelect}${ccSelect}<span class="cpm-sep" aria-hidden="true"></span>${cmpSelect}${toggles}</div>`;
   const laynote = m.layout ? `<p class="cpm-laynote" data-layout-open="${esc(m.layout.id)}"><strong>${esc(m.layout.name)}</strong> · ${esc(m.filterLine ?? "")}${href ? ` · <a href="${esc(href(null))}">Default view</a>` : ""}</p>` : "";
   const controls = `${sortInputs}${bar}${filters}${laynote}`;
-  const views = [...GANTT_VIEWS.map(([v]) => v), ...m.codes.map((_, ci) => `code${ci}` as GanttView)]
-    .map((v) => viewHtml(m, v))
-    .join("");
+  const views = `<div class="cpm-views" style="--cpm-pfit:${printFit(m).toFixed(3)}">${ganttViews(m)}</div>`;
   const inspectors = m.rows.map((r) => inspectorHtml(m, r)).join("");
-  return `${css(m)}<div class="cpmx" id="cpm-gantt"><div class="cpm-frame">${controls}${views}</div><p class="cpm-fnote">Logic lines hide while a WBS, cost code or activity code filter is on, so no line points at a hidden activity.</p><p class="cpm-snote">Sorted by a column: WBS bands and logic lines hide until you tap the heading again to return to the view's order.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Tap a column heading to sort. A next to a date means it's the actual. To save a PDF, print this page (Ctrl+P or ⌘P) and choose Save as PDF; tabloid landscape fits the full schedule.</p>${inspectors}</div>`;
+  const zoomCss = `<style>#cpm-gantt .cpm-zoom{display:none;gap:4px;align-items:center}[data-cpm-js] #cpm-gantt .cpm-zoom{display:inline-flex}#cpm-gantt .cpm-zfit{width:auto;padding:0 9px;font-size:12px;font-weight:600}[data-cpm-js] #cpm-gantt .cpm-head .cpm-t{cursor:grab;touch-action:pan-y}[data-cpm-js] #cpm-gantt.cpm-drag,[data-cpm-js] #cpm-gantt.cpm-drag .cpm-head .cpm-t{cursor:grabbing;user-select:none}@media(max-width:559px){#cpm-gantt .cpm-bar-end{flex-wrap:wrap;row-gap:6px}}@media print{#cpm-gantt .cpm-zoom{display:none!important}}</style>`;
+  return `${css(m)}${zoomCss}<div class="cpmx" id="cpm-gantt"><div class="cpm-frame">${controls}${views}</div><p class="cpm-fnote">Logic lines hide while a WBS, cost code or activity code filter is on, so no line points at a hidden activity.</p><p class="cpm-snote">Sorted by a column: WBS bands and logic lines hide until you tap the heading again to return to the view's order.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Tap a column heading to sort. A next to a date means it's the actual. To save a PDF, print this page (Ctrl+P or ⌘P) and choose Save as PDF; tabloid landscape fits the full schedule.</p>${inspectors}</div>`;
 }
 
 /** One activity compared against an earlier plan: the baseline or the last update. */
@@ -1622,6 +1661,8 @@ export const LOOKAHEAD_WEEKS = [1, 2, 3, 4, 5, 6] as const;
 const LOOK_SCALE: Record<number, number> = { 1: 96, 2: 60, 3: 40, 4: 30, 5: 24, 6: 20 };
 /** Room after the lookahead window for its end line. */
 const LOOK_END_PAD = 14;
+const LOOK_MIN_SCALE = 6.5;
+const LOOK_MAX_SCALE = 240;
 
 /** How a lookahead lists its work. Marshall (Nov 5): float groups are total float values, not logic paths. */
 type LookGroup = "float" | "date" | "wbs" | `code${number}`;
@@ -1671,11 +1712,136 @@ function lookItems(m: Model, t0: number, t1: number, group: LookGroup): Item[] {
   return withCodes(items);
 }
 
+export type LookaheadPlanFilter = { code_id: string; value_ids: string[] };
+export type LookaheadPlanItem =
+  | { kind: "group"; label: string; color: string | null }
+  | {
+      kind: "act";
+      id: string;
+      name: string;
+      start: number | null;
+      finish: number | null;
+      rd: number | null;
+      tf: number | null;
+      critical: boolean;
+      milestone: boolean;
+      started: boolean;
+      party: string | null;
+      bs: number | null;
+      bf: number | null;
+    };
+export type LookaheadPlan = {
+  /** Data date and the day after the window ends (ms, UTC midnight). */
+  dd: number;
+  t1: number;
+  weeks: number;
+  groupLabel: string;
+  filterLines: string[];
+  partyLabel: string | null;
+  items: LookaheadPlanItem[];
+  count: number;
+  works: (t: number) => boolean;
+};
+const lookKey = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, " ");
+/**
+ * The lookahead the page shows, as plain data for the PDF: the same window from the data date, the same groups
+ * (total float, start, WBS or any code) and the code filters stacked. Codes and values match by id or by name.
+ */
+export function lookaheadPlan(
+  input: GanttInput,
+  opts: { weeks?: number; group?: string | null; filters?: LookaheadPlanFilter[] },
+): { ok: true; plan: LookaheadPlan } | { ok: false; message: string } {
+  const full = ganttModel({ ...input, layout: null });
+  if (full.dd === null || !full.rows.length) return { ok: false, message: "This job has no saved, dated schedule with a data date yet." };
+  const dd = full.dd;
+  const weeks = Math.min(6, Math.max(1, Math.round(opts.weeks ?? 2)));
+  const t1 = dd + weeks * 7 * DAY;
+  const codes = input.control.activity_codes ?? [];
+  const findCode = (q: string) => codes.findIndex((c) => lookKey(c.id) === lookKey(q) || lookKey(c.name) === lookKey(q));
+  const g = lookKey(opts.group ?? "float");
+  let mode: LookGroup;
+  let groupLabel: string;
+  if (["float", "total float", "tf"].includes(g)) [mode, groupLabel] = ["float", "By total float"];
+  else if (["start", "date", "start date"].includes(g)) [mode, groupLabel] = ["date", "By start"];
+  else if (g === "wbs") [mode, groupLabel] = ["wbs", "By WBS"];
+  else {
+    const ci = findCode(opts.group ?? "");
+    if (ci < 0)
+      return { ok: false, message: `There's no grouping or activity code called "${opts.group}". Group by total float, start, WBS${codes.length ? ` or a code: ${codes.map((c) => c.name).join(", ")}` : ""}.` };
+    [mode, groupLabel] = [`code${ci}`, `By ${codes[ci].name}`];
+  }
+  const allow: Set<string>[] = [];
+  const filterLines: string[] = [];
+  for (const f of opts.filters ?? []) {
+    const ci = findCode(f.code_id);
+    if (ci < 0) return { ok: false, message: `There's no activity code called "${f.code_id}" on this schedule${codes.length ? `. Codes: ${codes.map((c) => c.name).join(", ")}` : ""}.` };
+    const code = codes[ci];
+    const vis = f.value_ids.map((q) => ({ q, vi: code.values.findIndex((v) => lookKey(v.id) === lookKey(q) || lookKey(v.name) === lookKey(q)) }));
+    const bad = vis.find((v) => v.vi < 0);
+    if (bad) return { ok: false, message: `${code.name} has no value called "${bad.q}". Values: ${code.values.map((v) => v.name).join(", ")}.` };
+    if (!vis.length) continue;
+    allow.push(new Set(vis.map((v) => `v${ci}_${v.vi}`)));
+    filterLines.push(`${code.name}: ${vis.map((v) => code.values[v.vi].name).join(", ")}`);
+  }
+  const passes = (r: GanttRow) => allow.every((set) => r.codeTokens.some((t) => set.has(t)));
+  const party =
+    full.codeCols.find((c) => /sub|trade|vendor|company/i.test(`${c.code} ${c.label}`) && c.label !== "Responsible party") ??
+    full.codeCols[0];
+  const items: LookaheadPlanItem[] = [];
+  let count = 0;
+  for (const it of lookItems(full, dd, t1, mode)) {
+    if (it.kind === "group") {
+      if (it.kids.some(passes)) items.push({ kind: "group", label: it.label, color: it.color ?? null });
+      continue;
+    }
+    const r = it.r;
+    if (!passes(r)) continue;
+    count++;
+    items.push({
+      kind: "act",
+      id: r.a.id,
+      name: r.a.name,
+      start: r.start,
+      finish: r.finish,
+      rd: r.a.remaining_duration ?? r.a.duration ?? null,
+      tf: r.tf,
+      critical: r.critical,
+      milestone: r.milestone,
+      started: r.started,
+      party: party ? codeValueName(input.control, r.a.id, party.code) || null : null,
+      bs: r.bs,
+      bf: day(r.base?.finish),
+    });
+  }
+  return {
+    ok: true,
+    plan: { dd, t1, weeks, groupLabel, filterLines, partyLabel: party?.label ?? null, items, count, works: full.projectCal.works },
+  };
+}
+
 /**
  * The lookahead as a Gantt: 1 to 6 weeks from the data date, picked on the page, grouped by float path or in
  * start order. Same bars, logic and baseline as the full schedule, on a day scale. CSS only.
  */
-export function lookaheadGanttHtml(input: GanttInput, defaultWeeks = 3): string {
+const ZOOM_OUT = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h4M14 8h-4M4 6 2 8l2 2M12 6l2 2-2 2M8 3v10"/></svg>`;
+const ZOOM_IN = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8H1M11 8h4M3 6 5 8 3 10M13 6l-2 2 2 2M8 3v10"/></svg>`;
+
+/** Px per day for a lookahead window at a zoom factor; never so tight that a day can't be read. */
+export function lookaheadScale(weeks: number, zoom = 1): number {
+  const base = LOOK_SCALE[weeks] ?? 40;
+  return Math.max(LOOK_MIN_SCALE, Math.min(LOOK_MAX_SCALE, Math.round(base * (Number.isFinite(zoom) && zoom > 0 ? zoom : 1) * 10) / 10));
+}
+
+/**
+ * zoom: px-per-day factor for each window (1 = the default scale). The page fits each window to the screen
+ * and the timescale drag changes it, Primavera style; without a script the default scale scrolls sideways.
+ */
+export function lookaheadGanttHtml(
+  input: GanttInput,
+  defaultWeeks = 3,
+  zoom: Partial<Record<number, number>> = {},
+  only: { w: number; g: string } | null = null,
+): string {
   const full = ganttModel({ ...input, layout: null });
   if (full.dd === null || !full.rows.length) return "";
   const dd = full.dd;
@@ -1693,10 +1859,12 @@ export function lookaheadGanttHtml(input: GanttInput, defaultWeeks = 3): string 
   const party =
     full.codeCols.find((c) => /sub|trade|vendor|company/i.test(`${c.code} ${c.label}`) && c.label !== "Responsible party") ??
     full.codeCols[0];
+  // `only` draws the one window on screen, for a live timescale drag; the rest come back when it ends.
   const windows = LOOKAHEAD_WEEKS.flatMap((w) =>
     groups.map(([gk, , mode]) => {
+      if (only && (only.w !== w || only.g !== gk)) return "";
       const t1 = dd + w * 7 * DAY;
-      const scale = LOOK_SCALE[w];
+      const scale = lookaheadScale(w, zoom[w]);
       const items = lookItems(full, dd, t1, mode);
       // Marshall (Nov 5): the window ends where it ends; work running past it stops at a marked line, not a
       // bare edge. One day before the data date keeps its blue line clear of the frozen columns, and a short
@@ -1720,9 +1888,13 @@ export function lookaheadGanttHtml(input: GanttInput, defaultWeeks = 3): string 
         ? `<div class="cpm-scroll" tabindex="0" role="region" aria-label="${w}-week lookahead, scroll sideways"><div class="cpm-grid" role="table" style="width:calc(var(--cpm-left) + ${m.width}px)"><div class="cpm-row cpm-head"><div class="cpm-l cpm-lh">${headCells}</div><div class="cpm-t">${axisSvg(m)}</div></div><div class="cpm-body">${backdropSvg(m)}${logicSvg(m, items, g, view)}${body}</div></div></div>`
         : `<p class="cpm-empty">No remaining work falls in these ${w} weeks.</p>`;
       const count = items.filter((it) => it.kind === "act").length;
-      return `<div class="cpm-law" data-w="${w}" data-g="${gk}"><div class="cpmv" data-view="all" style="--cpm-w:${m.width}px">${grid}</div><p class="cpm-lasum">${esc(`${shortDay(dd)} to ${shortDay(t1 - DAY)} · ${count} ${count === 1 ? "activity" : "activities"} with remaining work`)}</p></div>`;
+      return `<div class="cpm-law" data-w="${w}" data-g="${gk}" data-days="${days}" data-scale="${LOOK_SCALE[w]}" data-pad="${LOOK_END_PAD}"><div class="cpmv" data-view="all" style="--cpm-w:${m.width}px">${grid}</div><p class="cpm-lasum">${esc(`${shortDay(dd)} to ${shortDay(t1 - DAY)} · ${count} ${count === 1 ? "activity" : "activities"} with remaining work`)}</p></div>`;
     }),
   ).join("");
+  // Marshall (Nov 5): the lookahead goes full screen too, with the same corner icon as the Schedule screen.
+  // Zoom buttons work with the page's script (fit, tighter, wider); a page without one keeps the default scale.
+  const zoomTools = `<span class="cpml-zoom" role="group" aria-label="Timescale"><button type="button" class="ath-ibtn" data-cpml-zoom="out" aria-label="Compress timescale" data-tip="Compress timescale">${ZOOM_OUT}</button><button type="button" class="ath-ibtn cpml-fit" data-cpml-zoom="fit" aria-label="Fit to screen" data-tip="Fit to screen">Fit</button><button type="button" class="ath-ibtn" data-cpml-zoom="in" aria-label="Expand timescale" data-tip="Expand timescale">${ZOOM_IN}</button></span>`;
+  const fullScreen = `<input class="ath-sr cpm-sr" type="checkbox" id="cpml-fs"><label class="ath-ibtn cpm-fsw cpml-fsw" for="cpml-fs" aria-label="Full screen" data-tip="Full screen"><span class="cpm-fs-on">${ICONS.expand}</span><span class="cpm-fs-off">${ICONS.collapse}</span></label>`;
   const weekPills = LOOKAHEAD_WEEKS.map(
     (w) =>
       `<input class="ath-sr" type="radio" name="cpml-w" id="cpml-w${w}"${w === defaultWeeks ? " checked" : ""}><label for="cpml-w${w}">${w} wk</label>`,
@@ -1764,8 +1936,8 @@ export function lookaheadGanttHtml(input: GanttInput, defaultWeeks = 3): string 
         `.cpml:has(#cpml-g${k}:checked) .cpml-grpm label[for="cpml-g${k}"]{background:${LINE2};box-shadow:inset 3px 0 0 ${INK}}.cpml:has(#cpml-g${k}:checked) .cpml-grpm>summary{border-color:${INK};box-shadow:inset 0 0 0 1px ${INK}}`,
     )
     .join("");
-  const style = `<style>${athenaControlsCss(".cpml")}${filterCss}${groupOn}.cpml .cpm-lachips{display:flex;flex-wrap:wrap;gap:6px}.cpml{${widths}}.cpml .cpm-law{display:none}${show}{display:block}${cols.map((k) => `.cpmx.cpml .c-${k}`).join(",")}{display:block!important}.cpml .cpm-labar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;border-bottom:1px solid ${LINE};background:#FAFBFD;border-radius:12px 12px 0 0}.cpml .cpm-labar h2{margin:0 6px 0 2px;font-size:13px;letter-spacing:.04em;color:${INK}}.cpml .cpm-lasum{margin:0;padding:7px 12px;color:${MUTED};border-top:1px solid ${LINE2}}@media(max-width:559px){.cpml .cpm-labar .ath-seg{flex:1 1 100%}.cpmx.cpml .cpm-l .cpm-c:not(.c-id):not(.c-name){display:none!important}}</style>`;
-  return `${style}<div class="cpmx cpml" id="cpm-lookahead-gantt"><div class="cpm-frame"><div class="cpm-labar"><h2>Lookahead</h2><div class="ath-seg" role="radiogroup" aria-label="Lookahead window">${weekPills}</div><div class="ath-seg" role="radiogroup" aria-label="Group lookahead">${groupPills}</div>${codeGroups.length ? `<details class="ath-menu cpml-grpm"><summary class="ath-menu-btn" aria-label="Group by code">${ICONS.layout}<span>Group</span>${ICONS.caret}</summary><div class="ath-menu-box"><div class="ath-menu-title">Group by code</div>${codeGroups.map(([k, l]) => `<input class="ath-sr" type="radio" name="cpml-g" id="cpml-g${k}"><label for="cpml-g${k}">${esc(l)}</label>`).join("")}</div></details>` : ""}${codeChips ? `<div class="cpm-lachips">${codeChips}</div>` : ""}</div>${windows}</div><p class="cpm-insp-hint">The blue line on the left is the data date, ${esc(shortDay(dd))}; the one on the right ends the lookahead period, and bars that reach it continue past it. Shaded days are non-working on the project calendar. Thin bars under each activity are the baseline.</p></div>`;
+  const style = `<style>${athenaControlsCss(".cpml")}${filterCss}${groupOn}@media(min-width:560px) and (max-width:1180px){.cpmx.cpml{--w-name:170px${party ? `;--w-${party.k}:140px` : ""}}}.cpml .cpml-tools{margin-left:auto;display:inline-flex;gap:6px;align-items:center}.cpml .cpml-zoom{display:none;gap:4px}[data-cpm-js] .cpml .cpml-zoom{display:inline-flex}.cpml .cpml-fit{width:auto;padding:0 9px;font-size:12px;font-weight:600}[data-cpm-js] .cpml .cpm-head .cpm-t{cursor:grab;touch-action:pan-y}[data-cpm-js] .cpml.cpml-drag,[data-cpm-js] .cpml.cpml-drag .cpm-head .cpm-t{cursor:grabbing;user-select:none}.cpml .cpm-fs-on{display:inline-flex}.cpml .cpm-fs-off{display:none}.cpml:has(#cpml-fs:checked){position:fixed;inset:0;z-index:2147483000;background:#F5F7FA;padding:12px;overflow:auto;margin:0}.cpml:has(#cpml-fs:checked) .cpm-fs-on{display:none}.cpml:has(#cpml-fs:checked) .cpm-fs-off{display:inline-flex}.cpml:has(#cpml-fs:checked) .cpm-scroll{max-height:calc(100vh - 170px);overflow:auto}.cpml:has(#cpml-fs:checked) .cpm-head{position:sticky;top:0;z-index:6;background:#fff}html:has(#cpml-fs:checked){overflow:hidden}@media print{.cpml:has(#cpml-fs:checked){position:static;padding:0;overflow:visible}.cpml .cpml-tools,.cpml .cpml-grpm,.cpml .ath-seg input:not(:checked)+label,.cpml .ath-chip:has(option[value=""]:checked){display:none!important}.cpml .cpm-labar{background:none;border:0;padding:0 0 6px}.cpml .cpm-scroll{overflow:visible!important;max-height:none!important}.cpml .cpm-insp-hint{display:block!important}html:has(#cpml-fs:checked){overflow:visible}}.cpml .cpm-lachips{display:flex;flex-wrap:wrap;gap:6px}.cpml{${widths}}.cpml .cpm-law{display:none}${show}{display:block}${cols.map((k) => `.cpmx.cpml .c-${k}`).join(",")}{display:block!important}.cpml .cpm-labar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;border-bottom:1px solid ${LINE};background:#FAFBFD;border-radius:12px 12px 0 0}.cpml .cpm-labar h2{margin:0 6px 0 2px;font-size:13px;letter-spacing:.04em;color:${INK}}.cpml .cpm-lasum{margin:0;padding:7px 12px;color:${MUTED};border-top:1px solid ${LINE2}}@media(max-width:559px){.cpml .cpm-labar .ath-seg{flex:1 1 100%}.cpmx.cpml .cpm-l .cpm-c:not(.c-id):not(.c-name){display:none!important}}</style>`;
+  return `${style}<div class="cpmx cpml" id="cpm-lookahead-gantt"><div class="cpm-frame"><div class="cpm-labar"><h2>Lookahead</h2><div class="ath-seg" role="radiogroup" aria-label="Lookahead window">${weekPills}</div><div class="ath-seg" role="radiogroup" aria-label="Group lookahead">${groupPills}</div>${codeGroups.length ? `<details class="ath-menu cpml-grpm"><summary class="ath-menu-btn" aria-label="Group by code">${ICONS.layout}<span>Group</span>${ICONS.caret}</summary><div class="ath-menu-box"><div class="ath-menu-title">Group by code</div>${codeGroups.map(([k, l]) => `<input class="ath-sr" type="radio" name="cpml-g" id="cpml-g${k}"><label for="cpml-g${k}">${esc(l)}</label>`).join("")}</div></details>` : ""}${codeChips ? `<div class="cpm-lachips">${codeChips}</div>` : ""}<span class="cpml-tools">${zoomTools}${fullScreen}</span></div>${windows}</div><p class="cpm-insp-hint">The blue line on the left is the data date, ${esc(shortDay(dd))}; the one on the right ends the lookahead period, and bars that reach it continue past it. Shaded days are non-working on the project calendar. Thin bars under each activity are the baseline.</p></div>`;
 }
 
 /**

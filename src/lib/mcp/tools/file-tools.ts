@@ -5,7 +5,10 @@ import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
 import { FULL_ACCESS_MESSAGE, READ_ONLY_MESSAGE, audit, named, prefix, resolveJob } from "../jobs";
 import { guide } from "../visible";
-import { lookaheadPdf, lookaheadPdfName } from "../lookahead-pdf";
+import { cpmLookaheadPdf, cpmLookaheadPdfName, lookaheadPdf, lookaheadPdfName } from "../lookahead-pdf";
+import { lookaheadPlan } from "../../cpm-gantt";
+import { readScheduleControl } from "../schedule-control";
+import type { LivingData } from "../living";
 import { pdfContractorBrand } from "../document-email-brand";
 import { lookaheadData } from "./workflow-tools";
 import { LOOKAHEAD_PDF_EMAIL_RULE } from "../email-safety";
@@ -161,11 +164,18 @@ export const fileShareRevoke = defineTool({
 export const lookaheadPdfTool = defineTool({
   name: "lookahead_pdf",
   title: "Lookahead as a PDF file (for email)",
-  description: "Builds the job's two-week lookahead as a PDF and returns a download link.",
+  description:
+    "Builds the job's two-week lookahead as a PDF and returns a download link; with a saved CPM it matches the schedule page, 1 to 6 weeks from the data date grouped by total float, start, WBS or any activity code, with stacked code filters, the data date line and the End of lookahead period line.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
     lookahead_id: z.string().trim().min(1).max(64).optional(),
+    weeks: z.number().int().min(1).max(6).optional(),
+    group: z.string().trim().min(1).max(80).optional(),
+    filters: z
+      .array(z.object({ code_id: z.string().trim().min(1).max(80), value_ids: z.array(z.string().trim().min(1).max(160)).min(1).max(50) }))
+      .max(10)
+      .optional(),
     expires_in_days: z.number().int().min(1).max(FILE_MAX_DAYS).optional(),
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -173,9 +183,40 @@ export const lookaheadPdfTool = defineTool({
     run("lookahead_pdf", ctx, { jobNumber: args.job_number }, async (sb) => {
       const job = await resolveJob(sb, args.job_number, args.company_id);
       if (!kindAllowed("schedule", job.scope)) throw new ToolError(FULL_ACCESS_MESSAGE);
-      const data = await lookaheadData(sb, job, args.lookahead_id ?? "latest");
-      if (!data.win) throw new ToolError(`${prefix(job)}There's no lookahead window or saved schedule to put in a PDF yet. Send the schedule export (or save the CPM) first. Nothing was made.`);
+      // A job with a saved CPM needs no saved lookahead row: the window runs from the data date.
+      const data = await lookaheadData(sb, job, args.lookahead_id ?? "latest").catch((e) => {
+        if (args.lookahead_id || !(e instanceof ToolError)) throw e;
+        return lookaheadData(sb, job, { id: "00000000-0000-0000-0000-000000000000", start_date: null, end_date: null }).then((d) => {
+          if (!d.cpmData) throw e;
+          return d;
+        });
+      });
       const brand = await pdfContractorBrand(sb, job.company_id);
+      // A saved, calculated CPM prints the page's lookahead Gantt; a saved lookahead window from an export keeps the two-week calendar.
+      const control = !args.lookahead_id && data.cpmData ? readScheduleControl(data.cpmData) : null;
+      if (control && (data.cpmData as LivingData).activities?.length) {
+        const r = lookaheadPlan(
+          { data: data.cpmData as LivingData, control, dataDate: data.dataDate, contractCompletion: data.contractCompletion },
+          { weeks: args.weeks, group: args.group, filters: args.filters },
+        );
+        if (!r.ok) throw new ToolError(`${prefix(job)}${r.message} Nothing was made.`);
+        const p = r.plan;
+        const start = new Date(p.dd).toISOString().slice(0, 10), end = new Date(p.t1 - 86_400_000).toISOString().slice(0, 10);
+        const pdf = cpmLookaheadPdf({ title: named(job), plan: p, version: data.version, acts: data.acts, items: data.items, today: data.today, brand });
+        let cf: ReturnType<typeof validateFile>;
+        try { cf = validateFile(pdf, cpmLookaheadPdfName(job.job_number, p.weeks, start, end)); } catch (e) { if (e instanceof FileRejected) throw new ToolError(e.message); throw e; }
+        const stored = await storeFile(sb, job, "schedule", cf, pdf, args.expires_in_days);
+        await audit(sb, job, "lookahead_pdf", "share_lookahead_pdf", stored.id);
+        const shown = [p.groupLabel.toLowerCase(), ...(p.filterLines.length ? [`only ${p.filterLines.join("; ")}`] : [])].join(", ");
+        return guide(
+          {
+            ...text([`${prefix(job)}Lookahead PDF ready: ${cf.name} (${Math.max(1, Math.round(cf.size / 1024))} KB, ${p.weeks} ${p.weeks === 1 ? "week" : "weeks"} from the ${start} data date, ${shown}, ${p.count} ${p.count === 1 ? "activity" : "activities"}).`, `Download: ${stored.link}`, `The link works until ${fmtDate(stored.exp)}.`].join("\n")),
+            structuredContent: { pdf: true, download_url: stored.link, filename: cf.name, mime_type: cf.mime, size_bytes: cf.size, weeks: p.weeks, group: p.groupLabel, filters: p.filterLines, activities: p.count, window: { start, end }, data_date: data.dataDate, expires_at: stored.exp.toISOString(), attached: false },
+          },
+          LOOKAHEAD_PDF_EMAIL_RULE(stored.link, cf.name),
+        );
+      }
+      if (!data.win) throw new ToolError(`${prefix(job)}There's no lookahead window or saved schedule to put in a PDF yet. Send the schedule export (or save the CPM) first. Nothing was made.`);
       const bytes = lookaheadPdf({ title: named(job), ref: data.ref, start: data.win.start, end: data.win.end, dataDate: data.dataDate, acts: data.acts, items: data.items, today: data.today, brand, version: data.version });
       let f: ReturnType<typeof validateFile>;
       try { f = validateFile(bytes, lookaheadPdfName(job.job_number, data.win.start, data.win.end)); } catch (e) { if (e instanceof FileRejected) throw new ToolError(e.message); throw e; }

@@ -5,6 +5,7 @@ import {
   COVERED_LABEL,
   columnOf,
   defaultQuestion,
+  stillHolds,
   type Column,
   type GapCheckItem,
 } from "./mcp/gap-check";
@@ -57,31 +58,44 @@ export function gapCheckSheets(input: {
       { v: covered, s: "wrap" },
       { v: a?.qualification ?? "", s: "wrap" },
       { v: a?.question ?? "", s: "wrap" },
-      { f: `IF(AND(C${r}="Yes",OR(F${r}="",F${r}="${EXCEL_ANSWERS.rfi}")),"Yes","No")` },
+      {
+        f: `IF(AND(C${r}="Yes",OR(F${r}="",F${r}="${EXCEL_ANSWERS.rfi}")),"Yes","No")`,
+        v: stillHolds(g) ? "Yes" : "No",
+      },
       { v: g.question ?? defaultQuestion(g), s: "wrap" },
       { v: g.citations.join("; ") || `${g.sheet} · ${g.spec_section}`, s: "wrap" },
     ]);
   });
   const last = live.length + 1;
   const n = Math.max(last, 2);
+  // What Excel will work out, so the file and the preview read right before anything recalculates.
+  const open = live.filter((g) => columnOf(g) === "to_answer");
+  const answered = live.length - open.length;
+  const still = live.filter(stillHolds).length;
+  const sum = (xs: (number | null | undefined)[]) => xs.reduce<number>((t, x) => t + (x ?? 0), 0);
   rows.push([]);
   rows.push([
     { v: "Totals", s: "total" },
     { v: `${live.length} gaps`, s: "total" },
-    { f: `COUNTIF(C2:C${n},"Yes")`, s: "total" },
-    { f: `SUMIF(F2:F${n},"",D2:D${n})`, s: "totalMoney" },
-    { f: `SUMIF(F2:F${n},"",E2:E${n})`, s: "totalMoney" },
-    { f: `COUNTA(F2:F${n})&" of ${live.length} answered"`, s: "total" },
-    { f: `SUM(G2:G${n})`, s: "totalMoney" },
+    { f: `COUNTIF(C2:C${n},"Yes")`, v: live.filter((g) => g.holds_bid).length, s: "total" },
+    { f: `SUMIF(F2:F${n},"",D2:D${n})`, v: sum(open.map((g) => g.exposure_low)), s: "totalMoney" },
+    { f: `SUMIF(F2:F${n},"",E2:E${n})`, v: sum(open.map((g) => g.exposure_high)), s: "totalMoney" },
+    { f: `COUNTA(F2:F${n})&" of ${live.length} answered"`, v: `${answered} of ${live.length} answered`, s: "total" },
+    {
+      f: `SUM(G2:G${n})`,
+      v: sum(live.map((g) => (g.answer?.answer === "carrying" ? (g.answer.amount ?? 0) : 0))),
+      s: "totalMoney",
+    },
     { v: "", s: "total" },
     { v: "", s: "total" },
     { v: "", s: "total" },
-    { f: `COUNTIF(K2:K${n},"Yes")`, s: "total" },
+    { f: `COUNTIF(K2:K${n},"Yes")`, v: still, s: "total" },
   ]);
   rows.push([
     { v: "Gap check", s: "total" },
     {
       f: `IF(AND(COUNTBLANK(F2:F${n})=0,COUNTIF(K2:K${n},"Yes")=0),"Met","Not met")`,
+      v: open.length === 0 && still === 0 ? "Met" : "Not met",
       s: "total",
     },
   ]);

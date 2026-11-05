@@ -738,6 +738,15 @@
     transform: translateY(-4px);
   }
 }
+.gc-portal {
+  color: #1c3654;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  overflow-wrap: anywhere;
+}
 .gc-pop {
   position: fixed;
   inset: 0;
@@ -816,6 +825,7 @@
   width: 100%;
 }
 .gc-sheet td {
+  overflow-wrap: break-word;
   border: 1px solid #e3e9f1;
   padding: 5px 8px;
   vertical-align: top;
@@ -835,6 +845,10 @@
   left: 0;
 }
 .gc-sheet tr.hdr td {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  min-width: 72px;
   background: #18314f;
   color: #fff;
   font-weight: 700;

@@ -10,16 +10,21 @@ import {
   scheduleWindows,
   windowsHtml,
   ganttHtml,
+  ganttViewsHtml,
+  scheduleScale,
   ganttModel,
   ganttSummary,
   logicChanges,
   logicChangesHtml,
   lookaheadGanttHtml,
+  lookaheadScale,
+  lookaheadPlan,
   milestoneHtml,
   viewItems,
   workDaysBetween,
 } from "./cpm-gantt";
 import { startStatus, startVariance } from "./schedule-layouts";
+import { cpmLookaheadPdf } from "./mcp/lookahead-pdf";
 import {
   renderReportBody,
   renderReportDocument,
@@ -384,6 +389,93 @@ describe("round 3: start status, lookahead Gantt, reports", () => {
     expect(html).toContain("End of lookahead period");
     expect(html).toContain('data-window-end-line="true"');
     expect(html).toContain('data-date-marker="true"');
+  });
+
+  it("lookahead full screen, timescale zoom and one-window redraw (Marshall, Nov 5)", () => {
+    const base = lookaheadGanttHtml(input());
+    expect(base).toContain('id="cpml-fs"');
+    expect(base).toMatch(/for="cpml-fs" aria-label="Full screen"/);
+    expect(base).toContain('data-cpml-zoom="fit"');
+    expect(base).toContain('data-cpml-zoom="in"');
+    expect(base).toContain('data-cpml-zoom="out"');
+    // Zoom buttons and the grab cursor only show where the page's script runs.
+    expect(base).toContain(".cpml .cpml-zoom{display:none");
+    expect(base).toContain("[data-cpm-js] .cpml .cpml-zoom{display:inline-flex}");
+    const width = (html: string, w: number) =>
+      Number(new RegExp(`data-w="${w}" data-g="f"[^]*?calc\\(var\\(--cpm-left\\) \\+ ([\\d.]+)px\\)`).exec(html)?.[1]);
+    expect(width(base, 2)).toBe(15 * 60 + 14);
+    const half = lookaheadGanttHtml(input(), 3, { 2: 0.5 });
+    expect(width(half, 2)).toBe(15 * 30 + 14);
+    // Never tighter than a readable day.
+    expect(lookaheadScale(6, 0.01)).toBe(6.5);
+    expect(lookaheadScale(1, 100)).toBe(240);
+    const one = lookaheadGanttHtml(input(), 3, {}, { w: 4, g: "w" });
+    expect((one.match(/class="cpm-law"/g) ?? []).length).toBe(1);
+    expect(one).toContain('data-w="4" data-g="w"');
+  });
+
+  it("main schedule timescale drag zoom: buttons, views redraw and the print fit (Marshall, Nov 5)", () => {
+    const html = ganttHtml(input());
+    expect(html).toContain('data-cpm-zoom="fit"');
+    expect(html).toContain('data-cpm-zoom="in"');
+    expect(html).toContain('data-cpm-zoom="out"');
+    expect(html).toContain("#cpm-gantt .cpm-zoom{display:none");
+    expect(html).toContain("[data-cpm-js] #cpm-gantt .cpm-zoom{display:inline-flex}");
+    expect(html).toContain("[data-cpm-js] #cpm-gantt .cpm-head .cpm-t{cursor:grab");
+    expect(html).toMatch(/<div class="cpm-views" style="--cpm-pfit:[\d.]+">/);
+    expect(html).toContain("zoom:var(--cpm-pfit,");
+    const w = (h: string) => Number(/data-view="all"[^>]*style="--cpm-w:([\d.]+)px"/.exec(h)?.[1]);
+    const base = w(ganttViewsHtml(input()));
+    expect(base).toBe(w(html));
+    // A short test job sits at the 360 px minimum by default; past it the width follows the zoom.
+    expect(w(ganttViewsHtml({ ...input(), zoom: 4 }))).toBe(w(ganttViewsHtml({ ...input(), zoom: 2 })) * 2);
+    expect(w(ganttViewsHtml({ ...input(), zoom: 2 }))).toBeGreaterThan(base);
+    const one = ganttViewsHtml({ ...input(), zoom: 1.5 }, "all");
+    expect((one.match(/class="cpmv"/g) ?? []).length).toBe(1);
+    // The page script reads each view's days and base scale to fit it and to bound the drag.
+    expect(html).toMatch(/class="cpmv" data-view="all" data-days="\d+" data-base="4"/);
+    expect(scheduleScale(4, 0.001)).toBe(0.3);
+    expect(scheduleScale(4, 100)).toBe(60);
+    expect(scheduleScale(4, 0.5)).toBe(2);
+  });
+
+  it("the frozen table covers its row line, so Gantt drawings never show under it", () => {
+    const html = ganttHtml(input());
+    expect(html).toMatch(/\.cpmx \.cpm-l\{align-self:flex-start;box-sizing:border-box;height:calc\(100% \+ 1px\);margin-bottom:-1px;border-bottom:1px solid/);
+  });
+
+  it("plans the lookahead PDF like the page: weeks, groups and stacked code filters", () => {
+    const i = input();
+    i.control.activity_codes = [
+      { id: "party", name: "Responsible party", values: [{ id: "self", name: "Self-perform" }, { id: "sub", name: "Subcontractor" }] },
+      { id: "subco", name: "Subcontractor", values: [{ id: "bay", name: "Bayline Drywall" }, { id: "iron", name: "Ironbark Plumbing" }] },
+    ];
+    i.control.code_values = { B: { party: "sub", subco: "bay" }, C: { party: "sub", subco: "iron" }, X: { party: "self" }, Y: { party: "sub", subco: "bay" } };
+    const two = lookaheadPlan(i, { weeks: 2 });
+    if (!two.ok) throw new Error(two.message);
+    expect(two.plan.weeks).toBe(2);
+    expect(two.plan.t1 - two.plan.dd).toBe(14 * 86_400_000);
+    expect(two.plan.groupLabel).toBe("By total float");
+    expect(two.plan.items[0]).toMatchObject({ kind: "group", label: "Total float 0 WD · critical" });
+    // The party column names the sub, not the Responsible party split.
+    expect(two.plan.partyLabel).toBe("Subcontractor");
+    const bySub = lookaheadPlan(i, { weeks: 3, group: "subcontractor", filters: [{ code_id: "Responsible party", value_ids: ["sub"] }] });
+    if (!bySub.ok) throw new Error(bySub.message);
+    const groups = bySub.plan.items.filter((it) => it.kind === "group").map((it) => it.label);
+    expect(groups).toContain("Subcontractor: Bayline Drywall");
+    expect(bySub.plan.items.some((it) => it.kind === "act" && it.id === "X")).toBe(false);
+    expect(bySub.plan.filterLines).toEqual(["Responsible party: Subcontractor"]);
+    const one = lookaheadPlan(i, { weeks: 3, filters: [{ code_id: "subco", value_ids: ["Ironbark Plumbing"] }] });
+    if (!one.ok) throw new Error(one.message);
+    expect(one.plan.items.filter((it) => it.kind === "act").map((it) => (it as { id: string }).id)).toEqual(["C"]);
+    expect(lookaheadPlan(i, { group: "Location" })).toMatchObject({ ok: false });
+    expect(lookaheadPlan(i, { filters: [{ code_id: "Subcontractor", value_ids: ["Acme"] }] })).toMatchObject({ ok: false });
+    const pdf = cpmLookaheadPdf({ title: "Fictional job", plan: bySub.plan, acts: i.data.activities as never, items: [] });
+    const head = new TextDecoder("latin1").decode(pdf.slice(0, 8));
+    expect(head.startsWith("%PDF-")).toBe(true);
+    const body = new TextDecoder("latin1").decode(pdf);
+    expect(body).toContain("End of lookahead period");
+    expect(body).toContain("Three-Week Lookahead");
   });
 
   it("lists logic changes against the baseline", () => {

@@ -84,6 +84,10 @@ describe("0.8.1 step 0 scoping: use the defaults", () => {
     expect(scopeAlias(SECTOR_ALIASES)("commercial")).toBe("private_commercial");
     expect(scopeAlias(POSITION_ALIASES)("Subcontractor")).toBe("sub");
     expect(scopeAlias(PRICING_ALIASES)("Lump sum")).toBe("lump_sum");
+    for (const tm of ["T&M", "t and m", "Time and material", "time and materials", "Time & Materials", "TM"]) {
+      expect(scopeAlias(PRICING_ALIASES)(tm)).toBe("time_and_material");
+    }
+    expect(scopeAlias(PRICING_ALIASES)("Cost plus")).toBe("cost_plus");
     expect(scopeAlias(PRICING_ALIASES)("defaults")).toBeUndefined();
     expect(scopeAlias(PRICING_ALIASES)("unknown")).toBeUndefined();
   });

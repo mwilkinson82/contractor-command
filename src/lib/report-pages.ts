@@ -2,7 +2,7 @@ import { CLIENT_BRAND_FONTS, CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from 
 import { reportSurface } from "./report-surface";
 import { healthHtml, narrativeHtml } from "./cpm-reports";
 import { athenaControlsCss } from "./athena-controls";
-import { comparisonHtml, delaySnapshotsHtml, delaysHtml, ganttHtml, ganttModel, ganttSummary, logicChangesHtml, lookaheadGanttHtml, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
+import { comparisonHtml, delaySnapshotsHtml, delaysHtml, ganttHtml, ganttModel, ganttViewsHtml, ganttSummary, logicChangesHtml, lookaheadGanttHtml, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
 import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
 // Pure logic: URLs, payload types and one HTML renderer shared by the signed-in page and the owner share link.
@@ -162,6 +162,42 @@ const tile = (label: string, value: string, alert = false) =>
 const tiles = (t: string[]) => `<div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 16px">${t.join("")}</div>`;
 const stamp = (r: { version?: number; updated_at?: string | null; updated_by_name?: string | null; data_date?: string | null }) =>
   `<p style="margin:4px 0 16px;font-size:12px;color:${G1}">v${esc(r.version)} · Last updated ${esc(r.updated_at?.slice(0, 10) ?? "")}${r.updated_by_name ? ` by ${esc(r.updated_by_name)}` : ""}${r.data_date ? ` · Data date ${esc(r.data_date)}` : ""}</p>`;
+/**
+ * The lookahead section alone at a timescale zoom, for the page's fit and drag. Same input as the page, so the
+ * bars, groups and filters match it exactly.
+ */
+export function scheduleLookaheadHtml(
+  p: PagePayload,
+  zoom: Partial<Record<number, number>>,
+  context?: ReportContext,
+  only: { w: number; g: string } | null = null,
+): string {
+  if (p.page !== "schedule") return "";
+  const r = (p as JobPayload).report,
+    d = r?.data ?? {};
+  const control = readScheduleControl(d);
+  if (!control || !(d.activities ?? []).length) return "";
+  return lookaheadGanttHtml(
+    { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date, layout: null, layoutHref: context?.layoutHref },
+    3,
+    zoom,
+    only,
+  );
+}
+
+/** The Schedule tab's Gantt views alone at a timescale zoom, for the page's drag and Fit. Same input as the page. */
+export function scheduleGanttViewsHtml(p: PagePayload, zoom: number, context?: ReportContext, only: string | null = null): string {
+  if (p.page !== "schedule") return "";
+  const r = (p as JobPayload).report,
+    d = r?.data ?? {};
+  const control = readScheduleControl(d);
+  if (!control || !(d.activities ?? []).length) return "";
+  return ganttViewsHtml(
+    { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date, layout: context?.layout ?? null, layoutHref: context?.layoutHref, zoom },
+    only,
+  );
+}
+
 // ---------- views ----------
 function scheduleView(p: JobPayload, context?: ReportContext): string {
   const r = p.report,
@@ -247,8 +283,8 @@ function scheduleView(p: JobPayload, context?: ReportContext): string {
     ];
     const reportIndex = `<nav class="ath-rep-index" aria-label="Reports">${reports.map(([id, label]) => `<a href="#rep-${id}">${esc(label)}</a>`).join("")}</nav>`;
     out.push(
-      `<style>${athenaControlsCss(".ath-sched")}.ath-sched .ath-panel{display:none}${tabs.map(([k]) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-panel[data-tab="${k}"]`).join(",")}{display:block}${tabs.map(([k]) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-tabs label[for="ath-tab-${k}"]`).join(",")}{color:${NAVY};border-bottom-color:${NAVY}}.ath-sched .ath-rep-index{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.ath-sched .ath-rep-index a{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;border:1px solid #DFE7F0;background:#fff;color:${NAVY};font-weight:600;font-size:12.5px;text-decoration:none}.ath-sched .ath-rep-index a:hover{background:#EAF0F8;border-color:#C9D5E4}.ath-sched .ath-panel>.ath-rep{scroll-margin-top:12px}@media print{.ath-sched .ath-tabs,.ath-sched .ath-rep-index{display:none}}</style>` +
-        `<div class="ath-sched">${tabs.map(([k], i) => `<input class="ath-sr" type="radio" name="ath-tab" id="ath-tab-${k}"${i === 0 ? " checked" : ""}>`).join("")}<nav class="ath-tabs" aria-label="Schedule screens">${tabs.map(([k, l, extra]) => `<label for="ath-tab-${k}">${l} ${extra}</label>`).join("")}</nav>` +
+      `<style>${schedulePrintCss(tabs.map(([k]) => k))}${athenaControlsCss(".ath-sched")}.ath-sched .ath-panel{display:none}${tabs.map(([k]) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-panel[data-tab="${k}"]`).join(",")}{display:block}${tabs.map(([k]) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-tabs label[for="ath-tab-${k}"]`).join(",")}{color:${NAVY};border-bottom-color:${NAVY}}.ath-sched .ath-rep-index{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.ath-sched .ath-rep-index a{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;border:1px solid #DFE7F0;background:#fff;color:${NAVY};font-weight:600;font-size:12.5px;text-decoration:none}.ath-sched .ath-rep-index a:hover{background:#EAF0F8;border-color:#C9D5E4}.ath-sched .ath-panel>.ath-rep{scroll-margin-top:12px}@media print{.ath-sched .ath-tabs,.ath-sched .ath-rep-index{display:none}}</style>` +
+        `<div class="ath-sched">${schedulePrintTitle(p, r.data_date, tabs.map(([k, l]) => [k, l]))}${tabs.map(([k], i) => `<input class="ath-sr" type="radio" name="ath-tab" id="ath-tab-${k}"${i === 0 ? " checked" : ""}>`).join("")}<nav class="ath-tabs" aria-label="Schedule screens">${tabs.map(([k, l, extra]) => `<label for="ath-tab-${k}">${l} ${extra}</label>`).join("")}</nav>` +
         `<section class="ath-panel" data-tab="s">${ganttHtml(input)}</section>` +
         (look ? `<section class="ath-panel" data-tab="l">${look}</section>` : "") +
         `<section class="ath-panel" data-tab="r">${reportIndex}${reports.map(([id, , html]) => `<div class="ath-rep" id="rep-${id}" data-report="${id}">${card(html)}</div>`).join("")}${logicList()}</section></div>`,
@@ -649,6 +685,21 @@ function renderReportContent(p: PagePayload, context?: ReportContext): string {
 }
 
 /** jobId links rows to job pages. layout opens a saved schedule layout; layoutHref links to one. */
+/**
+ * Marshall (Nov 5): a print or PDF of the schedule, the lookahead or a report is only that screen, as it shows
+ * now, with its filters and window. The dashboard above it (contract, variances and the other tiles) stays on
+ * screen for meetings and never prints, so a lookahead can go to a sub as it is.
+ */
+function schedulePrintCss(tabs: string[]): string {
+  return `.ath-sched .ath-print-title{display:none}@media print{body :not(.ath-sched):not(:has(.ath-sched)):not(.ath-sched *){display:none!important}.ath-sched .ath-tabs,.ath-sched .ath-rep-index,.ath-sched .ath-sr{display:none!important}.ath-sched .ath-print-title{display:block;margin:0 0 10px;font-size:12px;color:${G1}}.ath-sched .ath-print-title strong{display:block;font-size:16px;color:${NAVY}}.ath-sched .ath-print-title [data-for]{display:none}${tabs.map((k) => `.ath-sched:has(#ath-tab-${k}:checked) .ath-print-title [data-for="${k}"]`).join(",")}{display:inline}}`;
+}
+
+function schedulePrintTitle(p: JobPayload, dataDate: string | null | undefined, tabs: string[][]): string {
+  const job = [p.job_number, p.job_name].filter(Boolean).join(" ");
+  const dd = dataDate ? ` · Data date ${shortDay(Date.parse(`${dataDate.slice(0, 10)}T00:00:00Z`))}` : "";
+  return `<div class="ath-print-title"><strong>${esc(job)}${tabs.map(([k, l]) => `<span data-for="${esc(k)}"> · ${esc(l)}</span>`).join("")}</strong>${esc(p.company ?? "")}${esc(dd)}</div>`;
+}
+
 type ReportContext = { jobId?: string; layout?: string | null; layoutHref?: (id: string | null) => string };
 /** Schedule layout links on the signed-in page; the board token is added by the page. */
 export const scheduleLayoutHref = (id: string | null) => (id ? `../schedule?layout=${encodeURIComponent(id)}` : "../schedule");

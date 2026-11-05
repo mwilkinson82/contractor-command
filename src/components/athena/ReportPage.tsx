@@ -1,11 +1,13 @@
 import { DailyReportReview } from "./DailyReportReview";
 import { ProgressPhotosPage } from "./ProgressPhotosPage";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   renderReportBody,
   scheduleLayoutHref,
+  scheduleLookaheadHtml,
+  scheduleGanttViewsHtml,
   reportPageQuery,
   type PagePayload,
   type AnyPage,
@@ -26,6 +28,8 @@ import { AthenaPage } from "@/components/athena/AthenaPage";
 import { OwnerPortfolio } from "@/components/athena/OwnerPortfolio";
 import { productionClient, readProductionDaily } from "@/lib/production-report";
 import { projectReadRecovery } from "@/lib/project-read-recovery";
+import { attachLookaheadZoom } from "@/lib/cpm-lookahead-zoom";
+import { attachScheduleZoom } from "@/lib/cpm-schedule-zoom";
 
 type Rpc = (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const rpc = (f: string, a: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(f, a);
@@ -145,6 +149,21 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate, layo
     const body = payload ? renderReportBody(payload, { jobId, layout: page === "schedule" ? (layout ?? null) : null, layoutHref: jobId ? scheduleLayoutHref : undefined }) : "";
     return token && body ? signSiblingLinks(body, token) : body;
   }, [payload, token, jobId, page, layout]);
+  // The lookahead fits the screen and its timescale drags like Primavera; the page HTML itself stays script-free.
+  const embed = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (page !== "schedule" || !payload || !embed.current) return;
+    const sign = (body: string) => (token && body ? signSiblingLinks(body, token) : body);
+    const layoutHref = jobId ? scheduleLayoutHref : undefined;
+    const offSchedule = attachScheduleZoom(embed.current, (zoom, only) =>
+      sign(scheduleGanttViewsHtml(payload, zoom, { layout: layout ?? null, layoutHref }, only)),
+    );
+    const offLook = attachLookaheadZoom(embed.current, (zoom, only) => sign(scheduleLookaheadHtml(payload, zoom, { layoutHref }, only)));
+    return () => {
+      offLook();
+      offSchedule();
+    };
+  }, [html, page, payload, token, jobId, layout]);
   const jobNumber = payload && payload.page !== "portfolio" ? (payload.job_number ?? null) : null;
   const live = (
     <AthenaPage jobId={jobId} token={token} company={payloadCompany(payload)}>
@@ -170,7 +189,7 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate, layo
         // Owners and leadership get the full portfolio: each job's contract, billing, cost and IOR, read with their own access.
         <OwnerPortfolio payload={memberPayload as PortfolioPayload} companyId={companyId} visible={visible} memberId={session?.user.id} />
       ) : (
-        <div className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
+        <div ref={embed} className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
       )}
     </AthenaPage>
   );

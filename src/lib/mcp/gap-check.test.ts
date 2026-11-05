@@ -215,6 +215,19 @@ describe("Excel download", () => {
     if (process.env.GAP_XLSX_OUT) writeFileSync(process.env.GAP_XLSX_OUT, bytes);
   });
 
+  it("stores what each formula works out to, so previews that don't recalculate read right", () => {
+    const [sheet] = gapCheckSheets({ jobNumber: "2701", jobName: "Harbor Point", items });
+    const still = sheet.rows.slice(1, 5).map((r) => (r[10] as { v?: unknown }).v);
+    expect(still).toEqual(["No", "Yes", "No", "No"]);
+    const totals = sheet.rows[6].map((c) => (c && typeof c === "object" ? c.v : c));
+    expect(totals.slice(2, 7)).toEqual([2, 38000, 52000, "2 of 4 answered", 228636]);
+    expect(totals[10]).toBe(1);
+    expect((sheet.rows[7][1] as { v?: unknown }).v).toBe("Not met");
+    const text = new TextDecoder().decode(gapCheckXlsx({ jobNumber: "2701", jobName: "Harbor Point", items }));
+    expect(text).toContain('t="str"><f>IF(AND(C3=&quot;Yes&quot;');
+    expect(text).toMatch(/<f>SUM\(G2:G5\)<\/f><v>228636<\/v>/);
+  });
+
   it("uses the standard CRC-32", () => {
     expect(crc32(new TextEncoder().encode("123456789"))).toBe(0xcbf43926);
     expect(inflateRawSync).toBeTypeOf("function");
