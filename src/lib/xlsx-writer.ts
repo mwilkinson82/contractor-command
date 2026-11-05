@@ -73,7 +73,13 @@ function cellXml(ref: string, cell: XlsxCell): string {
   const c = typeof cell === "object" ? cell : { v: cell };
   const s = STYLE_ID[c.s ?? "text"];
   const sAttr = s ? ` s="${s}"` : "";
-  if (c.f) return `<c r="${ref}"${sAttr}><f>${xmlEscape(c.f.replace(/^=/, ""))}</f></c>`;
+  if (c.f) {
+    // A cached value lets previews that don't recalculate (Quick Look, mail viewers) show the answer, not 0.
+    const f = `<f>${xmlEscape(c.f.replace(/^=/, ""))}</f>`;
+    if (typeof c.v === "number" && Number.isFinite(c.v)) return `<c r="${ref}"${sAttr}>${f}<v>${c.v}</v></c>`;
+    if (typeof c.v === "string") return `<c r="${ref}"${sAttr} t="str">${f}<v>${xmlEscape(c.v.slice(0, 32000))}</v></c>`;
+    return `<c r="${ref}"${sAttr}>${f}</c>`;
+  }
   if (c.v === null || c.v === undefined || c.v === "") return s ? `<c r="${ref}"${sAttr}/>` : "";
   if (typeof c.v === "number" && Number.isFinite(c.v)) return `<c r="${ref}"${sAttr}><v>${c.v}</v></c>`;
   return `<c r="${ref}"${sAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(String(c.v).slice(0, 32000))}</t></is></c>`;

@@ -867,7 +867,7 @@ function MovePop({
 function cellText(c: XlsxCell): string {
   if (c === null || c === undefined) return "";
   if (typeof c !== "object") return String(c);
-  if (c.f) return "ƒ";
+  if (c.f && (c.v === null || c.v === undefined)) return "";
   if (typeof c.v === "number") return c.s === "money" || c.s === "totalMoney" ? money(c.v) : String(c.v);
   return String(c.v ?? "");
 }
