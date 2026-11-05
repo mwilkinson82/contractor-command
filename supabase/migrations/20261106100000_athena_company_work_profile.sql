@@ -22,7 +22,7 @@
 -- A save merges: keys sent replace their saved value, keys not sent keep theirs, a JSON null removes one.
 -- When markets is saved, work_types (commercial, public, residential) follows it so existing defaults keep working.
 -- Additive only: one column with an empty default. No existing row changes.
-BEGIN;
+-- No BEGIN or COMMIT: the Lovable migration tool runs the file in its own transaction.
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 
@@ -91,6 +91,3 @@ BEGIN
 END $$;
 REVOKE EXECUTE ON FUNCTION public.mcp_company_work_profile_save(uuid, jsonb) FROM anon, public;
 GRANT EXECUTE ON FUNCTION public.mcp_company_work_profile_save(uuid, jsonb) TO authenticated;
-
-NOTIFY pgrst, 'reload schema';
-COMMIT;
