@@ -117,13 +117,22 @@ const PRECON_STAGES = [
   ["Design", "Drawings"],
 ] as const;
 
-export function StageStrip({ stage, precon }: { stage: number; precon?: boolean }) {
+export function StageStrip({
+  stage,
+  precon,
+  compact,
+}: {
+  stage: number;
+  precon?: boolean;
+  /** Pills only, for the job title's Phase row. */
+  compact?: boolean;
+}) {
   const stages = precon ? [...PRECON_STAGES, ...STAGES] : STAGES;
   return (
     <ol
-      className="jb-stages"
+      className={`jb-stages${compact ? " jb-stages-compact" : ""}`}
       data-precon={precon ? "true" : undefined}
-      aria-label="Where this job stands"
+      aria-label={compact ? "Phase" : "Where this job stands"}
     >
       {stages.map(([name, detail], i) => (
         <li
@@ -135,7 +144,7 @@ export function StageStrip({ stage, precon }: { stage: number; precon?: boolean 
             {i < stage ? "✓ " : ""}
             {name}
           </b>
-          {detail}
+          {compact ? null : detail}
         </li>
       ))}
     </ol>

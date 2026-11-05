@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Shovel } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { openBoardPage } from "@/lib/board-link.functions";
@@ -20,6 +21,8 @@ import {
   type OverviewFact,
 } from "@/lib/project-overview";
 import { accountingMoney } from "@/lib/accounting-report";
+import { iorRollup, readIorModel } from "@/lib/ior-model";
+import { MESSAGES_ANCHOR, NOTICE_EMAILS_ANCHOR } from "@/lib/notices/board-notices";
 import { detailAnchor } from "@/lib/mcp/plain-label";
 import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import { JobHomeNotifications, NotificationsBell, NotificationsNavLink } from "./JobHomeWhatsNew";
@@ -27,6 +30,7 @@ import { JobHomeChangeOrders } from "./JobHomeChangeOrders";
 import { JobHomePricing } from "./JobHomePricing";
 import { JobHomeMessages } from "./JobHomeMessages";
 import { JobNoticeEmailSettings } from "./JobNoticeEmailSettings";
+import { JobHomeNav, type JobNavGroup } from "./JobHomeNav";
 import {
   PreconOffer,
   PreconSection,
@@ -37,6 +41,7 @@ import {
 import "./project-overview.css";
 import {
   ContractsSection,
+  CopyAsk,
   EstimateProposalSection,
   NextStepCard,
   StageStrip,
@@ -145,7 +150,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
         outcome.error ? null : (outcome.data as { data?: unknown }),
       );
       if (!contract.source && outcome.error) throw new Error("Contract fallback unavailable.");
-      return { contract, payments: overviewPayments(billing.data, jobId) };
+      return {
+        contract,
+        payments: overviewPayments(billing.data, jobId),
+        ior: outcome.error ? null : iorFigures(outcome.data),
+      };
     },
   });
   const communications = useQuery({
@@ -281,8 +290,14 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             : "Currently unavailable",
       ),
       page: "schedule",
+      group: "schedule",
     },
-    { title: "Two-week lookahead", detail: state(lookahead, laDetail), page: "lookahead" },
+    {
+      title: "Two-week lookahead",
+      detail: state(lookahead, laDetail),
+      page: "lookahead",
+      group: "schedule",
+    },
     {
       title: "Open items",
       detail:
@@ -290,6 +305,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           ? "Currently unavailable"
           : `${count} open ${count === 1 ? "item" : "items"}`,
       page: "items",
+      group: "schedule",
     },
     {
       title: "Submittals",
@@ -300,9 +316,10 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           : "Currently unavailable",
       ),
       page: "submittals",
+      group: "logs",
     },
-    { title: "RFI log", detail: "View saved requests", page: "rfis" },
-    { title: "RFC log", detail: "View saved requests", page: "rfcs" },
+    { title: "RFI log", detail: "View saved requests", page: "rfis", group: "logs" },
+    { title: "RFC log", detail: "View saved requests", page: "rfcs", group: "logs" },
     {
       title: "Daily reports",
       detail: state(
@@ -314,41 +331,53 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             : "Currently unavailable",
       ),
       page: "daily",
+      group: "field",
     },
     {
       title: "Daily report export",
       detail: "Dailies and photos for a date range, to print or save as PDF",
       page: "daily-log",
+      group: "field",
     },
     {
       title: "Production",
       detail: "Recorded quantities, hours and actual rates",
       page: "production",
+      group: "field",
     },
-    { title: "Field board", detail: "Activities, crews and follow-ups", page: "field" },
-    { title: "Progress photos", detail: "View saved photos", page: "photos" },
+    {
+      title: "Field board",
+      detail: "Activities, crews and follow-ups",
+      page: "field",
+      group: "field",
+    },
+    { title: "Progress photos", detail: "View saved photos", page: "photos", group: "field" },
     ...(full
       ? [
           {
             title: "Accounting evidence",
             detail: "Job ledger, budget comparison and accountant export",
             page: "accounting",
+            group: "money",
           },
-          { title: "Change orders", detail: "View saved log", page: "cos" },
+          { title: "Change order log", detail: "View saved log", page: "cos", group: "logs" },
           {
             title: "Suppliers and purchase orders",
             detail: "View project parties and PO drafts",
             page: "purchase-orders",
+            group: "money",
           },
           {
             title: "Billing and payment records",
             detail: "View recorded invoices and receipts",
             page: "billing-records",
+            group: "money",
           },
           {
             title: "Payment applications",
             detail: "Prepare or open a saved SOV application",
             page: "payment-applications",
+            group: "money",
           },
           {
             title: "Billing forecast",
@@ -361,11 +390,13 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                   : "Currently unavailable",
             ),
             page: "payapp",
+            group: "money",
           },
           {
             title: "Project record",
             detail: "Everything logged on this job, with who and when. Export for a dispute",
             page: "record",
+            group: "record",
           },
           {
             title: "Indicated Outcome Report",
@@ -378,10 +409,40 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                   : "Currently unavailable",
             ),
             page: "ior",
+            group: "money",
           },
         ]
       : []),
   ];
+  // Each group's boards in the order the menu and the Dig deeper section list them.
+  const ORDER: Record<string, string[]> = {
+    schedule: ["schedule", "lookahead", "items"],
+    field: ["field", "daily", "daily-log", "production", "photos"],
+    logs: ["cos", "submittals", "rfis", "rfcs"],
+    money: [
+      "accounting",
+      "payment-applications",
+      "billing-records",
+      "payapp",
+      "ior",
+      "purchase-orders",
+    ],
+    record: ["record"],
+  };
+  const inGroup = (group: string) =>
+    (ORDER[group] ?? []).flatMap((page) =>
+      tiles.filter((t) => t.page === page && t.group === group),
+    );
+  const tileGroups = [
+    { id: "schedule", title: "Schedule" },
+    { id: "field", title: "Field" },
+    { id: "logs", title: "Logs" },
+    { id: "money", title: "Money" },
+    { id: "record", title: "Project record" },
+  ]
+    .map((g) => ({ ...g, tiles: inGroup(g.id) }))
+    .filter((g) => g.tiles.length > 0);
+  const scheduleTile = tiles.find((t) => t.page === "schedule")!;
   // Never render a cached financial/communication result after a denied refresh or scope change.
   const money = full && session && !financial.error ? financial.data : undefined;
   const payment = (key: string) => money?.payments.metrics.find((m) => m.key === key);
@@ -411,6 +472,63 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const orderedItems = openItems
     ?.slice()
     .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  // Every board link, sorted into the left menu's groups. Nothing here is new: the same links, grouped.
+  const navGroups: JobNavGroup[] = [
+    {
+      id: "overview",
+      title: "Overview",
+      links: [
+        { key: "overview", label: "Overview", href: "#overview", current: true },
+        {
+          key: "notifications",
+          label: "Notifications",
+          href: "#notifications",
+          node: <NotificationsNavLink jobId={jobId} token={token} />,
+        },
+        { key: "routines", label: "Routines & reminders", href: "#routines" },
+        ...(session && full
+          ? [{ key: "emails", label: "Notice emails", href: `#${NOTICE_EMAILS_ANCHOR}` }]
+          : []),
+      ],
+    },
+    {
+      id: "estimate",
+      title: "Estimate & proposal",
+      links: commercialOn
+        ? [
+            ...(pre ? [{ key: "precon", label: "Pre-construction", href: "#precon" }] : []),
+            { key: "estimate", label: "Estimate & proposal", href: "#estimate" },
+          ]
+        : [],
+    },
+    {
+      id: "contracts",
+      title: "Contracts & specs",
+      links: commercialOn ? [{ key: "contracts", label: "Contracts", href: "#contracts" }] : [],
+    },
+    ...tileGroups
+      .filter((g) => g.id !== "record")
+      .map((g) => ({
+        id: g.id,
+        title: g.title,
+        links: g.tiles.map((t) => ({ key: t.page, label: t.title, href: href(t.page) })),
+      })),
+    {
+      id: "record",
+      title: "Project record",
+      links: [
+        ...inGroup("record").map((t) => ({ key: t.page, label: t.title, href: href(t.page) })),
+        {
+          key: "communications",
+          label: "Latest Athena job communications",
+          href: "#communications",
+        },
+        ...(session && full
+          ? [{ key: "messages", label: "Client messages", href: `#${MESSAGES_ANCHOR}` }]
+          : []),
+      ],
+    },
+  ];
   return (
     <main className="job-home">
       <div className="jh-shell">
@@ -443,44 +561,27 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           </div>
         </div>
         <div className="jh-layout">
-          <nav className="jh-nav" aria-label="Project views">
-            <a href="#overview" aria-current="page">
-              Overview
-            </a>
-            <NotificationsNavLink jobId={jobId} token={token} />
-            {commercialOn ? (
-              <>
-                {pre ? (
-                  <a href="#precon" className="jh-nav-icon">
-                    Pre-construction
-                  </a>
-                ) : null}
-                <a href="#estimate" className="jh-nav-icon">
-                  Estimate &amp; proposal
-                </a>
-                <a href="#contracts" className="jh-nav-icon">
-                  Contracts
-                </a>
-              </>
-            ) : null}
-            {tiles.map((tile) => (
-              <a key={tile.page} href={href(tile.page)}>
-                {tile.title}
-              </a>
-            ))}
-          </nav>
+          <JobHomeNav groups={navGroups} />
           <div className="jh-content" id="overview">
             <header className="jh-hero">
-              <div>
-                <p className="jh-eyebrow">Project Overview</p>
-                <h1>{base.job_name || base.job_number || "Your project"}</h1>
-                <p>
-                  {base.job_number} · {full ? "Project overview" : "Field overview"}
-                </p>
+              <div className="jh-titlebar">
+                <div>
+                  <p className="jh-eyebrow">Project Overview</p>
+                  <h1>{base.job_name || base.job_number || "Your project"}</h1>
+                  <p>
+                    {base.job_number} · {full ? "Project overview" : "Field overview"}
+                  </p>
+                </div>
+                {commercialOn ? (
+                  <div className="jh-phase">
+                    <span className="jh-phase-label">Phase</span>
+                    <StageStrip stage={stage} precon={!!pre} compact />
+                  </div>
+                ) : null}
               </div>
               {full ? (
-                <a className="jh-button" href={href("accounting")}>
-                  Full accounting evidence →
+                <a className="jh-button" href={href("ior")}>
+                  Project financials →
                 </a>
               ) : null}
             </header>
@@ -489,23 +590,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 <JobHomeNotifications jobId={jobId} token={token} />
               </section>
             ) : null}
-            {commercialOn ? (
-              <>
-                <StageStrip stage={stage} precon={!!pre} />
-                <NextStepCard
-                  step={preStep ?? nextStepOf(commercial, base.job_number ?? "")}
-                  href={href}
-                />
-                {offerPrecon ? <PreconOffer jobNumber={base.job_number ?? ""} /> : null}
-                {pre && pre.status !== "closed" ? (
-                  <PreconSection a={pre} jobNumber={base.job_number ?? ""} />
-                ) : null}
-                {estimateFirst ? estimateSection : contractsSection}
-              </>
-            ) : null}
             {full ? (
               <section aria-label="Contract and customer payments">
-                <div className="jh-metrics">
+                <div className="jh-metrics jh-metrics-fit">
                   <article className="jh-metric">
                     <h2>Current contract value</h2>
                     <strong>
@@ -579,6 +666,13 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                     </p>
                     <a href={href("billing-records")}>Invoice evidence and history →</a>
                   </article>
+                  <IorMetrics
+                    loading={financial.isLoading}
+                    signedIn={!!session}
+                    failed={!!financial.error}
+                    ior={money?.ior}
+                    href={href("ior")}
+                  />
                 </div>
                 <div className="jh-separate">
                   <b>Keep separate</b>
@@ -604,59 +698,41 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 authenticated full project access.
               </p>
             )}
-            {commercialOn ? (estimateFirst ? contractsSection : estimateSection) : null}
-            {pre && pre.status === "closed" ? (
-              <PreconSection a={pre} jobNumber={base.job_number ?? ""} />
+            {commercialOn ? (
+              <>
+                <NextStepCard
+                  step={preStep ?? nextStepOf(commercial, base.job_number ?? "")}
+                  href={href}
+                />
+                {offerPrecon ? <PreconOffer jobNumber={base.job_number ?? ""} /> : null}
+                {pre && pre.status !== "closed" ? (
+                  <PreconSection a={pre} jobNumber={base.job_number ?? ""} />
+                ) : null}
+              </>
             ) : null}
             <div className="jh-columns">
-              <section className="jh-panel" aria-labelledby="jh-schedule">
-                <h2 id="jh-schedule">Schedule &amp; next work</h2>
-                <div className="jh-panel-body">
-                  <div className="jh-heading">
-                    <h3>Schedule and two-week lookahead</h3>
-                    <span className="jh-badge">
-                      {state(
-                        schedule,
-                        sched?.found
-                          ? "Saved schedule"
-                          : sched?.found === false
-                            ? "Not recorded"
-                            : "Currently unavailable",
-                      )}
-                    </span>
-                  </div>
-                  <p>
-                    {tiles[0].detail}
-                    {sched?.found && sched.data_date ? ` · Data date ${sched.data_date}` : ""}
-                  </p>
-                  <p>
-                    {state(lookahead, laDetail)}
-                    {laWindow ? ` · ${laWindow.start} through ${laWindow.end}` : ""}
-                  </p>
-                  <div className="jh-actions">
-                    <a className="jh-button" href={href("schedule")}>
-                      Open schedule
+              <section className="jh-panel jh-routines" id="routines" aria-labelledby="jh-routines">
+                <h2 id="jh-routines">Routines &amp; reminders</h2>
+                <div className="jh-panel-body jh-routines-body">
+                  {session ? (
+                    <a className="jh-button" href="/today">
+                      Open existing morning brief →
                     </a>
-                    <a className="jh-button" href={href("lookahead")}>
-                      Two-week lookahead
-                    </a>
-                  </div>
-                  {savedLayouts.length ? (
-                    <div className="jh-layouts" aria-label="Saved schedule layouts">
-                      <p className="jh-small">Saved schedule layouts</p>
-                      <div className="jh-actions">
-                        {savedLayouts.map((l) => (
-                          <a
-                            key={l.id}
-                            className="jh-button jh-button-quiet"
-                            href={layoutHref(l.id)}
-                          >
-                            {l.name}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
                   ) : null}
+                  <details>
+                    <summary>Use existing job routines</summary>
+                    <p>
+                      In your connected Athena chat, ask to run the morning, evening or PM meeting
+                      routine for {base.job_number || "this job"}. These are guided in-app
+                      workflows. Review the saved job and confirm any proposed action.
+                    </p>
+                    <p>
+                      The daily-report reminder appears during your next Athena interaction after
+                      its configured time when today's report is missing. Background push delivery
+                      is not verified here. These routines do not create external calendar events.
+                    </p>
+                  </details>
+                  <a href={href("daily")}>Daily reports and saved field evidence →</a>
                 </div>
                 <div className="jh-panel-body jh-divider">
                   <div className="jh-heading">
@@ -700,115 +776,172 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                   })}
                 </div>
               </section>
-              <section className="jh-panel" aria-labelledby="jh-communications">
-                <h2 id="jh-communications">Latest Athena job communications</h2>
+              <section className="jh-panel" aria-labelledby="jh-schedule">
+                <h2 id="jh-schedule">Schedule &amp; next work</h2>
                 <div className="jh-panel-body">
+                  <div className="jh-heading">
+                    <h3>Schedule and two-week lookahead</h3>
+                    <span className="jh-badge">
+                      {state(
+                        schedule,
+                        sched?.found
+                          ? "Saved schedule"
+                          : sched?.found === false
+                            ? "Not recorded"
+                            : "Currently unavailable",
+                      )}
+                    </span>
+                  </div>
                   <p>
-                    Saved job-linked records only. Drafts, approvals, recorded responses and send
-                    receipts have different meanings.
+                    {scheduleTile.detail}
+                    {sched?.found && sched.data_date ? ` · Data date ${sched.data_date}` : ""}
                   </p>
-                  {!full || !session ? (
-                    <p>Sign in with full project access to view these records.</p>
-                  ) : communications.isLoading ? (
-                    <p role="status">Loading communications…</p>
-                  ) : communications.error ? (
-                    <p>Currently unavailable. No empty result is inferred.</p>
-                  ) : comms?.length === 0 ? (
-                    <p>
-                      No matching communication records in the latest saved source windows. This is
-                      not an inbox or a complete email history.
-                    </p>
-                  ) : !comms ? (
-                    <p>Currently unavailable.</p>
-                  ) : null}
-                  {comms?.map((row) => (
-                    <article className="jh-comm" id={row.id} key={row.id}>
-                      <span className="jh-badge">{row.status}</span>
-                      <h3>{row.title}</h3>
-                      <time dateTime={row.when}>
-                        {row.when.replace("T", " ").replace("Z", " UTC")}
-                      </time>
-                      <p>{row.basis}</p>
-                      <details>
-                        <summary>Source record</summary>
-                        <p>
-                          {row.sourceTable === "mcp_submittal_mail"
-                            ? "Saved delivery record"
-                            : "Saved project event"}{" "}
-                          · {row.sourceId}
-                        </p>
-                        {row.page ? (
+                  <p>
+                    {state(lookahead, laDetail)}
+                    {laWindow ? ` · ${laWindow.start} through ${laWindow.end}` : ""}
+                  </p>
+                  <div className="jh-actions">
+                    <a className="jh-button" href={href("schedule")}>
+                      Open schedule
+                    </a>
+                    <a className="jh-button" href={href("lookahead")}>
+                      Two-week lookahead
+                    </a>
+                  </div>
+                  {savedLayouts.length ? (
+                    <div className="jh-layouts" aria-label="Saved schedule layouts">
+                      <p className="jh-small">Saved schedule layouts</p>
+                      <div className="jh-actions">
+                        {savedLayouts.map((l) => (
                           <a
-                            href={`${href(row.page)}${row.anchor ? `#${detailAnchor("submittal", row.anchor)}` : ""}`}
+                            key={l.id}
+                            className="jh-button jh-button-quiet"
+                            href={layoutHref(l.id)}
                           >
-                            Open source log and history →
+                            {l.name}
                           </a>
-                        ) : (
-                          <p>
-                            Ask Athena for this job's project-record event by this source ID.
-                            Generic email authorizations have no delivery receipt link.
-                          </p>
-                        )}
-                      </details>
-                    </article>
-                  ))}
-                  {comms?.length ? (
-                    <p className="jh-small">
-                      Up to 12 latest matching records from the latest 100 events and 100 mail
-                      drafts. A host receipt is not independent provider confirmation. No personal
-                      inbox is read.
-                    </p>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               </section>
             </div>
-            <section className="jh-panel jh-routines" aria-labelledby="jh-routines">
-              <h2 id="jh-routines">Routines &amp; reminders</h2>
+            <section className="jh-panel jh-more" aria-labelledby="jh-more">
+              <h2 id="jh-more">More Athena can do on this job</h2>
               <div className="jh-panel-body">
-                {session ? (
-                  <a className="jh-button" href="/today">
-                    Open existing morning brief →
-                  </a>
-                ) : null}
-                <details>
-                  <summary>Use existing job routines</summary>
-                  <p>
-                    In your connected Athena chat, ask to run the morning, evening or PM meeting
-                    routine for {base.job_number || "this job"}. These are guided in-app workflows.
-                    Review the saved job and confirm any proposed action.
-                  </p>
-                  <p>
-                    The daily-report reminder appears during your next Athena interaction after its
-                    configured time when today's report is missing. Background push delivery is not
-                    verified here. These routines do not create external calendar events.
-                  </p>
-                </details>
-                <a href={href("daily")}>Daily reports and saved field evidence →</a>
+                <p>Copy a prompt, then paste it in your Athena chat in ChatGPT or Claude.</p>
+                <ul className="jh-more-list">
+                  {morePrompts(base.job_number || "this job", full).map((m) => (
+                    <li key={m.ask}>
+                      <div>
+                        <strong>{m.ask}</strong>
+                        <span>{m.what}</span>
+                      </div>
+                      <CopyAsk ask={m.ask} label="Copy Athena prompt" />
+                    </li>
+                  ))}
+                </ul>
               </div>
             </section>
-            <section className="jh-panel" aria-labelledby="jh-evidence">
-              <h2 id="jh-evidence">
-                {full ? "Commercial evidence & project views" : "Project evidence & views"}
+            <section className="jh-panel" id="dig" aria-labelledby="jh-evidence">
+              <h2 id="jh-evidence" className="jh-dig-title">
+                <Shovel size={18} aria-hidden="true" />
+                Dig deeper on this project
               </h2>
               <div className="jh-panel-body">
                 <p>
-                  Open the source workspace for recorded measures, original documents, versions and
-                  history. Access to financial originals is checked separately for your role.
+                  Open any board for its records, original documents, versions and history. Access
+                  to financial originals is checked separately for your role.
                 </p>
-                <div className="jh-grid">
-                  {tiles.map((tile) => (
-                    <a className="jh-card" key={tile.page} href={href(tile.page)}>
-                      <strong>{tile.title}</strong>
-                      <span>{tile.detail}</span>
-                      <b>Open →</b>
-                    </a>
-                  ))}
-                </div>
+                {tileGroups.map((g) => (
+                  <div className="jh-dig-group" key={g.id}>
+                    <h3>{g.title}</h3>
+                    <div className="jh-grid">
+                      {g.tiles.map((tile) => (
+                        <a className="jh-card" key={tile.page} href={href(tile.page)}>
+                          <strong>{tile.title}</strong>
+                          <span>{tile.detail}</span>
+                          <b>Open →</b>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
                 <p className="jh-note">
-                  Contracts and the estimate are in their sections above. Specifications and
-                  drawings are available through Athena in chat: ask to list this job’s project
-                  documents or drawing sets.
+                  Specifications and drawings are available through Athena in chat: ask to list this
+                  job’s project documents or drawing sets.
                 </p>
+              </div>
+            </section>
+            {commercialOn ? (
+              <>
+                {estimateFirst ? estimateSection : contractsSection}
+                {estimateFirst ? contractsSection : estimateSection}
+              </>
+            ) : null}
+            {pre && pre.status === "closed" ? (
+              <PreconSection a={pre} jobNumber={base.job_number ?? ""} />
+            ) : null}
+            <section className="jh-panel" id="communications" aria-labelledby="jh-communications">
+              <h2 id="jh-communications">Latest Athena job communications</h2>
+              <div className="jh-panel-body">
+                <p>
+                  Saved job-linked records only. Drafts, approvals, recorded responses and send
+                  receipts have different meanings.
+                </p>
+                {!full || !session ? (
+                  <p>Sign in with full project access to view these records.</p>
+                ) : communications.isLoading ? (
+                  <p role="status">Loading communications…</p>
+                ) : communications.error ? (
+                  <p>Currently unavailable. No empty result is inferred.</p>
+                ) : comms?.length === 0 ? (
+                  <p>
+                    No matching communication records in the latest saved source windows. This is
+                    not an inbox or a complete email history.
+                  </p>
+                ) : !comms ? (
+                  <p>Currently unavailable.</p>
+                ) : null}
+                {comms?.map((row) => (
+                  <article className="jh-comm" id={row.id} key={row.id}>
+                    <span className="jh-badge">{row.status}</span>
+                    <h3>{row.title}</h3>
+                    <time dateTime={row.when}>
+                      {row.when.replace("T", " ").replace("Z", " UTC")}
+                    </time>
+                    <p>{row.basis}</p>
+                    <details>
+                      <summary>Source record</summary>
+                      <p>
+                        {row.sourceTable === "mcp_submittal_mail"
+                          ? "Saved delivery record"
+                          : "Saved project event"}{" "}
+                        · {row.sourceId}
+                      </p>
+                      {row.page ? (
+                        <a
+                          href={`${href(row.page)}${row.anchor ? `#${detailAnchor("submittal", row.anchor)}` : ""}`}
+                        >
+                          Open source log and history →
+                        </a>
+                      ) : (
+                        <p>
+                          Ask Athena for this job's project-record event by this source ID. Generic
+                          email authorizations have no delivery receipt link.
+                        </p>
+                      )}
+                    </details>
+                  </article>
+                ))}
+                {comms?.length ? (
+                  <p className="jh-small">
+                    Up to 12 latest matching records from the latest 100 events and 100 mail drafts.
+                    A host receipt is not independent provider confirmation. No personal inbox is
+                    read.
+                  </p>
+                ) : null}
               </div>
             </section>
             {session && full ? (
@@ -831,4 +964,139 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       </div>
     </main>
   );
+}
+
+/** What the board shows from the job's saved IOR: the same rollup the IOR page draws. */
+type IorFigures =
+  | { state: "none" }
+  | { state: "unread"; version: number | null }
+  | {
+      state: "read";
+      version: number | null;
+      costKnown: boolean;
+      cost: number;
+      riskCost: number;
+      gp: number;
+      pct: number;
+    };
+
+export function iorFigures(payload: unknown): IorFigures | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as { found?: unknown; version?: unknown; data?: unknown };
+  if (p.found === false) return { state: "none" };
+  if (p.found !== true) return null;
+  const version = typeof p.version === "number" ? p.version : null;
+  const { model } = readIorModel(p.data);
+  if (!model) return { state: "unread", version };
+  const r = iorRollup(model);
+  return {
+    state: "read",
+    version,
+    costKnown: r.costKnown,
+    cost: Math.round(r.originalCost),
+    riskCost: Math.round(r.forecastCost),
+    gp: Math.round(r.indicatedGP),
+    pct: r.indicatedPct,
+  };
+}
+
+/** Budget and gross margin next to the customer money, read from the saved IOR. Unknown never shows as zero. */
+function IorMetrics({
+  loading,
+  signedIn,
+  failed,
+  ior,
+  href,
+}: {
+  loading: boolean;
+  signedIn: boolean;
+  failed: boolean;
+  ior: IorFigures | null | undefined;
+  href: string;
+}) {
+  const blocked = loading
+    ? "Loading…"
+    : !signedIn
+      ? "Sign in to view"
+      : failed || !ior
+        ? "Currently unavailable"
+        : null;
+  const read = !blocked && ior?.state === "read" ? ior : null;
+  const v = read?.version != null ? ` · IOR v${read.version}` : "";
+  const budget =
+    blocked ??
+    (ior?.state === "none"
+      ? "No IOR yet"
+      : !read
+        ? "On the IOR page"
+        : read.costKnown
+          ? accountingMoney(read.cost)
+          : "Not saved");
+  const margin =
+    blocked ??
+    (ior?.state === "none"
+      ? "No IOR yet"
+      : !read
+        ? "On the IOR page"
+        : read.costKnown
+          ? `${read.pct.toFixed(1)}%`
+          : "Needs a cost budget");
+  return (
+    <>
+      <article className="jh-metric">
+        <h2>Cost budget</h2>
+        <strong>{budget}</strong>
+        <p>
+          {read?.costKnown
+            ? `Risk-adjusted cost ${accountingMoney(read.riskCost)}${v}.`
+            : ior?.state === "none" && !blocked
+              ? "No Indicated Outcome Report is saved for this job yet."
+              : "From the job's saved Indicated Outcome Report."}
+        </p>
+        <a href={href}>Open the IOR →</a>
+      </article>
+      <article className="jh-metric">
+        <h2>Indicated gross margin</h2>
+        <strong>{margin}</strong>
+        <p>
+          {read?.costKnown
+            ? `Indicated gross profit ${accountingMoney(read.gp)} after holds${v}.`
+            : "Gross profit after risk holds, from the saved IOR."}
+        </p>
+        <a href={href}>Profit track and risks →</a>
+      </article>
+    </>
+  );
+}
+
+/** Asks members can copy into their Athena chat. Each one is something Athena's tools already do. */
+function morePrompts(job: string, full: boolean) {
+  const all = [
+    {
+      ask: `Hey Athena, run a gap check on the ${job} estimate`,
+      what: "Checks the drawings, notes, specs and contract against the estimate.",
+      full: true,
+    },
+    {
+      ask: `Hey Athena, build Good, Better, Best options for ${job}`,
+      what: "Puts options on the client page for the owner to pick.",
+      full: true,
+    },
+    {
+      ask: `Hey Athena, draft today's daily report for ${job}`,
+      what: "Starts the daily from the schedule and crews.",
+      full: false,
+    },
+    {
+      ask: `Hey Athena, prepare the next pay app for ${job}`,
+      what: "Builds it from the schedule of values.",
+      full: true,
+    },
+    {
+      ask: `Hey Athena, which submittals on ${job} need a follow-up?`,
+      what: "Finds the overdue ones and drafts the follow-ups for you to send.",
+      full: false,
+    },
+  ];
+  return all.filter((p) => full || !p.full);
 }
