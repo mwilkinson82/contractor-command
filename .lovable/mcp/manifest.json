@@ -19512,7 +19512,7 @@
       {
         "name": "customer_portal",
         "title": "Customer page",
-        "description": "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the customer should see, client_number) for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
+        "description": "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the member confirms the customer will see, client_number) for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -19610,7 +19610,7 @@
             "client_number": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 40
+              "maxLength": 60
             },
             "due_on": {
               "type": "string",

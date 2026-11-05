@@ -736,12 +736,12 @@ describe("billing: pay applications", () => {
     expect(start.headers.get("location")).toBe(
       `/c/${ACCESS}?s=billing&i=${PAY}&step=confirm&sent=1`,
     );
-    expect(mail.at(-1)!.text).toContain("confirm your decision on Pay application 7");
+    expect(mail.at(-1)!.text).toContain("confirm your decision on Payment Application 7");
     const confirm = await (
       await handlePortal(req(start.headers.get("location")!, { cookie: true }), ACCESS, d)
     ).text();
     const statement =
-      "I approve Pay application 7 from Northline Builders for $13,500.00 due for work through Oct 31, 2026, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.";
+      "I approve Payment Application 7 from Northline Builders for $13,500.00 due for work through Oct 31, 2026, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.";
     expect(confirm).toContain(statement);
     expect(confirm).toContain("Approve pay application");
     expect(confirm).toContain('name="agree" value="1" required');
@@ -790,7 +790,7 @@ describe("billing: pay applications", () => {
     const pm = mail.at(-1)!;
     expect(pm).toMatchObject({
       to: "pat@example.com",
-      subject: "Customer approved: Pay application 7",
+      subject: "Customer approved: Payment Application 7",
     });
     expect(pm.text).toContain("Nothing in billing changed");
     expect(pm.text).not.toContain("$");
@@ -820,7 +820,7 @@ describe("billing: pay applications", () => {
     expect(calls.find((c) => c.fn === "mcp_portal_decide")!.args).toMatchObject({
       _decision: "declined",
       _code_hash: null,
-      _statement: "I decline Pay application 7 from Northline Builders.",
+      _statement: "I decline Payment Application 7 from Northline Builders.",
     });
     const receipt = await (
       await handlePortal(req(`/c/${ACCESS}?s=billing&i=${PAY_OLD}`, { cookie: true }), ACCESS, d)
@@ -838,15 +838,15 @@ describe("billing: pay applications", () => {
       jobName: "Harbor Point Dental",
       link: `${ORIGIN}/c/${ACCESS}`,
       kind: "decision",
-      label: "Pay application 7",
+      label: "Payment Application 7",
       item: "pay_app",
       nonce: "n",
     });
     expect(m.subject).toBe(
-      "Northline Builders sent a pay application for your approval: Pay application 7",
+      "Northline Builders sent a pay application for your approval: Payment Application 7",
     );
     expect(m.text).toContain(
-      "Northline Builders sent pay application 7 for Harbor Point Dental. It needs your review and approval.",
+      "Northline Builders sent Payment Application 7 for Harbor Point Dental. It needs your review and approval.",
     );
     expect(m.html).toContain("A pay application needs your approval");
   });

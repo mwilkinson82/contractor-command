@@ -9,7 +9,7 @@ import { gbbSql } from "../../../tests/selections/sql";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 import { tokenHash } from "../mcp/file-share";
 import { codeHash } from "./server";
-import { portalViewSchema } from "./model";
+import { payAppLabel, portalViewSchema } from "./model";
 import { applicationFixture } from "../payment-applications/fixtures";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
@@ -807,7 +807,9 @@ describe.sequential("customer page pay applications", () => {
       null,
       code,
       "Rosa Delgado",
-      decision === "approved" ? "I approve Pay application 7." : "I decline Pay application 7.",
+      decision === "approved"
+        ? "I approve Payment Application 7."
+        : "I decline Payment Application 7.",
       fp,
       decision === "declined" ? "Retainage looks high" : null,
       "203.0.113.9",
@@ -851,7 +853,7 @@ describe.sequential("customer page pay applications", () => {
       kind: "pay_app",
       application_id: app,
       version: 2,
-      label: "Pay application 7",
+      label: "Payment Application 7",
       due_on: due,
       company: "Northline Builders",
       job_name: "Harbor Point Garage",
@@ -861,7 +863,7 @@ describe.sequential("customer page pay applications", () => {
     ]);
     // The whole frozen view, field for field: nothing else from the application reaches the owner.
     expect(shared.view).toEqual({
-      number: "7",
+      number: "Payment Application 7",
       period_start: "2026-01-01",
       period_end: "2026-01-31",
       original_contract_cents: 10000000,
@@ -913,7 +915,7 @@ describe.sequential("customer page pay applications", () => {
       expect(s, secret).not.toContain(secret);
     expect((await member("mcp_portal_list", [job2])).items[0]).toMatchObject({
       kind: "pay_app",
-      label: "Pay application 7",
+      label: "Payment Application 7",
     });
   });
 
@@ -948,7 +950,7 @@ describe.sequential("customer page pay applications", () => {
     const r = await decide(shared.item_id, "declined", null, shared.fingerprint);
     expect(r).toMatchObject({
       status: "ok",
-      label: "Pay application 7",
+      label: "Payment Application 7",
       pm_email: "pat@example.com",
     });
     const d = (
@@ -1019,7 +1021,7 @@ describe.sequential("customer page pay applications", () => {
       confirmed: true,
     });
     expect(shareTool.content[0]!.text).toContain(
-      "Shared Pay application 7 (version 4) for the customer's approval: $13,500.00 due",
+      "Shared Payment Application 7 (version 4) for the customer's approval: $13,500.00 due",
     );
     expect(shareTool.content[0]!.text).not.toContain("SECRET");
     const cur = (await view()).items.find((i: J) => i.id === shareTool.structuredContent!.item_id);
@@ -1039,7 +1041,7 @@ describe.sequential("customer page pay applications", () => {
     const ok = await decide(cur.item_id, "approved", code, cur.fingerprint);
     expect(ok).toMatchObject({
       status: "ok",
-      label: "Pay application 7",
+      label: "Payment Application 7",
       customer: "Rosa Delgado",
     });
     expect((await decide(cur.item_id, "approved", code, cur.fingerprint)).status).toBe("not_open");
@@ -1073,26 +1075,32 @@ describe.sequential("customer page pay applications", () => {
     });
   });
 
-  it("reads a plain saved number as it is and asks for a name when it looks like a code", async () => {
-    const plain = async (n: string) =>
-      (await db.query<Row>("SELECT mcp_private.portal_pay_app_plain($1) AS ok", [n])).rows[0]!.ok;
+  it("reads a plain saved number as a number, and labels exactly what was shared", async () => {
+    const one = async (sql: string, n: string) => (await db.query<Row>(sql, [n])).rows[0]!.v;
+    const plain = (n: string) => one("SELECT mcp_private.portal_pay_app_plain($1) AS v", n);
+    const label = (n: string) => one("SELECT mcp_private.portal_pay_app_label($1) AS v", n);
     for (const n of [
       "2",
       "#2",
       " 12 ",
       "Pay application 2",
+      "Payment Application 2",
       "application #3",
       "Pay app 4",
-      "App 5",
     ])
       expect(await plain(n), n).toBe(true);
     for (const n of ["WC-2810-PA-NOV-2026-DRAFT", "2026-11", "PA-2", "Draft 2", "", "12345"])
       expect(await plain(n), n).toBe(false);
+    expect(await label("2")).toBe("Payment Application 2");
+    expect(await label("#3")).toBe("Payment Application 3");
+    expect(await label("Progress Billing 2 - November")).toBe("Progress Billing 2 - November");
+    expect(payAppLabel("2")).toBe("Payment Application 2");
+    expect(payAppLabel("Progress Billing 2 - November")).toBe("Progress Billing 2 - November");
   });
 
-  it("shows the customer the name the member gives, and never changes the saved number", async () => {
-    // An application saved under a code-like number (as older drafts were), set up directly: a second application on
-    // this job would have to carry the first one forward, which this test is not about.
+  it("pre-fills Payment Application and the number, shares exactly the name confirmed, and keeps the saved number", async () => {
+    // An application saved under a code-like number (as older drafts were), billed after work invoiced outside Athena.
+    // Set up directly: a second saved application would have to carry the first forward, which isn't what this tests.
     const coded = crypto.randomUUID();
     const number = "WC-2716-PA-NOV-2026-DRAFT";
     await db.query(
@@ -1102,49 +1110,71 @@ describe.sequential("customer page pay applications", () => {
     );
     await db.query(
       `INSERT INTO mcp_payment_application_versions (application_id, version, job_id, body, calculation, billing_version, recorded_by)
-       SELECT $1, 1, job_id, jsonb_set(body, '{number}', to_jsonb($2::text)), calculation, billing_version, recorded_by
+       SELECT $1, 1, job_id, body || jsonb_build_object('number', $2::text, 'prior_mode', 'external'), calculation, billing_version, recorded_by
          FROM mcp_payment_application_versions WHERE application_id = $3 ORDER BY version DESC LIMIT 1`,
       [coded, number, app],
     );
     const shareAs = (name: string | null) =>
       member("mcp_portal_share_pay_app", [job2, coded, null, null, due, name]);
-    // Left unnamed, the code never reaches the customer: the member is asked what to call it.
+    // Before the member confirms, Athena pre-fills the full name for them to keep or change.
+    expect(await member("mcp_portal_pay_app_name", [job2, coded, null])).toMatchObject({
+      saved_number: number,
+      shared_name: null,
+      suggested_name: "Payment Application 2",
+    });
+    await expect(
+      tool({ action: "share_pay_app", job_number: "2716", application_id: coded, due_on: due }),
+    ).rejects.toThrow(
+      /pre-filled as "Payment Application 2".*keep it or type any name.*Nothing was shared/,
+    );
+    await expect(
+      member("mcp_portal_pay_app_name", [job2, coded, null], outsider),
+    ).rejects.toThrow();
+    // Left unnamed, the code never reaches the customer.
     await expect(
       member("mcp_portal_share_pay_app", [job2, coded, null, null, due]),
-    ).rejects.toThrow(/saved as "WC-2716-PA-NOV-2026-DRAFT".*client_number.*Nothing was shared/);
-    await expect(shareAs("x".repeat(41))).rejects.toThrow(/40 characters/);
-    // From chat, the member names it; the page, the label and the emails all use that name.
+    ).rejects.toThrow(
+      /saved as "WC-2716-PA-NOV-2026-DRAFT".*pre-filled as "Payment Application 2".*client_number.*Nothing was shared/,
+    );
+    await expect(shareAs("x".repeat(61))).rejects.toThrow(/60 characters/);
+    // The member keeps the pre-filled name; the page, the label and the emails all use it.
     const named = await tool({
       action: "share_pay_app",
       job_number: "2716",
       application_id: coded,
-      client_number: "2",
+      client_number: "Payment Application 2",
       due_on: due,
       notify: false,
       confirmed: true,
     });
     const text = named.content[0]!.text;
-    expect(text).toContain("Shared Pay application 2 (version 1)");
+    expect(text).toContain("Shared Payment Application 2 (version 1)");
     expect(text).not.toContain(number);
     const item = named.structuredContent!.item_id as string;
     const first = (await view()).items.find((i: J) => i.id === item);
-    expect(first.view.number).toBe("2");
+    expect(first.view.number).toBe("Payment Application 2");
     expect(JSON.stringify(first)).not.toContain(number);
     // A re-share without a name keeps the name it was shared under.
     const again = await shareAs(null);
-    expect(again).toMatchObject({ item_id: item, number: "2", label: "Pay application 2" });
+    expect(again).toMatchObject({ item_id: item, label: "Payment Application 2" });
     expect(again.fingerprint).toBe(first.fingerprint);
-    // Renaming an undecided share moves its frozen view and fingerprint with it.
-    const renamed = await shareAs("Pay application 3");
-    expect(renamed).toMatchObject({ item_id: item, label: "Pay application 3" });
+    expect(await member("mcp_portal_pay_app_name", [job2, coded, null])).toMatchObject({
+      shared_name: "Payment Application 2",
+      suggested_name: "Payment Application 2",
+    });
+    // Any name the member types is shown exactly; renaming an undecided share moves its view and fingerprint.
+    const renamed = await shareAs("Progress Billing 2 - November");
+    expect(renamed).toMatchObject({ item_id: item, label: "Progress Billing 2 - November" });
     expect(renamed.fingerprint).not.toBe(first.fingerprint);
     const shown = (await view()).items.find((i: J) => i.id === item);
     expect(shown).toMatchObject({ fingerprint: renamed.fingerprint });
-    expect(shown.view.number).toBe("Pay application 3");
+    expect(shown.view.number).toBe("Progress Billing 2 - November");
     expect((await decide(item, "declined", null, first.fingerprint)).status).toBe("changed");
+    // A bare number is stored as the full name.
+    expect(await shareAs("3")).toMatchObject({ label: "Payment Application 3" });
     expect(
       (await member("mcp_portal_list", [job2])).items.find((i: J) => i.item_id === item),
-    ).toMatchObject({ label: "Pay application 3" });
+    ).toMatchObject({ label: "Payment Application 3" });
     // The saved pay application keeps its own number.
     const saved = await db.query<Row>(
       "SELECT DISTINCT body->>'number' AS n FROM mcp_payment_application_versions WHERE application_id=$1",

@@ -66,10 +66,10 @@ export const payAppViewSchema = z
   .strict();
 export type PayAppView = z.infer<typeof payAppViewSchema>;
 
-/** "Pay application 3"; a number that already says so ("Application 3") stays as it is. Same rule as the SQL label. */
+/** The name the member confirmed when sharing, exactly; a bare number reads "Payment Application 3". Same rule as the SQL label. */
 export function payAppLabel(number: string): string {
   const n = number.trim();
-  return /^(pay\s+)?app(lication)?\b/i.test(n) ? n : `Pay application ${n.replace(/^#+/, "")}`;
+  return /^#?\d{1,4}$/.test(n) ? `Payment Application ${n.replace(/^#+/, "")}` : n;
 }
 
 const decisionSchema = z
