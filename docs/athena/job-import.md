@@ -237,7 +237,7 @@ through Lovable). Adds `mcp_import_batches`, `mcp_import_records`,
 Rollback: `supabase/rollbacks/20261104160000_athena_job_import.rollback.sql`.
 
 `supabase/migrations/20261105090000_athena_job_import_whole_job.sql` (same
-content as `drizzle/migrations/0079_athena_job_import_whole_job.sql`; stage
+content as `drizzle/migrations/0086_athena_job_import_whole_job.sql`; stage
 only) widens `mcp_import_records.source_kind`, adds `mcp_import_archive`, and
 replaces `mcp_job_import_context` (adds `has_ior`, `archived`),
 `mcp_job_import_stage` (accepts package version 2) and `mcp_job_import_apply`
@@ -246,7 +246,7 @@ an IOR or archive is version 2, so a database without this migration refuses it
 instead of saving part of it.
 
 `supabase/migrations/20261105100000_athena_job_logs.sql` (same content as
-`drizzle/migrations/0080_athena_job_logs.sql`; stage only; needs
+`drizzle/migrations/0087_athena_job_logs.sql`; stage only; needs
 20261105090000 first):
 
 - Replaces `mcp_living_report_save` so a CPM ties only when cost loaded.
