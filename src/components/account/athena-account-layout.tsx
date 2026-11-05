@@ -430,8 +430,8 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
                 <div className="aa-identity-note">
                   <ShieldCheck size={15} />
                   <p>
-                    You sign in with this email and a code we send you. Use the same email when you
-                    connect Athena to your chat.
+                    You sign in with this email and a code we send you, or with your password if you
+                    set one. Use the same email when you connect Athena to your chat.
                   </p>
                 </div>
               </section>
