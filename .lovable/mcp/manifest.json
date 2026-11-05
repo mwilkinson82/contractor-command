@@ -1782,7 +1782,7 @@
       {
         "name": "onboarding",
         "title": "Company profile and members",
-        "description": "Reads or saves the company profile and its members.",
+        "description": "Reads or saves the company profile, its members and the kinds of work it does, such as markets, pricing, open or union shop, prevailing wage, unit price, pre-con and service calls.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -1790,8 +1790,8 @@
           "idempotentHint": true
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "action": {
               "type": "string",
@@ -1799,13 +1799,106 @@
                 "read",
                 "save_company",
                 "add_member",
-                "save_brand"
+                "save_brand",
+                "save_work_profile"
               ]
             },
             "company_id": {
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "work_markets": {
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "public_low_bid",
+                  "private_commercial",
+                  "residential_renovation",
+                  "custom_homes"
+                ]
+              }
+            },
+            "work_pricing": {
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "lump_sum",
+                  "cost_plus",
+                  "gmp",
+                  "time_and_material"
+                ]
+              }
+            },
+            "work_regions": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "work_shop": {
+              "type": "string",
+              "enum": [
+                "open_shop",
+                "union_shop",
+                "both"
+              ]
+            },
+            "work_wage_rules": {
+              "maxItems": 2,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "prevailing_wage",
+                  "pla"
+                ]
+              }
+            },
+            "work_unit_price": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ]
+            },
+            "work_preconstruction": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ]
+            },
+            "work_service_calls": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ]
+            },
+            "work_skip": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "markets",
+                  "pricing",
+                  "regions",
+                  "shop",
+                  "wage_rules",
+                  "unit_price",
+                  "preconstruction",
+                  "service_calls"
+                ]
+              }
             },
             "name": {
               "type": "string",
@@ -2252,6 +2345,53 @@
                 "prime",
                 "sub",
                 "sub_sub"
+              ]
+            },
+            "job_location": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "labor_shop": {
+              "type": "string",
+              "enum": [
+                "union",
+                "open_shop"
+              ]
+            },
+            "prevailing_wage": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "na",
+                "unknown"
+              ]
+            },
+            "pla": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "na",
+                "unknown"
+              ]
+            },
+            "preconstruction": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "na",
+                "unknown"
+              ]
+            },
+            "unit_price_items": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "na",
+                "unknown"
               ]
             },
             "use_defaults": {

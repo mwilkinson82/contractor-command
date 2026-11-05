@@ -1,3 +1,4 @@
+import { jobLaborTerms } from "../work-profile";
 import {
   engineSnapshot,
   verifiedLines,
@@ -437,11 +438,13 @@ export const estimatePricing = defineTool({
         );
         const asked = (args.labor?.length ?? 0) + (args.material?.length ?? 0) > 0;
         const onFile = prior.labor.length + prior.material.length > 0;
+        const laborTerms = await jobLaborTerms(sb, job.job_id);
         if (!asked && !onFile && !args.quotes?.length && !prior.quotes.length) {
           return present(
             "Pricing",
             [
               `${named(job)} · Pricing`,
+              ...(laborTerms ? [laborTerms] : []),
               "Before pricing, send the labor rate and the material rate, or save them on this job first.",
               "Labor: production per man-hour, or the man-hours you already have, crew size, hours in a man-day, and an hourly rate or a blended crew rate.",
               "Material: a unit price for each line.",
@@ -525,6 +528,7 @@ export const estimatePricing = defineTool({
         }
         const body = [
           `${named(job)} · Pricing`,
+          ...(laborTerms ? [laborTerms] : []),
           loaded.setup.role === "gc"
             ? "General contractor: labor plus material is the basis for checking a sub quote."
             : "Self-performer: labor is man-hours or man-days from your production, times your rate.",
@@ -676,6 +680,7 @@ export const estimateRateSources = defineTool({
         await audit(sb, job, "estimate_rate_sources", "save_estimate_rate_sources", null);
         const body = [
           `${named(job)} · Rate references`,
+          ...(await jobLaborTerms(sb, job.job_id).then((t) => (t ? [t] : []))),
           ...sourceAsk(),
           ...(sources.length
             ? sources.map((source) =>
