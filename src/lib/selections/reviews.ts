@@ -34,7 +34,29 @@ export type ReviewGrant = {
   /** Several options reviewed together in one confirmed call (one markup applied to many). */
   options?: { id: string; tier: OptionName }[];
   base?: boolean;
+  /** The member confirmed each package's extra time and added cost in this call. */
+  terms?: boolean;
 };
+
+// What the confirmed time and added cost cover: the terms themselves and the packages they sit on
+// (which product and price each package holds, the quantities and the base package). A change to
+// any of these can change the time or cost a package needs, so the member confirms them again.
+const termsKey = (b: Board) =>
+  canonical({
+    terms: b.proposal.change_terms ? { ...b.proposal.change_terms, reviewed_on: null } : null,
+    base: b.proposal.base_tier,
+    selections: b.selections
+      .map((s) => [
+        s.id.toLowerCase(),
+        s.quantity,
+        optionNames.map((t) => [
+          s.options[t].manufacturer,
+          s.options[t].model,
+          s.options[t].price_cents,
+        ]),
+      ])
+      .sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1)),
+  });
 const granted = (grant: ReviewGrant, id: string, tier: OptionName) =>
   [...(grant.option ? [grant.option] : []), ...(grant.options ?? [])].some(
     (g) => g.id.toLowerCase() === id.toLowerCase() && g.tier === tier,
@@ -84,6 +106,20 @@ export function enforceReviews(
   ) {
     proposal.base_reviewed_on = null;
     cleared.push("base proposal price");
+  }
+  const terms = proposal.change_terms;
+  if (
+    terms &&
+    terms.reviewed_on !== null &&
+    !grant.terms &&
+    !(
+      !currencyChanged &&
+      prev.proposal.change_terms?.reviewed_on === terms.reviewed_on &&
+      termsKey(prev) === termsKey(board)
+    )
+  ) {
+    terms.reviewed_on = null;
+    cleared.push("extra time and added cost");
   }
   return { board, cleared };
 }

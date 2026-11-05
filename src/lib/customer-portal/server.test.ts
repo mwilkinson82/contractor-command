@@ -886,15 +886,23 @@ describe("package choice follows the job's contract stage", () => {
 
   it("under contract, an upgrade is added by change order the customer approves", async () => {
     const html = await page(true);
-    expect(html).toContain("the difference is added to your contract by change order");
+    expect(html).toContain(
+      "Choosing another package approves the difference as a change order to your contract",
+    );
     const confirm = await page(
       true,
       `/c/${ACCESS}?s=selections&i=${SEL}&step=confirm&sent=1&choice=best`,
     );
-    expect(confirm).toContain("prepares a change order for the");
+    expect(confirm).toContain("Approve your change order");
     expect(confirm).toContain(
-      "Your contract price changes only when you approve that change order.",
+      "Confirming approves a change order to your contract for +$1,686.00.",
     );
+    // The time is stated right before the code, and the button says what it does.
+    const form = confirm.slice(confirm.indexOf("Approve your change order"));
+    expect(form.indexOf("No additional time is necessary for this change.")).toBeLessThan(
+      form.indexOf('name="code"'),
+    );
+    expect(form).toContain("Approve change order</button>");
   });
 
   it("tells the PM whether a change order was drafted", async () => {
@@ -905,7 +913,9 @@ describe("package choice follows the job's contract stage", () => {
         pm_email: "pat@example.com",
         under_contract: true,
         difference_cents: 168600,
+        schedule_days: 0,
         change_order_number: "PCO-005",
+        co_number: "CO-002",
       },
     });
     const csrf = await csrfFor(SESSION);
@@ -930,7 +940,7 @@ describe("package choice follows the job's contract stage", () => {
     );
     const m = mail.at(-1)!;
     expect(m.text).toContain(
-      "Athena drafted change order PCO-005 for the package difference of $1,686.00",
+      "the customer's signed choice approved change order CO-002 (PCO-005) for the package difference of $1,686.00, with no added time",
     );
     const { d: d2, mail: mail2 } = deps({
       decide: {

@@ -17857,7 +17857,7 @@
       {
         "name": "selection_board",
         "title": "Good, Better, Best selections",
-        "description": "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
+        "description": "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), sets each upgrade package's extra schedule days and added cost before it goes to the customer (set_change_terms, 0 by default), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -17890,6 +17890,7 @@
                 "review_price",
                 "apply_markup",
                 "set_proposal",
+                "set_change_terms",
                 "remove_selection",
                 "save"
               ]
@@ -18493,6 +18494,76 @@
               },
               "additionalProperties": false
             },
+            "change_terms": {
+              "description": "set_change_terms only: extra schedule days and added cost beyond the product price for each upgrade package, as the member gives them. Leave a package out to keep it as is; both default to 0. The base package is the contract scope and takes none.",
+              "type": "object",
+              "properties": {
+                "good": {
+                  "type": "object",
+                  "properties": {
+                    "schedule_days": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3650
+                    },
+                    "added_cents": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 999999999999
+                    },
+                    "added_note": {
+                      "type": "string",
+                      "maxLength": 300,
+                      "description": "What the added cost is for, as the customer reads it, e.g. Extra install labor."
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "better": {
+                  "type": "object",
+                  "properties": {
+                    "schedule_days": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3650
+                    },
+                    "added_cents": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 999999999999
+                    },
+                    "added_note": {
+                      "type": "string",
+                      "maxLength": 300,
+                      "description": "What the added cost is for, as the customer reads it, e.g. Extra install labor."
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "best": {
+                  "type": "object",
+                  "properties": {
+                    "schedule_days": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3650
+                    },
+                    "added_cents": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 999999999999
+                    },
+                    "added_note": {
+                      "type": "string",
+                      "maxLength": 300,
+                      "description": "What the added cost is for, as the customer reads it, e.g. Extra install labor."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
             "review_base_price": {
               "type": "boolean"
             },
@@ -18575,6 +18646,105 @@
                     "terms": {
                       "type": "string",
                       "maxLength": 2000
+                    },
+                    "change_terms": {
+                      "type": "object",
+                      "properties": {
+                        "good": {
+                          "type": "object",
+                          "properties": {
+                            "schedule_days": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3650
+                            },
+                            "added_cents": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 999999999999
+                            },
+                            "added_note": {
+                              "type": "string",
+                              "maxLength": 300
+                            }
+                          },
+                          "required": [
+                            "schedule_days",
+                            "added_cents",
+                            "added_note"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "better": {
+                          "type": "object",
+                          "properties": {
+                            "schedule_days": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3650
+                            },
+                            "added_cents": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 999999999999
+                            },
+                            "added_note": {
+                              "type": "string",
+                              "maxLength": 300
+                            }
+                          },
+                          "required": [
+                            "schedule_days",
+                            "added_cents",
+                            "added_note"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "best": {
+                          "type": "object",
+                          "properties": {
+                            "schedule_days": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3650
+                            },
+                            "added_cents": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 999999999999
+                            },
+                            "added_note": {
+                              "type": "string",
+                              "maxLength": 300
+                            }
+                          },
+                          "required": [
+                            "schedule_days",
+                            "added_cents",
+                            "added_note"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "reviewed_on": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "good",
+                        "better",
+                        "best",
+                        "reviewed_on"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [

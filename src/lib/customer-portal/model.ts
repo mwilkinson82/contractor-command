@@ -2,6 +2,8 @@
 // an internal flag) makes the page refuse to render rather than show it.
 import { z } from "zod";
 import { customerProposalSchema } from "../selections/proposal";
+import { timeSentence } from "../selections/change-terms";
+import { displayPrice } from "../selections/format";
 
 export const PORTAL_ORIGIN = "https://app.meetathena.io";
 export const portalInviteUrl = (token: string) => `${PORTAL_ORIGIN}/c/i/${token}`;
@@ -199,6 +201,11 @@ export function approvalStatement(a: {
   choice?: string;
   /** Pay application: the last day of work it bills for, as shown on the page. */
   periodEnd?: string;
+  /**
+   * A package choice on a job under contract that changes the price or the time: the choice is the
+   * change order approval, for this signed difference (as shown, e.g. "+$4,949.10").
+   */
+  changeOrder?: { difference: string } | null;
 }): string {
   if (a.kind === "pay_app")
     return `I approve ${a.label} from ${a.company} for ${a.price} due for work through ${a.periodEnd ?? ""}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
@@ -209,5 +216,26 @@ export function approvalStatement(a: {
         : `${a.scheduleDays > 0 ? "+" : ""}${a.scheduleDays} ${Math.abs(a.scheduleDays) === 1 ? "day" : "days"} to the schedule`;
     return `I approve ${a.label} from ${a.company} for ${a.price} and ${days}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
   }
-  return `I choose the ${a.choice} package for ${a.label} from ${a.company}, ${a.price} total, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
+  const sign =
+    "I understand that typing my name and confirming with the emailed code is my electronic signature.";
+  const days = a.scheduleDays ?? 0;
+  if (a.changeOrder)
+    return `I choose the ${a.choice} package for ${a.label} from ${a.company} and approve it as a change order to my contract for ${a.changeOrder.difference}, as described on this page. ${timeSentence(days)} ${sign}`;
+  return `I choose the ${a.choice} package for ${a.label} from ${a.company}, ${a.price} total, as described on this page.${days > 0 ? ` ${timeSentence(days)}` : ""} ${sign}`;
+}
+
+/**
+ * What a package choice signs. On a job under contract, a package that changes the price or the
+ * time is a change order, and the customer's choice approves it for the signed difference, with
+ * the added time stated. Otherwise the choice sets the proposal price.
+ */
+export function choiceTerms(
+  underContract: boolean | null | undefined,
+  pk: { difference_cents: number; schedule_days?: number },
+  currency: string,
+): { days: number; changeOrder: { difference: string } | null } {
+  const days = pk.schedule_days ?? 0;
+  const c = pk.difference_cents;
+  const difference = `${c > 0 ? "+" : c < 0 ? "-" : ""}${displayPrice(Math.abs(c), currency)}`;
+  return { days, changeOrder: underContract && (c !== 0 || days > 0) ? { difference } : null };
 }

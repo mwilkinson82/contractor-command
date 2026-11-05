@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { fakeClient } from "../../../tests/mcp-roles/fake-supabase";
-import { choiceStageSql, gbbSql } from "../../../tests/selections/sql";
+import { changeTermsBoardSql, choiceStageSql, gbbSql } from "../../../tests/selections/sql";
 import { openProposalShare } from "../selection-proposal-share.server";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
@@ -60,6 +60,7 @@ beforeAll(async () => {
     SELECT EXISTS (SELECT 1 FROM public.mcp_company_members WHERE company_id = _company AND user_id = auth.uid() AND role = 'owner') $$`);
   for (const sql of gbbSql()) await db.exec(sql);
   await db.exec(choiceStageSql());
+  await db.exec(changeTermsBoardSql());
   for (const id of [owner, estimator]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES($1,'member@example.com')", [id]);
     await db.query("INSERT INTO test_active_members VALUES($1)", [id]);

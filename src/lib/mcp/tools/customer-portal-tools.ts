@@ -380,6 +380,16 @@ export const customerPortal = defineTool({
             throw new ToolError(
               "Preview with selection_proposal and pass its board version. Nothing was shared.",
             );
+          // Every change carries money and time: the contractor confirms each upgrade's extra time
+          // and added cost first, so the customer reads them right before they sign.
+          const board = await rpc<{
+            version?: number;
+            board?: { proposal?: { change_terms?: { reviewed_on?: string | null } } };
+          }>(sb, "mcp_residential_selections_get", { _job: job.job_id });
+          if (!board.board?.proposal?.change_terms?.reviewed_on)
+            throw new ToolError(
+              "First confirm the extra time and added cost for each upgrade with selection_board set_change_terms (show its card; both are 0 unless the member changes them). The customer reads them right before they sign. Nothing was shared.",
+            );
           const r = await rpc<{ item_id: string; title: string; fingerprint: string } & Shared>(
             sb,
             "mcp_portal_share_selection",

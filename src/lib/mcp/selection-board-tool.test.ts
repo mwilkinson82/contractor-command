@@ -168,7 +168,12 @@ describe("selection tools", () => {
     let steps = (r.structuredContent.next_steps as { id: string; label: string }[]).map(
       (s) => s.id,
     );
-    expect(steps).toEqual(["invite_customer", "send_to_client_page", "view_only_link"]);
+    expect(steps).toEqual([
+      "set_change_terms",
+      "invite_customer",
+      "send_to_client_page",
+      "view_only_link",
+    ]);
     expect(r.content[0].text).toContain("Next steps:");
     expect(r.content[0].text).toContain("Invite the customer to their client page");
 
@@ -190,6 +195,54 @@ describe("selection tools", () => {
     steps = (r.structuredContent.next_steps as { id: string }[]).map((s) => s.id);
     expect(steps).toContain("send_to_client_page");
     expect(steps).not.toContain("invite_customer");
+  });
+
+  it("shows the time and added cost card before saving, then saves only on confirm", async () => {
+    let r = await callBoard({
+      action: "set_change_terms",
+      change_terms: {
+        best: { schedule_days: 2, added_cents: 15000, added_note: "Extra install labor" },
+      },
+    });
+    expect(r.structuredContent.saved).toBe(false);
+    expect(fixture.calls.map((c) => c.name)).toEqual(["mcp_residential_selections_get"]);
+    const card = r.structuredContent.card as {
+      title: string;
+      sections: { rows: { cells: string[] }[] }[];
+    };
+    expect(card.title).toBe("Time and cost for each upgrade");
+    expect(card.sections[1].rows.map((x) => x.cells[0])).toEqual([
+      "Better: No additional time is necessary for this change.",
+      "Best: The additional time necessary for this change is 2 days.",
+    ]);
+
+    r = await callBoard({
+      action: "set_change_terms",
+      expected_version: 3,
+      confirmed: true,
+      change_terms: {
+        best: { schedule_days: 2, added_cents: 15000, added_note: "Extra install labor" },
+      },
+    });
+    const save = fixture.calls.find((c) => c.name === "mcp_residential_selections_save")!;
+    const body = save.args._board as { proposal: { change_terms: Record<string, unknown> } };
+    expect(body.proposal.change_terms.best).toEqual({
+      schedule_days: 2,
+      added_cents: 15000,
+      added_note: "Extra install labor",
+    });
+    expect(body.proposal.change_terms.better).toEqual({
+      schedule_days: 0,
+      added_cents: 0,
+      added_note: "",
+    });
+    expect(body.proposal.change_terms.reviewed_on as string).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("refuses time or added cost on the base package", async () => {
+    await expect(
+      callBoard({ action: "set_change_terms", change_terms: { good: { schedule_days: 1 } } }),
+    ).rejects.toThrow(/base package/i);
   });
 
   it("suggests the customer-visible estimate lines and leaves out rough-in and code items", async () => {
