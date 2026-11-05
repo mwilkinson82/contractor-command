@@ -142,7 +142,7 @@ describe("negative money in cells", () => {
       title: "Credit",
       sections: [{ heading: "Lines", kind: "table", columns: ["Line", "Rate", "Amount"], rows: [{ cells: ["credit", "-$68.00", "-$3,128.00"] }] }],
     } as CardModel;
-    expect(renderHtml(card)).toContain("-$68.00");
+    expect(renderHtml(card)).toContain('class="num" data-label="Rate">-$68.00');
     expect(renderMarkdown(card)).toContain("-$3,128.00");
   });
 });
