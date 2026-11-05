@@ -1375,3 +1375,163 @@ details.aa-card > summary {
     animation: none;
   }
 }
+
+/* Notifications across jobs. Same white cards as the rest of the account page; red only for the unread count. */
+.aa-nav .aa-nav-count {
+  flex: 0 0 auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #d92d20;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+.aa-notices-head p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #65788e;
+}
+.aa-notices-state {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: #65788e;
+}
+.aa-notice-jobs {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+.aa-notice-job {
+  border: 1px solid #e3ebf4;
+  border-radius: 9px;
+  padding: 16px 18px;
+  min-width: 0;
+}
+.aa-notice-job > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf1f6;
+}
+.aa-notice-job h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #18314f;
+  overflow-wrap: anywhere;
+}
+.aa-notice-job > header span {
+  font-size: 11px;
+  color: #7d91a8;
+}
+.aa-notice-job-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+.aa-notice-job-actions button,
+.aa-notice-mark {
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid #d5e1ee;
+  border-radius: 7px;
+  background: #fff;
+  color: #356ca7;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+.aa-notice-job-actions button:hover,
+.aa-notice-mark:hover {
+  background: #f5f8fc;
+}
+.aa-notice-job-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #356ca7;
+}
+.aa-notice-job ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.aa-notice-job li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 11px 0;
+  border-bottom: 1px solid #f0f4f8;
+}
+.aa-notice-job li:last-child {
+  border-bottom: 0;
+}
+.aa-notice-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+.aa-notice-unread .aa-notice-dot {
+  background: #d92d20;
+}
+.aa-notice-job li a {
+  display: block;
+  color: #18314f;
+  font-size: 13px;
+  line-height: 1.45;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.aa-notice-job li a:hover {
+  color: #245b99;
+  text-decoration: underline;
+}
+.aa-notice-unread a {
+  font-weight: 600;
+}
+.aa-notice-job li small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #7d91a8;
+}
+.aa-notice-job .aa-text-action {
+  margin-top: 10px;
+}
+.aa-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .aa-notice-job {
+    padding: 14px;
+  }
+  .aa-notice-job li {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+  .aa-notice-mark {
+    grid-column: 2;
+    justify-self: start;
+    min-height: 40px;
+  }
+  .aa-notice-job-actions {
+    width: 100%;
+  }
+  .aa-notice-job-actions button {
+    min-height: 40px;
+  }
+}

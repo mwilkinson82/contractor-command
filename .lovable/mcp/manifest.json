@@ -12734,7 +12734,7 @@
       {
         "name": "submittal_log",
         "title": "Hey Athena, log a submittal",
-        "description": "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall.",
+        "description": "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall, and with confirm_reply sets the status from a reviewer's emailed reply (response_id from submittals_list returned) once the member names it.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -12742,21 +12742,38 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "action": {
               "type": "string",
               "enum": [
                 "add",
                 "update",
-                "resubmit"
+                "resubmit",
+                "confirm_reply"
               ]
             },
             "job_number": {
               "type": "string",
               "minLength": 1,
               "maxLength": 40
+            },
+            "response_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "reply_action": {
+              "type": "string",
+              "enum": [
+                "approved",
+                "approved_as_noted",
+                "revise_and_resubmit",
+                "rejected",
+                "for_record",
+                "none"
+              ]
             },
             "company_id": {
               "type": "string",
@@ -13079,7 +13096,7 @@
       {
         "name": "submittals_list",
         "title": "Submittal log and overdue submittals",
-        "description": "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active.",
+        "description": "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active, and with returned true lists submittals the architect or engineer sent back, and emailed replies that still need a status.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -13087,8 +13104,8 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -13126,6 +13143,9 @@
                 "architect_engineer",
                 "owner"
               ]
+            },
+            "returned": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false
@@ -19706,7 +19726,7 @@
       {
         "name": "customer_portal",
         "title": "Customer page",
-        "description": "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the member confirms the customer will see, client_number) for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
+        "description": "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the member confirms the customer will see, client_number) for the customer to approve or choose on the page, take a shared item back, list who has access and every customer decision, and read and reply to the customer's messages (messages_list, message_reply).",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -19737,7 +19757,9 @@
                 "share_change_order",
                 "share_selection",
                 "share_pay_app",
-                "withdraw"
+                "withdraw",
+                "messages_list",
+                "message_reply"
               ]
             },
             "email": {
@@ -20030,6 +20052,116 @@
           "required": [
             "action",
             "job_number"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "lookahead_confirm",
+        "title": "Look-ahead date confirmations",
+        "description": "Emails a supplier or a sub a private link to confirm a two-week look-ahead date (a supplier's delivery, a sub's crew start or work date), lists where each request stands, and cancels an unanswered one. Their answer comes back as a field notice to the job's PM and supers. A proposed new date does not move the look-ahead.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "job_number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "company_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "action": {
+              "type": "string",
+              "enum": [
+                "list",
+                "send",
+                "cancel"
+              ]
+            },
+            "lookahead_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "item_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "activity_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "party_kind": {
+              "type": "string",
+              "enum": [
+                "supplier",
+                "sub"
+              ]
+            },
+            "party_name": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            },
+            "party_email": {
+              "type": "string",
+              "maxLength": 320,
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "ask_kind": {
+              "type": "string",
+              "enum": [
+                "delivery",
+                "start",
+                "work"
+              ]
+            },
+            "what": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            },
+            "date": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "window_end": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "confirmed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "job_number",
+            "action"
           ],
           "additionalProperties": false
         },

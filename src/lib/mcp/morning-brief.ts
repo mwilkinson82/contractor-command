@@ -585,7 +585,7 @@ export function buildMorningBrief(input: { jobs: BriefJob[]; hasCompany: boolean
   return { card, counts: { ...countsForOpen, today: today.length }, openItems: opened.items, todayCount: today.length };
 }
 
-const WORK_HEADINGS = new Set(["Today", "This week", "Open items", "Don't forget", "Portfolio", "Chases"]);
+const WORK_HEADINGS = new Set(["Today", "This week", "Open items", "Don't forget", "Portfolio", "Chases", "Since yesterday"]);
 
 export function ensureBriefCard(card: CardModel): CardModel {
   const sections = card.sections ?? [];

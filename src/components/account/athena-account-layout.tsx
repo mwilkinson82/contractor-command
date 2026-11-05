@@ -3,6 +3,7 @@
 // Desktop: sidebar + content. Tablet: header + tab row. Phone: one column.
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Bell,
   Building2,
   Check,
   ChevronDown,
@@ -28,7 +29,8 @@ export type AccountSectionId =
   | "team"
   | "payments"
   | "billing"
-  | "projects";
+  | "projects"
+  | "notices";
 const sections = [
   { id: "overview", label: "Overview", Icon: LayoutGrid },
   { id: "company", label: "Company profile", Icon: Building2 },
@@ -36,6 +38,7 @@ const sections = [
   { id: "payments", label: "Client payments", Icon: Wallet, soon: true },
   { id: "billing", label: "Plan & billing", Icon: CreditCard },
   { id: "projects", label: "Your projects", Icon: FolderOpen },
+  { id: "notices", label: "Notifications", Icon: Bell },
 ] as const;
 const copy: Record<AccountSectionId, { title: string; description: string }> = {
   overview: {
@@ -64,6 +67,10 @@ const copy: Record<AccountSectionId, { title: string; description: string }> = {
   projects: {
     title: "Your projects",
     description: "Pick up where you left off. Open a saved project workspace.",
+  },
+  notices: {
+    title: "Notifications",
+    description: "What came back from clients, reviewers, subs and suppliers on every job.",
   },
 };
 
@@ -94,6 +101,10 @@ export type AthenaAccountLayoutProps = {
   projects: ReactNode;
   briefing: ReactNode;
   guide: ReactNode;
+  /** Notices across every job. The section is left out when the page passes none. */
+  notices?: ReactNode;
+  /** Unread notices across every job, for the red count in the nav. */
+  noticeCount?: number | null;
 };
 
 function isSection(v: string): v is AccountSectionId {
@@ -248,6 +259,7 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
       setSigningOut(false);
     }
   }
+  const shown = sections.filter((s) => s.id !== "notices" || props.notices !== undefined);
   const navLink = (id: AccountSectionId) => ({
     href: id === "overview" ? "/account" : `#${id}`,
     "aria-current": section === id ? ("page" as const) : undefined,
@@ -287,11 +299,16 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
         <CompanyBadge props={props} />
         <p className="aa-nav-label">ACCOUNT</p>
         <nav aria-label="Account sections" className="aa-nav">
-          {sections.map((s) => (
+          {shown.map((s) => (
             <a key={s.id} {...navLink(s.id)}>
               <s.Icon size={18} aria-hidden="true" />
               <span>{s.label}</span>
               {"soon" in s && s.soon ? <span className="aa-tag">Soon</span> : null}
+              {s.id === "notices" && props.noticeCount ? (
+                <span className="aa-nav-count" aria-label={`${props.noticeCount} unread`}>
+                  {props.noticeCount > 99 ? "99+" : props.noticeCount}
+                </span>
+              ) : null}
             </a>
           ))}
         </nav>
@@ -340,7 +357,7 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
           </div>
         </header>
         <nav className="aa-tabs" aria-label="Account sections">
-          {sections.map((s) => (
+          {shown.map((s) => (
             <a key={s.id} {...navLink(s.id)}>
               {s.label}
             </a>
@@ -454,6 +471,15 @@ export function AthenaAccountLayout(props: AthenaAccountLayoutProps) {
           >
             {props.projects}
           </section>
+          {props.notices !== undefined ? (
+            <section
+              className="aa-view aa-notices-wrap"
+              hidden={section !== "notices"}
+              aria-label="Notifications"
+            >
+              {props.notices}
+            </section>
+          ) : null}
           <footer className="aa-footer">
             <span>Built for the people who build.</span>
             <span>Athena by ALP</span>

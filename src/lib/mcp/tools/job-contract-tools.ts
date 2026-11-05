@@ -56,6 +56,36 @@ export type SavedContract = JobContract & {
   status_changed: boolean;
 };
 
+/**
+ * The job notice for a contract that just went out or came back signed: subcontracts and supplier contracts reach
+ * the job's PM and supers (topic sub_contract), the prime contract counts as a client decision. Null for anything
+ * else, so a draft, a void or an unchanged status records nothing.
+ */
+export function contractNotice(saved: SavedContract, jobId: string) {
+  if (!saved.status_changed || (saved.status !== "sent" && saved.status !== "signed")) return null;
+  if (saved.kind === "other") return null;
+  const what =
+    saved.kind === "prime"
+      ? "the prime contract"
+      : saved.title || (saved.kind === "supplier" ? "the supplier contract" : "the subcontract");
+  const title =
+    saved.status === "signed"
+      ? `${saved.counterparty} signed ${what}`
+      : `${saved.kind === "prime" ? "Prime contract" : "Contract"} sent to ${saved.counterparty}`;
+  return {
+    jobId,
+    topic: saved.kind === "prime" ? ("client_decision" as const) : ("sub_contract" as const),
+    kind: saved.kind === "prime" ? `prime_contract_${saved.status}` : `subcontract_${saved.status}`,
+    title: title.slice(0, 200),
+    actor: saved.counterparty,
+    refTable: "mcp_job_contracts",
+    refId: saved.contract_id,
+    facts: saved.value_cents != null ? { amount_cents: saved.value_cents } : {},
+    boardPage: "contracts",
+    dedupeKey: `contract:${saved.contract_id}:${saved.status}`,
+  };
+}
+
 /** The Contracts section of the job board: the signed project home link with #contracts. */
 export function contractsBoardUrl(signedFieldUrl: string | null | undefined): string | null {
   if (!signedFieldUrl) return null;
@@ -267,6 +297,19 @@ export const jobContracts = defineTool({
             _job: job.job_id,
             _p: p,
           });
+          const notice = saved ? contractNotice(saved, job.job_id) : null;
+          if (notice) {
+            // Server-side only (the notice functions are service role). A failed notice never undoes the save.
+            try {
+              const [{ recordJobNotice }, { liveDeps }] = await Promise.all([
+                import("../../notices/send"),
+                import("../../customer-portal/deps.server"),
+              ]);
+              if (liveDeps.notice) await recordJobNotice(liveDeps.notice, notice);
+            } catch {
+              /* the save stands; the board still shows the contract's status */
+            }
+          }
         }
         const payload = await rpc<JobContractsPayload>(sb, "mcp_job_contract_rows", {
           _job: job.job_id,

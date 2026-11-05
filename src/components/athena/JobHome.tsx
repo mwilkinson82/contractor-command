@@ -22,6 +22,10 @@ import {
 import { accountingMoney } from "@/lib/accounting-report";
 import { detailAnchor } from "@/lib/mcp/plain-label";
 import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
+import { JobHomeNotifications, NotificationsBell, NotificationsNavLink } from "./JobHomeWhatsNew";
+import { JobHomeChangeOrders } from "./JobHomeChangeOrders";
+import { JobHomeMessages } from "./JobHomeMessages";
+import { JobNoticeEmailSettings } from "./JobNoticeEmailSettings";
 import "./project-overview.css";
 import {
   ContractsSection,
@@ -311,7 +315,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             detail: "View recorded invoices and receipts",
             page: "billing-records",
           },
-          {title:"Payment applications",detail:"Prepare or open a saved SOV application",page:"payment-applications"},
+          {
+            title: "Payment applications",
+            detail: "Prepare or open a saved SOV application",
+            page: "payment-applications",
+          },
           {
             title: "Billing forecast",
             detail: state(
@@ -373,7 +381,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             {base.job_name ? ` · ${base.job_name}` : ""}
           </span>
           <div className="jh-top-right">
-            {/* Notifications bell (customer portal work) mounts here, before the select. */}
+            <NotificationsBell jobId={jobId} token={token} />
             {jobs.data && jobs.data.length > 1 ? (
               <label className="jh-select">
                 <span className="jh-sr">Saved jobs</span>
@@ -399,7 +407,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             <a href="#overview" aria-current="page">
               Overview
             </a>
-            {/* Notifications nav entry (customer portal work) mounts here. */}
+            <NotificationsNavLink jobId={jobId} token={token} />
             {commercialOn ? (
               <>
                 <a href="#estimate" className="jh-nav-icon">
@@ -431,7 +439,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 </a>
               ) : null}
             </header>
-            {/* Notifications panel (customer portal work) mounts here as section#notifications. */}
+            {session ? (
+              <section id="notifications" className="jb-section">
+                <JobHomeNotifications jobId={jobId} token={token} />
+              </section>
+            ) : null}
             {commercialOn ? (
               <>
                 <StageStrip stage={stage} />
@@ -728,6 +740,13 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 </p>
               </div>
             </section>
+            {session && full ? (
+              <>
+                <JobHomeChangeOrders jobId={jobId} token={token} />
+                <JobHomeMessages jobId={jobId} token={token} />
+                <JobNoticeEmailSettings jobId={jobId} token={token} />
+              </>
+            ) : null}
             <p className="jh-note">
               Each source refreshes independently while this page is open. Open a workspace for its
               current version; this overview is not an atomic project snapshot.

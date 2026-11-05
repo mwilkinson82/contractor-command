@@ -22,6 +22,17 @@ vi.mock("@/hooks/use-auth", () => ({
 }));
 vi.mock("@/hooks/use-is-admin", () => ({ useIsAdmin: () => true }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: state.calls, auth: {} } }));
+// The notices pieces have their own tests; here they render nothing so the board's own reads stay exact.
+vi.mock("@/components/athena/JobHomeWhatsNew", () => ({
+  JobHomeNotifications: () => null,
+  NotificationsBell: () => null,
+  NotificationsNavLink: () => null,
+}));
+vi.mock("@/components/athena/JobHomeChangeOrders", () => ({ JobHomeChangeOrders: () => null }));
+vi.mock("@/components/athena/JobHomeMessages", () => ({ JobHomeMessages: () => null }));
+vi.mock("@/components/athena/JobNoticeEmailSettings", () => ({
+  JobNoticeEmailSettings: () => null,
+}));
 vi.mock("@tanstack/react-start", () => ({
   useServerFn: () => state.calls,
   createServerFn: () => {
@@ -293,9 +304,18 @@ const previews: Record<string, () => ReactNode> = {
   "project-home": () => h(JobHome, { jobId: id }),
   "daily-review": () => h(DailyReportReview, { payload: daily, jobId: id, memberId: "synthetic" }),
   "progress-photos": () =>
-    h(ProgressPhotosPage, { payload: { page: "photos", job_number: "SYN-001", job_name: long, photos: [] }, jobId: id, memberId: "synthetic" }),
+    h(ProgressPhotosPage, {
+      payload: { page: "photos", job_number: "SYN-001", job_name: long, photos: [] },
+      jobId: id,
+      memberId: "synthetic",
+    }),
   "progress-photos-day": () =>
-    h(ProgressPhotosPage, { payload: { page: "photos", job_number: "SYN-001", job_name: long, photos: [] }, jobId: id, memberId: "synthetic", date: day }),
+    h(ProgressPhotosPage, {
+      payload: { page: "photos", job_number: "SYN-001", job_name: long, photos: [] },
+      jobId: id,
+      memberId: "synthetic",
+      date: day,
+    }),
   "daily-capture": () =>
     h(
       "main",
@@ -376,11 +396,20 @@ const previews: Record<string, () => ReactNode> = {
       h(
         "main",
         { className: "aa-content" },
-        h(AthenaTeamSection, { state: team, loading: false, reload: state.calls, inviteEmailEnabled: true }),
+        h(AthenaTeamSection, {
+          state: team,
+          loading: false,
+          reload: state.calls,
+          inviteEmailEnabled: true,
+        }),
       ),
     ),
   "account-payments": () =>
-    h("div", { className: "athena-account" }, h("main", { className: "aa-content" }, h(ClientPaymentsSection))),
+    h(
+      "div",
+      { className: "athena-account" },
+      h("main", { className: "aa-content" }, h(ClientPaymentsSection)),
+    ),
   "morning-brief": () => h(TodayBriefView, { html: renderHtml(morning.card), error: null }),
   "account-projects": () =>
     h(
@@ -474,7 +503,14 @@ describe("board and account responsive fixtures", () => {
       daily_linked: true,
     });
     state.queries["athena-progress-photos"] = { photos: [1, 2, 3].map(synthPhoto), more: true };
-    state.queries["daily-photo-strip"] = { photos: [1, 2].map((n) => ({ id: synthPhoto(n).id, area: long, url: "/brand/athena/athena-primary-512.png" })), total: 2 };
+    state.queries["daily-photo-strip"] = {
+      photos: [1, 2].map((n) => ({
+        id: synthPhoto(n).id,
+        area: long,
+        url: "/brand/athena/athena-primary-512.png",
+      })),
+      total: 2,
+    };
     state.queries["po-buyout"] = buyout;
     state.queries["athena-request-log"] = {
       job_id: id,

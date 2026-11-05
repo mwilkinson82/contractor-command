@@ -9,7 +9,7 @@ import { gbbSql } from "../../../tests/selections/sql";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 import { tokenHash } from "../mcp/file-share";
 import { codeHash } from "./server";
-import { payAppLabel, portalViewSchema } from "./model";
+import { payAppLabel, portalMessagesSchema, portalViewSchema } from "./model";
 import { applicationFixture } from "../payment-applications/fixtures";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
@@ -131,6 +131,12 @@ beforeAll(async () => {
   ])
     await db.exec(readFileSync(`drizzle/migrations/${f}.sql`, "utf8"));
   await load("20261105150000_athena_gbb_change_terms");
+  // Job notices and client messages. The team invites chain isn't loaded here, so every role counts as allowed.
+  await db.exec(
+    "CREATE FUNCTION public.mcp_role_allowed(_company uuid, _role text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$",
+  );
+  await load("20261105180000_athena_job_notices");
+  await load("20261105181000_athena_portal_messages");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -1272,5 +1278,239 @@ describe.sequential("customer_portal tool", () => {
 
   it("refuses members without full job access", async () => {
     await expect(tool({ action: "list" }, outsider)).rejects.toThrow();
+  });
+});
+
+describe.sequential("client messages", () => {
+  const superOn = "00000000-0000-4000-8000-000000000c04";
+  const inviteM = "C".repeat(43);
+  const sessionM = "U".repeat(43);
+  let sessM = "";
+  let accessM = "";
+  let item = "";
+  let fingerprint = "";
+  const post = (body: string, about: string | null = null, sess = sessM) =>
+    server("mcp_portal_message_post", [accessM, sess, about, body, "203.0.113.9", "test"]);
+
+  beforeAll(async () => {
+    await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'super@example.com')", [superOn]);
+    await db.query("INSERT INTO test_active_members VALUES ($1)", [superOn]);
+    await db.query(
+      "INSERT INTO mcp_company_members(company_id,user_id,role,display_name) VALUES($1,$2,'super','Sam Super')",
+      [company, superOn],
+    );
+    await db.query("INSERT INTO mcp_job_access(job_id,user_id,granted_by) VALUES($1,$2,$3)", [
+      job2,
+      superOn,
+      owner,
+    ]);
+    const r = await member("mcp_portal_invite", [
+      job2,
+      "lee@example.com",
+      "Lee Park",
+      await tokenHash(inviteM),
+      new Date(Date.now() + 86_400_000).toISOString(),
+    ]);
+    accessM = r.access_id;
+    const code = await codeHash(accessM, "135790");
+    await server("mcp_portal_code_issue", [
+      accessM,
+      "sign_in",
+      code,
+      await tokenHash(inviteM),
+      null,
+      null,
+    ]);
+    sessM = await tokenHash(sessionM);
+    expect(
+      (
+        await server("mcp_portal_sign_in", [
+          await tokenHash(inviteM),
+          code,
+          sessM,
+          false,
+          null,
+          null,
+        ])
+      ).status,
+    ).toBe("ok");
+    const it = await db.query<{ id: string; fingerprint: string }>(
+      "SELECT id, fingerprint FROM mcp_portal_items WHERE job_id=$1 AND withdrawn_at IS NULL ORDER BY shared_at LIMIT 1",
+      [job2],
+    );
+    item = it.rows[0]!.id;
+    fingerprint = it.rows[0]!.fingerprint;
+  });
+
+  it("lets the signed-in client write about the job or a shared item, and never changes the item", async () => {
+    expect(await post("Hi", null, hex(7))).toEqual({ status: "signed_out" });
+    expect((await post("   ")).status).toBe("invalid");
+    expect((await post("x".repeat(4001))).status).toBe("invalid");
+    // An item from another job is refused.
+    const otherItem = (
+      await db.query<{ id: string }>("SELECT id FROM mcp_portal_items WHERE job_id=$1 LIMIT 1", [
+        job,
+      ])
+    ).rows[0]!.id;
+    expect((await post("About this?", otherItem)).status).toBe("invalid");
+
+    const general = await post("When does paint start?");
+    expect(general).toMatchObject({
+      status: "ok",
+      job_id: job2,
+      job_number: "2716",
+      customer: "Lee Park",
+      item_id: null,
+      about_label: null,
+    });
+    const about = await post("Why is retainage 10%?", item);
+    expect(about).toMatchObject({ status: "ok", item_id: item, about_kind: "pay_app" });
+    expect(about.about_label).toMatch(/Payment Application|Progress Billing/);
+    const after = await db.query<{ fingerprint: string }>(
+      "SELECT fingerprint FROM mcp_portal_items WHERE id=$1",
+      [item],
+    );
+    expect(after.rows[0]!.fingerprint).toBe(fingerprint);
+    // The page server records the notice the board reads.
+    const n = await server("mcp_job_notice_record", [
+      job2,
+      "client_message",
+      "client_question",
+      "Lee Park asked about the pay application",
+      "Why is retainage 10%?",
+      "Lee Park",
+      "mcp_portal_messages",
+      about.message_id,
+      JSON.stringify({ access_id: accessM }),
+      "messages",
+      `portal-message:${about.message_id}`,
+    ]);
+    // The job's PM and the owner hear about client messages.
+    expect(n.recipients.map((r: J) => r.email).sort()).toEqual([
+      "01@example.com",
+      "02@example.com",
+    ]);
+
+    const thread = await server("mcp_portal_messages", [accessM, sessM, false]);
+    expect(thread).toMatchObject({ status: "ok", unread: 0 });
+    expect(thread.messages.map((m: J) => m.body)).toEqual([
+      "When does paint start?",
+      "Why is retainage 10%?",
+    ]);
+    expect(portalMessagesSchema.safeParse(thread).success).toBe(true);
+    expect(JSON.stringify(thread)).not.toMatch(/author_user_id|team_read|email/);
+  });
+
+  it("shows the board every thread, and a full-access member replies", async () => {
+    const l = await member("mcp_job_messages_list", [job2], pm);
+    expect(l).toMatchObject({ job_number: "2716", awaiting_reply: 2 });
+    const t = l.threads.find((x: J) => x.access_id === accessM);
+    expect(t).toMatchObject({ customer_name: "Lee Park", customer_email: "lee@example.com" });
+    const asked = t.messages.find((m: J) => m.item_id === item);
+    expect(asked).toMatchObject({ about_kind: "pay_app", read: false });
+    expect(asked.notice_id).toBeTruthy();
+
+    await expect(member("mcp_job_message_reply", [job2, accessM, "  ", null], pm)).rejects.toThrow(
+      /4,000/,
+    );
+    const r = await member(
+      "mcp_job_message_reply",
+      [job2, accessM, "Retainage is held until the job is accepted.", item],
+      pm,
+    );
+    expect(r).toMatchObject({
+      author_name: "Pat Lee",
+      customer_email: "lee@example.com",
+      company: "Northline Builders",
+      item_id: item,
+      job_number: "2716",
+    });
+    expect(JSON.stringify(r)).not.toMatch(/cost|markup|fee_pct/);
+    const after = await member("mcp_job_messages_list", [job2], pm);
+    expect(after.awaiting_reply).toBe(0);
+    // The replier's notice for that question is read; the owner's stays unread.
+    const mine = after.threads[0].messages.find((m: J) => m.id === asked.id);
+    expect(mine.read).toBe(true);
+    const owners = await member("mcp_job_messages_list", [job2], owner);
+    expect(owners.threads[0].messages.find((m: J) => m.id === asked.id).read).toBe(false);
+
+    // The client sees the reply once, then it counts as read.
+    expect((await server("mcp_portal_messages", [accessM, sessM, false])).unread).toBe(1);
+    const opened = await server("mcp_portal_messages", [accessM, sessM, true]);
+    expect(opened.unread).toBe(1);
+    expect(opened.messages.at(-1)).toMatchObject({ author_kind: "team", author_name: "Pat Lee" });
+    expect((await server("mcp_portal_messages", [accessM, sessM, false])).unread).toBe(0);
+  });
+
+  it("refuses outsiders, supers and the client side for members", async () => {
+    await expect(member("mcp_job_messages_list", [job2], outsider)).rejects.toThrow(/full access/);
+    await expect(member("mcp_job_messages_list", [job2], superOn)).rejects.toThrow(/full access/);
+    await expect(
+      member("mcp_job_message_reply", [job2, accessM, "Hello", null], superOn),
+    ).rejects.toThrow(/full access/);
+    await expect(
+      member("mcp_job_message_reply", [job2, accessM, "Hello", null], outsider),
+    ).rejects.toThrow(/full access/);
+    // A customer access from another job can't be replied to through this one.
+    await expect(member("mcp_job_message_reply", [job, accessM, "Hello", null])).rejects.toThrow(
+      /isn't on this job/,
+    );
+    await expect(
+      member("mcp_portal_message_post", [accessM, sessM, null, "x", null, null]),
+    ).rejects.toThrow(/permission denied/);
+    await expect(member("mcp_portal_messages", [accessM, sessM, false])).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(as(owner)("SELECT * FROM public.mcp_portal_messages")).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+
+  it("holds a client to 20 messages an hour", async () => {
+    for (let i = 0; i < 18; i++) expect((await post(`Note ${i}`)).status).toBe("ok");
+    expect((await post("One too many")).status).toBe("slow_down");
+    // Team replies don't count toward the client's limit.
+    await member("mcp_job_message_reply", [job2, accessM, "Got them all.", null], pm);
+    expect((await post("Still too many")).status).toBe("slow_down");
+  });
+
+  it("gives the page server the job of the client's own decision only", async () => {
+    const d = await db.query<{ id: string; access_id: string }>(
+      "SELECT d.id, d.access_id FROM mcp_portal_decisions d JOIN mcp_portal_items i ON i.id=d.item_id WHERE i.job_id=$1 LIMIT 1",
+      [job2],
+    );
+    const dec = d.rows[0]!;
+    const sess2 = await tokenHash("T".repeat(43));
+    expect(await server("mcp_portal_decision_job", [dec.access_id, sess2, dec.id])).toBe(job2);
+    expect(await server("mcp_portal_decision_job", [accessM, sessM, dec.id])).toBeNull();
+    expect(await server("mcp_portal_decision_job", [dec.access_id, hex(5), dec.id])).toBeNull();
+    await expect(member("mcp_portal_decision_job", [dec.access_id, sess2, dec.id])).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+
+  it("lets Athena read the messages and reply only after the member's yes", async () => {
+    const list = await tool({ job_number: "2716", action: "messages_list" }, pm);
+    expect(list.content[0]!.text).toContain("Lee Park <lee@example.com>");
+    expect(list.content[0]!.text).toContain("Got them all.");
+    await expect(
+      tool({ job_number: "2716", action: "message_reply", access_id: accessM, body: "Yes." }, pm),
+    ).rejects.toThrow(/Lee Park <lee@example.com>.*confirm/);
+    const before = (await member("mcp_job_messages_list", [job2], pm)).threads[0].messages.length;
+    const r = await tool(
+      {
+        job_number: "2716",
+        action: "message_reply",
+        access_id: accessM,
+        body: "Paint starts Monday.",
+        confirmed: true,
+      },
+      pm,
+    );
+    expect(r.content[0]!.text).toContain("Replied to Lee Park");
+    const after = (await member("mcp_job_messages_list", [job2], pm)).threads[0].messages;
+    expect(after.length).toBe(before + 1);
+    expect(after.at(-1)).toMatchObject({ author_kind: "team", body: "Paint starts Monday." });
+    await expect(tool({ job_number: "2716", action: "messages_list" }, outsider)).rejects.toThrow();
   });
 });

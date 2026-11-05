@@ -59,7 +59,12 @@ export type ForwardOptions = {
 };
 
 export type ForwardResult =
-  | { status: "forwarded"; resendId: string | null; attachments: number; droppedAttachments: number }
+  | {
+      status: "forwarded";
+      resendId: string | null;
+      attachments: number;
+      droppedAttachments: number;
+    }
   | { status: "duplicate" }
   | { status: "skipped"; reason: "not_found" | "relay_loop" };
 
@@ -110,10 +115,17 @@ async function resendRequest(
   return { status: res.status, ok: res.ok, body };
 }
 
-function isRetryableStatus(status: number): boolean {
+export function isRetryableStatus(status: number): boolean {
   // 401/403 are retryable on purpose: a missing/rotated RESEND_API_KEY is a
   // config problem, and Resend's webhook retries should succeed once it's fixed.
-  return status === 401 || status === 403 || status === 408 || status === 409 || status === 429 || status >= 500;
+  return (
+    status === 401 ||
+    status === 403 ||
+    status === 408 ||
+    status === 409 ||
+    status === 429 ||
+    status >= 500
+  );
 }
 
 export function escapeHtml(value: string): string {
@@ -135,7 +147,10 @@ export function headerValue(
     if (key.toLowerCase() !== wanted) continue;
     if (typeof value === "string") return value.trim() || null;
     if (Array.isArray(value)) {
-      const joined = value.filter((v) => typeof v === "string").join(", ").trim();
+      const joined = value
+        .filter((v) => typeof v === "string")
+        .join(", ")
+        .trim();
       return joined || null;
     }
     return null;
@@ -212,7 +227,9 @@ export type OutgoingAttachment = {
   content_id?: string;
 };
 
-export function toOutgoingAttachments(attachments: ReceivedEmailAttachment[]): OutgoingAttachment[] {
+export function toOutgoingAttachments(
+  attachments: ReceivedEmailAttachment[],
+): OutgoingAttachment[] {
   const out: OutgoingAttachment[] = [];
   attachments.forEach((a, index) => {
     if (!a.download_url) return;
@@ -245,7 +262,8 @@ export function buildForwardPayload(
   const html = originalHtml
     ? insertAfterBodyTag(originalHtml, blockHtml)
     : `${blockHtml}<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${escapeHtml(originalText ?? "(empty message)")}</pre>`;
-  const text = blockText + (originalText ?? "(This message has no plain-text part. See the HTML version.)");
+  const text =
+    blockText + (originalText ?? "(This message has no plain-text part. See the HTML version.)");
 
   const payload: Record<string, unknown> = {
     from: opts.from ?? INBOUND_RELAY_FROM,
@@ -264,7 +282,7 @@ export function buildForwardPayload(
   return payload;
 }
 
-async function fetchReceivedEmail(
+export async function fetchReceivedEmail(
   emailId: string,
   apiKey: string,
   fetchFn: ResendFetch,
@@ -286,7 +304,7 @@ async function fetchReceivedEmail(
   return res.body as unknown as ReceivedEmail;
 }
 
-async function fetchAttachments(
+export async function fetchAttachments(
   emailId: string,
   apiKey: string,
   fetchFn: ResendFetch,

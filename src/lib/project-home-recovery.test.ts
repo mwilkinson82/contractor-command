@@ -14,6 +14,17 @@ vi.mock("@/hooks/use-auth", () => ({
     loading: state.loading,
   }),
 }));
+// The notices pieces have their own tests; here they render nothing so the board's own reads stay exact.
+vi.mock("@/components/athena/JobHomeWhatsNew", () => ({
+  JobHomeNotifications: () => null,
+  NotificationsBell: () => null,
+  NotificationsNavLink: () => null,
+}));
+vi.mock("@/components/athena/JobHomeChangeOrders", () => ({ JobHomeChangeOrders: () => null }));
+vi.mock("@/components/athena/JobHomeMessages", () => ({ JobHomeMessages: () => null }));
+vi.mock("@/components/athena/JobNoticeEmailSettings", () => ({
+  JobNoticeEmailSettings: () => null,
+}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
 vi.mock("@/lib/board-link.functions", () => ({ openBoardPage: vi.fn() }));
