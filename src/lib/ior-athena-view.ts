@@ -6,6 +6,7 @@ import {
   daysBetween,
   heldCents,
   iorFlags,
+  isReviewOverdue,
   iorRollup,
   isScheduleLinked,
   type IorCategory,
@@ -275,10 +276,12 @@ function meter(name: string, sub: string, held: number, target: number, guide: n
   return `<div class="meter"><div class="m-top"><span>${name}</span><b>${money(held)}</b></div><div class="m-sub">${sub}</div><div class="m-bar"><div class="m-fill${isShort ? " short" : ""}" style="width:${((held / max) * 100).toFixed(1)}%"></div>${target ? `<div class="m-target" style="left:${((target / max) * 100).toFixed(1)}%" title="Guide ${money(target)}"></div>` : ""}</div><div class="m-say">${say}</div></div>`;
 }
 
-function riskCard(e: IorExposure): string {
+function riskCard(e: IorExposure, today: string): string {
   const held = heldCents(e);
-  const review = e.next_review ? `Next review ${esc(fullDate(e.next_review))}` : "No review date set";
-  return `<article class="risk"><div class="chips"><span class="c ${e.hold === "E" ? "e" : "ch"}">${e.hold}-hold</span><span class="c">${CATEGORY[e.category]}</span><span class="c">${RESPONSE[e.response]}</span></div><h4>${esc(e.title)}</h4><div class="calc">${money(Math.round(e.dollar_risk * 100))} × ${esc(pctOf(e.probability))} = <b>${money(held)}</b> held</div><div class="rev${e.next_review ? "" : " stale"}">${review}${e.owner ? ` · ${esc(e.owner)}` : ""}</div>${e.next_move ? `<div class="move"><span>Athena's next move</span>${esc(e.next_move)}</div>` : ""}</article>`;
+  const overdue = held > 0 && isReviewOverdue(e, today);
+  const review = !e.next_review ? "No review date set" : overdue ? `Review overdue since ${esc(fullDate(e.next_review))}` : `Next review ${esc(fullDate(e.next_review))}`;
+  const stale = held > 0 && (!e.next_review || overdue);
+  return `<article class="risk"><div class="chips"><span class="c ${e.hold === "E" ? "e" : "ch"}">${e.hold}-hold</span><span class="c">${CATEGORY[e.category]}</span><span class="c">${RESPONSE[e.response]}</span></div><h4>${esc(e.title)}</h4><div class="calc">${money(Math.round(e.dollar_risk * 100))} × ${esc(pctOf(e.probability))} = <b>${money(held)}</b> held</div><div class="rev${stale ? " stale" : ""}">${review}${e.owner ? ` · ${esc(e.owner)}` : ""}</div>${e.next_move ? `<div class="move"><span>Athena's next move</span>${esc(e.next_move)}</div>` : ""}</article>`;
 }
 
 /** Athena's IOR view. `today` is the job's calendar day (YYYY-MM-DD). */
@@ -333,7 +336,7 @@ export function renderAthenaIor(m: IorModel, opts: { today: string; version?: nu
   const ordered = [...m.exposures].sort((a, b) => heldCents(b) - heldCents(a));
   const live = m.exposures.reduce((t, e) => t + Math.round(e.dollar_risk * 100), 0);
   h.push(`<section class="block"><div class="bh"><div><h3 class="wide">Risks I'm tracking</h3><p>Each risk in dollars. What's held is dollar risk times probability.</p></div><span class="side">${m.exposures.length} open</span></div>${
-    ordered.length ? `<div class="risks">${ordered.map(riskCard).join("")}</div>` : `<div class="empty">No risks logged yet. Tell me what could cost this job money and I'll price it as an E-hold or C-hold.</div>`
+    ordered.length ? `<div class="risks">${ordered.map((e) => riskCard(e, opts.today)).join("")}</div>` : `<div class="empty">No risks logged yet. Tell me what could cost this job money and I'll price it as an E-hold or C-hold.</div>`
   }<div class="tally"><span>Live dollar risk <b>${money(live)}</b></span><span>Held <b>${money(r.eHold + r.cHold)}</b></span></div></section>`);
 
   const asks = noCost

@@ -569,6 +569,20 @@ describe("import plan and review", () => {
     });
     expect(plan.package.contract_facts).not.toHaveProperty("contract_value");
     expect(plan.kept.join(" ")).toMatch(/already has an SOV/);
+    expect(plan.kept).toContain("The contract value is already on the job; kept Athena's.");
+  });
+
+  it("lists every kept contract fact on one plain line", () => {
+    const plan = planImport(job, {
+      job_exists: true,
+      contract_keys: ["contract_value", "contract_value_basis", "retainage", "customer"],
+    });
+    const lines = plan.kept.filter((k) => /contract value/i.test(k));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toMatch(/Contract contract/);
+    expect(lines[0]).toMatch(
+      /^The contract value, the contract value basis, .* are already on the job; kept Athena's\.$/,
+    );
   });
 
   it("leaves the SOV out when a credit has no line to sit on", () => {

@@ -70,6 +70,30 @@ describe("IOR model", () => {
     expect(titles).toContain("The schedule slipped 42 days with no schedule exposure logged.");
   });
 
+  it("doesn't nag about a risk holding nothing, and flags reviews that have passed", () => {
+    const exposures = [
+      { title: "Window delivery delay", category: "procurement", response: "recover", dollar_risk: 18000, probability: 80, hold: "E", opened: "2026-07-09", next_review: "2026-07-30" },
+      { title: "Lighting allowance overrun", category: "allowance_overrun", response: "offset", dollar_risk: 22000, probability: 90, hold: "E", opened: "2026-07-02", next_review: "2026-07-28" },
+      { title: "Electrician contingency overrun", category: "trade_performance", response: "eliminate", dollar_risk: 0, probability: 100, hold: "C", opened: "2026-07-23", status: "accepted" },
+      { title: "Stone slab breakage", category: "procurement", response: "recover", dollar_risk: 38000, probability: 50, hold: "E", opened: "2026-10-06", next_review: "2026-11-18" },
+    ];
+    const { model } = readIorModel({ ior_model: { ...harbor, exposures } });
+    const flags = iorFlags(model!, iorRollup(model!), "2026-11-05");
+    const titles = flags.map((f) => f.title);
+    expect(titles.join(" ")).not.toContain("Electrician contingency overrun");
+    expect(titles).toContain("2 risks are past their review date.");
+    expect(flags.find((f) => f.title.startsWith("2 risks"))!.detail).toBe(
+      "They hold $34,200. Furthest behind is Lighting allowance overrun, 100 days late. Review them and set new dates.",
+    );
+    const one = readIorModel({ ior_model: { ...harbor, exposures: [exposures[0]] } }).model!;
+    expect(iorFlags(one, iorRollup(one), "2026-11-05").map((f) => f.title)).toContain("Window delivery delay is 98 days past its review.");
+
+    const html = renderAthenaIor(model!, { today: "2026-11-05" });
+    expect(html).toContain("<div class=\"rev stale\">Review overdue since Jul 30, 2026");
+    expect(html).toContain("<div class=\"rev\">Next review Nov 18, 2026");
+    expect(html).toContain("<div class=\"rev\">No review date set");
+  });
+
   it("rejects a model it can't read, and the IOR save says why", () => {
     const bad = { ior_model: { ...harbor, phase: "Closeout", change_orders: [{ status: "Pending", contract_amount: 5000 }] } };
     const { model, problems } = readIorModel(bad);
