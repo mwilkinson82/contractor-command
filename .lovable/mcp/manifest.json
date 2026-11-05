@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.26",
+      "version": "0.8.27",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -7079,7 +7079,7 @@
       {
         "name": "team_add_seats",
         "title": "Add seats",
-        "description": "Gives the company owner the account page link where they add seats at $49 per seat per month.",
+        "description": "Gives the company owner the account page link where they add seats.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,

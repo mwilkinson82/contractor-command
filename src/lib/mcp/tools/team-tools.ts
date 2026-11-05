@@ -6,7 +6,7 @@ import { z } from "zod";
 import { run, text, type Sb } from "../guard";
 import { resolveCompany } from "../jobs";
 import { guide } from "../visible";
-import { ROLE_LABEL, SEAT_LIMIT_MESSAGE, SEAT_PRICE_LABEL, TEAM_WIDGET_MIME, TEAM_WIDGET_URI, confirmLine, normalizeRole, renderTeamList, rolesMenu, seatLimitFromError, seatLine, teamWidgetHtml, type TeamList, type TeamRole } from "../team";
+import { ROLE_LABEL, SEAT_LIMIT_MESSAGE, TEAM_WIDGET_MIME, TEAM_WIDGET_URI, confirmLine, normalizeRole, renderTeamList, rolesMenu, seatLimitFromError, seatLine, teamWidgetHtml, type TeamList, type TeamRole } from "../team";
 import { buildInviteEmail, sendInvite } from "../team-invite-email";
 import { accountLinkCard, accountUrl } from "./account-tools";
 import { renderHtml } from "../cards/html";
@@ -181,7 +181,7 @@ export const teamAddSeats = defineTool({
   name: "team_add_seats",
   title: "Add seats",
   description:
-    "Gives the company owner the account page link where they add seats at $49 per seat per month.",
+    "Gives the company owner the account page link where they add seats.",
   inputSchema: {
     company_id: companyId,
     seats: z.number().int().min(1).max(500).optional(),
@@ -194,7 +194,7 @@ export const teamAddSeats = defineTool({
       const url = accountUrl("team");
       const card = accountLinkCard("team");
       const n = args.seats;
-      const lead = `To add ${n ? `${n} seat${n === 1 ? "" : "s"}` : "seats"}, open Team & access on your Athena account page and choose Add seats. Extra seats are ${SEAT_PRICE_LABEL}, and you pay on that page.`;
+      const lead = `To add ${n ? `${n} seat${n === 1 ? "" : "s"}` : "seats"}, open Team & access on your Athena account page and choose Add seats. Price and payment are on that page.`;
       return guide(
         { ...text(`${lead}\n\n${renderMarkdown(card)}`), structuredContent: { url, section: "team", seats: n ?? null, checkout: null, card, html: renderHtml(card) } },
         "Give the account page link. Payment happens only on that page.",

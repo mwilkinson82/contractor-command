@@ -49,7 +49,7 @@ describe("estimating plan enforced before tool data access", () => {
     const handler = vi.fn(async () => ({ content: [{ type: "text", text: "restricted data" }] }));
     const result = await run("takeoff_geometry", ctx, { jobNumber: "QA" }, handler);
     expect(handler).not.toHaveBeenCalled();
-    expect(JSON.stringify(result)).toContain("Estimating with Athena Office");
+    expect(JSON.stringify(result)).toContain("Estimating isn't on this company's plan");
     expect(JSON.stringify(result)).not.toContain("restricted data");
   });
   it.each(["athena_office", "circle", "hardcore"])(
