@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ImportInputError, importJob, toCents, toDay } from "./model";
 import { fromOverwatch } from "./overwatch";
 import { fromSpreadsheets, parseTable } from "./spreadsheet";
-import { appliedCard, nothingToSave, planImport, reviewCard } from "./plan";
+import { appliedCard, nothingToSave, planImport, reviewCard, type ImportContext } from "./plan";
 import { iorRollup, readIorModel } from "../ior-model";
 import { readScheduleControl } from "../mcp/schedule-control";
 import type { LivingData } from "../mcp/living";
@@ -145,6 +145,25 @@ describe("Overwatch export", () => {
     x.project.forecast_completion_date = "2027-03-02";
     const plan = planImport(fromOverwatch(x), { job_exists: false });
     expect(plan.package.contract_facts.substantial_completion).toBe("2027-01-19");
+    expect(plan.package.job.contract_completion).toBe("2027-01-19");
+  });
+
+  it("carries the contract completion for the CPM header even when the contract terms are kept", () => {
+    const x = sample();
+    x.project.baseline_completion_date = "2027-01-19";
+    const plan = planImport(fromOverwatch(x), {
+      job_exists: true,
+      contract_keys: ["substantial_completion"],
+    } as ImportContext);
+    expect(plan.package.contract_facts.substantial_completion).toBeUndefined();
+    expect(plan.package.job.contract_completion).toBe("2027-01-19");
+    const card = JSON.stringify(reviewCard(plan, "2712", true));
+    expect(card).toContain("Contract completion for the CPM: Jan 19, 2027");
+    const none = sample();
+    delete none.project.baseline_completion_date;
+    expect(planImport(fromOverwatch(none), { job_exists: false }).package.job).not.toHaveProperty(
+      "contract_completion",
+    );
   });
 });
 
@@ -782,6 +801,25 @@ describe("Overwatch schedule on its own calendar", () => {
       "wbs:w-99",
       "wbs:w-99",
     ]);
+  });
+
+  it("uses Overwatch's own status date from its latest schedule update, never the import day", () => {
+    const v = x();
+    v.exported_at = "2026-11-05T04:11:47.869Z";
+    v.schedule_updates = [
+      { id: "u1", data_date: "2026-03-10" },
+      { id: "u2", data_date: "2026-03-21" },
+    ];
+    const plan = planImport(fromOverwatch(v), { job_exists: false });
+    expect(plan.package.schedule!.data_date).toBe("2026-03-21");
+    expect(
+      readScheduleControl(plan.package.schedule!.data as LivingData)!.calculation,
+    ).toMatchObject({ status: "calculated", data_date: "2026-03-21" });
+    expect(plan.fixes.join(" ")).not.toMatch(/keeps no status date/);
+    delete v.schedule_updates;
+    expect(planImport(fromOverwatch(v), { job_exists: false }).package.schedule!.data_date).toBe(
+      "2026-03-17",
+    );
   });
 
   it("saves a calculated CPM with Overwatch's baseline, the data date after the last progress, and the longest path", () => {

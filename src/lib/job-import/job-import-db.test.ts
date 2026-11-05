@@ -96,6 +96,7 @@ beforeAll(async () => {
     "CREATE SCHEMA IF NOT EXISTS mcp_private; CREATE TABLE mcp_private.residential_selection_boards(job_id uuid PRIMARY KEY, version bigint NOT NULL, body jsonb NOT NULL, updated_by uuid, updated_at timestamptz NOT NULL DEFAULT now());",
   );
   await load("20261105100000_athena_job_logs");
+  await load("20261105210000_athena_job_import_completion");
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
@@ -1002,6 +1003,39 @@ describe("job import by a regular member", () => {
     expect(scope.rows[0].s).toBe("full");
     const again = await stage(x, pm);
     expect(Object.values(again.plan.counts).every((n) => n === 0)).toBe(true);
+  });
+
+  it("puts the export's contract completion on the job once, and never over a date already there", async () => {
+    const x = v2();
+    x.project.job_number = "4102";
+    x.project.baseline_completion_date = "2027-01-19";
+    const { batch_id, package_hash } = await stage(x, pm);
+    expect(await rpc("mcp_job_import_completion", [batch_id], pm)).toMatchObject({ filled: false });
+    const result = await rpc<Record<string, unknown>>(
+      "mcp_job_import_apply",
+      [batch_id, package_hash, true],
+      pm,
+    );
+    expect(await rpc("mcp_job_import_completion", [batch_id], est)).toMatchObject({
+      filled: false,
+    });
+    expect(await rpc("mcp_job_import_completion", [batch_id], pm)).toMatchObject({
+      filled: true,
+      contract_completion_date: "2027-01-19",
+    });
+    const report = await rpc<Record<string, unknown>>(
+      "mcp_living_report_get",
+      [result.job_id, "cpm", null],
+      pm,
+    );
+    expect(report.contract_completion_date).toBe("2027-01-19");
+    await db.query("UPDATE mcp_jobs SET contract_completion_date = '2027-05-01' WHERE id = $1", [
+      result.job_id,
+    ]);
+    expect(await rpc("mcp_job_import_completion", [batch_id], pm)).toMatchObject({
+      filled: false,
+      contract_completion_date: "2027-05-01",
+    });
   });
 
   it("tells a PM who isn't on a job, and an estimator, that the job needs full access", async () => {

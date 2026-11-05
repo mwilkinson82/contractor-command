@@ -50,6 +50,17 @@ export const FULL_ACCESS_HOW =
 
 export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one: ${OVERWATCH_EXPORT_HOW} Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
 
+/** Fills the job's contract completion from the saved import, only when the job has none. */
+export async function fillCompletion(sb: Sb, batch: string): Promise<void> {
+  try {
+    await (
+      sb.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ error: unknown }>
+    )("mcp_job_import_completion", { _batch: batch });
+  } catch {
+    // The import is already saved; the CPM shows the completion as Needed until it is set.
+  }
+}
+
 async function call<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await (
     sb.rpc as unknown as (
@@ -250,6 +261,9 @@ export const jobImport = defineTool({
           _confirmed: true,
         });
         const jobNumber = String(result.job_number ?? args.job_number ?? "");
+        // The source's contract completion goes on the CPM header when the job has none.
+        // Best effort: an older database without the function, or any refusal, changes nothing.
+        if (!result.already_applied) await fillCompletion(sb, args.batch_id);
         const card = appliedCard(result, jobNumber, args.source ?? "overwatch");
         // Client approvals and notices email the job's PM, so a job that came in without one gets the PM question.
         const pmAsk = await importPmAsk(sb, result);
