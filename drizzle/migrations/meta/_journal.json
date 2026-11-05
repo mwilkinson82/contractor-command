@@ -750,6 +750,13 @@
       "when": 1793915635704,
       "tag": "0106_athena_morning_brief_email",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1793919524518,
+      "tag": "0107_athena_chase_submittals_only",
+      "breakpoints": true
     }
   ]
 }
