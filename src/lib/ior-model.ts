@@ -302,6 +302,11 @@ export function isReviewOverdue(e: IorExposure, today: string): boolean {
   return !!e.next_review && daysBetween(e.next_review, today) > 0;
 }
 
+/** True when a risk's next review date falls before the day it was opened, a date entered wrong. */
+export function isReviewBeforeOpened(e: IorExposure): boolean {
+  return !!e.opened && !!e.next_review && daysBetween(e.opened, e.next_review) < 0;
+}
+
 export function iorFlags(m: IorModel, r: IorRollup, today: string): IorFlag[] {
   const out: IorFlag[] = [];
   if (!r.costKnown) out.push({ high: true, title: "No cost budget is saved.", detail: "Margin can't be read until one is." });
@@ -319,8 +324,11 @@ export function iorFlags(m: IorModel, r: IorRollup, today: string): IorFlag[] {
     const age = daysBetween(e.opened, today);
     if (age > 30) out.push({ high: false, title: `${e.short} has gone ${age} days without a review.`, detail: "No next review date is set." });
   }
+  // A review date before the open date is a typo, not a late review: ask for a real date.
+  for (const e of live.filter(isReviewBeforeOpened))
+    out.push({ high: false, title: `${e.short}'s review date is before it was opened.`, detail: `It was opened ${e.opened} with a review date of ${e.next_review}. Set the real review date.` });
   const overdue = live
-    .filter((e) => isReviewOverdue(e, today))
+    .filter((e) => isReviewOverdue(e, today) && !isReviewBeforeOpened(e))
     .map((e) => ({ e, late: daysBetween(e.next_review!, today) }))
     .sort((a, b) => b.late - a.late);
   if (overdue.length === 1) {
@@ -349,6 +357,9 @@ export function iorModelText(m: IorModel, today: string): string[] {
       `Indicated gross profit: ${dollars(r.indicatedGP)} · ${pct(r.indicatedPct)} of risk-adjusted contract ${dollars(r.forecastContract)}`,
       `Gap to signed: ${signedAmt(r.gap)}`,
       `Bridge: cost growth ${signedAmt(-r.costGrowth)}, pending change orders weighted ${signedAmt(r.weightedPendingContract - r.weightedPendingCost)}, E-holds ${signedAmt(-r.eHold)}, C-holds ${signedAmt(-r.cHold)}`,
+      `Cost forecast: original cost budget ${dollars(r.originalCost)} ${signedAmt(r.costGrowth)} cost growth = base projected cost ${dollars(r.baseCost)} (original scope: cost to date plus forecast to complete), + approved change order cost ${dollars(r.approvedCost)}, + pending change order cost weighted ${dollars(r.weightedPendingCost)} = forecast cost ${dollars(r.forecastCost)}`,
+      `Indicated gross profit = risk-adjusted contract ${dollars(r.forecastContract)} − forecast cost ${dollars(r.forecastCost)} − E-holds ${dollars(r.eHold)} − C-holds ${dollars(r.cHold)}`,
+      "These are Overwatch's IOR figures, already calculated. Quote them as given. Cost growth and approved change order cost are separate money, even when the two amounts match; never net one against the other.",
     );
   } else lines.push("Gross profit: Not available, no cost budget is saved.");
   lines.push(`E-holds: ${dollars(r.eHold)} (guide ${r.ePct}% of remaining cost: ${dollars(r.eTarget)}) · C-holds: ${dollars(r.cHold)} (guide ${r.cPct}%: ${dollars(r.cTarget)})`);

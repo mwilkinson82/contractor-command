@@ -180,4 +180,47 @@ describe("IOR in chat", () => {
     expect(text).toContain("Window and door delivery running late · E-hold · $52,000 × 60% = $31,200 held");
     expect(text).not.toContain("Ior Model");
   });
+
+  // Job 2717 (Harbor from Overwatch): cost growth and approved change order cost are both $180,000.
+  // Overwatch counts both (base projected cost + approved CO cost), so chat must spell that out.
+  const job2717 = {
+    ...harbor,
+    cost_growth: 180000,
+    actual_cost_to_date: 1625000,
+    percent_complete: 60,
+    change_orders: [
+      { number: "CO-001", description: "Wine room expansion", status: "Approved", contract_amount: 145000, cost_amount: 122000 },
+      { number: "CO-002", description: "Primary bath stone", status: "Approved", contract_amount: 65000, cost_amount: 58000 },
+      { number: "CO-003", description: "Pool equipment relocation", status: "Pending", contract_amount: 85000, cost_amount: 72000, probability: 75 },
+      { number: "CO-004", description: "Outdoor kitchen", status: "Pending", contract_amount: 120000, cost_amount: 98000, probability: 50 },
+    ],
+    exposures: [{ title: "Hold to match the 2717 page", category: "other", response: "accept", dollar_risk: 146100, probability: 100, hold: "E", opened: "2026-07-23", next_review: "2026-12-01" }],
+  };
+
+  it("counts cost growth and approved change order cost separately, as Overwatch does", async () => {
+    const { model } = readIorModel({ ior_model: job2717 });
+    const r = iorRollup(model!);
+    expect(r.baseCost).toBe(290_000_000);
+    expect(r.forecastCost).toBe(318_300_000);
+    expect(r.indicatedGP).toBe(20_465_000);
+    const { iorSectionsText } = await import("./mcp/living");
+    const text = iorSectionsText({ ior_model: job2717 }).join("\n");
+    expect(text).toContain("Indicated gross profit: $204,650 · 5.8%");
+    expect(text).toContain("base projected cost $2,900,000");
+    expect(text).toContain("+ approved change order cost $180,000");
+    expect(text).toContain("= forecast cost $3,183,000");
+    expect(text).toContain("risk-adjusted contract $3,533,750 − forecast cost $3,183,000");
+    expect(text).toContain("never net one against the other");
+    const page = renderAthenaIor(model!, { today: TODAY });
+    expect(page).toContain("$204,650");
+  });
+
+  it("calls out a review date that falls before the risk was opened", () => {
+    const exposures = [{ title: "Cabinet install delayed", short: "Cabinet install", category: "procurement", response: "recover", dollar_risk: 30000, probability: 50, hold: "E", opened: "2026-07-23", next_review: "2026-06-28" }];
+    const { model } = readIorModel({ ior_model: { ...harbor, exposures } });
+    const titles = iorFlags(model!, iorRollup(model!), TODAY).map((f) => f.title);
+    expect(titles).toContain("Cabinet install's review date is before it was opened.");
+    expect(titles.some((t) => t.includes("past its review"))).toBe(false);
+    expect(renderAthenaIor(model!, { today: TODAY })).toContain("is before it was opened");
+  });
 });

@@ -6,6 +6,7 @@ import {
   daysBetween,
   heldCents,
   iorFlags,
+  isReviewBeforeOpened,
   isReviewOverdue,
   iorRollup,
   isScheduleLinked,
@@ -278,9 +279,10 @@ function meter(name: string, sub: string, held: number, target: number, guide: n
 
 function riskCard(e: IorExposure, today: string): string {
   const held = heldCents(e);
+  const typo = held > 0 && isReviewBeforeOpened(e);
   const overdue = held > 0 && isReviewOverdue(e, today);
-  const review = !e.next_review ? "No review date set" : overdue ? `Review overdue since ${esc(fullDate(e.next_review))}` : `Next review ${esc(fullDate(e.next_review))}`;
-  const stale = held > 0 && (!e.next_review || overdue);
+  const review = !e.next_review ? "No review date set" : typo ? `Review date ${esc(fullDate(e.next_review))} is before it was opened` : overdue ? `Review overdue since ${esc(fullDate(e.next_review))}` : `Next review ${esc(fullDate(e.next_review))}`;
+  const stale = held > 0 && (!e.next_review || overdue || typo);
   return `<article class="risk"><div class="chips"><span class="c ${e.hold === "E" ? "e" : "ch"}">${e.hold}-hold</span><span class="c">${CATEGORY[e.category]}</span><span class="c">${RESPONSE[e.response]}</span></div><h4>${esc(e.title)}</h4><div class="calc">${money(Math.round(e.dollar_risk * 100))} × ${esc(pctOf(e.probability))} = <b>${money(held)}</b> held</div><div class="rev${stale ? " stale" : ""}">${review}${e.owner ? ` · ${esc(e.owner)}` : ""}</div>${e.next_move ? `<div class="move"><span>Athena's next move</span>${esc(e.next_move)}</div>` : ""}</article>`;
 }
 
