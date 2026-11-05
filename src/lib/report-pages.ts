@@ -1,5 +1,6 @@
 import { CLIENT_BRAND_FONTS, CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from "./client-brand";
 import { reportSurface } from "./report-surface";
+import { healthHtml, lookaheadHtml, narrativeHtml } from "./cpm-reports";
 import { comparisonHtml, delaysHtml, ganttHtml, ganttModel, ganttSummary, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
 import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
@@ -209,6 +210,9 @@ function scheduleView(p: JobPayload): string {
     );
     if (s.longestLine) out.push(`<p data-longest-path="true" style="margin:-4px 0 16px;font-size:13px;color:${NAVY}"><strong>Longest path:</strong> ${esc(s.longestLine)}</p>`);
     out.push(card(ganttHtml(input)));
+    out.push(card(narrativeHtml(input)));
+    const look = lookaheadHtml(input);
+    if (look) out.push(card(look));
     const milestones = milestoneHtml(input),
       compare = comparisonHtml(input),
       windows = windowsHtml(input),
@@ -217,6 +221,7 @@ function scheduleView(p: JobPayload): string {
     if (compare) out.push(card(compare));
     if (windows) out.push(card(windows));
     if (delays) out.push(card(delays));
+    out.push(card(healthHtml(input)));
     out.push(logicList());
     return out.join("");
   }
