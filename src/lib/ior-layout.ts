@@ -252,7 +252,14 @@ export function renderIorLayout(input: {
   // A structured IOR (data.ior_model) gets Athena's own IOR view. Saved IORs without one keep the layout below.
   if (moneyOk) {
     const { model } = readIorModel(data);
-    if (model) return renderAthenaIor(model, { today: input.today?.slice(0, 10) || todayIn(DEFAULT_TZ), version: report.version, dataDate: report.data_date });
+    if (model) {
+      // The IOR is read as of its data date, so "today" never falls before it. A save made just
+      // after midnight in the PM's zone would otherwise show yesterday in the default zone.
+      const day = input.today?.slice(0, 10) || todayIn(DEFAULT_TZ);
+      const dataDay = /^\d{4}-\d{2}-\d{2}/.test(report.data_date ?? "") ? report.data_date!.slice(0, 10) : null;
+      const today = dataDay && dataDay > day ? dataDay : day;
+      return renderAthenaIor(model, { today, version: report.version, dataDate: report.data_date });
+    }
   }
   const names = input.names;
   const outcome = moneyOk ? cedarOutcome(input.jobId, report) : null;

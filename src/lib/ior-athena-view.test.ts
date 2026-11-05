@@ -139,6 +139,13 @@ describe("Athena's IOR view", () => {
     expect(page).not.toContain("100.0%");
   });
 
+  it("never puts today before the IOR's data date", () => {
+    const page = renderIorLayout({ report: { scope: "full", version: 1, data_date: "2026-11-05", data: { ior_model: harbor } }, today: "2026-11-04" });
+    expect(page).toContain("aria-label=\"Today Nov 5, 2026");
+    const later = renderIorLayout({ report: { scope: "full", version: 1, data_date: "2026-11-05", data: { ior_model: harbor } }, today: "2026-11-09" });
+    expect(later).toContain("aria-label=\"Today Nov 9, 2026");
+  });
+
   it("replaces the saved-field layout only when the report carries a model and money is allowed", () => {
     const full = renderIorLayout({ report: { scope: "full", version: 4, data: { ior_model: harbor } }, today: TODAY });
     expect(full).toContain("class=\"ath-ior\"");
