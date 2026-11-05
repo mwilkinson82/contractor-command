@@ -297,6 +297,11 @@ export function daysBetween(a: string, b: string): number {
 const dollars = (c: number) => `${c < 0 ? "−" : ""}$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
 
 /** Overwatch's warning rules, worded the way Athena says them. `today` is YYYY-MM-DD in the job's time zone. */
+/** True when a risk's next review date has passed. */
+export function isReviewOverdue(e: IorExposure, today: string): boolean {
+  return !!e.next_review && daysBetween(e.next_review, today) > 0;
+}
+
 export function iorFlags(m: IorModel, r: IorRollup, today: string): IorFlag[] {
   const out: IorFlag[] = [];
   if (!r.costKnown) out.push({ high: true, title: "No cost budget is saved.", detail: "Margin can't be read until one is." });
@@ -307,10 +312,24 @@ export function iorFlags(m: IorModel, r: IorRollup, today: string): IorFlag[] {
     if (slip > 0 && !m.exposures.some(isScheduleLinked))
       out.push({ high: false, title: `The schedule slipped ${slip} days with no schedule exposure logged.`, detail: "Put a dollar figure on it so the holds cover it." });
   }
-  for (const e of m.exposures) {
+  // A risk holding nothing has nothing to review, so it never nags.
+  const live = m.exposures.filter((e) => heldCents(e) > 0);
+  for (const e of live) {
     if (!e.opened || e.next_review) continue;
     const age = daysBetween(e.opened, today);
     if (age > 30) out.push({ high: false, title: `${e.short} has gone ${age} days without a review.`, detail: "No next review date is set." });
+  }
+  const overdue = live
+    .filter((e) => isReviewOverdue(e, today))
+    .map((e) => ({ e, late: daysBetween(e.next_review!, today) }))
+    .sort((a, b) => b.late - a.late);
+  if (overdue.length === 1) {
+    const { e, late } = overdue[0];
+    out.push({ high: false, title: `${e.short} is ${late} ${late === 1 ? "day" : "days"} past its review.`, detail: `The review was due ${e.next_review}. Review it and set the next date.` });
+  } else if (overdue.length > 1) {
+    const held = overdue.reduce((t, o) => t + heldCents(o.e), 0);
+    const { e, late } = overdue[0];
+    out.push({ high: false, title: `${overdue.length} risks are past their review date.`, detail: `They hold ${dollars(held)}. Furthest behind is ${e.short}, ${late} days late. Review them and set new dates.` });
   }
   const accepted = m.exposures.filter((e) => e.response === "accept").reduce((t, e) => t + heldCents(e), 0);
   if (accepted > r.originalContract * 0.01) out.push({ high: false, title: "Accepted risk is over 1% of the contract.", detail: `${dollars(accepted)} is marked accept. Confirm it can't be eliminated, recovered or offset.` });
