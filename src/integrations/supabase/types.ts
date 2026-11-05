@@ -8197,6 +8197,200 @@ export type Database = {
           },
         ]
       }
+      mcp_submittal_reply_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          job_id: string
+          package_id: string
+          revoked_at: string | null
+          submittal_id: string
+          token_hash: string
+          try_count: number
+          try_window: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          job_id: string
+          package_id: string
+          revoked_at?: string | null
+          submittal_id: string
+          token_hash: string
+          try_count?: number
+          try_window?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          job_id?: string
+          package_id?: string
+          revoked_at?: string | null
+          submittal_id?: string
+          token_hash?: string
+          try_count?: number
+          try_window?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_submittal_reply_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_reply_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_reply_links_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittal_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_reply_links_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_submittal_responses: {
+        Row: {
+          action: string | null
+          applied_status: string | null
+          comments: string | null
+          company_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          file_path: string | null
+          files: Json
+          id: string
+          inbound_email_id: string | null
+          ip: string | null
+          job_id: string
+          link_id: string | null
+          package_id: string
+          raw_message_id: string | null
+          received_at: string
+          review_status: string
+          reviewer_email: string | null
+          reviewer_name: string | null
+          sender_known: boolean | null
+          source: string
+          subject: string | null
+          submittal_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          action?: string | null
+          applied_status?: string | null
+          comments?: string | null
+          company_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          file_path?: string | null
+          files?: Json
+          id?: string
+          inbound_email_id?: string | null
+          ip?: string | null
+          job_id: string
+          link_id?: string | null
+          package_id: string
+          raw_message_id?: string | null
+          received_at?: string
+          review_status: string
+          reviewer_email?: string | null
+          reviewer_name?: string | null
+          sender_known?: boolean | null
+          source: string
+          subject?: string | null
+          submittal_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string | null
+          applied_status?: string | null
+          comments?: string | null
+          company_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          file_path?: string | null
+          files?: Json
+          id?: string
+          inbound_email_id?: string | null
+          ip?: string | null
+          job_id?: string
+          link_id?: string | null
+          package_id?: string
+          raw_message_id?: string | null
+          received_at?: string
+          review_status?: string
+          reviewer_email?: string | null
+          reviewer_name?: string | null
+          sender_known?: boolean | null
+          source?: string
+          subject?: string | null
+          submittal_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_submittal_responses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_responses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_responses_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittal_reply_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_responses_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittal_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_submittal_responses_submittal_id_fkey"
+            columns: ["submittal_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_submittals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_submittals: {
         Row: {
           ball_in_court: string
@@ -11631,6 +11825,68 @@ export type Database = {
       mcp_submittal_record_stamp: {
         Args: { _job: string; _number: string }
         Returns: string
+      }
+      mcp_submittal_replies_list: {
+        Args: {
+          _job: string
+          _limit?: number
+          _needs_review_only?: boolean
+          _submittal?: string
+        }
+        Returns: Json
+      }
+      mcp_submittal_reply_confirm: {
+        Args: { _action: string; _job: string; _response: string }
+        Returns: Json
+      }
+      mcp_submittal_reply_email: {
+        Args: {
+          _from: string
+          _from_name: string
+          _in_reply: boolean
+          _inbound_email_id: string
+          _message_id: string
+          _received_at: string
+          _subject: string
+          _text: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_submittal_reply_files: {
+        Args: { _files: Json; _response: string }
+        Returns: Json
+      }
+      mcp_submittal_reply_link_issue: {
+        Args: {
+          _job: string
+          _package: string
+          _submittal: string
+          _token_hash: string
+        }
+        Returns: Json
+      }
+      mcp_submittal_reply_page_open: {
+        Args: { _token_hash: string }
+        Returns: Json
+      }
+      mcp_submittal_reply_page_submit: {
+        Args: {
+          _action: string
+          _comments: string
+          _files: Json
+          _ip: string
+          _response: string
+          _reviewer_email: string
+          _reviewer_name: string
+          _token_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_submittal_reply_page_try: {
+        Args: { _token_hash: string }
+        Returns: Json
       }
       mcp_submittal_rows: { Args: { _job: string }; Returns: Json }
       mcp_submittal_rows_before_packages: {
