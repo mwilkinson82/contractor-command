@@ -2,6 +2,8 @@
 // an internal flag) makes the page refuse to render rather than show it.
 import { z } from "zod";
 import { customerProposalSchema } from "../selections/proposal";
+import { timeSentence } from "../selections/change-terms";
+import { displayPrice } from "../selections/format";
 
 export const PORTAL_ORIGIN = "https://app.meetathena.io";
 export const portalInviteUrl = (token: string) => `${PORTAL_ORIGIN}/c/i/${token}`;
@@ -28,6 +30,50 @@ export type ChangeOrderView = z.infer<typeof changeOrderViewSchema>;
 
 export const selectionViewSchema = z.object({ proposal: customerProposalSchema }).strict();
 
+const cents = z.number().int();
+/** One SOV line as the owner sees it: no cost, fee, retainage inputs or sources. */
+export const payAppLineSchema = z
+  .object({
+    item: z.string(),
+    description: z.string(),
+    scheduled_cents: cents,
+    previous_cents: cents,
+    this_period_cents: cents,
+    /** Materials stored on site or off, not yet installed. */
+    stored_cents: cents,
+    completed_to_date_cents: cents,
+    percent_complete: z.number().nullable(),
+  })
+  .strict();
+/** A shared pay application, frozen when shared. A strict whitelist: anything else makes the page refuse to render. */
+export const payAppViewSchema = z
+  .object({
+    number: z.string(),
+    period_start: isoDate,
+    period_end: isoDate,
+    original_contract_cents: cents.nullable(),
+    approved_changes_cents: cents.nullable(),
+    contract_total_cents: cents,
+    lines: z.array(payAppLineSchema).min(1).max(100),
+    totals: z
+      .object({
+        completed_and_stored_cents: cents,
+        retainage_percent: z.number().nullable(),
+        retainage_cents: cents,
+        previous_certified_cents: cents,
+        current_due_cents: cents,
+      })
+      .strict(),
+  })
+  .strict();
+export type PayAppView = z.infer<typeof payAppViewSchema>;
+
+/** The name the member confirmed when sharing, exactly; a bare number reads "Payment Application 3". Same rule as the SQL label. */
+export function payAppLabel(number: string): string {
+  const n = number.trim();
+  return /^#?\d{1,4}$/.test(n) ? `Payment Application ${n.replace(/^#+/, "")}` : n;
+}
+
 const decisionSchema = z
   .object({
     decision: z.enum(["approved", "declined", "chosen"]),
@@ -49,6 +95,7 @@ const itemBase = {
 export const portalItemSchema = z.discriminatedUnion("kind", [
   z.object({ ...itemBase, kind: z.literal("change_order"), view: changeOrderViewSchema }).strict(),
   z.object({ ...itemBase, kind: z.literal("selection"), view: selectionViewSchema }).strict(),
+  z.object({ ...itemBase, kind: z.literal("pay_app"), view: payAppViewSchema }).strict(),
 ]);
 export type PortalItem = z.infer<typeof portalItemSchema>;
 
@@ -140,15 +187,28 @@ export function maskEmail(email: string): string {
 
 export const TIER_NAME = { good: "Good", better: "Better", best: "Best" } as const;
 
-/** The exact words the customer agrees to. Stored with each decision. Wording approved by Marshall (attorney), Nov 4. */
+/**
+ * The exact words the customer agrees to. Stored with each decision. Change order and selection wording approved by
+ * Marshall (attorney), Nov 4; pay application wording approved by Marshall, Nov 5.
+ */
 export function approvalStatement(a: {
-  kind: "change_order" | "selection";
+  kind: "change_order" | "selection" | "pay_app";
   company: string;
   label: string;
+  /** The price, the package total, or for a pay application the amount due now. */
   price: string;
   scheduleDays?: number | null;
   choice?: string;
+  /** Pay application: the last day of work it bills for, as shown on the page. */
+  periodEnd?: string;
+  /**
+   * A package choice on a job under contract that changes the price or the time: the choice is the
+   * change order approval, for this signed difference (as shown, e.g. "+$4,949.10").
+   */
+  changeOrder?: { difference: string } | null;
 }): string {
+  if (a.kind === "pay_app")
+    return `I approve ${a.label} from ${a.company} for ${a.price} due for work through ${a.periodEnd ?? ""}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
   if (a.kind === "change_order") {
     const days =
       a.scheduleDays === null || a.scheduleDays === undefined || a.scheduleDays === 0
@@ -156,5 +216,26 @@ export function approvalStatement(a: {
         : `${a.scheduleDays > 0 ? "+" : ""}${a.scheduleDays} ${Math.abs(a.scheduleDays) === 1 ? "day" : "days"} to the schedule`;
     return `I approve ${a.label} from ${a.company} for ${a.price} and ${days}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
   }
-  return `I choose the ${a.choice} package for ${a.label} from ${a.company}, ${a.price} total, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
+  const sign =
+    "I understand that typing my name and confirming with the emailed code is my electronic signature.";
+  const days = a.scheduleDays ?? 0;
+  if (a.changeOrder)
+    return `I choose the ${a.choice} package for ${a.label} from ${a.company} and approve it as a change order to my contract for ${a.changeOrder.difference}, as described on this page. ${timeSentence(days)} ${sign}`;
+  return `I choose the ${a.choice} package for ${a.label} from ${a.company}, ${a.price} total, as described on this page.${days > 0 ? ` ${timeSentence(days)}` : ""} ${sign}`;
+}
+
+/**
+ * What a package choice signs. On a job under contract, a package that changes the price or the
+ * time is a change order, and the customer's choice approves it for the signed difference, with
+ * the added time stated. Otherwise the choice sets the proposal price.
+ */
+export function choiceTerms(
+  underContract: boolean | null | undefined,
+  pk: { difference_cents: number; schedule_days?: number },
+  currency: string,
+): { days: number; changeOrder: { difference: string } | null } {
+  const days = pk.schedule_days ?? 0;
+  const c = pk.difference_cents;
+  const difference = `${c > 0 ? "+" : c < 0 ? "-" : ""}${displayPrice(Math.abs(c), currency)}`;
+  return { days, changeOrder: underContract && (c !== 0 || days > 0) ? { difference } : null };
 }

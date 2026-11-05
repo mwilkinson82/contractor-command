@@ -5,6 +5,7 @@ import { newToken, TOKEN_RE, tokenHash } from "../mcp/file-share";
 import { codeEmail, decisionEmail, type PortalEmail } from "./email";
 import {
   approvalStatement,
+  choiceTerms,
   inviteOpenSchema,
   portalViewSchema,
   TIER_NAME,
@@ -14,6 +15,7 @@ import {
 } from "./model";
 import {
   itemLabel,
+  longDate,
   PORTAL_HEADERS,
   PORTAL_SECTIONS,
   renderGone,
@@ -29,6 +31,8 @@ export function choiceNextForPm(
     under_contract?: boolean;
     difference_cents?: number | null;
     change_order_number?: string | null;
+    co_number?: string | null;
+    schedule_days?: number | null;
   },
   item: PortalView["items"][number],
 ): string | null {
@@ -36,12 +40,19 @@ export function choiceNextForPm(
   const diff =
     typeof r.difference_cents === "number" ? displayPrice(r.difference_cents, currency) : null;
   if (r.change_order_number)
-    return `The job is under contract, so Athena drafted change order ${r.change_order_number} for the package difference${diff ? ` of ${diff}` : ""} with the signed choice attached. Price it and send it to the customer for approval.`;
+    return `The job is under contract, so the customer's signed choice approved change order ${r.co_number ? `${r.co_number} (${r.change_order_number})` : r.change_order_number} for the package difference${diff ? ` of ${diff}` : ""}${typeof r.schedule_days === "number" ? `, ${r.schedule_days > 0 ? `with ${r.schedule_days} added ${r.schedule_days === 1 ? "day" : "days"}` : "with no added time"}` : ""}. Add it to the contract in Athena so billing picks it up.`;
   if (r.under_contract)
     return "The job is under contract and this package is already in the contract price, so no change order was drafted.";
   if (r.under_contract === false)
     return "The job has no contract value on file yet, so this is a proposal approval, not a change order. Carry the package total into the contract.";
   return null;
+}
+
+/** The PM's next step after the customer decides on a pay application. The page never certifies it or changes billing. */
+export function payAppNextForPm(decision: string): string {
+  return decision === "approved"
+    ? "Nothing in billing changed: the pay application is not certified and no payment is recorded. Record the actual certificate on the pay application when it comes in."
+    : "Nothing in billing changed. Read their note, then revise the pay application and share it again.";
 }
 
 export type PortalDeps = {
@@ -369,7 +380,8 @@ export async function handlePortal(
   if (typeof view === "string") return goneFor(view, access);
   const item = view.items.find((i) => i.id === f.item);
   if (!item) return redirect(`${self}?e=not_open`);
-  const sec = item.kind === "change_order" ? "changes" : "selections";
+  const sec: PortalSection =
+    item.kind === "change_order" ? "changes" : item.kind === "pay_app" ? "billing" : "selections";
   const at = (extra: Record<string, string>) =>
     `${self}?${new URLSearchParams({ s: sec, i: item.id, ...extra }).toString()}`;
   if (item.decision) return redirect(at({ e: "not_open" }));
@@ -427,7 +439,8 @@ export async function handlePortal(
         ),
       );
     const validKind =
-      (item.kind === "change_order" && (decision === "approved" || decision === "declined")) ||
+      ((item.kind === "change_order" || item.kind === "pay_app") &&
+        (decision === "approved" || decision === "declined")) ||
       (item.kind === "selection" && decision === "chosen" && choice !== null);
     if (!validKind || typed.length < 2 || typed.length > 120) return back("invalid");
     if (needsCode && f.agree !== "1") return back("agree");
@@ -446,16 +459,27 @@ export async function handlePortal(
               price: displayPrice(item.view.price_cents, "USD"),
               scheduleDays: item.view.schedule_days,
             })
-          : approvalStatement({
-              kind: "selection",
-              company,
-              label,
-              price: displayPrice(
-                item.view.proposal.packages.find((k) => k.tier === choice)!.total_cents,
-                item.view.proposal.currency,
-              ),
-              choice: TIER_NAME[choice!],
-            });
+          : item.kind === "pay_app"
+            ? approvalStatement({
+                kind: "pay_app",
+                company,
+                label,
+                price: displayPrice(item.view.totals.current_due_cents, "USD"),
+                periodEnd: longDate(item.view.period_end),
+              })
+            : (() => {
+                const pk = item.view.proposal.packages.find((k) => k.tier === choice)!;
+                const terms = choiceTerms(view.job.under_contract, pk, item.view.proposal.currency);
+                return approvalStatement({
+                  kind: "selection",
+                  company,
+                  label,
+                  price: displayPrice(pk.total_cents, item.view.proposal.currency),
+                  choice: TIER_NAME[choice!],
+                  scheduleDays: terms.days,
+                  changeOrder: terms.changeOrder,
+                });
+              })();
     const note = (f.note ?? "").trim().slice(0, 2000) || null;
     const res = await deps
       .rpc("mcp_portal_decide", {
@@ -481,6 +505,7 @@ export async function handlePortal(
         under_contract?: boolean;
         difference_cents?: number | null;
         change_order_number?: string | null;
+        schedule_days?: number | null;
       };
       if (r.pm_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.pm_email))
         await deps.send(
@@ -494,7 +519,12 @@ export async function handlePortal(
             choice: choice ? TIER_NAME[choice] : null,
             note,
             reference: `Customer page decision ${r.decision_id ?? ""}`.trim(),
-            next: decision === "chosen" ? choiceNextForPm(r, item) : null,
+            next:
+              decision === "chosen"
+                ? choiceNextForPm(r, item)
+                : item.kind === "pay_app"
+                  ? payAppNextForPm(decision!)
+                  : null,
           }),
         );
       return redirect(at({ ok: decision! }));

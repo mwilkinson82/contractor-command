@@ -158,14 +158,21 @@ export function noticeEmail(a: {
   link: string;
   kind: "update" | "decision";
   label?: string;
+  /** What was shared for a decision. A pay application asks for approval and says so. */
+  item?: "change_order" | "selection" | "pay_app";
   /** The contractor's saved logo, an https URL; their name shows when there is none. */
   logo?: string | null;
   nonce: string;
 }): PortalEmail {
+  const payApp = a.kind === "decision" && a.item === "pay_app";
+  // A pay application goes by the name the contractor confirmed when sharing it, exactly as written.
+  const what = payApp ? a.label || "a payment application" : (a.label ?? "something");
   const line =
     a.kind === "update"
       ? `${a.company} posted a new update on ${a.jobName}.`
-      : `${a.company} shared ${a.label ?? "something"} on ${a.jobName}. It needs your decision.`;
+      : payApp
+        ? `${a.company} sent ${what} for ${a.jobName}. It needs your review and approval.`
+        : `${a.company} shared ${what} on ${a.jobName}. It needs your decision.`;
   return {
     to: a.to,
     key: `portal-notice:${a.nonce}`,
@@ -173,7 +180,9 @@ export function noticeEmail(a: {
     subject:
       a.kind === "update"
         ? `${a.company} posted an update on ${a.jobName}`
-        : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
+        : payApp
+          ? `${a.company} sent a pay application for your approval: ${a.label ?? a.jobName}`
+          : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
     text: [
       `Hi ${a.name},`,
       "",
@@ -187,7 +196,12 @@ export function noticeEmail(a: {
       brand: { contractor: a.company, logo: a.logo },
       tagline: "Client page",
       preview: line,
-      heading: a.kind === "update" ? "New update on your project" : "Something needs your decision",
+      heading:
+        a.kind === "update"
+          ? "New update on your project"
+          : payApp
+            ? "A pay application needs your approval"
+            : "Something needs your decision",
       lines: [`Hi ${esc(firstName(a.name))},`, esc(line)],
       button: { label: "Open your project page", href: a.link },
       foot: `You get these emails because ${esc(a.company)} invited you to this project page.`,

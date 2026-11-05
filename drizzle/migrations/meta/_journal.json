@@ -554,6 +554,48 @@
       "when": 1793824324909,
       "tag": "0078_athena_team_plans_read_own",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1793840714301,
+      "tag": "0079_athena_report_share_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1793841711840,
+      "tag": "0080_athena_proposal_choice_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1793841770534,
+      "tag": "0081_athena_portal_choice_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793842041584,
+      "tag": "0082_athena_portal_pay_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1793843637089,
+      "tag": "0083_athena_gbb_change_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1793845314299,
+      "tag": "0084_athena_gbb_change_terms",
+      "breakpoints": true
     }
   ]
 }

@@ -55,7 +55,7 @@ describe("customer proposal page", () => {
   it("says change order only once the job is under contract", () => {
     const html = renderProposalDocument({ ...payload(), under_contract: true });
     expect(html).toContain(
-      "Your contract includes Good. Choose another package and the difference is added to your contract by change order.",
+      "Your contract includes Good. Choosing another package approves the difference as a change order to your contract, and you see any added time before you sign.",
     );
     expect(html).not.toContain("proposal price");
   });

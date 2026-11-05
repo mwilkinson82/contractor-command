@@ -4,6 +4,7 @@
 import { optionNames, type OptionName } from "./model";
 import { TIER_LABEL, type CustomerProposal } from "./proposal";
 import { displayPrice } from "./format";
+import { timeLabel } from "./change-terms";
 
 export const esc = (s: string) =>
   s.replace(
@@ -62,6 +63,7 @@ export const COMPARE_CSS = `
 .gbb .th .nm{font-size:24px;font-weight:600;line-height:1.15;letter-spacing:-.025em}
 .gbb .th .tot{font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
 .gbb .th .dl{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.gbb .th .tm{font-size:12px;color:var(--ink-2)}
 .gbb .th .gbb-act{margin-top:10px}
 .gbb .th.chosen .nm::after{content:"  ✓";color:var(--gold)}
 .gbb .btn{display:inline-block;border:0;cursor:pointer;background:var(--brand);color:var(--brand-ink);text-decoration:none;font:500 14px/1.2 inherit;font-family:inherit;padding:8px 18px;border-radius:999px;transition:transform .2s ease,opacity .2s}
@@ -130,8 +132,19 @@ export type CompareOpts = {
 export function howUpgradesWork(v: CustomerProposal, underContract: boolean | null): string {
   const base = TIER_LABEL[v.base_tier];
   return underContract
-    ? `Your contract includes ${base}. Choose another package and the difference is added to your contract by change order.`
+    ? `Your contract includes ${base}. Choosing another package approves the difference as a change order to your contract, and you see any added time before you sign.`
     : `Your proposal price includes ${base}. Choose another package and its total becomes your proposal price.`;
+}
+
+/** Under an upgrade's price: its added time, and any added cost beyond the products and what it is for. */
+export function packageExtras(
+  k: CustomerProposal["packages"][number],
+  price: (c: number) => string,
+): string {
+  const time = timeLabel(k.schedule_days ?? 0);
+  return k.added_cents
+    ? `${time} · includes ${price(k.added_cents)}${k.added_note ? ` for ${k.added_note.replace(/\.$/, "")}` : " added cost"}`
+    : time;
 }
 
 const tierTag = (v: CustomerProposal, tier: OptionName, chosen: OptionName | null) =>
@@ -146,7 +159,7 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
     .map((k, i) => {
       const base = k.tier === v.base_tier;
       const act = o.action?.(k.tier) ?? null;
-      return `<div class="th t${i + 1}${chosen === k.tier ? " chosen" : ""}"><span class="tag${chosen === k.tier ? " rec" : ""}">${tierTag(v, k.tier, chosen)}</span><span class="nm">${TIER_LABEL[k.tier]}</span><span class="tot">${esc(price(k.total_cents))}</span><span class="dl">${base ? "Your base price" : `${esc(plus(k.difference_cents))} ${k.difference_cents >= 0 ? "upgrade" : "change"}`}</span>${act ? `<div class="gbb-act">${act}</div>` : ""}</div>`;
+      return `<div class="th t${i + 1}${chosen === k.tier ? " chosen" : ""}"><span class="tag${chosen === k.tier ? " rec" : ""}">${tierTag(v, k.tier, chosen)}</span><span class="nm">${TIER_LABEL[k.tier]}</span><span class="tot">${esc(price(k.total_cents))}</span><span class="dl">${base ? "Your base price" : `${esc(plus(k.difference_cents))} ${k.difference_cents >= 0 ? "upgrade" : "change"}`}</span>${base ? "" : `<span class="tm">${esc(packageExtras(k, price))}</span>`}${act ? `<div class="gbb-act">${act}</div>` : ""}</div>`;
     })
     .join("");
   const lines = v.selections

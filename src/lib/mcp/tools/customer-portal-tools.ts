@@ -1,6 +1,6 @@
 // Customer page (0.8.24): one private page per job for the contractor's customer. The member invites the customer,
-// posts weekly updates and shares a priced change order or the Good, Better, Best proposal for the customer to
-// decide on the page. Every write needs full job access and confirmed: true after the member's yes.
+// posts weekly updates and shares a priced change order, the Good, Better, Best proposal or a pay application for
+// the customer to decide on the page. Every write needs full job access and confirmed: true after the member's yes.
 import { defineTool, ToolError, type JsonValueInput } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { dbError, run, text, type Sb } from "../guard";
@@ -66,7 +66,7 @@ type ListResult = {
 };
 
 const SAFE =
-  "The customer page shows only what is shared: weekly updates you post, photos marked customer-safe, a daily summary (date, weather, crew, work done; no issues, delays, safety notes or costs), schedule milestones, and the change orders and selections you share.";
+  "The customer page shows only what is shared: weekly updates you post, photos marked customer-safe, a daily summary (date, weather, crew, work done; no issues, delays, safety notes or costs), schedule milestones, and the change orders, selections and pay applications you share.";
 
 async function notify(
   recipients: Recipient[],
@@ -76,6 +76,7 @@ async function notify(
   label: string | undefined,
   accessFor: (r: Recipient) => string | null,
   logo: string | null = null,
+  item?: "change_order" | "selection" | "pay_app",
 ) {
   const out: string[] = [];
   for (const r of recipients) {
@@ -91,6 +92,7 @@ async function notify(
         kind,
         label,
         logo,
+        item,
         nonce: newToken(),
       }),
     );
@@ -101,6 +103,10 @@ async function notify(
   return out;
 }
 
+// After an invite, the member shouldn't have to work out what comes next.
+const NEXT_AFTER_INVITE =
+  "Then offer the next step: if this job has a Good, Better, Best proposal that is ready (selection_proposal preview shows it ready) and it isn't on the client page yet, ask whether to send it to their client page now, and on the member's yes call customer_portal share_selection with the preview's version and confirmed true. If a priced change order is waiting on the customer, offer to share it the same way.";
+
 export const CUSTOMER_PORTAL_RULE =
   " To invite a job's customer, owner or homeowner to their private customer page, call customer_portal with action invite, the job number and their email; never use team_invite or a team role for a customer, and never say Athena has no customer access. Pass confirmed true only after the member says yes to that invite.";
 
@@ -108,7 +114,7 @@ export const customerPortal = defineTool({
   name: "customer_portal",
   title: "Customer page",
   description:
-    "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order or the Good, Better, Best proposal for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
+    "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the member confirms the customer will see, client_number) for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -119,6 +125,7 @@ export const customerPortal = defineTool({
       "post_update",
       "share_change_order",
       "share_selection",
+      "share_pay_app",
       "withdraw",
     ]),
     email: z.string().trim().email().max(320).optional(),
@@ -131,6 +138,10 @@ export const customerPortal = defineTool({
     submittal_id: z.string().uuid().optional(),
     expected_version: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
     item_id: z.string().uuid().optional(),
+    application_id: z.string().uuid().optional(),
+    application_number: z.string().trim().min(1).max(120).optional(),
+    client_number: z.string().trim().min(1).max(60).optional(),
+    due_on: z.iso.date().optional(),
     notify: z.boolean().optional(),
     confirmed: z.boolean().optional(),
   },
@@ -179,6 +190,25 @@ export const customerPortal = defineTool({
           );
         }
 
+        if (args.confirmed !== true && args.action === "share_pay_app") {
+          if (!args.application_id && !args.application_number)
+            throw new ToolError(
+              "Read the pay application with payment_application_read and pass its id or number. Nothing was shared.",
+            );
+          const n = await rpc<{ saved_number: string; suggested_name: string }>(
+            sb,
+            "mcp_portal_pay_app_name",
+            {
+              _job: job.job_id,
+              _application: args.application_id ?? null,
+              _number: args.application_id ? null : (args.application_number ?? null),
+            },
+          );
+          const name = args.client_number ?? n.suggested_name;
+          throw new ToolError(
+            `Show the member the period, the amount due now, the approve-by date and the name their customer will see, pre-filled as "${name}". They can keep it or type any name they want; the saved pay application keeps its own number (${n.saved_number}). Ask them to confirm, then call again with client_number set to the name they confirmed and confirmed true. Nothing was shared.`,
+          );
+        }
         if (args.confirmed !== true) {
           const ask: Record<string, string> = {
             invite:
@@ -190,6 +220,8 @@ export const customerPortal = defineTool({
               "Show the member the change order number, title, price and schedule days the customer will see, and ask them to confirm sharing it for the customer's decision. Nothing was shared.",
             share_selection:
               "Preview the proposal with selection_proposal first, then ask the member to confirm sharing it on the customer page. Nothing was shared.",
+            share_pay_app:
+              "Show the member the period, the amount due now, the approve-by date and the name the customer will see, and ask them to confirm sharing it for the customer's approval. Nothing was shared.",
             withdraw:
               "Ask the member to confirm taking this item back from the customer page. Nothing changed.",
           };
@@ -258,6 +290,7 @@ export const customerPortal = defineTool({
             sent === "sent"
               ? "Tell the member the invite went out. Do not send the link yourself."
               : "Tell the member the email didn't go out and give them the link to pass on themselves. Do not send it yourself.",
+            NEXT_AFTER_INVITE,
           );
         }
 
@@ -333,7 +366,13 @@ export const customerPortal = defineTool({
           const sent =
             args.notify === false
               ? []
-              : await notifyAll(r, "decision", label, await companyLogoUrl(sb, job.company_id));
+              : await notifyAll(
+                  r,
+                  "decision",
+                  label,
+                  await companyLogoUrl(sb, job.company_id),
+                  "change_order",
+                );
           return guide(
             {
               ...text(
@@ -361,6 +400,16 @@ export const customerPortal = defineTool({
             throw new ToolError(
               "Preview with selection_proposal and pass its board version. Nothing was shared.",
             );
+          // Every change carries money and time: the contractor confirms each upgrade's extra time
+          // and added cost first, so the customer reads them right before they sign.
+          const board = await rpc<{
+            version?: number;
+            board?: { proposal?: { change_terms?: { reviewed_on?: string | null } } };
+          }>(sb, "mcp_residential_selections_get", { _job: job.job_id });
+          if (!board.board?.proposal?.change_terms?.reviewed_on)
+            throw new ToolError(
+              "First confirm the extra time and added cost for each upgrade with selection_board set_change_terms (show its card; both are 0 unless the member changes them). The customer reads them right before they sign. Nothing was shared.",
+            );
           const r = await rpc<{ item_id: string; title: string; fingerprint: string } & Shared>(
             sb,
             "mcp_portal_share_selection",
@@ -373,14 +422,85 @@ export const customerPortal = defineTool({
           const sent =
             args.notify === false
               ? []
-              : await notifyAll(r, "decision", r.title, await companyLogoUrl(sb, job.company_id));
+              : await notifyAll(
+                  r,
+                  "decision",
+                  r.title,
+                  await companyLogoUrl(sb, job.company_id),
+                  "selection",
+                );
           return text(
             [
               head,
               `Shared "${r.title}" for the customer to choose Good, Better or Best. They see the same view as the proposal link: no costs, margin or notes.`,
               "Their choice is recorded on the selection board with their typed name and an emailed code. The estimate, contract and billing do not change.",
               ...(r.recipients.length ? sent : ["No customer has access yet. Invite them first."]),
+              "",
+              r.recipients.length
+                ? "What happens next: they open their client page, pick Good, Better or Best, type their name and confirm with an emailed code. Athena emails the job's PM when they choose."
+                : "Next: invite the customer to their client page. They'll see this proposal as soon as they sign in.",
             ].join("\n"),
+          );
+        }
+        if (args.action === "share_pay_app") {
+          if (!args.application_id && !args.application_number)
+            throw new ToolError(
+              "Read the pay application with payment_application_read and pass its id or number. Nothing was shared.",
+            );
+          const r = await rpc<
+            {
+              item_id: string;
+              application_id: string;
+              version: number;
+              label: string;
+              due_on: string | null;
+              view: {
+                period_start: string;
+                period_end: string;
+                totals: { current_due_cents: number; retainage_cents: number };
+              };
+              fingerprint: string;
+            } & Shared
+          >(sb, "mcp_portal_share_pay_app", {
+            _job: job.job_id,
+            _application: args.application_id ?? null,
+            _number: args.application_id ? null : (args.application_number ?? null),
+            _expected_version: args.expected_version ?? null,
+            _due_on: args.due_on ?? null,
+            _client_number: args.client_number ?? null,
+          });
+          await audit(sb, job, "customer_portal", "share_pay_app", r.item_id);
+          const sent =
+            args.notify === false
+              ? []
+              : await notifyAll(
+                  r,
+                  "decision",
+                  r.label,
+                  await companyLogoUrl(sb, job.company_id),
+                  "pay_app",
+                );
+          return guide(
+            {
+              ...text(
+                [
+                  head,
+                  `Shared ${r.label} (version ${r.version}) for the customer's approval: ${displayPrice(r.view.totals.current_due_cents, "USD")} due for work ${longDate(r.view.period_start)} to ${longDate(r.view.period_end)}${r.due_on ? `, approve by ${longDate(r.due_on)}` : ""}.`,
+                  "They see the contract, each SOV line's work and stored materials, retainage held, what was already approved and what is due now. No cost, fee basis, sources, reasons or notes.",
+                  "If they approve, it is recorded with their typed name, an emailed code and a fingerprint of what they saw. The pay application is not certified, and billing and payments do not change.",
+                  ...(r.recipients.length
+                    ? sent
+                    : ["No customer has access yet. Invite them first."]),
+                ].join("\n"),
+              ),
+              structuredContent: {
+                item_id: r.item_id,
+                application_id: r.application_id,
+                version: r.version,
+                fingerprint: r.fingerprint,
+              } as unknown as JsonValueInput,
+            },
+            "Revising the pay application later takes it off the customer's page until you share it again.",
           );
         }
         throw new ToolError("Unknown action.");
@@ -393,8 +513,18 @@ async function notifyAll(
   kind: "update" | "decision",
   label?: string,
   logo: string | null = null,
+  item?: "change_order" | "selection" | "pay_app",
 ): Promise<string[]> {
-  return notify(r.recipients, r.job_name, r.company, kind, label, (x) => x.access_id ?? null, logo);
+  return notify(
+    r.recipients,
+    r.job_name,
+    r.company,
+    kind,
+    label,
+    (x) => x.access_id ?? null,
+    logo,
+    item,
+  );
 }
 
 export { INVITE_DEFAULT_DAYS };

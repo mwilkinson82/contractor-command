@@ -3,12 +3,15 @@ import { z } from "zod";
 import {
   boardSchema,
   boardSummary,
+  changeTermsOf,
+  defaultChangeTerms,
   differenceFromAllowance,
   ESTIMATE_LINE_REF,
   extended,
   httpsUrl,
   normalizeUrl,
   optionNames,
+  packageTerms,
   proposalSchema,
   type Board,
   type Option,
@@ -44,6 +47,10 @@ import {
   provisionalNote,
   type CheckGap,
 } from "../../selections/line-checks";
+import { suggestLines, type LineCandidate } from "../../selections/line-candidates";
+import { proposalNextSteps, type PortalState } from "../../selections/proposal-next-steps";
+import { timeLabel, timeSentence } from "../../selections/change-terms";
+import type { CardModel } from "../cards/model";
 import { parseState } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { jobTimeZone, named, resolveJob } from "../jobs";
@@ -162,11 +169,12 @@ function contractorText(board: Board, version: number, today: string): string[] 
   for (const p of review.packages) {
     const t = totals[p.tier];
     lines.push(
-      `${tierLabel(p.tier)}: proposal total ${money(t.total_cents, code)} · ${signed(t.difference_cents, code)} vs base · selections price ${money(p.selections.price_cents, code)}, cost ${money(p.selections.cost_cents, code)}, margin ${money(p.selections.margin_cents, code)} (${percent(p.selections.margin_bp)}), markup ${percent(p.selections.markup_bp)}`,
+      `${tierLabel(p.tier)}: proposal total ${money(t.total_cents, code)} · ${signed(t.difference_cents, code)} vs base${p.tier === board.proposal.base_tier ? "" : ` · ${timeLabel(packageTerms(board, p.tier).schedule_days)} · added cost ${money(packageTerms(board, p.tier).added_cents, code)}${packageTerms(board, p.tier).added_note ? ` (${packageTerms(board, p.tier).added_note})` : ""}`} · selections price ${money(p.selections.price_cents, code)}, cost ${money(p.selections.cost_cents, code)}, margin ${money(p.selections.margin_cents, code)} (${percent(p.selections.margin_bp)}), markup ${percent(p.selections.markup_bp)}`,
     );
   }
   lines.push(
     "Margin and markup cover the selections only; the base price's own cost is not on this board.",
+    `Extra time and added cost per upgrade: ${changeTermsOf(board).reviewed_on ? `confirmed ${changeTermsOf(board).reviewed_on}` : "NOT CONFIRMED (set with set_change_terms before sending to the client page)"}`,
   );
   if (board.accepted)
     lines.push(
@@ -191,7 +199,7 @@ export function customerText(view: CustomerProposal): string[] {
   lines.push("");
   for (const p of view.packages)
     lines.push(
-      `${tierLabel(p.tier)}: ${money(p.total_cents, code)}${p.tier === view.base_tier ? " (base proposal)" : ` · ${signed(p.difference_cents, code)} vs base`}`,
+      `${tierLabel(p.tier)}: ${money(p.total_cents, code)}${p.tier === view.base_tier ? " (base proposal)" : ` · ${signed(p.difference_cents, code)} vs base · ${timeSentence(p.schedule_days ?? 0)}${p.added_cents ? ` Includes ${money(p.added_cents, code)}${p.added_note ? ` for ${p.added_note}` : " added cost"}.` : ""}`}`,
     );
   for (const s of view.selections) {
     lines.push("", `${s.title} · ${s.quantity} ${s.unit}`);
@@ -367,6 +375,76 @@ const proposalPatch = z
   .partial()
   .strict();
 
+const packageTermsPatch = z
+  .object({
+    schedule_days: z.number().int().min(0).max(3650),
+    added_cents: z.number().int().min(0).max(999_999_999_999),
+    added_note: z
+      .string()
+      .trim()
+      .max(300)
+      .describe("What the added cost is for, as the customer reads it, e.g. Extra install labor."),
+  })
+  .partial()
+  .strict();
+const changeTermsPatch = z
+  .object({ good: packageTermsPatch, better: packageTermsPatch, best: packageTermsPatch })
+  .partial()
+  .strict();
+
+/**
+ * The card the contractor sees before an upgrade goes to the customer: each upgrade package with its
+ * product difference, extra time and added cost, and what the customer will read before they sign.
+ */
+export function changeTermsCard(board: Board, jobLabel: string, confirmed: boolean): CardModel {
+  const code = board.currency;
+  const totals = packageTotals(board);
+  const ups = optionNames.filter((t) => t !== board.proposal.base_tier);
+  return {
+    state: confirmed ? "result" : "ask",
+    show_state: false,
+    title: confirmed ? "Time and cost confirmed" : "Time and cost for each upgrade",
+    job: jobLabel,
+    sections: [
+      {
+        heading: `Upgrades from ${tierLabel(board.proposal.base_tier)}`,
+        kind: "table",
+        columns: ["Package", "Products", "Added cost", "Extra time", "Change to the contract"],
+        rows: ups.map((t) => {
+          const terms = packageTerms(board, t);
+          const d = totals[t].difference_cents;
+          return {
+            cells: [
+              tierLabel(t),
+              d === null ? "Not priced" : signed(d - terms.added_cents, code),
+              terms.added_cents
+                ? `${money(terms.added_cents, code)}${terms.added_note ? ` · ${terms.added_note}` : ""}`
+                : "None",
+              timeLabel(terms.schedule_days),
+              d === null ? "Not priced" : signed(d, code),
+            ],
+          };
+        }),
+      },
+      {
+        heading: "What the customer reads before they sign",
+        kind: "list",
+        rows: ups.map((t) => ({
+          cells: [`${tierLabel(t)}: ${timeSentence(packageTerms(board, t).schedule_days)}`],
+        })),
+      },
+    ],
+    ask: confirmed
+      ? null
+      : {
+          prompt: `Does ${ups.map(tierLabel).join(" or ")} need extra time or added cost beyond the product price? Both stay at 0 unless you change them.`,
+        },
+    next_move: confirmed
+      ? "Next: send the proposal to the customer's client page."
+      : "Enter any extra days and added cost (with what it's for), or confirm none.",
+  };
+}
+
 const comparisonLineSchema = z
   .object({
     estimate_line_ref: z.string().regex(ESTIMATE_LINE_REF),
@@ -417,6 +495,62 @@ const needVersion = (v: number | undefined) => {
     throw new ToolError("Read the current board first and pass its version. Nothing was saved.");
   return v;
 };
+
+const SKIP_LABEL = {
+  code_required: "code-required life-safety items",
+  rough_in: "rough-in, wiring, gear and connections",
+  accessory: "accessories that follow another line's choice",
+  no_quantity: "lines with no quantity yet",
+  not_a_choice: "items the customer doesn't choose",
+} as const;
+
+/** Estimate lines worth offering Good, Better and Best on, most customer-visible first. */
+async function suggestReply(sb: Sb, job: Awaited<ReturnType<typeof resolveJob>>) {
+  const read = await estimateRead(sb, job.job_id);
+  const saved = await readBoard(sb, job.job_id);
+  const refs = saved.board.selections.flatMap((s) =>
+    s.estimate_line_ref ? [s.estimate_line_ref] : [],
+  );
+  const result = suggestLines(read.lines, refs);
+  const byNo = new Map(read.lines.map((l) => [l.line_no, l]));
+  const conflictsFor = (c: LineCandidate) =>
+    openLineConflicts(byNo.get(c.line_no)!, read.gaps, read.verdicts).map((g) => g.ref);
+  const row = (c: LineCandidate) => {
+    const open = conflictsFor(c);
+    return `- ${c.estimate_line_ref} ${c.item}, ${c.qty} ${c.unit}: ${c.why}${open.length ? ` Open drawing question ${open.join(", ")}: settle it first, or run the options as provisional.` : ""}`;
+  };
+  const skipped = (Object.keys(SKIP_LABEL) as (keyof typeof SKIP_LABEL)[])
+    .filter((k) => result.skipped[k] > 0)
+    .map((k) => `${result.skipped[k]} ${SKIP_LABEL[k]}`);
+  const lines = [
+    `${named(job)} · Lines worth offering Good, Better, Best`,
+    ...(read.lines.length
+      ? result.suggested.length
+        ? ["", "Suggested, most customer-visible first:", ...result.suggested.map(row)]
+        : ["", "No estimate line is a clear Good, Better, Best candidate yet."]
+      : ["", "This job has no takeoff lines yet. Build the takeoff first."]),
+    ...(result.on_board.length
+      ? ["", "Already on the selections board:", ...result.on_board.map(row)]
+      : []),
+    ...(skipped.length ? ["", `Left out: ${skipped.join("; ")}.`] : []),
+    "",
+    "Nothing was saved. Suggestions don't change the estimate.",
+  ];
+  return guide(
+    {
+      ...text(lines.join("\n")),
+      structuredContent: {
+        version: saved.version,
+        suggested: result.suggested.map((c) => ({ ...c, open_conflicts: conflictsFor(c) })),
+        on_board: result.on_board,
+        skipped: result.skipped,
+        internal: true,
+      } as unknown as JsonValueInput,
+    },
+    "Show the suggested lines with their reason in one short list, most visible first, and say which already have options. The contractor picks: ask which lines to build Good, Better, Best on, then call selection_board start with each chosen estimate_line_ref. Never start a selection the member didn't pick.",
+    "Good meets the drawings and specification at the lowest sound cost, Better adds useful features or quality, and Best is premium quality, efficiency or controls. Explain it that way when the member asks how the tiers are chosen.",
+  );
+}
 
 async function lineOptionsReply(
   sb: Sb,
@@ -471,19 +605,21 @@ export const selectionBoard = defineTool({
   name: "selection_board",
   title: "Good, Better, Best selections",
   description:
-    "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
+    "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), sets each upgrade package's extra schedule days and added cost before it goes to the customer (set_change_terms, 0 by default), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
     action: z.enum([
       "read",
       "options",
+      "suggest",
       "start",
       "propose_option",
       "save_comparison",
       "review_price",
       "apply_markup",
       "set_proposal",
+      "set_change_terms",
       "remove_selection",
       "save",
     ]),
@@ -524,6 +660,11 @@ export const selectionBoard = defineTool({
       .regex(/^[A-Z]{3}$/)
       .optional(),
     proposal: proposalPatch.optional(),
+    change_terms: changeTermsPatch
+      .optional()
+      .describe(
+        "set_change_terms only: extra schedule days and added cost beyond the product price for each upgrade package, as the member gives them. Leave a package out to keep it as is; both default to 0. The base package is the contract scope and takes none.",
+      ),
     review_base_price: z.boolean().optional(),
     confirmed: z.boolean().optional(),
     board: boardSchema.optional(),
@@ -542,13 +683,15 @@ export const selectionBoard = defineTool({
       async (sb) => {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const today = todayIn(await jobTimeZone(sb, job.job_id));
-        const writes = args.action !== "read" && args.action !== "options";
+        const writes =
+          args.action !== "read" && args.action !== "options" && args.action !== "suggest";
         if (
           !writes &&
           (args.board || args.expected_version !== undefined || args.candidate || args.comparison)
         )
           throw new ToolError("Read requests cannot include changes.");
         if (args.action === "options") return lineOptionsReply(sb, job, args.estimate_line_ref);
+        if (args.action === "suggest") return suggestReply(sb, job);
         if (args.action === "save" && (!args.board || args.expected_version === undefined))
           throw new ToolError(
             "Read the current board first and provide its version and the complete updated board.",
@@ -557,7 +700,9 @@ export const selectionBoard = defineTool({
         const current = writes ? await readBoard(sb, job.job_id) : null;
         // A comparison only touches the lines it names, so it can save on the version read here.
         const expected =
-          args.action === "save_comparison" && args.expected_version === undefined
+          (args.action === "save_comparison" ||
+            (args.action === "set_change_terms" && args.confirmed !== true)) &&
+          args.expected_version === undefined
             ? current?.version
             : args.expected_version;
         if (current && current.version !== needVersion(expected))
@@ -816,6 +961,58 @@ export const selectionBoard = defineTool({
             next!.proposal.base_reviewed_on = today;
             grant = { base: true };
           }
+        } else if (args.action === "set_change_terms") {
+          const base = next!.proposal.base_tier;
+          if (args.change_terms?.[base])
+            throw new ToolError(
+              `${tierLabel(base)} is the base package, already in the contract price, so it takes no extra time or added cost. Set them on the upgrades. Nothing was saved.`,
+            );
+          const terms = structuredClone(next!.proposal.change_terms ?? defaultChangeTerms());
+          for (const t of optionNames) Object.assign(terms[t], args.change_terms?.[t] ?? {});
+          next!.proposal.change_terms = terms;
+          if (args.confirmed !== true) {
+            // Show the card and ask; nothing is saved until the member confirms.
+            const shown = boardSchema.parse(next!);
+            return guide(
+              {
+                ...text(
+                  [
+                    `${named(job)} · Time and added cost for each upgrade (not saved yet)`,
+                    ...optionNames
+                      .filter((t) => t !== base)
+                      .map((t) => {
+                        const k = packageTerms(shown, t);
+                        return `${tierLabel(t)}: ${timeLabel(k.schedule_days)} · added cost ${money(k.added_cents, shown.currency)}${k.added_note ? ` (${k.added_note})` : ""} · the customer reads: "${timeSentence(k.schedule_days)}"`;
+                      }),
+                    "",
+                    "Every change order carries money and time. Both stay at 0 unless the member changes them.",
+                  ].join("\n"),
+                ),
+                structuredContent: {
+                  saved: false,
+                  version: current!.version,
+                  change_terms: terms,
+                  packages: packageTotals(shown),
+                  card: changeTermsCard(shown, named(job), false),
+                  internal: true,
+                } as unknown as JsonValueInput,
+              },
+              "Show this card and ask the member, for each upgrade package, whether it needs extra schedule days or added cost beyond the product price (extra install labor, for example), with a few words on what the added cost is for. Both default to 0.",
+              "When they answer, or say none is needed, call set_change_terms again with expected_version, their numbers in change_terms, and confirmed true. Confirming 0 is a real answer: it tells the customer no added time is needed.",
+              "If the member isn't sure how many days a change needs, say a schedule update can work it out; for now take the number they give.",
+            );
+          }
+          grant = { terms: true };
+          next!.proposal.change_terms = { ...terms, reviewed_on: today };
+          brief.push(
+            `Time and added cost confirmed: ${optionNames
+              .filter((t) => t !== base)
+              .map((t) => {
+                const k = terms[t];
+                return `${tierLabel(t)} ${timeLabel(k.schedule_days).toLowerCase()}, added cost ${money(k.added_cents, next!.currency)}`;
+              })
+              .join("; ")}.`,
+          );
         } else if (args.action === "remove_selection") {
           if (!args.selection_id)
             throw new ToolError("Send the selection_id to remove. Nothing was saved.");
@@ -834,6 +1031,12 @@ export const selectionBoard = defineTool({
           );
         } else if (args.action === "save") {
           next = args.board!;
+          // A full save that leaves the time and cost out keeps them; only set_change_terms changes them.
+          if (!next.proposal.change_terms && current!.board.proposal.change_terms)
+            next = {
+              ...next,
+              proposal: { ...next.proposal, change_terms: current!.board.proposal.change_terms },
+            };
         }
 
         // Only a confirmed review in this call can set a review date; a change
@@ -896,6 +1099,57 @@ export const selectionBoard = defineTool({
       },
     ),
 });
+
+/**
+ * Who is on the job's client page and whether a proposal already waits there,
+ * for the next steps after a preview. Null when the client page can't be read
+ * (not installed, or the member can't manage it); the steps then still lead there.
+ */
+async function portalState(sb: Sb, jobId: string): Promise<PortalState | null> {
+  try {
+    const { data, error } = await (
+      sb.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )("mcp_portal_list", { _job: jobId });
+    if (error) return null;
+    const parsed = z
+      .object({
+        customers: z.array(
+          z
+            .object({ name: z.string(), email: z.string(), revoked_at: z.string().nullable() })
+            .passthrough(),
+        ),
+        items: z.array(
+          z
+            .object({
+              kind: z.string(),
+              withdrawn_at: z.string().nullable(),
+              decision: z
+                .object({ decision: z.string(), choice: z.string().nullable() })
+                .passthrough()
+                .nullable(),
+            })
+            .passthrough(),
+        ),
+      })
+      .passthrough()
+      .safeParse(data);
+    if (!parsed.success) return null;
+    const live = parsed.data.items.filter((i) => i.kind === "selection" && !i.withdrawn_at);
+    return {
+      customers: parsed.data.customers
+        .filter((c) => !c.revoked_at)
+        .map((c) => ({ name: c.name, email: c.email })),
+      open_on_client_page: live.some((i) => !i.decision),
+      chosen_on_client_page:
+        live.find((i) => i.decision?.decision === "chosen")?.decision?.choice ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 const PROPOSAL_PATH = "/p/s/";
 export const proposalShareUrl = (token: string, origin = PAGE_ORIGIN) =>
@@ -977,6 +1231,12 @@ export const selectionProposal = defineTool({
               "Help the member fix these with selection_board. Nothing was shared.",
             );
           const view = customerProposal(saved.board, saved.version);
+          const steps = proposalNextSteps(
+            view,
+            saved.version,
+            await portalState(sb, job.job_id),
+            changeTermsOf(saved.board).reviewed_on !== null,
+          );
           return guide(
             {
               ...text(
@@ -984,15 +1244,21 @@ export const selectionProposal = defineTool({
                   `${named(job)} · Customer view preview (board v${saved.version}). This is exactly what the customer sees; no costs, margin or notes.`,
                   "",
                   ...customerText(view),
+                  "",
+                  "Next steps:",
+                  ...steps.map((st, i) => `${i + 1}. ${st.label}. ${st.detail}`),
                 ].join("\n"),
               ),
               structuredContent: {
                 ready: true,
                 version: saved.version,
                 customer_view: view,
+                next_steps: steps,
               } as unknown as JsonValueInput,
             },
-            "Show only this customer view. Do not add cost, margin, markup, found prices, assumptions or notes. Ask separately before making an expiring customer link with action share and confirmed true.",
+            "Show only this customer view. Do not add cost, margin, markup, found prices, assumptions or notes.",
+            "Then walk the member through what comes next: end your reply with the next steps in the order given, as short choices they can tap, the first one as the main choice, each with its one-line detail. Don't leave the member to work out the process, and don't skip a step. Each step that changes, invites, sends or shares needs the member's yes first: for an invite, show the customer's name and email; for sending to the client page, say the customer will be emailed. Then do the step exactly as its how says, and after it offer the next one.",
+            "The client page is where the customer chooses and approves: Send it to their client page is the main way to send a proposal. The view-only link is a secondary option for a quick look; never offer it as the way to get the customer's approval.",
           );
         }
 

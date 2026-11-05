@@ -4,6 +4,8 @@ const fixture = vi.hoisted(() => ({
   calls: [] as string[],
   deny: false,
   viewOptions: [] as unknown[],
+  page: null as Record<string, unknown> | null,
+  saved: [] as unknown[],
 }));
 vi.mock("./guard", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./guard")>()),
@@ -29,11 +31,16 @@ vi.mock("./takeoff/service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./takeoff/service")>()),
   requiredSnapshot: async () => {
     fixture.calls.push("snapshot");
-    return {};
+    return { calibrations: fixture.saved.length ? [{ source_id: "source", page: 1 }] : [] };
+  },
+  saveCalibration: async (_sb: unknown, _job: unknown, _page: unknown, input: unknown) => {
+    fixture.calls.push("save-calibration");
+    fixture.saved.push(input);
+    return { id: "cal" };
   },
   loadStoredPage: async (_sb: unknown, _job: unknown, sheet: string, source: string) => {
     fixture.calls.push(`source:${source}:${sheet}`);
-    return { source: { id: source, content_hash: "hash" }, sheet };
+    return { source: { id: source, content_hash: "hash" }, sheet, ...fixture.page };
   },
   readTile: async (_sb: unknown, _job: unknown, _page: unknown, index: number) => {
     fixture.calls.push(`tile:${index}`);
@@ -73,6 +80,8 @@ beforeEach(() => {
   fixture.calls = [];
   fixture.deny = false;
   fixture.viewOptions = [];
+  fixture.page = null;
+  fixture.saved = [];
 });
 describe("lightweight viewer tiles", () => {
   it("checks the gate, job scope and source, skips the takeoff snapshot, and avoids a full-page view", async () => {
@@ -104,5 +113,51 @@ describe("lightweight viewer tiles", () => {
   it("keeps the annotated image when the model opens a sheet", async () => {
     await call({ operation: "list" });
     expect(fixture.viewOptions).toEqual([{ modelImage: true }]);
+  });
+  it("applies the printed scale when a full-size sheet opens with no scale saved", async () => {
+    fixture.page = {
+      page: 1,
+      space: {
+        source_id: "source",
+        source_hash: "a".repeat(64),
+        page: 1,
+        width: 2592,
+        height: 1728,
+      },
+      inspection: {
+        width: 2592,
+        height: 1728,
+        text: 'LIGHTING PLAN SCALE: 1/4" = 1\'-0"',
+        tiles: [],
+        truncated: false,
+        objects: [],
+      },
+    };
+    await call({ operation: "list", viewer_only: true });
+    expect(fixture.saved).toMatchObject([{ method: "title_block", confirmed: true }]);
+    // It re-reads the takeoff so the viewer opens with the scale in place.
+    expect(fixture.calls.filter((c) => c === "snapshot")).toHaveLength(2);
+  });
+  it("leaves a half-size print alone", async () => {
+    fixture.page = {
+      page: 1,
+      space: {
+        source_id: "source",
+        source_hash: "a".repeat(64),
+        page: 1,
+        width: 1224,
+        height: 792,
+      },
+      inspection: {
+        width: 1224,
+        height: 792,
+        text: 'SCALE: 1/4" = 1\'-0"',
+        tiles: [],
+        truncated: false,
+        objects: [],
+      },
+    };
+    await call({ operation: "list", viewer_only: true });
+    expect(fixture.saved).toEqual([]);
   });
 });
