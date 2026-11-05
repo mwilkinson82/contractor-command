@@ -49,14 +49,14 @@ function scaled(zoom: LookZoom, k: number): LookZoom {
 }
 
 /** Inputs keep their state across a redraw: the same ids come back in the new HTML. */
-function saveState(section: HTMLElement) {
+export function saveState(section: HTMLElement) {
   const checked = [...section.querySelectorAll<HTMLInputElement>("input[id]")].map((i) => [i.id, i.checked] as const);
   const selects = [...section.querySelectorAll<HTMLSelectElement>("select[id]")].map((s) => [s.id, s.value] as const);
   const scroll = visibleWindow(section)?.querySelector<HTMLElement>(".cpm-scroll");
   return { checked, selects, top: scroll?.scrollTop ?? 0, left: scroll?.scrollLeft ?? 0, frac: scroll && scroll.scrollWidth ? scroll.scrollLeft / scroll.scrollWidth : 0 };
 }
 
-function restoreState(section: HTMLElement, st: ReturnType<typeof saveState>) {
+export function restoreState(section: HTMLElement, st: ReturnType<typeof saveState>) {
   for (const [id, on] of st.checked) {
     const el = section.querySelector<HTMLInputElement>(`input[id="${CSS.escape(id)}"]`);
     if (el) el.checked = on;

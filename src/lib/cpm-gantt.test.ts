@@ -10,6 +10,8 @@ import {
   scheduleWindows,
   windowsHtml,
   ganttHtml,
+  ganttViewsHtml,
+  scheduleScale,
   ganttModel,
   ganttSummary,
   logicChanges,
@@ -410,6 +412,31 @@ describe("round 3: start status, lookahead Gantt, reports", () => {
     const one = lookaheadGanttHtml(input(), 3, {}, { w: 4, g: "w" });
     expect((one.match(/class="cpm-law"/g) ?? []).length).toBe(1);
     expect(one).toContain('data-w="4" data-g="w"');
+  });
+
+  it("main schedule timescale drag zoom: buttons, views redraw and the print fit (Marshall, Nov 5)", () => {
+    const html = ganttHtml(input());
+    expect(html).toContain('data-cpm-zoom="fit"');
+    expect(html).toContain('data-cpm-zoom="in"');
+    expect(html).toContain('data-cpm-zoom="out"');
+    expect(html).toContain("#cpm-gantt .cpm-zoom{display:none");
+    expect(html).toContain("[data-cpm-js] #cpm-gantt .cpm-zoom{display:inline-flex}");
+    expect(html).toContain("[data-cpm-js] #cpm-gantt .cpm-head .cpm-t{cursor:grab");
+    expect(html).toMatch(/<div class="cpm-views" style="--cpm-pfit:[\d.]+">/);
+    expect(html).toContain("zoom:var(--cpm-pfit,");
+    const w = (h: string) => Number(/data-view="all"[^>]*style="--cpm-w:([\d.]+)px"/.exec(h)?.[1]);
+    const base = w(ganttViewsHtml(input()));
+    expect(base).toBe(w(html));
+    // A short test job sits at the 360 px minimum by default; past it the width follows the zoom.
+    expect(w(ganttViewsHtml({ ...input(), zoom: 4 }))).toBe(w(ganttViewsHtml({ ...input(), zoom: 2 })) * 2);
+    expect(w(ganttViewsHtml({ ...input(), zoom: 2 }))).toBeGreaterThan(base);
+    const one = ganttViewsHtml({ ...input(), zoom: 1.5 }, "all");
+    expect((one.match(/class="cpmv"/g) ?? []).length).toBe(1);
+    // The page script reads each view's days and base scale to fit it and to bound the drag.
+    expect(html).toMatch(/class="cpmv" data-view="all" data-days="\d+" data-base="4"/);
+    expect(scheduleScale(4, 0.001)).toBe(0.3);
+    expect(scheduleScale(4, 100)).toBe(60);
+    expect(scheduleScale(4, 0.5)).toBe(2);
   });
 
   it("the frozen table covers its row line, so Gantt drawings never show under it", () => {

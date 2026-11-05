@@ -185,7 +185,18 @@ export type GanttInput = {
   layout?: string | null;
   /** Link that opens a layout, or the default view with null. Default: ?layout=<id>. */
   layoutHref?: (id: string | null) => string;
+  /** Timescale factor from the page's drag zoom (1 = the layout's or the default scale). */
+  zoom?: number;
 };
+
+/** Bounds of the main schedule's px per day: a multi-year job still fits a screen, a day still reads when stretched. */
+const SCHED_MIN_SCALE = 0.3;
+const SCHED_MAX_SCALE = 60;
+/** Px per day on the main schedule at a zoom factor. */
+export function scheduleScale(base: number, zoom = 1): number {
+  const z = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  return Math.max(SCHED_MIN_SCALE, Math.min(SCHED_MAX_SCALE, Math.round(base * z * 100) / 100));
+}
 
 /** Everything the page needs, derived once. Exported for tests and the PDF. */
 export function ganttModel({
@@ -194,6 +205,7 @@ export function ganttModel({
   dataDate,
   contractCompletion,
   layout: layoutId,
+  zoom = 1,
 }: GanttInput) {
   const acts = data.activities ?? [];
   const layout: ScheduleLayout | null =
@@ -344,7 +356,7 @@ export function ganttModel({
     hi === null ? null : Date.UTC(new Date(hi).getUTCFullYear(), new Date(hi).getUTCMonth() + 2, 1);
   const days = t0 === null || t1 === null ? 0 : Math.round((t1 - t0) / DAY);
   // Readable on a phone and bounded for multi-year jobs; the page scrolls sideways either way.
-  const scale = layout?.timescale
+  const baseScale = layout?.timescale
     ? TIMESCALE_PX[layout.timescale]
     : days <= 420
       ? 4
@@ -353,6 +365,7 @@ export function ganttModel({
         : days <= 2200
           ? 2
           : 1;
+  const scale = zoom === 1 ? baseScale : scheduleScale(baseScale, zoom);
   const width = Math.max(360, days * scale);
   const finishOf = (list: { finish: string | null }[]) => {
     const f = list.map((a) => day(a.finish)).filter((t): t is number => t !== null);
@@ -387,6 +400,7 @@ export function ganttModel({
     t1,
     days,
     scale,
+    baseScale,
     width,
     projectCal,
     forecast,
@@ -881,7 +895,7 @@ function viewHtml(full: Model, view: GanttView): string {
     )
     .join("");
   const head = `<div class="cpm-row cpm-head"><div class="cpm-l cpm-lh">${headCells}</div><div class="cpm-t">${axisSvg(m)}</div></div>`;
-  return `<div class="cpmv" data-view="${view}" style="--cpm-w:${m.width}px"><div class="cpm-scroll" tabindex="0" role="region" aria-label="${esc(GANTT_VIEWS.find((v) => v[0] === view)?.[1] ?? "Grouped")} schedule, scroll sideways"><div class="cpm-grid cpm-fit" role="table" style="width:calc(var(--cpm-left) + ${m.width}px)">${head}<div class="cpm-body">${backdropSvg(m)}${logicSvg(m, items, g, view)}${rows}</div></div></div></div>`;
+  return `<div class="cpmv" data-view="${view}" data-days="${m.days}" data-base="${m.baseScale}" style="--cpm-w:${m.width}px"><div class="cpm-scroll" tabindex="0" role="region" aria-label="${esc(GANTT_VIEWS.find((v) => v[0] === view)?.[1] ?? "Grouped")} schedule, scroll sideways"><div class="cpm-grid cpm-fit" role="table" style="width:calc(var(--cpm-left) + ${m.width}px)">${head}<div class="cpm-body">${backdropSvg(m)}${logicSvg(m, items, g, view)}${rows}</div></div></div></div>`;
 }
 
 function inspectorHtml(m: Model, r: GanttRow): string {
@@ -993,6 +1007,28 @@ function columnOn(m: Model, c: Col): boolean {
 }
 const LEFT_PHONE = 176;
 
+/** Print zoom that fits the shown columns and the timeline on a tabloid page. */
+function printFit(m: Model): number {
+  const shown = m.columns.filter((c) => c.fixed || columnOn(m, c));
+  return Math.min(1, 1540 / (shown.reduce((t, c) => t + c.w, 0) + m.width));
+}
+
+/**
+ * The schedule's Gantt views alone, for the page's timescale drag and Fit; `only` draws just the view on screen
+ * while a drag runs. The wrapper carries the print zoom, so a printout fits the page at the zoom on screen.
+ */
+export function ganttViewsHtml(input: GanttInput, only: string | null = null): string {
+  const m = ganttModel(input);
+  return ganttViews(m, only);
+}
+
+function ganttViews(m: Model, only: string | null = null): string {
+  return [...GANTT_VIEWS.map(([v]) => v), ...m.codes.map((_, ci) => `code${ci}` as GanttView)]
+    .filter((v) => only === null || v === only)
+    .map((v) => viewHtml(m, v))
+    .join("");
+}
+
 function css(m: Model): string {
   const rule = (input: string, sel: string) => `.cpmx:has(${input}) ${sel}`;
   const views = [...GANTT_VIEWS.filter(([v]) => v !== "all"), ...m.codes.map((_, ci) => [`code${ci}`, ""] as const)]
@@ -1021,8 +1057,7 @@ function css(m: Model): string {
     .join("");
   const filters = ["#cpm-wbs", "#cpm-cc", ...m.codes.map((_, ci) => `#cpm-code${ci}`)];
   const filtered = `${filters.map((f) => rule(`${f} option:not([value=""]):checked`, `.cpm-logic`)).join(",")}{display:none}${filters.map((f) => rule(`${f} option:not([value=""]):checked`, `.cpm-fnote`)).join(",")}{display:block}`;
-  const shown = m.columns.filter((c) => c.fixed || columnOn(m, c));
-  const fit = Math.min(1, 1540 / (shown.reduce((t, c) => t + c.w, 0) + m.width));
+  const fit = printFit(m);
   const widths = m.columns.map((c) => `--w-${c.k}:${c.fixed ? c.w : 0}px`).join(";");
   const left = `calc(${m.columns.map((c) => `var(--w-${c.k})`).join(" + ")})`;
   const codesCss = m.codes
@@ -1172,7 +1207,7 @@ ${rule(`#cpm-fl:not(:checked)`, `.cpm-f`)}{display:none}
 .cpmx .cpm-back a{color:${BLUE}}
 @media(max-width:899px){.cpmx{--w-name:168px}.cpmx .cpm-bar{flex-wrap:wrap}.cpmx .cpm-bar .ath-seg{order:2;flex:1 1 100%}.cpmx .cpm-bar-end{order:1;margin-left:0;flex:1 1 100%;justify-content:flex-end}.cpmx .cpm-bar-end .cpm-lays{margin-right:auto}.cpmx .cpm-bar-end .cpm-lays .ath-menu-box{left:0;right:auto}}
 @media(max-width:559px){.cpmx{--w-id:60px;--w-name:116px;--cpm-left:${LEFT_PHONE}px!important}.cpmx .cpm-l .cpm-c:not(.c-id):not(.c-name){display:none!important}.cpmx .cpm-cols{display:none}.cpmx .cpm-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.cpmx .cpm-filters::-webkit-scrollbar{display:none}.cpmx .cpm-layname{max-width:150px;overflow:hidden;text-overflow:ellipsis}.cpmx .ath-seg label{padding:0 10px}.cpmx .cpm-sortm span{display:none}}
-@media print{@page{size:17in 11in;margin:.35in}.cpmx{--w-name:230px}.cpmx:has(#cpm-fs:checked){position:static;padding:0;overflow:visible}.cpmx .cpm-scroll{max-height:none!important}html:has(#cpm-fs:checked){overflow:visible}.cpmx .cpm-controls,.cpmx .cpm-insp,.cpmx .cpm-insp-hint{display:none!important}.cpmx .cpm-frame{border:0;box-shadow:none}.cpmx .cpm-scroll{overflow:visible;border:0}.cpmx .cpm-fit{zoom:${fit.toFixed(3)}}.cpmx .cpm-l{position:static}.cpmx .cpm-row{break-inside:avoid}.cpmx *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media print{@page{size:17in 11in;margin:.35in}.cpmx{--w-name:230px}.cpmx:has(#cpm-fs:checked){position:static;padding:0;overflow:visible}.cpmx .cpm-scroll{max-height:none!important}html:has(#cpm-fs:checked){overflow:visible}.cpmx .cpm-controls,.cpmx .cpm-insp,.cpmx .cpm-insp-hint{display:none!important}.cpmx .cpm-frame{border:0;box-shadow:none}.cpmx .cpm-scroll{overflow:visible;border:0}.cpmx .cpm-fit{zoom:var(--cpm-pfit,${fit.toFixed(3)})}.cpmx .cpm-l{position:static}.cpmx .cpm-row{break-inside:avoid}.cpmx *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>`;
 }
 
@@ -1316,15 +1351,16 @@ export function ganttHtml(input: GanttInput): string {
     .join("");
   const columns = `<details class="ath-menu ath-menu-end cpm-cols"><summary class="ath-ibtn" aria-label="Columns" data-tip="Columns">${ICONS.columns}</summary><div class="ath-menu-box"><div class="ath-menu-title">Columns</div>${colPicks}</div></details>`;
   const fullScreen = `<input class="ath-sr cpm-sr" type="checkbox" id="cpm-fs"><label class="ath-ibtn cpm-fsw" for="cpm-fs" aria-label="Full screen" data-tip="Full screen"><span class="cpm-fs-on">${ICONS.expand}</span><span class="cpm-fs-off">${ICONS.collapse}</span></label>`;
-  const bar = `<div class="cpm-bar cpm-controls"><div class="ath-seg" role="radiogroup" aria-label="View">${pills}</div><div class="cpm-bar-end">${layouts}${groupMenu}${sortMenu}${columns}${fullScreen}</div></div>`;
+  // Shown only when the page script runs: drag the date header, or Compress, Fit and Expand, like the lookahead.
+  const zoomTools = `<span class="cpm-zoom" role="group" aria-label="Timescale"><button type="button" class="ath-ibtn" data-cpm-zoom="out" aria-label="Compress timescale" data-tip="Compress timescale">${ZOOM_OUT}</button><button type="button" class="ath-ibtn cpm-zfit" data-cpm-zoom="fit" aria-label="Fit the schedule to the screen" data-tip="Fit to screen">Fit</button><button type="button" class="ath-ibtn" data-cpm-zoom="in" aria-label="Expand timescale" data-tip="Expand timescale">${ZOOM_IN}</button></span>`;
+  const bar = `<div class="cpm-bar cpm-controls"><div class="ath-seg" role="radiogroup" aria-label="View">${pills}</div><div class="cpm-bar-end">${layouts}${groupMenu}${sortMenu}${columns}${zoomTools}${fullScreen}</div></div>`;
   const filters = `<div class="cpm-filters cpm-controls" aria-label="Filters">${codeSelects}${wbsSelect}${ccSelect}<span class="cpm-sep" aria-hidden="true"></span>${cmpSelect}${toggles}</div>`;
   const laynote = m.layout ? `<p class="cpm-laynote" data-layout-open="${esc(m.layout.id)}"><strong>${esc(m.layout.name)}</strong> · ${esc(m.filterLine ?? "")}${href ? ` · <a href="${esc(href(null))}">Default view</a>` : ""}</p>` : "";
   const controls = `${sortInputs}${bar}${filters}${laynote}`;
-  const views = [...GANTT_VIEWS.map(([v]) => v), ...m.codes.map((_, ci) => `code${ci}` as GanttView)]
-    .map((v) => viewHtml(m, v))
-    .join("");
+  const views = `<div class="cpm-views" style="--cpm-pfit:${printFit(m).toFixed(3)}">${ganttViews(m)}</div>`;
   const inspectors = m.rows.map((r) => inspectorHtml(m, r)).join("");
-  return `${css(m)}<div class="cpmx" id="cpm-gantt"><div class="cpm-frame">${controls}${views}</div><p class="cpm-fnote">Logic lines hide while a WBS, cost code or activity code filter is on, so no line points at a hidden activity.</p><p class="cpm-snote">Sorted by a column: WBS bands and logic lines hide until you tap the heading again to return to the view's order.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Tap a column heading to sort. A next to a date means it's the actual. To save a PDF, print this page (Ctrl+P or ⌘P) and choose Save as PDF; tabloid landscape fits the full schedule.</p>${inspectors}</div>`;
+  const zoomCss = `<style>#cpm-gantt .cpm-zoom{display:none;gap:4px;align-items:center}[data-cpm-js] #cpm-gantt .cpm-zoom{display:inline-flex}#cpm-gantt .cpm-zfit{width:auto;padding:0 9px;font-size:12px;font-weight:600}[data-cpm-js] #cpm-gantt .cpm-head .cpm-t{cursor:grab;touch-action:pan-y}[data-cpm-js] #cpm-gantt.cpm-drag,[data-cpm-js] #cpm-gantt.cpm-drag .cpm-head .cpm-t{cursor:grabbing;user-select:none}@media(max-width:559px){#cpm-gantt .cpm-bar-end{flex-wrap:wrap;row-gap:6px}}@media print{#cpm-gantt .cpm-zoom{display:none!important}}</style>`;
+  return `${css(m)}${zoomCss}<div class="cpmx" id="cpm-gantt"><div class="cpm-frame">${controls}${views}</div><p class="cpm-fnote">Logic lines hide while a WBS, cost code or activity code filter is on, so no line points at a hidden activity.</p><p class="cpm-snote">Sorted by a column: WBS bands and logic lines hide until you tap the heading again to return to the view's order.</p>${legendHtml(m)}<p class="cpm-insp-hint">Tap an activity name for its dates, float, logic and what drives it. Tap a column heading to sort. A next to a date means it's the actual. To save a PDF, print this page (Ctrl+P or ⌘P) and choose Save as PDF; tabloid landscape fits the full schedule.</p>${inspectors}</div>`;
 }
 
 /** One activity compared against an earlier plan: the baseline or the last update. */
