@@ -2956,6 +2956,76 @@ export type Database = {
           },
         ]
       }
+      mcp_cost_payment_proofs: {
+        Row: {
+          company_id: string
+          filename: string
+          id: string
+          job_id: string
+          linked_at: string
+          linked_by: string
+          mime_type: string
+          payment_id: string
+          record_id: string
+          sha256: string
+          shared: boolean
+          size_bytes: number
+          storage_path: string
+        }
+        Insert: {
+          company_id: string
+          filename: string
+          id: string
+          job_id: string
+          linked_at?: string
+          linked_by: string
+          mime_type: string
+          payment_id: string
+          record_id: string
+          sha256: string
+          shared: boolean
+          size_bytes: number
+          storage_path: string
+        }
+        Update: {
+          company_id?: string
+          filename?: string
+          id?: string
+          job_id?: string
+          linked_at?: string
+          linked_by?: string
+          mime_type?: string
+          payment_id?: string
+          record_id?: string
+          sha256?: string
+          shared?: boolean
+          size_bytes?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_cost_payment_proofs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_payment_proofs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_cost_payment_proofs_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_cost_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_cost_posting_events: {
         Row: {
           accounting_effective_on: string | null
@@ -11187,6 +11257,31 @@ export type Database = {
         Returns: Json
       }
       mcp_cost_payment_correction_state: {
+        Args: { _job: string; _payment: string; _record: string }
+        Returns: Json
+      }
+      mcp_cost_payment_proof_get: {
+        Args: { _id: string; _job: string }
+        Returns: Json
+      }
+      mcp_cost_payment_proof_link: {
+        Args: {
+          _filename: string
+          _id: string
+          _job: string
+          _mime: string
+          _payment: string
+          _record: string
+          _sha256: string
+          _size: number
+        }
+        Returns: Json
+      }
+      mcp_cost_payment_proof_list: {
+        Args: { _job: string; _record: string }
+        Returns: Json
+      }
+      mcp_cost_payment_proof_scope: {
         Args: { _job: string; _payment: string; _record: string }
         Returns: Json
       }
