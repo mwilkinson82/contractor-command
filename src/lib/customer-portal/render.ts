@@ -315,7 +315,28 @@ const PORTAL_CSS = `
 .athena svg{width:16px;height:12px;flex:none}
 @media (max-width:1000px){.hero-in{grid-template-columns:minmax(0,1fr);gap:24px}.cp-hero h1{font-size:38px}}
 @media (max-width:640px){.hero-in{padding-top:8px;padding-bottom:24px}.cp-hero h1{font-size:30px}.lede{font-size:14.5px}.brandbar{padding-top:14px;padding-bottom:14px}.snap{grid-template-columns:minmax(0,1fr);justify-items:center;padding:16px}.snap-rows{width:100%}.cp-act{grid-template-columns:auto minmax(0,1fr);padding:12px}.cp-act .btn{grid-column:1/-1;width:100%}.phases{grid-template-columns:minmax(0,1fr);gap:12px}.phases li{padding:0 0 0 18px}.phases li::before{top:3px;bottom:3px;left:0;right:auto;width:6px;height:auto}.photos.thumbs{gap:10px}.foot{flex-direction:column;align-items:flex-start}.tabs .wrap{padding-top:8px;padding-bottom:8px}}
-@media (prefers-reduced-motion:reduce){.ring,.panel,.cp-act,.btn,.photo img,.peek img{animation:none!important;transition:none!important}}
+.photo .img{display:block;cursor:zoom-in}
+.photo .img:focus-visible,.peek a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.peek a{display:block;width:100%;height:100%;cursor:zoom-in}
+.lb{position:fixed;inset:0;z-index:100;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior:contain;scrollbar-width:none;background:rgba(6,12,28,.94);visibility:hidden;opacity:0;pointer-events:none;transition:opacity .2s ease,visibility 0s .2s}
+.lb::-webkit-scrollbar{display:none}
+.lb:has(.lb-slide:target){visibility:visible;opacity:1;pointer-events:auto;transition:opacity .2s ease}
+body:has(.lb-slide:target){overflow:hidden}
+.lb-slide{position:relative;flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always;display:grid;place-items:center;padding:56px 64px 24px}
+.lb-bg{position:absolute;inset:0}
+.lb-slide figure{position:relative;margin:0;display:grid;justify-items:center;gap:12px;max-width:100%;max-height:100%;pointer-events:none}
+.lb-slide img{display:block;max-width:min(1400px,100%);max-height:calc(100vh - 160px);max-height:calc(100dvh - 160px);width:auto;height:auto;object-fit:contain;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.45);pointer-events:auto}
+.lb-slide figcaption{color:#e8eefc;text-align:center;font-size:14px;line-height:1.45;max-width:720px;pointer-events:auto}
+.lb-slide figcaption b{display:block;font-weight:600}
+.lb-slide figcaption span{display:block;color:#a9b8d8;font-size:12.5px;margin-top:2px}
+.lb-nav,.lb-x{position:absolute;display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;text-decoration:none;font-size:30px;line-height:1;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background .15s ease}
+.lb-nav:hover,.lb-x:hover{background:rgba(255,255,255,.24)}
+.lb-nav:focus-visible,.lb-x:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.lb-prev{left:12px;top:50%;transform:translateY(-50%)}
+.lb-next{right:12px;top:50%;transform:translateY(-50%)}
+.lb-x{top:12px;right:12px;font-size:28px}
+@media (max-width:640px){.lb-slide{padding:56px 10px 20px}.lb-slide img{max-height:calc(100dvh - 190px);border-radius:8px}.lb-nav{display:none}.lb-slide figcaption{font-size:13px;padding:0 6px}}
+@media (prefers-reduced-motion:reduce){.ring,.panel,.cp-act,.btn,.photo img,.peek img,.lb{animation:none!important;transition:none!important}}
 `;
 
 // Sign-in, code and notice screens match Athena's own sign-in card (src/components/auth/auth-card.tsx, brand
@@ -517,15 +538,68 @@ function decideBox(p: PortalPage): string {
   return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2><span class="meta">${waiting.length} ${waiting.length === 1 ? "item" : "items"}</span></div><div class="cp-acts">${rows}</div></section>`;
 }
 
+/**
+ * The caption a client reads. A photo's note is written for the contractor's record and can carry clauses like
+ * "documentation only, not evidence of duct-bank quantity"; those stay off the client page. Keeps the plain
+ * description, drops a leading "Progress photo of/showing", and falls back to the area when nothing is left.
+ */
+const INTERNAL_NOTE =
+  /\b(documentation only|for (the )?record|internal|not (evidence|proof)|evidence of|quantit(y|ies)|not verified|unverified|do not (bill|use)|billing|pay ?app(lication)?|sov|schedule of values|backup|claim)\b/i;
+export function customerCaption(work: string | null | undefined, area?: string | null): string {
+  const clauses = (work ?? "")
+    .split(/(?<=[.;!?])\s+|;\s*/)
+    .map((c) => c.replace(/[.;]+$/, "").trim())
+    .filter((c) => c && !INTERNAL_NOTE.test(c));
+  let text = (clauses.join(". ") + (clauses.length > 1 ? "." : ""))
+    .replace(/^(a\s+)?(progress\s+)?photo\s+(of|showing)\s+/i, "")
+    .trim();
+  if (text) text = text[0].toUpperCase() + text.slice(1);
+  return text || (area ?? "").trim() || "Progress photo";
+}
+
+const photoId = (id: string) => `ph-${id}`;
+const captionFor = (ph: PortalPage["photos"][number]) => customerCaption(ph.work, ph.area);
+/** Place and date under a caption; the place is left off when the caption already is the place. */
+const photoMeta = (ph: PortalPage["photos"][number]) =>
+  [captionFor(ph) === (ph.area ?? "").trim() ? null : ph.area, longDate(ph.taken_on)]
+    .filter(Boolean)
+    .join(" · ");
+
 function photoGrid(photos: PortalPage["photos"], cls = ""): string {
   const shown = photos.filter((ph) => ph.url);
   if (!shown.length) return `<p class="empty">No photos shared yet.</p>`;
   return `<div class="photos ${cls}">${shown
     .map(
       (ph) =>
-        `<figure class="photo"><div class="img"><img src="${esc(ph.url)}" alt="${esc(ph.work || ph.area || "Progress photo")}" loading="lazy" referrerpolicy="no-referrer"></div><figcaption>${esc(ph.work || ph.area || "Progress photo")}<span>${esc([ph.area && ph.work ? ph.area : null, longDate(ph.taken_on)].filter(Boolean).join(" · "))}</span></figcaption></figure>`,
+        `<figure class="photo"><a class="img" href="#${photoId(ph.id)}" aria-label="Open photo: ${esc(captionFor(ph))}"><img src="${esc(ph.url)}" alt="${esc(captionFor(ph))}" loading="lazy" referrerpolicy="no-referrer"></a><figcaption>${esc(captionFor(ph))}<span>${esc(photoMeta(ph))}</span></figcaption></figure>`,
     )
     .join("")}</div>`;
+}
+
+/**
+ * Full-size photo viewer with no scripts (the page allows none): each photo links to its slide by #id, the slide
+ * shows while it is the URL's target, and the slides sit in a sideways scroll-snap track so a phone swipes between
+ * them. Arrows link to the neighbours, the dark backdrop and the close button link to "#_", and the browser's back
+ * button closes it too.
+ */
+function lightbox(p: PortalPage): string {
+  const shown = p.photos.filter((ph) => ph.url);
+  if (!shown.length) return "";
+  const n = shown.length;
+  const slides = shown
+    .map((ph, i) => {
+      const prev =
+        i > 0
+          ? `<a class="lb-nav lb-prev" href="#${photoId(shown[i - 1].id)}" aria-label="Previous photo">&lsaquo;</a>`
+          : "";
+      const next =
+        i < n - 1
+          ? `<a class="lb-nav lb-next" href="#${photoId(shown[i + 1].id)}" aria-label="Next photo">&rsaquo;</a>`
+          : "";
+      return `<section class="lb-slide" id="${photoId(ph.id)}" role="dialog" aria-label="Photo ${i + 1} of ${n}"><a class="lb-bg" href="#_" aria-label="Close photo" tabindex="-1"></a><figure><img src="${esc(ph.url)}" alt="${esc(captionFor(ph))}" loading="lazy" referrerpolicy="no-referrer"><figcaption><b>${esc(captionFor(ph))}</b><span>${esc(photoMeta(ph))}${n > 1 ? ` · ${i + 1} of ${n}` : ""}</span></figcaption></figure>${prev}${next}<a class="lb-x" href="#_" aria-label="Close photo">&times;</a></section>`;
+    })
+    .join("");
+  return `<div class="lb">${slides}</div>`;
 }
 
 function milestoneList(p: PortalPage, limit?: number): string {
@@ -830,7 +904,7 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
   ].join("");
   const pics = p.photos.filter((ph) => ph.url).slice(0, 2);
   const peek = pics.length
-    ? `<div class="peek">${pics.map((ph) => `<figure><img src="${esc(ph.url)}" alt="${esc(ph.work || ph.area || "Progress photo")}" referrerpolicy="no-referrer"><figcaption>${esc(shortDate(ph.taken_on))}</figcaption></figure>`).join("")}</div>`
+    ? `<div class="peek">${pics.map((ph) => `<figure><a href="#${photoId(ph.id)}" aria-label="Open photo: ${esc(captionFor(ph))}"><img src="${esc(ph.url)}" alt="${esc(captionFor(ph))}" referrerpolicy="no-referrer"></a><figcaption>${esc(shortDate(ph.taken_on))}</figcaption></figure>`).join("")}</div>`
     : "";
   return `<section class="cp-hero">${brand}<div class="wrap hero-in"><div><p class="h-eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1><p class="lede">${esc(lede)}</p><div class="chips">${chips}</div></div><div class="snap${ring ? "" : " no-ring"}">${ring}<div class="snap-rows">${rows}</div>${peek}</div></div></section>`;
 }
@@ -854,7 +928,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
       : "";
   return doc(
     `${p.job.name} · ${SECTION_LABEL[o.section]}`,
-    `<div class="pt">${hero(p, waiting, o.logo ?? null)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>`,
+    `<div class="pt">${hero(p, waiting, o.logo ?? null)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>${lightbox(p)}`,
   );
 }
 

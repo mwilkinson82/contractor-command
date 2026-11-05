@@ -18,7 +18,7 @@ import {
   sixDigits,
   type PortalDeps,
 } from "./server";
-import { PORTAL_SECTIONS, renderGone } from "./render";
+import { customerCaption, PORTAL_SECTIONS, renderGone } from "./render";
 
 const ACCESS = "00000000-0000-4000-8000-0000000000aa";
 const CO = "00000000-0000-4000-8000-0000000000c1";
@@ -293,6 +293,53 @@ describe("customer page", () => {
     expect(home).toContain("2 decisions waiting");
     expect(home).toContain("https://storage.example.com/signed/");
     expect(home).toContain("PCO-004 · Exam room lights");
+  });
+
+  it("opens any photo full size, with no script, and shows the client a clean caption", async () => {
+    const v = view();
+    v.photos.push({
+      id: "33333333-3333-4333-8333-333333333333",
+      taken_on: "2026-11-03",
+      area: "Interior office / ceiling",
+      work: "Progress photo of installed linear LED ceiling strips, recessed downlights, and accent wall lighting; documentation only, not evidence of duct-bank quantity.",
+      storage_path: "jobs/second.jpg",
+    });
+    const { d } = deps({ view: v });
+    const html = await (
+      await handlePortal(req(`/c/${ACCESS}?s=photos`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toContain("documentation only");
+    expect(html).not.toContain("duct-bank");
+    expect(html).toContain(
+      "Installed linear LED ceiling strips, recessed downlights, and accent wall lighting",
+    );
+    // Every photo, in the grid and in the hero, links to its own full-size slide; slides link to their neighbours.
+    expect(html).toContain(`href="#ph-${PHOTO}"`);
+    expect(html).toContain(`<section class="lb-slide" id="ph-${PHOTO}"`);
+    expect(html).toContain(
+      'href="#ph-33333333-3333-4333-8333-333333333333" aria-label="Next photo"',
+    );
+    expect(html).toContain(`href="#ph-${PHOTO}" aria-label="Previous photo"`);
+    expect(html).toContain('class="lb-x" href="#_"');
+    expect(html).toContain(".lb:has(.lb-slide:target)");
+    expect(html.match(/<section class="lb-slide"/g)).toHaveLength(2);
+  });
+
+  it("keeps the contractor's record notes out of photo captions", () => {
+    expect(
+      customerCaption(
+        "Progress photo showing linear LED strip lights and recessed fixtures through glass; documentation only, not evidence of November 3 duct-bank, sheetrock, or plumbing quantities.",
+        "Interior office viewed through glass / ceiling",
+      ),
+    ).toBe("Linear LED strip lights and recessed fixtures through glass");
+    expect(
+      customerCaption("Drywall hung on the north wall. Taping starts Monday.", "Exam room 2"),
+    ).toBe("Drywall hung on the north wall. Taping starts Monday.");
+    expect(customerCaption("Documentation only; for the record.", "Exam room 2")).toBe(
+      "Exam room 2",
+    );
+    expect(customerCaption(null, null)).toBe("Progress photo");
   });
 
   it("refuses a view carrying an unexpected field", async () => {
