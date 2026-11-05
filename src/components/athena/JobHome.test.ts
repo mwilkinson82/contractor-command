@@ -7,6 +7,8 @@ import { startedWithJobsCard } from "@/lib/mcp/getting-started";
 import { renderHtml } from "@/lib/mcp/cards/html";
 import { overviewPayments, overviewContract } from "@/lib/project-overview";
 import { supabase } from "@/integrations/supabase/client";
+import { estimateOverview } from "@/lib/job-board-commercial";
+import { emptyBoard } from "@/lib/selections/model";
 
 const fixture = vi.hoisted(() => ({
   rows: {} as Record<string, unknown>,
@@ -112,7 +114,14 @@ describe("approved project overview", () => {
     expect(html).toContain("Due 2026-11-01");
     expect(html).toContain("Review RFI date");
     expect(html).toContain("No matching communication records");
-    expect(html).not.toMatch(/<button|datetime-local|type="date"|calendar.google/);
+    // Board buttons only copy an ask for Athena chat or open a saved PDF; nothing submits.
+    expect(html).not.toMatch(/<button(?![^>]*type="button")|<form|datetime-local|type="date"|calendar.google/);
+    // Estimate, proposal and contracts show on the board, and a failed read is never shown as empty.
+    expect(html).toContain('id="estimate"');
+    expect(html).toContain('id="contracts"');
+    expect(html).toContain("Contracts are unavailable right now. Nothing is assumed empty.");
+    expect(html).toContain("The estimate is unavailable right now. Nothing is assumed empty.");
+    expect(html).toContain('<span class="jh-sr">Saved jobs</span>');
   });
   it("hides stale private results on source error, sign-out, field scope and denied base", () => {
     fixture.rows.financial = { ...ok(finance()), error: new Error("denied") };
@@ -257,5 +266,60 @@ describe("persistent job home", () => {
     expect(html).toContain("This project is currently unavailable");
     expect(html).not.toContain("Sign in");
     expect(html).not.toContain("Secret");
+  });
+});
+
+describe("estimate, proposal and contracts on the board", () => {
+  const estimate = () =>
+    estimateOverview(
+      {
+        setup: { role: "self_performer", trades: ["Electrical"] },
+        takeoff: { version: 2, lines: [{ line_no: 1, qty: 4 }, { line_no: 2, qty: null, missing_input: "Height" }] },
+        gaps: [],
+        verdicts: [],
+      },
+      null,
+      [],
+    );
+  const pos = {
+    orders: [
+      {
+        id: "po1",
+        number: "WC-2810-PO01",
+        versions: [
+          {
+            version: 2,
+            status: "draft",
+            party_snapshot: { name: "Summit Electrical Supply", kind: "supplier", trade: "Electrical materials" },
+            lines: [{ quantity: 4000, unit_price_cents: 200 }],
+          },
+        ],
+      },
+    ],
+  };
+  it("puts contracts first on a contracted job and walks the member to the signed copy", () => {
+    fixture.rows.financial = ok(finance());
+    fixture.rows.communications = ok([]);
+    fixture.rows.estimate = ok(estimate());
+    fixture.rows.gbb = ok({ version: 0, board: emptyBoard() });
+    fixture.rows.contracts = ok({ contracts: null, pos, posFailed: false });
+    const html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html.indexOf('id="contracts"')).toBeLessThan(html.indexOf('id="estimate"'));
+    expect(html).toContain("Save the signed prime contract on this job");
+    expect(html).toContain("Summit Electrical Supply");
+    expect(html).toContain("$8,000.00");
+    expect(html).toContain("Value only, no signed copy");
+    expect(html).toContain("Takeoff version 2");
+  });
+  it("opens a job with no contract value on the estimate", () => {
+    fixture.rows.financial = ok({ ...finance(), contract: { ...finance().contract, amount: null } });
+    fixture.rows.communications = ok([]);
+    fixture.rows.estimate = ok(estimateOverview({ setup: null, takeoff: null }, null, []));
+    fixture.rows.gbb = ok({ version: 0, board: emptyBoard() });
+    fixture.rows.contracts = ok({ contracts: { contracts: [] }, pos: { orders: [] }, posFailed: false });
+    const html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
+    expect(html.indexOf('id="estimate"')).toBeLessThan(html.indexOf('id="contracts"'));
+    expect(html).toContain("Start the estimate: add the drawings");
+    expect(html).toContain("No contracts on this job yet.");
   });
 });

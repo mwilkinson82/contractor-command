@@ -9,6 +9,7 @@ import { ProductionReportPage } from "@/components/athena/ProductionReportPage";
 import { AccountingReportPage } from "@/components/athena/AccountingReportPage";
 import { BillingEvidencePage } from "@/components/athena/BillingEvidencePage";
 import { JobHome } from "@/components/athena/JobHome";
+import { JobEstimatePage } from "@/components/athena/JobEstimatePage";
 import { DailyRangeReportPage } from "@/components/athena/DailyRangeReportPage";
 import { readBoardToken } from "@/lib/mcp/board-url";
 
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
       !isUuid(params.jobId) ||
       (page !== "payment-applications" &&
         page !== "home" &&
+        page !== "estimate" &&
         page !== "billing-records" &&
         page !== "purchase-orders" &&
         page !== "buyout" &&
@@ -100,6 +102,7 @@ function JobReportPage() {
     );
   }
   if (hostedPageName(page) === "home") return <JobHome jobId={jobId} token={token} />;
+  if (hostedPageName(page) === "estimate") return <JobEstimatePage jobId={jobId} />;
   if (hostedPageName(page) === "buyout")
     return <PurchaseOrdersPage jobId={jobId} initialTab="suppliers" />;
   if (hostedPageName(page) === "purchase-orders") return <PurchaseOrdersPage jobId={jobId} />;
