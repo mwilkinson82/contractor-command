@@ -6643,6 +6643,30 @@
         "outputSchema": null
       },
       {
+        "name": "account_link",
+        "title": "Open my Athena account page",
+        "description": "Gives the member a link to their Athena account page: company profile and logo, team invites, roles and job access, client payments, plan and billing, or saved projects. Use for 'where do I invite my team', 'change my logo', 'set permissions' or 'open my account'.",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "section": {
+              "description": "overview, company, team, payments, billing or projects",
+              "type": "string",
+              "maxLength": 40
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
         "name": "drawing_set_import",
         "title": "Store a drawing set",
         "description": "Stores an attached drawing PDF once and returns its source_id, asks once for missing sheet names in PDF page order, and reads or indexes that stored source by source_id without re-uploading; a direct PDF upload card is available and Drive/Dropbox links are optional. When sheet names are missing, call again with source_id and read_title_blocks true: Athena reads each page's title block and proposes the sheet index without saving it; show it, and after the member confirms or corrects it, save it with source_id and sheets in PDF page order.",

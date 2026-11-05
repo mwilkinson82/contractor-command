@@ -32,7 +32,14 @@ import { currentHostname, onAthenaHost } from "@/lib/athena-host-current";
 import { HUB_ACCOUNT_TITLE, pageTitle } from "@/lib/host-document";
 import { ProjectHomeLinks, type ProjectHomeJob } from "@/components/athena/ProjectHomeLinks";
 import { AthenaAccountLayout } from "@/components/account/athena-account-layout";
-import { OrganizationProfile } from "@/components/account/organization-profile";
+import {
+  CompanyProfileSection,
+  useCompanyProfile,
+} from "@/components/account/company-profile-section";
+import { AthenaTeamSection } from "@/components/account/athena-team-section";
+import { ClientPaymentsSection } from "@/components/account/client-payments-section";
+import { getSeatPurchaseStatus } from "@/lib/account-team.functions";
+import { setupSteps } from "@/lib/account-profile";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
@@ -99,12 +106,7 @@ function ProjectHomes() {
 function AccountPage() {
   const { user, signOut } = useAuth();
   const isAdmin = useIsAdmin();
-  const {
-    company,
-    loading: companyLoading,
-    error: companyError,
-    refetch: refetchCompany,
-  } = useCompany();
+  const { company, refetch: refetchCompany } = useCompany();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [link, setLink] = useState<AosLink | null>(null);
   const [code, setCode] = useState("");
@@ -125,6 +127,22 @@ function AccountPage() {
   const tier = athena.state?.seats?.tier ?? null;
   const rate = planRate(tier);
   const athenaHost = onAthenaHost();
+  const athenaCompanyId = athenaHost ? (athena.state?.companyId ?? null) : null;
+  const companyProfile = useCompanyProfile(athenaCompanyId);
+  const seatStatusFn = useServerFn(getSeatPurchaseStatus);
+  const [inviteEmailEnabled, setInviteEmailEnabled] = useState(false);
+  useEffect(() => {
+    if (!athenaHost || !user) return;
+    let alive = true;
+    seatStatusFn()
+      .then((r) => {
+        if (alive) setInviteEmailEnabled(r.inviteEmailEnabled === true);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [athenaHost, user, seatStatusFn]);
 
   useEffect(() => {
     if (!company) return;
@@ -427,17 +445,64 @@ function AccountPage() {
   );
 
   if (athenaHost) {
+    const team = athena.state?.team;
+    const seatsNow = athena.state?.seats;
+    const athenaProfile = (
+      <dl className="aa-kv">
+        <dt>Name</dt>
+        <dd>{profile?.full_name || "Not set"}</dd>
+        <dt>Email</dt>
+        <dd>{profile?.email ?? user?.email ?? "Not set"}</dd>
+      </dl>
+    );
+    const athenaBilling = (
+      <div className="aa-grid2">
+        <section className="aa-card">
+          <h2>Your plan</h2>
+          <dl className="aa-kv" style={{ marginTop: 14 }}>
+            <dt>Plan</dt>
+            <dd>{athena.loading ? "Loading…" : planLabel(tier)}</dd>
+            {rate ? (
+              <>
+                <dt>Rate</dt>
+                <dd className="aa-num">{rate}</dd>
+              </>
+            ) : null}
+            <dt>Seats</dt>
+            <dd className="aa-num">{athena.loading ? "Loading…" : seatSummary(seatsNow)}</dd>
+          </dl>
+          <BillingActions athena />
+        </section>
+        <section className="aa-card">
+          <h2>What's billed where</h2>
+          <p className="aa-lede">
+            This is what you pay for Athena. Money your clients pay you is set up under Client
+            payments.
+          </p>
+          <p className="aa-lede" style={{ marginTop: 10 }}>
+            Need more seats? Open Team & access and choose Add seats, or ask Athena in chat.
+          </p>
+        </section>
+      </div>
+    );
     return (
       <AthenaAccountLayout
         name={profile?.full_name ?? null}
         email={profile?.email ?? user?.email ?? null}
-        companyName={athena.state?.companyName ?? null}
+        companyName={companyProfile.profile?.name ?? athena.state?.companyName ?? null}
+        companyLogoUrl={companyProfile.profile?.logo_url ?? null}
+        companies={athena.state?.companies}
+        currentCompanyId={athena.state?.companyId ?? null}
+        onSwitchCompany={async (id) => {
+          const { error } = await supabase.rpc("mcp_set_current_company", { _company: id });
+          if (!error) await athena.reload();
+        }}
         organization={{
-          name: company?.name ?? null,
-          status: companyLoading ? "loading" : companyError ? "error" : "ready",
+          name: companyProfile.profile?.name ?? athena.state?.companyName ?? null,
+          status: companyProfile.loading ? "loading" : companyProfile.error ? "error" : "ready",
         }}
         plan={athena.loading ? "Loading plan…" : planLabel(tier)}
-        seats={athena.loading ? "Loading seats…" : seatSummary(athena.state?.seats)}
+        seats={athena.loading ? "Loading seats…" : seatSummary(seatsNow)}
         teamLoading={athena.loading}
         teamError={!athena.loading && athena.state === null}
         canViewSupport={isAdmin === true}
@@ -445,20 +510,28 @@ function AccountPage() {
           const { error } = await signOut();
           if (error) throw error;
         }}
-        profile={profileSection}
-        billing={billingSection}
+        setup={
+          athena.state?.companyId && athena.state.isOwner
+            ? setupSteps({
+                profile: companyProfile.profile,
+                members: team?.members.length ?? seatsNow?.members ?? 1,
+                pending: team?.pending.length ?? seatsNow?.pending ?? 0,
+              })
+            : undefined
+        }
+        profile={athenaProfile}
+        billing={athenaBilling}
         company={
-          <OrganizationProfile
-            key={`${user?.id ?? "signed-out"}:${company?.id ?? "new"}`}
-            user={user ? { id: user.id, email: user.email } : null}
-            company={company}
-            loading={companyLoading}
-            error={companyError}
-            workspaceName={athena.state?.companyName ?? null}
-            refetch={refetchCompany}
+          <CompanyProfileSection
+            key={athenaCompanyId ?? "none"}
+            state={companyProfile}
+            companyId={athenaCompanyId}
+            isOwner={athena.state?.isOwner === true}
+            userId={user?.id ?? null}
           />
         }
-        team={<TeamSection {...athena} />}
+        team={<AthenaTeamSection {...athena} inviteEmailEnabled={inviteEmailEnabled} />}
+        payments={<ClientPaymentsSection />}
         projects={<ProjectHomes />}
         briefing={<MorningBriefPushBar />}
         guide={<AthenaStartTip />}
@@ -634,12 +707,22 @@ function BillingActions({ athena = false }: { athena?: boolean }) {
   }
 
   return (
-    <div className="mt-6 border-t border-border pt-5">
-      <div className="flex flex-wrap gap-2">
+    <div
+      className={athena ? "aa-save-bar" : "mt-6 border-t border-border pt-5"}
+      style={athena ? { marginTop: 18 } : undefined}
+    >
+      <div
+        className={athena ? "aa-row" : "flex flex-wrap gap-2"}
+        style={athena ? { justifyContent: "flex-start", gap: 8 } : undefined}
+      >
         <button
           onClick={openPortal}
           disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90 disabled:opacity-60"
+          className={
+            athena
+              ? "aa-btn aa-btn-primary"
+              : "inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-cream hover:opacity-90 disabled:opacity-60"
+          }
         >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -650,12 +733,22 @@ function BillingActions({ athena = false }: { athena?: boolean }) {
         </button>
         <button
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
+          className={
+            athena
+              ? "aa-btn aa-btn-ghost"
+              : "inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm hover:bg-muted"
+          }
         >
           Billing question
         </button>
       </div>
-      {err && <p className="mt-3 text-[12px] text-foreground/70">{err}</p>}
+      {err && (
+        <p className={athena ? "aa-error" : "mt-3 text-[12px] text-foreground/70"} role="alert">
+          {athena
+            ? "We couldn't open your subscription. Use Billing question and we'll help by email."
+            : err}
+        </p>
+      )}
 
       <Dialog
         open={open}
@@ -672,14 +765,18 @@ function BillingActions({ athena = false }: { athena?: boolean }) {
           <DialogHeader>
             <DialogTitle>Billing question</DialogTitle>
             <DialogDescription>
-              Goes straight to Marshall's team. We'll follow up by email.
+              {athena
+                ? "Goes to Athena support. We'll answer by email."
+                : "Goes straight to Marshall's team. We'll follow up by email."}
             </DialogDescription>
           </DialogHeader>
 
           {sent ? (
             <p className="flex items-center gap-2 py-6 text-[13px] text-foreground/80">
-              <Check className="h-4 w-4 text-signal" /> Sent. Marshall's team will follow up by
-              email.
+              <Check className="h-4 w-4 text-signal" />{" "}
+              {athena
+                ? "Sent. Athena support will answer by email."
+                : "Sent. Marshall's team will follow up by email."}
             </p>
           ) : (
             <div className="space-y-4">
