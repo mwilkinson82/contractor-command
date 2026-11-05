@@ -210,6 +210,62 @@ export function noticeEmail(a: {
   };
 }
 
+/**
+ * The team's reply to a customer message. Contractor brand up top, Athena small underneath. Carries the reply text
+ * and a button back to the customer's page; never a price, cost or anything else from the job.
+ */
+export function clientMessageEmail(a: {
+  to: string;
+  name: string;
+  company: string;
+  jobName: string;
+  /** Who on the team wrote it, as the customer sees it. */
+  from: string;
+  body: string;
+  /** The shared item the reply is about, by the name the customer sees. */
+  about?: string | null;
+  /** The customer's page, opened on Messages. */
+  link: string;
+  /** The contractor's saved logo, an https URL; their name shows when there is none. */
+  logo?: string | null;
+  messageId: string;
+}): PortalEmail {
+  const where = a.about ? `${a.jobName}, about ${a.about}` : a.jobName;
+  const line = `${a.from} at ${a.company} replied to your message on ${where}.`;
+  const body = a.body.trim();
+  return {
+    to: a.to,
+    key: `portal-message:${a.messageId}`,
+    fromName: customerFromName(a.company),
+    subject: `${a.company} replied about ${a.about ?? a.jobName}`.slice(0, 180),
+    text: [
+      `Hi ${a.name},`,
+      "",
+      line,
+      "",
+      body,
+      "",
+      `Read it and reply on your project page: ${a.link}`,
+      "",
+      CUSTOMER_LEGAL,
+    ].join("\n"),
+    html: frame({
+      brand: { contractor: a.company, logo: a.logo },
+      tagline: "Client page",
+      preview: line,
+      heading: `New message from ${a.company}`,
+      lines: [
+        `Hi ${esc(firstName(a.name))},`,
+        esc(line),
+        `<span style="display:block;padding:12px 14px;border-left:3px solid ${EMAIL_BLUE};background:#F2F6FF;border-radius:0 8px 8px 0">${esc(body).replace(/\r?\n/g, "<br>")}</span>`,
+      ],
+      button: { label: "Reply on your project page", href: a.link },
+      foot: `You get these emails because ${esc(a.company)} invited you to this project page. Replies to this email don't reach your team, so reply on the page.`,
+      legal: CUSTOMER_LEGAL,
+    }),
+  };
+}
+
 /** Tells the job's PM what the customer decided. Holds no price; the record is in Athena. */
 export function decisionEmail(a: {
   to: string;

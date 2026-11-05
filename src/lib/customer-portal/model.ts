@@ -154,10 +154,34 @@ export type SignedPhoto = {
   work: string | null;
   url: string | null;
 };
+/** One message in the customer's conversation with the team, as the customer sees it. */
+export const portalMessageSchema = z
+  .object({
+    id: UUID,
+    author_kind: z.enum(["client", "team"]),
+    author_name: z.string(),
+    body: z.string(),
+    created_at: z.string(),
+    item_id: UUID.nullable(),
+    about_label: nstr,
+  })
+  .strict();
+export type PortalMessage = z.infer<typeof portalMessageSchema>;
+export const portalMessagesSchema = z
+  .object({
+    status: z.literal("ok"),
+    /** Team messages the customer hadn't opened before this read. */
+    unread: z.number().int().min(0),
+    messages: z.array(portalMessageSchema).max(200),
+  })
+  .strict();
+
 export type PortalPage = Omit<PortalView, "photos" | "status"> & {
   photos: SignedPhoto[];
   access_id: string;
   csrf: string;
+  /** The customer's conversation with the team. Null when it couldn't be read; the rest of the page still shows. */
+  messages?: { unread: number; list: PortalMessage[] } | null;
 };
 
 export const inviteOpenSchema = z.union([
