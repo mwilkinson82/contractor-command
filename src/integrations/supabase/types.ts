@@ -5922,6 +5922,128 @@ export type Database = {
           },
         ]
       }
+      mcp_lookahead_confirms: {
+        Row: {
+          activity_id: string | null
+          ask_kind: string
+          asked_date: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          email_status: string
+          expires_at: string
+          id: string
+          item_id: string | null
+          job_id: string
+          lookahead_id: string | null
+          party_email: string
+          party_kind: string
+          party_name: string
+          responded_at: string | null
+          responder_name: string | null
+          response_date: string | null
+          response_ip: string | null
+          response_note: string | null
+          response_user_agent: string | null
+          status: string
+          token_hash: string
+          tries: number
+          what: string
+          window_end: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          ask_kind: string
+          asked_date: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          email_status?: string
+          expires_at: string
+          id?: string
+          item_id?: string | null
+          job_id: string
+          lookahead_id?: string | null
+          party_email: string
+          party_kind: string
+          party_name: string
+          responded_at?: string | null
+          responder_name?: string | null
+          response_date?: string | null
+          response_ip?: string | null
+          response_note?: string | null
+          response_user_agent?: string | null
+          status?: string
+          token_hash: string
+          tries?: number
+          what: string
+          window_end?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          ask_kind?: string
+          asked_date?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          email_status?: string
+          expires_at?: string
+          id?: string
+          item_id?: string | null
+          job_id?: string
+          lookahead_id?: string | null
+          party_email?: string
+          party_kind?: string
+          party_name?: string
+          responded_at?: string | null
+          responder_name?: string | null
+          response_date?: string | null
+          response_ip?: string | null
+          response_note?: string | null
+          response_user_agent?: string | null
+          status?: string
+          token_hash?: string
+          tries?: number
+          what?: string
+          window_end?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_lookahead_confirms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_lookahead_confirms_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_open_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_lookahead_confirms_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_lookahead_confirms_lookahead_id_fkey"
+            columns: ["lookahead_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_lookaheads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_lookahead_revisions: {
         Row: {
           created_at: string
@@ -11318,6 +11440,52 @@ export type Database = {
       }
       mcp_living_strip_money: { Args: { _data: Json }; Returns: Json }
       mcp_log_surfaced: { Args: { _refs: Json }; Returns: undefined }
+      mcp_lookahead_confirm_cancel: {
+        Args: { _id: string; _job: string }
+        Returns: Json
+      }
+      mcp_lookahead_confirm_create: {
+        Args: {
+          _activity: string
+          _ask_kind: string
+          _asked_date: string
+          _expires_at: string
+          _item: string
+          _job: string
+          _lookahead: string
+          _party_email: string
+          _party_kind: string
+          _party_name: string
+          _token_hash: string
+          _what: string
+          _window_end: string
+        }
+        Returns: Json
+      }
+      mcp_lookahead_confirm_email_result: {
+        Args: { _id: string; _job: string; _status: string }
+        Returns: undefined
+      }
+      mcp_lookahead_confirm_open: {
+        Args: { _token_hash: string }
+        Returns: Json
+      }
+      mcp_lookahead_confirm_respond: {
+        Args: {
+          _answer: string
+          _date: string
+          _ip: string
+          _name: string
+          _note: string
+          _token_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_lookahead_confirms_list: {
+        Args: { _job: string; _lookahead?: string }
+        Returns: Json
+      }
       mcp_mark_na: {
         Args: { _job: string; _reason: string; _scope: string; _target: string }
         Returns: Json
