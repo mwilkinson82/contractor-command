@@ -2417,6 +2417,7 @@ export type Database = {
       }
       mcp_companies: {
         Row: {
+          address: string | null
           agent_name: string
           company_role: string | null
           contact_name: string | null
@@ -2438,6 +2439,7 @@ export type Database = {
           work_types: string[]
         }
         Insert: {
+          address?: string | null
           agent_name?: string
           company_role?: string | null
           contact_name?: string | null
@@ -2459,6 +2461,7 @@ export type Database = {
           work_types?: string[]
         }
         Update: {
+          address?: string | null
           agent_name?: string
           company_role?: string | null
           contact_name?: string | null
