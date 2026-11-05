@@ -629,8 +629,15 @@
 }
 
 /* Money row: customer money plus the IOR budget and margin. */
+/* Three customer-money cards, then the two IOR cards, each row filling the width, so figures never wrap mid-number. */
 .jh-metrics.jh-metrics-fit {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.jh-metrics-fit > .jh-metric {
+  grid-column: span 2;
+}
+.jh-metrics-fit > .jh-metric:nth-child(n + 4) {
+  grid-column: span 3;
 }
 
 /* More Athena can do: asks the member copies into their Athena chat. */
@@ -741,6 +748,13 @@
   .jh-nav .jh-group-links a {
     white-space: normal;
     color: #1c3654;
+  }
+  .jh-metrics.jh-metrics-fit {
+    grid-template-columns: 1fr;
+  }
+  .jh-metrics-fit > .jh-metric,
+  .jh-metrics-fit > .jh-metric:nth-child(n + 4) {
+    grid-column: auto;
   }
   .jh-titlebar {
     flex-direction: column;
