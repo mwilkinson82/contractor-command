@@ -577,3 +577,81 @@
     flex: 1 1 100%;
   }
 }
+/* Pre-construction: two stages ahead of the usual five; its own section only on jobs that have an agreement. */
+.jb-stages[data-precon="true"] {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.jb-precon {
+  display: grid;
+  gap: 12px;
+}
+.jb-precon-hours {
+  display: grid;
+  gap: 6px;
+}
+.jb-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.jb-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #245fbd;
+  transition: width 0.4s ease;
+}
+.jb-meter[data-over="true"] span {
+  background: #b7791f;
+}
+.jb-precon-more summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #245fbd;
+  padding: 4px 0;
+  list-style: none;
+}
+.jb-precon-more summary::-webkit-details-marker {
+  display: none;
+}
+.jb-precon-more summary::after {
+  content: " ▾";
+}
+.jb-precon-more[open] summary::after {
+  content: " ▴";
+}
+.jb-precon-more summary:hover {
+  text-decoration: underline;
+}
+.jb-precon-more[open] > * + * {
+  margin-top: 10px;
+}
+.jb-precon-offer {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+}
+.jb-precon-offer p {
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .jb-stages[data-precon="true"] {
+    display: flex;
+    overflow-x: auto;
+  }
+  .jb-stages[data-precon="true"] li {
+    flex: none;
+    min-width: 128px;
+  }
+}
+@media (max-width: 760px) {
+  .jb-precon-offer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .jb-precon-offer .jb-btn {
+    width: 100%;
+  }
+}
