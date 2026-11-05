@@ -58,7 +58,7 @@ const JOB_NUMBER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 const FILE_MAX_BYTES = 20 * 1024 * 1024;
 
 export const OVERWATCH_EXPORT_HOW =
-  "In Overwatch, open the job, click ··· at the top of the project page and choose Export for Athena. It downloads one .json file; attach that file here.";
+  "In Overwatch, open the job, click ··· at the top of the project page and choose Export for Athena. It downloads one file (a .json, or a .zip when the job has its contract or specs in the file room); attach that file here.";
 export const PROCORE_EXPORT_HOW =
   "In Procore, open the project and download: the schedule's original .xer or .mpp file (Documents > Schedules, or ask your scheduler), the Budget as CSV, the latest owner invoice as CSV, Change Orders as CSV, RFIs as CSV, Submittals as XLSX, and Inspections, Observations, Punch List and Commitments as CSV. Put them in one ZIP (or use the Project Archive ZIP Procore emails) and attach it here.";
 export const BUILDERTREND_EXPORT_HOW =
