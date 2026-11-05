@@ -22,7 +22,20 @@ import {
 import { accountingMoney } from "@/lib/accounting-report";
 import { detailAnchor } from "@/lib/mcp/plain-label";
 import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
+import { JobHomeNotifications, NotificationsBell, NotificationsNavLink } from "./JobHomeWhatsNew";
+import { JobHomeChangeOrders } from "./JobHomeChangeOrders";
+import { JobHomeMessages } from "./JobHomeMessages";
+import { JobNoticeEmailSettings } from "./JobNoticeEmailSettings";
 import "./project-overview.css";
+import {
+  ContractsSection,
+  EstimateProposalSection,
+  NextStepCard,
+  StageStrip,
+  nextStepOf,
+  stageOf,
+  useJobCommercial,
+} from "./JobHomeCommercial";
 import type {
   PagePayload,
   FieldPagePayload,
@@ -174,6 +187,14 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       return (data ?? []) as Job[];
     },
   });
+  const commercial = useJobCommercial({
+    jobId,
+    enabled: !!base && full && !!session,
+    visible,
+    userId: session?.user.id,
+    contractValue:
+      full && session && !financial.error ? (financial.data?.contract.amount ?? null) : null,
+  });
   if (loading || field.isLoading)
     return (
       <main className="job-home">
@@ -187,7 +208,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       <ProjectReadUnavailable />
     );
   const href = (page: string) =>
-    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production", "daily-log"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
+    `/r/job/${jobId}/${page}${token && !["accounting", "purchase-orders", "billing-records", "payment-applications", "production", "daily-log", "estimate"].includes(page) ? `?t=${encodeURIComponent(token)}` : ""}`;
   const state = (q: { isLoading: boolean; error: unknown }, text: string) =>
     q.isLoading ? "Loading…" : q.error ? "Currently unavailable" : text;
   const sched = schedule.data?.page === "schedule" ? (schedule.data as JobPayload).report : null;
@@ -294,7 +315,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             detail: "View recorded invoices and receipts",
             page: "billing-records",
           },
-          {title:"Payment applications",detail:"Prepare or open a saved SOV application",page:"payment-applications"},
+          {
+            title: "Payment applications",
+            detail: "Prepare or open a saved SOV application",
+            page: "payment-applications",
+          },
           {
             title: "Billing forecast",
             detail: state(
@@ -334,6 +359,15 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           ? "Currently unavailable"
           : accountingMoney(payment(key)?.cents ?? null);
   const comms = full && session && !communications.error ? communications.data : undefined;
+  const commercialOn = full && !!session;
+  const stage = stageOf(commercial, today?.found === true);
+  const estimateFirst = !commercial.contracted;
+  const estimateSection = (
+    <EstimateProposalSection c={commercial} jobNumber={base.job_number ?? ""} href={href} />
+  );
+  const contractsSection = (
+    <ContractsSection c={commercial} jobNumber={base.job_number ?? ""} href={href} />
+  );
   const orderedItems = openItems
     ?.slice()
     .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
@@ -346,29 +380,44 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             {base.job_number}
             {base.job_name ? ` · ${base.job_name}` : ""}
           </span>
-          {jobs.data && jobs.data.length > 1 ? (
-            <label className="jh-select">
-              Saved jobs
-              <select
-                value={jobId}
-                onChange={(e) => {
-                  if (e.target.value !== jobId) window.location.assign(jobHomePath(e.target.value));
-                }}
-              >
-                {jobs.data.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.job_number} · {j.name ?? "Saved job"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <div className="jh-top-right">
+            <NotificationsBell jobId={jobId} token={token} />
+            {jobs.data && jobs.data.length > 1 ? (
+              <label className="jh-select">
+                <span className="jh-sr">Saved jobs</span>
+                <select
+                  value={jobId}
+                  onChange={(e) => {
+                    if (e.target.value !== jobId)
+                      window.location.assign(jobHomePath(e.target.value));
+                  }}
+                >
+                  {jobs.data.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.job_number} · {j.name ?? "Saved job"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
         </div>
         <div className="jh-layout">
           <nav className="jh-nav" aria-label="Project views">
             <a href="#overview" aria-current="page">
               Overview
             </a>
+            <NotificationsNavLink jobId={jobId} token={token} />
+            {commercialOn ? (
+              <>
+                <a href="#estimate" className="jh-nav-icon">
+                  Estimate &amp; proposal
+                </a>
+                <a href="#contracts" className="jh-nav-icon">
+                  Contracts
+                </a>
+              </>
+            ) : null}
             {tiles.map((tile) => (
               <a key={tile.page} href={href(tile.page)}>
                 {tile.title}
@@ -390,6 +439,18 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 </a>
               ) : null}
             </header>
+            {session ? (
+              <section id="notifications" className="jb-section">
+                <JobHomeNotifications jobId={jobId} token={token} />
+              </section>
+            ) : null}
+            {commercialOn ? (
+              <>
+                <StageStrip stage={stage} />
+                <NextStepCard step={nextStepOf(commercial, base.job_number ?? "")} href={href} />
+                {estimateFirst ? estimateSection : contractsSection}
+              </>
+            ) : null}
             {full ? (
               <section aria-label="Contract and customer payments">
                 <div className="jh-metrics">
@@ -491,6 +552,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 authenticated full project access.
               </p>
             )}
+            {commercialOn ? (estimateFirst ? contractsSection : estimateSection) : null}
             <div className="jh-columns">
               <section className="jh-panel" aria-labelledby="jh-schedule">
                 <h2 id="jh-schedule">Schedule &amp; next work</h2>
@@ -672,12 +734,19 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                   ))}
                 </div>
                 <p className="jh-note">
-                  Saved contracts, specifications and drawings are available through Athena in chat.
-                  Ask to list this job’s project documents or drawing sets and open their original
-                  source references.
+                  Contracts and the estimate are in their sections above. Specifications and
+                  drawings are available through Athena in chat: ask to list this job’s project
+                  documents or drawing sets.
                 </p>
               </div>
             </section>
+            {session && full ? (
+              <>
+                <JobHomeChangeOrders jobId={jobId} token={token} />
+                <JobHomeMessages jobId={jobId} token={token} />
+                <JobNoticeEmailSettings jobId={jobId} token={token} />
+              </>
+            ) : null}
             <p className="jh-note">
               Each source refreshes independently while this page is open. Open a workspace for its
               current version; this overview is not an atomic project snapshot.

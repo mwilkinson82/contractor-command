@@ -150,7 +150,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20261030130000_athena_submittal_log_approval_only.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030140000_athena_sov_contract_total_guard.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261030160000_athena_submittal_package_delivery_link.sql", "utf8"));
-  await db.exec(readFileSync("supabase/migrations/20261105161000_athena_submittal_replies.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261105182000_athena_submittal_replies.sql", "utf8"));
   await db.query("INSERT INTO auth.users(id,email) VALUES ($1,'pm@example.com')", [owner]);
   await db.query("INSERT INTO test_active_members VALUES ($1)", [owner]);
   await db.query(

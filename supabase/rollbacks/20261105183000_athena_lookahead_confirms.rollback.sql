@@ -1,4 +1,4 @@
--- Rollback for 20261105162000_athena_lookahead_confirms.sql: removes look-ahead date confirmation requests and their
+-- Rollback for 20261105183000_athena_lookahead_confirms.sql: removes look-ahead date confirmation requests and their
 -- functions. Job notices they recorded stay on the job.
 SET LOCAL lock_timeout = '5s';
 DROP FUNCTION IF EXISTS public.mcp_lookahead_confirm_respond(text, text, date, text, text, text, text);

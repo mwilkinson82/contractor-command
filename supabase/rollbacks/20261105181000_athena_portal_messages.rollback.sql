@@ -1,4 +1,4 @@
--- Rollback for 20261105160000_athena_portal_messages.sql: removes client messages on the customer page.
+-- Rollback for 20261105181000_athena_portal_messages.sql: removes client messages on the customer page.
 SET LOCAL lock_timeout = '5s';
 DROP FUNCTION IF EXISTS public.mcp_job_message_reply(uuid, uuid, text, uuid);
 DROP FUNCTION IF EXISTS public.mcp_job_messages_list(uuid);

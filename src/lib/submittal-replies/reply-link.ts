@@ -1,6 +1,6 @@
 // Submittal replies: one reply code per package link. The code is derived from the package link's own token, so
 // drafting the same package email twice gives the same code (the saved draft stays the same draft), and only the
-// code's SHA-256 is kept in the database (supabase/migrations/20261105161000_athena_submittal_replies.sql).
+// code's SHA-256 is kept in the database (supabase/migrations/20261105182000_athena_submittal_replies.sql).
 // The code is 32 lower-case hex characters, so it survives mail systems that fold an address to lower case.
 import { tokenFromLink, tokenHash } from "../mcp/file-share";
 

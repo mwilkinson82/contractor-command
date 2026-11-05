@@ -1,6 +1,6 @@
 -- Managed Lovable Cloud proposal. No standalone transaction wrapper.
 -- Plain SQL for Lovable to apply; nothing in this repo applies it. Apply after
--- 20261105151500_athena_job_notices.sql.
+-- 20261105180000_athena_job_notices.sql.
 --
 -- Submittal replies: the architect or engineer's return comes back into Athena.
 -- Before: a package went out through the member's own email with a file link, and nothing captured the answer.

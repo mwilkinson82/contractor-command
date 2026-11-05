@@ -67,7 +67,10 @@ vi.mock("@/lib/athena-host-current", () => ({
   onAthenaHost: () => true,
   currentHostname: () => "app.meetathena.io",
 }));
-vi.mock("@/lib/account-team.functions", () => ({ getSeatPurchaseStatus: state.calls }));
+vi.mock("@/lib/account-team.functions", () => ({
+  getSeatPurchaseStatus: state.calls,
+  sendTeamInviteEmail: state.calls,
+}));
 vi.mock("@/lib/board-link.functions", () => ({
   openBoardPage: state.calls,
   openSubmittalRecord: state.calls,
@@ -93,7 +96,9 @@ import { ProductionReportPage } from "@/components/athena/ProductionReportPage";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { AthenaAccountLayout } from "@/components/account/athena-account-layout";
 import { TeamSection } from "@/components/account/team-section";
-import { OrganizationProfile } from "@/components/account/organization-profile";
+import { CompanyProfileSection } from "@/components/account/company-profile-section";
+import { AthenaTeamSection } from "@/components/account/athena-team-section";
+import { ClientPaymentsSection } from "@/components/account/client-payments-section";
 import { Route as login, LoginForm } from "@/routes/login";
 import { Route as magic } from "@/routes/magic-link";
 import { Route as consent } from "@/routes/oauth.consent";
@@ -310,6 +315,17 @@ const previews: Record<string, () => ReactNode> = {
       teamError: false,
       canViewSupport: true,
       onSignOut: state.calls,
+      companies: [
+        { id, name: long },
+        { id: "00000000-0000-4000-8000-000000000099", name: long },
+      ],
+      currentCompanyId: id,
+      onSwitchCompany: state.calls,
+      setup: [
+        { id: "profile", label: long, detail: long, done: true, href: "#company" },
+        { id: "team", label: long, detail: long, done: false, href: "#team" },
+        { id: "payments", label: long, detail: long, done: false, href: "#payments", soon: true },
+      ],
       profile: null,
       company: null,
       team: null,
@@ -326,17 +342,45 @@ const previews: Record<string, () => ReactNode> = {
     ),
   "account-organization": () =>
     h(
-      "main",
-      { className: "mx-auto max-w-5xl p-6" },
-      h(OrganizationProfile, {
-        user: { id, email: "synthetic@example.invalid" },
-        company: null,
-        loading: false,
-        error: null,
-        workspaceName: long,
-        refetch: state.calls,
-      }),
+      "div",
+      { className: "athena-account" },
+      h(
+        "main",
+        { className: "aa-content" },
+        h(CompanyProfileSection, {
+          state: {
+            profile: {
+              id,
+              name: long,
+              logo_url: null,
+              license_number: long,
+              contact_name: long,
+              contact_phone: "(512) 555-0142",
+              website: "synthetic-long-reference-for-layout-testing.example.invalid",
+              address: long,
+            },
+            loading: false,
+            error: false,
+            reload: state.calls,
+          },
+          companyId: id,
+          isOwner: true,
+          userId: id,
+        }),
+      ),
     ),
+  "account-athena-team": () =>
+    h(
+      "div",
+      { className: "athena-account" },
+      h(
+        "main",
+        { className: "aa-content" },
+        h(AthenaTeamSection, { state: team, loading: false, reload: state.calls, inviteEmailEnabled: true }),
+      ),
+    ),
+  "account-payments": () =>
+    h("div", { className: "athena-account" }, h("main", { className: "aa-content" }, h(ClientPaymentsSection))),
   "morning-brief": () => h(TodayBriefView, { html: renderHtml(morning.card), error: null }),
   "account-projects": () =>
     h(

@@ -129,6 +129,8 @@ export type AccountTeam = {
   isOwner: boolean;
   seats: Seats | null;
   team: TeamList | null;
+  /** Every Athena company this person belongs to, for the account page's company switcher. */
+  companies?: { id: string; name: string | null }[];
 };
 
 export async function loadAccountTeam(
@@ -171,6 +173,7 @@ export async function loadAccountTeam(
     isOwner,
     seats: team?.seats ?? (seat.data as Seats | null) ?? null,
     team,
+    companies: list.map((c) => ({ id: c.id, name: c.name })),
   };
 }
 

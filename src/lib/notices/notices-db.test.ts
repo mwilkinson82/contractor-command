@@ -58,7 +58,7 @@ beforeAll(async () => {
     "CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$",
   );
   await load("20261021190000_athena_team_invites");
-  await load("20261105151500_athena_job_notices");
+  await load("20261105180000_athena_job_notices");
   await db.query(
     "INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'Northline Electric',$2)",
     [company, owner],

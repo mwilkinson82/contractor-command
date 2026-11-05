@@ -66,7 +66,7 @@ type ListResult = {
   updates: { id: string; week_of: string; title: string; posted_at: string }[];
 };
 
-/** What mcp_job_messages_list returns (supabase/migrations/20261105160000_athena_portal_messages.sql). */
+/** What mcp_job_messages_list returns (supabase/migrations/20261105181000_athena_portal_messages.sql). */
 type JobMessages = {
   job_id: string;
   job_number: string;

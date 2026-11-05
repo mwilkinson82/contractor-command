@@ -4,7 +4,7 @@
 import { clientMessageEmail, type PortalEmail } from "./email";
 import { portalUrl } from "./model";
 
-/** What mcp_job_message_reply returns (supabase/migrations/20261105160000_athena_portal_messages.sql). */
+/** What mcp_job_message_reply returns (supabase/migrations/20261105181000_athena_portal_messages.sql). */
 export type TeamReply = {
   message_id: string;
   created_at: string;

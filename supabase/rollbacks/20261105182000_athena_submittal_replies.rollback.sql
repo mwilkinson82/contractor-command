@@ -1,4 +1,4 @@
--- Rollback for 20261105161000_athena_submittal_replies.sql: removes reviewer return links and kept submittal
+-- Rollback for 20261105182000_athena_submittal_replies.sql: removes reviewer return links and kept submittal
 -- replies. Submittal statuses and history already written from replies stay as they are. Files stored under
 -- <company>/<job>/returns/ in the athena-submittals bucket are not deleted by this rollback.
 SET LOCAL lock_timeout = '5s';

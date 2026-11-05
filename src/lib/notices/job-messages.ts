@@ -1,5 +1,5 @@
 /**
- * The board's client messages panel data layer (supabase/migrations/20261105160000_athena_portal_messages.sql).
+ * The board's client messages panel data layer (supabase/migrations/20261105181000_athena_portal_messages.sql).
  *   list:  mcp_job_messages_list(_job), full job access only; supers are refused and the panel hides.
  *   reply: never from the browser. replyJobMessageFn (job-messages.functions.ts) runs replyToClient as the signed-in
  *          member, which posts the reply and emails the client.

@@ -1,5 +1,5 @@
 // Look-ahead date confirmations: a supplier confirms a delivery date, a sub confirms a crew start or work date,
-// from a link Athena emails them (supabase/migrations/20261105162000_athena_lookahead_confirms.sql). Shared by the
+// from a link Athena emails them (supabase/migrations/20261105183000_athena_lookahead_confirms.sql). Shared by the
 // public page, the request email and the MCP tool.
 import { z } from "zod";
 import type { JobNoticeInput } from "../notices/send";

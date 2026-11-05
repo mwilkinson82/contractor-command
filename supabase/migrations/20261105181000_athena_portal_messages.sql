@@ -1,6 +1,6 @@
 -- Managed Lovable Cloud proposal. No standalone transaction wrapper.
 -- Plain SQL for Lovable to apply; nothing in this repo applies it. Apply after
--- 20261105151500_athena_job_notices.sql (and the customer page migrations before it).
+-- 20261105180000_athena_job_notices.sql (and the customer page migrations before it).
 --
 -- Client messages on the customer page.
 -- Before: a customer could only approve, decline or choose. A question meant an email outside Athena, and nothing

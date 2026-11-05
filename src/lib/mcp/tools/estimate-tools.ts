@@ -4,6 +4,7 @@ import { drawingCardResultMeta } from "../cards/drawing-card";
 import { verifyLocatedShape } from "../takeoff/verify";
 import { saveTakeoffArtifact, artifactRecord } from "../takeoff/artifacts";
 import { takeoffShape } from "./takeoff-tools";
+import { applyPlainScale } from "../takeoff/auto-scale";
 import { engineSnapshot, measurementStatus, verifiedLines } from "../takeoff/state";
 import {
   engineRpc,
@@ -1064,16 +1065,23 @@ export const estimateTakeoffGet = defineTool({
         const loaded = await load(sb, job.job_id);
         await audit(sb, job, "estimate_takeoff_get", "view_estimate_takeoff", null);
         const measurement = await engineSnapshot(sb, job.job_id);
-        if (measurement)
+        if (measurement) {
+          const page = args.sheet
+            ? await loadStoredPage(sb, job, args.sheet, args.source_id)
+            : undefined;
+          // The sheet the member opens takes the scale it plainly states, the same as
+          // opening it in the workspace, so nobody has to set it.
+          const scaled = await applyPlainScale(sb, job, measurement, page);
           return guide(
             await viewEngine(
               sb,
               job,
-              measurement,
-              args.sheet ? await loadStoredPage(sb, job, args.sheet, args.source_id) : undefined,
+              scaled ? ((await engineSnapshot(sb, job.job_id)) ?? measurement) : measurement,
+              page,
             ),
             SAVE_OFFER_GUIDANCE,
           );
+        }
         const withPages = async <R extends { content?: { type: string; text?: string }[] }>(
           result: R,
           lines: { sheet?: string | null; markup_ref?: string | null }[],
@@ -2102,7 +2110,9 @@ export const drawingMarkup = defineTool({
                   ).exportMeasuredSheet(sb, job, page, measurement),
                 }
               : {};
-          const view = await viewEngine(sb, job, measurement, page, extra),
+          const scaled = await applyPlainScale(sb, job, measurement, page);
+          const shown = scaled ? ((await engineSnapshot(sb, job.job_id)) ?? measurement) : measurement;
+          const view = await viewEngine(sb, job, shown, page, extra),
             picture = view.content.find((c) => c.type === "image");
           const exported = extra.export as
             { id: string; path: string; created_at: string } | undefined;

@@ -126,8 +126,8 @@ beforeAll(async () => {
     "0057_sov_payment_applications",
     "0058_payment_application_contract_basis",
     "0059_conversational_payment_drafts",
-    "0081_athena_portal_pay_apps",
-    "0082_athena_portal_pay_app_client_number",
+    "0082_athena_portal_pay_apps",
+    "0085_athena_portal_pay_app_client_number",
   ])
     await db.exec(readFileSync(`drizzle/migrations/${f}.sql`, "utf8"));
   await load("20261105150000_athena_gbb_change_terms");
@@ -135,8 +135,8 @@ beforeAll(async () => {
   await db.exec(
     "CREATE FUNCTION public.mcp_role_allowed(_company uuid, _role text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$",
   );
-  await load("20261105151500_athena_job_notices");
-  await load("20261105160000_athena_portal_messages");
+  await load("20261105180000_athena_job_notices");
+  await load("20261105181000_athena_portal_messages");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [

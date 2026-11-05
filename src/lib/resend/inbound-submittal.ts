@@ -1,7 +1,7 @@
 // Submittal reply capture for mail Resend receives at submittals+<code>@meetathena.io (the CC on every package
 // email). The reply is kept on the submittal as "received, needs review" with its attachments or, without any, its
 // text. It never sets a status: the PM confirms that from the board or chat. These messages are never forwarded to
-// the owner as stray mail. supabase/migrations/20261105161000_athena_submittal_replies.sql has the rules.
+// the owner as stray mail. supabase/migrations/20261105182000_athena_submittal_replies.sql has the rules.
 import {
   fetchAttachments,
   fetchReceivedEmail,

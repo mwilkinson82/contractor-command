@@ -34,3 +34,6 @@ dist-ssr
 
 # Card screenshots (scripts/card-screenshots)
 artifacts/
+
+# Preview files written by tests and preview scripts
+output/playwright/

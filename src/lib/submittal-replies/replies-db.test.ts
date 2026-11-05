@@ -149,8 +149,8 @@ beforeAll(async () => {
   await load("20261028120000_athena_submittal_packages");
   await load("20261029120000_athena_submittal_record_page");
   await load("20261021190000_athena_team_invites");
-  await load("20261105151500_athena_job_notices");
-  await load("20261105161000_athena_submittal_replies");
+  await load("20261105180000_athena_job_notices");
+  await load("20261105182000_athena_submittal_replies");
   await db.query(
     "INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'Northline Electric',$2)",
     [company, owner],
@@ -551,13 +551,13 @@ describe.sequential("submittal replies", () => {
 
   it("applies twice, rolls back cleanly and applies again", async () => {
     const up = readFileSync(
-      "supabase/migrations/20261105161000_athena_submittal_replies.sql",
+      "supabase/migrations/20261105182000_athena_submittal_replies.sql",
       "utf8",
     );
-    expect(readFileSync("drizzle/migrations/0086_athena_submittal_replies.sql", "utf8")).toBe(up);
+    expect(readFileSync("drizzle/migrations/0092_athena_submittal_replies.sql", "utf8")).toBe(up);
     await db.exec(`BEGIN; ${up}; COMMIT;`);
     await db.exec(
-      `BEGIN; ${readFileSync("supabase/rollbacks/20261105161000_athena_submittal_replies.rollback.sql", "utf8")}; COMMIT;`,
+      `BEGIN; ${readFileSync("supabase/rollbacks/20261105182000_athena_submittal_replies.rollback.sql", "utf8")}; COMMIT;`,
     );
     expect(
       (await db.query("SELECT to_regclass('public.mcp_submittal_responses') AS t")).rows[0],
