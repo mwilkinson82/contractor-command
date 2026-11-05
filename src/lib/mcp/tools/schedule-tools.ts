@@ -13,6 +13,7 @@ import {
 import type { LivingData } from "../living";
 import { loadJobSourceClauses } from "../source-clauses";
 import { draftScheduleNotice } from "../schedule-notice";
+import { scheduleToXer, xerToScheduleRequest, XerImportError } from "../schedule-xer";
 
 const json = (value: unknown): JsonValueInput => JSON.parse(JSON.stringify(value));
 
@@ -21,11 +22,15 @@ export const scheduleWorkflow = defineTool({
   name: "schedule_workflow",
   title: "Prepare WBS, schedule update or delay comparison",
   description:
-    "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending.",
+    "Reviews a job's schedule or prepares a calculated WBS, progress, baseline, delay scenario or source-grounded draft notice without saving or sending. import_xer turns a Primavera P6 XER file's text into a first-import draft for a job with no saved schedule; export_xer returns the saved schedule as XER text for P6.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
-    action: z.enum(["inspect", "prepare", "draft_notice"]),
+    action: z.enum(["inspect", "prepare", "draft_notice", "import_xer", "export_xer"]),
+    /** import_xer: the full text of the .xer file, exactly as exported from P6. */
+    xer_text: z.string().min(1).max(5_000_000).optional(),
+    /** import_xer: the P6 project ID to import when the file holds more than one project. */
+    xer_project: z.string().trim().min(1).max(40).optional(),
     base_version: z.number().int().min(0).optional(),
     version: z.number().int().min(1).optional(),
     request: scheduleRequest.optional(),
@@ -51,7 +56,7 @@ export const scheduleWorkflow = defineTool({
       const job = await resolveJob(sb, args.job_number, args.company_id, "full");
       await assertScheduleCompany(sb, job, args.company_id);
       if (job.scope !== "full") throw new ToolError(FULL_ACCESS_MESSAGE);
-      if (args.action !== "inspect" && args.version != null)
+      if (args.action !== "inspect" && args.action !== "export_xer" && args.version != null)
         throw new ToolError(
           "Revisions and notices use the current saved version; historical versions are view-only.",
         );
@@ -68,6 +73,79 @@ export const scheduleWorkflow = defineTool({
         data_date?: string | null;
       };
       const version = saved.found ? saved.version! : 0;
+      if (args.action === "export_xer") {
+        if (!saved.found || !saved.data?.activities?.length)
+          throw new ToolError(`${named(job)} has no saved schedule to export.`);
+        const exportedOn = new Date().toISOString().slice(0, 10);
+        try {
+          const xer = scheduleToXer(saved.data, {
+            project_short_name: job.job_number,
+            project_name: job.name || job.job_number,
+            exported_on: exportedOn,
+            data_date: saved.data_date ?? null,
+          });
+          const file = `${job.job_number.replace(/[^A-Za-z0-9._-]+/g, "-")}-v${version}.xer`;
+          return {
+            ...text(
+              `${named(job)} · Schedule v${version} as a P6 XER file (${saved.data.activities.length} activities). Give the member the file ${file} with the xer text exactly as returned; in P6 they use File, Import, Primavera PM (XER) as a new project. No changes saved.`,
+            ),
+            structuredContent: {
+              saved: false,
+              version,
+              file_name: file,
+              media_type: "text/plain",
+              xer,
+            },
+          };
+        } catch (e) {
+          if (e instanceof XerImportError) throw new ToolError(e.message);
+          throw e;
+        }
+      }
+      if (args.action === "import_xer") {
+        if (!args.xer_text || args.request || args.event)
+          throw new ToolError("Supply the XER file's text alone to import it.");
+        if (saved.found && saved.data?.activities?.length)
+          throw new ToolError(
+            `${named(job)} already has a saved schedule (v${version}). An XER import starts a schedule; update this one with prepare instead.`,
+          );
+        if (args.base_version !== version)
+          throw new ToolError(`This schedule is v${version}. Load that version before importing.`);
+        try {
+          const imp = xerToScheduleRequest(args.xer_text, args.xer_project);
+          const prepared = prepareSchedule(
+            saved.data ?? null,
+            version,
+            imp.request,
+            saved.data_date,
+          );
+          return {
+            ...text(
+              `${named(job)} · Draft from P6 project ${imp.project.name}, not saved.\n${imp.counts.activities} activities, ${imp.counts.relationships} relationships, ${imp.counts.calendars} calendars, ${imp.counts.wbs} WBS nodes. Data date ${imp.project.data_date}.\n${imp.notes.map((n) => `Not carried: ${n}`).join("\n")}\nThe P6 dates are kept as reported. Review, then save with living_report_save using the save request; recalculate in Athena as the next revision.`,
+            ),
+            structuredContent: {
+              saved: false,
+              base_version: version,
+              project: imp.project,
+              counts: imp.counts,
+              not_carried: imp.notes,
+              prepared: json(prepared),
+              save: {
+                tool: "living_report_save",
+                report_type: "cpm",
+                base_version: version,
+                schedule_request: json(imp.request),
+                approval_required: true,
+                what_changed_required: true,
+              },
+            },
+          };
+        } catch (e) {
+          if (e instanceof XerImportError || e instanceof ScheduleInputError)
+            throw new ToolError(e.message);
+          throw e;
+        }
+      }
       if (args.action !== "inspect" && args.base_version !== version)
         throw new ToolError(
           `This schedule is v${version}. Load that version before preparing a revision or notice.`,
