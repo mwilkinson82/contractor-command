@@ -50,6 +50,16 @@ export const liveDeps: PortalDeps = {
   },
   send: (m) => sendPortalEmail(m),
   emailOn: () => portalEmailEnabled(),
+  // Paying an approved pay application through the contractor's connected Stripe account. Loaded on use: the
+  // client payment wiring reads this file's rpc.
+  pay: async (p) => {
+    const [{ openCheckout }, { checkoutDeps }, { athenaAppOrigin }] = await Promise.all([
+      import("../client-payments/checkout"),
+      import("../client-payments/deps.server"),
+      import("../athena-host"),
+    ]);
+    return openCheckout(checkoutDeps(athenaAppOrigin()), p);
+  },
   // Only a PNG or JPEG in the public company-logos bucket on our own backend, the same rule pay apps use.
   logo: async (access) => {
     const backend = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);

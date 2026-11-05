@@ -183,3 +183,219 @@
     display: block;
   }
 }
+
+/* Payments received on a pay application, and recording a wire or check. */
+.pa-paid {
+  margin: 18px 0;
+  border: 1px solid #dfe7f0;
+  border-radius: 14px;
+  background: #fff;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+  box-shadow: 0 10px 28px -22px rgba(24, 49, 79, 0.45);
+}
+.pa-page .pa-paid h2 {
+  margin: 0;
+}
+.pa-page .pa-paid h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.pa-paid-head {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.pa-page .pa-paid-sub,
+.pa-page .pa-paid-note {
+  margin: 4px 0 0;
+  color: #4d6480;
+  font-size: 0.875rem;
+}
+.pa-paid-pill {
+  flex: none;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  background: #edf1f6;
+  color: #4d6480;
+}
+.pa-paid-pill.is-part {
+  background: #fff3dc;
+  color: #9a5b00;
+}
+.pa-paid-pill.is-paid {
+  background: #e5f5ee;
+  color: #0f7a4f;
+}
+.pa-paid-sum {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.pa-paid-sum > div {
+  background: #f5f8fc;
+  border-radius: 10px;
+  padding: 11px 13px;
+  min-width: 0;
+}
+.pa-paid-sum dt {
+  font-size: 0.75rem;
+  color: #6080a4;
+  font-weight: 600;
+}
+.pa-paid-sum dd {
+  margin: 2px 0 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pa-paid-sum .pa-paid-left {
+  background: #eaf3ff;
+}
+.pa-paid-sum .pa-paid-left dd {
+  color: #1d4ed8;
+}
+.pa-paid-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #edf1f6;
+}
+.pa-paid-list li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid #edf1f6;
+}
+.pa-paid-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #eaf3ff;
+  color: #1d4ed8;
+}
+.pa-paid-what {
+  display: grid;
+  min-width: 0;
+}
+.pa-paid-what small {
+  color: #4d6480;
+  overflow-wrap: anywhere;
+}
+.pa-paid-amt {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pa-paid-list li.is-void .pa-paid-amt,
+.pa-paid-list li.is-void strong {
+  text-decoration: line-through;
+  color: #7d8ea3;
+}
+.pa-page button.pa-paid-x {
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+}
+.pa-paid-remove {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: 8px;
+}
+.pa-paid-form {
+  display: grid;
+  gap: 12px;
+  background: #f5f8fc;
+  border: 1px solid #dfe7f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+.pa-paid-seg {
+  display: inline-flex;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 3px;
+  justify-self: start;
+}
+.pa-page .pa-paid-seg label {
+  display: flex;
+  align-items: center;
+  padding: 7px 18px;
+  border-radius: 8px;
+  font-weight: 650;
+  cursor: pointer;
+  color: #4d6480;
+}
+.pa-page .pa-paid-seg input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+.pa-page .pa-paid-seg label.is-on {
+  background: #1e3a5f;
+  color: #fff;
+}
+.pa-page .pa-paid-seg label:focus-within {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.pa-paid-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.pa-paid-fields small {
+  color: #4d6480;
+}
+.pa-paid-btns {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pa-page button.pa-primary:hover:not(:disabled) {
+  background: #16304f;
+}
+.pa-page button.pa-danger {
+  color: #fff;
+  background: #b42318;
+  border-color: #b42318;
+}
+@media (max-width: 1000px) {
+  .pa-paid {
+    padding: 16px;
+  }
+}
+@media (max-width: 620px) {
+  .pa-paid-head {
+    flex-direction: column;
+  }
+  .pa-paid-sum,
+  .pa-paid-fields {
+    grid-template-columns: 1fr;
+  }
+  .pa-paid-sum > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .pa-paid-list li {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+  }
+  .pa-paid-list li > :last-child:not(.pa-paid-remove) {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+  .pa-paid-btns button {
+    flex: 1 1 auto;
+  }
+}

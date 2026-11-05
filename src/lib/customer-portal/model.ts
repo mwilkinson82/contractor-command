@@ -176,12 +176,59 @@ export const portalMessagesSchema = z
   })
   .strict();
 
+/** One online payment on a pay application, as the customer may see it. Never Athena's fee. */
+export const portalPaymentSchema = z.object({
+  item_id: UUID,
+  status: z.enum([
+    "open",
+    "processing",
+    "paid",
+    "failed",
+    "expired",
+    "refunded",
+    "partially_refunded",
+  ]),
+  method: z.string().nullable(),
+  amount_cents: z.number().int(),
+  refunded_cents: z.number().int().nullable().optional(),
+  paid_at: z.string().nullable().optional(),
+  test: z.boolean(),
+  updated_at: z.string().nullable().optional(),
+});
+export type PortalPayment = z.infer<typeof portalPaymentSchema>;
+
+/** Whether the contractor takes payments on this page, and the customer's payments on this job. */
+export const portalPaymentsSchema = z.object({
+  status: z.literal("ok"),
+  accepting: z.boolean(),
+  test: z.boolean(),
+  card: z.boolean(),
+  bank: z.boolean(),
+  card_max_cents: z.number().int(),
+  payments: z.array(portalPaymentSchema).max(500),
+  /** Wire and check payments the contractor recorded, per shared pay application. */
+  recorded: z
+    .array(
+      z.object({
+        item_id: UUID,
+        amount_cents: z.number().int(),
+        method: z.enum(["wire", "check", "mixed"]),
+        received_on: z.string().nullable(),
+      }),
+    )
+    .max(500)
+    .default([]),
+});
+export type PortalPayments = Omit<z.infer<typeof portalPaymentsSchema>, "status">;
+
 export type PortalPage = Omit<PortalView, "photos" | "status"> & {
   photos: SignedPhoto[];
   access_id: string;
   csrf: string;
   /** The customer's conversation with the team. Null when it couldn't be read; the rest of the page still shows. */
   messages?: { unread: number; list: PortalMessage[] } | null;
+  /** Online payments for pay applications. Absent or null: the page shows no way to pay. */
+  payments?: PortalPayments | null;
 };
 
 export const inviteOpenSchema = z.union([

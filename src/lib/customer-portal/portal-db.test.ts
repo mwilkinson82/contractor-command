@@ -1514,3 +1514,437 @@ describe.sequential("client messages", () => {
     await expect(tool({ job_number: "2716", action: "messages_list" }, outsider)).rejects.toThrow();
   });
 });
+
+describe.sequential("client payments", () => {
+  const sessionP = "P".repeat(43);
+  let sessP = "";
+  let accessP = "";
+  let item = "";
+  let app = "";
+  const acct = "acct_1TestNorthline";
+  const pay = (sess = sessP) => server("mcp_portal_pay_start", [accessP, sess, item]);
+  const update = (
+    sessionId: string,
+    status: string,
+    pi: string | null = null,
+    amount: number | null = null,
+    account = acct,
+  ) =>
+    server("mcp_portal_pay_update", [
+      sessionId,
+      account,
+      status,
+      pi,
+      pi ? "ch_" + pi.slice(3) : null,
+      pi ? "us_bank_account" : null,
+      amount,
+      pi ? 3375 : null,
+      pi ? "2026-11-06T15:00:00Z" : null,
+    ]);
+
+  beforeAll(async () => {
+    await db.exec(
+      readFileSync("supabase/migrations/20261105190000_athena_client_payments.sql", "utf8"),
+    );
+    // The approved pay application from the pay application tests, and Rosa's access on that job.
+    const r = await db.query<{ id: string; ref_id: string; access_id: string }>(
+      `SELECT i.id, i.ref_id, d.access_id FROM mcp_portal_items i JOIN mcp_portal_decisions d ON d.item_id = i.id
+        WHERE i.job_id = $1 AND i.kind = 'pay_app' AND d.decision = 'approved' ORDER BY i.shared_at DESC LIMIT 1`,
+      [job2],
+    );
+    item = r.rows[0]!.id;
+    app = r.rows[0]!.ref_id;
+    accessP = r.rows[0]!.access_id;
+    sessP = await tokenHash(sessionP);
+    await db.query(
+      "INSERT INTO mcp_portal_sessions(access_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 day')",
+      [accessP, sessP],
+    );
+  });
+
+  it("lets only an owner connect, and shows members the setup without account ids", async () => {
+    await expect(
+      server("mcp_client_payments_account_save", [company, "test", acct, "action_required", pm]),
+    ).rejects.toThrow(/owner/);
+    expect(await member("mcp_client_payments_get", [company], pm)).toMatchObject({
+      can_manage: false,
+      test: { connected: false, status: "not_connected" },
+      ready: false,
+    });
+    await server("mcp_client_payments_account_save", [
+      company,
+      "test",
+      acct,
+      "action_required",
+      owner,
+    ]);
+    await expect(
+      server("mcp_client_payments_account_save", [
+        company,
+        "test",
+        "acct_1Someoneelse",
+        "ready",
+        owner,
+      ]),
+    ).rejects.toThrow(/already has/);
+    const got = await member("mcp_client_payments_get", [company]);
+    expect(got).toMatchObject({
+      can_manage: true,
+      mode: "test",
+      test: { connected: true, status: "action_required" },
+    });
+    expect(JSON.stringify(got)).not.toContain("acct_");
+    await expect(member("mcp_client_payments_get", [company], outsider)).rejects.toThrow();
+    await expect(
+      member("mcp_client_payments_settings", [company, false, true, 500000], pm),
+    ).rejects.toThrow(/owner/);
+    await expect(
+      member("mcp_client_payments_settings", [company, false, false, 500000]),
+    ).rejects.toThrow(/one way/);
+    expect(
+      await member("mcp_client_payments_settings", [company, true, true, 500000]),
+    ).toMatchObject({
+      card_max_cents: 500000,
+    });
+    await expect(server("mcp_client_payments_set_mode", [company, "live", owner])).rejects.toThrow(
+      /live setup/,
+    );
+  });
+
+  it("takes payment only once Stripe says the account is ready, on an approved pay app", async () => {
+    expect(await pay()).toEqual({ status: "not_accepting" });
+    expect(await pay(hex(9))).toEqual({ status: "signed_out" });
+    expect(
+      await server("mcp_client_payments_account_status", [acct, false, "ready"]),
+    ).toMatchObject({
+      status: "ok",
+      company_id: company,
+    });
+    expect(
+      await server("mcp_client_payments_account_status", ["acct_1Unknown", false, "ready"]),
+    ).toEqual({
+      status: "unknown_account",
+    });
+    const start = await pay();
+    // $13,500.00 is over the $5,000 card limit, so only bank is offered.
+    expect(start).toMatchObject({
+      status: "ok",
+      mode: "test",
+      account_id: acct,
+      amount_cents: 1350000,
+      card: false,
+      bank: true,
+      label: "Payment Application 7",
+      open_session: null,
+    });
+    const state = await server("mcp_portal_payments_state", [accessP, sessP]);
+    expect(state).toMatchObject({ status: "ok", accepting: true, test: true, payments: [] });
+  });
+
+  it("books a bank payment once: processing, then paid, applied to the pay application", async () => {
+    await server("mcp_portal_pay_opened", [
+      item,
+      accessP,
+      "test",
+      acct,
+      "cs_test_first",
+      ["us_bank_account"],
+      1350000,
+      3375,
+    ]);
+    expect((await pay()).open_session).toMatchObject({ checkout_session_id: "cs_test_first" });
+    // A new session replaces the open one.
+    await server("mcp_portal_pay_opened", [
+      item,
+      accessP,
+      "test",
+      acct,
+      "cs_test_second",
+      ["us_bank_account"],
+      1350000,
+      3375,
+    ]);
+    expect(
+      (
+        await db.query(
+          "SELECT checkout_session_id, status FROM mcp_portal_payments WHERE item_id=$1 ORDER BY created_at",
+          [item],
+        )
+      ).rows,
+    ).toEqual([
+      { checkout_session_id: "cs_test_first", status: "expired" },
+      { checkout_session_id: "cs_test_second", status: "open" },
+    ]);
+    await expect(update("cs_test_second", "paid", "pi_test_second", 1349999)).rejects.toThrow(
+      /amount/,
+    );
+    await expect(
+      update("cs_test_second", "paid", "pi_test_second", 1350000, "acct_1Other"),
+    ).rejects.toThrow(/account/);
+    expect(await update("cs_test_second", "processing", "pi_test_second", 1350000)).toMatchObject({
+      status: "changed",
+      payment_status: "processing",
+      booked: false,
+    });
+    expect((await pay()).status).toBe("already_paid");
+    const paid = await update("cs_test_second", "paid", "pi_test_second", 1350000);
+    expect(paid).toMatchObject({
+      status: "changed",
+      payment_status: "paid",
+      was: "processing",
+      booked: true,
+      applied: true,
+      customer: "Rosa Delgado",
+      job_number: "2716",
+      test: true,
+    });
+    expect((await update("cs_test_second", "paid", "pi_test_second", 1350000)).status).toBe(
+      "unchanged",
+    );
+    const receipt = (
+      await db.query<Row>(
+        "SELECT amount_cents, source FROM mcp_billing_receipts WHERE job_id=$1 AND source LIKE 'Client page payment%'",
+        [job2],
+      )
+    ).rows;
+    expect(receipt).toEqual([
+      {
+        amount_cents: 1350000,
+        source: "Client page payment pi_test_second (Stripe test mode) for Payment Application 7",
+      },
+    ]);
+    expect(
+      (
+        await db.query(
+          "SELECT amount_cents FROM mcp_billing_allocations WHERE invoice_id=$1 AND reversal_of IS NULL",
+          [app],
+        )
+      ).rows,
+    ).toEqual([{ amount_cents: 1350000 }]);
+    const state = await server("mcp_portal_payments_state", [accessP, sessP]);
+    expect(state.payments).toEqual([
+      expect.objectContaining({
+        item_id: item,
+        status: "paid",
+        method: "us_bank_account",
+        amount_cents: 1350000,
+        test: true,
+      }),
+    ]);
+    const board = await member("mcp_job_payments_list", [job2]);
+    expect(board[0]).toMatchObject({
+      status: "paid",
+      fee_cents: 3375,
+      customer: "Rosa Delgado",
+      label: "Payment Application 7",
+    });
+    await expect(member("mcp_job_payments_list", [job2], outsider)).rejects.toThrow();
+  });
+
+  it("reverses only the new part of a refund, off the pay application and then the receipt", async () => {
+    expect(await server("mcp_portal_pay_refunded", ["pi_test_unknown", acct, 100])).toEqual({
+      status: "unknown_payment",
+    });
+    expect(await server("mcp_portal_pay_refunded", ["pi_test_second", acct, 50000])).toMatchObject({
+      status: "changed",
+      payment_status: "partially_refunded",
+      refunded_cents: 50000,
+    });
+    expect((await server("mcp_portal_pay_refunded", ["pi_test_second", acct, 50000])).status).toBe(
+      "unchanged",
+    );
+    expect(
+      await server("mcp_portal_pay_refunded", ["pi_test_second", acct, 1350000]),
+    ).toMatchObject({
+      payment_status: "refunded",
+      refunded_cents: 1300000,
+    });
+    const alloc = await db.query<{ n: string }>(
+      "SELECT sum(CASE WHEN reversal_of IS NULL THEN amount_cents ELSE -amount_cents END)::text AS n FROM mcp_billing_allocations WHERE invoice_id=$1",
+      [app],
+    );
+    expect(alloc.rows[0]!.n).toBe("0");
+    const rev = await db.query<{ n: string }>(
+      "SELECT sum(r.amount_cents)::text AS n FROM mcp_billing_receipt_reversals r JOIN mcp_billing_receipts b ON b.id=r.receipt_id WHERE b.source LIKE 'Client page payment pi_test_second%'",
+    );
+    expect(rev.rows[0]!.n).toBe("1350000");
+    await expect(
+      server("mcp_portal_pay_refunded", ["pi_test_second", acct, 1350001]),
+    ).rejects.toThrow(/range/);
+  });
+
+  it("handles each Stripe event once, and keeps payments out of members' direct reach", async () => {
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("fresh");
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("busy");
+    await server("mcp_stripe_connect_event_finish", ["evt_test_1", false]);
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("fresh");
+    await server("mcp_stripe_connect_event_finish", ["evt_test_1", true]);
+    expect(
+      await server("mcp_stripe_connect_event_claim", [
+        "evt_test_1",
+        "checkout.session.completed",
+        false,
+        acct,
+      ]),
+    ).toBe("done");
+    for (const fn of [
+      ["mcp_portal_pay_update", ["cs_test_second", acct, "paid", "pi_x", null, null, 1, 0, null]],
+      ["mcp_portal_pay_refunded", ["pi_test_second", acct, 1]],
+      ["mcp_client_payments_account_save", [company, "test", acct, "ready", owner]],
+      ["mcp_stripe_connect_event_claim", ["evt_test_2", "x", false, null]],
+    ] as const)
+      await expect(member(fn[0], [...fn[1]])).rejects.toThrow();
+    await expect(as(owner)("SELECT * FROM mcp_portal_payments")).rejects.toThrow();
+    await expect(as(owner)("SELECT * FROM mcp_company_payments")).rejects.toThrow();
+  });
+
+  it("records wire and check payments on the pay application, books them like a client page payment, and voids a mistake", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const req = (n: number) => `00000000-0000-4000-8000-00000000f0${n.toString().padStart(2, "0")}`;
+    const record = (
+      id: string,
+      method: string,
+      amount: number,
+      ref: string,
+      user = pm,
+      note: string | null = null,
+    ) =>
+      member("mcp_pay_app_record_payment", [job2, app, id, method, amount, today, ref, note], user);
+    const applied = async () =>
+      (
+        await db.query<{ n: string }>(
+          "SELECT coalesce(sum(CASE WHEN reversal_of IS NULL THEN amount_cents ELSE -amount_cents END),0)::text AS n FROM mcp_billing_allocations WHERE invoice_id=$1",
+          [app],
+        )
+      ).rows[0]!.n;
+    // The client page payment above was refunded in full, so the whole amount is open again.
+    expect(await member("mcp_pay_app_payments", [job2, app], pm)).toMatchObject({
+      status: "ok",
+      can_record: true,
+      net_due_cents: 1350000,
+      remaining_cents: 1350000,
+      recorded: [],
+      online: [expect.objectContaining({ status: "refunded" })],
+    });
+    await expect(record(req(1), "check", 500000, "1042", outsider)).rejects.toThrow();
+    await expect(record(req(1), "cash", 500000, "1042")).rejects.toThrow(/wire or check/);
+    await expect(record(req(1), "check", 500000, "  ")).rejects.toThrow(/check number/);
+    await expect(record(req(1), "wire", 1350001, "FW-88")).rejects.toThrow(
+      /more than the \$13,500.00 left/,
+    );
+    expect(await record(req(1), "check", 500000, "1042", pm, "Mailed to the office")).toMatchObject(
+      {
+        status: "ok",
+        already_recorded: false,
+        remaining_cents: 850000,
+      },
+    );
+    // A retry of the same request records nothing new; the same id for something else is refused.
+    expect(await record(req(1), "check", 500000, "1042")).toMatchObject({ already_recorded: true });
+    await expect(record(req(1), "check", 400000, "1042")).rejects.toThrow(/different payment/);
+    await expect(record(req(2), "check", 100000, " 1042 ")).rejects.toThrow(/already recorded/);
+    expect(await applied()).toBe("500000");
+    const receipt = (
+      await db.query<Row>(
+        "SELECT amount_cents, source FROM mcp_billing_receipts WHERE job_id=$1 AND source LIKE 'Check 1042%'",
+        [job2],
+      )
+    ).rows;
+    expect(receipt).toEqual([
+      { amount_cents: 500000, source: `Check 1042 for 7 (recorded ${req(1).slice(-12)})` },
+    ]);
+    // The client page counts it, and asks only for what's left.
+    expect((await server("mcp_portal_payments_state", [accessP, sessP])).recorded).toContainEqual({
+      item_id: item,
+      amount_cents: 500000,
+      method: "check",
+      received_on: today,
+    });
+    expect(await pay()).toMatchObject({ status: "ok", amount_cents: 850000 });
+    expect(await record(req(3), "wire", 850000, "FW-88")).toMatchObject({ remaining_cents: 0 });
+    expect(await pay()).toEqual({ status: "nothing_due" });
+    expect((await server("mcp_portal_payments_state", [accessP, sessP])).recorded).toContainEqual({
+      item_id: item,
+      amount_cents: 1350000,
+      method: "mixed",
+      received_on: today,
+    });
+    await expect(record(req(4), "wire", 1, "FW-89")).rejects.toThrow(/\$0.00 left/);
+    // A mistake is voided with a reason: it comes back off the pay application and the receipt.
+    const check = (await member("mcp_pay_app_payments", [job2, app], pm)).recorded.find(
+      (r: J) => r.method === "check",
+    );
+    expect(check).toMatchObject({
+      amount_cents: 500000,
+      reference: "1042",
+      note: "Mailed to the office",
+      voided: false,
+    });
+    await expect(member("mcp_pay_app_void_payment", [job2, check.id, " "], pm)).rejects.toThrow(
+      /why/,
+    );
+    await expect(
+      member("mcp_pay_app_void_payment", [job2, check.id, "Entered twice"], outsider),
+    ).rejects.toThrow();
+    expect(
+      await member("mcp_pay_app_void_payment", [job2, check.id, "Check bounced"], pm),
+    ).toMatchObject({ already_voided: false });
+    expect(
+      await member("mcp_pay_app_void_payment", [job2, check.id, "Check bounced"], pm),
+    ).toMatchObject({ already_voided: true });
+    expect(await applied()).toBe("850000");
+    const rev = await db.query<{ n: string }>(
+      "SELECT sum(r.amount_cents)::text AS n FROM mcp_billing_receipt_reversals r JOIN mcp_billing_receipts b ON b.id=r.receipt_id WHERE b.source LIKE 'Check 1042%'",
+    );
+    expect(rev.rows[0]!.n).toBe("500000");
+    const after = await member("mcp_pay_app_payments", [job2, app], pm);
+    expect(after.remaining_cents).toBe(500000);
+    expect(after.recorded.find((r: J) => r.id === check.id)).toMatchObject({
+      voided: true,
+      void_reason: "Check bounced",
+    });
+    expect(await pay()).toMatchObject({ amount_cents: 500000 });
+    // The replacement check can carry the same number once the first is voided.
+    expect(await record(req(5), "check", 500000, "1042")).toMatchObject({ remaining_cents: 0 });
+    await expect(as(owner)("SELECT * FROM mcp_recorded_payments")).rejects.toThrow();
+    await expect(member("mcp_pay_app_payments", [job2, app], outsider)).rejects.toThrow();
+  });
+
+  it("applies twice, rolls back cleanly and applies again", async () => {
+    const up = readFileSync(
+      "supabase/migrations/20261105190000_athena_client_payments.sql",
+      "utf8",
+    );
+    const down = readFileSync(
+      "supabase/rollbacks/20261105190000_athena_client_payments.rollback.sql",
+      "utf8",
+    );
+    await db.exec(`BEGIN; ${up}; COMMIT;`);
+    await db.exec(`BEGIN; ${down}; COMMIT;`);
+    expect(
+      (await db.query("SELECT to_regclass('public.mcp_portal_payments') AS t")).rows[0],
+    ).toEqual({ t: null });
+    await db.exec(`BEGIN; ${up}; COMMIT;`);
+  });
+});

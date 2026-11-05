@@ -533,7 +533,7 @@ function AccountPage() {
           />
         }
         team={<AthenaTeamSection {...athena} inviteEmailEnabled={inviteEmailEnabled} />}
-        payments={<ClientPaymentsSection />}
+        payments={<ClientPaymentsSection key={athenaCompanyId ?? "none"} companyId={athenaCompanyId} />}
         projects={<ProjectHomes />}
         notices={<AccountNotices />}
         noticeCount={accountNotices.data?.filter((n) => !n.read).length ?? null}

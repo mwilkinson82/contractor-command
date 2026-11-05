@@ -295,10 +295,16 @@ describe("no vendor names on the new member-facing pieces", () => {
           (l) =>
             !l.trim().startsWith("//") &&
             !l.includes("import ") &&
-            !l.includes("supabase as unknown as AccountDb"),
+            !l.includes("supabase as unknown as AccountDb") &&
+            !l.includes("supabase.rpc as unknown as Rpc"),
         )
         .join("\n");
-      expect(visible, f).not.toMatch(/lovable|supabase|vercel|openai|stripe/i);
+      // Client payments names Stripe on purpose: the contractor connects their own Stripe account and finds
+      // payouts and refunds in their Stripe dashboard. Every other vendor stays out of it.
+      const banned = f.endsWith("client-payments-section.tsx")
+        ? /lovable|supabase|vercel|openai/i
+        : /lovable|supabase|vercel|openai|stripe/i;
+      expect(visible, f).not.toMatch(banned);
     }
   });
 });

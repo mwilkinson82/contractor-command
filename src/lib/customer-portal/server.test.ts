@@ -1578,3 +1578,245 @@ describe("the team's reply email", () => {
     ).rejects.toThrow(/4,000/);
   });
 });
+
+describe("paying an approved pay application online", () => {
+  const STATE = {
+    status: "ok",
+    accepting: true,
+    test: true,
+    card: true,
+    bank: true,
+    card_max_cents: 2_500_000,
+    payments: [] as unknown[],
+  };
+  function payDeps(
+    state: unknown = STATE,
+    result: unknown = {
+      status: "redirect",
+      url: "https://checkout.stripe.com/c/pay/cs_test_1#abc",
+    },
+  ) {
+    const base = deps({ view: withPayApps() });
+    const rpc = base.d.rpc;
+    const pays: unknown[] = [];
+    base.d.rpc = async (fn, args) => {
+      if (fn === "mcp_portal_payments_state") {
+        base.calls.push({ fn, args });
+        return state;
+      }
+      return rpc(fn, args);
+    };
+    base.d.pay = async (p) => {
+      pays.push(p);
+      return result as never;
+    };
+    return { ...base, pays };
+  }
+  const page = async (d: PortalDeps, at: string) => {
+    const r = await handlePortal(req(at, { cookie: true }), ACCESS, d);
+    return { r, html: await r.text() };
+  };
+
+  it("offers bank and card on an approved pay application, in test mode, on every layout", async () => {
+    const { d } = payDeps();
+    const { r, html } = await page(d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(r.headers.get("content-security-policy")).toContain(
+      "form-action 'self' https://checkout.stripe.com",
+    );
+    expect(html).toContain("<h2>Pay $13,500.00</h2>");
+    expect(html).toContain('name="action" value="pay"');
+    expect(html).toContain('name="method" value="bank"');
+    expect(html).toContain(">Pay by bank</button>");
+    expect(html).toContain(">Pay by card</button>");
+    expect(html).toContain("Test mode. No real money moves");
+    expect(html).toContain("Northline Builders gets it directly");
+    expect(html).toContain(
+      "@media (min-width:641px) and (max-width:1000px){.pay-card+.pp .pp-btns",
+    );
+    expect(html).not.toMatch(/application fee|fee_pct|markup/i);
+    // Not approved yet: approve first, no way to pay.
+    const open = await page(d, `/c/${ACCESS}?s=billing&i=${PAY}`);
+    expect(open.html).not.toContain(">Pay by bank</button>");
+    // The billing overview offers it under the latest pay application only once that one is approved.
+    expect((await page(d, `/c/${ACCESS}?s=billing`)).html).not.toContain(">Pay by bank</button>");
+  });
+
+  it("counts wire and check payments the contractor recorded, and asks only for what's left", async () => {
+    const rec = (amount_cents: number, method = "check", accepting = true) => ({
+      ...STATE,
+      accepting,
+      recorded: [{ item_id: PAY_OLD, amount_cents, method, received_on: "2026-11-03" }],
+    });
+    const part = payDeps(rec(500_000));
+    const { html } = await page(part.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(html).toContain("<h2>Pay $8,500.00</h2>");
+    expect(html).toContain("Received $5,000.00 by check on");
+    expect(html).toContain("$8,500.00 is left to pay.");
+    expect(html).toContain('<span class="pill wait">Partly paid</span>');
+    // Not taking payments here: the part paid still shows, with what's left.
+    const closed = payDeps(rec(500_000, "check", false));
+    const c = (await page(closed.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html;
+    expect(c).toContain("<h2>Partly paid</h2>");
+    expect(c).toContain("$8,500.00 still due");
+    expect(c).not.toContain("<h2>Pay $");
+    // Paid in full by wire: paid, no way to pay, and no bank or wire details anywhere.
+    const full = payDeps(rec(1_350_000, "wire"));
+    const f = (await page(full.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html;
+    expect(f).toContain("<b>Paid</b><span>Received $13,500.00 by wire on");
+    expect(f).toContain("Northline Builders recorded this payment.");
+    expect(f).not.toContain("<h2>Pay $");
+    expect(f).not.toMatch(/routing|account number|wire instructions|swift/i);
+    const both = payDeps(rec(1_350_000, "mixed"));
+    expect((await page(both.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).toContain(
+      "by wire and check",
+    );
+  });
+
+  it("keeps card off over the contractor's card limit and when they turned it off", async () => {
+    const { d } = payDeps({ ...STATE, card_max_cents: 1_000_000 });
+    const { html } = await page(d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(html).not.toContain(">Pay by card</button>");
+    expect(html).toContain("Card payments are open up to $10,000.00, so pay this one by bank.");
+    const off = payDeps({ ...STATE, bank: false, card: false });
+    expect((await page(off.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).not.toContain(
+      "<h2>Pay $",
+    );
+    const closed = payDeps({ ...STATE, accepting: false });
+    expect((await page(closed.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`)).html).not.toContain(
+      "<h2>Pay $",
+    );
+  });
+
+  it("shows a payment on its way, a paid one and a refund", async () => {
+    const pay = (over: Record<string, unknown>) => ({
+      ...STATE,
+      payments: [
+        {
+          item_id: PAY_OLD,
+          status: "paid",
+          method: "bank",
+          amount_cents: 1_350_000,
+          refunded_cents: 0,
+          paid_at: "2026-11-05T14:00:00Z",
+          test: false,
+          updated_at: "2026-11-03T14:00:00Z",
+          ...over,
+        },
+      ],
+    });
+    const paid = await page(payDeps(pay({})).d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(paid.html).toContain("Paid $13,500.00 by bank on Nov 5, 2026.");
+    expect(paid.html).toContain('<span class="pill ok">Paid</span>');
+    expect(paid.html).not.toContain(">Pay by bank</button>");
+    const list = await page(payDeps(pay({})).d, `/c/${ACCESS}?s=billing`);
+    expect(list.html).toContain('<span class="pill ok">Paid</span>');
+    const going = await page(
+      payDeps(pay({ status: "processing", paid_at: null })).d,
+      `/c/${ACCESS}?s=billing&i=${PAY_OLD}`,
+    );
+    expect(going.html).toContain("Your $13,500.00 bank payment started Nov 3, 2026.");
+    expect(going.html).toContain("Payment on its way");
+    const part = await page(
+      payDeps(pay({ status: "partially_refunded", refunded_cents: 50_000 })).d,
+      `/c/${ACCESS}?s=billing&i=${PAY_OLD}`,
+    );
+    expect(part.html).toContain("$500.00 was refunded.");
+    const failed = await page(
+      payDeps(pay({ status: "failed", paid_at: null })).d,
+      `/c/${ACCESS}?s=billing&i=${PAY_OLD}`,
+    );
+    expect(failed.html).toContain("Your last payment didn't go through");
+    expect(failed.html).toContain(">Pay by bank</button>");
+  });
+
+  it("shows nothing about paying when the page can't take payments", async () => {
+    const { d, calls } = deps({ view: withPayApps() });
+    const { html } = await page(d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(html).not.toContain("Pay by");
+    expect(calls.some((c) => c.fn === "mcp_portal_payments_state")).toBe(false);
+    // A payments read that fails still shows the page.
+    const broken = payDeps({ status: "signed_out" });
+    const r = await page(broken.d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}`);
+    expect(r.r.status).toBe(200);
+    expect(r.html).not.toContain("Pay by");
+  });
+
+  it("sends the customer to Stripe, and only to Stripe", async () => {
+    const csrf = await csrfFor(SESSION);
+    const { d, pays } = payDeps();
+    const r = await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "bank", csrf },
+        { cookie: true },
+      ),
+      ACCESS,
+      d,
+    );
+    expect(r.status).toBe(303);
+    expect(r.headers.get("location")).toBe("https://checkout.stripe.com/c/pay/cs_test_1#abc");
+    expect(pays[0]).toEqual({
+      access: ACCESS,
+      sessionHash: await tokenHash(SESSION),
+      item: PAY_OLD,
+      method: "bank",
+    });
+
+    const evil = payDeps(STATE, { status: "redirect", url: "https://evil.example.com/pay" });
+    const r2 = await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "card", csrf },
+        { cookie: true },
+      ),
+      ACCESS,
+      evil.d,
+    );
+    expect(r2.headers.get("location")).toBe(`/c/${ACCESS}?s=billing&i=${PAY_OLD}&e=pay_error`);
+
+    for (const st of ["nothing_due", "not_accepting", "already_paid", "method", "not_approved"]) {
+      const x = payDeps(STATE, { status: st });
+      const rr = await handlePortal(
+        await post(
+          `/c/${ACCESS}`,
+          { action: "pay", item: PAY_OLD, method: "bank", csrf },
+          { cookie: true },
+        ),
+        ACCESS,
+        x.d,
+      );
+      expect(rr.headers.get("location")).toBe(`/c/${ACCESS}?s=billing&i=${PAY_OLD}&e=pay_${st}`);
+    }
+    const shown = await page(payDeps().d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}&e=pay_nothing_due`);
+    expect(shown.html).toContain("Nothing is due on this pay application.");
+
+    const bad = payDeps();
+    const r3 = await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "crypto", csrf },
+        { cookie: true },
+      ),
+      ACCESS,
+      bad.d,
+    );
+    expect(r3.headers.get("location")).toBe(`/c/${ACCESS}?s=billing&e=invalid`);
+    expect(bad.pays).toEqual([]);
+    const r4 = await handlePortal(
+      await post(
+        `/c/${ACCESS}`,
+        { action: "pay", item: PAY_OLD, method: "bank", csrf: "x" },
+        { cookie: true },
+      ),
+      ACCESS,
+      bad.d,
+    );
+    expect(r4.status).toBe(403);
+    expect(bad.pays).toEqual([]);
+  });
+
+  it("thanks the customer when Stripe sends them back", async () => {
+    const { html } = await page(payDeps().d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}&paid=1`);
+    expect(html).toContain("Stripe is confirming your payment");
+  });
+});

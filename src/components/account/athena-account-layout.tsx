@@ -35,7 +35,7 @@ const sections = [
   { id: "overview", label: "Overview", Icon: LayoutGrid },
   { id: "company", label: "Company profile", Icon: Building2 },
   { id: "team", label: "Team & access", Icon: Users },
-  { id: "payments", label: "Client payments", Icon: Wallet, soon: true },
+  { id: "payments", label: "Client payments", Icon: Wallet },
   { id: "billing", label: "Plan & billing", Icon: CreditCard },
   { id: "projects", label: "Your projects", Icon: FolderOpen },
   { id: "notices", label: "Notifications", Icon: Bell },
