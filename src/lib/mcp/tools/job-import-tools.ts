@@ -46,6 +46,7 @@ import {
   reviewCard,
   type ImportContext,
 } from "../../job-import/plan";
+import { syncIorReviewItems } from "../ior-review-items";
 
 const SAVE = {
   readOnlyHint: false,
@@ -216,6 +217,21 @@ export function withScheduleFile(job: ImportJob, schedule: ImportJob, name: stri
 }
 
 /** The PM question after an import, or null when the job's PM can already be emailed. */
+async function importIorReviews(sb: Sb, result: Record<string, unknown>): Promise<void> {
+  const jobId = typeof result.job_id === "string" ? result.job_id : null;
+  if (!jobId) return;
+  const { data, error } = await sb.rpc(
+    "mcp_living_report_get" as never,
+    {
+      _job: jobId,
+      _type: "ior",
+      _version: null,
+    } as never,
+  );
+  const got = data as { found?: boolean; data?: unknown } | null;
+  if (!error && got?.found) await syncIorReviewItems(sb, jobId, got.data);
+}
+
 async function importPmAsk(
   sb: Sb,
   result: Record<string, unknown>,
@@ -407,6 +423,8 @@ export const jobImport = defineTool({
         // The source's contract completion goes on the CPM header when the job has none.
         // Best effort: an older database without the function, or any refusal, changes nothing.
         if (!result.already_applied) await fillCompletion(sb, args.batch_id);
+        // An imported IOR's live risks get their next reviews as open items.
+        if (!result.already_applied) await importIorReviews(sb, result);
         const card = appliedCard(result, jobNumber, args.source ?? "overwatch");
         // The export's contract and spec files go on the saved job; a failure here never undoes the import.
         const documents = await saveDocuments(sb, args, result, jobNumber);

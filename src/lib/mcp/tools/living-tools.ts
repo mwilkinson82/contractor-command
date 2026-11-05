@@ -33,6 +33,7 @@ import { SovMismatch, buildSov, money, retainagePct } from "../sov";
 import { guide } from "../visible";
 import { cedarOutcome } from "../../ior-outcome";
 import { cpmFinish } from "../../ior-schedule";
+import { syncIorReviewItems } from "../ior-review-items";
 import {
   CPM_REQUIRED_TOP, LIVING_LABEL, LIVING_REPORT_TYPES, LIVING_REQUIRED_TOP, LIVING_SAVE_ASK, TIED_TYPES,
   activityLine, checkSave, costLoadTotal, isCostLoaded, NOT_COST_LOADED, countCheck, draftBillingFromSchedule, earnedToDate, iorSectionsText, isOwnerFurnished, ownerFurnishedWithValue, reportCalendarHolidays, resolveDataDate, retainageStepDownLines, stripMoney, tieCheck, tiaResult,
@@ -358,6 +359,8 @@ export const livingReportGet = defineTool({
       const outcome = type === "ior" && job.scope === "full" ? cedarOutcome(job.job_id, { version: g.version, contract_total: g.contract_total, forecast_total: g.forecast_total, data }) : null;
       // The latest IOR's finish follows the job's CPM, the same as the IOR page. An older version keeps its own dates.
       const cpmAt = type === "ior" && job.scope === "full" && args.version == null ? cpmFinish(await getReport(sb, job, "cpm").catch(() => null)) : null;
+      // Each live risk's next review is an open item on the job. Catches up IORs saved before this existed.
+      if (type === "ior" && job.scope === "full" && args.version == null) await syncIorReviewItems(sb, job.job_id, data);
       const iorBody = type === "ior" ? iorSectionsText(data as Record<string, unknown>, { jobId: job.job_id, version: g.version, contract_total: g.contract_total, forecast_total: g.forecast_total, cpm: cpmAt }) : [];
       return guide(
         {
@@ -446,6 +449,7 @@ export const livingReportSave = defineTool({
         _what: args.what_changed, _why: args.why ?? null, _who: who, _completion: args.contract_completion_date ?? null, _replace_completion: args.replace_completion_date === true,
       });
       await audit(sb, job, "living_report_save", `save_living_${type}`, r.id);
+      if (type === "ior") await syncIorReviewItems(sb, job.job_id, next);
       return guide(
         {
           ...text([`${prefix(job)}${LIVING_LABEL[type]} saved as v${r.version}.`, `What changed since v${args.base_version}: ${args.what_changed}`, ...(chk.count ? [`Count check: ${chk.count.line}`] : []), ...(chk.tie ? [`Tie: ${chk.tie.line}`] : [])].join("\n")),
