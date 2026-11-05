@@ -24,6 +24,20 @@ vi.mock("@tanstack/react-query", () => ({
   },
 }));
 vi.mock("@/lib/board-link.functions", () => ({ openBoardPage: vi.fn() }));
+// The notices pieces have their own tests; here they render nothing so the board's own reads stay exact.
+const mark = vi.hoisted(
+  () => (name: string) => () => React.createElement("i", { "data-mount": name }),
+);
+vi.mock("@/components/athena/JobHomeWhatsNew", () => ({
+  JobHomeNotifications: mark("panel"),
+  NotificationsBell: mark("bell"),
+  NotificationsNavLink: mark("nav"),
+}));
+vi.mock("@/components/athena/JobHomeChangeOrders", () => ({ JobHomeChangeOrders: mark("cos") }));
+vi.mock("@/components/athena/JobHomeMessages", () => ({ JobHomeMessages: mark("messages") }));
+vi.mock("@/components/athena/JobNoticeEmailSettings", () => ({
+  JobNoticeEmailSettings: mark("emails"),
+}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({
@@ -115,13 +129,25 @@ describe("approved project overview", () => {
     expect(html).toContain("Review RFI date");
     expect(html).toContain("No matching communication records");
     // Board buttons only copy an ask for Athena chat or open a saved PDF; nothing submits.
-    expect(html).not.toMatch(/<button(?![^>]*type="button")|<form|datetime-local|type="date"|calendar.google/);
+    expect(html).not.toMatch(
+      /<button(?![^>]*type="button")|<form|datetime-local|type="date"|calendar.google/,
+    );
     // Estimate, proposal and contracts show on the board, and a failed read is never shown as empty.
     expect(html).toContain('id="estimate"');
     expect(html).toContain('id="contracts"');
     expect(html).toContain("Contracts are unavailable right now. Nothing is assumed empty.");
     expect(html).toContain("The estimate is unavailable right now. Nothing is assumed empty.");
     expect(html).toContain('<span class="jh-sr">Saved jobs</span>');
+    // Notifications: the bell before the saved-jobs picker, the nav entry after Overview, the panel right after
+    // the hero; change orders, client messages and email choices for full access only.
+    expect(html).toMatch(
+      /class="jh-top-right"><i data-mount="bell"><\/i><label class="jh-select">/,
+    );
+    expect(html).toMatch(/Overview<\/a><i data-mount="nav"><\/i>/);
+    expect(html).toMatch(
+      /<\/header><section id="notifications" class="jb-section"><i data-mount="panel"><\/i><\/section>/,
+    );
+    for (const m of ["cos", "messages", "emails"]) expect(html).toContain(`data-mount="${m}"`);
   });
   it("hides stale private results on source error, sign-out, field scope and denied base", () => {
     fixture.rows.financial = { ...ok(finance()), error: new Error("denied") };
@@ -140,6 +166,7 @@ describe("approved project overview", () => {
       html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
       expect(html).not.toContain("$12,345");
       expect(html).not.toContain("Current contract value");
+      expect(html).not.toContain('data-mount="messages"');
       expect(
         fixture.queries
           .filter((q) => ["financial", "communications"].includes(q.queryKey[2]))
@@ -150,6 +177,7 @@ describe("approved project overview", () => {
     fixture.rows.field = ok({ page: "field", scope: "full", items: [] });
     fixture.queries = [];
     html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job, token: "share-token" }));
+    expect(html).not.toContain('id="notifications"');
     expect(html).not.toContain("$12,345");
     expect(html).not.toContain("PRIVATE SUBJECT");
     expect(
@@ -274,7 +302,13 @@ describe("estimate, proposal and contracts on the board", () => {
     estimateOverview(
       {
         setup: { role: "self_performer", trades: ["Electrical"] },
-        takeoff: { version: 2, lines: [{ line_no: 1, qty: 4 }, { line_no: 2, qty: null, missing_input: "Height" }] },
+        takeoff: {
+          version: 2,
+          lines: [
+            { line_no: 1, qty: 4 },
+            { line_no: 2, qty: null, missing_input: "Height" },
+          ],
+        },
         gaps: [],
         verdicts: [],
       },
@@ -290,7 +324,11 @@ describe("estimate, proposal and contracts on the board", () => {
           {
             version: 2,
             status: "draft",
-            party_snapshot: { name: "Summit Electrical Supply", kind: "supplier", trade: "Electrical materials" },
+            party_snapshot: {
+              name: "Summit Electrical Supply",
+              kind: "supplier",
+              trade: "Electrical materials",
+            },
             lines: [{ quantity: 4000, unit_price_cents: 200 }],
           },
         ],
@@ -312,11 +350,18 @@ describe("estimate, proposal and contracts on the board", () => {
     expect(html).toContain("Takeoff version 2");
   });
   it("opens a job with no contract value on the estimate", () => {
-    fixture.rows.financial = ok({ ...finance(), contract: { ...finance().contract, amount: null } });
+    fixture.rows.financial = ok({
+      ...finance(),
+      contract: { ...finance().contract, amount: null },
+    });
     fixture.rows.communications = ok([]);
     fixture.rows.estimate = ok(estimateOverview({ setup: null, takeoff: null }, null, []));
     fixture.rows.gbb = ok({ version: 0, board: emptyBoard() });
-    fixture.rows.contracts = ok({ contracts: { contracts: [] }, pos: { orders: [] }, posFailed: false });
+    fixture.rows.contracts = ok({
+      contracts: { contracts: [] },
+      pos: { orders: [] },
+      posFailed: false,
+    });
     const html = renderToStaticMarkup(React.createElement(JobHome, { jobId: job }));
     expect(html.indexOf('id="estimate"')).toBeLessThan(html.indexOf('id="contracts"'));
     expect(html).toContain("Start the estimate: add the drawings");
