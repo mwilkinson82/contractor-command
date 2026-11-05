@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tokenHash } from "../mcp/file-share";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 import { customerProposal } from "../selections/proposal";
+import { COMPARE_CSS } from "../selections/compare-page";
 import {
   ATHENA_BLUE,
   ATHENA_EMAIL_LOGO_URL,
@@ -273,7 +274,13 @@ describe("customer page", () => {
       expect(r.status, s).toBe(200);
       expect(html, s).not.toMatch(/<script/i);
       // Approved Nov 5: Athena blue hero over white cards, Powered by Athena in the footer.
-      expect(html, s).toContain('<section class="hero">');
+      expect(html, s).toContain('<section class="cp-hero">');
+      // The approved Good/Better/Best compare (round five) uses hero, act, co and co-sub classes of its
+      // own; the portal's shell styles are prefixed cp- so they can't restyle it.
+      for (const cls of ["hero", "act", "acts", "co", "co-sub", "co-logo", "co-word"])
+        expect(html.replace(COMPARE_CSS, ""), `${s} .${cls}`).not.toMatch(
+          new RegExp(`(?<![\\w-])\\.${cls}(?![\\w-])`),
+        );
       expect(html, s).toContain("linear-gradient(160deg,#2f6cf2,#1a47c7)");
       expect(html, s).toContain("Powered by Athena");
       expect(html, s).not.toContain("secret-path");
@@ -752,7 +759,7 @@ describe("the contractor's saved logo on the customer page", () => {
     const page = await (
       await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).toContain(`<img class="co-img" src="${LOGO}" alt="Northline Builders">`);
+    expect(page).toContain(`<img class="cp-co-img" src="${LOGO}" alt="Northline Builders">`);
     expect(asked.every((a) => a === ACCESS)).toBe(true);
   });
 
@@ -764,7 +771,7 @@ describe("the contractor's saved logo on the customer page", () => {
     const page = await (
       await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
     ).text();
-    expect(page).not.toContain(`class="co-img"`);
+    expect(page).not.toContain(`class="cp-co-img"`);
     expect(page).toContain("<b>Northline Builders</b>");
   });
 });
