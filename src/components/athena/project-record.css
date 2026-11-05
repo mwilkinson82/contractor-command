@@ -16,7 +16,7 @@
 .pr-page h1, .pr-page h2, .pr-page h3 { color: var(--ink); margin: 0; line-height: 1.25; text-wrap: balance; }
 .pr-page p { margin: 0; }
 .pr-page :focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
-.pr-page button, .pr-page input, .pr-page select { font: inherit; color: inherit; }
+.pr-page :where(button, input, select) { font: inherit; color: inherit; }
 .pr-shell { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
 .pr-num { font-variant-numeric: tabular-nums; }
 .pr-muted { color: var(--muted); }
