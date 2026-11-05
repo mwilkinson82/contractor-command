@@ -1006,7 +1006,7 @@ function compareTable(
   const rows = changes
     .map(
       (c) =>
-        `<tr data-change="${esc(c.id)}"><td class="cpm-mono">${esc(c.id)}</td><td>${esc(c.name)}</td><td class="cpm-n"${(c.finish_variance ?? 0) > 0 ? ' style="color:#B42318;font-weight:700"' : ""}>${esc(signed(c.finish_variance))}</td><td class="cpm-n">${esc(signed(c.start_variance))}</td><td class="cpm-n">${esc(c.float_before ?? "")}${c.float_before !== null || c.float_now !== null ? " → " : ""}${esc(c.float_now ?? "")}</td><td>${esc(c.notes.join(" · "))}</td></tr>`,
+        `<tr data-change="${esc(c.id)}"><td class="cpm-mono">${esc(c.id)}</td><td>${esc(c.name)}</td><td class="cpm-n"${(c.finish_variance ?? 0) > 0 ? ' style="color:#B42318;font-weight:700"' : ""}>${esc(signed(c.finish_variance))}</td><td class="cpm-n">${esc(signed(c.start_variance))}</td><td class="cpm-n">${esc(c.float_before !== null && c.float_now !== null ? `${c.float_before} → ${c.float_now}` : (c.float_now ?? c.float_before ?? ""))}</td><td>${esc(c.notes.join(" · "))}</td></tr>`,
     )
     .join("");
   return `<div class="cpmc-set" data-against="${key}"><p class="cpmc-sum"><strong>Against ${esc(label)}${dataDate ? ` (data date ${esc(shortDay(day(dataDate)))})` : ""}:</strong> ${esc(facts.join(" · "))}</p>${
