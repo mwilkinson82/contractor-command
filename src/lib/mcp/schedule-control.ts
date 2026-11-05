@@ -73,7 +73,39 @@ export type ScheduleControl = {
     activity_results?: Record<string, ActivityAnalysis>;
   };
   analysis?: ScheduleAnalysis;
+  /**
+   * The last calculated update before this one, kept so the page can compare update against update without
+   * reading history. Replaced when the data date moves forward; kept through same-date revisions and TIAs.
+   */
+  prior_update?: PriorUpdate;
+  /** One entry per calculated data date, oldest first: the facts a windows analysis needs. */
+  update_history?: UpdateEntry[];
+  /** Every modeled delay event, kept through later updates. One entry per event ID; a new TIA replaces it. */
+  delay_register?: DelayEntry[];
 };
+export type UpdateEntry = {
+  version: number;
+  data_date: string;
+  completion: string;
+  /** Longest path at this update, earliest remaining activity first. */
+  longest_path: string[];
+};
+export type DelayEntry = {
+  event_id: string;
+  description: string;
+  event_date: string | null;
+  source_refs: string[];
+  version: number;
+  data_date: string;
+  fragnet_ids: string[];
+  affected_activity_ids: string[];
+  prior_completion: string;
+  updated_completion: string;
+  impact_calendar_days: number;
+  impact_project_work_days: number;
+};
+export const UPDATE_HISTORY_LIMIT = 260;
+export type PriorUpdate = { version: number; data_date: string; activities: Activity[] };
 export type CriticalDefinition = "longest-path" | "total-float";
 export type FloatPathSummary = {
   rank: number;
@@ -612,6 +644,18 @@ export function prepareSchedule(
   validateSchedule(activities, control, request.data_date, old);
   let criticalPath: string[] = [];
   if (request.operation === "recalculate" || request.operation === "tia") {
+    const priorCalc = readScheduleControl(previous)?.calculation;
+    if (
+      request.operation === "recalculate" &&
+      priorCalc?.status === "calculated" &&
+      old.length &&
+      request.data_date > priorCalc.data_date
+    )
+      control.prior_update = {
+        version: baseVersion,
+        data_date: priorCalc.data_date,
+        activities: snapshot(old),
+      };
     const before = calculate(activities, control, request.data_date);
     activities = before.activities;
     criticalPath = before.critical_path;
@@ -626,6 +670,24 @@ export function prepareSchedule(
       activity_results: before.activity_results,
     };
     delete control.analysis;
+    if (request.operation === "recalculate") {
+      const entry: UpdateEntry = {
+        version: baseVersion + 1,
+        data_date: request.data_date,
+        completion: completion(activities),
+        longest_path: before.longest_path.slice(0, 80),
+      };
+      const history = (control.update_history ?? []).filter((h) => h.data_date < request.data_date);
+      // A schedule calculated before history was kept starts its history at the last update.
+      if (!history.length && control.prior_update && !control.update_history)
+        history.push({
+          version: control.prior_update.version,
+          data_date: control.prior_update.data_date,
+          completion: completion(control.prior_update.activities),
+          longest_path: [],
+        });
+      control.update_history = [...history, entry].slice(-UPDATE_HISTORY_LIMIT);
+    }
     if (request.operation === "tia") {
       const delay =
         request.delay ?? fail("TIA needs identified delay activities and exact replacement links.");
@@ -746,6 +808,24 @@ export function prepareSchedule(
         limitation:
           "Calculated comparison isolates this modeled fragnet at one data date. It does not determine responsibility, concurrency, compensability or entitlement. Durations and sources remain reported evidence; missing facts stay open.",
       };
+      const a = control.analysis;
+      control.delay_register = [
+        ...(control.delay_register ?? []).filter((d) => d.event_id !== a.event_id),
+        {
+          event_id: a.event_id,
+          description: a.description,
+          event_date: a.event_date,
+          source_refs: clone(a.source_refs),
+          version: baseVersion + 1,
+          data_date: a.data_date,
+          fragnet_ids: clone(a.fragnet_ids),
+          affected_activity_ids: clone(a.affected_activity_ids),
+          prior_completion: a.prior_completion,
+          updated_completion: a.updated_completion,
+          impact_calendar_days: a.impact_calendar_days,
+          impact_project_work_days: a.impact_project_work_days,
+        },
+      ].slice(-100);
       // Keep only audit facts, not duplicate mutation commands, in the stored analysis.
       delete (control.analysis as unknown as Record<string, unknown>).add_activities;
       delete (control.analysis as unknown as Record<string, unknown>).replace_predecessors;

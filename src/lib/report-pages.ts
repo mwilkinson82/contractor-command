@@ -1,5 +1,6 @@
 import { CLIENT_BRAND_FONTS, CLIENT_BRAND_NAME_FONT, poweredByAthenaHtml } from "./client-brand";
 import { reportSurface } from "./report-surface";
+import { comparisonHtml, delaysHtml, ganttHtml, ganttModel, ganttSummary, milestoneHtml, shortDay, windowsHtml } from "./cpm-gantt";
 import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "./mcp/schedule-control";
 // 0.8.14: living report pages (job IOR, job schedule, company portfolio) at app.meetathena.io/r/...
 // Pure logic: URLs, payload types and one HTML renderer shared by the signed-in page and the owner share link.
@@ -7,7 +8,7 @@ import { readScheduleControl, wbsPaths, orderedWbs, controlledTiaResult } from "
 // risks and overdue items. Scheduling term: "fragnet".
 import { ALERT_HEX } from "./mcp/alert-color";
 import { isDelayNoticeTask } from "./mcp/delay-notice";
-import { delayCallout, jobWorkingDays } from "./mcp/living";
+import { delayCallout, jobWorkingDays, type LivingData } from "./mcp/living";
 import { DEFAULT_TZ, addDays, todayIn } from "./mcp/deadlines";
 import { activityLine, activityTitle, identifiedDelayActivityId, briefingModel, dayHead, lookaheadModel, lookaheadAlert, payModel, shortDate, lookaheadWindow, type BriefItem, type Billing, type LaItem, type LaEntry, type SAct } from "./mcp/styled-views";
 import { dailyPageHtml, fieldPageHtml, photoPageHtml } from "./mcp/superintendent";
@@ -189,6 +190,36 @@ function scheduleView(p: JobPayload): string {
   }
   if (control) out.push(`<p style="color:${G1};font-size:12px">Schedule dates: ${esc(control.calculation.status)}${baseline ? ` · Baseline: ${esc(baseline.name)} (${esc(baseline.status)}, source v${baseline.source_version})` : " · Baseline not captured"}</p>`);
   if (control?.wbs.length) out.push(`<details style="margin:10px 0"><summary>Work breakdown structure</summary><ul>${orderedNodes.map(({id}) => `<li data-wbs-id="${esc(id)}">${esc(paths.get(id)!)}</li>`).join("")}</ul></details>`);
+  const logicList = () => card(`<details><summary>Dependency logic (${acts.reduce((n, a) => n + (a.predecessors?.length ?? 0), 0)} links)</summary><ul>${acts.flatMap(a => (a.predecessors ?? []).map(link => `<li data-logic-from="${esc(link.id)}" data-logic-to="${esc(a.id)}">${esc(link.id)} → ${esc(a.id)} · ${esc(link.type ?? "FS")} · lag ${esc(link.lag ?? 0)} WD · ${esc(link.lag_calendar_basis ?? "project")} calendar</li>`)).join("")}</ul></details>`);
+  if (control && acts.length) {
+    // Calculated schedules get the P6-style page: logic, longest and float paths, filters, inspector, print.
+    const input = { data: d as LivingData, control, dataDate: r.data_date, contractCompletion: r.contract_completion_date };
+    const s = ganttSummary(ganttModel(input));
+    const late = s.versusContract ?? s.versusBaseline;
+    const against = s.versusContract !== null ? "contract" : "baseline";
+    out.push(
+      tiles([
+        tile("Data date", r.data_date ? shortDay(Date.parse(`${r.data_date.slice(0, 10)}T00:00:00Z`)) : "Needed"),
+        tile("Forecast completion", s.forecast === null ? "Needed" : shortDay(s.forecast), (late ?? 0) > 0),
+        tile(`Variance to ${against}`, late === null ? "No baseline" : late > 0 ? `${late} WD late` : late < 0 ? `${-late} WD early` : "On time", (late ?? 0) > 0),
+        tile("Longest path driver", s.driverId ?? (control.calculation.status === "calculated" ? "Complete" : "Not calculated")),
+        tile("Float paths", String(s.pathCount)),
+        ...(isNum(r.contract_total) ? [tile("Contract", money(r.contract_total))] : []),
+      ]),
+    );
+    if (s.longestLine) out.push(`<p data-longest-path="true" style="margin:-4px 0 16px;font-size:13px;color:${NAVY}"><strong>Longest path:</strong> ${esc(s.longestLine)}</p>`);
+    out.push(card(ganttHtml(input)));
+    const milestones = milestoneHtml(input),
+      compare = comparisonHtml(input),
+      windows = windowsHtml(input),
+      delays = delaysHtml(input);
+    if (milestones) out.push(card(milestones));
+    if (compare) out.push(card(compare));
+    if (windows) out.push(card(windows));
+    if (delays) out.push(card(delays));
+    out.push(logicList());
+    return out.join("");
+  }
   const crit = dated.filter((a) => a.critical).length;
   out.push(
     tiles([

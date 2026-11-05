@@ -102,8 +102,11 @@ function fixture() {
     report: { found: true, version: 4, data_date: "2026-10-08", data },
   } as JobPayload;
 }
-const row = (html: string, id: string) =>
-  html.match(new RegExp(`<tr id="activity-${id}">.*?</tr>`))?.[0] ?? "";
+// One activity's row in the All activities view of the calculated schedule page.
+const row = (html: string, id: string) => {
+  const all = html.split('<div class="cpmv" data-view="all"')[1]?.split('<div class="cpmv"')[0] ?? "";
+  return all.match(new RegExp(`data-activity="${id}".*?(?=<div class="cpm-row|$)`))?.[0] ?? "";
+};
 describe("controlled schedule page", () => {
   it("renders saved WBS, baseline beneath current bars, actual evidence, milestones and genuine links", () => {
     const input = fixture(),
@@ -111,14 +114,13 @@ describe("controlled schedule page", () => {
       html = renderReportBody(input);
     expect(input).toEqual(frozen);
     expect(html).toContain("Work breakdown structure");
-    expect(row(html, "S-01")).toContain("Submittals / Prepare and Submit");
-    expect(row(html, "S-02")).toContain('data-actual-period="true"');
-    expect(row(html, "P-01")).not.toContain('data-actual-period="true"');
-    expect(row(html, "S-02")).not.toContain('data-progress="10"');
-    expect(row(html, "NTP")).toContain('data-milestone="true"');
-    expect(row(html, "D-01")).toContain("repeating-linear-gradient");
-    expect(row(html, "C-01")).toContain('data-baseline="BL1"');
-    expect(row(html, "C-01")).toContain("bottom:0;height:3px");
+    expect(html).toContain('class="cpm-gl" style="color:#1E3A5F" title="Submittals / Prepare and Submit"');
+    expect(row(html, "S-02")).toContain('data-bar="actual"');
+    expect(row(html, "S-02")).toContain('data-bar="remaining"');
+    expect(row(html, "P-01")).not.toContain('data-bar="actual"');
+    expect(row(html, "NTP")).toContain('data-bar="milestone"');
+    expect(row(html, "D-01")).toContain("cpm-frag");
+    expect(row(html, "C-01")).toContain('data-bar="baseline"');
     expect(html).toContain('data-logic-from="D-01" data-logic-to="P-01"');
     expect(html).toContain('data-date-marker="true"');
     expect(html).toContain("overflow-x:auto");
