@@ -45,7 +45,14 @@ export type ImportPackage = {
    */
   version: 1 | 2 | 3;
   source: { system: ImportSource; label: string; exported_at: string | null };
-  job: { source_id: string; name: string; pm_name: string | null; pm_email: string | null };
+  job: {
+    source_id: string;
+    name: string;
+    pm_name: string | null;
+    pm_email: string | null;
+    /** The source's contract (baseline) completion, filled on the job only when it has none. */
+    contract_completion?: string | null;
+  };
   billing: { last_application: string | null; period_to: string | null };
   contract_facts: Record<string, unknown>;
   sov: { basis: string; lines: Record<string, SovFact> } | null;
@@ -800,6 +807,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
       name: job.job.name || ctx.name || job.job.job_number,
       pm_name: job.job.pm_name,
       pm_email: job.job.pm_email,
+      ...(job.job.completion_date ? { contract_completion: job.job.completion_date } : {}),
     },
     billing: job.billing,
     contract_facts: contractFacts,
@@ -932,6 +940,10 @@ export function reviewCard(plan: ImportPlan, jobNumber: string, jobExists: boole
   if (p.schedule)
     create.push(
       `CPM, version 1: ${plural(p.schedule.activity_count, "activity", "activities")}${p.schedule.milestones ? ` with ${plural(p.schedule.milestones, "milestone")}` : ""}, logic and dates as ${from} had them, not cost loaded`,
+    );
+  if (p.job.contract_completion)
+    create.push(
+      `Contract completion for the CPM: ${shortDay(p.job.contract_completion)}, ${from}'s baseline completion, unless the job already has one`,
     );
   if (c.rfis) {
     const answered = (p.rfis ?? []).filter((r) => r.payload.answered_on).length;
