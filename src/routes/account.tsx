@@ -37,7 +37,10 @@ import {
   useCompanyProfile,
 } from "@/components/account/company-profile-section";
 import { AthenaTeamSection } from "@/components/account/athena-team-section";
-import { ClientPaymentsSection } from "@/components/account/client-payments-section";
+import {
+  ClientPaymentsSection,
+  useClientPaymentsState,
+} from "@/components/account/client-payments-section";
 import { getSeatPurchaseStatus } from "@/lib/account-team.functions";
 import { setupSteps } from "@/lib/account-profile";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -131,6 +134,7 @@ function AccountPage() {
   const accountNotices = useAccountNotices(athenaHost);
   const athenaCompanyId = athenaHost ? (athena.state?.companyId ?? null) : null;
   const companyProfile = useCompanyProfile(athenaCompanyId);
+  const clientPayments = useClientPaymentsState(athenaCompanyId);
   const seatStatusFn = useServerFn(getSeatPurchaseStatus);
   const [inviteEmailEnabled, setInviteEmailEnabled] = useState(false);
   useEffect(() => {
@@ -518,6 +522,7 @@ function AccountPage() {
                 profile: companyProfile.profile,
                 members: team?.members.length ?? seatsNow?.members ?? 1,
                 pending: team?.pending.length ?? seatsNow?.pending ?? 0,
+                payments: clientPayments,
               })
             : undefined
         }

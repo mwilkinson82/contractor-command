@@ -31,6 +31,26 @@ const rpc = supabase.rpc.bind(supabase) as unknown as Rpc;
 const plainError = (m: string | undefined) =>
   m?.startsWith("MCP_BAD:") ? m.slice(8) : "That didn't save. Try again in a moment.";
 
+/** Client payments for the overview checklist. Null until read, and when it can't be read. */
+export function useClientPaymentsState(companyId: string | null): ClientPaymentsState | null {
+  const [state, setState] = useState<ClientPaymentsState | null>(null);
+  useEffect(() => {
+    setState(null);
+    if (!companyId) return;
+    let alive = true;
+    void Promise.resolve(rpc("mcp_client_payments_get", { _company: companyId })).then(
+      ({ data, error }) => {
+        if (alive) setState(error ? null : ((data as ClientPaymentsState | null) ?? null));
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [companyId]);
+  return state;
+}
+
 function Explainer({ children }: { children?: React.ReactNode }) {
   return (
     <section className="aa-card aa-connect" aria-labelledby="aa-pay-title">

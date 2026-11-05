@@ -166,7 +166,7 @@ function SetupChecklist({
           <h2 id="aa-setup-title">Set up your company</h2>
           <p className="aa-lede">
             {done === counted.length
-              ? "You're set up. Client payments are next when they open."
+              ? "You're set up."
               : `${done} of ${counted.length} done. Each step takes a couple of minutes.`}
           </p>
         </div>
@@ -192,7 +192,7 @@ function SetupChecklist({
               {s.soon ? (
                 <span className="aa-pill aa-pill-violet">Coming soon</span>
               ) : s.done ? (
-                <span className="aa-pill aa-pill-ok">Done</span>
+                <span className="aa-pill aa-pill-ok">{s.doneLabel ?? "Done"}</span>
               ) : (
                 <a
                   className="aa-btn aa-btn-ghost aa-btn-sm"
@@ -204,7 +204,7 @@ function SetupChecklist({
                     }
                   }}
                 >
-                  Start
+                  {s.action ?? "Start"}
                 </a>
               )}
             </li>

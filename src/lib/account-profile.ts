@@ -1,4 +1,5 @@
 import { MAX_COMPANY_LOGO_BYTES, validatePaymentLogo } from "@/lib/payment-applications/brand";
+import { READINESS, type ClientPaymentsState } from "@/lib/client-payments/account-view";
 
 // Athena account page: the company profile clients see (Marshall, Nov 4 2026). It reads and writes Athena's own
 // company record (mcp_companies), the one pay apps, proposals, client pages and emails use. The name goes through
@@ -117,6 +118,8 @@ export type SetupInput = {
   profile: CompanyProfile | null;
   members: number;
   pending: number;
+  /** Client payments as the account page reads them; null or missing reads as not set up. */
+  payments?: ClientPaymentsState | null;
 };
 export type SetupStep = {
   id: "profile" | "team" | "payments";
@@ -124,9 +127,32 @@ export type SetupStep = {
   detail: string;
   done: boolean;
   href: string;
+  /** The pill on a finished step. Defaults to Done. */
+  doneLabel?: string;
+  /** The button on an open step. Defaults to Start. */
+  action?: string;
   /** Shown on the list but not counted until the feature ships. */
   soon?: boolean;
 };
+
+/** Client payments on the overview checklist: connected once a Stripe account is linked in either mode. */
+export function paymentsStep(s: ClientPaymentsState | null | undefined): SetupStep {
+  const base = { id: "payments" as const, label: "Get paid by your clients", href: "#payments" };
+  if (!s || !(s.test.connected || s.live.connected))
+    return {
+      ...base,
+      detail: "Not set up. Connect Stripe so clients can pay approved pay apps by bank or card",
+      done: false,
+      action: "Set up",
+    };
+  const status = s.mode === "live" ? s.live.status : s.test.status;
+  const detail = !s.ready
+    ? `Stripe connected. ${READINESS[status].label}`
+    : s.mode === "live"
+      ? "Stripe connected. Clients can pay approved pay apps"
+      : "Stripe connected in test mode. No real money moves yet";
+  return { ...base, detail, done: true, doneLabel: "Connected" };
+}
 
 export function setupSteps(i: SetupInput): SetupStep[] {
   const p = i.profile;
@@ -149,14 +175,7 @@ export function setupSteps(i: SetupInput): SetupStep[] {
       done: people > 1,
       href: "#team",
     },
-    {
-      id: "payments",
-      label: "Get paid by your clients",
-      detail: "Card and bank payments on the client page are coming soon",
-      done: false,
-      href: "#payments",
-      soon: true,
-    },
+    paymentsStep(i.payments),
   ];
 }
 
