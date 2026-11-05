@@ -104,6 +104,32 @@ async function storeObject(sb: Sb, bucket: string, path: string, bytes: Uint8Arr
     throw new ToolError("The file could not be stored. Try again. Nothing was saved.");
 }
 
+/** Store fetched bytes insert-only, then read the canonical object back and check it matches. */
+async function storeVerified(
+  sb: Sb,
+  bucket: string,
+  path: string,
+  bytes: Uint8Array,
+  mime: string,
+): Promise<Uint8Array> {
+  await storeObject(sb, bucket, path, bytes, mime);
+  const canonical = await download(sb, bucket, path);
+  if (!canonical?.length || (await sha256Hex(canonical)) !== (await sha256Hex(bytes)))
+    throw new ToolError("The stored original could not be verified. No attachment was confirmed.");
+  return canonical;
+}
+
+function storagePath(
+  job: { company_id: string; job_id: string },
+  purpose: UploadPurpose,
+  id: string,
+  name: string,
+) {
+  return purpose === "submittal_piece"
+    ? `${job.company_id}/${job.job_id}/pieces/${id}/${name}`
+    : `${job.company_id}/${job.job_id}/${id}/${name}`;
+}
+
 function purposeOf(value: string | undefined, action: string): UploadPurpose {
   if (value === "contract" || value === "spec" || value === "submittal_piece") return value;
   throw new ToolError(
@@ -623,18 +649,9 @@ export const fileUpload = defineTool({
             "That upload link expired before the file arrived. New bytes were not added.",
           );
         const id = attachedSession?.id ?? crypto.randomUUID();
-        const path =
-          attachedSession?.storage_path ??
-          (purpose === "submittal_piece"
-            ? `${job.company_id}/${job.job_id}/pieces/${id}/${file.name}`
-            : `${job.company_id}/${job.job_id}/${id}/${file.name}`);
+        const path = attachedSession?.storage_path ?? storagePath(job, purpose, id, file.name);
         const bucket = purpose === "submittal_piece" ? "athena-submittals" : DOC_BUCKET;
-        await storeObject(sb, bucket, path, bytes, file.mime);
-        const canonical = await download(sb, bucket, path);
-        if (!canonical?.length || (await sha256Hex(canonical)) !== (await sha256Hex(bytes)))
-          throw new ToolError(
-            "The stored original could not be verified. No attachment was confirmed.",
-          );
+        const canonical = await storeVerified(sb, bucket, path, bytes, file.mime);
         if (attachedSession) {
           const receipt = await requireOwnUpload(sb, job, attachedSession.id);
           if (!receipt.bytes_received || receipt.received_via !== "object")
@@ -757,15 +774,63 @@ export const fileUpload = defineTool({
     }),
 });
 
-async function finishBytes(
+type DocJob = {
+  job_id: string;
+  job_number: string;
+  name: string;
+  company_id: string;
+  scope?: "full" | "contract" | "super";
+};
+type Stored = { visible: string; structured: Record<string, string | number | boolean | null> };
+
+/**
+ * Store a contract or spec original on the job exactly as file_upload from_url
+ * does with no selected upload: a new upload id and job-scoped path, insert-only
+ * storage verified by sha256, text extraction, mcp_contract_document_save, the
+ * association check and the readable PDF. Throws ToolError when it isn't stored.
+ */
+export async function storeJobDocument(
   sb: Sb,
-  job: {
-    job_id: string;
-    job_number: string;
-    name: string;
-    company_id: string;
-    scope?: "full" | "contract" | "super";
-  },
+  job: DocJob,
+  input: { purpose: "contract" | "spec"; filename: string; bytes: Uint8Array },
+): Promise<Stored> {
+  let file: ReturnType<typeof uploadFilename>;
+  try {
+    file = uploadFilename(input.filename);
+    assertUploadBytes(input.bytes, file.name, input.purpose);
+  } catch (e) {
+    rejected(e);
+  }
+  const id = crypto.randomUUID();
+  const path = storagePath(job, input.purpose, id, file.name);
+  const canonical = await storeVerified(sb, DOC_BUCKET, path, input.bytes, file.mime);
+  return saveBytes(
+    sb,
+    job,
+    {
+      id,
+      bucket: DOC_BUCKET,
+      storage_path: path,
+      purpose: input.purpose,
+      filename: file.name,
+      mime_type: file.mime,
+      submittal_id: null,
+      piece_id: null,
+      new_piece: null,
+      tracked: false,
+    },
+    canonical,
+  );
+}
+
+async function finishBytes(...args: Parameters<typeof saveBytes>) {
+  const { visible, structured } = await saveBytes(...args);
+  return storedReply(visible, structured);
+}
+
+async function saveBytes(
+  sb: Sb,
+  job: DocJob,
   session: Pick<
     Session,
     | "id"
@@ -779,7 +844,7 @@ async function finishBytes(
     | "new_piece"
   > & { tracked?: boolean },
   bytes: Uint8Array,
-) {
+): Promise<Stored> {
   let checked: ReturnType<typeof assertUploadBytes>;
   try {
     checked = assertUploadBytes(bytes, session.filename, session.purpose);
@@ -921,5 +986,5 @@ async function finishBytes(
       _result: result,
     });
   await audit(sb, job, "file_upload", `store_${session.purpose}`, session.id);
-  return storedReply(visible, structured);
+  return result;
 }

@@ -20513,6 +20513,10 @@
               "type": "string",
               "maxLength": 64
             },
+            "documents_key": {
+              "type": "string",
+              "maxLength": 64
+            },
             "confirmed": {
               "type": "boolean"
             },
