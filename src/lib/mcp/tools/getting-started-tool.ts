@@ -12,6 +12,8 @@ import {
 } from "../getting-started";
 import { run, text, type Sb } from "../guard";
 import { guide } from "../visible";
+import { currentCompany, memberCompanies } from "../jobs";
+import { kindsOfWorkGate } from "../work-gate";
 import type { CardSection } from "../cards/model";
 
 const READ = {
@@ -25,8 +27,20 @@ export async function gettingStartedReply(
   focus: "overview" | "documents" | "cost_codes" = "overview",
   /** Hello only: what came back since yesterday, shown under the saved jobs. */
   since?: (sb: Sb) => Promise<CardSection | null>,
+  /** getting_started only: an Owner whose company hasn't finished kinds of work answers it first. */
+  userId?: string,
 ) {
   await claimGettingStarted(sb);
+  if (userId && focus === "overview") {
+    const companyId = (await currentCompany(sb)) ?? (await memberCompanies(sb))[0]?.id;
+    const gate = companyId
+      ? await kindsOfWorkGate(sb, companyId, userId, {
+          what: "we go on",
+          resume: "help them with what they asked for when they started; for a new job, ask for its number and name, then intake section \"create_job\".",
+        })
+      : null;
+    if (gate) return guide(gate);
+  }
   const found = await memberJobs(sb as never);
   const base =
     focus !== "overview"
@@ -61,6 +75,6 @@ export const gettingStarted = defineTool({
   annotations: READ,
   handler: (args, ctx) =>
     run("getting_started", ctx, undefined, async (sb) => {
-      return gettingStartedReply(sb, args.focus);
+      return gettingStartedReply(sb, args.focus, undefined, ctx.getUserId?.());
     }),
 });

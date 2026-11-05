@@ -68,7 +68,7 @@ describe("kinds-of-work questions", () => {
       "Markets: Low-bid public work",
       "Works in: New York",
       "Shop: Open shop",
-      "Prevailing wage or PLA: Neither",
+      "Wage rules: Open-shop wages",
       "Unit price work: Yes",
     ]);
   });
@@ -199,16 +199,33 @@ describe("kinds-of-work fixes from the first ChatGPT run (Nov 5)", () => {
     expect(workPrechecked(q, ["commercial", "public"])).toEqual(["Low-bid public work", "Private commercial"]);
     expect(workPrechecked(q, ["residential"])).toEqual([]);
     expect(workPrechecked(workQuestions()[1], ["commercial"])).toEqual([]);
-    expect(workQuestionText(q, 8, ["Private commercial"])).toContain("Already on your profile: Private commercial");
+    expect(workQuestionText(q, 8, ["Private commercial"])).toContain("Suggested from your profile (not saved until you answer): Private commercial");
   });
 
-  it("tells an AI with an out-of-date tool list to have the member refresh, never that Athena can't save", async () => {
+  it("tells the AI to make the save call, with an example, and never to send the member to refresh (Nov 5 retest)", async () => {
     const { workQuestionGuidance } = await import("@/lib/mcp/work-profile");
-    const g = workQuestionGuidance(workQuestions()[0], ["Private commercial"]);
-    expect(g).toContain("Show Private commercial already checked");
-    expect(g).toContain('If your onboarding tool has no "save_work_profile" action');
-    expect(g).toContain("Refresh Athena in your AI app's connector settings");
+    const qs = workQuestions();
+    const g = workQuestionGuidance(qs[0], ["Private commercial"]);
+    expect(g).toContain("Show Private commercial pre-checked as a suggestion");
+    expect(g).toContain("that is not a saved answer");
+    expect(g).toContain('call the onboarding tool now with action "save_work_profile", which this tool has');
+    expect(g).toContain('{"action":"save_work_profile","work_markets":["public_low_bid","private_commercial"]}');
+    expect(g).toContain("Never tell the member to refresh or reconnect Athena for this");
+    expect(g).not.toMatch(/has no "save_work_profile"|out of date/);
     expect(g).toContain("Say it is saved only after save_work_profile answers Saved.");
+  });
+
+  it("every example save call matches the onboarding input schema", async () => {
+    const { WORK_SAVE_EXAMPLE } = await import("@/lib/mcp/work-profile");
+    const { onboarding } = await import("@/lib/mcp/tools/workflow-tools");
+    const { z } = await import("zod");
+    const shape = (onboarding as unknown as { inputSchema: Parameters<typeof z.object>[0] }).inputSchema;
+    const schema = z.object(shape).strict();
+    for (const [key, example] of Object.entries(WORK_SAVE_EXAMPLE)) {
+      const parsed = schema.safeParse(JSON.parse(example));
+      expect(parsed.success, key).toBe(true);
+    }
+    expect(schema.safeParse({ action: "save_work_profile", work_wage_rules: ["prevailing_wage", "pla"] }).success).toBe(true);
   });
 
   it("the onboarding card asks the open question with its choices, checked ones marked", async () => {
@@ -221,5 +238,49 @@ describe("kinds-of-work fixes from the first ChatGPT run (Nov 5)", () => {
     expect(card.sections![0].rows.map((r) => r.cells[0])).toEqual(["Low-bid public work", "✓ Private commercial", "Skip"]);
     expect(card.next_move).toBe("Pick your answer, or say skip.");
     expect(inferCard("onboarding", "Company profile:\nCompany: ALP", {}).next_move).toBe("Tell me what is still missing.");
+  });
+});
+
+describe("question 5 follows the shop answer (Marshall, Nov 5)", () => {
+  it("offers union work PLA, prevailing wage and union rates", async () => {
+    const { workQuestions } = await import("@/lib/mcp/work-profile");
+    const q5 = workQuestions({ shop: "union_shop" })[4];
+    expect(q5.key).toBe("wage_rules");
+    expect(q5.ask).toBe("On your union work, which wage rules apply? Pick all that fit.");
+    expect(q5.choices).toEqual(["PLA", "Prevailing wage", "Union rates", "Skip"]);
+  });
+
+  it("offers open shop work prevailing wage and open-shop wages, never PLA", async () => {
+    const { workQuestions } = await import("@/lib/mcp/work-profile");
+    const q5 = workQuestions({ shop: "open_shop" })[4];
+    expect(q5.choices).toEqual(["Prevailing wage", "Open-shop wages", "Skip"]);
+  });
+
+  it("offers both sides when the company is union and open shop, or skipped question 4", async () => {
+    const { workQuestions } = await import("@/lib/mcp/work-profile");
+    for (const shop of ["both", undefined] as const) {
+      const q5 = workQuestions({ shop })[4];
+      expect(q5.choices).toEqual(["PLA", "Prevailing wage", "Union rates", "Open-shop wages", "Skip"]);
+      expect(q5.answer).toBe("several");
+    }
+  });
+
+  it("the next question after a union and open shop answer is the tailored question 5", async () => {
+    const { nextWorkQuestion } = await import("@/lib/mcp/work-profile");
+    const q = nextWorkQuestion({ markets: ["public_low_bid"], pricing: ["lump_sum"], regions: ["NY"], shop: "both" });
+    expect(q?.number).toBe(5);
+    expect(q?.ask).toContain("Union work can be PLA, prevailing wage or union rates; open shop work is usually open-shop wages.");
+  });
+
+  it("union rates and open-shop wages save no value; the summary shows them from the shop answer", async () => {
+    const { workProfileSummary, WORK_ANSWER_FIELD, workQuestionGuidance, workQuestions } = await import("@/lib/mcp/work-profile");
+    expect(WORK_ANSWER_FIELD.wage_rules).toContain('"Union rates" and "Open-shop wages" save no value');
+    expect(workProfileSummary({ shop: "both", wage_rules: ["pla", "prevailing_wage"] })).toEqual([
+      "Shop: Both",
+      "Wage rules: PLA, Prevailing wage, Union rates, Open-shop wages",
+    ]);
+    expect(workProfileSummary({ shop: "union_shop", wage_rules: [] })).toEqual(["Shop: Union shop", "Wage rules: Union rates"]);
+    expect(workProfileSummary({ wage_rules: [] })).toEqual(["Wage rules: Neither prevailing wage nor PLA"]);
+    expect(workQuestionGuidance(workQuestions()[4], [])).toContain("To change an earlier answer when the member asks");
   });
 });
