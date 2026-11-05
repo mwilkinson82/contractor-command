@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { ImportInputError, importJob, toCents, toDay } from "./model";
 import { fromOverwatch } from "./overwatch";
 import { fromSpreadsheets, parseTable } from "./spreadsheet";
-import { appliedCard, nothingToSave, planImport, reviewCard, type ImportContext } from "./plan";
+import {
+  appliedCard,
+  nothingToSave,
+  planImport,
+  planScheduleReplace,
+  reviewCard,
+  type ImportContext,
+} from "./plan";
 import { iorRollup, readIorModel } from "../ior-model";
 import { readScheduleControl } from "../mcp/schedule-control";
 import type { LivingData } from "../mcp/living";
@@ -820,6 +827,43 @@ describe("Overwatch schedule on its own calendar", () => {
     expect(planImport(fromOverwatch(v), { job_exists: false }).package.schedule!.data_date).toBe(
       "2026-03-17",
     );
+  });
+
+  it("replaces an imported CPM with the same calculation, and only that schedule", () => {
+    const job = fromOverwatch(x());
+    const sid = job.job.source_id;
+    const ctx = {
+      job_exists: true,
+      scope: "full",
+      has_cpm: true,
+      imported: [`schedule:${sid}`, `job:${sid}`],
+    } as ImportContext;
+    const first = planImport(job, { job_exists: false });
+    const plan = planScheduleReplace(job, ctx);
+    const sched = plan.package.schedule!;
+    expect(sched.replace).toBe(true);
+    expect(sched.data_date).toBe(first.package.schedule!.data_date);
+    expect(sched.data).toEqual(first.package.schedule!.data);
+    const control = readScheduleControl(sched.data as LivingData)!;
+    expect(control.baselines[0]).toMatchObject({ id: "BL1" });
+    expect(control.calculation.status).toBe("calculated");
+    expect(plan.counts).toMatchObject({
+      schedule_activities: 4,
+      sov_lines: 0,
+      change_orders: 0,
+      job: 0,
+    });
+    expect(plan.package.change_orders).toEqual([]);
+    const card = reviewCard(plan, "2717", true);
+    expect(card.title).toBe("Replace job 2717's CPM from Overwatch");
+    expect(card.ask?.prompt).toMatch(/Earlier versions stay in its history/);
+    expect(JSON.stringify(card)).toContain("replacing the imported one");
+    // A normal import onto the same job still keeps Athena's CPM.
+    expect(planImport(job, ctx).package.schedule ?? null).toBeNull();
+    // No CPM on the job: nothing to replace.
+    const none = planScheduleReplace(job, { job_exists: true, has_cpm: false } as ImportContext);
+    expect(nothingToSave(none)).toBe(true);
+    expect(reviewCard(none, "2717", true).next_move).toBe("The CPM stays as it is.");
   });
 
   it("saves a calculated CPM with Overwatch's baseline, the data date after the last progress, and the longest path", () => {

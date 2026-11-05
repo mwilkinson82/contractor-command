@@ -7,7 +7,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 import { fromOverwatch } from "./overwatch";
-import { planImport, type ImportContext } from "./plan";
+import { planImport, planScheduleReplace, type ImportContext } from "./plan";
 import { readIorModel } from "../ior-model";
 
 const owner = "00000000-0000-4000-8000-000000000a01";
@@ -1036,6 +1036,105 @@ describe("job import by a regular member", () => {
       filled: false,
       contract_completion_date: "2027-05-01",
     });
+  });
+
+  it("replaces an imported CPM only on a replace review, keeps history, and never over a CPM saved in Athena", async () => {
+    const x = v2();
+    x.project.job_number = "4103";
+    x.project.schedule_workdays = [1, 2, 3, 4, 5];
+    const first = await stage(x, pm);
+    const made = await rpc<Record<string, unknown>>(
+      "mcp_job_import_apply",
+      [first.batch_id, first.package_hash, true],
+      pm,
+    );
+    const jobId = String(made.job_id);
+    const stageReplace = async () => {
+      const imported = fromOverwatch(x);
+      const ctx = await rpc<ImportContext>(
+        "mcp_job_import_context",
+        [company, "4103", "overwatch"],
+        pm,
+      );
+      const plan = planScheduleReplace(imported, ctx);
+      const staged = await rpc<{ batch_id: string; package_hash: string }>(
+        "mcp_job_import_stage",
+        [company, "4103", JSON.stringify(plan.package)],
+        pm,
+      );
+      return { plan, ...staged };
+    };
+    // A normal import review can't be used to replace the schedule.
+    const normal = await stage(x, pm);
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [normal.batch_id, normal.package_hash, true], pm),
+    ).rejects.toThrow(/not a schedule replacement/);
+
+    const one = await stageReplace();
+    expect(one.plan.package.schedule).toMatchObject({ replace: true });
+    expect(one.plan.counts.schedule_activities).toBeGreaterThan(0);
+    expect(one.plan.counts.sov_lines + one.plan.counts.change_orders).toBe(0);
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [one.batch_id, one.package_hash, false], pm),
+    ).rejects.toThrow(/says yes/);
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [one.batch_id, one.package_hash, true], est),
+    ).rejects.toThrow(/not yours/);
+    const done = await rpc<Record<string, unknown>>(
+      "mcp_job_import_replace_schedule",
+      [one.batch_id, one.package_hash, true],
+      pm,
+    );
+    expect(done).toMatchObject({ replaced: true, cpm_version: 2, replaced_version: 1 });
+    const versions = await db.query<{ version: number }>(
+      "SELECT version FROM mcp_living_reports WHERE job_id = $1 AND report_type = 'cpm' ORDER BY version",
+      [jobId],
+    );
+    expect(versions.rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(
+      await rpc("mcp_job_import_replace_schedule", [one.batch_id, one.package_hash, true], pm),
+    ).toMatchObject({ already_applied: true });
+
+    // The replacement is itself an imported CPM, so it can be replaced again.
+    const two = await stageReplace();
+    expect(
+      await rpc("mcp_job_import_replace_schedule", [two.batch_id, two.package_hash, true], pm),
+    ).toMatchObject({ cpm_version: 3 });
+
+    // Once a version is saved in Athena over it, the import no longer replaces it.
+    const latest = await db.query<{ data: unknown }>(
+      "SELECT data FROM mcp_living_reports WHERE job_id = $1 AND report_type = 'cpm' AND version = 3",
+      [jobId],
+    );
+    await rpc(
+      "mcp_living_report_save",
+      [
+        jobId,
+        "cpm",
+        3,
+        JSON.stringify(latest.rows[0].data),
+        "2026-11-01",
+        1,
+        null,
+        null,
+        "Progress update",
+        null,
+        "QA pm",
+      ],
+      pm,
+    );
+    const three = await stageReplace();
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [three.batch_id, three.package_hash, true], pm),
+    ).rejects.toThrow(/saved in Athena after the import \(now version 4\)/);
+  });
+
+  it("won't stage a replacement for a job whose CPM didn't come from this import", async () => {
+    const ctx = { job_exists: true, scope: "full", has_cpm: true, imported: [] } as ImportContext;
+    const plan = planScheduleReplace(fromOverwatch(v2()), ctx);
+    expect(plan.package.schedule).toBeNull();
+    expect(plan.fixes.join(" ")).toMatch(/wasn't brought in from this Overwatch job/);
+    expect(Object.values(plan.counts).every((n) => n === 0)).toBe(true);
   });
 
   it("tells a PM who isn't on a job, and an estimator, that the job needs full access", async () => {
