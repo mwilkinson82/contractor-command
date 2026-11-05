@@ -6,6 +6,7 @@ import {
   destinationChecks,
   overwatchJobNumber,
   readExport,
+  replacedCard,
 } from "./job-import-tools";
 
 describe("job import tool: the member path", () => {
@@ -65,5 +66,26 @@ describe("job import tool: the member path", () => {
         context: { job_exists: true, name: "Harbor Residence (test)" },
       }),
     ).toEqual([]);
+  });
+});
+
+describe("schedule replace", () => {
+  it("is never the default and asks the member first", () => {
+    expect(JOB_IMPORT_RULE).toMatch(/Only when the member asks in their own words to replace/);
+    expect(JOB_IMPORT_RULE).toMatch(/ask them first/);
+    expect(JOB_IMPORT_RULE).toMatch(/Never use replace_schedule otherwise/);
+  });
+
+  it("says what was saved and that history stays", () => {
+    const card = replacedCard(
+      { cpm_version: 2, replaced_version: 1, schedule_activities: 20, data_date: "2026-06-25" },
+      "2717",
+    );
+    const all = JSON.stringify(card);
+    expect(card.title).toBe("Job 2717's CPM replaced");
+    expect(all).toContain(
+      "CPM version 2 saved: 20 activities, recalculated at data date 2026-06-25",
+    );
+    expect(all).toContain("Version 1 and every earlier version stay in the CPM's history.");
   });
 });

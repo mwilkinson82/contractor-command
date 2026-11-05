@@ -7,7 +7,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
 import { fromOverwatch } from "./overwatch";
-import { planImport, type ImportContext } from "./plan";
+import { planImport, planScheduleReplace, type ImportContext } from "./plan";
 import { readIorModel } from "../ior-model";
 
 const owner = "00000000-0000-4000-8000-000000000a01";
@@ -97,6 +97,7 @@ beforeAll(async () => {
   );
   await load("20261105100000_athena_job_logs");
   await load("20261105210000_athena_job_import_completion");
+  await load("20261105211000_athena_job_import_replace_schedule");
   for (const user of [owner, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
       user,
@@ -1036,6 +1037,252 @@ describe("job import by a regular member", () => {
       filled: false,
       contract_completion_date: "2027-05-01",
     });
+  });
+
+  it("replaces an imported CPM only on a replace review, keeps history, and never over a CPM saved in Athena", async () => {
+    const x = v2();
+    x.project.job_number = "4103";
+    x.project.schedule_workdays = [1, 2, 3, 4, 5];
+    const first = await stage(x, pm);
+    const made = await rpc<Record<string, unknown>>(
+      "mcp_job_import_apply",
+      [first.batch_id, first.package_hash, true],
+      pm,
+    );
+    const jobId = String(made.job_id);
+    const stageReplace = async () => {
+      const imported = fromOverwatch(x);
+      const ctx = await rpc<ImportContext>(
+        "mcp_job_import_context",
+        [company, "4103", "overwatch"],
+        pm,
+      );
+      const plan = planScheduleReplace(imported, ctx);
+      const staged = await rpc<{ batch_id: string; package_hash: string }>(
+        "mcp_job_import_stage",
+        [company, "4103", JSON.stringify(plan.package)],
+        pm,
+      );
+      return { plan, ...staged };
+    };
+    // A normal import review can't be used to replace the schedule.
+    const normal = await stage(x, pm);
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [normal.batch_id, normal.package_hash, true], pm),
+    ).rejects.toThrow(/not a schedule replacement/);
+
+    const one = await stageReplace();
+    expect(one.plan.package.schedule).toMatchObject({ replace: true });
+    expect(one.plan.counts.schedule_activities).toBeGreaterThan(0);
+    expect(one.plan.counts.sov_lines + one.plan.counts.change_orders).toBe(0);
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [one.batch_id, one.package_hash, false], pm),
+    ).rejects.toThrow(/says yes/);
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [one.batch_id, one.package_hash, true], est),
+    ).rejects.toThrow(/not yours/);
+    const done = await rpc<Record<string, unknown>>(
+      "mcp_job_import_replace_schedule",
+      [one.batch_id, one.package_hash, true],
+      pm,
+    );
+    expect(done).toMatchObject({ replaced: true, cpm_version: 2, replaced_version: 1 });
+    const versions = await db.query<{ version: number }>(
+      "SELECT version FROM mcp_living_reports WHERE job_id = $1 AND report_type = 'cpm' ORDER BY version",
+      [jobId],
+    );
+    expect(versions.rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(
+      await rpc("mcp_job_import_replace_schedule", [one.batch_id, one.package_hash, true], pm),
+    ).toMatchObject({ already_applied: true });
+
+    // The replacement is itself an imported CPM, so it can be replaced again.
+    const two = await stageReplace();
+    expect(
+      await rpc("mcp_job_import_replace_schedule", [two.batch_id, two.package_hash, true], pm),
+    ).toMatchObject({ cpm_version: 3 });
+
+    // A pure recalculation saved over the imported CPM doesn't block the replace.
+    type Data = {
+      activities: Record<string, unknown>[];
+      schedule_control?: Record<string, unknown>;
+    };
+    const latestData = async (version: number) =>
+      (
+        await db.query<{ data: Data }>(
+          "SELECT data FROM mcp_living_reports WHERE job_id = $1 AND report_type = 'cpm' AND version = $2",
+          [jobId, version],
+        )
+      ).rows[0].data;
+    const saveOver = (base: number, data: unknown, what: string) =>
+      rpc(
+        "mcp_living_report_save",
+        [
+          jobId,
+          "cpm",
+          base,
+          JSON.stringify(data),
+          "2026-11-01",
+          1,
+          null,
+          null,
+          what,
+          null,
+          "QA pm",
+        ],
+        pm,
+      );
+    const v3 = await latestData(3);
+    const recalculated: Data = {
+      ...v3,
+      tia: null,
+      activities: v3.activities.map((a) => ({
+        ...a,
+        start: "2026-12-01",
+        finish: "2026-12-09",
+        total_float: 4,
+        critical: true,
+        wbs_id: a.wbs_id ?? "wbs:qa",
+        remaining_duration: a.remaining_duration ?? 2,
+      })),
+      schedule_control: {
+        ...v3.schedule_control,
+        settings: { project_start: "2026-01-05", default_calendar_id: "qa" },
+        calculation: { status: "calculated", data_date: "2026-11-01", warnings: [] },
+      },
+    } as Data;
+    await saveOver(3, recalculated, "Recalculated");
+    const four = await stageReplace();
+    expect(
+      await rpc("mcp_job_import_replace_schedule", [four.batch_id, four.package_hash, true], pm),
+    ).toMatchObject({ cpm_version: 5, replaced_version: 4, imported_version: 3 });
+
+    // Once a version over it edits progress, logic or the activities, the import no longer replaces it.
+    const v5 = await latestData(5);
+    const edited = {
+      ...v5,
+      activities: v5.activities.map((a, i) => (i === 0 ? { ...a, pct_complete: 37 } : a)),
+    };
+    await saveOver(5, edited, "Progress update");
+    // A recalculation after the edit doesn't clear it.
+    await saveOver(6, { ...edited, tia: null }, "Recalculated");
+    const five = await stageReplace();
+    await expect(
+      rpc("mcp_job_import_replace_schedule", [five.batch_id, five.package_hash, true], pm),
+    ).rejects.toThrow(/edited in Athena after the import \(version 6 changed .*now version 7\)/);
+  });
+
+  it("tells a pure recalculation of a CPM from an edit", async () => {
+    const check = async (prev: unknown, next: unknown) =>
+      (
+        await db.query<{ ok: boolean }>(
+          "SELECT public.mcp_cpm_recalc_only($1::jsonb, $2::jsonb) AS ok",
+          [JSON.stringify(prev), JSON.stringify(next)],
+        )
+      ).rows[0].ok;
+    // The shape of 2717's import (v1) and Athena's recalculation of it (v2).
+    const v1 = {
+      activities: [
+        {
+          id: "08-010",
+          name: "Windows",
+          start: "2026-05-12",
+          finish: "2026-06-02",
+          critical: null,
+          duration: 22,
+          total_float: null,
+          actual_start: "2026-05-12",
+          pct_complete: 80,
+          predecessors: [{ id: "07-010", lag: 0, type: "FS" }],
+          value: null,
+        },
+        {
+          id: "07-010",
+          name: "Dry-in",
+          start: "2026-04-21",
+          finish: "2026-05-09",
+          critical: null,
+          duration: 19,
+          total_float: null,
+          actual_start: "2026-04-21",
+          actual_finish: "2026-05-09",
+          pct_complete: 100,
+          remaining_duration: 0,
+          predecessors: [],
+          value: null,
+        },
+      ],
+      schedule_control: {
+        wbs: [],
+        baselines: [],
+        calculation: { status: "reported", warnings: [], data_date: "2026-11-05" },
+        schema_version: 1,
+      },
+    };
+    const v2 = {
+      tia: null,
+      activities: [
+        { ...v1.activities[1], wbs_id: "wbs:07", critical: false, total_float: 0 },
+        {
+          ...v1.activities[0],
+          predecessors: [{ id: "07-010" }],
+          wbs_id: "wbs:08",
+          finish: "2026-11-10",
+          critical: false,
+          total_float: 8,
+          remaining_duration: 5,
+        },
+      ],
+      schedule_control: {
+        ...v1.schedule_control,
+        settings: { project_start: "2026-02-03" },
+        calculation: {
+          status: "calculated",
+          warnings: ["x"],
+          data_date: "2026-11-05",
+          longest_path: ["08-010"],
+        },
+      },
+    };
+    expect(await check(v1, v2)).toBe(true);
+    const tweak = (i: number, patch: Record<string, unknown>) => ({
+      ...v2,
+      activities: v2.activities.map((a, j) => (j === i ? { ...a, ...patch } : a)),
+    });
+    expect(await check(v1, tweak(1, { pct_complete: 90 }))).toBe(false);
+    expect(await check(v1, tweak(1, { duration: 30 }))).toBe(false);
+    expect(await check(v1, tweak(1, { name: "Windows and doors" }))).toBe(false);
+    expect(await check(v1, tweak(1, { actual_finish: "2026-11-01" }))).toBe(false);
+    expect(
+      await check(v1, tweak(1, { predecessors: [{ id: "07-010", lag: 2, type: "FS" }] })),
+    ).toBe(false);
+    expect(await check(v1, tweak(1, { value: 1000 }))).toBe(false);
+    // A remaining duration already on the import can't change.
+    expect(await check(v1, tweak(0, { remaining_duration: 3 }))).toBe(false);
+    // A remaining duration filled in once can't change in the next recalculation.
+    expect(await check(v2, tweak(1, { remaining_duration: 9 }))).toBe(false);
+    expect(await check(v1, { ...v2, activities: v2.activities.slice(1) })).toBe(false);
+    expect(
+      await check(v1, {
+        ...v2,
+        activities: [...v2.activities, { ...v2.activities[1], id: "99-010" }],
+      }),
+    ).toBe(false);
+    expect(
+      await check(v1, {
+        ...v2,
+        schedule_control: { ...v2.schedule_control, baselines: [{ id: "bl1" }] },
+      }),
+    ).toBe(false);
+    expect(await check(v1, { ...v2, tia: { prior_completion: "2027-01-01" } })).toBe(false);
+  });
+
+  it("won't stage a replacement for a job whose CPM didn't come from this import", async () => {
+    const ctx = { job_exists: true, scope: "full", has_cpm: true, imported: [] } as ImportContext;
+    const plan = planScheduleReplace(fromOverwatch(v2()), ctx);
+    expect(plan.package.schedule).toBeNull();
+    expect(plan.fixes.join(" ")).toMatch(/wasn't brought in from this Overwatch job/);
+    expect(Object.values(plan.counts).every((n) => n === 0)).toBe(true);
   });
 
   it("tells a PM who isn't on a job, and an estimator, that the job needs full access", async () => {

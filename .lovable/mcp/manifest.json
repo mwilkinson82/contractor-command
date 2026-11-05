@@ -19771,6 +19771,9 @@
             },
             "confirmed": {
               "type": "boolean"
+            },
+            "replace_schedule": {
+              "type": "boolean"
             }
           },
           "required": [

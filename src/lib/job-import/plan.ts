@@ -75,6 +75,8 @@ export type ImportPackage = {
 type PlannedSchedule = {
   source_id: string;
   data_date: string;
+  /** Set only on a review the member asked for to replace an imported CPM. */
+  replace?: true;
   what: string;
   activity_count: number;
   milestones: number;
@@ -144,6 +146,10 @@ export type ImportPlan = {
   /** What the archive keeps that isn't otherwise live in Athena, said plainly. */
   archived: string[];
   fixes: string[];
+  /** Set only on a review that replaces the job's imported CPM. */
+  mode?: "replace_schedule";
+  /** The schedule's own notes (also in fixes), for a schedule-only review. */
+  schedule_notes?: string[];
   totals: {
     contract_cents: number | null;
     approved_co_cents: number;
@@ -616,6 +622,7 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
   // Schedule: version 1 of the job's CPM through the organize path, only when
   // the job has none. IDs, logic, durations and dates as reported; no dollars.
   let schedule: PlannedSchedule | null = null;
+  const scheduleNotes: string[] = [];
   if (job.schedule.length) {
     if (ctx.has_cpm) kept.push("The job already has a CPM in Athena; kept Athena's.");
     else if (done.has(`schedule:${job.job.source_id}`))
@@ -694,11 +701,12 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
           milestones,
           data: prepared.data,
         };
-        fixes.push(...notes, ...prepared.notes);
+        scheduleNotes.push(...notes, ...prepared.notes);
         if (!calculated.ok && job.schedule_calendar)
-          fixes.push(
+          scheduleNotes.push(
             `The schedule came in with ${from}'s reported dates only, so float and the critical path wait for a recalculation: ${calculated.reason}.`,
           );
+        fixes.push(...scheduleNotes);
       } catch (e) {
         if (!(e instanceof ScheduleInputError)) throw e;
         fixes.push(
@@ -857,12 +865,79 @@ export function planImport(raw: ImportJob, ctx: ImportContext): ImportPlan {
     held,
     archived: archivedNotes,
     fixes,
+    schedule_notes: scheduleNotes,
     totals: {
       contract_cents: job.contract.original_cents,
       approved_co_cents: approvedCents,
       sov_cents: sovCents,
       billed_cents: billedCents,
       retained_cents: retainedCents,
+    },
+  };
+}
+
+/**
+ * A review that replaces the job's imported CPM with the source's schedule,
+ * recalculated the same way as a first import: the source's baseline as BL1,
+ * its status date (or the day after its last progress) as the data date, and
+ * progress applied. Only on the member's explicit ask, and only when the job's
+ * CPM came from an import of this same source job; the save refuses if the CPM
+ * was saved in Athena since. Everything else in the export is left alone.
+ */
+export function planScheduleReplace(raw: ImportJob, ctx: ImportContext): ImportPlan {
+  const full = planImport(raw, {
+    ...ctx,
+    has_cpm: false,
+    imported: (ctx.imported ?? []).filter((k) => !k.startsWith("schedule:")),
+  });
+  const from = SOURCE_NAME[full.package.source.system];
+  const sid = full.package.job.source_id;
+  const fixes: string[] = [];
+  let schedule: PlannedSchedule | null = full.package.schedule ?? null;
+  if (!ctx.job_exists || !ctx.has_cpm) {
+    fixes.push(
+      `Job has no CPM in Athena to replace. Import the job normally to bring ${from}'s schedule in.`,
+    );
+    schedule = null;
+  } else if (!(ctx.imported ?? []).includes(`schedule:${sid}`)) {
+    fixes.push(
+      `The job's CPM wasn't brought in from this ${from} job, so the import can't replace it. Update it in Athena instead.`,
+    );
+    schedule = null;
+  } else if (!schedule) {
+    fixes.push(`This export has no schedule Athena can calculate, so the CPM stays as it is.`);
+  }
+  if (schedule) schedule = { ...schedule, replace: true };
+  const counts = Object.fromEntries(Object.keys(full.counts).map((k) => [k, 0]));
+  counts.schedule_activities = schedule ? schedule.activity_count : 0;
+  return {
+    package: {
+      version: 3,
+      source: full.package.source,
+      job: full.package.job,
+      billing: full.package.billing,
+      contract_facts: {},
+      sov: null,
+      opening_balances: [],
+      budget: {},
+      change_orders: [],
+      submittals: [],
+      dailies: [],
+      schedule,
+    },
+    mode: "replace_schedule",
+    counts,
+    kept: [],
+    held: [],
+    archived: [],
+    fixes: schedule ? [...(full.schedule_notes ?? [])] : fixes,
+    schedule_notes: full.schedule_notes,
+    totals: {
+      ...full.totals,
+      contract_cents: null,
+      sov_cents: 0,
+      billed_cents: 0,
+      retained_cents: 0,
     },
   };
 }
@@ -937,7 +1012,11 @@ export function reviewCard(plan: ImportPlan, jobNumber: string, jobExists: boole
         .join(", ")})`,
     );
   }
-  if (p.schedule)
+  if (p.schedule?.replace)
+    create.push(
+      `A new version of the job's CPM, replacing the imported one: ${plural(p.schedule.activity_count, "activity", "activities")}, recalculated on ${from}'s working calendar with data date ${shortDay(p.schedule.data_date)} and ${from}'s baseline as BL1. Earlier versions stay in the CPM's history`,
+    );
+  else if (p.schedule)
     create.push(
       `CPM, version 1: ${plural(p.schedule.activity_count, "activity", "activities")}${p.schedule.milestones ? ` with ${plural(p.schedule.milestones, "milestone")}` : ""}, logic and dates as ${from} had them, not cost loaded`,
     );
@@ -997,6 +1076,28 @@ export function reviewCard(plan: ImportPlan, jobNumber: string, jobExists: boole
     { label: "Open COs", value: String(c.change_orders) },
   ].filter((k): k is { label: string; value: string } => !!k);
   const empty = nothingToSave(plan);
+  if (plan.mode === "replace_schedule")
+    return {
+      state: empty ? "result" : "ask",
+      title: `Replace job ${jobNumber}'s CPM from ${from}`,
+      show_state: false,
+      job: `${jobNumber} · ${p.job.name}`,
+      kpis: p.schedule
+        ? [
+            { label: "Activities", value: String(p.schedule.activity_count) },
+            { label: "Data date", value: shortDay(p.schedule.data_date) },
+          ]
+        : [],
+      sections,
+      ask: empty
+        ? null
+        : {
+            prompt: `Replace job ${jobNumber}'s CPM with this recalculated one? Earlier versions stay in its history. Nothing is sent to anyone.`,
+          },
+      next_move: empty
+        ? "The CPM stays as it is."
+        : "Say yes to replace it, or say no to keep the CPM as it is.",
+    };
   return {
     state: empty ? "result" : "ask",
     title: `Import job ${jobNumber} from ${from}`,

@@ -29,6 +29,7 @@ import {
   appliedCard,
   nothingToSave,
   planImport,
+  planScheduleReplace,
   reviewCard,
   type ImportContext,
 } from "../../job-import/plan";
@@ -48,7 +49,7 @@ export const OVERWATCH_EXPORT_HOW =
 export const FULL_ACCESS_HOW =
   "Importing onto a job that's already in Athena needs full access to that job. Ask your company's owner to add you to the job, or to run the import. Nothing was saved.";
 
-export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one: ${OVERWATCH_EXPORT_HOW} Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
+export const JOB_IMPORT_RULE = ` When a member asks to import, move, migrate or bring a job over from Overwatch, Procore, Buildertrend or a spreadsheet, call job_import with step review and the export they supplied (the attached file as file when the host offers it, otherwise its text as export_text), then show its card. If they have no export yet, tell them how to get one: ${OVERWATCH_EXPORT_HOW} Save only after a separate yes to that card, with step save, the batch_id and the import_key it returned. Only when the member asks in their own words to replace or redo a job's schedule from the export, and the job's CPM came from an import, call review with replace_schedule true; ask them first and say that the imported CPM gets a new recalculated version and earlier versions stay in history. Never use replace_schedule otherwise. Never call save in the same turn as review. Approved change orders arrive inside the SOV and contract; open ones arrive as unsent PCO drafts. Nothing is emailed or sent.`;
 
 /** Fills the job's contract completion from the saved import, only when the job has none. */
 export async function fillCompletion(sb: Sb, batch: string): Promise<void> {
@@ -74,6 +75,29 @@ async function call<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promi
     dbError(error);
   }
   return data as T;
+}
+
+/** The card after an imported CPM is replaced with the source's recalculated schedule. */
+export function replacedCard(result: Record<string, unknown>, jobNumber: string): CardModel {
+  const version = Number(result.cpm_version ?? 0);
+  const prior = Number(result.replaced_version ?? 0);
+  const rows = result.already_applied
+    ? ["This replacement was already saved. Nothing more to save."]
+    : [
+        `CPM version ${version} saved: ${Number(result.schedule_activities ?? 0)} activities, recalculated${result.data_date ? ` at data date ${String(result.data_date)}` : ""} with the export's baseline as BL1.`,
+        `Version ${prior} and every earlier version stay in the CPM's history.`,
+      ];
+  return {
+    state: "result",
+    title: `Job ${jobNumber}'s CPM replaced`,
+    show_state: false,
+    job: jobNumber,
+    kpis: [],
+    sections: [
+      { heading: "Saved", kind: "list", rows: rows.map((r) => ({ cells: [r], tone: "known" })) },
+    ],
+    next_move: `Next: want me to open job ${jobNumber}'s schedule so you can check the forecast and the longest path?`,
+  };
 }
 
 function cardResult(card: CardModel, extra: Record<string, unknown>, rule: string) {
@@ -236,6 +260,7 @@ export const jobImport = defineTool({
     batch_id: z.string().uuid().optional(),
     import_key: z.string().trim().max(64).optional(),
     confirmed: z.boolean().optional(),
+    replace_schedule: z.boolean().optional(),
   },
   annotations: SAVE,
   handler: (args, ctx) =>
@@ -255,6 +280,19 @@ export const jobImport = defineTool({
           throw new ToolError(
             "Save only after the member says yes to the review card. Nothing was saved.",
           );
+        if (args.replace_schedule === true) {
+          const replaced = await call<Record<string, unknown>>(
+            sb,
+            "mcp_job_import_replace_schedule",
+            { _batch: args.batch_id, _hash: args.import_key, _confirmed: true },
+          );
+          if (!replaced.already_applied) await fillCompletion(sb, args.batch_id);
+          return cardResult(
+            replacedCard(replaced, String(replaced.job_number ?? args.job_number ?? "")),
+            { written: !replaced.already_applied, result: replaced },
+            "Show this card. Do not add text after it.",
+          );
+        }
         const result = await call<Record<string, unknown>>(sb, "mcp_job_import_apply", {
           _batch: args.batch_id,
           _hash: args.import_key,
@@ -336,7 +374,10 @@ export const jobImport = defineTool({
         _source: imported.source.system,
       });
       if (context.job_exists && context.scope !== "full") throw new ToolError(FULL_ACCESS_HOW);
-      const plan = planImport(imported, context);
+      const replacing = args.replace_schedule === true;
+      const plan = replacing
+        ? planScheduleReplace(imported, context)
+        : planImport(imported, context);
       plan.fixes.unshift(
         ...destinationChecks({
           source: imported.source.system,
@@ -372,7 +413,9 @@ export const jobImport = defineTool({
           expires_at: staged.expires_at,
           counts: plan.counts,
         },
-        "Show this card. Do not add text after it. Save only after a separate yes, with step save, this batch_id and import_key; the review expires in 15 minutes.",
+        replacing
+          ? "Show this card. Do not add text after it. Replace the CPM only after a separate yes to this card, with step save, replace_schedule true, this batch_id and import_key; the review expires in 15 minutes."
+          : "Show this card. Do not add text after it. Save only after a separate yes, with step save, this batch_id and import_key; the review expires in 15 minutes.",
       );
     }),
 });
