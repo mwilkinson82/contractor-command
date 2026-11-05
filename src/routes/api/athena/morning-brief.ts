@@ -3,11 +3,10 @@
 // VAPID keys are ATHENA_VAPID_PUBLIC_KEY and ATHENA_VAPID_PRIVATE_KEY. They are not committed.
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { renderHtml } from "@/lib/mcp/cards/html";
+import { renderBriefHtml } from "@/lib/mcp/cards/brief-html";
 import { vapidConfig } from "@/lib/mcp/field-push";
 import type { Sb } from "@/lib/mcp/guard";
-import { buildMorningBrief, ensureBriefCard } from "@/lib/mcp/morning-brief";
-import { briefJobsFromFeed, loadBriefJobs, readBriefSettings } from "@/lib/mcp/morning-brief-load";
+import { briefJobsFromFeed, composePmBrief, readBriefSettings } from "@/lib/mcp/morning-brief-load";
 import { briefPageMarkup, dispatchMorningBriefs, MORNING_BRIEF_CRON } from "@/lib/mcp/morning-brief-push";
 import type { PushSendLog } from "@/lib/mcp/field-push-send";
 
@@ -63,10 +62,9 @@ export const Route = createFileRoute("/api/athena/morning-brief")({
         }
         try {
           const gate = sb as unknown as Sb;
-          const loaded = await loadBriefJobs(gate);
           const settings = await readBriefSettings(gate);
-          const built = buildMorningBrief({ jobs: loaded.jobs, hasCompany: loaded.hasCompany, settings });
-          return Response.json({ html: briefPageMarkup(renderHtml(ensureBriefCard(built.card))) });
+          const built = await composePmBrief(gate, { settings });
+          return Response.json({ html: briefPageMarkup(renderBriefHtml(built.doc, "page")) });
         } catch {
           return Response.json({ error: "Could not open today's brief." }, { status: 400 });
         }
