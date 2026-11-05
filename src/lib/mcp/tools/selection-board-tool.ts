@@ -31,6 +31,7 @@ import {
   estimateLineOptions,
   lineOptionsText,
   optionLinks,
+  optionNameLink,
   selectionLineOptions,
 } from "../../selections/estimate-options";
 import { SAVE_OFFER_GUIDANCE } from "../estimate-options";
@@ -148,9 +149,9 @@ function contractorText(board: Board, version: number, today: string): string[] 
       const o = s.options[tier];
       const m = row.options[tier];
       lines.push(
-        `${tierLabel(tier)}: ${productName(o)}${o.description ? ` · ${o.description}` : ""}`,
+        `${tierLabel(tier)}: ${o.description || o.model ? optionNameLink(productName(o), o) : productName(o)}${o.description ? ` · ${o.description}` : ""}`,
         `  Specs: ${o.specifications || "Unknown"} · Included: ${o.included.length ? o.included.join("; ") : "None listed"}`,
-        `  Customer link: ${o.product_url ?? "None"} · Photo: ${o.photo_url ?? "Unknown"} · Price read on (internal): ${o.source_url ?? "Unknown"}`,
+        `  Product page (contractor only, never shown to the customer): ${o.product_url ?? "None"} · Photo: ${o.photo_url ?? "Unknown"} · Price read on (internal): ${o.source_url ?? "Unknown"}`,
         `  Found: ${money(o.found_price_cents, code)} per ${s.unit}${o.found_at ? ` at ${o.found_at}` : ""}${o.found_on ? ` on ${o.found_on}` : ""} (a web lead, not a price)`,
         `  Unit cost ${money(o.cost_cents, code)} · unit price ${money(o.price_cents, code)} · ${o.price_reviewed_on ? `price reviewed ${o.price_reviewed_on}` : "PRICE NOT REVIEWED"}`,
         `  Extended: price ${money(m.price_cents, code)} · cost ${money(m.cost_cents, code)} · margin ${money(m.margin_cents, code)} (${percent(m.margin_bp)}) · markup ${percent(m.markup_bp)} · vs allowance ${signed(differenceFromAllowance(s, tier), code)}${o.assumptions ? ` · assumptions: ${o.assumptions}` : ""}`,
@@ -197,7 +198,7 @@ export function customerText(view: CustomerProposal): string[] {
     for (const tier of optionNames) {
       const o = s.options[tier];
       lines.push(
-        `${tierLabel(tier)}: ${[o.manufacturer, o.model].filter(Boolean).join(" ")}${o.description ? ` · ${o.description}` : ""}${o.specifications ? ` · ${o.specifications}` : ""}${o.included.length ? ` · Includes: ${o.included.join("; ")}` : ""}${o.product_url ? ` · ${o.product_url}` : ""}`,
+        `${tierLabel(tier)}: ${[o.manufacturer, o.model].filter(Boolean).join(" ")}${o.description ? ` · ${o.description}` : ""}${o.specifications ? ` · ${o.specifications}` : ""}${o.included.length ? ` · Includes: ${o.included.join("; ")}` : ""}`,
       );
     }
   }
@@ -297,7 +298,7 @@ async function takeoffLine(sb: Sb, jobId: string, ref: string) {
 
 /** Hosts that draw no card still show where each option can be seen. */
 const OPTION_LINKS_GUIDANCE =
-  "When you show the options, give each one a link the member can click: its product page, or the seller page its price was read on when no product page is saved. Use only the links in this result.";
+  "When you show the options, give each one a link the member can click: its product page, or the seller page its price was read on when no product page is saved. In a table, put the option's product name as the markdown link this result gives it, so the link stays in the table. Use only the links in this result.";
 
 /**
  * Each saved option's links, listed in the reply text so a host that draws no
@@ -330,7 +331,7 @@ function sourcingBrief(s: Selection, line: z.infer<typeof lineSchema> | null): s
         ]
       : []),
     "Find three real products that meet the drawings and specifications: Good (meets the spec at the lowest sound cost), Better (adds useful features or quality) and Best (premium quality, efficiency or controls).",
-    "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, a direct https photo URL, the listed unit price with the seller and the date you read it, and two links: source_url, the seller page you read the price on (internal), and product_url, the manufacturer's own product page for the customer. Send product_url and photo_url for every option, read from the product page; never use a store listing that shows a price as product_url, and leave a link empty only when no page shows one.",
+    "For each, read the product page and capture: manufacturer, model or catalog number, a short customer description, key specifications, what is included, a direct https photo URL, the listed unit price with the seller and the date you read it, and two links: source_url, the seller page you read the price on (internal), and product_url, the manufacturer's own product page, kept for the contractor and never shown to the customer. Send product_url and photo_url for every option, read from the product page; never use a store listing that shows a price as product_url, and leave a link empty only when no page shows one.",
     "The customer sees the selection title and each option's description, manufacturer, model, specifications and included items, so write them for the customer. RFI numbers, drawing conflicts, provisional status, price leads and where a price came from are internal: put them in the option's assumptions (review_price or apply_markup) or the selection notes, never in those fields. The customer view stays locked while any of them holds one.",
     "Submit each one with selection_board action propose_option. Never invent a product, link, photo or price; leave a field empty when the page doesn't show it.",
     "If the drawings or takeoff note show a conflict, say so and don't pick a side.",

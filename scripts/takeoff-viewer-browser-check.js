@@ -6,23 +6,22 @@ async (page) => {
   await page.goto("http://127.0.0.1:4399/viewer.html");
   const frame = page.frameLocator('iframe[title="Athena measured takeoff"]');
   await frame.getByRole("button", { name: "Open drawing workspace" }).click();
-  await frame.getByRole("button", { name: "Count pins" }).click();
+  await frame.getByRole("button", { name: "Count", exact: true }).click();
   await frame.getByText("L3 · 1", { exact: true }).click();
   assert(
-    (await frame.getByRole("heading", { name: "L1 · Fictional light fixtures" }).count()) === 1,
+    /L1 · Fictional light fixtures/.test(await frame.locator(".selbar").innerText()),
     "first overlapping selection",
   );
   await frame.getByText("L3 · 1", { exact: true }).click();
   assert(
-    (await frame.getByRole("heading", { name: "L3 · Fictional overlapping fixture" }).count()) ===
-      1,
+    /L3 · Fictional overlapping fixture/.test(await frame.locator(".selbar").innerText()),
     "second overlapping selection",
   );
   assert(
     (await frame.getByText(/Inspect mode: select a mark/).count()) === 1,
     "inspect mode after selection",
   );
-  await frame.getByRole("button", { name: "Count pins" }).click();
+  await frame.getByRole("button", { name: "Count", exact: true }).click();
   const svg = frame.getByLabel("Measured geometry on the stored sheet");
   const box = await svg.boundingBox();
   await page.mouse.click(box.x + box.width * 0.32, box.y + box.height * 0.67);
@@ -39,11 +38,11 @@ async (page) => {
     (await frame.getByText(/Finish or discard the unsaved drawing/).count()) === 1,
     "pending-point warning",
   );
-  await frame.getByRole("button", { name: "Inspect saved work" }).click();
+  await frame.getByRole("button", { name: "Select and pan" }).click();
   await frame.getByRole("button", { name: "Confirm", exact: true }).click();
   await frame.getByRole("button", { name: "Hide marks" }).click();
   assert((await frame.getByText("L3 · 1", { exact: true }).count()) === 0, "marks hidden");
-  await frame.getByRole("button", { name: "Count pins" }).click();
+  await frame.getByRole("button", { name: "Count", exact: true }).click();
   assert(
     (await frame.getByText(/Show marks before drawing/).count()) >= 1,
     "cannot add with marks hidden",
@@ -91,7 +90,7 @@ async (page) => {
   );
   await frame.getByText("L3 · 1", { exact: true }).click();
   assert(
-    (await frame.getByRole("heading", { name: "L1 · Fictional light fixtures" }).count()) === 1,
+    /L1 · Fictional light fixtures/.test(await frame.locator(".selbar").innerText()),
     "mobile selection",
   );
   await page.setViewportSize({ width: 1280, height: 900 });

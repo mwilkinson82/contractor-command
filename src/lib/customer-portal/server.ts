@@ -23,6 +23,27 @@ import {
 } from "./render";
 import { displayPrice } from "../selections/format";
 
+/** The PM's next step after a package choice. Under contract a change order is drafted; before, the choice is a proposal approval. */
+export function choiceNextForPm(
+  r: {
+    under_contract?: boolean;
+    difference_cents?: number | null;
+    change_order_number?: string | null;
+  },
+  item: PortalView["items"][number],
+): string | null {
+  const currency = item.kind === "selection" ? item.view.proposal.currency : "USD";
+  const diff =
+    typeof r.difference_cents === "number" ? displayPrice(r.difference_cents, currency) : null;
+  if (r.change_order_number)
+    return `The job is under contract, so Athena drafted change order ${r.change_order_number} for the package difference${diff ? ` of ${diff}` : ""} with the signed choice attached. Price it and send it to the customer for approval.`;
+  if (r.under_contract)
+    return "The job is under contract and this package is already in the contract price, so no change order was drafted.";
+  if (r.under_contract === false)
+    return "The job has no contract value on file yet, so this is a proposal approval, not a change order. Carry the package total into the contract.";
+  return null;
+}
+
 export type PortalDeps = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
   signPhotos: (paths: string[]) => Promise<Map<string, string>>;
@@ -67,11 +88,16 @@ export function clientIp(req: Request): string | null {
 }
 const ua = (req: Request) => (req.headers.get("user-agent") ?? "").slice(0, 400) || null;
 
-/** Same-site posts only. A browser always sends Origin or Sec-Fetch-Site on a form post. */
+/**
+ * Same-site posts only. A browser always sends Origin or Sec-Fetch-Site on a form post. Under a
+ * no-referrer policy a browser sends `Origin: null` even for a same-origin form, so a null origin
+ * passes only when the browser's own Sec-Fetch-Site says same-origin.
+ */
 export function sameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
-  if (origin) return origin === new URL(req.url).origin || origin === "https://app.meetathena.io";
   const site = req.headers.get("sec-fetch-site");
+  if (origin === "null") return site === "same-origin";
+  if (origin) return origin === new URL(req.url).origin || origin === "https://app.meetathena.io";
   return site === null || site === "same-origin" || site === "none";
 }
 
@@ -163,7 +189,7 @@ export async function handleInvite(
   const f = await form(req);
 
   if (f.action === "send_code") {
-    if (!deps.emailOn()) return html(renderGone("email_off"), 503);
+    if (!deps.emailOn()) return html(renderGone("email_off", info.company), 503);
     const code = sixDigits(deps.randomInt);
     const issued = await deps
       .rpc("mcp_portal_code_issue", {
@@ -177,7 +203,7 @@ export async function handleInvite(
       .catch(() => null);
     const st = status(issued);
     if (st === "slow_down") return redirect(`${self}?step=code&e=slow`);
-    if (st !== "ok") return html(renderGone(st === "error" ? "error" : st), 410);
+    if (st !== "ok") return html(renderGone(st === "error" ? "error" : st, info.company), 410);
     const sent = await deps.send(
       codeEmail({
         to: info.email,
@@ -214,7 +240,7 @@ export async function handleInvite(
       });
     if (st === "wrong" || st === "locked" || st === "expired")
       return redirect(`${self}?step=code&e=${st}`);
-    return html(renderGone(st === "error" ? "error" : st), 410);
+    return html(renderGone(st === "error" ? "error" : st, info.company), 410);
   }
   return redirect(self);
 }
@@ -437,7 +463,13 @@ export async function handlePortal(
       .catch(() => null);
     const st = status(res);
     if (st === "ok") {
-      const r = res as { decision_id?: string; pm_email?: string | null };
+      const r = res as {
+        decision_id?: string;
+        pm_email?: string | null;
+        under_contract?: boolean;
+        difference_cents?: number | null;
+        change_order_number?: string | null;
+      };
       if (r.pm_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.pm_email))
         await deps.send(
           decisionEmail({
@@ -450,6 +482,7 @@ export async function handlePortal(
             choice: choice ? TIER_NAME[choice] : null,
             note,
             reference: `Customer page decision ${r.decision_id ?? ""}`.trim(),
+            next: decision === "chosen" ? choiceNextForPm(r, item) : null,
           }),
         );
       return redirect(at({ ok: decision! }));

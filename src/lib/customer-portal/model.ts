@@ -60,7 +60,14 @@ export const portalViewSchema = z
       .object({ name: z.string(), pm_name: nstr, pm_title: nstr, pm_email: nstr })
       .strict(),
     job: z
-      .object({ number: z.string(), name: z.string(), completion_date: nstr, today: isoDate })
+      .object({
+        number: z.string(),
+        name: z.string(),
+        completion_date: nstr,
+        today: isoDate,
+        /** True once the job has a known contract value: a package change is then a change order. */
+        under_contract: z.boolean().optional(),
+      })
       .strict(),
     updates: z
       .array(z.object({ week_of: isoDate, title: z.string(), body: z.string() }).strict())

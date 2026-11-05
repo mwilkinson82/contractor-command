@@ -136,6 +136,18 @@ export function lineOptionsFlag(line: LineOptions): string {
   return `${tiers} options${line.provisional ? " · provisional" : ""}${line.selected ? ` · customer chose ${TIER_LABEL[line.selected]}` : ""}`;
 }
 
+/**
+ * The option's name as a ready-made markdown link (product page, else the page
+ * its price was read on), so a host that writes its own table keeps it clickable.
+ */
+export function optionNameLink(
+  name: string,
+  o: { product_url: string | null; source_url: string | null },
+): string {
+  const url = o.product_url ?? o.source_url;
+  return url ? `[${name.replace(/[[\]]/g, "")}](${url})` : name;
+}
+
 /** An option's links as plain text, so a host that draws no card still shows them. */
 export function optionLinks(o: {
   product_url: string | null;
@@ -162,7 +174,7 @@ export function lineOptionsText(line: LineOptions): string[] {
   for (const t of line.tiers) {
     out.push(
       "",
-      `${TIER_LABEL[t.tier]}${t.tier === line.base_tier ? " (base)" : ""}: ${t.product || "No product yet"}${t.description && t.product !== t.description ? ` · ${t.description}` : ""}`,
+      `${TIER_LABEL[t.tier]}${t.tier === line.base_tier ? " (base)" : ""}: ${t.product ? optionNameLink(t.product, t) : "No product yet"}${t.description && t.product !== t.description ? ` · ${t.description}` : ""}`,
       `  Found ${money(t.found_unit_cents, code)} per ${line.unit}${t.found_at ? ` at ${t.found_at}` : ""} = ${money(t.found_cents, code)} (a web lead, not a price)`,
       `  Cost ${money(t.cost_unit_cents, code)} per ${line.unit} = ${money(t.cost_cents, code)} · Sell ${money(t.price_unit_cents, code)} per ${line.unit} = ${money(t.price_cents, code)}${t.price_reviewed_on ? ` · reviewed ${t.price_reviewed_on}` : " · NOT PRICED YET"}`,
       `  Margin ${money(t.margin_cents, code)} (${percent(t.margin_bp)}) · markup ${percent(t.markup_bp)} · sell vs base ${t.tier === line.base_tier ? "base" : signed(t.price_vs_base_cents, code)}`,

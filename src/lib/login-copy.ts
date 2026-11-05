@@ -11,6 +11,9 @@ export const ATHENA_LOGIN_COLORS = Object.freeze({
 });
 
 export const ATHENA_LOGIN_LOGO = "/brand/athena/athena-lockup-blue.svg";
+/** Athena's support inbox. Mail here opens a support ticket (src/lib/support/ticket.ts). */
+export const ATHENA_SUPPORT_EMAIL = "support@meetathena.io";
+export const ATHENA_SUPPORT_MAILTO = `mailto:${ATHENA_SUPPORT_EMAIL}?subject=${encodeURIComponent("Help signing in to Athena")}`;
 
 export type LoginCopyInput = {
   athena: boolean;

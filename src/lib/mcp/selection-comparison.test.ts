@@ -146,8 +146,11 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     expect(text).toMatch(
       /Missing links: Good has no photo; Better has no photo; Best has no photo/,
     );
+    expect(text).toContain(
+      "Good: [Juno R600L G2](https://www.acuitybrands.com/products/detail/R600L%20G2)",
+    );
     expect(JSON.stringify(r.structuredContent)).toContain(
-      "give each one a link the member can click",
+      "put the option's product name as the markdown link",
     );
   });
 
@@ -273,6 +276,9 @@ describe("pricing options with a markup", () => {
       base_price_cents: 100_000,
       base_reviewed_on: "2026-11-04",
     };
+    // A customer view needs a photo on every option.
+    for (const sel of board.selections)
+      for (const o of Object.values(sel.options)) o.photo_url = "https://img.example.com/head.jpg";
     const view = JSON.stringify(customerProposal(board, 2));
     expect(view).not.toContain("found");
     expect(view).not.toContain("cost");

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
-import { gbbSql } from "../../../tests/selections/sql";
+import { choiceStageSql, gbbSql } from "../../../tests/selections/sql";
 import { willowCreekTypeE } from "./__fixtures__/willow-creek-type-e";
 import { customerProposal } from "./proposal";
 
@@ -54,6 +54,7 @@ beforeAll(async () => {
     SELECT EXISTS (SELECT 1 FROM public.mcp_company_members WHERE company_id = _company AND user_id = auth.uid() AND role = 'owner') $$`);
   for (const sql of gbbSql()) await db.exec(sql);
   for (const sql of gbbSql()) await db.exec(sql); // every part is safe to rerun
+  await db.exec(choiceStageSql());
   for (const id of [owner, outsider, estimator, fieldSuper]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES($1,'fixture@example.com')", [id]);
     await db.query("INSERT INTO test_active_members VALUES($1)", [id]);

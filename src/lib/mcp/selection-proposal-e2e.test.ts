@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { fakeClient } from "../../../tests/mcp-roles/fake-supabase";
-import { gbbSql } from "../../../tests/selections/sql";
+import { choiceStageSql, gbbSql } from "../../../tests/selections/sql";
 import { openProposalShare } from "../selection-proposal-share.server";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
@@ -59,6 +59,7 @@ beforeAll(async () => {
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
     SELECT EXISTS (SELECT 1 FROM public.mcp_company_members WHERE company_id = _company AND user_id = auth.uid() AND role = 'owner') $$`);
   for (const sql of gbbSql()) await db.exec(sql);
+  await db.exec(choiceStageSql());
   for (const id of [owner, estimator]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES($1,'member@example.com')", [id]);
     await db.query("INSERT INTO test_active_members VALUES($1)", [id]);
@@ -260,9 +261,12 @@ describe.sequential("Good, Better, Best from takeoff line to recorded choice", (
     const html = await page.text();
     expect(html).toContain("Willow Creek track lighting options");
     expect(html).toContain("$49,130.00");
-    expect(html).toContain("+$630.00 vs. base");
+    expect(html).toContain("+$630.00 upgrade");
     expect(html).toContain('src="https://img.example.com/th%202.jpg"');
-    expect(html).toContain('href="https://lighting.example.com/th-2"');
+    // The maker page stays on the contractor side: no product link reaches the customer.
+    expect(html).not.toContain("lighting.example.com");
+    // No contract value on file, so the page talks about the proposal price, not a change order.
+    expect(html).not.toMatch(/change order/i);
     for (const secret of [
       "$50.00",
       "$100.00",
