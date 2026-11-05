@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { iorFlags, iorRollup, readIorModel } from "./ior-model";
 import { renderAthenaIor } from "./ior-athena-view";
 import { renderIorLayout } from "./ior-layout";
@@ -137,6 +137,26 @@ describe("Athena's IOR view", () => {
     const page = renderAthenaIor(noCost!, { today: TODAY });
     expect(page).toContain("I can't read profit on this job yet.");
     expect(page).not.toContain("100.0%");
+  });
+
+  it("never puts today before the IOR's data date", () => {
+    const page = renderIorLayout({ report: { scope: "full", version: 1, data_date: "2026-11-05", data: { ior_model: harbor } }, today: "2026-11-04" });
+    expect(page).toContain("aria-label=\"Today Nov 5, 2026");
+    const later = renderIorLayout({ report: { scope: "full", version: 1, data_date: "2026-11-05", data: { ior_model: harbor } }, today: "2026-11-09" });
+    expect(later).toContain("aria-label=\"Today Nov 9, 2026");
+  });
+
+  it("reads today in the viewer's own time zone", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T04:30:00Z")); // 00:30 in Manaus, 23:30 Nov 4 in New York
+    const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({ timeZone: "America/Manaus" } as Intl.ResolvedDateTimeFormatOptions);
+    try {
+      const page = renderIorLayout({ report: { scope: "full", version: 1, data_date: "2026-11-01", data: { ior_model: harbor } } });
+      expect(page).toContain("aria-label=\"Today Nov 5, 2026");
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("replaces the saved-field layout only when the report carries a model and money is allowed", () => {

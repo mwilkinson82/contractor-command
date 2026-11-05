@@ -239,6 +239,15 @@ function isFigure(key: string, value: unknown): boolean {
   return ((isPercentKey(key) || isMoneyKey(key)) && asReportNumber(value) != null) || formatMoneyPhrase(value) != null;
 }
 
+/** The viewer's time zone where the runtime knows it, else the default job zone. */
+function viewerZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TZ;
+  } catch {
+    return DEFAULT_TZ;
+  }
+}
+
 export function renderIorLayout(input: {
   report: { scope?: string; version?: number; data_date?: string | null; contract_total?: number | null; forecast_total?: number | null; data?: Record<string, unknown> };
   names?: ReportNames | null;
@@ -252,7 +261,14 @@ export function renderIorLayout(input: {
   // A structured IOR (data.ior_model) gets Athena's own IOR view. Saved IORs without one keep the layout below.
   if (moneyOk) {
     const { model } = readIorModel(data);
-    if (model) return renderAthenaIor(model, { today: input.today?.slice(0, 10) || todayIn(DEFAULT_TZ), version: report.version, dataDate: report.data_date });
+    if (model) {
+      // Today is the viewer's own calendar day (the page renders in their browser), and never
+      // before the IOR's data date, which is the day the IOR is read as of.
+      const day = input.today?.slice(0, 10) || todayIn(viewerZone());
+      const dataDay = /^\d{4}-\d{2}-\d{2}/.test(report.data_date ?? "") ? report.data_date!.slice(0, 10) : null;
+      const today = dataDay && dataDay > day ? dataDay : day;
+      return renderAthenaIor(model, { today, version: report.version, dataDate: report.data_date });
+    }
   }
   const names = input.names;
   const outcome = moneyOk ? cedarOutcome(input.jobId, report) : null;
