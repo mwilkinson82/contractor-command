@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -834,8 +835,10 @@ function MovePop({
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, [close]);
-  return (
-    <div className="gc-pop" onClick={(e) => e.target === e.currentTarget && close()}>
+  // Rendered on the body: the page shell keeps a transform after its entrance animation, and a fixed
+  // overlay inside it would size to the whole page and put the dialog thousands of pixels down.
+  return createPortal(
+    <div className="gc gc-portal gc-pop" onClick={(e) => e.target === e.currentTarget && close()}>
       <div className="gc-popcard" role="dialog" aria-modal="true" aria-labelledby="gc-pop-title">
         <p className="jh-eyebrow">{gap.ref}</p>
         <h3 id="gc-pop-title">{gap.title}</h3>
@@ -854,7 +857,8 @@ function MovePop({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

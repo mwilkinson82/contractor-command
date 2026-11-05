@@ -738,6 +738,15 @@
     transform: translateY(-4px);
   }
 }
+.gc-portal {
+  color: #1c3654;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  overflow-wrap: anywhere;
+}
 .gc-pop {
   position: fixed;
   inset: 0;
