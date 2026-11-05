@@ -4,6 +4,7 @@ import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e
 const fixture = vi.hoisted(() => ({
   calls: [] as { name: string; args: Record<string, unknown> }[],
   data: {} as unknown,
+  byName: {} as Record<string, unknown>,
   error: null as null | { code: string; message: string },
 }));
 vi.mock("./guard", () => ({
@@ -11,6 +12,7 @@ vi.mock("./guard", () => ({
     fn({
       rpc: async (name: string, args: Record<string, unknown>) => {
         fixture.calls.push({ name, args });
+        if (name in fixture.byName) return { data: fixture.byName[name], error: null };
         return { data: fixture.data, error: fixture.error };
       },
     }),
@@ -41,6 +43,7 @@ const callProposal = (args: Record<string, unknown>) =>
 beforeEach(() => {
   fixture.calls = [];
   fixture.data = { version: 3, board: willowCreekTypeE(), scope: "full" };
+  fixture.byName = {};
   fixture.error = null;
 });
 
@@ -129,7 +132,12 @@ describe("selection tools", () => {
     await expect(
       callProposal({ action: "record_choice", expected_version: 3, tier: "best", evidence: "x" }),
     ).rejects.toThrow(/confirm/i);
-    expect(fixture.calls.some((c) => c.name !== "mcp_residential_selections_get")).toBe(false);
+    // Reads only: the board, and who is on the client page for the next steps.
+    expect(
+      fixture.calls.every((c) =>
+        ["mcp_residential_selections_get", "mcp_portal_list"].includes(c.name),
+      ),
+    ).toBe(true);
   });
 
   it("hashes the share token and never sends it to storage in plain text", async () => {
@@ -151,5 +159,71 @@ describe("selection tools", () => {
     const lines = customerText(customerProposal(willowCreekTypeE(), 1)).join("\n");
     expect(lines).toContain("Lithonia Lighting CPANL 2X4 ALO6 SWW7 M2");
     expect(lines).not.toMatch(/6997|109\.99|Illustrative test base|Confirm count/);
+  });
+
+  it("ends a preview with the next steps, leading to the client page", async () => {
+    // No customer on the client page yet: invite first, then send, then the view-only link.
+    fixture.byName.mcp_portal_list = { customers: [], items: [] };
+    let r = await callProposal({ action: "preview" });
+    let steps = (r.structuredContent.next_steps as { id: string; label: string }[]).map(
+      (s) => s.id,
+    );
+    expect(steps).toEqual(["invite_customer", "send_to_client_page", "view_only_link"]);
+    expect(r.content[0].text).toContain("Next steps:");
+    expect(r.content[0].text).toContain("Invite the customer to their client page");
+
+    // A customer has access: send it to them by name; nothing is invited.
+    fixture.byName.mcp_portal_list = {
+      customers: [{ name: "Dana Park", email: "dana@example.com", revoked_at: null }],
+      items: [],
+    };
+    r = await callProposal({ action: "preview" });
+    const list = r.structuredContent.next_steps as { id: string; label: string; how: string }[];
+    expect(list.map((s) => s.id)).not.toContain("invite_customer");
+    const send = list.find((s) => s.id === "send_to_client_page")!;
+    expect(send.label).toBe("Send it to Dana Park's client page");
+    expect(send.how).toContain("share_selection with expected_version 3");
+
+    // The client page can't be read: still lead there, checking access first.
+    fixture.byName.mcp_portal_list = null;
+    r = await callProposal({ action: "preview" });
+    steps = (r.structuredContent.next_steps as { id: string }[]).map((s) => s.id);
+    expect(steps).toContain("send_to_client_page");
+    expect(steps).not.toContain("invite_customer");
+  });
+
+  it("suggests the customer-visible estimate lines and leaves out rough-in and code items", async () => {
+    const lines = [
+      { line_no: 1, item: "Type E 24x48 lay-in LED fixtures", qty: 6, unit: "ea" },
+      { line_no: 3, item: "Type A black track heads", qty: 9, unit: "ea" },
+      { line_no: 5, item: "Type G mono-point pendant", qty: 6, unit: "ea" },
+      { line_no: 9, item: "Black track rail installed length", qty: 9, unit: "ft" },
+      { line_no: 12, item: "Wall occupancy sensors", qty: 3, unit: "ea" },
+      { line_no: 20, item: "Self-powered LED exit sign", qty: 1, unit: "ea" },
+      { line_no: 27, item: "20A single-pole panel breakers", qty: 23, unit: "ea" },
+      { line_no: 76, item: "Branch-circuit wire and conduit by circuit", qty: null, unit: "ft" },
+    ];
+    fixture.byName.mcp_estimate_get = { takeoff: { lines } };
+    const board = willowCreekTypeE();
+    board.selections[0].estimate_line_ref = "T-1";
+    fixture.byName.mcp_residential_selections_get = { version: 3, board, scope: "full" };
+    const r = await callBoard({ action: "suggest" });
+    const sc = r.structuredContent as {
+      suggested: { estimate_line_ref: string }[];
+      on_board: { estimate_line_ref: string }[];
+    };
+    expect(sc.suggested.map((c) => c.estimate_line_ref)).toEqual(["T-3", "T-5", "T-12"]);
+    expect(sc.on_board.map((c) => c.estimate_line_ref)).toEqual(["T-1"]);
+    const text = r.content[0].text;
+    expect(text).toContain("T-5 Type G mono-point pendant, 6 ea: Decorative lighting");
+    expect(text).toContain("Already on the selections board:");
+    expect(text).toMatch(/Left out: 1 code-required life-safety items; 2 rough-in/);
+    expect(text).toContain("Nothing was saved.");
+    // Read only: nothing is written.
+    expect(
+      fixture.calls.every((c) =>
+        ["mcp_estimate_get", "mcp_residential_selections_get"].includes(c.name),
+      ),
+    ).toBe(true);
   });
 });

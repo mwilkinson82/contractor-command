@@ -44,6 +44,8 @@ import {
   provisionalNote,
   type CheckGap,
 } from "../../selections/line-checks";
+import { suggestLines, type LineCandidate } from "../../selections/line-candidates";
+import { proposalNextSteps, type PortalState } from "../../selections/proposal-next-steps";
 import { parseState } from "../estimating";
 import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { jobTimeZone, named, resolveJob } from "../jobs";
@@ -418,6 +420,62 @@ const needVersion = (v: number | undefined) => {
   return v;
 };
 
+const SKIP_LABEL = {
+  code_required: "code-required life-safety items",
+  rough_in: "rough-in, wiring, gear and connections",
+  accessory: "accessories that follow another line's choice",
+  no_quantity: "lines with no quantity yet",
+  not_a_choice: "items the customer doesn't choose",
+} as const;
+
+/** Estimate lines worth offering Good, Better and Best on, most customer-visible first. */
+async function suggestReply(sb: Sb, job: Awaited<ReturnType<typeof resolveJob>>) {
+  const read = await estimateRead(sb, job.job_id);
+  const saved = await readBoard(sb, job.job_id);
+  const refs = saved.board.selections.flatMap((s) =>
+    s.estimate_line_ref ? [s.estimate_line_ref] : [],
+  );
+  const result = suggestLines(read.lines, refs);
+  const byNo = new Map(read.lines.map((l) => [l.line_no, l]));
+  const conflictsFor = (c: LineCandidate) =>
+    openLineConflicts(byNo.get(c.line_no)!, read.gaps, read.verdicts).map((g) => g.ref);
+  const row = (c: LineCandidate) => {
+    const open = conflictsFor(c);
+    return `- ${c.estimate_line_ref} ${c.item}, ${c.qty} ${c.unit}: ${c.why}${open.length ? ` Open drawing question ${open.join(", ")}: settle it first, or run the options as provisional.` : ""}`;
+  };
+  const skipped = (Object.keys(SKIP_LABEL) as (keyof typeof SKIP_LABEL)[])
+    .filter((k) => result.skipped[k] > 0)
+    .map((k) => `${result.skipped[k]} ${SKIP_LABEL[k]}`);
+  const lines = [
+    `${named(job)} · Lines worth offering Good, Better, Best`,
+    ...(read.lines.length
+      ? result.suggested.length
+        ? ["", "Suggested, most customer-visible first:", ...result.suggested.map(row)]
+        : ["", "No estimate line is a clear Good, Better, Best candidate yet."]
+      : ["", "This job has no takeoff lines yet. Build the takeoff first."]),
+    ...(result.on_board.length
+      ? ["", "Already on the selections board:", ...result.on_board.map(row)]
+      : []),
+    ...(skipped.length ? ["", `Left out: ${skipped.join("; ")}.`] : []),
+    "",
+    "Nothing was saved. Suggestions don't change the estimate.",
+  ];
+  return guide(
+    {
+      ...text(lines.join("\n")),
+      structuredContent: {
+        version: saved.version,
+        suggested: result.suggested.map((c) => ({ ...c, open_conflicts: conflictsFor(c) })),
+        on_board: result.on_board,
+        skipped: result.skipped,
+        internal: true,
+      } as unknown as JsonValueInput,
+    },
+    "Show the suggested lines with their reason in one short list, most visible first, and say which already have options. The contractor picks: ask which lines to build Good, Better, Best on, then call selection_board start with each chosen estimate_line_ref. Never start a selection the member didn't pick.",
+    "Good meets the drawings and specification at the lowest sound cost, Better adds useful features or quality, and Best is premium quality, efficiency or controls. Explain it that way when the member asks how the tiers are chosen.",
+  );
+}
+
 async function lineOptionsReply(
   sb: Sb,
   job: Awaited<ReturnType<typeof resolveJob>>,
@@ -471,13 +529,14 @@ export const selectionBoard = defineTool({
   name: "selection_board",
   title: "Good, Better, Best selections",
   description:
-    "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
+    "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
     action: z.enum([
       "read",
       "options",
+      "suggest",
       "start",
       "propose_option",
       "save_comparison",
@@ -542,13 +601,15 @@ export const selectionBoard = defineTool({
       async (sb) => {
         const job = await resolveJob(sb, args.job_number, args.company_id, "write");
         const today = todayIn(await jobTimeZone(sb, job.job_id));
-        const writes = args.action !== "read" && args.action !== "options";
+        const writes =
+          args.action !== "read" && args.action !== "options" && args.action !== "suggest";
         if (
           !writes &&
           (args.board || args.expected_version !== undefined || args.candidate || args.comparison)
         )
           throw new ToolError("Read requests cannot include changes.");
         if (args.action === "options") return lineOptionsReply(sb, job, args.estimate_line_ref);
+        if (args.action === "suggest") return suggestReply(sb, job);
         if (args.action === "save" && (!args.board || args.expected_version === undefined))
           throw new ToolError(
             "Read the current board first and provide its version and the complete updated board.",
@@ -897,6 +958,57 @@ export const selectionBoard = defineTool({
     ),
 });
 
+/**
+ * Who is on the job's client page and whether a proposal already waits there,
+ * for the next steps after a preview. Null when the client page can't be read
+ * (not installed, or the member can't manage it); the steps then still lead there.
+ */
+async function portalState(sb: Sb, jobId: string): Promise<PortalState | null> {
+  try {
+    const { data, error } = await (
+      sb.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )("mcp_portal_list", { _job: jobId });
+    if (error) return null;
+    const parsed = z
+      .object({
+        customers: z.array(
+          z
+            .object({ name: z.string(), email: z.string(), revoked_at: z.string().nullable() })
+            .passthrough(),
+        ),
+        items: z.array(
+          z
+            .object({
+              kind: z.string(),
+              withdrawn_at: z.string().nullable(),
+              decision: z
+                .object({ decision: z.string(), choice: z.string().nullable() })
+                .passthrough()
+                .nullable(),
+            })
+            .passthrough(),
+        ),
+      })
+      .passthrough()
+      .safeParse(data);
+    if (!parsed.success) return null;
+    const live = parsed.data.items.filter((i) => i.kind === "selection" && !i.withdrawn_at);
+    return {
+      customers: parsed.data.customers
+        .filter((c) => !c.revoked_at)
+        .map((c) => ({ name: c.name, email: c.email })),
+      open_on_client_page: live.some((i) => !i.decision),
+      chosen_on_client_page:
+        live.find((i) => i.decision?.decision === "chosen")?.decision?.choice ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const PROPOSAL_PATH = "/p/s/";
 export const proposalShareUrl = (token: string, origin = PAGE_ORIGIN) =>
   `${origin.replace(/\/$/, "")}${PROPOSAL_PATH}${token}`;
@@ -977,6 +1089,7 @@ export const selectionProposal = defineTool({
               "Help the member fix these with selection_board. Nothing was shared.",
             );
           const view = customerProposal(saved.board, saved.version);
+          const steps = proposalNextSteps(view, saved.version, await portalState(sb, job.job_id));
           return guide(
             {
               ...text(
@@ -984,15 +1097,21 @@ export const selectionProposal = defineTool({
                   `${named(job)} · Customer view preview (board v${saved.version}). This is exactly what the customer sees; no costs, margin or notes.`,
                   "",
                   ...customerText(view),
+                  "",
+                  "Next steps:",
+                  ...steps.map((st, i) => `${i + 1}. ${st.label}. ${st.detail}`),
                 ].join("\n"),
               ),
               structuredContent: {
                 ready: true,
                 version: saved.version,
                 customer_view: view,
+                next_steps: steps,
               } as unknown as JsonValueInput,
             },
-            "Show only this customer view. Do not add cost, margin, markup, found prices, assumptions or notes. Ask separately before making an expiring customer link with action share and confirmed true.",
+            "Show only this customer view. Do not add cost, margin, markup, found prices, assumptions or notes.",
+            "Then walk the member through what comes next: end your reply with the next steps in the order given, as short choices they can tap, the first one as the main choice, each with its one-line detail. Don't leave the member to work out the process, and don't skip a step. Each step that changes, invites, sends or shares needs the member's yes first: for an invite, show the customer's name and email; for sending to the client page, say the customer will be emailed. Then do the step exactly as its how says, and after it offer the next one.",
+            "The client page is where the customer chooses and approves: Send it to their client page is the main way to send a proposal. The view-only link is a secondary option for a quick look; never offer it as the way to get the customer's approval.",
           );
         }
 

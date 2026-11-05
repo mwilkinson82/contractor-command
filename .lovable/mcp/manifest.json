@@ -17857,7 +17857,7 @@
       {
         "name": "selection_board",
         "title": "Good, Better, Best selections",
-        "description": "Builds a job's Good, Better and Best selections from estimate lines: starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
+        "description": "Builds a job's Good, Better and Best selections from estimate lines: suggests which estimate lines are worth offering options on (suggest), starts a selection and its sourcing brief, stores products the member's AI found on the web, saves a whole Good/Better/Best or value-engineering comparison to its estimate lines after the member says yes (save_comparison), shows one line's options with cost, sell price and margin side by side (options), and records the contractor's reviewed cost and sell price per option or one markup across options (apply_markup), without changing the estimate total, budgets or accounting.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -17883,6 +17883,7 @@
               "enum": [
                 "read",
                 "options",
+                "suggest",
                 "start",
                 "propose_option",
                 "save_comparison",
