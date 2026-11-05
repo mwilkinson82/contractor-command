@@ -72,7 +72,7 @@ describe("company board in chat", () => {
     expect(COMPANY_BOARD_PAGES).toEqual(expect.arrayContaining(["company", "company board", "company profile"]));
     const card = companyBoardCard(companyBoardUrl(ID));
     expect(card.title).toBe("Company board");
-    expect(card.sections[0].rows[0]).toMatchObject({ cells: ["Open your company board"], href: `https://app.meetathena.io/r/company/${ID}` });
+    expect(card.sections?.[0]?.rows[0]).toMatchObject({ cells: ["Open your company board"], href: `https://app.meetathena.io/r/company/${ID}` });
   });
 
   it("routes 'view company profile' to the company board in the server instructions", async () => {
