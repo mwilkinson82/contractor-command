@@ -12,9 +12,12 @@ import {
   maskEmail,
   payAppLabel,
   TIER_NAME,
+  workOrderPrice,
   type ChangeOrderView,
   type InviteOpen,
   type PayAppView,
+  type ServiceInvoiceView,
+  type WorkOrderView,
   type PortalItem,
   type PortalPage,
 } from "./model";
@@ -25,6 +28,7 @@ export const PORTAL_SECTIONS = [
   "photos",
   "schedule",
   "changes",
+  "work",
   "selections",
   "billing",
   "messages",
@@ -36,6 +40,7 @@ const SECTION_LABEL: Record<PortalSection, string> = {
   photos: "Photos",
   schedule: "Schedule",
   changes: "Change orders",
+  work: "Work orders",
   selections: "Selections",
   billing: "Billing",
   messages: "Messages",
@@ -419,7 +424,7 @@ function doc(title: string, body: string, kind: "portal" | "signin" = "portal"):
   const css =
     kind === "signin"
       ? `${CSS}${SIGNIN_CSS}`
-      : `${CSS}${PORTAL_CSS}${BILLING_CSS}${MESSAGES_CSS}${COMPARE_CSS}`;
+      : `${CSS}${PORTAL_CSS}${BILLING_CSS}${SERVICE_CSS}${MESSAGES_CSS}${COMPARE_CSS}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title>${esc(title)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${fonts}&display=swap"><style>${css}</style></head><body>${body}</body></html>`;
 }
 
@@ -497,18 +502,33 @@ export type PortalOpts = {
   about?: string | null;
 };
 
-const open = (i: PortalItem) => i.decision === null;
+/** Waiting on the customer: a decision not yet made, or a service bill not yet paid. */
+const open = (p: PortalPage, i: PortalItem) =>
+  i.kind === "service_invoice" ? billOpen(p, i) : i.decision === null;
 const itemLabel = (i: PortalItem) =>
-  i.kind === "change_order"
+  i.kind === "change_order" || i.kind === "work_order"
     ? `${i.view.number} · ${i.view.title}`
     : i.kind === "pay_app"
       ? payAppLabel(i.view.number)
-      : i.view.proposal.title;
+      : i.kind === "service_invoice"
+        ? i.view.title
+        : i.view.proposal.title;
 const SECTION_OF: Record<PortalItem["kind"], PortalSection> = {
   change_order: "changes",
   selection: "selections",
   pay_app: "billing",
+  work_order: "work",
+  service_invoice: "billing",
 };
+/** A service call's page: work orders and their bills, no schedule, change orders or selections. */
+const isService = (p: PortalPage) => p.job.kind === "service";
+/** The work order's price in a few words: the fixed total, the limit, or the estimate. */
+const woShort = (v: WorkOrderView) =>
+  v.basis === "unit_price"
+    ? usd(v.totals.estimate_cents)
+    : v.totals.cap_cents !== null
+      ? `up to ${usd(v.totals.cap_cents)}`
+      : `about ${usd(v.totals.estimate_cents)}`;
 const href = (p: PortalPage, section: PortalSection, extra: Record<string, string> = {}) => {
   const q = new URLSearchParams({ s: section, ...extra }).toString();
   return `/c/${p.access_id}?${q}`;
@@ -529,6 +549,8 @@ const ICON = {
   change_order: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>`,
   selection: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>`,
   pay_app: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M14 11.2c-.4-.6-1.1-.9-2-.9-1.1 0-2 .6-2 1.4s.9 1.2 2 1.4 2 .6 2 1.4-.9 1.4-2 1.4c-.9 0-1.6-.4-2-.9M12 9.3v1M12 15.9v1"/></svg>`,
+  work_order: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L4 16.7 7.3 20l5.3-5.3a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>`,
+  service_invoice: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M14 11.2c-.4-.6-1.1-.9-2-.9-1.1 0-2 .6-2 1.4s.9 1.2 2 1.4 2 .6 2 1.4-.9 1.4-2 1.4c-.9 0-1.6-.4-2-.9M12 9.3v1M12 15.9v1"/></svg>`,
 } as const;
 
 /** Whole days from today to a due date, for the "Reply by" chip. */
@@ -545,7 +567,7 @@ function dueChip(p: PortalPage, due: string | null, verb: string): string {
 }
 
 function decideBox(p: PortalPage): string {
-  const waiting = p.items.filter(open);
+  const waiting = p.items.filter((i) => open(p, i));
   if (!waiting.length)
     return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2></div><div class="done-box">You're all caught up. Nothing needs your decision right now.</div></section>`;
   const rows = waiting
@@ -556,9 +578,19 @@ function decideBox(p: PortalPage): string {
           ? `Change order · ${usd(i.view.price_cents)} · ${days(i.view.schedule_days)}`
           : i.kind === "pay_app"
             ? `Pay application · ${usd(i.view.totals.current_due_cents)} due`
-            : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
+            : i.kind === "work_order"
+              ? `Work order · ${i.view.basis_label} · ${woShort(i.view)}`
+              : i.kind === "service_invoice"
+                ? `Bill · ${usd(billDue(p, i))} due`
+                : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
       const verb =
-        i.kind === "change_order" ? "Reply" : i.kind === "pay_app" ? "Approve" : "Choose";
+        i.kind === "change_order" || i.kind === "work_order"
+          ? "Reply"
+          : i.kind === "pay_app"
+            ? "Approve"
+            : i.kind === "service_invoice"
+              ? "Pay"
+              : "Choose";
       return `<div class="cp-act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(itemLabel(i))}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
     })
     .join("");
@@ -949,6 +981,9 @@ function selectionDetail(
 // ---------- billing: shared pay applications ----------
 
 type PayApp = Extract<PortalItem, { kind: "pay_app" }>;
+type ServiceBill = Extract<PortalItem, { kind: "service_invoice" }>;
+/** What the customer can pay on this page: an approved pay application, or a service bill. */
+type Payable = PayApp | ServiceBill;
 
 /** Shared pay applications, newest period first. Only what was shared reaches the page. */
 const payApps = (p: PortalPage): PayApp[] =>
@@ -981,10 +1016,10 @@ type PortalPayment = NonNullable<PortalPage["payments"]>["payments"][number];
 type RecordedPayment = NonNullable<PortalPage["payments"]>["recorded"][number];
 const SETTLED = ["processing", "paid", "partially_refunded", "refunded"];
 /** The online payment that settles this pay application, if one is paid or on its way. */
-const settledPayment = (p: PortalPage, i: PayApp): PortalPayment | null =>
+const settledPayment = (p: PortalPage, i: Payable): PortalPayment | null =>
   p.payments?.payments.find((x) => x.item_id === i.id && SETTLED.includes(x.status)) ?? null;
 /** Wire and check payments the contractor recorded on this pay application, if any. */
-const recordedFor = (p: PortalPage, i: PayApp): RecordedPayment | null =>
+const recordedFor = (p: PortalPage, i: Payable): RecordedPayment | null =>
   p.payments?.recorded?.find((x) => x.item_id === i.id && x.amount_cents > 0) ?? null;
 const byWord = (m: string | null) => (m === "bank" ? " by bank" : m === "card" ? " by card" : "");
 const recordedWord = (m: RecordedPayment["method"]) =>
@@ -995,7 +1030,7 @@ type PayState =
   | { kind: "recorded"; r: RecordedPayment; left: number };
 /** How this pay application stands on payment: paid in full by wire or check wins, then a payment made here,
  * then a part paid by wire or check, then a refund made here. */
-function payState(p: PortalPage, i: PayApp): PayState | null {
+function payState(p: PortalPage, i: Payable): PayState | null {
   const online = settledPayment(p, i);
   const r = recordedFor(p, i);
   const left = r ? Math.max(i.view.totals.current_due_cents - r.amount_cents, 0) : 0;
@@ -1006,7 +1041,7 @@ function payState(p: PortalPage, i: PayApp): PayState | null {
 }
 
 /** The pill a pay application shows once paid, or null to show its decision. */
-function paidPill(p: PortalPage, i: PayApp): string | null {
+function paidPill(p: PortalPage, i: Payable): string | null {
   const s = payState(p, i);
   if (!s) return null;
   if (s.kind === "recorded")
@@ -1019,7 +1054,7 @@ function paidPill(p: PortalPage, i: PayApp): string | null {
 }
 
 /** The word under the amount due on the billing card. */
-function paidWord(p: PortalPage, i: PayApp): string | null {
+function paidWord(p: PortalPage, i: Payable): string | null {
   const s = payState(p, i);
   if (!s) return null;
   if (s.kind === "recorded") return s.left === 0 ? "paid" : `${usd(s.left)} still due`;
@@ -1058,9 +1093,10 @@ function paidBox(x: PortalPayment): string {
 }
 
 /** Pay an approved pay application by bank or card, on a Stripe page for the contractor's own account. */
-function payBox(p: PortalPage, i: PayApp): string {
+function payBox(p: PortalPage, i: Payable): string {
   const pay = p.payments;
-  if (!pay || i.decision?.decision !== "approved") return "";
+  // A pay application is paid once approved; a service bill is paid as it stands.
+  if (!pay || (i.kind === "pay_app" && i.decision?.decision !== "approved")) return "";
   const state = payState(p, i);
   if (state?.kind === "online" && state.x.status !== "refunded") return paidBox(state.x);
   if (state?.kind === "recorded" && state.left === 0) return recordedBox(p, state.r, 0);
@@ -1094,7 +1130,7 @@ function payBox(p: PortalPage, i: PayApp): string {
   const received = part
     ? `<p class="pp-line">${esc(`${recordedLine(part)} ${usd(due)} is left to pay.`)}</p>`
     : "";
-  return `<section class="panel pp"><div class="panel-head"><h2>${esc(`Pay ${usd(due)}`)}</h2></div><p class="sub">${esc(`You approved ${itemLabel(i)}. Pay it here and ${p.contractor.name} gets it directly.`)}</p>${received}${test}${failed}<div class="pp-btns">${buttons}</div>${cardNote}<p class="fine">${esc(how)}</p></section>`;
+  return `<section class="panel pp"><div class="panel-head"><h2>${esc(`Pay ${usd(due)}`)}</h2></div><p class="sub">${esc(i.kind === "pay_app" ? `You approved ${itemLabel(i)}. Pay it here and ${p.contractor.name} gets it directly.` : `Pay ${itemLabel(i)} here and ${p.contractor.name} gets it directly.`)}</p>${received}${test}${failed}<div class="pp-btns">${buttons}</div>${cardNote}<p class="fine">${esc(how)}</p></section>`;
 }
 
 /** The plain-words math: work done and stored, less what you hold back, less what you already approved. */
@@ -1216,6 +1252,233 @@ function payAppDetail(p: PortalPage, i: PayApp, o: PortalOpts): string {
   return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}${contractCard(i)}</aside></div>`;
 }
 
+// ---------- service calls: work orders and their bills ----------
+
+type WorkOrder = Extract<PortalItem, { kind: "work_order" }>;
+
+/** The tabs a page shows: a service call shows only what a service customer uses. */
+function sectionsFor(p: PortalPage): readonly PortalSection[] {
+  if (!isService(p)) return PORTAL_SECTIONS;
+  return p.photos.some((ph) => ph.url)
+    ? ["home", "work", "billing", "photos", "messages"]
+    : ["home", "work", "billing", "messages"];
+}
+
+const workOrders = (p: PortalPage): WorkOrder[] =>
+  p.items.filter((i): i is WorkOrder => i.kind === "work_order");
+/** Service bills, newest first. */
+const serviceBills = (p: PortalPage): ServiceBill[] =>
+  p.items
+    .filter((i): i is ServiceBill => i.kind === "service_invoice")
+    .sort((a, b) => b.shared_on.localeCompare(a.shared_on));
+
+/** What's still owed on a service bill after payments made here or recorded by the contractor. */
+function billDue(p: PortalPage, i: ServiceBill): number {
+  const s = payState(p, i);
+  if (!s) return i.view.totals.current_due_cents;
+  if (s.kind === "recorded") return s.left;
+  return 0;
+}
+function billOpen(p: PortalPage, i: ServiceBill): boolean {
+  return billDue(p, i) > 0;
+}
+function billPill(p: PortalPage, i: ServiceBill): string {
+  return (
+    paidPill(p, i) ??
+    (billOpen(p, i) ? `<span class="pill wait">Due</span>` : `<span class="pill ok">Paid</span>`)
+  );
+}
+
+function woPill(i: WorkOrder): string {
+  if (!i.decision) return `<span class="pill wait">Needs your decision</span>`;
+  return i.decision.decision === "approved"
+    ? `<span class="pill ok">Approved ${esc(longDate(i.decision.decided_at))}</span>`
+    : `<span class="pill neutral">Declined ${esc(longDate(i.decision.decided_at))}</span>`;
+}
+
+/** The blue top of a service call's page: who's coming, where, and what's owed. */
+function serviceHero(p: PortalPage): string {
+  const c = p.contractor;
+  const wo = workOrders(p)[0];
+  const bill = serviceBills(p)[0];
+  const address = wo?.view.site_address ?? bill?.view.site_address ?? null;
+  const owed = serviceBills(p).reduce((s, b) => s + billDue(p, b), 0);
+  const waiting = p.items.filter((i) => open(p, i)).length;
+  const lede =
+    wo && !wo.decision
+      ? `${wo.view.number} is ready for your approval.`
+      : owed > 0
+        ? `${usd(owed)} is due on your service call.`
+        : `Your service call with ${c.name}.`;
+  const chips = waiting
+    ? `<span class="chip attn"><i></i>${waiting} ${waiting === 1 ? "item needs you" : "items need you"}</span>`
+    : `<span class="chip"><i></i>Up to date</span>`;
+  const rows = [
+    address ? `<div class="snap-row"><span>Service address</span><b>${esc(address)}</b></div>` : "",
+    wo
+      ? `<div class="snap-row"><span>Work order</span><b>${esc(`${wo.view.number} · ${wo.view.basis_label}`)}</b></div>`
+      : "",
+    `<div class="snap-row"><span>Balance due</span><b>${esc(usd(owed))}</b></div>`,
+  ].join("");
+  return `<div class="wrap hero-in"><div><p class="h-eyebrow">Service call ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1><p class="lede">${esc(lede)}</p><div class="chips">${chips}</div></div><div class="snap no-ring"><div class="snap-rows">${rows}</div></div></div>`;
+}
+
+/** A service call's home: what needs the customer, the work orders and bills, and the team. */
+function serviceHome(p: PortalPage): string {
+  const wos = workOrders(p);
+  const bills = serviceBills(p);
+  const rows = [
+    ...wos.map(
+      (i) =>
+        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`${i.view.basis_label} · ${woShort(i.view)}`)}</div></div><div class="right">${woPill(i)}<a class="btn secondary" href="${esc(href(p, "work", { i: i.id }))}">${i.decision ? "View" : "Review"}</a></div></div>`,
+    ),
+    ...bills.map(
+      (i) =>
+        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Sent ${longDate(i.shared_on)}`)}</div></div><div class="right"><span class="cp-money">${esc(usd(i.view.totals.current_due_cents))}</span>${billPill(p, i)}<a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">${billOpen(p, i) ? "Pay" : "View"}</a></div></div>`,
+    ),
+  ].join("");
+  const list = `<section class="panel"><div class="panel-head"><h2>Your service call</h2></div>${rows || `<p class="empty">${esc(p.contractor.name)} hasn't shared anything yet. Work orders and bills show here.</p>`}</section>`;
+  const shown = p.photos.filter((ph) => ph.url);
+  const photos = shown.length
+    ? `<section class="panel"><div class="panel-head"><h2>Photos</h2><a class="meta" href="${esc(href(p, "photos"))}">See all ${shown.length}</a></div>${photoGrid(shown.slice(0, 2), "thumbs")}</section>`
+    : "";
+  return `<div class="grid-home"><div class="stack">${decideBox(p)}${list}</div><aside class="rail">${contactPanel(p)}${photos}</aside></div>`;
+}
+
+function workOrderList(p: PortalPage): string {
+  const wos = workOrders(p);
+  if (!wos.length)
+    return `<section class="panel"><div class="panel-head"><h2>Work orders</h2></div><p class="empty">No work orders shared with you.</p></section>`;
+  const rows = wos
+    .map(
+      (i) =>
+        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Shared ${longDate(i.shared_on)} · ${i.view.basis_label}`)}</div></div><div class="right"><span class="money">${esc(woShort(i.view))}</span>${woPill(i)}<a class="btn secondary" href="${esc(href(p, "work", { i: i.id }))}">${i.decision ? "View" : "Review"}</a></div></div>`,
+    )
+    .join("");
+  return `<section class="panel"><div class="panel-head"><h2>Work orders</h2></div>${rows}</section>`;
+}
+
+/** The priced lines of a work order or a bill, then its totals. */
+function serviceLines(
+  lines: { description: string; detail: string | null; amount_cents: number }[],
+  totals: [string, string, string?][],
+): string {
+  const ls = lines
+    .map(
+      (l) =>
+        `<div class="sv-line"><div><b>${esc(l.description)}</b>${l.detail ? `<span>${esc(l.detail)}</span>` : ""}</div><span class="cp-money">${esc(usd(l.amount_cents))}</span></div>`,
+    )
+    .join("");
+  const ts = totals
+    .map(
+      ([k, v, cls]) =>
+        `<div${cls ? ` class="${cls}"` : ""}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`,
+    )
+    .join("");
+  return `<div class="sv-lines">${ls}</div><dl class="pay-math">${ts}</dl>`;
+}
+
+function woTotals(v: WorkOrderView): [string, string, string?][] {
+  const t = v.totals;
+  const out: [string, string, string?][] = [];
+  if (t.items_cents) out.push(["Items", usd(t.items_cents)]);
+  if (t.labor_cents) out.push(["Labor", usd(t.labor_cents)]);
+  if (t.material_cents) out.push(["Materials", usd(t.material_cents)]);
+  if (t.markup_cents) out.push(["Markup on materials", usd(t.markup_cents)]);
+  out.push([v.basis === "unit_price" ? "Total" : "Estimate", usd(t.estimate_cents), "cp-total"]);
+  if (t.cap_cents !== null) out.push(["Won't go over without your approval", usd(t.cap_cents)]);
+  if (t.fee_credit_cents)
+    out.push(["Service call fee credited on the bill", less(t.fee_credit_cents), "cp-less"]);
+  return out;
+}
+
+function workOrderDetail(p: PortalPage, i: WorkOrder, o: PortalOpts): string {
+  const v = i.view;
+  const label = itemLabel(i);
+  const back = `<p><a href="${esc(href(p, "work"))}">All work orders</a></p>`;
+  const statement = approvalStatement({
+    kind: "work_order",
+    company: p.contractor.name,
+    label,
+    price: workOrderPrice(v),
+  });
+  const priceWord =
+    v.basis === "unit_price" ? "Total" : v.totals.cap_cents !== null ? "Up to" : "Estimate";
+  const priceVal = usd(
+    v.basis !== "unit_price" && v.totals.cap_cents !== null
+      ? v.totals.cap_cents
+      : v.totals.estimate_cents,
+  );
+  let side: string;
+  if (i.decision)
+    side = `${receipt(i)}<section class="panel actions"><h2>${i.decision.decision === "approved" ? "What happens next" : "Questions?"}</h2>${i.decision.decision === "approved" ? `<p class="sub">${esc(`${p.contractor.name} starts the work. Your bill shows here once it's done.`)}</p>` : ""}${askLink(p, i)}</section>`;
+  else if (o.step === "confirm")
+    side = `<form method="post" class="panel"><h2>${esc(`Approve ${v.number}`)}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>${esc(priceWord)}</span><b>${esc(priceVal)}</b></div><div><span>Billed by</span><b>${esc(v.basis_label)}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "approved", fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "work", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Approve work order</button></div></form>`;
+  else if (o.step === "decline")
+    side = `<form method="post" class="panel"><h2>${esc(`Decline ${v.number}`)}</h2><p class="sub">${esc(p.contractor.name)} will see your note and follow up.</p>${hidden(p, { action: "decide", item: i.id, decision: "declined", fingerprint: i.fingerprint })}<div class="field"><label for="note">What would you like changed? (optional)</label><textarea class="textarea" id="note" name="note" maxlength="2000"></textarea></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "work", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Decline work order</button></div></form>`;
+  else
+    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "work", { i: i.id, step: "decline" }))}">Decline</a>${askLink(p, i)}<p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
+  const sum = `<dl class="co-sum"><div><dt>${esc(priceWord)}</dt><dd>${esc(priceVal)}</dd></div><div><dt>Billed by</dt><dd>${esc(v.basis_label)}</dd></div><div><dt>Reply by</dt><dd>${esc(i.due_on ? longDate(i.due_on) : "No date")}</dd></div></dl>`;
+  const words = `${v.findings ? `<h4>What we found</h4><div class="prose">${paras(v.findings)}</div>` : ""}${v.scope ? `<h4>What we'll do</h4><div class="prose">${paras(v.scope)}</div>` : ""}`;
+  const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`Work order · shared ${longDate(i.shared_on)}${v.site_address ? ` · ${v.site_address}` : ""}`)}</p><h2>${esc(label)}</h2></div>${i.decision ? woPill(i) : `<span class="pill wait">Needs your decision</span>`}</div>${sum}${words ? `<div style="margin-top:18px">${words}</div>` : ""}</section><section class="panel"><div class="panel-head"><h2>How it's priced</h2><span class="meta">${esc(v.basis_label)}</span></div>${serviceLines(v.lines, woTotals(v))}<p class="fine sv-terms">${esc(v.terms)}</p></section>`;
+  return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}</aside></div>`;
+}
+
+function billTotals(v: ServiceInvoiceView): [string, string, string?][] {
+  const t = v.totals;
+  const out: [string, string, string?][] = [];
+  if (t.credit_cents) {
+    out.push(["Work", usd(t.subtotal_cents)]);
+    out.push(["Service call fee you paid", less(t.credit_cents), "cp-less"]);
+  }
+  out.push(["Due", usd(t.current_due_cents), "cp-total"]);
+  return out;
+}
+
+/** A service call's billing: each bill, what's due, and the way to pay it. */
+function serviceBilling(p: PortalPage): string {
+  const bills = serviceBills(p);
+  if (!bills.length)
+    return `<section class="panel"><div class="panel-head"><h2>Billing</h2></div><p class="empty">No bills shared with you yet.</p></section>`;
+  const due = bills.find((b) => billOpen(p, b)) ?? bills[0]!;
+  const v = due.view;
+  const head = `<section class="panel pay-card"><div class="pay-head"><div><p class="eyebrow">${esc(v.stage === "fee" ? "Service call fee" : `Bill for ${v.work_order ?? "the work"}`)}</p><h2>${esc(itemLabel(due))}</h2></div>${billPill(p, due)}</div><p class="pay-due">${esc(usd(billOpen(p, due) ? billDue(p, due) : v.totals.current_due_cents))}<span>${esc(paidWord(p, due) ?? "due now")}</span></p>${billOpen(p, due) ? dueChip(p, due.due_on, "Pay") : ""}<div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: due.id }))}">See the bill</a></div></section>`;
+  const history = `<section class="panel"><div class="panel-head"><h2>All bills</h2><span class="meta">${bills.length} ${bills.length === 1 ? "bill" : "bills"}</span></div>${bills
+    .map(
+      (i) =>
+        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Sent ${longDate(i.shared_on)}`)}</div></div><div class="right"><span class="cp-money">${esc(usd(i.view.totals.current_due_cents))}</span>${billPill(p, i)}<a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">View</a></div></div>`,
+    )
+    .join("")}</section>`;
+  return `<div class="grid-home"><div class="stack">${head}${payBox(p, due)}${history}</div><aside class="rail">${contactPanel(p)}</aside></div>`;
+}
+
+function serviceBillDetail(p: PortalPage, i: ServiceBill): string {
+  const v = i.view;
+  const back = `<p><a href="${esc(href(p, "billing"))}">All billing</a></p>`;
+  const signed = v.signoff
+    ? `<p class="sv-sign"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>${esc(`Work signed off by ${v.signoff.name} on ${longDate(v.signoff.date)}.`)}</p>`
+    : "";
+  const sum = `<dl class="co-sum"><div><dt>Due</dt><dd>${esc(usd(v.totals.current_due_cents))}</dd></div><div><dt>${esc(v.work_order ? "Work order" : "For")}</dt><dd>${esc(v.work_order ?? "Service call")}</dd></div><div><dt>Pay by</dt><dd>${esc(i.due_on ? longDate(i.due_on) : "On receipt")}</dd></div></dl>`;
+  const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`${v.stage === "fee" ? "Service call fee" : "Bill"} · sent ${longDate(i.shared_on)}${v.site_address ? ` · ${v.site_address}` : ""}`)}</p><h2>${esc(itemLabel(i))}</h2></div>${billPill(p, i)}</div>${sum}${v.issue ? `<div style="margin-top:18px"><h4>${esc(v.stage === "fee" ? "What you called about" : "The work")}</h4><div class="prose">${paras(v.issue)}</div></div>` : ""}</section><section class="panel"><div class="panel-head"><h2>What you're paying for</h2></div>${serviceLines(v.lines, billTotals(v))}${v.note ? `<p class="fine sv-terms">${esc(v.note)}</p>` : ""}${signed}</section>`;
+  const side = `${payBox(p, i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
+  return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}</aside></div>`;
+}
+
+const SERVICE_CSS = `
+/* Service calls: work order and bill lines. */
+.sv-lines{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sv-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:baseline;padding:12px 16px;border-top:1px solid var(--rule);transition:background .15s ease}
+.sv-line:first-child{border-top:0}
+.sv-line:hover{background:var(--soft)}
+.sv-line b{display:block;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.sv-line span:not(.cp-money){display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+.sv-line .cp-money{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sv-terms{margin-top:14px!important}
+.sv-sign{display:flex;gap:8px;align-items:center;margin:14px 0 0;font-size:13.5px;color:var(--ok-ink)}
+.sv-sign svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:640px){.sv-line{padding:11px 13px}}
+`;
+
 const BILLING_CSS = `
 /* Billing: pay applications in plain words. */
 .pay-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;align-items:start}
@@ -1311,14 +1574,22 @@ function body(p: PortalPage, o: PortalOpts): string {
       return `<div class="grid-home"><section class="panel"><div class="panel-head"><h2>Milestones</h2>${p.job.completion_date ? `<span class="meta">Planned finish ${esc(longDate(p.job.completion_date))}</span>` : ""}</div>${milestoneList(p)}</section><aside class="rail">${contactPanel(p)}</aside></div>`;
     case "changes":
       return it?.kind === "change_order" ? changeOrderDetail(p, it, o) : changeOrderList(p);
+    case "work":
+      return it?.kind === "work_order" ? workOrderDetail(p, it, o) : workOrderList(p);
     case "selections":
       return it?.kind === "selection" ? selectionDetail(p, it, o) : selectionsList(p);
     case "billing":
-      return it?.kind === "pay_app" ? payAppDetail(p, it, o) : billing(p);
+      return it?.kind === "pay_app"
+        ? payAppDetail(p, it, o)
+        : it?.kind === "service_invoice"
+          ? serviceBillDetail(p, it)
+          : isService(p) || (serviceBills(p).length > 0 && !payApps(p).length)
+            ? serviceBilling(p)
+            : billing(p);
     case "messages":
       return messages(p, o);
     default:
-      return home(p);
+      return isService(p) ? serviceHome(p) : home(p);
   }
 }
 
@@ -1331,6 +1602,7 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
     ? `<img class="cp-co-img" src="${esc(src)}" alt="${esc(c.name)}"><span class="cp-co-word"><span class="cp-co-sub">Client page</span></span>`
     : `<span class="cp-co-logo" aria-hidden="true">${esc(initials(c.name))}</span><span class="cp-co-word"><b>${esc(c.name)}</b><span class="cp-co-sub">Client page</span></span>`;
   const brand = `<div class="wrap brandbar"><div class="cp-co">${mark}</div><div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></div>`;
+  if (isService(p)) return `<section class="cp-hero">${brand}${serviceHero(p)}</section>`;
   const latest = p.updates[0];
   const next = nextMilestone(p);
   const lede = latest
@@ -1365,19 +1637,22 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
 }
 
 export function renderPortal(p: PortalPage, o: PortalOpts): string {
-  const waitingBy = (kind: PortalItem["kind"]) =>
-    p.items.filter((i) => i.kind === kind && open(i)).length;
+  const waitingBy = (...kinds: PortalItem["kind"][]) =>
+    p.items.filter((i) => kinds.includes(i.kind) && open(p, i)).length;
   const count: Partial<Record<PortalSection, number>> = {
     changes: waitingBy("change_order"),
+    work: waitingBy("work_order"),
     selections: waitingBy("selection"),
-    billing: waitingBy("pay_app"),
+    billing: waitingBy("pay_app", "service_invoice"),
     messages: o.section === "messages" ? 0 : (p.messages?.unread ?? 0),
   };
-  const tabs = PORTAL_SECTIONS.map(
-    (s) =>
-      `<a class="tab" href="${esc(href(p, s))}"${s === o.section ? ' aria-current="page"' : ""}>${SECTION_LABEL[s]}${count[s] ? `<span class="count" aria-label="${count[s]} ${s === "messages" ? "new" : "waiting"}">${count[s]}</span>` : ""}</a>`,
-  ).join("");
-  const waiting = p.items.filter(open).length;
+  const tabs = sectionsFor(p)
+    .map(
+      (s) =>
+        `<a class="tab" href="${esc(href(p, s))}"${s === o.section ? ' aria-current="page"' : ""}>${SECTION_LABEL[s]}${count[s] ? `<span class="count" aria-label="${count[s]} ${s === "messages" ? "new" : "waiting"}">${count[s]}</span>` : ""}</a>`,
+    )
+    .join("");
+  const waiting = p.items.filter((i) => open(p, i)).length;
   const flash = o.error
     ? `<p class="flash err" role="alert">${esc(o.error)}</p>`
     : o.flash
@@ -1385,7 +1660,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
       : "";
   return doc(
     `${p.job.name} · ${SECTION_LABEL[o.section]}`,
-    `<div class="pt">${hero(p, waiting, o.logo ?? null)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>${lightbox(p)}`,
+    `<div class="pt">${hero(p, waiting, o.logo ?? null)}<nav class="tabs" aria-label="${isService(p) ? "Service call sections" : "Project sections"}"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>${lightbox(p)}`,
   );
 }
 

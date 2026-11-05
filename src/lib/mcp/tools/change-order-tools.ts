@@ -2,7 +2,7 @@ import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError, type Sb } from "../guard";
 import { resolveSubmittalJob, boardFor } from "./submittal-tools";
-import { changeLogCard, type ChangeLogPayload } from "../change-orders";
+import { changeLogCard, type ChangeExtras, type ChangeLogPayload } from "../change-orders";
 import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
@@ -29,6 +29,27 @@ async function rpc<T>(sb: Sb, name: string, args: Record<string, unknown>): Prom
   if (error) dbError(error);
   return data;
 }
+/** The job's contract type and each change order's pricing basis. Optional: an older database has neither. */
+async function changeExtras(sb: Sb, jobId: string): Promise<ChangeExtras> {
+  const call = sb.rpc as unknown as (
+    n: string,
+    a: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: unknown }>;
+  const [pricing, terms] = await Promise.all([
+    Promise.resolve(call("mcp_change_order_pricing_list", { _job: jobId })).catch(() => null),
+    Promise.resolve(call("mcp_job_terms", { _job: jobId })).catch(() => null),
+  ]);
+  return {
+    pricing:
+      pricing && !pricing.error && pricing.data && typeof pricing.data === "object"
+        ? (pricing.data as Record<string, string>)
+        : undefined,
+    contractType:
+      terms && !terms.error
+        ? ((terms.data as { contract_type?: string | null } | null)?.contract_type ?? null)
+        : null,
+  };
+}
 const reply = (view: ReturnType<typeof changeLogCard>, extra: Record<string, unknown> = {}) => ({
   content: [{ type: "text" as const, text: renderMarkdown(view.card) }],
   structuredContent: { ...view, ...extra, html: renderHtml(view.card) },
@@ -54,12 +75,19 @@ export const changeOrderLog = defineTool({
       async (sb) => {
         const job = await resolveSubmittalJob(sb, args.job_number, args.company_id, "full");
         if (!job) throw new ToolError("Name the job for this change-order log.");
-        const [payload, board] = await Promise.all([
+        const [payload, board, extras] = await Promise.all([
           rpc<ChangeLogPayload>(sb, "mcp_change_rows", { _job: job.job_id }),
           boardFor(sb, job),
+          changeExtras(sb, job.job_id),
         ]);
         return reply(
-          changeLogCard(payload, board, { state: args.state, overdue: args.overdue }, args.number),
+          changeLogCard(
+            payload,
+            board,
+            { state: args.state, overdue: args.overdue },
+            args.number,
+            extras,
+          ),
           { job_id: job.job_id },
         );
       },
@@ -131,6 +159,12 @@ export const changeOrderRecord = defineTool({
       .string()
       .regex(/^\d{2}$/)
       .optional(),
+    pricing_basis: z
+      .enum(["lump_sum", "unit_price", "time_and_material", "hourly"])
+      .optional()
+      .describe(
+        "How this change order is priced, whatever the job's contract type: a lump sum job can still take a unit price, T&M or hourly change order.",
+      ),
   },
   annotations: write,
   handler: (args, ctx) =>
@@ -176,7 +210,7 @@ export const changeOrderRecord = defineTool({
             };
           }
         }
-        const { job_number: jn, company_id: ci, action, ...fields } = args;
+        const { job_number: jn, company_id: ci, action, pricing_basis: basis, ...fields } = args;
         void jn;
         void ci;
         const saved = await rpc<{ saved_id: string; number?: string; already_applied: boolean }>(
@@ -184,15 +218,35 @@ export const changeOrderRecord = defineTool({
           "mcp_change_record",
           { _job: job.job_id, _action: action, _p: fields },
         );
+        // The pricing basis is a label on the change order, kept beside the record; it never changes the price.
+        let basisNote: string | null = null;
+        if (basis) {
+          const { error } = await (
+            sb.rpc as unknown as (
+              n: string,
+              a: Record<string, unknown>,
+            ) => PromiseLike<{ error: { message: string } | null }>
+          )("mcp_change_order_pricing_set", {
+            _job: job.job_id,
+            _submittal: saved.saved_id,
+            _basis: basis,
+          });
+          basisNote = error
+            ? "The change order was saved, but its pricing basis wasn't. Try setting it again."
+            : null;
+        }
         try {
-          const [payload, board] = await Promise.all([
+          const [payload, board, extras] = await Promise.all([
             rpc<ChangeLogPayload>(sb, "mcp_change_rows", { _job: job.job_id }),
             boardFor(sb, job),
+            changeExtras(sb, job.job_id),
           ]);
           const row = payload.records.find((r) => r.id === saved.saved_id);
           if (!row) throw new Error("A later revision is current");
-          return reply(changeLogCard(payload, board, {}, row.number), {
+          return reply(changeLogCard(payload, board, {}, row.number, extras), {
             ...saved,
+            ...(basis && !basisNote ? { pricing_basis: basis } : {}),
+            ...(basisNote ? { note: basisNote } : {}),
             job_id: job.job_id,
             submittal_id: saved.saved_id,
             record_version: row.change_order_details.record_version,

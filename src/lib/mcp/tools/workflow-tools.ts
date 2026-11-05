@@ -43,6 +43,7 @@ import { FLAGS_ASKED_LATER, noGuidance, noGuidanceText, reconcileRecommendation 
 import { isNoneAnswer, mergeScopeFacts, visibleLookaheads } from "../lookahead-items";
 import { addRevision, currentRev, loadRevisions, lookaheadSourceFor, revisionLines, stampItemRev } from "../lookahead-revisions";
 import { LOOKAHEAD_BUILD_QUESTIONS, LOOKAHEAD_EXISTS_ASK, LOOKAHEAD_PUSHBACK, LOOKAHEAD_SETUP_KEY, PUSHBACK_GUIDANCE, buildQuestionsGuidance, buildQuestionsText, pushbackText } from "../lookahead-help";
+import { MARKETS, PRICING, SHOPS, WAGE_RULES, WORK_ANSWER_FIELD, WORK_QUESTION_KEYS, YES_NO, nextWorkQuestion, readCompanyWorkProfile, readWorkProfile, tailoredScopeAsk, workProfileSummary, workQuestionText, workQuestionsLeft } from "../work-profile";
 
 const uuid = z.string().uuid();
 const laArg = z.string().trim().min(1).max(64);
@@ -117,10 +118,19 @@ const rightsList = z.array(z.string().trim().min(1).max(100)).max(20);
 export const onboarding = defineTool({
   name: "onboarding",
   title: "Company profile and members",
-  description: "Reads or saves the company profile and its members.",
+  description: "Reads or saves the company profile, its members and the kinds of work it does, such as markets, pricing, open or union shop, prevailing wage, unit price, pre-con and service calls.",
   inputSchema: {
-    action: z.enum(["read", "save_company", "add_member", "save_brand"]),
+    action: z.enum(["read", "save_company", "add_member", "save_brand", "save_work_profile"]),
     company_id: companyId,
+    work_markets: z.array(z.enum(MARKETS)).max(4).optional(),
+    work_pricing: z.array(z.enum(PRICING)).max(4).optional(),
+    work_regions: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+    work_shop: z.enum(SHOPS).optional(),
+    work_wage_rules: z.array(z.enum(WAGE_RULES)).max(2).optional(),
+    work_unit_price: z.enum(YES_NO).optional(),
+    work_preconstruction: z.enum(YES_NO).optional(),
+    work_service_calls: z.enum(YES_NO).optional(),
+    work_skip: z.array(z.enum(WORK_QUESTION_KEYS)).max(8).optional(),
     name: z.string().trim().max(200).optional(),
     your_name: z.string().trim().max(120).optional(),
     agent_name: z.string().trim().max(60).optional(),
@@ -166,6 +176,19 @@ export const onboarding = defineTool({
         for (const k of ["logo_url", "license_number", "contact_name", "contact_phone", "website"] as const) if (args[k] !== undefined) p[k] = args[k]!;
         if (!Object.keys(p).length) throw new ToolError("Nothing to save. Give the logo link or any of the footer details.");
         await rpc(sb, "mcp_company_brand_save", { _company: cid, _p: p });
+      } else if (args.action === "save_work_profile") {
+        cid = await resolveCompany(sb, cid);
+        const p: Record<string, unknown> = {};
+        const put = (k: string, v: unknown) => { if (v !== undefined) p[k] = v; };
+        put("markets", args.work_markets); put("pricing", args.work_pricing); put("regions", args.work_regions);
+        put("shop", args.work_shop); put("wage_rules", args.work_wage_rules); put("unit_price", args.work_unit_price);
+        put("preconstruction", args.work_preconstruction); put("service_calls", args.work_service_calls);
+        if (args.work_skip?.length) {
+          const prev = readWorkProfile((await readCompanyWorkProfile(sb, cid)).raw);
+          p.skipped = [...new Set([...(prev.skipped ?? []), ...args.work_skip])];
+        }
+        if (!Object.keys(p).length) throw new ToolError("Nothing to save. Send the answer to the kinds-of-work question, or work_skip with its key.");
+        await rpc(sb, "mcp_company_work_profile_save", { _company: cid, _p: p });
       } else if (args.action === "add_member") {
         cid = await resolveCompany(sb, cid);
         if (!args.member_email || !args.member_name || !args.member_role) throw new ToolError("add_member needs member_email, member_name and member_role.");
@@ -181,6 +204,10 @@ export const onboarding = defineTool({
       if (error) throw new Error(error.message);
       if (!c) throw new ToolError("Company not found.");
       const rights = (c.decision_rights ?? {}) as Record<string, string[]>;
+      const wp = await readCompanyWorkProfile(sb, cid!);
+      const work = readWorkProfile(wp.raw);
+      const nextWork = wp.available ? nextWorkQuestion(work) : null;
+      const workLines = workProfileSummary(work);
       return {
         ...text(
           [
@@ -196,12 +223,15 @@ export const onboarding = defineTool({
             `SOV logo: ${c.logo_url ? "link on file" : `none on file (${c.name} prints in bold)`}`,
             `SOV footer: ${[c.name, c.license_number, [c.contact_name, c.contact_phone].filter(Boolean).join(" "), c.website].filter(Boolean).join(" · ")}`,
             ...(sovFooterMissing(c).length ? [`For the SOV, send your logo link (optional) and the footer details still missing: ${sovFooterMissing(c).join(", ")}.`] : []),
+            ...(workLines.length ? [`Kinds of work: ${workLines.join("; ")}`] : []),
             `Athena v${ATHENA_VERSION}`,
             "",
-            'Next: create a job with intake section "create_job" and a job_number.',
+            nextWork
+              ? `${workQuestionText(nextWork, workQuestionsLeft(work))}\n\nNext: ask the member only this question, in these plain words, with its choices. Save the answer with onboarding action "save_work_profile" (${WORK_ANSWER_FIELD[nextWork.key]}), or work_skip ["${nextWork.key}"] if they skip it. If they say to skip all of it or do it later, send work_skip with every key still open. Then ask the next question it returns, one per reply, before the first job.`
+              : 'Next: create a job with intake section "create_job" and a job_number.',
           ].join("\n"),
         ),
-        structuredContent: { company_id: cid! },
+        structuredContent: { company_id: cid!, ...(nextWork ? { work_question: { key: nextWork.key, number: nextWork.number, choices: nextWork.choices } } : {}) },
       };
     }),
 });
@@ -218,7 +248,7 @@ const humanKeys = (ks: string[]) => ks.map((k) => k.replace(/_/g, " ")).join(", 
 /** 0.8.4: step 0 scoping, asked as setup question 1 by next_question. */
 const SCOPE_Q1_KEY = "job_scoping";
 const SCOPE_Q1_ASK = "Tell me about this job: the job type, who the client is, the sector (public, private commercial or residential), whether you're the prime or a sub, and the pricing model (lump sum, unit price, cost plus, time and material or GMP). Or say \"use the defaults\" and I'll fill what I can from your company profile and move on.";
-const SCOPE_Q1_GUIDANCE = "Record the answer with intake section \"scope\". If the member says \"use the defaults\" (or similar), call intake section \"scope\" with use_defaults true and nothing else, show which fields were filled and which stay unconfirmed in one line, then call next_question for question 2. Never skip this question and never guess the fields.";
+const SCOPE_Q1_GUIDANCE = "Record the answer with intake section \"scope\": job_location as city and state, labor_shop union or open_shop, prevailing_wage and pla yes or no, and preconstruction or unit_price_items when asked. Offer only the choices the question shows; if the member gives more than one thing in one reply, save it all. If the member says \"use the defaults\" (or similar), call intake section \"scope\" with use_defaults true and nothing else, show which fields were filled and which stay unconfirmed in one line, then call next_question for question 2. Never skip this question and never guess the fields.";
 function triFrom(v: boolean | undefined): "yes" | "no" | "unknown" {
   return v === undefined ? "unknown" : v ? "yes" : "no";
 }
@@ -364,6 +394,12 @@ export const intake = defineTool({
     client_type: short("scope: client type."),
     pricing_model: z.preprocess(scopeAlias(PRICING_ALIASES), z.enum(["lump_sum", "unit_price", "cost_plus", "time_and_material", "gmp"]).optional()),
     position: z.preprocess(scopeAlias(POSITION_ALIASES), z.enum(["prime", "sub", "sub_sub"]).optional()),
+    job_location: short("scope: where the job is, city and state (e.g. Albany, NY)."),
+    labor_shop: z.enum(["union", "open_shop"]).optional(),
+    prevailing_wage: tri.optional(),
+    pla: tri.optional(),
+    preconstruction: tri.optional(),
+    unit_price_items: tri.optional(),
     use_defaults: z.boolean().optional(),
     work_packages: z.array(workPackage).max(50).optional(),
     major_equipment: z.array(z.string().trim().min(1).max(120)).max(50).optional(),
@@ -618,6 +654,8 @@ export const intake = defineTool({
         const given = {
           job_type: args.job_type, scope_summary: args.scope_summary, size_band: args.size_band, sector: args.sector,
           client_type: args.client_type, pricing_model: args.pricing_model, position: args.position,
+          job_location: args.job_location, labor_shop: args.labor_shop, prevailing_wage: args.prevailing_wage, pla: args.pla,
+          preconstruction: args.preconstruction, unit_price_items: args.unit_price_items,
           work_packages: args.work_packages, major_equipment: args.major_equipment, key_clauses: args.key_clauses, tool_stack: args.job_tool_stack,
         };
         const [{ data: priorScope, error: psErr }, { data: priorFlags, error: pfErr }] = await Promise.all([
@@ -1215,8 +1253,10 @@ export const nextQuestion = defineTool({
       const { data: sc } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "scope").eq("key", "job_type").maybeSingle();
       if (!sc) {
         await audit(sb, job, "next_question", "view_setup_question", SCOPE_Q1_KEY);
+        const wp = job.company_id ? await readCompanyWorkProfile(sb, job.company_id) : { available: false, raw: {} };
+        const scopeAsk = wp.available ? tailoredScopeAsk(readWorkProfile(wp.raw)) : SCOPE_Q1_ASK;
         return guide({
-          ...text(`${P}${auto}Setup question 1 (Job scoping) [Job setup]\nQuestion ref: ${questionRef(SCOPE_Q1_KEY)}\n\n${SCOPE_Q1_ASK}`),
+          ...text(`${P}${auto}Setup question 1 (Job scoping) [Job setup]\nQuestion ref: ${questionRef(SCOPE_Q1_KEY)}\n\n${scopeAsk}`),
           structuredContent: { check_key: SCOPE_Q1_KEY, index: 1, record_with: { tool: "intake", section: "scope" }, use_defaults_allowed: true },
         }, SCOPE_Q1_GUIDANCE);
       }
