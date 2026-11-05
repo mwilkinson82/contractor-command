@@ -114,7 +114,7 @@ export const customerPortal = defineTool({
   name: "customer_portal",
   title: "Customer page",
   description:
-    "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
+    "Runs the job's private customer page: invite or remove the customer (owner or homeowner) by email, post a weekly update, share a priced change order, the Good, Better, Best proposal or a ready or submitted pay application (under the name the member confirms the customer will see, client_number) for the customer to approve or choose on the page, take a shared item back, and list who has access and every customer decision.",
   inputSchema: {
     job_number: z.string().trim().min(1).max(40),
     company_id: z.string().trim().min(1).max(200).optional(),
@@ -140,6 +140,7 @@ export const customerPortal = defineTool({
     item_id: z.string().uuid().optional(),
     application_id: z.string().uuid().optional(),
     application_number: z.string().trim().min(1).max(120).optional(),
+    client_number: z.string().trim().min(1).max(60).optional(),
     due_on: z.iso.date().optional(),
     notify: z.boolean().optional(),
     confirmed: z.boolean().optional(),
@@ -189,6 +190,25 @@ export const customerPortal = defineTool({
           );
         }
 
+        if (args.confirmed !== true && args.action === "share_pay_app") {
+          if (!args.application_id && !args.application_number)
+            throw new ToolError(
+              "Read the pay application with payment_application_read and pass its id or number. Nothing was shared.",
+            );
+          const n = await rpc<{ saved_number: string; suggested_name: string }>(
+            sb,
+            "mcp_portal_pay_app_name",
+            {
+              _job: job.job_id,
+              _application: args.application_id ?? null,
+              _number: args.application_id ? null : (args.application_number ?? null),
+            },
+          );
+          const name = args.client_number ?? n.suggested_name;
+          throw new ToolError(
+            `Show the member the period, the amount due now, the approve-by date and the name their customer will see, pre-filled as "${name}". They can keep it or type any name they want; the saved pay application keeps its own number (${n.saved_number}). Ask them to confirm, then call again with client_number set to the name they confirmed and confirmed true. Nothing was shared.`,
+          );
+        }
         if (args.confirmed !== true) {
           const ask: Record<string, string> = {
             invite:
@@ -201,7 +221,7 @@ export const customerPortal = defineTool({
             share_selection:
               "Preview the proposal with selection_proposal first, then ask the member to confirm sharing it on the customer page. Nothing was shared.",
             share_pay_app:
-              "Show the member the pay application number, the period, the amount due now and the approve-by date the customer will see, and ask them to confirm sharing it for the customer's approval. Nothing was shared.",
+              "Show the member the period, the amount due now, the approve-by date and the name the customer will see, and ask them to confirm sharing it for the customer's approval. Nothing was shared.",
             withdraw:
               "Ask the member to confirm taking this item back from the customer page. Nothing changed.",
           };
@@ -447,6 +467,7 @@ export const customerPortal = defineTool({
             _number: args.application_id ? null : (args.application_number ?? null),
             _expected_version: args.expected_version ?? null,
             _due_on: args.due_on ?? null,
+            _client_number: args.client_number ?? null,
           });
           await audit(sb, job, "customer_portal", "share_pay_app", r.item_id);
           const sent =

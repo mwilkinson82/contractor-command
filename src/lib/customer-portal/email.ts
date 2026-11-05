@@ -165,12 +165,8 @@ export function noticeEmail(a: {
   nonce: string;
 }): PortalEmail {
   const payApp = a.kind === "decision" && a.item === "pay_app";
-  // "Pay application 3" reads as "pay application 3" mid-sentence.
-  const what = payApp
-    ? /^pay application\b/i.test(a.label ?? "")
-      ? a.label!.replace(/^pay application/i, "pay application")
-      : `pay application ${a.label ?? ""}`.trim()
-    : (a.label ?? "something");
+  // A pay application goes by the name the contractor confirmed when sharing it, exactly as written.
+  const what = payApp ? a.label || "a payment application" : (a.label ?? "something");
   const line =
     a.kind === "update"
       ? `${a.company} posted a new update on ${a.jobName}.`
