@@ -149,7 +149,7 @@ describe("measurement resource and viewer safety", () => {
     const html = takeoffCardHtml();
     for (const text of [
       "expected_version",
-      "Reject geometry",
+      "Reject this whole mark",
       "Non-drawable reason",
       "source_id",
       "Ask your AI to read selected line",

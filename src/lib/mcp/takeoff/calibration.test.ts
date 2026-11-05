@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { automaticCalibration, scaleLock, statedScaleCalibration } from "./calibration";
+import {
+  automaticCalibration,
+  fullSizeSheet,
+  scaleLock,
+  statedScaleCalibration,
+  titleBlockCalibration,
+} from "./calibration";
 import { tileGrid, type SheetInspection, type VectorObject } from "./pdf";
 const space = {
   source_id: "source",
@@ -93,5 +99,56 @@ describe("independent scale confirmation", () => {
     dimension(i, 0.1, 0.2, "8'-0\"", 0.2);
     dimension(i, 0.1, 0.5, "13'-0\"", 0.3);
     expect(automaticCalibration(space, i)).toBeNull();
+  });
+});
+describe("printed scale on a full-size sheet", () => {
+  const sheet = (width: number, height: number, text: string): SheetInspection => ({
+    width,
+    height,
+    text,
+    tiles: tileGrid(width, height),
+    truncated: false,
+    objects: [],
+  });
+  const at = (w: number, h: number) => ({ ...space, width: w * 72, height: h * 72 });
+  it("applies a single title-block scale on a 36 x 24 sheet with no one setting it", () => {
+    const s = at(36, 24);
+    const cal = titleBlockCalibration(
+      s,
+      sheet(s.width, s.height, 'E1 LIGHTING SCALE: 1/4" = 1\'-0"'),
+    );
+    expect(cal).toMatchObject({ confirmed: true, method: "title_block" });
+    expect(cal?.feet_per_point).toBeCloseTo(1 / 18);
+    expect(cal?.bounds).toEqual({ x: 0, y: 0, width: 1, height: 1 });
+    // The same scale printed twice is still one scale.
+    expect(
+      titleBlockCalibration(s, sheet(s.width, s.height, 'SCALE 1/4" = 1\'-0" ... 1/4"=1\'-0"')),
+    ).not.toBeNull();
+  });
+  it("recognises standard full-size sheets in either orientation, and nothing smaller", () => {
+    expect(fullSizeSheet(at(36, 24))).toBe("36 × 24 in");
+    expect(fullSizeSheet(at(24, 36))).toBe("36 × 24 in");
+    expect(fullSizeSheet(at(42, 30))).toBe("42 × 30 in");
+    expect(fullSizeSheet(at(34, 22))).toBe("34 × 22 in");
+    expect(fullSizeSheet(at(17, 11))).toBeNull();
+    expect(fullSizeSheet(at(18, 12))).toBeNull();
+    expect(fullSizeSheet(at(35, 24))).toBeNull();
+  });
+  it("leaves the scale to the estimator when the sheet or its scale is in doubt", () => {
+    const big = at(36, 24),
+      half = at(17, 11);
+    const text = 'SCALE: 1/4" = 1\'-0"';
+    expect(titleBlockCalibration(half, sheet(half.width, half.height, text))).toBeNull();
+    for (const t of [
+      "SCALE: AS NOTED",
+      'SCALE: AS NOTED 1/4" = 1\'-0"',
+      "SCALE: NTS",
+      'PLAN 1/4" = 1\'-0" DETAIL 1/2" = 1\'-0"',
+      "no scale here",
+    ])
+      expect(titleBlockCalibration(big, sheet(big.width, big.height, t))).toBeNull();
+    const cut = sheet(big.width, big.height, text);
+    cut.truncated = true;
+    expect(titleBlockCalibration(big, cut)).toBeNull();
   });
 });

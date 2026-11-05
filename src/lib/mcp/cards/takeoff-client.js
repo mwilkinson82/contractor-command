@@ -224,9 +224,13 @@
     });
     panel.append(
       node("p", "Saved alternates. The estimate total is unchanged.", "note small"),
-      button("Show full comparison in chat", function () {
-        showOptions(o);
-      }),
+      button(
+        "Show full comparison in chat",
+        function () {
+          showOptions(o);
+        },
+        "primary",
+      ),
     );
     var label =
       o.tiers_with_product
@@ -379,26 +383,40 @@
         }))
     );
   }
-  function confirmBox(text, fn) {
+  // A confirmation in plain words, placed where the member is looking. opts.yes and
+  // opts.no name the two choices; opts.near puts the box right after that element.
+  function confirmBox(text, fn, opts) {
+    opts = opts || {};
     var old = root.querySelector(".confirmation");
     if (old) old.remove();
     var box = node("div", null, "confirmation");
-    box.append(
-      node("p", text),
-      button(
-        "Confirm",
-        function () {
-          box.remove();
-          fn();
-        },
-        "primary",
-      ),
-      button("Cancel", function () {
+    var row = node("div", null, "tools");
+    var yes = button(
+      opts.yes || "Confirm",
+      function () {
+        box.remove();
+        fn();
+      },
+      "primary",
+    );
+    row.append(
+      yes,
+      button(opts.no || "Cancel", function () {
         box.remove();
         size();
       }),
     );
-    root.prepend(box);
+    (opts.extra || []).forEach(function (b) {
+      b.addEventListener("click", function () {
+        box.remove();
+        size();
+      });
+      row.append(b);
+    });
+    box.append(node("p", text), row);
+    if (opts.near && opts.near.parentNode) opts.near.after(box);
+    else root.prepend(box);
+    if (typeof box.scrollIntoView === "function") box.scrollIntoView({ block: "nearest" });
     size();
   }
   function svgNode(tag, attrs) {
@@ -432,6 +450,30 @@
       .sort(function (a, b) {
         return a.geometry_id.localeCompare(b.geometry_id);
       });
+  }
+  // A calibration as the scale an estimator reads on a drawing: 1/4" = 1'-0".
+  function scaleText(feetPerPoint) {
+    var k = Number(feetPerPoint);
+    if (!(k > 0)) return "Unknown scale";
+    var inchesPerFoot = 1 / (k * 72);
+    var dens = [1, 2, 4, 8, 16, 32, 64];
+    for (var i = 0; i < dens.length; i++) {
+      var num = Math.round(inchesPerFoot * dens[i]);
+      if (num > 0 && Math.abs(num / dens[i] - inchesPerFoot) / inchesPerFoot < 0.005) {
+        var whole = Math.floor(num / dens[i]),
+          rest = num % dens[i],
+          d = dens[i];
+        while (rest && rest % 2 === 0 && d % 2 === 0) {
+          rest /= 2;
+          d /= 2;
+        }
+        return (
+          (whole ? whole + (rest ? " " : "") : "") + (rest ? rest + "/" + d : "") + '" = 1\'-0"'
+        );
+      }
+    }
+    var feetPerInch = k * 72;
+    return '1" = ' + Math.round(feetPerInch * 100) / 100 + "'";
   }
   function currentCal() {
     var sel = root.querySelector("#calibration");
@@ -594,9 +636,36 @@
       if (workflow && workflow.rows && workflow.rows[0])
         main.append(node("p", workflow.rows[0].cells.join(" "), "note"));
     }
-    function extraSections(target) {
+    // The server's notes split three ways in the workspace: a result the member just
+    // asked for (history, downloads) shows above the tabs; what the tabs already show
+    // is left out; everything else is a review note under Checks.
+    var RESULT_HEADINGS = [
+      "Measurement history",
+      "Rejected geometry",
+      "Private downloads (15 minutes)",
+      "Dated copy",
+      "Dated measured PDF",
+    ];
+    var SHOWN_ELSEWHERE = [
+      "Measured takeoff",
+      "Estimate review",
+      "Scale locked for this sheet",
+      "Lock the scale first",
+      "Guided measuring",
+      "Good, Better, Best options",
+    ];
+    function sectionKind(section) {
+      if (
+        RESULT_HEADINGS.indexOf(section.heading) >= 0 ||
+        (typeof sc.report_title === "string" && section.heading === sc.report_title)
+      )
+        return "result";
+      return SHOWN_ELSEWHERE.indexOf(section.heading) >= 0 ? "shown" : "note";
+    }
+    function extraSections(target, kind) {
       (sc.card.sections || [])
         .filter(function (section) {
+          if (kind) return sectionKind(section) === kind;
           return section.heading !== "Measured takeoff";
         })
         .forEach(function (section) {
@@ -894,7 +963,7 @@
             return hole.length;
           }))
       ) {
-        notice("Finish or discard the unsaved drawing before hiding marks.");
+        notice("Save or drop the points you're placing before hiding marks.");
         return;
       }
       marksHidden = !marksHidden;
@@ -955,7 +1024,9 @@
           ? pins[step > 0 ? 0 : pins.length - 1]
           : pins[(at + step + pins.length) % pins.length];
       chooseGeometry(next.id, next.index);
-      overlay();
+      // Walking pins zooms in enough to see each one, then centres on it.
+      if (zoom < 2) setZoom(3);
+      else overlay();
       centerOn(next.point);
     }
     // Opens a line: selects its first saved mark on this sheet, if it has one.
@@ -973,7 +1044,7 @@
           return hole.length;
         })
       )
-        return notice("Finish or discard the unsaved drawing before opening another line.");
+        return notice("Save or drop the points you're placing before opening another line.");
       if (first) {
         chooseGeometry(first.geometry_id, 0);
         overlay();
@@ -1328,6 +1399,95 @@
       notice("Inspect mode. Saved marks are not changed by selecting them.");
     }
     var suppressPinClick = false;
+    // The selected pin gets a pulsing ring and crosshair in its line's color so the
+    // eye finds it at once, even on a busy sheet or after Next pin moves the view.
+    function spotlight(p, color, radius, unit) {
+      var cx = p.x * viewWidth,
+        cy = p.y * viewHeight,
+        still =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var glow = svgNode("circle", {
+        cx: cx,
+        cy: cy,
+        r: radius * 2.2,
+        fill: color,
+        "fill-opacity": 0.16,
+        stroke: color,
+        "stroke-width": 2.5,
+        "vector-effect": "non-scaling-stroke",
+        "pointer-events": "none",
+        class: "spotlight",
+      });
+      if (!still) {
+        glow.append(
+          svgNode("animate", {
+            attributeName: "r",
+            values: [radius * 1.6, radius * 2.8, radius * 1.6].join(";"),
+            dur: "1.6s",
+            repeatCount: "indefinite",
+          }),
+          svgNode("animate", {
+            attributeName: "stroke-opacity",
+            values: "1;0.25;1",
+            dur: "1.6s",
+            repeatCount: "indefinite",
+          }),
+        );
+      }
+      var inner = radius + 5 * unit,
+        outer = radius + 22 * unit,
+        d =
+          "M" +
+          (cx - outer) +
+          " " +
+          cy +
+          " L" +
+          (cx - inner) +
+          " " +
+          cy +
+          " M" +
+          (cx + inner) +
+          " " +
+          cy +
+          " L" +
+          (cx + outer) +
+          " " +
+          cy +
+          " M" +
+          cx +
+          " " +
+          (cy - outer) +
+          " L" +
+          cx +
+          " " +
+          (cy - inner) +
+          " M" +
+          cx +
+          " " +
+          (cy + inner) +
+          " L" +
+          cx +
+          " " +
+          (cy + outer);
+      [
+        ["white", 6],
+        [color, 2.5],
+      ].forEach(function (pen) {
+        svg.append(
+          svgNode("path", {
+            d: d,
+            stroke: pen[0],
+            "stroke-width": pen[1],
+            "stroke-linecap": "round",
+            fill: "none",
+            "vector-effect": "non-scaling-stroke",
+            "pointer-events": "none",
+          }),
+        );
+      });
+      svg.append(glow);
+    }
     function geometry(shape, color, fill, id, offset) {
       if (!shape || !Array.isArray(shape.points) || !shape.points.every(validPoint)) return;
       var ps = shape.points,
@@ -1338,6 +1498,7 @@
           // linework while the centre stays open so the symbol shows through.
           var chosen = id && id === selectedGeometry && i === selectedPoint,
             radius = (chosen ? 12 : 10) * unit;
+          if (chosen) spotlight(p, color, radius, unit);
           svg.append(
             svgNode("circle", {
               cx: p.x * viewWidth,
@@ -1371,7 +1532,7 @@
                 return hole.length;
               })
             ) {
-              notice("Finish or discard the unsaved drawing before inspecting a saved pin.");
+              notice("Save or drop the points you're placing before selecting a saved pin.");
               // Capture so the release always reaches the svg and clears the guard.
               svg.setPointerCapture(e.pointerId);
               return;
@@ -1476,7 +1637,7 @@
           fill: shape.kind === "polyline" ? "none" : fill,
           "fill-opacity": 0.18,
           "fill-rule": "evenodd",
-          "stroke-width": 2,
+          "stroke-width": id && id === selectedGeometry ? 4 : id ? 2 : 2.5,
           "vector-effect": "non-scaling-stroke",
         });
         path.addEventListener("click", function (e) {
@@ -1488,7 +1649,7 @@
                 return hole.length;
               })
             ) {
-              notice("Finish or discard the unsaved drawing before inspecting saved work.");
+              notice("Save or drop the points you're placing before selecting saved work.");
               return;
             }
             chooseGeometry(id, 0);
@@ -1496,6 +1657,25 @@
           }
         });
         svg.append(path);
+        // An unsaved run, area or rectangle shows every click as a dot, so the first
+        // click is visible before there is a line to draw.
+        if (!id)
+          rings.forEach(function (r) {
+            r.forEach(function (p) {
+              svg.append(
+                svgNode("circle", {
+                  cx: p.x * viewWidth,
+                  cy: p.y * viewHeight,
+                  r: 5 * unit,
+                  fill: "white",
+                  stroke: color,
+                  "stroke-width": 2.5,
+                  "vector-effect": "non-scaling-stroke",
+                  "pointer-events": "none",
+                }),
+              );
+            });
+          });
         if (id && id === selectedGeometry)
           [{ points: ps, hole: null }]
             .concat(
@@ -1536,14 +1716,13 @@
       }
       modeNote.textContent =
         mode === "inspect"
-          ? "Inspect mode: select a mark to see its line. Repeated clicks cycle overlapping marks."
+          ? "Click a pin or mark to see what it is. Click again to cycle pins that overlap. Drag to move around."
           : draft.length && selectedGeometry
-            ? "Moving points on the selected mark. Nothing changes until you save a revision."
-            : "Adding " +
-              mode +
-              ": " +
-              draft.length +
-              " unsaved point(s). Select a saved mark to inspect it before adding points.";
+            ? "Moving points on the selected mark. Nothing changes until you save."
+            : mode === "calibrate"
+              ? "Click both ends of a dimension you know, then type its length."
+              : (TOOL_HINTS[mode] || "Click on the sheet to place points.") +
+                (draft.length ? " Not saved yet: " + draftWords() + "." : "");
       svg.querySelectorAll("circle,path,text").forEach(function (e) {
         e.remove();
       });
@@ -1582,11 +1761,74 @@
       if (draft.length)
         geometry(
           { kind: mode === "calibrate" ? "polyline" : mode, points: draft, holes: holes },
-          "#1E3A5F",
+          draftInk(),
           "white",
           null,
         );
     }
+    // Unsaved work is drawn in the color of the line it will be saved to.
+    function draftInk() {
+      return mode === "calibrate" ? "#1E3A5F" : lineInk(lineSelect.value);
+    }
+    // While drawing a run, area or rectangle, a dashed guide follows the pointer from
+    // the last click, so the member sees where the next click will go.
+    var guideLine = svgNode("path", {
+      fill: "none",
+      "stroke-width": 2,
+      "stroke-dasharray": "6 4",
+      "vector-effect": "non-scaling-stroke",
+      "pointer-events": "none",
+    });
+    svg.addEventListener("pointermove", function (e) {
+      var drawingShape =
+        mode === "polyline" || mode === "polygon" || mode === "rect" || mode === "calibrate";
+      if (!drawingShape || !draft.length || drag || (pan && pan.moved) || activeHole >= 0) {
+        if (guideLine.isConnected) guideLine.remove();
+        return;
+      }
+      var q = pointAt(e),
+        last = draft[draft.length - 1],
+        X = function (p) {
+          return p.x * viewWidth;
+        },
+        Y = function (p) {
+          return p.y * viewHeight;
+        },
+        d;
+      if ((mode === "rect" || mode === "calibrate") && draft.length === 2) {
+        if (guideLine.isConnected) guideLine.remove();
+        return;
+      }
+      if (mode === "rect")
+        d =
+          "M" +
+          X(last) +
+          " " +
+          Y(last) +
+          " L" +
+          X(q) +
+          " " +
+          Y(last) +
+          " L" +
+          X(q) +
+          " " +
+          Y(q) +
+          " L" +
+          X(last) +
+          " " +
+          Y(q) +
+          " Z";
+      else {
+        d = "M" + X(last) + " " + Y(last) + " L" + X(q) + " " + Y(q);
+        if (mode === "polygon" && draft.length > 1) d += " L" + X(draft[0]) + " " + Y(draft[0]);
+      }
+      guideLine.setAttribute("d", d);
+      guideLine.setAttribute("stroke", draftInk());
+      if (!guideLine.isConnected) svg.append(guideLine);
+    });
+    svg.addEventListener("pointerleave", function () {
+      if (guideLine.isConnected) guideLine.remove();
+    });
     refreshDrawing = overlay;
     overlay();
     function pointAt(e) {
@@ -1738,29 +1980,35 @@
     var cal = node("select");
     cal.id = "calibration";
     cal.ariaLabel = "Calibration region";
-    var empty = node("option", "Choose calibration");
+    var empty = node("option", "No scale (counts only)");
     empty.value = "";
     cal.append(empty);
-    sc.engine.calibrations
+    var pageCals = sc.engine.calibrations
       .filter(function (c) {
         return c.source_id === sc.source.id && c.page === sc.source.page;
       })
-      .forEach(function (c) {
-        var o = node(
-          "option",
-          c.region + " · v" + c.version + (c.confirmed ? "" : " · unconfirmed"),
-        );
-        o.value = c.id;
-        cal.append(o);
+      .sort(function (a, b) {
+        return b.version - a.version;
       });
+    pageCals.forEach(function (c) {
+      var o = node(
+        "option",
+        scaleText(c.feet_per_point) + " · " + c.region + (c.confirmed ? "" : " · not confirmed"),
+      );
+      o.value = c.id;
+      cal.append(o);
+    });
+    var newestConfirmed = pageCals.find(function (c) {
+      return c.confirmed;
+    });
     if (
-      selectedCalibration !== null &&
+      selectedCalibration &&
       Array.from(cal.options).some(function (o) {
         return o.value === selectedCalibration;
       })
     )
       cal.value = selectedCalibration;
-    else if (cal.options.length === 2) cal.selectedIndex = 1;
+    else if (newestConfirmed) cal.value = newestConfirmed.id;
     selectedCalibration = cal.value;
     function unsaved() {
       return (
@@ -1774,23 +2022,58 @@
     var modeButtons = {},
       modeGroup = node("span", null, "group"),
       areaPick = false;
+    // Plain names for what a tool makes, used in hints, save buttons and questions.
+    function draftWords() {
+      var n = draft.length;
+      if (mode === "pins") return n + (n === 1 ? " count" : " counts");
+      if (mode === "polyline") return "a run of " + n + (n === 1 ? " point" : " points");
+      if (mode === "polygon" || mode === "rect") return "an area";
+      return n + (n === 1 ? " point" : " points");
+    }
+    function currentLineName() {
+      var line = sc.engine.lines.find(function (l) {
+        return l.line_no === Number(lineSelect.value);
+      });
+      return line ? "L" + line.line_no : "the selected line";
+    }
+    // Switching tools with unsaved clicks asks once, beside the toolbar, and offers to
+    // save them first. Nothing is dropped unless the member says so.
+    function switchTool(goal, start) {
+      if (!unsaved()) return start();
+      var extra = [];
+      if (mode !== "calibrate" && !areaPick)
+        extra.push(
+          button("Save them first", function () {
+            saveGeometry.click();
+          }),
+        );
+      confirmBox(
+        "You have " +
+          draftWords() +
+          " on " +
+          currentLineName() +
+          " that aren't saved yet. Keep drawing, or drop them and " +
+          goal +
+          "?",
+        start,
+        { yes: "Drop them and switch", no: "Keep drawing", near: tools, extra: extra },
+      );
+    }
     modeButtons.inspect = button("Select and pan", function () {
-      function inspect() {
+      switchTool("go back to selecting", function () {
         mode = "inspect";
         draft = [];
         holes = [];
         activeHole = -1;
         areaPick = false;
         overlay();
-        notice("Select a saved mark to see its takeoff line. Drag to move around the sheet.");
-      }
-      if (unsaved()) confirmBox("Discard the unsaved drawing and return to inspection?", inspect);
-      else inspect();
+        notice("Click a pin or mark to see what it is. Drag to move around the sheet.");
+      });
     });
     modeGroup.append(modeButtons.inspect);
     function startMode(m, message) {
       if (marksHidden) return notice("Show marks before drawing so existing work stays visible.");
-      function start() {
+      switchTool("switch tools", function () {
         mode = m;
         draft = [];
         holes = [];
@@ -1798,26 +2081,33 @@
         areaPick = false;
         selectedGeometry = null;
         selectedPoint = -1;
-        notice(message || "Place " + m + " points on the sheet.");
+        notice(message || "Click on the sheet to place points.");
         overlay();
         showPreview();
-      }
-      if (unsaved()) confirmBox("Discard the unsaved drawing and change tools?", start);
-      else start();
+      });
     }
+    var TOOL_HINTS = {
+      pins: "Click each item on the drawing to count it. Each click adds one.",
+      polyline:
+        "Click along a conduit, wire or pipe run. Each click adds a bend; Athena measures the length from the scale.",
+      polygon:
+        "Click each corner of the area, all the way around. Athena measures the square feet.",
+      rect: "Click two opposite corners. Athena measures the square feet.",
+    };
     [
-      ["pins", "Count", "Click each item on the sheet to count it for the selected line."],
-      ["polyline", "Run", "Click along the run; each click adds a point."],
-      ["polygon", "Area", "Click each corner of the area."],
-      ["rect", "Rectangle", "Click two opposite corners."],
+      ["pins", "Count"],
+      ["polyline", "Run"],
+      ["polygon", "Area"],
+      ["rect", "Rectangle"],
     ].forEach(function (t) {
       modeButtons[t[0]] = button(
         t[1],
         function () {
-          startMode(t[0], t[2]);
+          startMode(t[0], TOOL_HINTS[t[0]]);
         },
         "desktop",
       );
+      modeButtons[t[0]].title = TOOL_HINTS[t[0]];
       modeGroup.append(modeButtons[t[0]]);
     });
     var lineGroup = node("span", null, "group");
@@ -1825,12 +2115,26 @@
     tools.prepend(modeGroup, lineGroup);
     var preview = node("p", null, "note");
     function showPreview() {
-      preview.textContent =
-        "Unsaved preview: " +
-        (mode === "calibrate"
-          ? draft.length + " of 2 reference points"
-          : previewValue({ kind: mode, points: draft, holes: holes })) +
-        " · Server confirms on save.";
+      if (mode === "calibrate") {
+        preview.textContent = draft.length + " of 2 ends placed.";
+      } else if (!draft.length) {
+        preview.textContent = TOOL_HINTS[mode] || "";
+      } else {
+        var v = previewValue({ kind: mode, points: draft, holes: holes });
+        preview.textContent =
+          v === "Calibration needed"
+            ? "Set the scale in Setup before measuring lengths or areas. Counts don't need one."
+            : "So far: " + v + ". Not saved yet; Athena checks it when you save.";
+      }
+      if (typeof saveGeometry !== "undefined" && saveGeometry) {
+        saveGeometry.textContent = draft.length
+          ? "Save " +
+            (mode === "pins" ? draftWords() : mode === "polyline" ? "run" : "area") +
+            " to " +
+            currentLineName()
+          : "Save to " + currentLineName();
+        saveGeometry.disabled = !draft.length;
+      }
     }
     cal.addEventListener("change", function () {
       reading = false;
@@ -1901,7 +2205,7 @@
       showPreview();
     });
     var saveGeometry = button(
-      "Save geometry proposal",
+      "Save to line",
       function () {
         var old = rows().find(function (g) {
             return g.geometry_id === selectedGeometry;
@@ -2089,10 +2393,10 @@
       });
       drawTitle.textContent =
         mode === "calibrate"
-          ? "Known dimension"
+          ? "Measure a known dimension"
           : areaPick
             ? "Count area: " + (region.value.trim() || "unnamed")
-            : "Adding to " + (line ? "L" + line.line_no + " · " + line.item : "the selected line");
+            : "Drawing on " + (line ? "L" + line.line_no + " · " + line.item : "the selected line");
       depthBox.hidden = !(
         !areaPick &&
         mode !== "calibrate" &&
@@ -2101,9 +2405,11 @@
       );
       openingBox.hidden = areaPick || (mode !== "polygon" && mode !== "rect");
       calBox.hidden = mode !== "calibrate";
-      saveBox.replaceChildren(undoPoint);
+      saveBox.replaceChildren();
       if (areaPick) saveBox.append(button("Confirm count area", confirmCountArea, "primary"));
       else if (mode !== "calibrate") saveBox.append(saveGeometry);
+      saveBox.append(undoPoint);
+      showPreview();
     }
     left.insertBefore(edit, left.querySelector(".stage"));
     left.append(
@@ -2126,30 +2432,81 @@
       .sort(function (a, b) {
         return b.version - a.version;
       })[0];
-    if (sc.scale_lock && !sc.scale_lock.locked) {
-      scaleBox.append(node("p", sc.scale_lock.question));
-      scaleBox.append(button("1 · Use a known dimension", startCalibration));
+    var inches = [sc.space.width / 72, sc.space.height / 72].map(function (v) {
+      return Math.round(v * 10) / 10;
+    });
+    var sheetSize = Math.max(inches[0], inches[1]) + " × " + Math.min(inches[0], inches[1]) + " in";
+    if (lockedCal && !(sc.scale_lock && !sc.scale_lock.locked)) {
+      scaleBox.append(
+        node("p", scaleText(lockedCal.feet_per_point), "scale-big"),
+        node(
+          "p",
+          lockedCal.method === "dimension_string"
+            ? "Read from the title block and checked against two dimensions on the sheet."
+            : lockedCal.method === "title_block"
+              ? "Read from the title block. This " +
+                sheetSize +
+                " sheet is full size, so lengths and areas use it as printed."
+              : "Set from a known dimension you measured.",
+          "note small",
+        ),
+        node(
+          "p",
+          "If a length looks off, measure a dimension you know to double-check it.",
+          "note small",
+        ),
+        button("Check a known dimension", startCalibration),
+      );
+    } else {
+      var printed = (sc.scale_lock && sc.scale_lock.printed_scales) || [];
+      var why = !printed.length
+        ? "Athena couldn't find a printed scale on this sheet."
+        : sc.scale_lock.as_noted
+          ? "This sheet says scales are as noted, so each plan or detail can differ."
+          : printed.length > 1
+            ? "This sheet prints more than one scale (" + printed.join(", ") + ")."
+            : "The sheet says " +
+              printed[0] +
+              ", but this PDF is " +
+              sheetSize +
+              ", not a standard full-size drawing sheet, so it may be printed smaller.";
+      scaleBox.append(
+        node("p", "No scale set yet", "scale-big"),
+        node("p", why + " Counts don't need a scale; lengths and areas do.", "note small"),
+        node("h3", "Best: measure a dimension you know"),
+        node(
+          "p",
+          "Click both ends of a dimension printed on the sheet, like a 10'-0\" wall, and type its length.",
+          "note small",
+        ),
+        button("Measure a known dimension", startCalibration, "primary"),
+      );
       var stated = node("input");
       stated.ariaLabel = "Scale stated for this plan region";
-      stated.placeholder = 'For example: 3/16" = 1\'-0"';
-      if (sc.scale_lock.printed_scales.length === 1 && !sc.scale_lock.as_noted)
-        stated.value = sc.scale_lock.printed_scales[0];
+      stated.placeholder = 'For example: 1/4" = 1\'-0"';
+      if (printed.length === 1 && !sc.scale_lock.as_noted) stated.value = printed[0];
       scaleBox.append(
+        node("h3", "Or use the printed scale"),
+        node(
+          "p",
+          "Only if this PDF is printed at full size, the way the sheet was drawn.",
+          "note small",
+        ),
         stated,
-        button("2 · Use stated scale (true-size PDF)", function () {
+        button("Use this printed scale", function () {
           if (!stated.value.trim() || !region.value.trim())
-            return notice("Name the plan region and its printed scale first.");
+            return notice("Type the printed scale first.");
           var existing = sc.engine.calibrations.find(function (c) {
             return (
               c.source_id === sc.source.id && c.page === sc.source.page && c.region === region.value
             );
           });
           confirmBox(
-            "Confirm this PDF is true size and " +
-              stated.value +
-              " applies to " +
+            "Use " +
+              stated.value.trim() +
+              " for " +
               region.value +
-              ". A separate dimension check is still needed before this is called Measured.",
+              "? It's only right if this PDF is printed at full size. You can check a known dimension any time.",
             function () {
               act("sheet_calibrate", {
                 operation: "save",
@@ -2161,22 +2518,18 @@
                 expected_version: existing ? existing.version : 0,
               });
             },
+            { yes: "Use " + stated.value.trim(), no: "Cancel", near: scaleBox },
           );
         }),
       );
-    } else {
-      scaleBox.append(
-        node(
-          "p",
-          lockedCal
-            ? "Locked for " + lockedCal.region + " · revision " + lockedCal.version
-            : "No confirmed scale on this sheet yet. Counts do not need one.",
-          "note",
-        ),
-        button("Check a known dimension", startCalibration),
-      );
     }
-    scaleBox.append(node("p", "Calibration used for new measurements", "note small"), cal);
+    // Only a sheet with more than one saved scale needs a choice.
+    if (pageCals.length > 1)
+      scaleBox.append(node("p", "Scale used for new lengths and areas", "note small"), cal);
+    else {
+      cal.hidden = true;
+      scaleBox.append(cal);
+    }
     var areaBox = node("section", null, "panel");
     areaBox.append(
       node("h2", "Count area"),
@@ -2246,21 +2599,29 @@
         return g.geometry_id === selectedGeometry;
       });
       if (!g || String((lineOf(g) || {}).line_no) !== String(selectedLine)) return;
-      var facts =
-        "Selected mark · revision " + g.version + " · " + g.status + " · " + quantityText(g);
+      var kindName =
+        g.shape.kind === "pins"
+          ? "Selected pin"
+          : { polyline: "Selected run", polygon: "Selected area", rect: "Selected area" }[
+              g.shape.kind
+            ] || "Selected mark";
+      var facts = [];
       if (g.shape.kind === "pins" && selectedPoint >= 0)
-        facts += " · pin " + (selectedPoint + 1) + " of " + g.shape.points.length;
-      selected.append(node("p", facts, "small"));
+        facts.push("pin " + (selectedPoint + 1) + " of " + g.shape.points.length);
+      facts.push(g.status === "proposed" ? "waiting for your review" : g.status);
+      if (g.shape.kind !== "pins") facts.push(quantityText(g));
+      facts.push("revision " + g.version);
+      selected.append(node("h3", kindName), node("p", facts.join(" · "), "note small"));
       var actions = node("div", null, "tools");
       actions.append(
-        button("Measurement history", function () {
-          act("takeoff_geometry", { operation: "history", geometry_id: g.geometry_id });
-        }),
-        button("Inspect selected pin or vertex", function () {
+        button("Close-up of this spot", function () {
           act("takeoff_geometry", {
             operation: "crop",
             crop_point: g.shape.points[Math.max(0, selectedPoint)],
           });
+        }),
+        button("Change history", function () {
+          act("takeoff_geometry", { operation: "history", geometry_id: g.geometry_id });
         }),
       );
       selected.append(actions);
@@ -2270,12 +2631,32 @@
         crop.alt = "160 pixel crop from original sheet";
         selected.append(crop);
       }
+      // Fixing a wrong mark is the rare case, so it sits behind one plain question.
+      var wrong = node("details", null, "wrong");
+      wrong.append(
+        node("summary", "Something wrong with this mark?"),
+        node(
+          "p",
+          (g.shape.kind === "pins" && g.shape.points.length > 1
+            ? "Remove just this pin, or reject the whole mark so none of it counts. "
+            : "Reject the mark so it doesn't count. ") +
+            "Say why first; Athena keeps the reason with the change.",
+          "note small",
+        ),
+      );
       var reason = node("textarea");
-      reason.placeholder = "Reason for rejecting or deleting";
+      reason.placeholder = "Why? For example: this is an exit sign, not a downlight.";
       reason.ariaLabel = "Rejection reason";
       var fix = node("div", null, "tools");
+      if (g.shape.kind === "pins" && g.shape.points.length > 1)
+        fix.append(
+          button("Remove just this pin", function () {
+            removePin(g, selectedPoint, reason.value);
+          }),
+        );
       fix.append(
-        button("Reject geometry", function () {
+        button("Reject this whole mark", function () {
+          if (!reason.value.trim()) return notice("Say why before rejecting the mark.");
           act("takeoff_geometry", {
             operation: "reject",
             geometry_id: g.geometry_id,
@@ -2284,13 +2665,8 @@
           });
         }),
       );
-      if (g.shape.kind === "pins" && g.shape.points.length > 1)
-        fix.append(
-          button("Delete selected pin", function () {
-            removePin(g, selectedPoint, reason.value);
-          }),
-        );
-      selected.append(reason, fix);
+      wrong.append(reason, fix);
+      selected.append(wrong);
     }
     var filterChips = node("div", null, "chips"),
       list = node("div", null, "list");
@@ -2395,6 +2771,7 @@
         }
         var det = node("div", null, "detail");
         r.append(det);
+        det.append(node("h3", "Marks on this sheet"));
         var sheetPins = linePins(l.line_id);
         sc.engine.geometry
           .filter(function (g) {
@@ -2457,15 +2834,13 @@
               node(
                 "p",
                 (g.shape.kind === "pins"
-                  ? g.shape.points.length + " pins"
+                  ? g.shape.points.length + (g.shape.points.length === 1 ? " pin" : " pins")
                   : { polyline: "Run", polygon: "Area", rect: "Rectangle" }[g.shape.kind] ||
                     g.shape.kind) +
                   " · " +
                   quantityText(g) +
                   " · " +
-                  g.status +
-                  " · revision " +
-                  g.version,
+                  (g.status === "proposed" ? "waiting for your review" : g.status),
                 "small",
               ),
             );
@@ -2526,12 +2901,13 @@
         if (gbb) det.append(gbb);
         det.append(readPanel);
         showReadStatus();
-        det.append(
+        var lineTools = node("div", null, "tools");
+        lineTools.append(
           button("Line history", function () {
             act("takeoff_geometry", { operation: "history", line_no: l.line_no });
           }),
-          selected,
         );
+        det.append(lineTools, selected);
         showSelected();
         list.append(r);
       });
@@ -2572,29 +2948,40 @@
       var passes = readPasses(sc, line, calibration);
       if (!passes.length) return;
       var p = passes[0].pass_summary;
-      if (p.count_area)
-        readPanel.append(node("p", "Confirmed count area: " + p.count_area.name, "note"));
       readPanel.append(
+        node("h3", "Your AI's read of this sheet"),
         node(
           "p",
-          "L" +
-            line +
-            " · Drawing read: " +
-            p.tiles_read +
-            " / " +
-            p.tiles_total +
-            " tiles" +
-            (p.complete ? " · regions reviewed; check unresolved findings" : " · incomplete"),
-          "note",
+          p.complete
+            ? "Finished: all " + p.tiles_total + " parts of the sheet were read for L" + line + "."
+            : "Partway: " +
+                p.tiles_read +
+                " of " +
+                p.tiles_total +
+                " parts of the sheet read for L" +
+                line +
+                ". Your AI picks up where it stopped.",
+          "small",
         ),
       );
-      (p.uncertainties || []).slice(-8).forEach(function (u) {
-        readPanel.append(node("p", u, "note small"));
-      });
-      if (!p.complete) readPanel.append(button("Continue with your AI", runRead));
+      if (p.count_area)
+        readPanel.append(node("p", "Counting inside: " + p.count_area.name, "note small"));
+      var unsure = (p.uncertainties || []).slice(-8);
+      if (unsure.length) {
+        var doubts = node("details");
+        doubts.append(node("summary", "What your AI wasn't sure about (" + unsure.length + ")"));
+        unsure.forEach(function (u) {
+          doubts.append(node("p", u, "note small"));
+        });
+        readPanel.append(doubts);
+      }
+      var readActions = node("div", null, "tools");
+      readPanel.append(readActions);
+      if (!p.complete)
+        readActions.append(button("Ask your AI to finish reading L" + line, runRead, "primary"));
       try {
         var fresh = freshReadArguments(sc, line, calibration);
-        readPanel.append(
+        readActions.append(
           button("Start a fresh read", function () {
             if (reading) return notice("Pause the current read before starting a fresh one.");
             var selection = JSON.stringify([
@@ -2635,9 +3022,7 @@
     showList();
     async function runRead(smaller) {
       if (sc.scale_lock && !sc.scale_lock.locked)
-        return notice(
-          "Choose one of the two scale options first. No read or measurement has started.",
-        );
+        return notice("Set the scale in Setup first. No read has started.");
       var line = Number(lineSelect.value),
         calibration = cal.value || undefined;
       var selected = sc.engine.lines.find(function (l) {
@@ -2685,9 +3070,7 @@
     // A sheet read: every open line on each tile, one observation set back per tile.
     async function runSheetRead() {
       if (sc.scale_lock && !sc.scale_lock.locked)
-        return notice(
-          "Choose one of the two scale options first. No read or measurement has started.",
-        );
+        return notice("Set the scale in Setup first. No read has started.");
       var calibration = cal.value || undefined;
       if (!host.message)
         return notice(
@@ -2717,22 +3100,332 @@
         );
       }
     }
-    // Checks: what holds the bid, the read guidance, and the other review notes.
-    var holding = (sc.engine.gaps || []).filter(function (g) {
-      return g.holds_bid;
+    // Checks: each cited question the read found. A check that holds the bid opens
+    // the sheets it cites, can go to your AI, and comes off once you answer it.
+    var checks = Array.isArray(sc.gap_review)
+      ? sc.gap_review
+      : (sc.engine.gaps || []).map(function (g) {
+          return {
+            ref: g.ref,
+            title: g.title,
+            status: "open",
+            holds_bid: g.holds_bid,
+            sheet: g.sheet,
+            detail: g.detail,
+            spec: g.spec_section,
+            reasoning: g.reasoning,
+          };
+        });
+    function sheetTokens(text) {
+      return String(text || "")
+        .split(/[\s,;/&()]+|\band\b|\bvs\.?\b|\bversus\b/i)
+        .map(function (t) {
+          return t
+            .replace(/^sheets?$/i, "")
+            .replace(/[.:]+$/, "")
+            .trim();
+        })
+        .filter(Boolean);
+    }
+    // The stored sheet a cited token names, preferring this drawing set, then the
+    // newest revision of any other set.
+    function findSheet(token) {
+      var want = token.toUpperCase().replace(/[\s-]/g, "");
+      var hits = [];
+      (sc.available_sources || []).forEach(function (src) {
+        (src.sheets || []).forEach(function (name) {
+          if (String(name).toUpperCase().replace(/[\s-]/g, "") === want)
+            hits.push({ source: src, sheet: name });
+        });
+      });
+      hits.sort(function (x, y) {
+        if (x.source.id === sc.source.id) return -1;
+        if (y.source.id === sc.source.id) return 1;
+        return (y.source.revision || 0) - (x.source.revision || 0);
+      });
+      return hits[0] || null;
+    }
+    function citedSheets(c) {
+      var seen = {},
+        out = [];
+      sheetTokens([c.sheet, c.detail].join(" ")).forEach(function (t) {
+        var hit = findSheet(t);
+        if (!hit) return;
+        var key = hit.source.id + "|" + hit.sheet;
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push(hit);
+      });
+      return out;
+    }
+    function onThisSheet(c) {
+      return citedSheets(c).some(function (h) {
+        return h.source.id === sc.source.id && h.sheet === sc.source.sheet;
+      });
+    }
+    async function askAboutCheck(c) {
+      var text =
+        "Use Athena to look into check " +
+        c.ref +
+        " (" +
+        c.title +
+        ") on job " +
+        sc.context.job_number +
+        ". Read what it cites" +
+        (c.sheet ? ": sheet " + c.sheet : "") +
+        (c.detail ? ", " + c.detail : "") +
+        (c.spec ? ", spec " + c.spec : "") +
+        ", plus any related notes, specifications or contract terms. Tell me what you find, what you'd recommend, and what question to send if it needs an RFI. Don't record a decision; I'll resolve it in the takeoff viewer.";
+      if (!host.message)
+        return notice("Ask your AI in chat to look into check " + c.ref + " on this job.");
+      try {
+        await rpc("ui/message", { role: "user", content: [{ type: "text", text: text }] });
+        notice("Sent to your AI. Resolve the check here once you know the answer.");
+      } catch (_) {
+        notice("Ask your AI in chat to look into check " + c.ref + " on this job.");
+      }
+    }
+    // Answering a check saves the estimator's mark, then reopens this same sheet.
+    async function answerCheck(c, extra) {
+      if (busy) return;
+      busy = true;
+      notice("Saving your answer to " + c.ref + "…");
+      try {
+        var r = await call(
+          "estimate_item_mark",
+          Object.assign(
+            {
+              job_number: sc.context.job_number,
+              company_id: sc.context.company_id,
+              item_id: c.ref,
+            },
+            extra,
+          ),
+        );
+        if (!r || r.isError) throw Error(failureText(r));
+      } catch (e) {
+        busy = false;
+        root.querySelectorAll("button").forEach(function (b) {
+          b.disabled = false;
+        });
+        return notice(e.message);
+      }
+      busy = false;
+      panelTab = "checks";
+      await act("takeoff_geometry", { operation: "list", viewer_only: true });
+      notice(c.ref + " answered. It stays in Answered with your note.");
+    }
+    function resolveForm(c, card) {
+      var form = node("div", null, "resolve");
+      var choice = null,
+        body = node("div");
+      var CHOICES = [
+        ["clear", "Checked, no issue", "Clears it from Holds the bid. Say what you checked."],
+        [
+          "qty",
+          "Use a quantity",
+          "Records the quantity you'll carry and why. That takes it off Holds the bid.",
+        ],
+        [
+          "owner",
+          "Someone else answers it",
+          "Names who owns the answer, like the engineer by RFI. It keeps holding the bid until they answer.",
+        ],
+      ];
+      var picks = node("div", null, "picks");
+      CHOICES.forEach(function (ch) {
+        var b = button(ch[1], function () {
+          choice = ch[0];
+          Array.prototype.forEach.call(picks.children, function (x) {
+            x.classList.toggle("on", x === b);
+            x.setAttribute("aria-pressed", x === b ? "true" : "false");
+          });
+          showBody(ch);
+        });
+        b.setAttribute("aria-pressed", "false");
+        picks.append(b);
+      });
+      function showBody(ch) {
+        body.replaceChildren(node("p", ch[2], "note small"));
+        var qty = node("input"),
+          owner = node("input"),
+          note = node("textarea");
+        qty.type = "number";
+        qty.min = "0";
+        qty.placeholder = "Quantity" + (c.unit ? " (" + c.unit + ")" : "");
+        qty.ariaLabel = "Quantity to carry";
+        owner.placeholder = "Who answers it? For example: Engineer, by RFI";
+        owner.ariaLabel = "Who answers this check";
+        note.placeholder =
+          ch[0] === "clear"
+            ? "What did you check? For example: E3 panel schedule shows A4 and A18 as spares; no work."
+            : "Why? Where does it come from?";
+        note.ariaLabel = "Note for " + c.ref;
+        if (ch[0] === "qty") body.append(qty);
+        if (ch[0] === "owner") body.append(owner);
+        body.append(note);
+        var row = node("div", null, "tools");
+        row.append(
+          button(
+            ch[0] === "clear" ? "Clear " + c.ref : ch[0] === "qty" ? "Save quantity" : "Assign it",
+            function () {
+              var why = note.value.trim();
+              if (ch[0] === "clear") {
+                if (why.length < 3) return notice("Say what you checked before clearing it.");
+                return answerCheck(c, { mark: "not_relevant", note: why });
+              }
+              if (ch[0] === "qty") {
+                if (!(qty.value !== "" && Number(qty.value) >= 0))
+                  return notice("Enter the quantity to carry.");
+                return answerCheck(c, {
+                  mark: "relevant",
+                  corrected_qty: Number(qty.value),
+                  note: why || undefined,
+                });
+              }
+              if (!owner.value.trim()) return notice("Say who answers it.");
+              return answerCheck(c, {
+                mark: "relevant",
+                owner: owner.value.trim(),
+                note: why || undefined,
+              });
+            },
+            "primary",
+          ),
+          button("Cancel", function () {
+            form.remove();
+            size();
+          }),
+        );
+        body.append(row);
+        size();
+      }
+      form.append(node("p", "How was it resolved?", "small"), picks, body);
+      card.append(form);
+      size();
+    }
+    function checkCard(c) {
+      // Open, or handed to someone and still waiting: either way it holds the bid.
+      var waiting = c.status === "settled" && c.holds_bid && !!c.owner,
+        open = c.status === "open" || waiting,
+        card = node("div", null, "check" + (open && c.holds_bid ? " hold" : ""));
+      card.dataset.ref = c.ref;
+      var head = node("div", null, "checkhead");
+      if (open && c.holds_bid) {
+        var badge = node("span", "Holds the bid", "badge");
+        badge.dataset.alert = "risk";
+        head.append(badge);
+      } else if (!open)
+        head.append(node("span", c.status === "dropped" ? "Cleared" : "Answered", "badge done"));
+      head.append(node("strong", c.ref + " · " + c.title));
+      card.append(head);
+      if (c.reasoning) card.append(node("p", c.reasoning, "small"));
+      var cites = [c.sheet && "Sheet " + c.sheet, c.detail, c.spec && "Spec " + c.spec].filter(
+        Boolean,
+      );
+      if (cites.length) card.append(node("p", "Cited: " + cites.join(" · "), "note small"));
+      if (waiting) card.append(node("p", "Waiting on " + c.owner, "small"));
+      if (!open) {
+        var said = [];
+        if (c.owner) said.push("Answered by " + c.owner);
+        if (c.qty != null) said.push("Carry " + c.qty + (c.unit ? " " + c.unit : ""));
+        if (said.length) card.append(node("p", said.join(" · "), "small"));
+        return card;
+      }
+      var row = node("div", null, "tools");
+      citedSheets(c).forEach(function (hit) {
+        if (hit.source.id === sc.source.id && hit.sheet === sc.source.sheet) return;
+        row.append(
+          button("Open " + hit.sheet, function () {
+            panelTab = "checks";
+            act("takeoff_geometry", {
+              operation: "list",
+              source_id: hit.source.id,
+              sheet: hit.sheet,
+              viewer_only: true,
+            });
+          }),
+        );
+      });
+      row.append(
+        button("Ask your AI to check this", function () {
+          askAboutCheck(c);
+        }),
+        button(
+          "Resolve",
+          function () {
+            if (card.querySelector(".resolve")) return;
+            resolveForm(c, card);
+          },
+          "primary",
+        ),
+      );
+      card.append(row);
+      return card;
+    }
+    function stillHolds(c) {
+      return c.holds_bid && (c.status === "open" || (c.status === "settled" && !!c.owner));
+    }
+    var holding = checks.filter(stillHolds),
+      openOther = checks.filter(function (c) {
+        return c.status === "open" && !c.holds_bid;
+      }),
+      answered = checks.filter(function (c) {
+        return c.status !== "open" && !stillHolds(c);
+      });
+    // This sheet's checks come first.
+    holding.sort(function (x, y) {
+      return Number(onThisSheet(y)) - Number(onThisSheet(x));
     });
+    if (checks.length)
+      panes.checks.append(
+        node(
+          "p",
+          holding.length
+            ? holding.length +
+                (holding.length === 1 ? " check holds" : " checks hold") +
+                " the bid. Open what it cites, check it, then resolve it here."
+            : "Nothing holds the bid right now.",
+          "note",
+        ),
+      );
     if (holding.length) {
       var holdBox = node("section");
       holdBox.append(node("h2", "Holds the bid"));
-      holding.forEach(function (g) {
-        var r = node("div", null, "row risk");
-        r.dataset.alert = "risk";
-        r.append(node("strong", g.ref + " · " + g.title), node("p", g.reasoning));
-        holdBox.append(r);
+      holding.forEach(function (c) {
+        holdBox.append(checkCard(c));
       });
       panes.checks.append(holdBox);
     }
-    extraSections(panes.checks);
+    [
+      [openOther, "Other open questions"],
+      [answered, "Answered"],
+    ].forEach(function (group) {
+      if (!group[0].length) return;
+      var box = node("details", null, "panel");
+      box.append(node("summary", group[1] + " (" + group[0].length + ")"));
+      group[0].forEach(function (c) {
+        box.append(checkCard(c));
+      });
+      panes.checks.append(box);
+    });
+    var notes = node("details", null, "panel");
+    notes.append(node("summary", "Other review notes"));
+    extraSections(notes, "note");
+    if (notes.childNodes.length > 1) panes.checks.append(notes);
+    // A result the member just asked for, like a history, opens above the tabs.
+    var result = node("section", null, "result");
+    extraSections(result, "result");
+    if (result.childNodes.length) {
+      var closeResult = button("✕", function () {
+        result.remove();
+        size();
+      });
+      closeResult.ariaLabel = "Close";
+      closeResult.title = "Close";
+      result.prepend(closeResult);
+      right.prepend(result);
+    }
     if (!panes.checks.childNodes.length)
       panes.checks.append(node("p", "No open checks on this sheet.", "note"));
     // Setup: scale and count area first, then work with no drawing, then Advanced.
@@ -2848,9 +3541,9 @@
           title: "Scale",
           done: locked,
           text: !locked
-            ? "Not locked yet"
+            ? "Not set yet"
             : lockedCal
-              ? "Locked for " + lockedCal.region
+              ? scaleText(lockedCal.feet_per_point)
               : "Counts need no scale",
         },
         {
@@ -2912,13 +3605,16 @@
     }
     function showGuide(step) {
       guide.replaceChildren();
-      var say = node("p"),
+      guide.className = "guide guide-" + step.key;
+      var title = node("h3"),
+        say = node("p"),
         acts = node("div", null, "tools");
-      guide.append(say, acts);
+      guide.append(title, say, acts);
       if (step.key === "scale") {
         if (!step.done) {
+          title.textContent = "Set the scale for lengths and areas";
           say.textContent =
-            "Lock the scale before measuring runs or areas: use a known dimension, or the scale printed on the sheet.";
+            "Athena couldn't apply this sheet's scale on its own. Counts work without one; runs and areas need it.";
           acts.append(
             button(
               "Set the scale",
@@ -2930,13 +3626,20 @@
             ),
           );
         } else {
-          say.textContent =
-            step.text + ". Check a known dimension any time to confirm the scale is right.";
+          title.textContent = lockedCal
+            ? "Scale: " + scaleText(lockedCal.feet_per_point)
+            : "No scale needed for counts";
+          say.textContent = lockedCal
+            ? lockedCal.method === "estimator"
+              ? "Set from a known dimension you measured."
+              : "Read from the title block, so nobody had to set it. Measure a known dimension any time to double-check."
+            : "Counts don't use a scale. Set one in Setup before measuring runs or areas.";
           acts.append(button("Check a known dimension", startCalibration, "primary"));
         }
       } else if (step.key === "read") {
+        title.textContent = "Let your AI do the takeoff";
         say.textContent =
-          "Your AI reads this sheet in the chat and sends back proposed pins. You stay here, and nothing counts until you accept it.";
+          "Your AI reads every part of this sheet in the chat and drops proposed pins here for each line. You stay on this screen, and nothing counts until you accept it.";
         acts.append(
           button("Ask your AI to read the whole sheet", runSheetRead, "primary"),
           button("Ask your AI to read selected line", runRead),
@@ -2965,6 +3668,7 @@
         var next = (sc.engine.summary.lines || []).find(function (l) {
           return l.status === "proposed";
         });
+        title.textContent = next ? "Check what your AI found" : "Review done";
         say.textContent = next
           ? "Look over each line's pins. Click a pin to see what it is, fix anything off, then accept the line."
           : "Every proposed line on this sheet has been reviewed.";
@@ -2980,6 +3684,7 @@
             ),
           );
       } else {
+        title.textContent = "Save a record of this sheet";
         say.textContent =
           "Save a dated PDF of this sheet with your marks. The original drawing is never changed.";
         acts.append(

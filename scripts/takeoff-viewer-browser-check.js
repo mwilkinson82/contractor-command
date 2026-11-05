@@ -18,7 +18,7 @@ async (page) => {
     "second overlapping selection",
   );
   assert(
-    (await frame.getByText(/Inspect mode: select a mark/).count()) === 1,
+    (await frame.getByText(/Click a pin or mark to see what it is/).count()) === 1,
     "inspect mode after selection",
   );
   await frame.getByRole("button", { name: "Count", exact: true }).click();
@@ -26,20 +26,20 @@ async (page) => {
   const box = await svg.boundingBox();
   await page.mouse.click(box.x + box.width * 0.32, box.y + box.height * 0.67);
   assert(
-    (await frame.getByText(/Adding pins: 1 unsaved point/).count()) === 1,
+    (await frame.getByText(/Not saved yet: 1 count\./).count()) === 1,
     "deliberate count adds one unsaved point",
   );
   await frame.getByText("L3 · 1", { exact: true }).click();
   assert(
-    (await frame.getByText(/Adding pins: 1 unsaved point/).count()) === 1,
+    (await frame.getByText(/Not saved yet: 1 count\./).count()) === 1,
     "saved marker did not add or erase pending point",
   );
   assert(
-    (await frame.getByText(/Finish or discard the unsaved drawing/).count()) === 1,
+    (await frame.getByText(/Save or drop the points you're placing/).count()) === 1,
     "pending-point warning",
   );
   await frame.getByRole("button", { name: "Select and pan" }).click();
-  await frame.getByRole("button", { name: "Confirm", exact: true }).click();
+  await frame.getByRole("button", { name: "Drop them and switch" }).click();
   await frame.getByRole("button", { name: "Hide marks" }).click();
   assert((await frame.getByText("L3 · 1", { exact: true }).count()) === 0, "marks hidden");
   await frame.getByRole("button", { name: "Count", exact: true }).click();
@@ -66,7 +66,7 @@ async (page) => {
     "mouse drag pans the zoomed sheet",
   );
   assert(
-    (await frame.getByText(/Adding \w+: [1-9]\d* unsaved point/).count()) === 0,
+    (await frame.getByText(/Not saved yet/).count()) === 0,
     "drag added no point",
   );
   assert(!calls.includes('"operation":"save"'), "no geometry save");

@@ -304,7 +304,7 @@ export async function viewEngine(
                 {
                   cells: [
                     lockedCalibration
-                      ? `${lockedCalibration.region} · saved calibration v${lockedCalibration.version} · ${lockedCalibration.method === "dimension_string" ? "Dimension checked" : "Member confirmed; independent dimension check still needed"}`
+                      ? `${lockedCalibration.region} · saved calibration v${lockedCalibration.version} · ${lockedCalibration.method === "dimension_string" ? "Dimension checked" : lockedCalibration.method === "title_block" ? "Printed scale on a true-size sheet; check a known dimension to verify" : "Member confirmed; independent dimension check still needed"}`
                       : lock.printed_scales.length
                         ? `Printed scale: ${lock.printed_scales.join("; ")}${lock.as_noted ? " · As Noted" : ""}`
                         : "Printed scale is unclear or As Noted.",
@@ -339,7 +339,9 @@ export async function viewEngine(
         rows: summary.lines.map((l) => ({
           cells: [
             `L${l.line_no}`,
-            optionsFor(l.line_no) ? `${l.item} · ${lineOptionsFlag(optionsFor(l.line_no)!)}` : l.item,
+            optionsFor(l.line_no)
+              ? `${l.item} · ${lineOptionsFlag(optionsFor(l.line_no)!)}`
+              : l.item,
             l.accepted == null ? "Not established" : String(l.accepted),
             l.proposed == null ? "" : String(l.proposed),
             l.unit || "",
@@ -593,6 +595,23 @@ export async function viewEngine(
   const structuredContent = {
     foundation_scope: settled.foundationScope,
     checklist_gaps: settled.foundationGaps,
+    // Each cited check with the estimator's answer so far, for the viewer's Checks tab.
+    gap_review: settled.items
+      .filter((i) => i.kind === "gap")
+      .map((i) => ({
+        ref: i.ref,
+        title: i.title,
+        status: i.status,
+        holds_bid: i.holdsBid,
+        sheet: i.sheet,
+        detail: i.detail,
+        spec: i.spec,
+        reasoning: i.math,
+        owner: i.owner,
+        qty: i.qty,
+        unit: i.unit,
+        mark: i.mark,
+      })),
     scale_lock: lock,
     guided_measurement: guided,
     snapshot_at: new Date().toISOString(),
