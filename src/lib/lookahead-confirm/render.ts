@@ -116,7 +116,10 @@ export function renderAsk(v: PublicView, o: AskOpts): string {
   } else {
     inner = `${head}<h1>Confirm your ${esc(noun)} date</h1><p class="lc-sub">${esc(who)} has you on the two-week look-ahead. Please lock in the date below.</p>${askPanel(v)}${err}<form method="post" class="lc-form"><input type="hidden" name="answer" value="confirmed">${csrf}${nameField(vals.name ?? "")}<button class="lc-btn" type="submit">Confirm this date</button></form><div class="lc-alt"><a class="lc-btn2" href="?step=propose">Propose another date</a><a class="lc-btn2" href="?step=decline">Can't make it</a></div>`;
   }
-  return doc(`${v.company} · Confirm ${noun} ${shortDate(v.asked_date)}`, shell(v.company, o.logo ?? null, inner));
+  return doc(
+    `${v.company} · Confirm ${noun} ${shortDate(v.asked_date)}`,
+    shell(v.company, o.logo ?? null, inner),
+  );
 }
 
 /** The thank-you state, also shown when the link is opened again after an answer. */
@@ -171,7 +174,9 @@ export function renderConfirmGone(
 ): string {
   const [h, raw] = GONE[kind] ?? GONE.unknown!;
   const p = company
-    ? raw.replace(/\b([Yy])our contractor\b/g, company).replace(/\bContact them\b/g, `Contact ${company}`)
+    ? raw
+        .replace(/\b([Yy])our contractor\b/g, company)
+        .replace(/\bContact them\b/g, `Contact ${company}`)
     : raw;
   return doc(h, shell(company, logo, `<h1>${esc(h)}</h1><p class="lc-sub">${esc(p)}</p>`));
 }

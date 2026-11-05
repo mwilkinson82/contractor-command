@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tokenHash } from "../mcp/file-share";
 import type { PortalEmail } from "../customer-portal/email";
-import { CSRF_COOKIE, confirmCsrf, handleConfirmPage, type ConfirmDeps } from "./server";
+import { CSRF_COOKIE, confirmCsrf, handleConfirmPage, realDate, type ConfirmDeps } from "./server";
 import { answerNotice, type PublicView } from "./model";
 
 const TOKEN = "T".repeat(43);
@@ -112,7 +112,9 @@ describe("look-ahead confirmation page", () => {
     expect(body).not.toMatch(/\$|cost|markup|<script/i);
     expect(res.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     expect(res.headers.get("set-cookie")).toMatch(
-      new RegExp(`^${CSRF_COOKIE}=[A-Za-z0-9_-]{43}; Path=/l/${TOKEN}; HttpOnly; Secure; SameSite=Lax`),
+      new RegExp(
+        `^${CSRF_COOKIE}=[A-Za-z0-9_-]{43}; Path=/l/${TOKEN}; HttpOnly; Secure; SameSite=Lax`,
+      ),
     );
     // Phone, tablet and desktop layouts.
     expect(body).toContain('name="viewport"');
@@ -143,7 +145,11 @@ describe("look-ahead confirmation page", () => {
   });
 
   it("confirms the date, records a field notice for the team and shows thanks", async () => {
-    const done = view({ answer: "confirmed", response_date: "2026-11-12", responder_name: "Maria Lopez" });
+    const done = view({
+      answer: "confirmed",
+      response_date: "2026-11-12",
+      responder_name: "Maria Lopez",
+    });
     const d = deps({ respond: { status: "ok", job_id: JOB, ...done } });
     const res = await handleConfirmPage(
       await post({ answer: "confirmed", name: "  Maria   Lopez " }),
@@ -194,7 +200,12 @@ describe("look-ahead confirmation page", () => {
     });
     const d = deps({ respond: { status: "ok", job_id: JOB, ...done } });
     await handleConfirmPage(
-      await post({ answer: "proposed_new_date", name: "Luis Rivera", date: "2026-11-14", note: "Crew is on another job" }),
+      await post({
+        answer: "proposed_new_date",
+        name: "Luis Rivera",
+        date: "2026-11-14",
+        note: "Crew is on another job",
+      }),
       TOKEN,
       d,
     );
@@ -202,7 +213,11 @@ describe("look-ahead confirmation page", () => {
     expect(notice._title).toBe("Rivera Drywall proposed Nov 14 instead of Nov 12");
     expect(notice._kind).toBe("lookahead_new_date");
     expect(notice._detail).toContain("needs the super's or PM's call");
-    expect(notice._facts).toMatchObject({ asked_date: "2026-11-12", response_date: "2026-11-14", needs_call: true });
+    expect(notice._facts).toMatchObject({
+      asked_date: "2026-11-12",
+      response_date: "2026-11-14",
+      needs_call: true,
+    });
     const page = await (
       await handleConfirmPage(get(), TOKEN, deps({ open: { status: "ok", ...done } }))
     ).text();
@@ -231,7 +246,11 @@ describe("look-ahead confirmation page", () => {
     );
     expect(r2.status).toBe(422);
     expect(await r2.text()).toContain("That&#39;s the date they asked for");
-    const short = await handleConfirmPage(await post({ answer: "confirmed", name: "x" }), TOKEN, deps());
+    const short = await handleConfirmPage(
+      await post({ answer: "confirmed", name: "x" }),
+      TOKEN,
+      deps(),
+    );
     expect(await short.text()).toContain("Type your name");
   });
 
@@ -288,14 +307,27 @@ describe("look-ahead confirmation page", () => {
       deps({ respond: { status: "slow_down" } }),
     );
     expect(slow.status).toBe(429);
-    const down = await handleConfirmPage(get(), TOKEN, { ...deps(), rpc: async () => { throw new Error("x"); } });
+    const down = await handleConfirmPage(get(), TOKEN, {
+      ...deps(),
+      rpc: async () => {
+        throw new Error("x");
+      },
+    });
     expect(down.status).toBe(503);
   });
 
   it("re-records the notice once when an answer is already on file", async () => {
-    const done = view({ answer: "confirmed", response_date: "2026-11-12", responder_name: "Maria Lopez" });
+    const done = view({
+      answer: "confirmed",
+      response_date: "2026-11-12",
+      responder_name: "Maria Lopez",
+    });
     const d = deps({ respond: { status: "answered", job_id: JOB, ...done } });
-    const res = await handleConfirmPage(await post({ answer: "declined", name: "Maria Lopez", note: "No" }), TOKEN, d);
+    const res = await handleConfirmPage(
+      await post({ answer: "declined", name: "Maria Lopez", note: "No" }),
+      TOKEN,
+      d,
+    );
     expect(res.status).toBe(303);
     expect(d.calls.find((c) => c.fn === "mcp_job_notice_record")!.args._dedupe_key).toBe(
       `lookahead_confirm:${ID}`,
@@ -303,11 +335,21 @@ describe("look-ahead confirmation page", () => {
   });
 });
 
+describe("dates typed on the page", () => {
+  it("takes only real days", () => {
+    expect(realDate("2026-11-14")).toBe(true);
+    expect(realDate("2026-02-30")).toBe(false);
+    expect(realDate("2026-13-45")).toBe(false);
+    expect(realDate("11/14/2026")).toBe(false);
+  });
+});
+
 describe("answer notices", () => {
   it("names the party, the answer and the date in the title", () => {
-    expect(answerNotice({ ...view({ answer: "confirmed", window_end: "2026-11-14" }), job_id: JOB }).title).toBe(
-      "Acme Supply confirmed delivery Nov 12 to Nov 14",
-    );
+    expect(
+      answerNotice({ ...view({ answer: "confirmed", window_end: "2026-11-14" }), job_id: JOB })
+        .title,
+    ).toBe("Acme Supply confirmed delivery Nov 12 to Nov 14");
     const no = answerNotice({
       ...view({ answer: "declined", response_note: "Back ordered", responder_name: "Kim" }),
       job_id: JOB,

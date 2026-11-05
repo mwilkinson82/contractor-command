@@ -31,7 +31,9 @@ describe("look-ahead confirmation request email", () => {
     expect(m.html).toContain("Northline Electric</p>");
     expect(m.html).toContain("Powered by Athena");
     expect(m.html).toContain("Confirm your delivery date");
-    expect(m.text).toContain("Pat Lee at Northline Electric has you on the two-week look-ahead for Willow Creek (job 2810): Delivery of switchgear, Thursday, Nov 12, 2026.");
+    expect(m.text).toContain(
+      "Pat Lee at Northline Electric has you on the two-week look-ahead for Willow Creek (job 2810): Delivery of switchgear, Thursday, Nov 12, 2026.",
+    );
     expect(m.text).toContain(`Confirm the date: ${base.link}`);
     expect(m.text).toContain("This link works until Nov 19, 2026.");
     expect(`${m.html}${m.text}`).not.toMatch(/\$|cost|markup|price/i);
@@ -47,14 +49,20 @@ describe("look-ahead confirmation request email", () => {
       windowEnd: "2026-11-14",
       logo: "https://backend.example/storage/v1/object/public/company-logos/n.png",
     });
-    expect(m.subject).toBe("Northline Electric: confirm crew start Nov 12 to Nov 14 for Willow Creek");
+    expect(m.subject).toBe(
+      "Northline Electric: confirm crew start Nov 12 to Nov 14 for Willow Creek",
+    );
     expect(m.html).toContain('alt="Northline Electric"');
     expect(m.html).toContain("Confirm your crew start date");
     expect(m.text).toContain("between Thursday, Nov 12, 2026 and Saturday, Nov 14, 2026");
   });
 
   it("escapes what the team typed", () => {
-    const m = confirmRequestEmail({ ...base, what: "<b>Panels</b> & gear", partyName: "A&B <Supply>" });
+    const m = confirmRequestEmail({
+      ...base,
+      what: "<b>Panels</b> & gear",
+      partyName: "A&B <Supply>",
+    });
     expect(m.html).toContain("&lt;b&gt;Panels&lt;/b&gt; &amp; gear");
     expect(m.html).not.toContain("<b>Panels</b>");
   });
@@ -65,7 +73,9 @@ describe("look-ahead confirmation request email", () => {
     const m = confirmRequestEmail(base);
     expect(await sendPortalEmail(m, { env: {}, sender })).toBe("off");
     expect(sent).toEqual([]);
-    expect(await sendPortalEmail(m, { env: { ATHENA_PORTAL_EMAIL_ENABLED: "true" }, sender })).toBe("sent");
+    expect(await sendPortalEmail(m, { env: { ATHENA_PORTAL_EMAIL_ENABLED: "true" }, sender })).toBe(
+      "sent",
+    );
     expect(sent[0]!.from).toBe('"Northline Electric via Athena" <team@meetathena.io>');
   });
 });

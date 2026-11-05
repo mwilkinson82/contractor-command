@@ -9,7 +9,8 @@ export const Route = createFileRoute("/l/$token")({
   server: {
     handlers: {
       GET: async ({ params, request }) => handleConfirmPage(request, params.token, liveConfirmDeps),
-      POST: async ({ params, request }) => handleConfirmPage(request, params.token, liveConfirmDeps),
+      POST: async ({ params, request }) =>
+        handleConfirmPage(request, params.token, liveConfirmDeps),
     },
   },
 });

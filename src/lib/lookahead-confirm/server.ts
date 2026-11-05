@@ -72,6 +72,12 @@ async function form(req: Request): Promise<Record<string, string>> {
 }
 
 const todayUtc = () => new Date().toISOString().slice(0, 10);
+/** A YYYY-MM-DD that is a real day (no Feb 30). */
+export function realDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const t = Date.parse(`${s}T12:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s;
+}
 
 /** Records the answer as a job notice and emails the team. The dedupe key makes a repeat send nothing. */
 async function notify(deps: ConfirmDeps, v: PublicView & { job_id: string }) {
@@ -87,8 +93,7 @@ export async function handleConfirmPage(
   if (!TOKEN_RE.test(token)) return html(renderConfirmGone("unknown"), 404);
   const hash = await tokenHash(token);
   const self = `/l/${token}`;
-  const logoFor = (url: string | null | undefined) =>
-    url && deps.logoOk?.(url) ? url : null;
+  const logoFor = (url: string | null | undefined) => (url && deps.logoOk?.(url) ? url : null);
 
   if (req.method === "GET" || req.method === "HEAD") {
     const parsed = openSchema.safeParse(
@@ -160,7 +165,7 @@ export async function handleConfirmPage(
   if (answer !== "confirmed" && answer !== "proposed_new_date" && answer !== "declined")
     return again("answer");
   if (name.length < 2 || name.length > 120) return again("name");
-  if (answer === "proposed_new_date" && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return again("date");
+  if (answer === "proposed_new_date" && !realDate(date)) return again("date");
   if (answer === "declined" && note.length < 2) return again("note");
 
   const parsed = respondSchema.safeParse(

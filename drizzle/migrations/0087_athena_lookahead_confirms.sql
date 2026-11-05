@@ -1,6 +1,6 @@
 -- Managed Lovable Cloud proposal. No standalone transaction wrapper.
 -- Plain SQL for Lovable to apply; nothing in this repo applies it. Apply after
--- 20261105150000_athena_job_notices.sql (job notices; renamed 20261105151500 at merge).
+-- 20261105151500_athena_job_notices.sql.
 --
 -- Look-ahead date confirmations: a supplier locks in a delivery date and a sub locks in their crew start or work
 -- date on the two-week look-ahead, from a link Athena emails them.

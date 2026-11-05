@@ -99,7 +99,7 @@ beforeAll(async () => {
     "CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$",
   );
   await load("20261021190000_athena_team_invites");
-  await load("20261105150000_athena_job_notices");
+  await load("20261105151500_athena_job_notices");
   await load("20261105162000_athena_lookahead_confirms");
   await db.query(
     "INSERT INTO mcp_companies(id,name,created_by) VALUES($1,'Northline Electric',$2)",
@@ -200,7 +200,15 @@ describe.sequential("look-ahead date confirmations", () => {
   it("is service role only on the token side", async () => {
     await expect(call(pm, "mcp_lookahead_confirm_open", [hash(1)])).rejects.toThrow();
     await expect(
-      call(outsider, "mcp_lookahead_confirm_respond", [hash(1), "confirmed", null, "X Y", null, null, null]),
+      call(outsider, "mcp_lookahead_confirm_respond", [
+        hash(1),
+        "confirmed",
+        null,
+        "X Y",
+        null,
+        null,
+        null,
+      ]),
     ).rejects.toThrow();
   });
 
@@ -253,7 +261,13 @@ describe.sequential("look-ahead date confirmations", () => {
     expect(await respond(hash(2), "proposed_new_date", asked, "Luis Rivera")).toMatchObject({
       reason: "same_date",
     });
-    const r = await respond(hash(2), "proposed_new_date", day(9), "Luis Rivera", "Crew on another job");
+    const r = await respond(
+      hash(2),
+      "proposed_new_date",
+      day(9),
+      "Luis Rivera",
+      "Crew on another job",
+    );
     expect(r).toMatchObject({
       status: "ok",
       answer: "proposed_new_date",
@@ -283,14 +297,21 @@ describe.sequential("look-ahead date confirmations", () => {
 
   it("stops an expired or cancelled link and slows down repeated posts", async () => {
     const e = await create(pm, { token: hash(4), name: "Late Supply", email: "late@example.com" });
-    await db.query("UPDATE mcp_lookahead_confirms SET expires_at = now() - interval '1 minute' WHERE id = $1", [e.id]);
+    await db.query(
+      "UPDATE mcp_lookahead_confirms SET expires_at = now() - interval '1 minute' WHERE id = $1",
+      [e.id],
+    );
     expect(await call(null, "mcp_lookahead_confirm_open", [hash(4)])).toMatchObject({
       status: "expired",
       company: "Northline Electric",
     });
     expect(await respond(hash(4), "confirmed", null, "Al Late")).toEqual({ status: "expired" });
 
-    const c = await create(superOn, { token: hash(5), name: "Gone Supply", email: "gone@example.com" });
+    const c = await create(superOn, {
+      token: hash(5),
+      name: "Gone Supply",
+      email: "gone@example.com",
+    });
     await expect(call(superOff, "mcp_lookahead_confirm_cancel", [job, c.id])).rejects.toThrow();
     expect(await call(superOn, "mcp_lookahead_confirm_cancel", [job, c.id])).toMatchObject({
       state: "cancelled",
