@@ -12710,7 +12710,7 @@
       {
         "name": "submittal_log",
         "title": "Hey Athena, log a submittal",
-        "description": "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall. confirm_reply sets the status from a reviewer's emailed reply (response_id from submittals_list returned) once the member names it.",
+        "description": "Adds, updates, or resubmits a job submittal when someone says Hey Athena, log a submittal, or uses a misspelling such as submital, submittle, sumittal, or submittall, and with confirm_reply sets the status from a reviewer's emailed reply (response_id from submittals_list returned) once the member names it.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -13072,7 +13072,7 @@
       {
         "name": "submittals_list",
         "title": "Submittal log and overdue submittals",
-        "description": "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active. returned true lists submittals the architect or engineer sent back, and emailed replies that still need a status.",
+        "description": "Lists a job's saved submittal log, one row at a time with number, title, status, ball in court, due date, and overdue, for a job number such as 2701, and resolves that number when it exists on exactly one company even if another company is active, and with returned true lists submittals the architect or engineer sent back, and emailed replies that still need a status.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
