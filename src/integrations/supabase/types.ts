@@ -6950,6 +6950,83 @@ export type Database = {
           },
         ]
       }
+      mcp_portal_messages: {
+        Row: {
+          access_id: string
+          author_kind: string
+          author_name: string
+          author_user_id: string | null
+          body: string
+          client_read_at: string | null
+          company_id: string
+          created_at: string
+          id: string
+          item_id: string | null
+          job_id: string
+          team_read_at: string | null
+          team_read_by: string | null
+        }
+        Insert: {
+          access_id: string
+          author_kind: string
+          author_name: string
+          author_user_id?: string | null
+          body: string
+          client_read_at?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          job_id: string
+          team_read_at?: string | null
+          team_read_by?: string | null
+        }
+        Update: {
+          access_id?: string
+          author_kind?: string
+          author_name?: string
+          author_user_id?: string | null
+          body?: string
+          client_read_at?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          job_id?: string
+          team_read_at?: string | null
+          team_read_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_messages_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_messages_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_portal_sessions: {
         Row: {
           access_id: string
@@ -10931,6 +11008,16 @@ export type Database = {
         Returns: Json
       }
       mcp_job_log_rows: { Args: { _job: string; _log: string }; Returns: Json }
+      mcp_job_message_reply: {
+        Args: {
+          _about_item?: string
+          _access: string
+          _body: string
+          _job: string
+        }
+        Returns: Json
+      }
+      mcp_job_messages_list: { Args: { _job: string }; Returns: Json }
       mcp_job_notice_email_result: {
         Args: { _email: string; _notice: string; _status: string }
         Returns: undefined
@@ -11129,6 +11216,10 @@ export type Database = {
         }
         Returns: Json
       }
+      mcp_portal_decision_job: {
+        Args: { _access: string; _decision: string; _session_hash: string }
+        Returns: string
+      }
       mcp_portal_invite: {
         Args: {
           _email: string
@@ -11141,6 +11232,21 @@ export type Database = {
       }
       mcp_portal_invite_open: { Args: { _invite_hash: string }; Returns: Json }
       mcp_portal_list: { Args: { _job: string }; Returns: Json }
+      mcp_portal_message_post: {
+        Args: {
+          _access: string
+          _body: string
+          _ip: string
+          _item: string
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_portal_messages: {
+        Args: { _access: string; _mark_read: boolean; _session_hash: string }
+        Returns: Json
+      }
       mcp_portal_pay_app_name: {
         Args: { _application: string; _job: string; _number: string }
         Returns: Json
