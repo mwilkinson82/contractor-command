@@ -15,7 +15,7 @@ const files = (dir: string): string[] =>
 describe("supabase.rpc stays bound to the client", () => {
   it("no source file assigns supabase.rpc without binding it", () => {
     const unbound = files(join(process.cwd(), "src")).filter((path) =>
-      /=\s*supabase\.rpc\s+as\b/.test(readFileSync(path, "utf8")),
+      /=\s*(supabase|sb|db|client|admin|supabaseAdmin)\.rpc\s*(as\b|;)/.test(readFileSync(path, "utf8")),
     );
     expect(unbound).toEqual([]);
   });

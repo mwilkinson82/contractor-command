@@ -31,7 +31,7 @@ async function rpc<T>(sb: Sb, name: string, args: Record<string, unknown>): Prom
 }
 /** The job's contract type and each change order's pricing basis. Optional: an older database has neither. */
 async function changeExtras(sb: Sb, jobId: string): Promise<ChangeExtras> {
-  const call = sb.rpc as unknown as (
+  const call = sb.rpc.bind(sb) as unknown as (
     n: string,
     a: Record<string, unknown>,
   ) => PromiseLike<{ data: unknown; error: unknown }>;
