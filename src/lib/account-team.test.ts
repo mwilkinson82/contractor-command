@@ -208,7 +208,7 @@ describe("team writes use the same database functions as the chat tools", () => 
       role: "pm",
       jobs: [],
     });
-    expect(r).toEqual({ ok: false, error: expect.stringContaining("$49 per seat per month") });
+    expect(r).toEqual({ ok: false, error: expect.stringContaining("seat limit (6 of 6") });
   });
   it("update and remove pass owner checks through to the database", async () => {
     const { db, calls } = fakeDb({

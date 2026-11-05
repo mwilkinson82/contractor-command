@@ -703,7 +703,7 @@ export function buildPmBrief(input: PmBriefInput): PmBrief {
   });
 
   // Header.
-  const headerDay = primary ? (primary.stale ? primary.asOf : primary.today) : jobToday(settings.time_zone, now);
+  const headerDay = primary ? primary.today : jobToday(settings.time_zone, now);
   let overdue = 0;
   let open = 0;
   let needYou = 0;
