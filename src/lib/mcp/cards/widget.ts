@@ -13,6 +13,8 @@ export const cardWidgetResourceMeta = {
   ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: true },
   "openai/widgetCSP": { connect_domains: [], resource_domains: [] },
   "openai/widgetPrefersBorder": true,
+  "openai/widgetDescription":
+    "Athena's card shows this result's figures, status and buttons. The member reads the details on the card, so answer with your own short read of what matters and one next step rather than restating it.",
 };
 
 const SCRIPT = `(function(){
@@ -164,7 +166,11 @@ ${reportLinkCss}
 </style></head><body><div id="app"></div><script>${SCRIPT}</script></body></html>`;
 }
 
-export const CARD_WIDGET = { uri: CARD_WIDGET_URI, mimeType: CARD_WIDGET_MIME, html: cardWidgetHtml };
+export const CARD_WIDGET = {
+  uri: CARD_WIDGET_URI,
+  mimeType: CARD_WIDGET_MIME,
+  html: cardWidgetHtml,
+};
 /** Result _meta only. tools/list must not carry this, or ChatGPT treats the tool as a widget. */
 export const cardWidgetMeta = {
   "openai/outputTemplate": CARD_WIDGET_URI,
