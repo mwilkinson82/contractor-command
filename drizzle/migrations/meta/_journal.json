@@ -568,6 +568,13 @@
       "when": 1793841711840,
       "tag": "0080_athena_proposal_choice_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1793841770534,
+      "tag": "0081_athena_portal_choice_stage",
+      "breakpoints": true
     }
   ]
 }
