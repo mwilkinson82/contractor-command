@@ -11280,6 +11280,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      mcp_cpm_activity_core: { Args: { _a: Json }; Returns: Json }
+      mcp_cpm_recalc_only: {
+        Args: { _next: Json; _prev: Json }
+        Returns: boolean
+      }
       mcp_daily_reminder_mark_shown: {
         Args: { _day: string; _job: string }
         Returns: Json
@@ -11634,6 +11639,10 @@ export type Database = {
       mcp_job_import_completion: { Args: { _batch: string }; Returns: Json }
       mcp_job_import_context: {
         Args: { _company: string; _job_number: string; _source: string }
+        Returns: Json
+      }
+      mcp_job_import_replace_schedule: {
+        Args: { _batch: string; _confirmed: boolean; _hash: string }
         Returns: Json
       }
       mcp_job_import_stage: {

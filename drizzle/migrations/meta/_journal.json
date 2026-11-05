@@ -673,6 +673,13 @@
       "when": 1793860181006,
       "tag": "0095_athena_job_import_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1793862045765,
+      "tag": "0096_athena_job_import_replace_schedule",
+      "breakpoints": true
     }
   ]
 }
