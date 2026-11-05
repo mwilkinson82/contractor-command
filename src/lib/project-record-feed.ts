@@ -209,6 +209,20 @@ export const shortDate = (date: string) =>
 /** "Oct 5, 2026, 3:42 PM EDT": the full stamp used in the drawer and exports. */
 export const stampAt = (at: string, zone: string) =>
   `${shortDate(dayKey(at, zone))}, ${clock(at, zone)} ${zoneAbbr(at, zone)}`.trim();
+/**
+ * The same stamp in the viewer's own time zone, for a saved time shown on a
+ * board ("Nov 5, 2026, 7:31 PM GMT-4"). Anything that isn't a time comes back as it was.
+ */
+export function viewerStamp(at: string): string {
+  if (!Number.isFinite(new Date(at).getTime())) return at;
+  let zone = "UTC";
+  try {
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    /* keep UTC */
+  }
+  return stampAt(at, zone);
+}
 
 export function groupByDay(
   events: RecordEvent[],

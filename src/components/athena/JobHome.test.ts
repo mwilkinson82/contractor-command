@@ -122,7 +122,7 @@ describe("approved project overview", () => {
     expect(html).toContain("$12,345.00");
     expect(html).toContain("Source: job setup");
     expect(html).toContain("Unknown");
-    expect(html).toContain("Inception through 2026-10-30");
+    expect(html).toContain("Inception through Oct 30, 2026");
     expect(html).toContain("Unapplied receipts");
     expect(html).toContain("Recorded retainage held");
     expect(html).toContain("Due 2026-11-01");

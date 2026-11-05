@@ -13,6 +13,7 @@ import { lookaheadModel, lookaheadWindow, type SAct } from "@/lib/mcp/styled-vie
 import { currentSubmittals } from "@/lib/mcp/submittals";
 import type { BoardPage } from "@/lib/mcp/board-link";
 import { jobHomePath } from "@/lib/report-pages";
+import { shortDate, viewerStamp } from "@/lib/project-record-feed";
 import {
   overviewCommunications,
   overviewContract,
@@ -685,7 +686,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 </div>
                 <p className="jh-note">
                   {money
-                    ? `${money.payments.currency} · Inception through ${money.payments.asOf}, inclusive · Captured ${money.payments.capturedAt}. `
+                    ? `${money.payments.currency} · Inception through ${/^\d{4}-\d{2}-\d{2}$/.test(money.payments.asOf) ? shortDate(money.payments.asOf) : money.payments.asOf}, inclusive · Captured ${viewerStamp(money.payments.capturedAt)}. `
                     : "USD evidence; as-of unavailable until the source is read. "}
                   Entered evidence, not bank reconciliation. Missing opening records can leave
                   coverage incomplete. Unknown differs from zero; these measures do not establish
@@ -908,9 +909,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                   <article className="jh-comm" id={row.id} key={row.id}>
                     <span className="jh-badge">{row.status}</span>
                     <h3>{row.title}</h3>
-                    <time dateTime={row.when}>
-                      {row.when.replace("T", " ").replace("Z", " UTC")}
-                    </time>
+                    <time dateTime={row.when}>{viewerStamp(row.when)}</time>
                     <p>{row.basis}</p>
                     <details>
                       <summary>Source record</summary>

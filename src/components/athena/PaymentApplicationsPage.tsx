@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { viewerStamp } from "@/lib/project-record-feed";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -767,7 +768,7 @@ export function PaymentApplicationsPage({
                     <a href={applicationUrl(jobId, saved.application_id, h.version)}>
                       Version {h.version} · {h.state}
                     </a>{" "}
-                    · {h.recorded_at} {h.reason}
+                    · {viewerStamp(h.recorded_at)} {h.reason}
                   </li>
                 ))}
               </ul>
