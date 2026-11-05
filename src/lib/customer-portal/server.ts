@@ -8,12 +8,15 @@ import {
   choiceTerms,
   inviteOpenSchema,
   portalMessagesSchema,
+  portalPaymentsSchema,
   portalViewSchema,
   TIER_NAME,
   UUID,
   type PortalPage,
+  type PortalPayments,
   type PortalView,
 } from "./model";
+import type { OpenCheckoutResult, PayMethod } from "../client-payments/checkout";
 import { recordJobNotice, type NoticeDeps } from "../notices/send";
 import { MESSAGE_MAX } from "./messages";
 import { decisionNotice, messageNotice, type DecideResult, type PostedMessage } from "./notices";
@@ -72,6 +75,11 @@ export type PortalDeps = {
    * job's PM directly, as before, and a message is kept but tells no one.
    */
   notice?: NoticeDeps;
+  /**
+   * Opens a Stripe Checkout page for an approved pay application on the contractor's account. Without it the page
+   * shows no way to pay.
+   */
+  pay?: (p: { access: string; sessionHash: string; item: string; method: PayMethod }) => Promise<OpenCheckoutResult>;
 };
 
 const logoFor = (deps: PortalDeps, access: string): Promise<string | null> =>
@@ -100,6 +108,12 @@ const ERRORS: Record<string, string> = {
   agree: "Tick the box to agree before you confirm.",
   msg_invalid: "Write a message of up to 4,000 characters, then send it.",
   msg_slow: "You've sent a lot of messages in the last hour. Wait a little, then send this one.",
+  pay_not_approved: "Approve this pay application first, then you can pay it here.",
+  pay_nothing_due: "Nothing is due on this pay application.",
+  pay_not_accepting: "Online payments aren't open right now. Ask your project team how to pay.",
+  pay_already_paid: "This pay application is already paid or a payment is on its way.",
+  pay_method: "That way to pay isn't available for this amount. Try the other one, or ask your project team.",
+  pay_error: "We couldn't open the payment page. Nothing was charged. Try again in a moment.",
 };
 const FLASH: Record<string, string> = {
   sent: "Message sent. Your project team will reply here, and we'll email you when they do.",
@@ -107,6 +121,27 @@ const FLASH: Record<string, string> = {
   declined: "Declined. Your contractor has been told and will follow up.",
   chosen: "Your choice is recorded. Your contractor has been told.",
 };
+const PAID_FLASH =
+  "Thanks. Stripe is confirming your payment, and this page shows it once they do. You'll also get a receipt from Stripe.";
+
+/** The customer's payments on this job. Null when the page can't take payments or they couldn't be read. */
+async function loadPayments(
+  deps: PortalDeps,
+  access: string,
+  sessionHash: string,
+): Promise<PortalPayments | null> {
+  if (!deps.pay) return null;
+  const raw = await deps
+    .rpc("mcp_portal_payments_state", { _access: access, _session_hash: sessionHash })
+    .catch(() => null);
+  const parsed = portalPaymentsSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const { status: _s, ...rest } = parsed.data;
+  return rest;
+}
+
+/** Only Stripe's own Checkout pages: anything else from the pay step is refused. */
+const isCheckoutUrl = (u: string) => /^https:\/\/checkout\.stripe\.com\/[A-Za-z0-9/_\-#%.?=&]+$/.test(u);
 
 export function clientIp(req: Request): string | null {
   const h = req.headers;
@@ -357,6 +392,7 @@ export async function handlePortal(
     const sec = section(q.get("s"));
     // Opening Messages marks the team's replies read; every other page only counts them for the tab.
     page.messages = await loadMessages(deps, access, sessionHash!, sec === "messages");
+    if (sec === "billing") page.payments = await loadPayments(deps, access, sessionHash!);
     const brandLogo = await logoFor(deps, access);
     const step = q.get("step");
     const e = q.get("e");
@@ -374,7 +410,9 @@ export async function handlePortal(
           ? (FLASH[ok] ?? null)
           : q.get("sent") === "1"
             ? "We emailed you a 6-digit code."
-            : null,
+            : q.get("paid") === "1" && sec === "billing"
+              ? PAID_FLASH
+              : null,
         logo: brandLogo,
       }),
     );
@@ -395,6 +433,20 @@ export async function handlePortal(
   }
 
   if (f.action === "message") return postMessage(req, access, sessionHash, f, deps);
+
+  if (f.action === "pay") {
+    const item = f.item && UUID.safeParse(f.item).success ? f.item : null;
+    const method = f.method === "card" || f.method === "bank" ? f.method : null;
+    if (!item || !method || !deps.pay) return redirect(`${self}?s=billing&e=invalid`);
+    const back = (e: string) =>
+      redirect(`${self}?${new URLSearchParams({ s: "billing", i: item, e }).toString()}`);
+    const r = await deps.pay({ access, sessionHash, item, method }).catch(() => ({ status: "error" }));
+    if (r.status === "redirect" && "url" in r && typeof r.url === "string" && isCheckoutUrl(r.url))
+      return redirect(r.url);
+    if (r.status === "signed_out" || r.status === "unknown" || r.status === "revoked" || r.status === "closed")
+      return goneFor(r.status, access);
+    return back(ERRORS[`pay_${r.status}`] ? `pay_${r.status}` : "pay_error");
+  }
 
   const view = await loadView(deps, access, sessionHash, req);
   if (typeof view === "string") return goneFor(view, access);

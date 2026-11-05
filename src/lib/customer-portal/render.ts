@@ -46,7 +46,7 @@ export const PORTAL_HEADERS: Record<string, string> = {
   "cache-control": "private, no-store",
   "x-content-type-options": "nosniff",
   "content-security-policy":
-    "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://checkout.stripe.com",
   "referrer-policy": "same-origin",
   "x-robots-tag": "noindex, nofollow",
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -975,6 +975,75 @@ function payPill(i: PayApp, dated = false): string {
     : `<span class="pill neutral">${esc(`Declined${when}`)}</span>`;
 }
 
+// ---------- paying an approved pay application online ----------
+
+type PortalPayment = NonNullable<PortalPage["payments"]>["payments"][number];
+const SETTLED = ["processing", "paid", "partially_refunded", "refunded"];
+/** The payment that settles this pay application, if one is paid or on its way. */
+const settledPayment = (p: PortalPage, i: PayApp): PortalPayment | null =>
+  p.payments?.payments.find((x) => x.item_id === i.id && SETTLED.includes(x.status)) ?? null;
+const byWord = (m: string | null) =>
+  m === "bank" ? " by bank" : m === "card" ? " by card" : "";
+
+/** The pill a pay application shows once paid online, or null to show its decision. */
+function paidPill(p: PortalPage, i: PayApp): string | null {
+  const x = settledPayment(p, i);
+  if (!x) return null;
+  if (x.status === "processing") return `<span class="pill wait">Payment on its way</span>`;
+  if (x.status === "refunded") return `<span class="pill neutral">Refunded</span>`;
+  return `<span class="pill ok">Paid</span>`;
+}
+
+/** Where the customer's online payment stands, once there is one. */
+function paidBox(x: PortalPayment): string {
+  const amt = usd(x.amount_cents);
+  const test = x.test ? `<p class="pp-test">Test payment. No real money moved.</p>` : "";
+  if (x.status === "processing")
+    return `<section class="panel pp"><div class="panel-head"><h2>Payment on its way</h2><span class="pill wait">Clearing</span></div>${test}<p class="pp-line">${esc(`Your ${amt} bank payment started ${longDate(x.updated_at)}.`)}</p><p class="fine">Banks take a few business days to clear it. This page shows it as paid once it does.</p></section>`;
+  const refunded = x.refunded_cents ?? 0;
+  const line =
+    x.status === "refunded"
+      ? `Paid ${amt}${byWord(x.method)} on ${longDate(x.paid_at)}, then refunded in full.`
+      : x.status === "partially_refunded"
+        ? `Paid ${amt}${byWord(x.method)} on ${longDate(x.paid_at)}. ${usd(refunded)} was refunded.`
+        : `Paid ${amt}${byWord(x.method)} on ${longDate(x.paid_at)}.`;
+  return `<section class="panel pp"><div class="pp-done"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div><b>${x.status === "refunded" ? "Refunded" : "Paid"}</b><span>${esc(line)}</span></div></div>${test}<p class="fine">Stripe emailed your receipt. Questions about it go to your project team.</p></section>`;
+}
+
+/** Pay an approved pay application by bank or card, on a Stripe page for the contractor's own account. */
+function payBox(p: PortalPage, i: PayApp): string {
+  const pay = p.payments;
+  if (!pay || i.decision?.decision !== "approved") return "";
+  const settled = settledPayment(p, i);
+  if (settled) return paidBox(settled);
+  const due = i.view.totals.current_due_cents;
+  if (!pay.accepting || due <= 0) return "";
+  const cardOk = pay.card && due <= pay.card_max_cents;
+  const btn = (method: "bank" | "card", label: string, primary: boolean) =>
+    `<form method="post">${hidden(p, { action: "pay", item: i.id, method })}<button class="btn${primary ? "" : " secondary"} block" type="submit">${label}</button></form>`;
+  const buttons = [
+    pay.bank ? btn("bank", "Pay by bank", true) : "",
+    cardOk ? btn("card", "Pay by card", !pay.bank) : "",
+  ].join("");
+  if (!buttons) return "";
+  const last = p.payments?.payments.find((x) => x.item_id === i.id);
+  const failed =
+    last?.status === "failed"
+      ? `<p class="pp-warn">Your last payment didn't go through, so nothing was charged. You can try again.</p>`
+      : "";
+  const test = pay.test
+    ? `<p class="pp-test">Test mode. No real money moves, and only Stripe's test bank and card details work.</p>`
+    : "";
+  const cardNote =
+    pay.card && !cardOk
+      ? `<p class="fine">${esc(`Card payments are open up to ${usd(pay.card_max_cents)}, so pay this one by bank.`)}</p>`
+      : "";
+  const how = pay.bank
+    ? "You'll finish on a secure Stripe page. Bank payments take a few business days to clear."
+    : "You'll finish on a secure Stripe page.";
+  return `<section class="panel pp"><div class="panel-head"><h2>${esc(`Pay ${usd(due)}`)}</h2></div><p class="sub">${esc(`You approved ${itemLabel(i)}. Pay it here and ${p.contractor.name} gets it directly.`)}</p>${test}${failed}<div class="pp-btns">${buttons}</div>${cardNote}<p class="fine">${esc(how)}</p></section>`;
+}
+
 /** The plain-words math: work done and stored, less what you hold back, less what you already approved. */
 function payMath(v: PayAppView): string {
   const t = v.totals;
@@ -1050,20 +1119,27 @@ function billing(p: PortalPage): string {
     return `<section class="panel"><div class="panel-head"><h2>Billing</h2></div><p class="empty">No pay applications shared with you yet.</p></section>`;
   const latest = apps[0]!;
   const v = latest.view;
-  const dueWord = latest.decision
-    ? latest.decision.decision === "approved"
-      ? "approved"
-      : "declined"
-    : "due now";
-  const head = `<section class="panel pay-card"><div class="pay-head"><div><p class="eyebrow">${esc(`Latest pay application · ${period(v)}`)}</p><h2>${esc(itemLabel(latest))}</h2></div>${payPill(latest)}</div><p class="pay-due">${esc(usd(v.totals.current_due_cents))}<span>${esc(dueWord)}</span></p>${latest.decision ? "" : dueChip(p, latest.due_on, "Approve")}${payMath(v)}<div class="form-actions"><a class="btn${latest.decision ? " secondary" : ""}" href="${esc(href(p, "billing", { i: latest.id }))}">${latest.decision ? "View" : "Review and approve"}</a></div></section>`;
+  const paid = settledPayment(p, latest);
+  const dueWord = paid
+    ? paid.status === "processing"
+      ? "payment on its way"
+      : paid.status === "refunded"
+        ? "refunded"
+        : "paid"
+    : latest.decision
+      ? latest.decision.decision === "approved"
+        ? "approved"
+        : "declined"
+      : "due now";
+  const head = `<section class="panel pay-card"><div class="pay-head"><div><p class="eyebrow">${esc(`Latest pay application · ${period(v)}`)}</p><h2>${esc(itemLabel(latest))}</h2></div>${paidPill(p, latest) ?? payPill(latest)}</div><p class="pay-due">${esc(usd(v.totals.current_due_cents))}<span>${esc(dueWord)}</span></p>${latest.decision ? "" : dueChip(p, latest.due_on, "Approve")}${payMath(v)}<div class="form-actions"><a class="btn${latest.decision ? " secondary" : ""}" href="${esc(href(p, "billing", { i: latest.id }))}">${latest.decision ? "View" : "Review and approve"}</a></div></section>`;
   const lines = `<section class="panel"><div class="panel-head"><h2>Work by line</h2><span class="meta">${esc(`Work through ${longDate(v.period_end)}`)}</span></div>${payLines(v)}</section>`;
   const history = `<section class="panel"><div class="panel-head"><h2>Billing history</h2><span class="meta">${apps.length} ${apps.length === 1 ? "pay application" : "pay applications"}</span></div>${apps
     .map(
       (i) =>
-        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Work through ${longDate(i.view.period_end)} · shared ${longDate(i.shared_on)}`)}</div></div><div class="right"><span class="cp-money">${esc(usd(i.view.totals.current_due_cents))}</span>${payPill(i, true)}<a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">${i.decision ? "View" : "Review"}</a></div></div>`,
+        `<div class="rec"><div><h3>${esc(itemLabel(i))}</h3><div class="meta">${esc(`Work through ${longDate(i.view.period_end)} · shared ${longDate(i.shared_on)}`)}</div></div><div class="right"><span class="cp-money">${esc(usd(i.view.totals.current_due_cents))}</span>${paidPill(p, i) ?? payPill(i, true)}<a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">${i.decision ? "View" : "Review"}</a></div></div>`,
     )
     .join("")}</section>`;
-  return `<div class="grid-home"><div class="stack">${head}${lines}${history}</div><aside class="rail">${contractCard(latest)}${contactPanel(p)}</aside></div>`;
+  return `<div class="grid-home"><div class="stack">${head}${payBox(p, latest)}${lines}${history}</div><aside class="rail">${contractCard(latest)}${contactPanel(p)}</aside></div>`;
 }
 
 function payAppDetail(p: PortalPage, i: PayApp, o: PortalOpts): string {
@@ -1080,7 +1156,7 @@ function payAppDetail(p: PortalPage, i: PayApp, o: PortalOpts): string {
   });
   let side: string;
   if (i.decision)
-    side = `${receipt(i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
+    side = `${payBox(p, i)}${receipt(i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
   else if (o.step === "confirm")
     side = `<form method="post" class="panel"><h2>${esc(`Approve ${label}`)}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>Due now</span><b>${esc(usd(t.current_due_cents))}</b></div><div><span>Work through</span><b>${esc(longDate(v.period_end))}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "approved", fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Approve pay application</button></div></form>`;
   else if (o.step === "decline")
@@ -1088,7 +1164,7 @@ function payAppDetail(p: PortalPage, i: PayApp, o: PortalOpts): string {
   else
     side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Approve</button></form><a class="btn secondary block" href="${esc(href(p, "billing", { i: i.id, step: "decline" }))}">Decline</a>${askLink(p, i)}<p class="fine">Approving asks for a code we email you and your typed name. Your decision is recorded with the date and time.</p></section>`;
   const sum = `<dl class="co-sum"><div><dt>Due now</dt><dd>${esc(usd(t.current_due_cents))}</dd></div><div><dt>Work through</dt><dd>${esc(longDate(v.period_end))}</dd></div><div><dt>Approve by</dt><dd>${esc(i.due_on ? longDate(i.due_on) : "No date")}</dd></div></dl>`;
-  const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`Pay application · shared ${longDate(i.shared_on)} · ${period(v)}`)}</p><h2>${esc(label)}</h2></div>${payPill(i)}</div>${sum}<h4 class="pay-h">How this amount adds up</h4>${payMath(v)}</section><section class="panel"><div class="panel-head"><h2>Work by line</h2></div>${payLines(v)}</section>`;
+  const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`Pay application · shared ${longDate(i.shared_on)} · ${period(v)}`)}</p><h2>${esc(label)}</h2></div>${paidPill(p, i) ?? payPill(i)}</div>${sum}<h4 class="pay-h">How this amount adds up</h4>${payMath(v)}</section><section class="panel"><div class="panel-head"><h2>Work by line</h2></div>${payLines(v)}</section>`;
   return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}${contractCard(i)}</aside></div>`;
 }
 
@@ -1136,6 +1212,21 @@ const BILLING_CSS = `
 .cp-kv dt{color:var(--body)}
 .cp-kv dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cp-kv .cp-total dt,.cp-kv .cp-total dd{color:var(--ink);font-weight:700}
+/* Paying online. */
+.pp .sub{margin-top:6px}
+.pp-btns{display:grid;gap:10px;margin-top:16px}
+.pp-btns form{margin:0}
+.pp .btn{transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease}
+.pp .btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,.18)}
+.pp .fine{margin-top:12px}
+.pp-line{margin:10px 0 0;color:var(--body)}
+.pp-test{margin:12px 0 0;padding:9px 12px;border-radius:10px;font-size:13px;font-weight:600;color:var(--wait-ink);background:var(--wait-soft);border:1px solid var(--wait-line)}
+.pp-warn{margin:12px 0 0;padding:9px 12px;border-radius:10px;font-size:13px;font-weight:600;color:var(--alert-ink);background:var(--alert-soft);border:1px solid var(--alert-line)}
+.pp-done{display:flex;gap:12px;align-items:flex-start}
+.pp-done svg{flex:none;width:30px;height:30px;padding:6px;border-radius:999px;background:var(--ok-soft);border:1px solid var(--ok-line);fill:none;stroke:var(--ok-ink);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.pp-done b{display:block;font-size:17px;color:var(--ok-ink)}
+.pp-done span{display:block;margin-top:2px;color:var(--body)}
+@media (min-width:641px) and (max-width:1000px){.pay-card+.pp .pp-btns{grid-template-columns:1fr 1fr}}
 @media (max-width:1000px){.pay-due{font-size:36px}.pay-card h2{font-size:20px}.cp-big{font-size:27px}.pay-math div{padding:11px 14px}.cp-wl-top{gap:10px}.cp-legend{gap:7px}.cp-kv div{font-size:13px}}
 @media (max-width:640px){.pay-head{grid-template-columns:minmax(0,1fr)}.pay-head .pill{justify-self:start}.pay-due{font-size:30px}.pay-card h2{font-size:18px}.cp-big{font-size:24px}.pay-math div{padding:10px 12px;gap:10px}.pay-math dt span{font-size:11.5px}.cp-wl-top{flex-direction:column;gap:2px}.cp-wl-meta{font-size:12px}.cp-legend.cp-inline{gap:4px 12px}.cp-bar.cp-tall{height:12px}.cp-kv div{gap:8px}}
 `;
