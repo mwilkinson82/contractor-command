@@ -53,7 +53,7 @@ const short = (_note?: string) => z.string().max(2000).optional();
 const tri = z.enum(["yes", "no", "na", "unknown"]);
 const doc = (_note?: string) => z.string().max(20_000).optional();
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
-const READ = { readOnlyHint: true, openWorldHint: false } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 const MAX_INPUT = 20_000;
 
 function capInput(args: unknown) {

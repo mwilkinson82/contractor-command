@@ -43,7 +43,7 @@ import {
 const jobNumber = z.string().trim().min(1).max(40);
 const companyId = z.string().trim().min(1).max(200).optional();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
-const READ = { readOnlyHint: true, openWorldHint: false } as const;
+const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 // Ask-first: ChatGPT and Claude confirm destructive tools with the member before calling.
 const SAVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
 const reportType = z.enum(LIVING_REPORT_TYPES);

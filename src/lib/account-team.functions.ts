@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { billingConfig } from "@/lib/athena-billing";
+import Stripe from "stripe";
+import { billingConfig, createAthenaCheckout } from "@/lib/athena-billing";
 import { ROLE_LABEL, type TeamList } from "@/lib/mcp/team";
 import { buildInviteEmail, inviteEnabled, sendInvite } from "@/lib/mcp/team-invite-email";
 
@@ -69,4 +70,58 @@ export const sendTeamInviteEmail = createServerFn({ method: "POST" })
       roleLabel: ROLE_LABEL[invite.role] ?? invite.role,
     });
     return { status: await sendInvite(mail) };
+  });
+
+export type SeatCheckoutResult =
+  | { status: "ok"; url: string }
+  | { status: "off" | "not_owner" | "failed" };
+
+/**
+ * Nov 2026: the one place an owner pays for extra seats. Runs only from the signed-in account page (never from chat,
+ * which only links here). Checks the caller owns the company, then opens a Stripe Checkout for the athena_seat price.
+ * Stays off until ATHENA_CHECKOUT_ENABLED and STRIPE_SECRET_KEY are both set.
+ */
+export const startSeatCheckout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({ companyId: z.string().uuid(), seats: z.number().int().min(1).max(500) }).parse,
+  )
+  .handler(async ({ data, context }): Promise<SeatCheckoutResult> => {
+    const secret = process.env.STRIPE_SECRET_KEY;
+    if (!billingConfig().checkoutEnabled || !secret) return { status: "off" };
+    const sb = context.supabase as unknown as {
+      rpc: Rpc;
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (k: string, v: string) => { maybeSingle: () => PromiseLike<{ data: unknown }> };
+        };
+      };
+    };
+    const owner = await sb.rpc("mcp_is_company_owner", { _company: data.companyId });
+    if (owner.error || owner.data !== true) return { status: "not_owner" };
+    const ent = await sb
+      .from("mcp_company_entitlements")
+      .select("stripe_customer_id")
+      .eq("company_id", data.companyId)
+      .maybeSingle();
+    const profile = await sb
+      .from("profiles")
+      .select("email")
+      .eq("id", context.userId)
+      .maybeSingle();
+    try {
+      const stripe = new Stripe(secret, { apiVersion: "2024-12-18.acacia" as never });
+      const s = await createAthenaCheckout(stripe as never, {
+        companyId: data.companyId,
+        ownerUserId: context.userId,
+        ownerEmail: (profile.data as { email?: string | null } | null)?.email ?? null,
+        plan: null,
+        extraSeats: data.seats,
+        customerId:
+          (ent.data as { stripe_customer_id?: string | null } | null)?.stripe_customer_id ?? null,
+      });
+      return s?.url ? { status: "ok", url: s.url } : { status: "failed" };
+    } catch {
+      return { status: "failed" };
+    }
   });

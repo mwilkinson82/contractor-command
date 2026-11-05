@@ -6,12 +6,12 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, Loader2, Mail, Pencil, UserPlus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getSeatPurchaseStatus, sendTeamInviteEmail } from "@/lib/account-team.functions";
+import { sendTeamInviteEmail } from "@/lib/account-team.functions";
+import { AddSeats } from "./add-seats";
 import {
   ROLE_LABEL,
   SEAT_PRICE_LABEL,
   TEAM_ROLES,
-  addSeatsMessage,
   inviteMember,
   removeMember,
   roleUsesJobList,
@@ -142,12 +142,10 @@ export function AthenaTeamSection({
   reload: () => Promise<void>;
   inviteEmailEnabled?: boolean;
 }) {
-  const seatStatusFn = useServerFn(getSeatPurchaseStatus);
   const inviteEmailFn = useServerFn(sendTeamInviteEmail);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -258,17 +256,6 @@ export function AthenaTeamSection({
     }
   }
 
-  async function onAddSeats() {
-    setSeatMsg(null);
-    let enabled = false;
-    try {
-      enabled = (await seatStatusFn()).checkoutEnabled === true;
-    } catch {
-      enabled = false;
-    }
-    setSeatMsg(addSeatsMessage(enabled)); // Never opens a payment page from here.
-  }
-
   const accessText = (role: TeamRole, jobs: string[]) =>
     !roleUsesJobList(role) ? "All jobs" : jobs.length ? jobs.join(", ") : "No jobs yet";
 
@@ -289,19 +276,12 @@ export function AthenaTeamSection({
             <span style={{ width: `${Math.min(100, (used / Math.max(1, limit)) * 100)}%` }} />
           </div>
         ) : null}
-        <button
-          type="button"
-          className="aa-btn aa-btn-ghost"
-          onClick={() => void onAddSeats()}
-          disabled={busy}
-        >
-          Add seats
-        </button>
-        {seatMsg ? (
-          <p className="aa-note" style={{ flexBasis: "100%" }}>
-            {seatMsg}
-          </p>
-        ) : null}
+        <AddSeats
+          companyId={co}
+          buttonClassName="aa-btn aa-btn-ghost"
+          primaryClassName="aa-btn aa-btn-primary"
+          noteClassName="aa-note"
+        />
       </section>
 
       {note ? (

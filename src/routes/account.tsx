@@ -486,7 +486,7 @@ function AccountPage() {
             payments.
           </p>
           <p className="aa-lede" style={{ marginTop: 10 }}>
-            Need more seats? Open Team & access and choose Add seats, or ask Athena in chat.
+            Need more seats? Open Team & access and choose Add seats.
           </p>
         </section>
       </div>

@@ -44,8 +44,8 @@ export function checkoutParams(a: CheckoutArgs, env: Env = process.env): Session
     ...(a.customerId ? { customer: a.customerId } : a.ownerEmail ? { customer_email: a.ownerEmail } : {}),
     subscription_data: { trial_period_days: c.trialDays, metadata },
     metadata,
-    success_url: `${c.origin}/team?checkout=done`,
-    cancel_url: `${c.origin}/team?checkout=cancelled`,
+    success_url: `${c.origin}/account?checkout=done#team`,
+    cancel_url: `${c.origin}/account?checkout=cancelled#team`,
   };
 }
 

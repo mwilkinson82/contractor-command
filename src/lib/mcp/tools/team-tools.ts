@@ -3,13 +3,14 @@
 // ChatGPT renders the selection card (TEAM_WIDGET_URI); Claude, Codex and Grok Bot get a numbered list + text confirm.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import Stripe from "stripe";
 import { run, text, type Sb } from "../guard";
 import { resolveCompany } from "../jobs";
 import { guide } from "../visible";
-import { ROLE_LABEL, SEAT_LIMIT_MESSAGE, TEAM_WIDGET_MIME, TEAM_WIDGET_URI, confirmLine, normalizeRole, renderTeamList, rolesMenu, seatLimitFromError, seatLine, teamWidgetHtml, type TeamList, type TeamRole } from "../team";
+import { ROLE_LABEL, SEAT_LIMIT_MESSAGE, SEAT_PRICE_LABEL, TEAM_WIDGET_MIME, TEAM_WIDGET_URI, confirmLine, normalizeRole, renderTeamList, rolesMenu, seatLimitFromError, seatLine, teamWidgetHtml, type TeamList, type TeamRole } from "../team";
 import { buildInviteEmail, sendInvite } from "../team-invite-email";
-import { CHECKOUT_OFF_MESSAGE, billingConfig, createAthenaCheckout } from "../../athena-billing";
+import { accountLinkCard, accountUrl } from "./account-tools";
+import { renderHtml } from "../cards/html";
+import { renderMarkdown } from "../cards/markdown";
 
 export const OWNER_ONLY_MESSAGE = "Only a company owner can manage the team. Ask your owner to make this change.";
 
@@ -173,25 +174,31 @@ export const teamRemoveMember = defineTool({
     }),
 });
 
+// Nov 2026: seats are bought on the owner's Athena account page (Team & access > Add seats), never in chat.
+// ChatGPT and Claude directory rules keep payment for digital subscriptions out of the conversation, so this tool
+// only checks the caller owns the company and hands back the account page link. No Stripe call from chat.
 export const teamAddSeats = defineTool({
   name: "team_add_seats",
   title: "Add seats",
-  description: "Adds company seats at $49 per seat per month.",
-  inputSchema: { company_id: companyId, seats: z.number().int().min(1).max(500), confirmed },
-  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  description:
+    "Gives the company owner the account page link where they add seats at $49 per seat per month.",
+  inputSchema: {
+    company_id: companyId,
+    seats: z.number().int().min(1).max(500).optional(),
+    confirmed: z.literal(true).optional(),
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>
     run("team_add_seats", ctx, {}, async (sb) => {
-      if (args.confirmed !== true) throw new ToolError("Confirm with the owner first. Nothing was changed.");
-      const co = await ownerCompany(sb, args.company_id);
-      const cfg = billingConfig();
-      if (!cfg.checkoutEnabled || !process.env.STRIPE_SECRET_KEY) {
-        return guide({ ...text(CHECKOUT_OFF_MESSAGE), structuredContent: { checkout: null } }, "Tell the owner exactly this. Don't offer any other payment link.");
-      }
-      const u = await (sb as unknown as { auth: { getUser: () => Promise<{ data: { user: { id: string; email?: string } | null } }> } }).auth.getUser();
-      const ent = await sb.from("mcp_company_entitlements").select("stripe_customer_id").eq("company_id", co).maybeSingle();
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-12-18.acacia" as never });
-      const s = await createAthenaCheckout(stripe as never, { companyId: co, ownerUserId: u.data.user?.id ?? "", ownerEmail: u.data.user?.email, plan: null, extraSeats: args.seats, customerId: (ent.data as { stripe_customer_id?: string } | null)?.stripe_customer_id });
-      return guide({ ...text(`Here's the page to add ${args.seats} seat${args.seats === 1 ? "" : "s"}: ${s?.url}`), structuredContent: { checkout: s?.url ?? null } }, "Give the link on its own line. Never open it yourself.");
+      await ownerCompany(sb, args.company_id);
+      const url = accountUrl("team");
+      const card = accountLinkCard("team");
+      const n = args.seats;
+      const lead = `To add ${n ? `${n} seat${n === 1 ? "" : "s"}` : "seats"}, open Team & access on your Athena account page and choose Add seats. Extra seats are ${SEAT_PRICE_LABEL}, and you pay on that page.`;
+      return guide(
+        { ...text(`${lead}\n\n${renderMarkdown(card)}`), structuredContent: { url, section: "team", seats: n ?? null, checkout: null, card, html: renderHtml(card) } },
+        "Give the account page link. Payment happens only on that page.",
+      );
     }),
 });
 
