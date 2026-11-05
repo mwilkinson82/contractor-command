@@ -187,7 +187,7 @@ export const TIER_NAME = { good: "Good", better: "Better", best: "Best" } as con
 
 /**
  * The exact words the customer agrees to. Stored with each decision. Change order and selection wording approved by
- * Marshall (attorney), Nov 4. The pay_app wording is a placeholder awaiting Marshall's (attorney) approval.
+ * Marshall (attorney), Nov 4; pay application wording approved by Marshall, Nov 5.
  */
 export function approvalStatement(a: {
   kind: "change_order" | "selection" | "pay_app";
@@ -201,7 +201,6 @@ export function approvalStatement(a: {
   periodEnd?: string;
 }): string {
   if (a.kind === "pay_app")
-    // Placeholder wording, awaiting Marshall's (attorney) approval.
     return `I approve ${a.label} from ${a.company} for ${a.price} due for work through ${a.periodEnd ?? ""}, as described on this page. I understand that typing my name and confirming with the emailed code is my electronic signature.`;
   if (a.kind === "change_order") {
     const days =
