@@ -239,6 +239,15 @@ function isFigure(key: string, value: unknown): boolean {
   return ((isPercentKey(key) || isMoneyKey(key)) && asReportNumber(value) != null) || formatMoneyPhrase(value) != null;
 }
 
+/** The viewer's time zone where the runtime knows it, else the default job zone. */
+function viewerZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TZ;
+  } catch {
+    return DEFAULT_TZ;
+  }
+}
+
 export function renderIorLayout(input: {
   report: { scope?: string; version?: number; data_date?: string | null; contract_total?: number | null; forecast_total?: number | null; data?: Record<string, unknown> };
   names?: ReportNames | null;
@@ -253,9 +262,9 @@ export function renderIorLayout(input: {
   if (moneyOk) {
     const { model } = readIorModel(data);
     if (model) {
-      // The IOR is read as of its data date, so "today" never falls before it. A save made just
-      // after midnight in the PM's zone would otherwise show yesterday in the default zone.
-      const day = input.today?.slice(0, 10) || todayIn(DEFAULT_TZ);
+      // Today is the viewer's own calendar day (the page renders in their browser), and never
+      // before the IOR's data date, which is the day the IOR is read as of.
+      const day = input.today?.slice(0, 10) || todayIn(viewerZone());
       const dataDay = /^\d{4}-\d{2}-\d{2}/.test(report.data_date ?? "") ? report.data_date!.slice(0, 10) : null;
       const today = dataDay && dataDay > day ? dataDay : day;
       return renderAthenaIor(model, { today, version: report.version, dataDate: report.data_date });
