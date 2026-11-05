@@ -136,6 +136,14 @@ describe("morning brief email", () => {
     expect(mail.html).not.toContain("<b>Harbor</b>");
   });
 
+  it("leads with the day it's sent and when the schedule was last updated, even on a stale schedule", () => {
+    const { doc } = buildPmBrief({ jobs: [JOB], focus: new Map([[JOB.job_id, FOCUS]]), now: NOW, firstName: "Marshall" });
+    const mail = renderBriefEmail(doc);
+    expect(mail.text.split("\n")[1]).toMatch(/^Thursday, Nov 5 · Schedule last updated Jun 25/);
+    expect(mail.html).toContain("Thursday, Nov 5 · Schedule last updated Jun 25");
+    expect(mail.html).not.toContain("Schedule updated Jun 25");
+  });
+
   it("names the day when nothing needs the member", () => {
     expect(briefEmailSubject({ greeting: "Good morning.", when: "Thursday, Nov 5", sections: [], footer: "" })).toBe("Good morning. Your brief for Thursday, Nov 5");
   });
