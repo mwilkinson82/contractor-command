@@ -631,6 +631,13 @@
       "when": 1793850611774,
       "tag": "0089_athena_job_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1793850712876,
+      "tag": "0090_athena_job_notices",
+      "breakpoints": true
     }
   ]
 }

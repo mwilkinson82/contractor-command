@@ -5624,6 +5624,168 @@ export type Database = {
           },
         ]
       }
+      mcp_job_notice_emails: {
+        Row: {
+          email: string
+          notice_id: string
+          role: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          email: string
+          notice_id: string
+          role: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          email?: string
+          notice_id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_notice_emails_notice_id_fkey"
+            columns: ["notice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_job_notices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_job_notice_prefs: {
+        Row: {
+          email: boolean
+          job_id: string
+          role: string
+          topic: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          email: boolean
+          job_id: string
+          role: string
+          topic: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          email?: boolean
+          job_id?: string
+          role?: string
+          topic?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_notice_prefs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_job_notice_reads: {
+        Row: {
+          notice_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          notice_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          notice_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_notice_reads_notice_id_fkey"
+            columns: ["notice_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_job_notices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_job_notices: {
+        Row: {
+          actor: string | null
+          board_page: string | null
+          company_id: string
+          created_at: string
+          dedupe_key: string | null
+          detail: string | null
+          facts: Json
+          id: string
+          job_id: string
+          kind: string
+          ref_id: string | null
+          ref_table: string | null
+          title: string
+          topic: string
+        }
+        Insert: {
+          actor?: string | null
+          board_page?: string | null
+          company_id: string
+          created_at?: string
+          dedupe_key?: string | null
+          detail?: string | null
+          facts?: Json
+          id?: string
+          job_id: string
+          kind: string
+          ref_id?: string | null
+          ref_table?: string | null
+          title: string
+          topic: string
+        }
+        Update: {
+          actor?: string | null
+          board_page?: string | null
+          company_id?: string
+          created_at?: string
+          dedupe_key?: string | null
+          detail?: string | null
+          facts?: Json
+          id?: string
+          job_id?: string
+          kind?: string
+          ref_id?: string | null
+          ref_table?: string | null
+          title?: string
+          topic?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_job_notices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_job_notices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_jobs: {
         Row: {
           company_id: string | null
@@ -10769,6 +10931,39 @@ export type Database = {
         Returns: Json
       }
       mcp_job_log_rows: { Args: { _job: string; _log: string }; Returns: Json }
+      mcp_job_notice_email_result: {
+        Args: { _email: string; _notice: string; _status: string }
+        Returns: undefined
+      }
+      mcp_job_notice_prefs_get: { Args: { _job: string }; Returns: Json }
+      mcp_job_notice_prefs_set: {
+        Args: { _email: boolean; _job: string; _role: string; _topic: string }
+        Returns: Json
+      }
+      mcp_job_notice_record: {
+        Args: {
+          _actor: string
+          _board_page: string
+          _dedupe_key: string
+          _detail: string
+          _facts: Json
+          _job: string
+          _kind: string
+          _ref_id: string
+          _ref_table: string
+          _title: string
+          _topic: string
+        }
+        Returns: Json
+      }
+      mcp_job_notices_list: {
+        Args: { _job: string; _limit?: number }
+        Returns: Json
+      }
+      mcp_job_notices_mark_read: {
+        Args: { _ids?: string[]; _job: string }
+        Returns: number
+      }
       mcp_job_scope: { Args: { _job: string }; Returns: string }
       mcp_job_settings: {
         Args: {
@@ -10877,6 +11072,10 @@ export type Database = {
         Returns: Json
       }
       mcp_morning_brief_shows: { Args: never; Returns: Json }
+      mcp_my_notices: {
+        Args: { _limit?: number; _since?: string; _unread_only?: boolean }
+        Returns: Json
+      }
       mcp_next_check: { Args: { _job: string }; Returns: Json }
       mcp_normalize_role: { Args: { _role: string }; Returns: string }
       mcp_open_item_create: { Args: { _f: Json; _job: string }; Returns: Json }
