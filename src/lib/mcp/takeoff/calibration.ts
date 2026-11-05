@@ -23,14 +23,16 @@ export function statedScaleCalibration(
     );
   const a = { x: bounds.x, y: bounds.y };
   const b = { x: bounds.x + bounds.width, y: bounds.y };
-  if (!(
-    bounds.width > 0 &&
-    bounds.height > 0 &&
-    bounds.x >= 0 &&
-    bounds.y >= 0 &&
-    b.x <= 1 &&
-    bounds.y + bounds.height <= 1
-  ))
+  if (
+    !(
+      bounds.width > 0 &&
+      bounds.height > 0 &&
+      bounds.x >= 0 &&
+      bounds.y >= 0 &&
+      b.x <= 1 &&
+      bounds.y + bounds.height <= 1
+    )
+  )
     throw new Error("Choose the plan/detail bounds on this sheet.");
   return calibrate(space, {
     region,
@@ -141,4 +143,69 @@ export function automaticCalibration(
     }),
     checks,
   };
+}
+
+/** Standard full-size drawing sheets, in inches. A sheet that is exactly one of
+ * these sizes was printed to PDF at full size, so its printed scale applies to
+ * the PDF as drawn. Smaller sizes are left out on purpose: an 11 × 17 is often a
+ * half-size print of a 22 × 34 sheet, where the printed scale would be wrong. */
+const FULL_SIZE_SHEETS: [number, number][] = [
+  [24, 36], // ARCH D
+  [30, 42], // ARCH E1
+  [36, 48], // ARCH E
+  [22, 34], // ANSI D
+  [34, 44], // ANSI E
+  [23.39, 33.11], // ISO A1
+  [33.11, 46.81], // ISO A0
+];
+
+/** The sheet's size in inches when it is a standard full-size drawing sheet. */
+export function fullSizeSheet(space: Pick<SheetSpace, "width" | "height">): string | null {
+  const short = Math.min(space.width, space.height) / 72,
+    long = Math.max(space.width, space.height) / 72;
+  const match = FULL_SIZE_SHEETS.find(
+    ([s, l]) => Math.abs(short - s) / s <= 0.01 && Math.abs(long - l) / l <= 0.01,
+  );
+  return match ? `${match[1]} × ${match[0]} in` : null;
+}
+
+/** Applies the title block's printed scale automatically when nothing about it is
+ * in doubt: the sheet is a standard full-size drawing sheet (so the PDF is true
+ * size), its text states exactly one scale, and nothing says "as noted" or "not
+ * to scale". The estimator can still check a known dimension at any time. */
+export function titleBlockCalibration(
+  space: SheetSpace,
+  inspection: SheetInspection,
+): Calibration | null {
+  if (inspection.truncated || /as\s+noted/i.test(inspection.text) || !fullSizeSheet(space))
+    return null;
+  const scales = scaleProposals(inspection.text);
+  if (!scales.length) return null;
+  // The same scale printed twice ("1/4" = 1'-0"" and "1/4"=1'-0"") is still one scale.
+  const fpp = scales[0].feet_per_point;
+  if (scales.some((s) => Math.abs(s.feet_per_point - fpp) / fpp > 1e-6)) return null;
+  return statedScaleCalibration(
+    space,
+    scales[0].label,
+    "Main plan (printed scale)",
+    { x: 0, y: 0, width: 1, height: 1 },
+    true,
+  );
+}
+
+/** The scale a sheet plainly states, if any: two dimension strings that agree with
+ * its title block, or else the title block's single scale on a full-size sheet.
+ * Never throws; a sheet whose scale can't be read simply has none yet. */
+export function plainCalibration(
+  space: SheetSpace,
+  inspection: SheetInspection,
+): Calibration | null {
+  try {
+    return (
+      automaticCalibration(space, inspection)?.calibration ??
+      titleBlockCalibration(space, inspection)
+    );
+  } catch {
+    return null;
+  }
 }

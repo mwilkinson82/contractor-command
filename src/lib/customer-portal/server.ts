@@ -50,7 +50,12 @@ export type PortalDeps = {
   send: (m: PortalEmail) => Promise<"sent" | "off" | "failed">;
   emailOn: () => boolean;
   randomInt?: () => number;
+  /** The contractor's saved logo for this customer's page, an https URL, or null. Optional: name-only without it. */
+  logo?: (access: string) => Promise<string | null>;
 };
+
+const logoFor = (deps: PortalDeps, access: string): Promise<string | null> =>
+  deps.logo ? deps.logo(access).catch(() => null) : Promise.resolve(null);
 
 export const COOKIE = "athena_portal";
 
@@ -172,6 +177,7 @@ export async function handleInvite(
     return html(renderGone(info.status), info.status === "unknown" ? 404 : 410);
   const self = `/c/i/${token}`;
   const url = new URL(req.url);
+  const brandLogo = await logoFor(deps, info.access_id);
 
   if (req.method === "GET" || req.method === "HEAD") {
     const step = url.searchParams.get("step") === "code" ? "code" : "start";
@@ -180,6 +186,7 @@ export async function handleInvite(
       renderInvite(info, step, {
         sent: url.searchParams.get("sent") === "1",
         error: e ? (ERRORS[e] ?? null) : null,
+        logo: brandLogo,
       }),
     );
   }
@@ -189,7 +196,7 @@ export async function handleInvite(
   const f = await form(req);
 
   if (f.action === "send_code") {
-    if (!deps.emailOn()) return html(renderGone("email_off", info.company), 503);
+    if (!deps.emailOn()) return html(renderGone("email_off", info.company, brandLogo), 503);
     const code = sixDigits(deps.randomInt);
     const issued = await deps
       .rpc("mcp_portal_code_issue", {
@@ -203,7 +210,8 @@ export async function handleInvite(
       .catch(() => null);
     const st = status(issued);
     if (st === "slow_down") return redirect(`${self}?step=code&e=slow`);
-    if (st !== "ok") return html(renderGone(st === "error" ? "error" : st, info.company), 410);
+    if (st !== "ok")
+      return html(renderGone(st === "error" ? "error" : st, info.company, brandLogo), 410);
     const sent = await deps.send(
       codeEmail({
         to: info.email,
@@ -212,6 +220,7 @@ export async function handleInvite(
         jobName: info.job_name,
         code,
         purpose: "sign_in",
+        logo: brandLogo,
         nonce: newToken(),
       }),
     );
@@ -240,7 +249,7 @@ export async function handleInvite(
       });
     if (st === "wrong" || st === "locked" || st === "expired")
       return redirect(`${self}?step=code&e=${st}`);
-    return html(renderGone(st === "error" ? "error" : st, info.company), 410);
+    return html(renderGone(st === "error" ? "error" : st, info.company, brandLogo), 410);
   }
   return redirect(self);
 }
@@ -320,6 +329,7 @@ export async function handlePortal(
       access_id: access,
       csrf: await csrfFor(session!),
     };
+    const brandLogo = await logoFor(deps, access);
     const q = url.searchParams;
     const step = q.get("step");
     const e = q.get("e");
@@ -336,6 +346,7 @@ export async function handlePortal(
           : q.get("sent") === "1"
             ? "We emailed you a 6-digit code."
             : null,
+        logo: brandLogo,
       }),
     );
   }
@@ -395,6 +406,7 @@ export async function handlePortal(
         code,
         purpose: "decide",
         what: itemLabel(item),
+        logo: await logoFor(deps, access),
         nonce: newToken(),
       }),
     );

@@ -132,7 +132,7 @@ h1{margin:0;font-size:clamp(24px,3.2vw,32px);line-height:1.15;font-weight:700;le
 .rec .meta{font-size:13px;color:var(--body);margin-top:2px}
 .done-box{display:flex;gap:10px;align-items:center;padding:14px 16px;border-radius:10px;background:var(--ok-soft);border:1px solid var(--ok-line);color:var(--ok-ink);font-weight:600}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 18px;border-radius:999px;border:1px solid var(--accent);background:var(--accent);color:var(--white);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background .2s,transform .2s,box-shadow .2s}
-.btn:hover{background:var(--accent-deep);border-color:var(--accent-deep);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,.28)}
+.btn:not(.gbb *):hover{background:var(--accent-deep);border-color:var(--accent-deep);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,.28)}
 .btn.secondary{background:var(--white);color:var(--ink);border-color:var(--field)}
 .btn.secondary:hover{background:var(--soft);border-color:var(--underline);box-shadow:none}
 .btn.block{width:100%}
@@ -218,7 +218,7 @@ h4:first-child{margin-top:0}
 .statement{margin-top:14px;padding:12px 14px;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--soft);font-size:13.5px}
 @media (max-width:1000px){.grid-home,.co-cols{grid-template-columns:minmax(0,1fr)}.rail{grid-template-columns:repeat(2,minmax(0,1fr))}.photos{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){
-.who-name span:not(.avatar),.co-sub{display:none}
+.who-name span:not(.avatar),.cp-co-sub{display:none}
 .main{padding-top:18px}
 .stack{gap:16px}
 .rail{grid-template-columns:minmax(0,1fr);gap:16px}
@@ -242,21 +242,22 @@ h4:first-child{margin-top:0}
 const PORTAL_CSS = `
 /* Client page shell: Athena blue hero with a blueprint grid, pinned glass tabs, white cards. */
 .pt{--tabs-h:57px}
-.hero{position:relative;color:#f4f7fd;overflow:hidden;isolation:isolate;background:#1a47c7}
-.hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(900px 420px at 85% 0%,rgba(140,190,255,.55),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),linear-gradient(160deg,#2f6cf2,#1a47c7)}
-.hero a,.hero .linkbtn{color:#fff;text-decoration-color:rgba(255,255,255,.45)}
+.cp-hero{position:relative;color:#f4f7fd;overflow:hidden;isolation:isolate;background:#1a47c7}
+.cp-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(900px 420px at 85% 0%,rgba(140,190,255,.55),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),linear-gradient(160deg,#2f6cf2,#1a47c7)}
+.cp-hero a,.cp-hero .linkbtn{color:#fff;text-decoration-color:rgba(255,255,255,.45)}
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:18px;padding-bottom:18px}
-.co{display:flex;align-items:center;gap:12px;min-width:0}
-.co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#1a47c7;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
-.co-word{display:grid;line-height:1.2;min-width:0}
-.co-word b{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.co-sub{font-size:12px;color:#dbe6ff}
+.cp-co{display:flex;align-items:center;gap:12px;min-width:0}
+.cp-co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#1a47c7;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
+.cp-co-img{display:block;height:44px;width:auto;max-width:min(200px,44vw);object-fit:contain;padding:6px 10px;border-radius:11px;background:#fff;flex:none}
+.cp-co-word{display:grid;line-height:1.2;min-width:0}
+.cp-co-word b{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-co-sub{font-size:12px;color:#dbe6ff}
 .who{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#dbe6ff}
 .who-name{display:flex;align-items:center;gap:8px}
 .who .avatar{background:rgba(255,255,255,.16);color:#fff}
 .hero-in{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;align-items:center;padding-top:22px;padding-bottom:44px}
 .h-eyebrow{margin:0;font:600 10.5px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#e4edff}
-.hero h1{font-size:46px;line-height:1.04;font-weight:650;letter-spacing:-.035em;margin:10px 0 12px;color:#fff;text-wrap:balance}
+.cp-hero h1{font-size:46px;line-height:1.04;font-weight:650;letter-spacing:-.035em;margin:10px 0 12px;color:#fff;text-wrap:balance}
 .lede{margin:0 0 18px;font-size:16px;color:#dbe6ff;max-width:46ch}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);color:#fff}
@@ -286,13 +287,13 @@ const PORTAL_CSS = `
 .tab:hover{background:var(--soft);color:var(--ink)}
 .tab[aria-current=page]{background:var(--ink);color:#fff}
 .count{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}
-.acts{display:grid;gap:10px}
-.act{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:14px;background:var(--soft);border:1px solid var(--line);transition:border-color .2s,transform .2s}
-.act:hover{border-color:var(--accent);transform:translateY(-1px)}
+.cp-acts{display:grid;gap:10px}
+.cp-act{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px;border-radius:14px;background:var(--soft);border:1px solid var(--line);transition:border-color .2s,transform .2s}
+.cp-act:hover{border-color:var(--accent);transform:translateY(-1px)}
 .ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
 .ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.act h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.015em;line-height:1.35}
-.act .meta{display:block;font-size:13px;color:var(--body);margin-top:1px}
+.cp-act h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.015em;line-height:1.35}
+.cp-act .meta{display:block;font-size:13px;color:var(--body);margin-top:1px}
 .due{display:inline-flex;align-items:center;font-size:12px;font-weight:600;color:var(--wait-ink);background:var(--wait-soft);padding:2px 8px;border-radius:999px;margin-top:5px}
 .week{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .byline{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);font-size:13px;color:var(--body)}
@@ -312,9 +313,9 @@ const PORTAL_CSS = `
 .foot{padding-top:24px;padding-bottom:26px;margin-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 18px}
 .athena{display:inline-flex;align-items:center;gap:6px}
 .athena svg{width:16px;height:12px;flex:none}
-@media (max-width:1000px){.hero-in{grid-template-columns:minmax(0,1fr);gap:24px}.hero h1{font-size:38px}}
-@media (max-width:640px){.hero-in{padding-top:8px;padding-bottom:24px}.hero h1{font-size:30px}.lede{font-size:14.5px}.brandbar{padding-top:14px;padding-bottom:14px}.snap{grid-template-columns:minmax(0,1fr);justify-items:center;padding:16px}.snap-rows{width:100%}.act{grid-template-columns:auto minmax(0,1fr);padding:12px}.act .btn{grid-column:1/-1;width:100%}.phases{grid-template-columns:minmax(0,1fr);gap:12px}.phases li{padding:0 0 0 18px}.phases li::before{top:3px;bottom:3px;left:0;right:auto;width:6px;height:auto}.photos.thumbs{gap:10px}.foot{flex-direction:column;align-items:flex-start}.tabs .wrap{padding-top:8px;padding-bottom:8px}}
-@media (prefers-reduced-motion:reduce){.ring,.panel,.act,.btn,.photo img,.peek img{animation:none!important;transition:none!important}}
+@media (max-width:1000px){.hero-in{grid-template-columns:minmax(0,1fr);gap:24px}.cp-hero h1{font-size:38px}}
+@media (max-width:640px){.hero-in{padding-top:8px;padding-bottom:24px}.cp-hero h1{font-size:30px}.lede{font-size:14.5px}.brandbar{padding-top:14px;padding-bottom:14px}.snap{grid-template-columns:minmax(0,1fr);justify-items:center;padding:16px}.snap-rows{width:100%}.cp-act{grid-template-columns:auto minmax(0,1fr);padding:12px}.cp-act .btn{grid-column:1/-1;width:100%}.phases{grid-template-columns:minmax(0,1fr);gap:12px}.phases li{padding:0 0 0 18px}.phases li::before{top:3px;bottom:3px;left:0;right:auto;width:6px;height:auto}.photos.thumbs{gap:10px}.foot{flex-direction:column;align-items:flex-start}.tabs .wrap{padding-top:8px;padding-bottom:8px}}
+@media (prefers-reduced-motion:reduce){.ring,.panel,.cp-act,.btn,.photo img,.peek img{animation:none!important;transition:none!important}}
 `;
 
 // Sign-in, code and notice screens match Athena's own sign-in card (src/components/auth/auth-card.tsx, brand
@@ -457,6 +458,8 @@ export type PortalOpts = {
   choice?: string | null;
   flash?: string | null;
   error?: string | null;
+  /** The contractor's saved logo, an https URL. Their initials and name show when there is none. */
+  logo?: string | null;
 };
 
 const open = (i: PortalItem) => i.decision === null;
@@ -508,10 +511,10 @@ function decideBox(p: PortalPage): string {
           ? `Change order · ${usd(i.view.price_cents)} · ${days(i.view.schedule_days)}`
           : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
       const verb = i.kind === "change_order" ? "Reply" : "Choose";
-      return `<div class="act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(itemLabel(i))}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
+      return `<div class="cp-act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(itemLabel(i))}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
     })
     .join("");
-  return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2><span class="meta">${waiting.length} ${waiting.length === 1 ? "item" : "items"}</span></div><div class="acts">${rows}</div></section>`;
+  return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2><span class="meta">${waiting.length} ${waiting.length === 1 ? "item" : "items"}</span></div><div class="cp-acts">${rows}</div></section>`;
 }
 
 function photoGrid(photos: PortalPage["photos"], cls = ""): string {
@@ -791,9 +794,14 @@ function body(p: PortalPage, o: PortalOpts): string {
 }
 
 /** The blue top of every signed-in page: contractor, job, where it stands, and the two latest photos. */
-function hero(p: PortalPage, waiting: number): string {
+function hero(p: PortalPage, waiting: number, logo: string | null = null): string {
   const c = p.contractor;
-  const brand = `<div class="wrap brandbar"><div class="co"><span class="co-logo" aria-hidden="true">${esc(initials(c.name))}</span><span class="co-word"><b>${esc(c.name)}</b><span class="co-sub">Client page</span></span></div><div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></div>`;
+  // The contractor leads: their saved logo on a white tile when they have one, else initials and their name.
+  const src = safeLogo(logo);
+  const mark = src
+    ? `<img class="cp-co-img" src="${esc(src)}" alt="${esc(c.name)}"><span class="cp-co-word"><span class="cp-co-sub">Client page</span></span>`
+    : `<span class="cp-co-logo" aria-hidden="true">${esc(initials(c.name))}</span><span class="cp-co-word"><b>${esc(c.name)}</b><span class="cp-co-sub">Client page</span></span>`;
+  const brand = `<div class="wrap brandbar"><div class="cp-co">${mark}</div><div class="who"><span class="who-name"><span class="avatar" aria-hidden="true">${esc(initials(p.customer.name))}</span><span>${esc(p.customer.name)}</span></span><form method="post">${hidden(p, { action: "sign_out" })}<button class="linkbtn" type="submit">Sign out</button></form></div></div>`;
   const latest = p.updates[0];
   const next = nextMilestone(p);
   const lede = latest
@@ -824,7 +832,7 @@ function hero(p: PortalPage, waiting: number): string {
   const peek = pics.length
     ? `<div class="peek">${pics.map((ph) => `<figure><img src="${esc(ph.url)}" alt="${esc(ph.work || ph.area || "Progress photo")}" referrerpolicy="no-referrer"><figcaption>${esc(shortDate(ph.taken_on))}</figcaption></figure>`).join("")}</div>`
     : "";
-  return `<section class="hero">${brand}<div class="wrap hero-in"><div><p class="h-eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1><p class="lede">${esc(lede)}</p><div class="chips">${chips}</div></div><div class="snap${ring ? "" : " no-ring"}">${ring}<div class="snap-rows">${rows}</div>${peek}</div></div></section>`;
+  return `<section class="cp-hero">${brand}<div class="wrap hero-in"><div><p class="h-eyebrow">Job ${esc(p.job.number)}</p><h1>${esc(p.job.name)}</h1><p class="lede">${esc(lede)}</p><div class="chips">${chips}</div></div><div class="snap${ring ? "" : " no-ring"}">${ring}<div class="snap-rows">${rows}</div>${peek}</div></div></section>`;
 }
 
 export function renderPortal(p: PortalPage, o: PortalOpts): string {
@@ -846,7 +854,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
       : "";
   return doc(
     `${p.job.name} · ${SECTION_LABEL[o.section]}`,
-    `<div class="pt">${hero(p, waiting)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>`,
+    `<div class="pt">${hero(p, waiting, o.logo ?? null)}<nav class="tabs" aria-label="Project sections"><div class="wrap">${tabs}</div></nav><main class="wrap main">${flash}${body(p, o)}</main><footer class="wrap foot"><span>Shared with ${esc(p.customer.name)} by ${esc(p.contractor.name)}. Only you can see this page.</span><span class="athena">${ATHENA_A}Powered by Athena</span></footer></div>`,
   );
 }
 

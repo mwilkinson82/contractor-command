@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tokenHash } from "../mcp/file-share";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 import { customerProposal } from "../selections/proposal";
+import { COMPARE_CSS } from "../selections/compare-page";
 import {
   ATHENA_BLUE,
   ATHENA_EMAIL_LOGO_URL,
@@ -273,7 +274,13 @@ describe("customer page", () => {
       expect(r.status, s).toBe(200);
       expect(html, s).not.toMatch(/<script/i);
       // Approved Nov 5: Athena blue hero over white cards, Powered by Athena in the footer.
-      expect(html, s).toContain('<section class="hero">');
+      expect(html, s).toContain('<section class="cp-hero">');
+      // The approved Good/Better/Best compare (round five) uses hero, act, co and co-sub classes of its
+      // own; the portal's shell styles are prefixed cp- so they can't restyle it.
+      for (const cls of ["hero", "act", "acts", "co", "co-sub", "co-logo", "co-word"])
+        expect(html.replace(COMPARE_CSS, ""), `${s} .${cls}`).not.toMatch(
+          new RegExp(`(?<![\\w-])\\.${cls}(?![\\w-])`),
+        );
       expect(html, s).toContain("linear-gradient(160deg,#2f6cf2,#1a47c7)");
       expect(html, s).toContain("Powered by Athena");
       expect(html, s).not.toContain("secret-path");
@@ -732,5 +739,39 @@ describe("sign-in screens", () => {
       "ALP Construction turned off access. Contact ALP Construction if you think",
     );
     expect(renderGone("expired")).toContain("Ask your contractor to send you a new invite.");
+  });
+});
+
+describe("the contractor's saved logo on the customer page", () => {
+  const LOGO = "https://x.supabase.co/storage/v1/object/public/company-logos/northline.png";
+
+  it("leads the sign-in screen, the page header and the code email when the contractor has one", async () => {
+    const { d, mail } = deps();
+    const asked: string[] = [];
+    d.logo = async (a) => {
+      asked.push(a);
+      return LOGO;
+    };
+    const invite = await (await handleInvite(req(`/c/i/${TOKEN}`), TOKEN, d)).text();
+    expect(invite).toContain(`class="as-logo" src="${LOGO}"`);
+    await handleInvite(await post(`/c/i/${TOKEN}`, { action: "send_code" }), TOKEN, d);
+    expect(mail.at(-1)!.html).toContain(`src="${LOGO}"`);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain(`<img class="cp-co-img" src="${LOGO}" alt="Northline Builders">`);
+    expect(asked.every((a) => a === ACCESS)).toBe(true);
+  });
+
+  it("keeps the initials and name when there is no logo or the lookup fails", async () => {
+    const { d } = deps();
+    d.logo = async () => {
+      throw new Error("down");
+    };
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).not.toContain(`class="cp-co-img"`);
+    expect(page).toContain("<b>Northline Builders</b>");
   });
 });

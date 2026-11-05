@@ -16,6 +16,7 @@ import {
 } from "../../customer-portal/email";
 import { portalInviteUrl, portalUrl } from "../../customer-portal/model";
 import { longDate } from "../../customer-portal/render";
+import { companyLogoUrl } from "../document-email-brand";
 import { displayPrice } from "../../selections/format";
 
 const INVITE_DEFAULT_DAYS = 14;
@@ -74,6 +75,7 @@ async function notify(
   kind: "update" | "decision",
   label: string | undefined,
   accessFor: (r: Recipient) => string | null,
+  logo: string | null = null,
 ) {
   const out: string[] = [];
   for (const r of recipients) {
@@ -88,6 +90,7 @@ async function notify(
         link: portalUrl(access),
         kind,
         label,
+        logo,
         nonce: newToken(),
       }),
     );
@@ -232,6 +235,7 @@ export const customerPortal = defineTool({
               pmName: r.pm_name,
               link,
               expires: longDate(expires.toISOString()),
+              logo: await companyLogoUrl(sb, job.company_id),
               nonce: newToken(),
             }),
           );
@@ -296,7 +300,10 @@ export const customerPortal = defineTool({
             _body: args.body,
           });
           await audit(sb, job, "customer_portal", "post_update", r.id);
-          const sent = args.notify === false ? [] : await notifyAll(r, "update");
+          const sent =
+            args.notify === false
+              ? []
+              : await notifyAll(r, "update", undefined, await companyLogoUrl(sb, job.company_id));
           return text(
             [
               head,
@@ -328,7 +335,10 @@ export const customerPortal = defineTool({
           });
           await audit(sb, job, "customer_portal", "share_change_order", r.item_id);
           const label = `${r.number} · ${r.title}`;
-          const sent = args.notify === false ? [] : await notifyAll(r, "decision", label);
+          const sent =
+            args.notify === false
+              ? []
+              : await notifyAll(r, "decision", label, await companyLogoUrl(sb, job.company_id));
           return guide(
             {
               ...text(
@@ -365,7 +375,10 @@ export const customerPortal = defineTool({
             },
           );
           await audit(sb, job, "customer_portal", "share_selection", r.item_id);
-          const sent = args.notify === false ? [] : await notifyAll(r, "decision", r.title);
+          const sent =
+            args.notify === false
+              ? []
+              : await notifyAll(r, "decision", r.title, await companyLogoUrl(sb, job.company_id));
           return text(
             [
               head,
@@ -388,8 +401,9 @@ async function notifyAll(
   r: { recipients: Recipient[]; company: string; job_name: string },
   kind: "update" | "decision",
   label?: string,
+  logo: string | null = null,
 ): Promise<string[]> {
-  return notify(r.recipients, r.job_name, r.company, kind, label, (x) => x.access_id ?? null);
+  return notify(r.recipients, r.job_name, r.company, kind, label, (x) => x.access_id ?? null, logo);
 }
 
 export { INVITE_DEFAULT_DAYS };

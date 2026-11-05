@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { appMoney } from "./model";
 import type { SavedApplication } from "./workflow";
+import { drawPoweredByAthena } from "../client-brand";
 
 type Brand = { companyName?: string; logo?: Uint8Array; logoFormat?: "PNG" | "JPEG" };
 /** Original payment application and schedule; not an AIA licensed form. */
@@ -138,6 +139,6 @@ export function applicationPdf(job: { number: string; name: string }, saved: Sav
     }
   }
   const pages=d.getNumberOfPages();
-  for(let i=1;i<=pages;i++){d.setPage(i);const w=d.internal.pageSize.getWidth(), h=d.internal.pageSize.getHeight();text(clip(`Athena | ${a.number} | v${saved.version}`,w-100,7)[0],24,h-20,7);text(`${i} / ${pages}`,w-24,h-20,7,false,{align:"right"});}
+  for(let i=1;i<=pages;i++){d.setPage(i);const w=d.internal.pageSize.getWidth(), h=d.internal.pageSize.getHeight();text(clip(`${a.number} | v${saved.version} | ${i} / ${pages}`,w-200,7)[0],24,h-20,7);drawPoweredByAthena(d,w-24,h-20);}
   return new Uint8Array(d.output("arraybuffer"));
 }

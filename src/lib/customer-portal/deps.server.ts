@@ -2,6 +2,7 @@
 // own) and Resend. Server-only.
 import { createClient } from "@supabase/supabase-js";
 import { portalEmailEnabled, sendPortalEmail } from "./email";
+import { isCompanyLogoUrl } from "../payment-applications/brand";
 import type { PortalDeps } from "./server";
 
 const PHOTO_BUCKET = "athena-progress";
@@ -44,4 +45,11 @@ export const liveDeps: PortalDeps = {
   },
   send: (m) => sendPortalEmail(m),
   emailOn: () => portalEmailEnabled(),
+  // Only a PNG or JPEG in the public company-logos bucket on our own backend, the same rule pay apps use.
+  logo: async (access) => {
+    const backend = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+    const data = await liveDeps.rpc("mcp_portal_brand", { _access: access });
+    const url = (data as { logo_url?: unknown } | null)?.logo_url;
+    return typeof url === "string" && backend && isCompanyLogoUrl(url, backend) ? url : null;
+  },
 };
