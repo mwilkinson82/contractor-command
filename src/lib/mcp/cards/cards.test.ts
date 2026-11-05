@@ -61,7 +61,7 @@ describe("PM tools become cards", () => {
     expect(after.structuredContent.card.state).toBe("ask");
     expect(after.structuredContent.card.ask?.prompt).toContain("What are the pay terms?");
     expect(after.structuredContent.card.progress).toEqual({ done: 3, total: 7 });
-    expect(after.content[0].text).toContain("## Next question");
+    expect(after.content[0].text).toContain("## Job setup");
     expect(after.content[0].text).toContain(before);
     expect(after.content[0].text).toContain("REQUIRED VIEW: render this HTML card as-is.");
     expect(after.structuredContent.html).toContain("What are the pay terms?");

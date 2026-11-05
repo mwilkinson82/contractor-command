@@ -2855,7 +2855,7 @@
       },
       {
         "name": "next_question",
-        "title": "Next question",
+        "title": "Next job setup question",
         "description": "Returns the next job setup checklist question for a job, never the estimate gap check, which estimate_gap_answer walks.",
         "annotations": {
           "readOnlyHint": false,
@@ -21225,7 +21225,7 @@
       },
       {
         "name": "estimate_gap_answer",
-        "title": "Gap check answer",
+        "title": "Gap check walk-through",
         "description": "Starts or continues the estimate gap check walk-through when called with just the job number, or saves or clears the estimator's answer to one gap, and returns the progress, the live board link and the next question to ask.",
         "annotations": {
           "readOnlyHint": false,

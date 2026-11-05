@@ -8,7 +8,7 @@ import type { SovLineIn } from "../sov";
 import { ATHENA_VERSION } from "../server-info-branding";
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { dbError, isMissingFunction, run, text, type Sb } from "../guard";
+import { FOOTER, dbError, isMissingFunction, run, text, type Sb } from "../guard";
 import { ITEM_COLS, READ_ONLY_MESSAGE, FULL_ACCESS_MESSAGE, WhichCompanyAsk, activeNa, audit, companyForCreate, currentCompany, flagWord, itemLine, itemType, jobTimeZone, memberCompanies, named, prefix, rememberCompany, renderSetupReport, resolveCompany, resolveJob, type Job } from "../jobs";
 import { computeDue, todayIn, type DayType } from "../deadlines";
 import { INPUT_KEYS, INPUT_LABELS, currentCheck, loadAnswers, loadChecks, loadLookahead, renderReport, type InputKey } from "../workflow";
@@ -1222,7 +1222,7 @@ export async function lookaheadForJob(sb: Sb, job: Job, input: string) {
 type NextCheck = { key: string; label: string | null; section: string | null; category: string; prompt: string; record_value: unknown; index: number; total: number } | null;
 export const nextQuestion = defineTool({
   name: "next_question",
-  title: "Next question",
+  title: "Next job setup question",
   description: "Returns the next job setup checklist question for a job, never the estimate gap check, which estimate_gap_answer walks.",
   inputSchema: { job_number: jobNumber, company_id: companyId, lookahead_id: laArg.optional() },
   annotations: { ...WRITE, idempotentHint: true },
@@ -1241,91 +1241,127 @@ export const nextQuestion = defineTool({
           structuredContent: { check_key: check.key, index, total },
         };
       }
-      let q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
-      // The job number is on record (every job is keyed by it), so this check is answered for the member, visibly.
-      let auto = "";
-      let jobNumberAuto = false;
-      if (q?.key === "job_number_assigned") {
-        jobNumberAuto = true;
-        await rpc(sb, "mcp_answer", { _job: job.job_id, _key: q.key, _answer: "yes", _detail: `Job number ${job.job_number} is on record.`, _owner: null, _needed_by: null });
-        auto = `Answered for you: ${q.label ? `${q.label} ` : ""}"${q.prompt}" — yes (job number ${job.job_number} is on record). Say so if that's wrong and I'll change it.\n\n`;
-        q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
-      }
-      // 0.8.4: step 0 scoping is setup question 1. Hosts that go straight to next_question (ChatGPT on job 2801) skipped it,
-      // because only the create_job text asked for it. Ask it here until intake section "scope" has been saved once.
-      const { data: sc } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "scope").eq("key", "job_type").maybeSingle();
-      if (!sc) {
-        await audit(sb, job, "next_question", "view_setup_question", SCOPE_Q1_KEY);
-        const wp = job.company_id ? await readCompanyWorkProfile(sb, job.company_id) : { available: false, raw: {} };
-        const scopeAsk = wp.available ? tailoredScopeAsk(readWorkProfile(wp.raw)) : SCOPE_Q1_ASK;
-        return guide({
-          ...text(`${P}${auto}Setup question 1 (Job scoping) [Job setup]\nQuestion ref: ${questionRef(SCOPE_Q1_KEY)}\n\n${scopeAsk}`),
-          structuredContent: { check_key: SCOPE_Q1_KEY, index: 1, record_with: { tool: "intake", section: "scope" }, use_defaults_allowed: true },
-        }, SCOPE_Q1_GUIDANCE);
-      }
-      // Project software is a real setup step, asked second (right after the auto-answered job number check, before the gates),
-      // so every host shows it. The answer is kept in scope facts (key project_software); no new column.
-      // The company profile is checked first. When it already names the software, this question is answered.
-      const { data: sw } = await sb.from("mcp_job_facts").select("status").eq("job_id", job.job_id).eq("module", "scope").eq("key", PROJECT_SOFTWARE_KEY).maybeSingle();
-      if (!sw) {
-        const { data: profile } = await sb.from("mcp_companies").select("tool_stack").eq("id", job.company_id).maybeSingle();
-        const fromProfile = companyProjectSoftware(profile?.tool_stack);
-        if (fromProfile) {
-          await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: { [PROJECT_SOFTWARE_KEY]: fromProfile }, _source: "company_default" });
-          await audit(sb, job, "next_question", "project_software_from_profile", PROJECT_SOFTWARE_KEY);
-          auto += `Answered for you: project software is ${fromProfile}, from the company profile. Say so if that's wrong and I'll change it.\n\n`;
-        } else {
-          const after = (q ? q.total - q.index + 1 : 0) + wLeftFor(await warrantyFacts(sb, job));
-          await audit(sb, job, "next_question", "view_setup_question", PROJECT_SOFTWARE_KEY);
-          return guide({
-            ...text(`${P}${auto}Setup question ${PROJECT_SOFTWARE_POSITION} — ${after} more after this (Project software) [Job setup]\nQuestion ref: ${questionRef(PROJECT_SOFTWARE_KEY)}\n\n${JOB_SOFTWARE_ASK}\n\nAnswer with the tool's name in detail (Overwatch, Buildertrend, Procore, Primavera P6, another web tool, Excel or none), or response unknown.`),
-            structuredContent: { check_key: PROJECT_SOFTWARE_KEY, index: PROJECT_SOFTWARE_POSITION, total: after + PROJECT_SOFTWARE_POSITION, remaining_after: after, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
-          }, JOB_SETUP_SOFTWARE_BLOCK);
-        }
-      }
-      // Workmanship warranty and closeout expectations are asked up front: right after the gate questions, before the rest of the checklist.
-      const wq = nextWarrantyQuestion(await warrantyFacts(sb, job));
-      const wLeft = wq ? wq.remaining_after + 1 : 0;
-      if (wq && q?.section !== "gate") {
-        const key = `${WARRANTY_CHECK_PREFIX}${wq.key}`;
-        const after = wq.remaining_after + (q ? q.total - q.index + 1 : 0);
-        await audit(sb, job, "next_question", "view_setup_question", key);
-        return {
-          ...text(`${P}${auto}Setup question — ${after === 0 ? "last one" : `${after} more after this`} (Warranty and closeout ${wq.index} of ${wq.total}: ${wq.label}) [Warranty / section warranty]\nQuestion ref: ${questionRef(key)}\n\n${wq.ask}\n\n${warrantyHow(wq.key)}\nCall answer with job_number and check_key.`),
-          structuredContent: { check_key: key, index: wq.index, total: wq.total, remaining_after: after, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
-        };
-      }
-      await audit(sb, job, "next_question", "view_setup_question", q?.key ?? null);
-      if (!q) {
-        const { data: mods } = await sb.from("mcp_job_facts").select("module").eq("job_id", job.job_id);
-        const have = new Set((mods ?? []).map((m) => m.module));
-        const todo = ["scope", "contract", "handoff", "budget", "warranty"].filter((m) => !have.has(m));
-        return guide(text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`), JOB_SETUP_SOFTWARE_BLOCK);
-      }
-      if (q.key === ROLE_GATE_KEY) {
-        // Four roles, never "GC or sub": a trade contractor can hold the prime contract and self-perform.
-        const [{ data: pos }, { data: co }] = await Promise.all([
-          sb.from("mcp_job_facts").select("value").eq("job_id", job.job_id).eq("module", "scope").eq("key", "position").eq("status", "known").maybeSingle(),
-          job.company_id ? sb.from("mcp_companies").select("company_role").eq("id", job.company_id).maybeSingle() : Promise.resolve({ data: null }),
-        ]);
-        const left = q.total - q.index + wLeft;
-        return guide({
-          ...text(
-            `${P}${auto}Setup question ${q.index} — ${left === 0 ? "last one" : `${left} more after this`} (Contractor role) [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${roleQuestionText({ position: pos?.value, companyRole: (co as { company_role?: string | null } | null)?.company_role })}\n\n${ROLE_ANSWER_HOW}\nCall answer with job_number, check_key and role.`,
-          ),
-          structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: left, choices: ["general_contractor", "prime_trade", "subcontractor", "sub_tier"], auto_answered: jobNumberAuto ? "job_number_assigned" : null },
-        }, ...ROLE_GUIDANCE);
-      }
-      const confirm = q.record_value != null;
-      const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
-      return guide({
-        ...text(
-          `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
-        ),
-        structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
-      }, JOB_SETUP_SOFTWARE_BLOCK);
+      return setupQuestion(sb, job, P);
     }),
 });
+
+type SetupSb = Parameters<typeof resolveJob>[0];
+type SetupJob = Awaited<ReturnType<typeof resolveJob>>;
+/** The next job setup question, as next_question shows it. answer returns it too, so each step is one call. */
+/** Job setup and the estimate gap check are different walks; ChatGPT sent "walk the gap check" here (job 2810, Nov 5). */
+export const SETUP_NOT_GAP_CHECK =
+  "This is job setup, not the estimate gap check. If the member asked to walk, start or continue the gap check or gap analysis, don't ask this question: call estimate_gap_answer with just the job number instead, and call setup questions job setup, never gap check.";
+async function setupQuestion(sb: SetupSb, job: SetupJob, P: string) {
+  return guide(await setupQuestionBody(sb, job, P), SETUP_NOT_GAP_CHECK);
+}
+async function setupQuestionBody(sb: SetupSb, job: SetupJob, P: string) {
+    let q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
+    // The job number is on record (every job is keyed by it), so this check is answered for the member, visibly.
+    let auto = "";
+    let jobNumberAuto = false;
+    if (q?.key === "job_number_assigned") {
+      jobNumberAuto = true;
+      await rpc(sb, "mcp_answer", { _job: job.job_id, _key: q.key, _answer: "yes", _detail: `Job number ${job.job_number} is on record.`, _owner: null, _needed_by: null });
+      auto = `Answered for you: ${q.label ? `${q.label} ` : ""}"${q.prompt}" — yes (job number ${job.job_number} is on record). Say so if that's wrong and I'll change it.\n\n`;
+      q = await rpc<NextCheck>(sb, "mcp_next_check", { _job: job.job_id });
+    }
+    // 0.8.4: step 0 scoping is setup question 1. Hosts that go straight to next_question (ChatGPT on job 2801) skipped it,
+    // because only the create_job text asked for it. Ask it here until intake section "scope" has been saved once.
+    const { data: sc } = await sb.from("mcp_job_facts").select("key").eq("job_id", job.job_id).eq("module", "scope").eq("key", "job_type").maybeSingle();
+    if (!sc) {
+      await audit(sb, job, "next_question", "view_setup_question", SCOPE_Q1_KEY);
+      const wp = job.company_id ? await readCompanyWorkProfile(sb, job.company_id) : { available: false, raw: {} };
+      const scopeAsk = wp.available ? tailoredScopeAsk(readWorkProfile(wp.raw)) : SCOPE_Q1_ASK;
+      return guide({
+        ...text(`${P}${auto}Setup question 1 (Job scoping) [Job setup]\nQuestion ref: ${questionRef(SCOPE_Q1_KEY)}\n\n${scopeAsk}`),
+        structuredContent: { check_key: SCOPE_Q1_KEY, index: 1, record_with: { tool: "intake", section: "scope" }, use_defaults_allowed: true },
+      }, SCOPE_Q1_GUIDANCE);
+    }
+    // Project software is a real setup step, asked second (right after the auto-answered job number check, before the gates),
+    // so every host shows it. The answer is kept in scope facts (key project_software); no new column.
+    // The company profile is checked first. When it already names the software, this question is answered.
+    const { data: sw } = await sb.from("mcp_job_facts").select("status").eq("job_id", job.job_id).eq("module", "scope").eq("key", PROJECT_SOFTWARE_KEY).maybeSingle();
+    if (!sw) {
+      const { data: profile } = await sb.from("mcp_companies").select("tool_stack").eq("id", job.company_id).maybeSingle();
+      const fromProfile = companyProjectSoftware(profile?.tool_stack);
+      if (fromProfile) {
+        await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: { [PROJECT_SOFTWARE_KEY]: fromProfile }, _source: "company_default" });
+        await audit(sb, job, "next_question", "project_software_from_profile", PROJECT_SOFTWARE_KEY);
+        auto += `Answered for you: project software is ${fromProfile}, from the company profile. Say so if that's wrong and I'll change it.\n\n`;
+      } else {
+        const after = (q ? q.total - q.index + 1 : 0) + wLeftFor(await warrantyFacts(sb, job));
+        await audit(sb, job, "next_question", "view_setup_question", PROJECT_SOFTWARE_KEY);
+        return guide({
+          ...text(`${P}${auto}Setup question ${PROJECT_SOFTWARE_POSITION} — ${after} more after this (Project software) [Job setup]\nQuestion ref: ${questionRef(PROJECT_SOFTWARE_KEY)}\n\n${JOB_SOFTWARE_ASK}\n\nAnswer with the tool's name in detail (Overwatch, Buildertrend, Procore, Primavera P6, another web tool, Excel or none), or response unknown.`),
+          structuredContent: { check_key: PROJECT_SOFTWARE_KEY, index: PROJECT_SOFTWARE_POSITION, total: after + PROJECT_SOFTWARE_POSITION, remaining_after: after, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
+        }, JOB_SETUP_SOFTWARE_BLOCK);
+      }
+    }
+    // Workmanship warranty and closeout expectations are asked up front: right after the gate questions, before the rest of the checklist.
+    const wq = nextWarrantyQuestion(await warrantyFacts(sb, job));
+    const wLeft = wq ? wq.remaining_after + 1 : 0;
+    if (wq && q?.section !== "gate") {
+      const key = `${WARRANTY_CHECK_PREFIX}${wq.key}`;
+      const after = wq.remaining_after + (q ? q.total - q.index + 1 : 0);
+      await audit(sb, job, "next_question", "view_setup_question", key);
+      return {
+        ...text(`${P}${auto}Setup question — ${after === 0 ? "last one" : `${after} more after this`} (Warranty and closeout ${wq.index} of ${wq.total}: ${wq.label}) [Warranty / section warranty]\nQuestion ref: ${questionRef(key)}\n\n${wq.ask}\n\n${warrantyHow(wq.key)}\nCall answer with job_number and check_key.`),
+        structuredContent: { check_key: key, index: wq.index, total: wq.total, remaining_after: after, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
+      };
+    }
+    await audit(sb, job, "next_question", "view_setup_question", q?.key ?? null);
+    if (!q) {
+      const { data: mods } = await sb.from("mcp_job_facts").select("module").eq("job_id", job.job_id);
+      const have = new Set((mods ?? []).map((m) => m.module));
+      const todo = ["scope", "contract", "handoff", "budget", "warranty"].filter((m) => !have.has(m));
+      return guide(text(`${P}${auto}No setup questions left.${todo.length ? ` Intake sections not started: ${todo.join(", ")}.` : ""} Call report.`), JOB_SETUP_SOFTWARE_BLOCK);
+    }
+    if (q.key === ROLE_GATE_KEY) {
+      // Four roles, never "GC or sub": a trade contractor can hold the prime contract and self-perform.
+      const [{ data: pos }, { data: co }] = await Promise.all([
+        sb.from("mcp_job_facts").select("value").eq("job_id", job.job_id).eq("module", "scope").eq("key", "position").eq("status", "known").maybeSingle(),
+        job.company_id ? sb.from("mcp_companies").select("company_role").eq("id", job.company_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      const left = q.total - q.index + wLeft;
+      return guide({
+        ...text(
+          `${P}${auto}Setup question ${q.index} — ${left === 0 ? "last one" : `${left} more after this`} (Contractor role) [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${roleQuestionText({ position: pos?.value, companyRole: (co as { company_role?: string | null } | null)?.company_role })}\n\n${ROLE_ANSWER_HOW}\nCall answer with job_number, check_key and role.`,
+        ),
+        structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: left, choices: ["general_contractor", "prime_trade", "subcontractor", "sub_tier"], auto_answered: jobNumberAuto ? "job_number_assigned" : null },
+      }, ...ROLE_GUIDANCE);
+    }
+    const confirm = q.record_value != null;
+    const ask = confirm ? `The record shows: ${typeof q.record_value === "string" ? q.record_value : JSON.stringify(q.record_value)}\nConfirm this is right (yes), or say no / unknown.` : q.prompt;
+    return guide({
+      ...text(
+        `${P}${auto}Setup question ${q.index} — ${q.total - q.index + wLeft === 0 ? "last one" : `${q.total - q.index + wLeft} more after this`}${q.label ? ` (${q.label})` : ""} [${q.category}]\nQuestion ref: ${questionRef(q.key)}\n\n${confirm ? `${q.prompt}\n${ask}` : ask}\n\nAnswer with response yes, no, na (with a reason in detail) or unknown. For unknown or no, add owner and due_date if known. To mark the whole section N/A use answer action "mark_na" with scope "section".`,
+      ),
+      structuredContent: { check_key: q.key, index: q.index, total: q.total, remaining_after: q.total - q.index + wLeft, auto_answered: jobNumberAuto ? "job_number_assigned" : null },
+    }, JOB_SETUP_SOFTWARE_BLOCK);
+}
+
+/** One setup step in one call: what was recorded, then the next question, with both results' data and guidance. */
+async function withNextSetupQuestion<R>(sb: SetupSb, job: SetupJob, P: string, recorded: R): Promise<R> {
+  type Res = { content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> };
+  const a = recorded as unknown as Res;
+  let b: Res;
+  try {
+    b = (await setupQuestion(sb, job, P)) as unknown as Res;
+  } catch {
+    return recorded;
+  }
+  const textOf = (r: Res) => (r.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
+  const head = textOf(a).replace(FOOTER, "").replace(/\nNext: next_question\.?/, "").trimEnd();
+  const tail = textOf(b).startsWith(P) ? textOf(b).slice(P.length) : textOf(b);
+  const { assistant_guidance: ga, ...sa } = a.structuredContent ?? {};
+  const { assistant_guidance: gb, ...sb2 } = b.structuredContent ?? {};
+  const guidance = [...((ga as string[] | undefined) ?? []), ...((gb as string[] | undefined) ?? [])];
+  return {
+    ...a,
+    content: [{ type: "text", text: `${head}\n\n${/Question ref:/.test(tail) ? "Next question:\n" : ""}${tail}` }],
+    structuredContent: { ...sa, next_question: sb2, ...(guidance.length ? { assistant_guidance: [...new Set(guidance)] } : {}) },
+  } as unknown as R;
+}
 
 const wLeftFor = (facts: Parameters<typeof nextWarrantyQuestion>[0]) => { const x = nextWarrantyQuestion(facts); return x ? x.remaining_after + 1 : 0; };
 
@@ -1434,7 +1470,7 @@ export const answer = defineTool({
         const value = tool || (args.response === "na" || args.response === "no" ? "none" : null);
         await rpc(sb, "mcp_set_facts", { _job: job.job_id, _module: "scope", _facts: { [PROJECT_SOFTWARE_KEY]: value }, _source: "member_answer" });
         await audit(sb, job, "answer", "project_software_answer", PROJECT_SOFTWARE_KEY);
-        return guide({ ...text(`${P}Recorded: project software ${value ?? "unknown"}.\nNext: next_question.`), structuredContent: { recorded: { [PROJECT_SOFTWARE_KEY]: value } } }, JOB_SETUP_SOFTWARE_BLOCK);
+        return withNextSetupQuestion(sb, job, P, guide({ ...text(`${P}Recorded: project software ${value ?? "unknown"}.\nNext: next_question.`), structuredContent: { recorded: { [PROJECT_SOFTWARE_KEY]: value } } }, JOB_SETUP_SOFTWARE_BLOCK));
       }
       if (args.check_key.startsWith(WARRANTY_CHECK_PREFIX)) {
         const key = args.check_key.slice(WARRANTY_CHECK_PREFIX.length) as WarrantyKey;
@@ -1445,10 +1481,10 @@ export const answer = defineTool({
         await audit(sb, job, "answer", "warranty_answer", args.check_key);
         const today = todayIn(await jobTimeZone(sb, job.job_id));
         const left = nextWarrantyQuestion(all);
-        return {
+        return withNextSetupQuestion(sb, job, P, {
           ...text(`${P}Recorded.${itemNotes(made)}${left ? "" : `\n\nWARRANTY REGISTER\n${renderWarrantyRegister(all, today).join("\n")}`}\nNext: next_question.`),
           structuredContent: { recorded: JSON.parse(JSON.stringify(facts)) as Record<string, string | number | null>, items: made.map((m) => itemOut(m)!) },
-        };
+        });
       }
       if (args.check_key === ROLE_GATE_KEY && args.response !== "unknown" && args.response !== "na") {
         // "yes" from a host still on the old two-answer question means general contractor; a bare "no" doesn't say which of the other three.
@@ -1484,10 +1520,10 @@ export const answer = defineTool({
         }
         await settleFlagConfirms(sb, job);
         await audit(sb, job, "answer", correcting ? "contractor_role_corrected" : "contractor_role_answer", args.check_key);
-        return {
+        return withNextSetupQuestion(sb, job, P, {
           ...text(`${P}${correcting ? "Changed your role on this job to" : "Recorded:"} ${ROLE_LABEL[role]}.${itemNote(r.item)}${also}\nNext: next_question.`),
           structuredContent: { recorded: role, item_id: r.item?.item_id ?? null, item_type: r.item?.item_type ?? null },
-        };
+        });
       }
       if (!args.response) throw new ToolError("answer needs response yes, no, na or unknown.");
       // A "no" on the look-ahead check is not accepted: push back and offer to build one from the schedule.
@@ -1507,10 +1543,10 @@ export const answer = defineTool({
         const flags = await flagMap(sb, job);
         guidance = noGuidanceText(noGuidance(reconcileRecommendation(args.check_key, it?.recommendation ?? r.recommendation, flags), it?.why, it?.help_offer));
       } else if (r.recommendation) guidance = `\n\nRecommendation: ${r.recommendation}`;
-      return {
+      return withNextSetupQuestion(sb, job, P, {
         ...text(`${P}Recorded ${r.recorded}.${r.recorded === "na" ? " This question won't be asked again unless you re-enable it." : ""}${itemNote(r.item)}${guidance}\nNext: next_question.`),
         structuredContent: { recorded: r.recorded, item_id: r.item?.item_id ?? null, item_type: r.item?.item_type ?? null },
-      };
+      });
     }),
 });
 
