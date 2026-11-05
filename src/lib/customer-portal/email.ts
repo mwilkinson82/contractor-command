@@ -159,12 +159,14 @@ export function noticeEmail(a: {
   kind: "update" | "decision";
   label?: string;
   /** What was shared for a decision. A pay application asks for approval and says so. */
-  item?: "change_order" | "selection" | "pay_app";
+  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice";
   /** The contractor's saved logo, an https URL; their name shows when there is none. */
   logo?: string | null;
   nonce: string;
 }): PortalEmail {
   const payApp = a.kind === "decision" && a.item === "pay_app";
+  const workOrder = a.kind === "decision" && a.item === "work_order";
+  const bill = a.kind === "decision" && a.item === "service_invoice";
   // A pay application goes by the name the contractor confirmed when sharing it, exactly as written.
   const what = payApp ? a.label || "a payment application" : (a.label ?? "something");
   const line =
@@ -172,7 +174,11 @@ export function noticeEmail(a: {
       ? `${a.company} posted a new update on ${a.jobName}.`
       : payApp
         ? `${a.company} sent ${what} for ${a.jobName}. It needs your review and approval.`
-        : `${a.company} shared ${what} on ${a.jobName}. It needs your decision.`;
+        : workOrder
+          ? `${a.company} sent work order ${what} for ${a.jobName}. Review it and approve it before the work starts.`
+          : bill
+            ? `${a.company} sent ${what} for ${a.jobName}. You can pay it on your page.`
+            : `${a.company} shared ${what} on ${a.jobName}. It needs your decision.`;
   return {
     to: a.to,
     key: `portal-notice:${a.nonce}`,
@@ -182,7 +188,11 @@ export function noticeEmail(a: {
         ? `${a.company} posted an update on ${a.jobName}`
         : payApp
           ? `${a.company} sent a pay application for your approval: ${a.label ?? a.jobName}`
-          : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
+          : workOrder
+            ? `${a.company} sent a work order for your approval: ${a.label ?? a.jobName}`
+            : bill
+              ? `${a.company} sent you a bill: ${a.label ?? a.jobName}`
+              : `${a.company} needs your decision: ${a.label ?? a.jobName}`,
     text: [
       `Hi ${a.name},`,
       "",
@@ -201,7 +211,11 @@ export function noticeEmail(a: {
           ? "New update on your project"
           : payApp
             ? "A pay application needs your approval"
-            : "Something needs your decision",
+            : workOrder
+              ? "A work order needs your approval"
+              : bill
+                ? "You have a bill to pay"
+                : "Something needs your decision",
       lines: [`Hi ${esc(firstName(a.name))},`, esc(line)],
       button: { label: "Open your project page", href: a.link },
       foot: `You get these emails because ${esc(a.company)} invited you to this project page.`,

@@ -11,21 +11,25 @@ import type { CardModel, CardSection } from "../cards/model";
 import { renderHtml } from "../cards/html";
 import { renderMarkdown } from "../cards/markdown";
 import { cardWidgetMeta } from "../cards/widget";
-import { jobTimeZone } from "../jobs";
+import { jobTimeZone, memberCompanies } from "../jobs";
 import { todayIn } from "../deadlines";
 import {
   PHASE_LABEL,
   PHASE_STRIP,
   PRECON_PHASES,
+  creditState,
   nextInstallment,
   preconMoney,
   preconNextStep,
   usd,
   type PreconAgreement,
+  type PreconCreditChange,
   type PreconInvoice,
   type PreconPayload,
   type PreconPhase,
 } from "../../precon/model";
+import { companyLogoUrl } from "../document-email-brand";
+import { notifyAll } from "./customer-portal-tools";
 
 export {
   PRECON_PHASES,
@@ -35,7 +39,9 @@ export {
   preconMoney,
   nextInstallment,
   preconNextStep,
+  creditState,
   type PreconAgreement,
+  type PreconCreditChange,
   type PreconInvoice,
   type PreconPayload,
   type PreconPhase,
@@ -146,7 +152,8 @@ export function preconCard(p: PreconPayload, note?: string | null): CardModel {
       ],
     },
   ];
-  if (a.invoices.length || a.credit_invoice)
+  const cc = a.credit_change;
+  if (a.invoices.length || cc)
     sections.push({
       heading: "Invoices",
       kind: "table",
@@ -165,16 +172,20 @@ export function preconCard(p: PreconPayload, note?: string | null): CardModel {
           ],
           refId: i.id,
         })),
-        ...(a.credit_invoice
+        ...(cc
           ? [
               {
                 cells: [
-                  `Credit ${a.credit_invoice.number}`,
-                  `−${usd(a.credit_invoice.net_due_cents)}`,
+                  `Credit ${cc.co_number ?? cc.number}`,
+                  `−${usd(Math.abs(cc.total_cents ?? a.price_cents))}`,
                   "",
-                  "Applied to the contract",
+                  creditState(a) === "applied"
+                    ? "On the contract"
+                    : cc.state === "rejected"
+                      ? "Rejected"
+                      : "Change order waiting on the owner",
                 ],
-                refId: a.credit_invoice.id,
+                refId: cc.id,
                 tone: "known" as const,
               },
             ]
@@ -217,10 +228,10 @@ export const precon = defineTool({
     "The pre-construction agreement on a job: a contractor sells the owner the design phase before there are drawings to price. " +
     "The price is the designer's fee (architect, draftsman, engineer) plus an optional markup, plus the contractor's own hours (coordination, constructability, schedule and lead times, means and methods, the estimate) at one hourly rate. Athena computes the price; never type one. " +
     "The owner keeps the drawings. Billing is in full at signing, or split half at signing and half at final drawings. An optional credit applies the fee to the construction contract if the owner signs within a window of days after final drawings. " +
-    "Actions: get; save (terms, before signing, with expected_version from get, 0 for a new agreement); step (sent, signed with the signer's name, drawings_approved, hours as a running total, won, lost, reopen); issue_invoice (the next installment, recorded as an ordinary billing invoice and linked); apply_credit (posts the fee as a credit against a submitted pay application, then links it). " +
+    "Actions: get; save (terms, before signing, with expected_version from get, 0 for a new agreement); step (sent, signed with the signer's name, drawings_approved, hours as a running total, won, lost, reopen); issue_invoice (sends the next installment to the owner's client page as a bill they can pay by card or bank, with no fee build-up on it); apply_credit (the fee credit goes on the construction contract as a deductive change order the owner approves: without change_order_id it says how to make it with change_order_record, with one it links it). " +
     "Pre-con is optional per job: only start one when the member says this job has a pre-construction agreement. Read every amount, date and name from what the member says; never mark the agreement sent or signed, or the drawings approved, unless the member said so. " +
-    "issue_invoice and apply_credit record money on the job: show the member the invoice or credit first and call with confirmed true only after their yes. Nothing is sent to the owner by this tool. " +
-    "After each call, walk the member to the next step on the card (for example: Did the owner sign it? Issue invoice 2 for $8,500? Apply the pre-con credit to the first pay application?).",
+    "issue_invoice reaches the owner and apply_credit changes the job's money: show the member what goes out first and call with confirmed true only after their yes. " +
+    "After each call, walk the member to the next step on the card (for example: Did the owner sign it? Send invoice 2 for $8,500 to the owner's client page? Add the pre-con credit to the contract as a change order?).",
   inputSchema: {
     action: z.enum(["get", "save", "step", "issue_invoice", "apply_credit"]),
     job_number: z.string().trim().min(1).max(40),
@@ -300,7 +311,7 @@ export const precon = defineTool({
     step: z
       .enum(["sent", "signed", "drawings_approved", "hours", "won", "lost", "reopen"])
       .optional(),
-    on: date.optional().describe("The date the step happened. Default today."),
+    on: date.optional().describe("step: the date it happened. Default today."),
     signed_name: text(200).optional(),
     signed_via: z.enum(["client_page", "paper", "email"]).optional(),
     hours: z
@@ -309,11 +320,20 @@ export const precon = defineTool({
       .max(100000)
       .optional()
       .describe("Total hours used so far against the agreement."),
-    pay_application_id: z
+    due_on: date
+      .optional()
+      .describe(
+        "issue_invoice: when the owner should pay, today to a year out. Default on receipt.",
+      ),
+    notify: z
+      .boolean()
+      .optional()
+      .describe("issue_invoice: false to skip the email that the invoice is on their client page."),
+    change_order_id: z
       .string()
       .uuid()
       .optional()
-      .describe("The construction pay application the credit applies to."),
+      .describe("apply_credit: the deductive change order that carries the credit."),
     confirmed: z.boolean().optional(),
   },
   annotations: {
@@ -375,88 +395,98 @@ export const precon = defineTool({
         const a = cur.agreement;
         if (!a)
           throw new ToolError("This job has no pre-construction agreement. Nothing was recorded.");
-        const today = args.on ?? todayIn(await jobTimeZone(sb, job.job_id));
+        const today = todayIn(await jobTimeZone(sb, job.job_id));
         if (args.action === "issue_invoice") {
           const next = nextInstallment(a);
           if (!next)
             throw new ToolError(
               a.status !== "signed" && a.status !== "closed"
-                ? "The owner hasn't signed the agreement yet. Nothing was invoiced."
-                : "Every installment that's due is already invoiced. Nothing was recorded.",
+                ? "The owner hasn't signed the agreement yet. Nothing was billed."
+                : a.invoices.filter((i) => i.status !== "void").length < a.installments.length
+                  ? "The second payment is due at final drawings. Tell me when the owner approves them. Nothing was billed."
+                  : "Every installment is already billed. Nothing was billed.",
             );
-          const number = `PC-${cur.job_number}-${next.index}`;
+          const who = (cur.portal_customers ?? []).map((x) => `${x.name} <${x.email}>`).join(", ");
           if (!args.confirmed) {
             payload = cur;
-            note = `Ready to record invoice ${number} for ${usd(next.amount_cents)} dated ${today}. Say yes and I'll record it.`;
+            note = `Ready to send invoice ${next.index} for ${usd(next.amount_cents)}${args.due_on ? `, due ${args.due_on}` : ""} to ${who ? `${who} on their client page, with an email that it's there` : "the owner's client page (nobody has one on this job yet, so invite the owner first or it waits there)"}. They can pay by card or bank there. They see what the agreement includes, never your fee build-up. Say yes and I'll send it.`;
           } else {
-            const id = crypto.randomUUID();
-            await rpc(sb, "mcp_billing_evidence_record", {
+            const r = await rpc<
+              PreconPayload & {
+                number: string;
+                label: string;
+                amount_cents: number;
+                recipients: { access_id: string; email: string; name: string }[];
+              }
+            >(sb, "mcp_precon_invoice_share", {
               _job: job.job_id,
-              _action: "invoice",
-              _p: {
-                request_id: crypto.randomUUID(),
-                id,
-                expected_version: 0,
-                kind: "invoice",
-                document_number: number,
-                status: "submitted",
-                invoice_date: today,
-                effective_date: today,
-                source: `Pre-construction agreement, installment ${next.index} of ${a.installments.length}`,
-                gross_cents: next.amount_cents,
-                withheld_cents: 0,
-                released_cents: 0,
-                net_due_cents: next.amount_cents,
-              },
+              _p: { expected_version: a.version, ...(args.due_on ? { due_on: args.due_on } : {}) },
             });
-            payload = await rpc<PreconPayload>(sb, "mcp_precon_step", {
-              _job: job.job_id,
-              _p: { action: "link_invoice", expected_version: a.version, invoice_id: id },
-            });
-            note = `Recorded invoice ${number} for ${usd(next.amount_cents)}.`;
+            payload = { ...cur, agreement: r.agreement };
+            let sent: string[];
+            if (!r.recipients.length)
+              sent = [
+                "Nobody has a client page on this job yet, so nobody was emailed. Invite the owner with customer_portal invite.",
+              ];
+            else if (args.notify === false)
+              sent = ["No email went out; it shows on their client page."];
+            else
+              sent = await notifyAll(
+                {
+                  recipients: r.recipients,
+                  company:
+                    (await memberCompanies(sb)).find((c) => c.id === job.company_id)?.name ??
+                    "Your contractor",
+                  job_name: job.name,
+                },
+                "decision",
+                r.label,
+                await companyLogoUrl(sb, job.company_id),
+                "service_invoice",
+              );
+            note = [
+              `Sent invoice ${r.number} for ${usd(r.amount_cents)} to the client page.`,
+              ...sent,
+            ].join(" ");
           }
         } else {
           if (!a.credit)
             throw new ToolError(
               "This agreement has no credit toward the construction contract. Nothing was recorded.",
             );
-          if (a.credit_invoice)
+          const state = creditState(a);
+          if (state === "applied")
             throw new ToolError(
-              `The pre-con credit is already applied (${a.credit_invoice.number}).`,
+              `The pre-con credit is already on the contract (${a.credit_change?.co_number ?? a.credit_change?.number}).`,
             );
-          if (!args.pay_application_id)
+          if (state === "waiting" && !args.change_order_id)
             throw new ToolError(
-              "Which pay application does the credit go on? Nothing was recorded.",
+              `The pre-con credit is change order ${a.credit_change?.number}, ${a.credit_change?.state}. Move it on with change_order_record: send it to the owner to approve, then execute it. Nothing was recorded.`,
             );
-          const late = a.credit_until && today > a.credit_until;
-          const number = `PC-${cur.job_number}-CREDIT`;
-          if (!args.confirmed) {
+          if (!args.change_order_id) {
+            if (!a.contract_sov)
+              throw new ToolError(
+                "The credit goes on the construction contract, and this job has no contract schedule of values yet. Set up the SOV first, then apply the credit. Nothing was recorded.",
+              );
+            const late = a.credit_until && today > a.credit_until;
             payload = cur;
-            note = `${late ? `The credit window closed on ${a.credit_until}. ` : ""}Ready to post credit ${number} for ${usd(a.price_cents)} against that pay application. Say yes and I'll record it.`;
+            note =
+              `${late ? `The credit window closed on ${a.credit_until}, so the credit is your call. ` : ""}` +
+              `The ${usd(a.price_cents)} credit goes on the contract as a deductive change order with no time, so the owner approves it on their client page and every pay application, the client page and card or bank payments show the lower amount. ` +
+              `Make it with change_order_record (action create, origin contractor, title "Pre-construction credit", schedule_days 0, pricing_basis lump_sum, one line: category other, description "Pre-construction credit", quantity 1, unit LS, unit_rate_cents ${-a.price_cents}, source "Pre-construction agreement credit clause"; reference kind contract, citation "Pre-construction agreement, signed ${a.signed_on ?? "by the owner"}"), then call apply_credit with its change_order_id to link it.`;
+          } else if (!args.confirmed) {
+            payload = cur;
+            note = `Ready to link that change order as the ${usd(a.price_cents)} pre-con credit. Say yes and I'll link it.`;
           } else {
-            const id = crypto.randomUUID();
-            await rpc(sb, "mcp_billing_evidence_record", {
-              _job: job.job_id,
-              _action: "invoice",
-              _p: {
-                request_id: crypto.randomUUID(),
-                id,
-                expected_version: 0,
-                kind: "credit",
-                credit_for: args.pay_application_id,
-                document_number: number,
-                status: "posted",
-                invoice_date: today,
-                effective_date: today,
-                source: "Pre-construction fee credited to the construction contract",
-                net_due_cents: a.price_cents,
-              },
-            });
             payload = await rpc<PreconPayload>(sb, "mcp_precon_step", {
               _job: job.job_id,
-              _p: { action: "link_credit", expected_version: a.version, invoice_id: id },
+              _p: {
+                action: "link_credit",
+                expected_version: a.version,
+                change_order_id: args.change_order_id,
+              },
             });
-            note = `Posted credit ${number} for ${usd(a.price_cents)}.`;
+            note = `Linked the pre-con credit to change order ${payload.agreement?.credit_change?.number}.`;
           }
         }
       }

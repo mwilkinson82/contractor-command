@@ -1,7 +1,9 @@
 -- Managed Lovable Cloud proposal. No standalone transaction wrapper.
 -- Plain SQL for Lovable to apply; nothing in this repo applies it. Apply after
--- 20261105220000_athena_payment_proofs.sql. Needs the job contracts (20261105170000_athena_job_contracts.sql),
--- billing evidence (20261101120001_athena_project_billing_evidence.sql) and the project record
+-- 20261106110000_athena_service_calls.sql: the agreement's invoices go to the client page through its
+-- mcp_private.service_invoice_share. Also needs the job contracts (20261105170000_athena_job_contracts.sql),
+-- billing evidence (20261101120001_athena_project_billing_evidence.sql), change orders
+-- (20261025150000_athena_change_order_packages.sql) and the project record
 -- (20261029120000_athena_submittal_record_page.sql: mcp_project_record_add).
 --
 -- Pre-construction agreements.
@@ -17,13 +19,17 @@
 --     drawings. Then where it stands: sent, signed (by whom, how), final drawings approved, hours used, and the
 --     outcome (won: the owner hired the contractor; lost: the owner took the drawings elsewhere).
 --   * The agreement's own invoices are ordinary billing invoices on the job (mcp_billing_invoices, kind invoice),
---     linked here by id; a credit toward the construction contract is an ordinary posted billing credit
---     (kind credit) against a construction invoice or pay application, linked here too. Nothing new is billed here.
+--     linked here by id. mcp_precon_invoice_share books the next installment and puts it on the client page as a
+--     bill the owner can pay (the service calls portal kind service_invoice), with no fee build-up on it.
+--   * The credit toward the construction contract is a deductive change order (no time) equal to the agreement
+--     price, made with the ordinary change order tools and linked here. Once the owner approves it and it is
+--     executed, the contract SOV carries the credit line, so the pay applications, the client page and card or bank
+--     payments all show the lower amount with no other change.
 --   * Read with mcp_precon_get; written only by mcp_precon_save (terms, before signing) and mcp_precon_step (where
 --     it stands). Full and contract job access read and write; a Super sees nothing. Every step lands in the
 --     project record.
 --   * The fee build-up (design cost, markup, hours, rate) is the contractor's; no client-facing function reads it.
--- Rollback: supabase/rollbacks/20261105233000_athena_precon.rollback.sql
+-- Rollback: supabase/rollbacks/20261106120000_athena_precon.rollback.sql
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
@@ -57,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.mcp_precon_agreements (
   outcome text CHECK (outcome IS NULL OR outcome IN ('won', 'lost')),
   closed_on date,
   invoice_ids uuid[] NOT NULL DEFAULT '{}'::uuid[] CHECK (cardinality(invoice_ids) <= 12),
-  credit_invoice_id uuid REFERENCES public.mcp_billing_invoices(id),
+  credit_change_id uuid REFERENCES public.mcp_change_orders(submittal_id),
   note text CHECK (note IS NULL OR length(note) BETWEEN 1 AND 2000),
   version integer NOT NULL DEFAULT 1 CHECK (version > 0),
   created_by uuid NOT NULL DEFAULT auth.uid(),
@@ -74,7 +80,7 @@ COMMENT ON TABLE public.mcp_precon_agreements IS 'Pre-construction agreement on 
 COMMENT ON COLUMN public.mcp_precon_agreements.time_lines IS 'The contractor''s own time: [{label, hours, note}] priced at hourly_rate_cents. Contractor-only.';
 COMMENT ON COLUMN public.mcp_precon_agreements.includes IS 'What the owner gets, in the contractor''s words, for the client page: an array of short strings.';
 COMMENT ON COLUMN public.mcp_precon_agreements.invoice_ids IS 'The agreement''s own invoices on the job (mcp_billing_invoices, kind invoice).';
-COMMENT ON COLUMN public.mcp_precon_agreements.credit_invoice_id IS 'The posted billing credit that applied the pre-con fee to the construction contract.';
+COMMENT ON COLUMN public.mcp_precon_agreements.credit_change_id IS 'The deductive change order that credits the pre-con fee to the construction contract.';
 
 ALTER TABLE public.mcp_precon_agreements ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.mcp_precon_agreements FROM PUBLIC, anon, authenticated;
@@ -143,6 +149,25 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION mcp_private.precon_invoice_json(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 
+-- The credit change order: its PCO number, CO number once executed, state and total (negative).
+CREATE OR REPLACE FUNCTION mcp_private.precon_change_json(_job uuid, _change uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT jsonb_build_object('id', c.submittal_id, 'number', s.number, 'co_number', c.details->>'co_number',
+    'state', c.details->>'state', 'total_cents', nullif(c.details->>'total_cents', '')::bigint)
+  FROM public.mcp_change_orders c JOIN public.mcp_submittals s ON s.id = c.submittal_id
+  WHERE c.submittal_id = _change AND c.job_id = _job
+$$;
+REVOKE ALL ON FUNCTION mcp_private.precon_change_json(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
+
+-- Does the job have its construction SOV (numbered lines that are not change orders)? The credit change order waits
+-- for it, so the credit lands on the contract rather than becoming its first line.
+CREATE OR REPLACE FUNCTION mcp_private.precon_has_sov(_job uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT EXISTS (SELECT 1 FROM public.mcp_job_facts WHERE job_id = _job AND module = 'sov'
+    AND jsonb_typeof(value) = 'object' AND jsonb_typeof(value->'billable_value') = 'number' AND NOT (value ? 'executed_change_order'))
+$$;
+REVOKE ALL ON FUNCTION mcp_private.precon_has_sov(uuid) FROM PUBLIC, anon, authenticated, service_role;
+
 -- The agreement as members read it, with the price parts, the installments, the phase, the credit window and the
 -- linked invoices.
 CREATE OR REPLACE FUNCTION mcp_private.precon_json(a public.mcp_precon_agreements) RETURNS jsonb
@@ -168,7 +193,8 @@ BEGIN
     'hours_used', a.hours_used, 'sent_on', a.sent_on, 'signed_on', a.signed_on, 'signed_name', a.signed_name,
     'signed_via', a.signed_via, 'drawings_approved_on', a.drawings_approved_on, 'outcome', a.outcome, 'closed_on', a.closed_on,
     'invoices', invs,
-    'credit_invoice', CASE WHEN a.credit_invoice_id IS NULL THEN NULL ELSE mcp_private.precon_invoice_json(a.job_id, a.credit_invoice_id) END,
+    'credit_change', CASE WHEN a.credit_change_id IS NULL THEN NULL ELSE mcp_private.precon_change_json(a.job_id, a.credit_change_id) END,
+    'contract_sov', mcp_private.precon_has_sov(a.job_id),
     'note', a.note, 'updated_at', a.updated_at);
 END $$;
 REVOKE ALL ON FUNCTION mcp_private.precon_json(public.mcp_precon_agreements) FROM PUBLIC, anon, authenticated, service_role;
@@ -184,7 +210,7 @@ BEGIN
     RETURN jsonb_build_object('status', 'none', 'job_id', j.id, 'job_number', j.job_number, 'job_name', j.name);
   END IF;
   RETURN jsonb_build_object('status', 'ok', 'job_id', j.id, 'job_number', j.job_number, 'job_name', j.name,
-    'agreement', mcp_private.precon_json(a));
+    'agreement', mcp_private.precon_json(a), 'portal_customers', mcp_private.service_recipients(j.id));
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_precon_get(uuid) FROM PUBLIC, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_precon_get(uuid) TO authenticated;
@@ -354,17 +380,17 @@ GRANT EXECUTE ON FUNCTION public.mcp_precon_save(uuid, jsonb) TO authenticated;
 --   drawings_approved {on}                         the owner approved the final drawings
 --   hours             {hours}                      hours used so far against the agreement (a total, not an addition)
 --   link_invoice      {invoice_id}                 an agreement invoice on this job (kind invoice)
---   link_credit       {invoice_id}                 the posted credit (kind credit) that applied the fee
+--   link_credit       {change_order_id}            the deductive change order that credits the fee to the contract
 --   won | lost        {on}                         close pre-con: the owner hired you, or took the drawings elsewhere
 --   reopen            {}                           undo a close
 CREATE OR REPLACE FUNCTION public.mcp_precon_step(_job uuid, _p jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE j public.mcp_jobs; a public.mcp_precon_agreements; act text; d date; tz text; today date; inv public.mcp_billing_invoices;
-  title text; summary text; ev integer; nm text; via text; hrs numeric; money text;
+  title text; summary text; ev integer; nm text; via text; hrs numeric; money text; co jsonb;
 BEGIN
   j := mcp_private.precon_job(_job);
   IF _p IS NULL OR jsonb_typeof(_p) <> 'object' OR octet_length(_p::text) > 4000 THEN RAISE EXCEPTION 'MCP_BAD:The step details are missing.'; END IF;
-  IF EXISTS (SELECT 1 FROM jsonb_object_keys(_p) k WHERE k NOT IN ('action', 'expected_version', 'on', 'name', 'via', 'hours', 'invoice_id')) THEN
+  IF EXISTS (SELECT 1 FROM jsonb_object_keys(_p) k WHERE k NOT IN ('action', 'expected_version', 'on', 'name', 'via', 'hours', 'invoice_id', 'change_order_id')) THEN
     RAISE EXCEPTION 'MCP_BAD:That step has details Athena doesn''t use.';
   END IF;
   act := _p->>'action';
@@ -417,29 +443,41 @@ BEGIN
     END IF;
     hrs := (_p->>'hours')::numeric;
     UPDATE public.mcp_precon_agreements SET hours_used = hrs WHERE id = a.id;
-  ELSIF act IN ('link_invoice', 'link_credit') THEN
+  ELSIF act = 'link_invoice' THEN
     BEGIN
       SELECT * INTO inv FROM public.mcp_billing_invoices WHERE id = nullif(_p->>'invoice_id', '')::uuid AND job_id = j.id;
     EXCEPTION WHEN invalid_text_representation THEN RAISE EXCEPTION 'MCP_BAD:That invoice ID isn''t valid.';
     END;
     IF inv.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:That invoice isn''t on this job.'; END IF;
-    IF act = 'link_invoice' THEN
-      IF inv.kind <> 'invoice' THEN RAISE EXCEPTION 'MCP_BAD:Link the agreement''s own invoice, not a pay application or credit.'; END IF;
-      IF inv.id = ANY (a.invoice_ids) THEN
-        RETURN jsonb_build_object('status', 'ok', 'already', true, 'agreement', mcp_private.precon_json(a));
-      END IF;
-      IF cardinality(a.invoice_ids) >= 12 THEN RAISE EXCEPTION 'MCP_BAD:An agreement holds up to 12 invoices.'; END IF;
-      UPDATE public.mcp_precon_agreements SET invoice_ids = invoice_ids || inv.id WHERE id = a.id;
-      title := 'Pre-construction invoice ' || inv.document_number; summary := 'Invoice ' || inv.document_number || ' added to the pre-construction agreement.';
-    ELSE
-      IF NOT a.credit THEN RAISE EXCEPTION 'MCP_BAD:This agreement has no credit toward the construction contract.'; END IF;
-      IF inv.kind <> 'credit' THEN RAISE EXCEPTION 'MCP_BAD:Link the posted credit itself.'; END IF;
-      IF a.credit_invoice_id IS NOT NULL AND a.credit_invoice_id <> inv.id THEN
-        RAISE EXCEPTION 'MCP_BAD:The pre-con credit is already applied as %.', (SELECT document_number FROM public.mcp_billing_invoices WHERE id = a.credit_invoice_id);
-      END IF;
-      UPDATE public.mcp_precon_agreements SET credit_invoice_id = inv.id WHERE id = a.id;
-      title := 'Pre-construction credit applied'; summary := 'The pre-construction fee was credited to the construction contract (' || inv.document_number || ').';
+    IF inv.kind <> 'invoice' THEN RAISE EXCEPTION 'MCP_BAD:Link the agreement''s own invoice, not a pay application or credit.'; END IF;
+    IF inv.id = ANY (a.invoice_ids) THEN
+      RETURN jsonb_build_object('status', 'ok', 'already', true, 'agreement', mcp_private.precon_json(a));
     END IF;
+    IF cardinality(a.invoice_ids) >= 12 THEN RAISE EXCEPTION 'MCP_BAD:An agreement holds up to 12 invoices.'; END IF;
+    UPDATE public.mcp_precon_agreements SET invoice_ids = invoice_ids || inv.id WHERE id = a.id;
+    title := 'Pre-construction invoice ' || inv.document_number; summary := 'Invoice ' || inv.document_number || ' added to the pre-construction agreement.';
+  ELSIF act = 'link_credit' THEN
+    IF NOT a.credit THEN RAISE EXCEPTION 'MCP_BAD:This agreement has no credit toward the construction contract.'; END IF;
+    BEGIN
+      co := mcp_private.precon_change_json(j.id, nullif(_p->>'change_order_id', '')::uuid);
+    EXCEPTION WHEN invalid_text_representation THEN RAISE EXCEPTION 'MCP_BAD:That change order ID isn''t valid.';
+    END;
+    IF co IS NULL THEN RAISE EXCEPTION 'MCP_BAD:That change order isn''t on this job.'; END IF;
+    IF co->>'state' = 'rejected' THEN RAISE EXCEPTION 'MCP_BAD:That change order was rejected. Make a new one for the credit.'; END IF;
+    IF a.credit_change_id = (co->>'id')::uuid THEN
+      RETURN jsonb_build_object('status', 'ok', 'already', true, 'agreement', mcp_private.precon_json(a));
+    END IF;
+    IF a.credit_change_id IS NOT NULL
+       AND coalesce(mcp_private.precon_change_json(j.id, a.credit_change_id)->>'state', 'rejected') <> 'rejected' THEN
+      RAISE EXCEPTION 'MCP_BAD:The pre-con credit is already on change order %.', mcp_private.precon_change_json(j.id, a.credit_change_id)->>'number';
+    END IF;
+    IF (co->>'total_cents')::bigint IS DISTINCT FROM -a.price_cents THEN
+      RAISE EXCEPTION 'MCP_BAD:The credit change order should total -% (it totals %).', money,
+        coalesce(CASE WHEN (co->>'total_cents')::bigint < 0 THEN '-' ELSE '' END
+          || to_char(abs((co->>'total_cents')::bigint) / 100.0, 'FM$999,999,999,990.00'), 'nothing yet');
+    END IF;
+    UPDATE public.mcp_precon_agreements SET credit_change_id = (co->>'id')::uuid WHERE id = a.id;
+    title := 'Pre-construction credit'; summary := 'The ' || money || ' pre-construction fee is credited to the contract on change order ' || (co->>'number') || '.';
   ELSIF act IN ('won', 'lost') THEN
     IF a.status <> 'signed' THEN RAISE EXCEPTION 'MCP_BAD:Close pre-con once the agreement is signed.'; END IF;
     UPDATE public.mcp_precon_agreements SET status = 'closed', outcome = act, closed_on = d WHERE id = a.id;
@@ -462,3 +500,77 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.mcp_precon_step(uuid, jsonb) FROM PUBLIC, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.mcp_precon_step(uuid, jsonb) TO authenticated;
+
+-- 6. Bill the next installment on the client page: books billing invoice PC-<job>-<n> (submitted) and shares it as a
+-- bill the owner can pay by card or bank (portal kind service_invoice), then links it to the agreement. The owner
+-- sees what they get and the terms, never the fee build-up. _p: {expected_version, due_on}.
+CREATE OR REPLACE FUNCTION public.mcp_precon_invoice_share(_job uuid, _p jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE j public.mcp_jobs; a public.mcp_precon_agreements; issued integer; total integer; idx integer; amt bigint; first_cents bigint;
+  due date; num text; v jsonb; it public.mcp_portal_items; inc text; money text; parts_text text;
+BEGIN
+  j := mcp_private.precon_job(_job);
+  IF _p IS NULL OR jsonb_typeof(_p) <> 'object' OR EXISTS (SELECT 1 FROM jsonb_object_keys(_p) k WHERE k NOT IN ('expected_version', 'due_on')) THEN
+    RAISE EXCEPTION 'MCP_BAD:That invoice has details Athena doesn''t use.';
+  END IF;
+  IF jsonb_typeof(_p->'expected_version') IS DISTINCT FROM 'number' THEN RAISE EXCEPTION 'MCP_BAD:Send the version you loaded.'; END IF;
+  BEGIN
+    due := nullif(_p->>'due_on', '')::date;
+  EXCEPTION WHEN others THEN RAISE EXCEPTION 'MCP_BAD:Write the due date as YYYY-MM-DD.';
+  END;
+  PERFORM pg_advisory_xact_lock(hashtext(j.id::text || ':precon'));
+  SELECT * INTO a FROM public.mcp_precon_agreements WHERE job_id = j.id FOR UPDATE;
+  IF a.id IS NULL THEN RAISE EXCEPTION 'MCP_BAD:This job has no pre-construction agreement.'; END IF;
+  IF (_p->>'expected_version')::integer <> a.version THEN
+    RAISE EXCEPTION 'MCP_BAD:The agreement changed since you loaded it (now version %). Load it again.', a.version;
+  END IF;
+  IF a.status NOT IN ('signed', 'closed') THEN RAISE EXCEPTION 'MCP_BAD:The owner hasn''t signed the agreement yet. Nothing was billed.'; END IF;
+  IF a.price_cents <= 0 THEN RAISE EXCEPTION 'MCP_BAD:Price the agreement first. Nothing was billed.'; END IF;
+  SELECT count(*) INTO issued FROM unnest(a.invoice_ids) x
+    WHERE (SELECT v2.status FROM public.mcp_billing_invoice_versions v2 WHERE v2.invoice_id = x ORDER BY v2.version DESC LIMIT 1) IS DISTINCT FROM 'void';
+  total := CASE WHEN a.billing = 'full' THEN 1 ELSE 2 END;
+  IF issued >= total THEN RAISE EXCEPTION 'MCP_BAD:Every installment is already billed. Nothing was billed.'; END IF;
+  idx := issued + 1;
+  first_cents := CASE WHEN a.billing = 'full' THEN a.price_cents ELSE (a.price_cents + 1) / 2 END;
+  amt := CASE WHEN idx = 1 THEN first_cents ELSE a.price_cents - first_cents END;
+  IF idx = 2 AND a.drawings_approved_on IS NULL THEN
+    RAISE EXCEPTION 'MCP_BAD:The second payment is due at final drawings, and they aren''t approved yet. Nothing was billed.';
+  END IF;
+  num := 'PC-' || j.job_number || '-' || idx;
+  -- Another invoice may already hold that number (voided and redone): count up until one is free.
+  WHILE EXISTS (SELECT 1 FROM public.mcp_billing_invoices WHERE job_id = j.id AND lower(document_number) = lower(num)) LOOP
+    num := num || 'R';
+    IF length(num) > 60 THEN RAISE EXCEPTION 'MCP_BAD:Too many invoices with that number on this job.'; END IF;
+  END LOOP;
+  money := regexp_replace(to_char(a.price_cents / 100.0, 'FM$999,999,999,990.00'), '\.00$', '');
+  SELECT nullif(string_agg(x, ' · ' ORDER BY o), '') INTO inc FROM jsonb_array_elements_text(a.includes) WITH ORDINALITY e(x, o);
+  parts_text := CASE WHEN total = 1 THEN 'Pre-construction agreement'
+    WHEN idx = 1 THEN 'Pre-construction agreement, payment 1 of 2 (at signing)'
+    ELSE 'Pre-construction agreement, payment 2 of 2 (at final drawings)' END;
+  v := jsonb_build_object('number', num, 'stage', 'bill',
+    'title', CASE WHEN total = 1 THEN 'Pre-construction · ' || j.name ELSE 'Pre-construction payment ' || idx || ' of 2 · ' || j.name END,
+    'work_order', 'Pre-construction agreement',
+    'site_address', NULL,
+    'issue', left('Design and pre-construction for ' || j.name
+      || CASE WHEN a.design_days IS NOT NULL THEN ', with about ' || a.design_days || ' days of design' ELSE '' END
+      || '. The agreement totals ' || money
+      || CASE WHEN total = 2 THEN ', paid half at signing and half when you approve the final drawings.' ELSE ', paid at signing.' END, 2000),
+    'lines', jsonb_build_array(jsonb_build_object('description', parts_text, 'detail', inc, 'amount_cents', amt)),
+    'signoff', NULL,
+    'totals', jsonb_build_object('subtotal_cents', amt, 'credit_cents', 0, 'current_due_cents', amt),
+    'note', CASE WHEN a.owner_owns_drawings THEN 'You own the drawings.' ELSE '' END
+      || CASE WHEN a.credit THEN CASE WHEN a.owner_owns_drawings THEN ' ' ELSE '' END || 'If you hire us to build within '
+        || a.credit_days || ' days of the final drawings, the full ' || money || ' is credited to the construction contract.' ELSE '' END);
+  IF v->>'note' = '' THEN v := jsonb_set(v, '{note}', 'null'::jsonb); END IF;
+  it := mcp_private.service_invoice_share(j, num, 'Pre-construction agreement, installment ' || idx || ' of ' || total, amt, amt, v, due);
+  UPDATE public.mcp_precon_agreements SET invoice_ids = invoice_ids || it.ref_id, version = version + 1, updated_by = auth.uid(),
+    updated_at = now() WHERE id = a.id RETURNING * INTO a;
+  PERFORM public.mcp_project_record_add(j.id, 'precon_invoice_share', 'Pre-construction invoice ' || num,
+    'Invoice ' || num || ' for ' || to_char(amt / 100.0, 'FM$999,999,999,990.00') || ' sent to the client page.',
+    NULL, NULL, 'mcp_billing_invoices', it.ref_id, jsonb_build_object('amount_cents', amt, 'portal_item', it.id), 'user', NULL, NULL);
+  RETURN jsonb_build_object('status', 'ok', 'job_id', j.id, 'job_number', j.job_number, 'job_name', j.name,
+    'item_id', it.id, 'invoice_id', it.ref_id, 'number', num, 'label', v->>'title', 'amount_cents', amt, 'due_on', it.due_on,
+    'recipients', mcp_private.service_recipients(j.id), 'agreement', mcp_private.precon_json(a));
+END $$;
+REVOKE ALL ON FUNCTION public.mcp_precon_invoice_share(uuid, jsonb) FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.mcp_precon_invoice_share(uuid, jsonb) TO authenticated;

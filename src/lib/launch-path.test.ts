@@ -174,8 +174,10 @@ describe("account setup checklist", () => {
     expect(await readSetupProgress(member as never, admin as never, "u1", "c1")).toEqual({
       connected: true,
       jobs: 3,
+      // The fake has no company table, as before the work-profile migration runs, so that step stays off.
+      work: null,
     });
-    expect(seen.sort()).toEqual(["mcp_call_log.user_id=u1", "mcp_jobs.company_id=c1"]);
+    expect(seen.sort()).toEqual(["mcp_call_log.user_id=u1", "mcp_companies.id=c1", "mcp_jobs.company_id=c1"]);
     const failing = {
       from: () => ({
         select: () => ({

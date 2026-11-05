@@ -126,14 +126,22 @@ export type SetupInput = {
    */
   progress?: SetupProgress | null;
 };
-export type SetupProgress = { connected: boolean; jobs: number };
+export type SetupProgress = {
+  connected: boolean;
+  jobs: number;
+  /** Kinds-of-work questions. Left off until its company setting exists. */
+  work?: { done: boolean; left: number } | null;
+};
+
+/** What a member sends in their AI chat to answer the kinds-of-work questions. */
+export const WORK_PROFILE_MESSAGE = "Athena, let's set up the kinds of work we do.";
 
 /** Where a member learns to put Athena in ChatGPT, Claude or Grok Bot. */
 export const CONNECT_GUIDE_URL = "https://meetathena.io/connect/";
 /** The first message every connect screen gives. */
 export const FIRST_JOB_MESSAGE = "Athena, let's set up my first job.";
 export type SetupStep = {
-  id: "connect" | "first-job" | "profile" | "team" | "payments";
+  id: "connect" | "work" | "first-job" | "profile" | "team" | "payments";
   label: string;
   detail: string;
   done: boolean;
@@ -165,7 +173,7 @@ export function paymentsStep(s: ClientPaymentsState | null | undefined): SetupSt
   return { ...base, detail, done: true, doneLabel: "Connected" };
 }
 
-/** The two steps that get a new member working: Athena in their AI, then their first job. */
+/** The steps that get a new member working: Athena in their AI, the kinds of work they do, then their first job. */
 export function startSteps(progress: SetupProgress): SetupStep[] {
   const jobs = Math.max(0, Math.floor(progress.jobs));
   return [
@@ -180,6 +188,20 @@ export function startSteps(progress: SetupProgress): SetupStep[] {
       href: CONNECT_GUIDE_URL,
       action: "Show me how",
     },
+    ...(progress.work
+      ? [
+          {
+            id: "work" as const,
+            label: "Tell Athena the kinds of work you do",
+            detail: progress.work.done
+              ? "Athena asks new jobs only what fits your work"
+              : `${progress.work.left} quick ${progress.work.left === 1 ? "question" : "questions"} left. In your connected chat, send: ${WORK_PROFILE_MESSAGE}`,
+            done: progress.work.done,
+            href: CONNECT_GUIDE_URL,
+            action: "How to start",
+          },
+        ]
+      : []),
     {
       id: "first-job",
       label: "Set up your first job",

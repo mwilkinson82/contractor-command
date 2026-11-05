@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PHASE_LABEL,
+  creditState,
   nextInstallment,
   preconMoney,
   preconNextStep,
@@ -76,7 +77,9 @@ export function preconStage(a: PreconAgreement | null, usual: number): number {
 
 /** The board's next step while a pre-con job is still in its agreement or design. */
 export function preconBoardStep(a: PreconAgreement, jobNumber: string): NextStep | null {
-  if (a.status === "closed" && !(a.outcome === "won" && a.credit && !a.credit_invoice)) return null;
+  const credit = creditState(a);
+  const creditOpen = credit === "to_make" || credit === "waiting";
+  if (a.status === "closed" && !(a.outcome === "won" && creditOpen)) return null;
   if (
     a.phase !== "agreement" &&
     a.phase !== "design" &&
@@ -86,13 +89,15 @@ export function preconBoardStep(a: PreconAgreement, jobNumber: string): NextStep
   const title = preconNextStep(a);
   const inv = nextInstallment(a);
   const ask = inv
-    ? `Issue pre-con invoice ${inv.index} for job ${jobNumber}.`
+    ? `Send pre-con invoice ${inv.index} for job ${jobNumber} to the owner's client page.`
     : a.status === "draft"
       ? `The pre-con agreement for job ${jobNumber} went to the owner.`
       : a.status === "sent"
         ? `The owner signed the pre-con agreement for job ${jobNumber}.`
         : a.status === "closed"
-          ? `Apply the pre-con credit on job ${jobNumber} to the first pay application.`
+          ? credit === "waiting"
+            ? `Move the pre-con credit change order on job ${jobNumber} to the owner.`
+            : `Add the pre-con credit to the contract on job ${jobNumber} as a change order.`
           : `The owner approved the final drawings for job ${jobNumber}.`;
   return {
     title,
@@ -118,6 +123,7 @@ const statusLine = (a: PreconAgreement) =>
 /** The pre-con section of the board: only on jobs that have an agreement. */
 export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber: string }) {
   const money = preconMoney(a);
+  const credit = creditState(a);
   const hoursPct =
     a.parts.hours > 0 ? Math.min(100, Math.round((a.hours_used / a.parts.hours) * 100)) : 0;
   const over = a.hours_used > a.parts.hours;
@@ -164,11 +170,13 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
         <div>
           <dt>Credit to contract</dt>
           <dd>
-            {a.credit ? (a.credit_invoice ? "Applied" : usd(a.price_cents)) : "None"}
+            {a.credit ? (credit === "applied" ? "Applied" : usd(a.price_cents)) : "None"}
             <small>
               {a.credit
-                ? a.credit_invoice
-                  ? `On ${a.credit_invoice.number}`
+                ? a.credit_change && credit !== "to_make"
+                  ? credit === "applied"
+                    ? `On ${a.credit_change.co_number ?? a.credit_change.number}`
+                    : `${a.credit_change.number} waiting on the owner`
                   : a.credit_until
                     ? `If signed by ${a.credit_until}`
                     : `Within ${a.credit_days} days of final drawings`
@@ -244,7 +252,7 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
               </tbody>
             </table>
           </div>
-          {a.invoices.length || a.credit_invoice ? (
+          {a.invoices.length || a.credit_change ? (
             <ul className="jb-files">
               {a.invoices.map((i) => {
                 const settled = i.paid_cents + i.credited_cents;
@@ -262,10 +270,17 @@ export function PreconSection({ a, jobNumber }: { a: PreconAgreement; jobNumber:
                   </li>
                 );
               })}
-              {a.credit_invoice ? (
+              {a.credit_change ? (
                 <li>
-                  <b>{a.credit_invoice.number}</b>
-                  <span>−{usd(a.credit_invoice.net_due_cents)} credited to the contract</span>
+                  <b>{a.credit_change.co_number ?? a.credit_change.number}</b>
+                  <span>
+                    −{usd(Math.abs(a.credit_change.total_cents ?? a.price_cents))}{" "}
+                    {credit === "applied"
+                      ? "credited to the contract"
+                      : a.credit_change.state === "rejected"
+                        ? "credit change order rejected"
+                        : "credit change order, waiting on the owner"}
+                  </span>
                 </li>
               ) : null}
             </ul>

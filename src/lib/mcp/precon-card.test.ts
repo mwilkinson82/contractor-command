@@ -4,6 +4,7 @@ import {
   preconCard,
   preconMoney,
   preconNextStep,
+  creditState,
   type PreconAgreement,
 } from "./tools/precon-tools";
 
@@ -50,7 +51,8 @@ const base: PreconAgreement = {
   outcome: null,
   closed_on: null,
   invoices: [],
-  credit_invoice: null,
+  credit_change: null,
+  contract_sov: false,
   note: null,
 };
 const inv = (n: number, paid: number) => ({
@@ -69,12 +71,12 @@ describe("pre-con card", () => {
     expect(preconNextStep(null)).toMatch(/start a pre-construction agreement/);
     expect(preconNextStep({ ...base, status: "draft" })).toMatch(/^Send the agreement/);
     expect(preconNextStep({ ...base, status: "sent" })).toMatch(/Did the owner sign/);
-    expect(preconNextStep(base)).toBe("Issue invoice 1 for $8,500?");
+    expect(preconNextStep(base)).toBe("Send invoice 1 for $8,500 to the owner's client page?");
     const one = { ...base, invoices: [inv(1, 850_000)] };
     expect(nextInstallment(one)).toBeNull();
     expect(preconNextStep(one)).toMatch(/final drawings/);
     const drawings = { ...one, drawings_approved_on: "2026-11-01", phase: "estimate" as const };
-    expect(preconNextStep(drawings)).toBe("Issue invoice 2 for $8,500?");
+    expect(preconNextStep(drawings)).toBe("Send invoice 2 for $8,500 to the owner's client page?");
     const both = { ...drawings, invoices: [inv(1, 850_000), inv(2, 0)] };
     expect(preconNextStep(both)).toMatch(/Build the estimate/);
     expect(preconMoney(both)).toEqual({
@@ -89,9 +91,22 @@ describe("pre-con card", () => {
       outcome: "won" as const,
       phase: "contract" as const,
     };
-    expect(preconNextStep(won)).toBe(
-      "Apply the $17,000 pre-con credit to the first pay application?",
+    expect(preconNextStep(won)).toMatch(/^Set up the contract's schedule of values/);
+    const sov = { ...won, contract_sov: true };
+    expect(preconNextStep(sov)).toBe(
+      "Add the $17,000 pre-con credit to the contract as a change order for the owner to approve?",
     );
+    const co = { id: "c", number: "PCO-008", co_number: null, total_cents: -1_700_000 };
+    expect(preconNextStep({ ...sov, credit_change: { ...co, state: "submitted" } })).toBe(
+      "Send the pre-con credit change order PCO-008 to the owner to approve?",
+    );
+    expect(preconNextStep({ ...sov, credit_change: { ...co, state: "approved" } })).toMatch(
+      /owner approved the pre-con credit \(PCO-008\)\. Execute it/,
+    );
+    const applied = { ...sov, credit_change: { ...co, state: "executed", co_number: "CO-003" } };
+    expect(creditState(applied)).toBe("applied");
+    expect(preconNextStep(applied)).toMatch(/wrapped up/);
+    expect(creditState({ ...sov, credit_change: { ...co, state: "rejected" } })).toBe("to_make");
   });
 
   it("shows the build-up, terms and phase strip", () => {

@@ -1,10 +1,13 @@
-// Pre-construction agreements on a local database: the real migration chain, then 20261105233000_athena_precon.
+// Pre-construction agreements on a local database: the real migration chain (through service calls), then
+// 20261106120000_athena_precon.
 // Members act through their own role; nothing writes the tables directly. All names and numbers are made up.
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { makeDb } from "../../../tests/mcp-roles/db";
 import { asUser } from "../../../tests/mcp-roles/fake-supabase";
+import { gbbSql } from "../../../tests/selections/sql";
+import { serviceInvoiceViewSchema } from "../customer-portal/model";
 
 const owner = "00000000-0000-4000-8000-000000000f01";
 const contracts = "00000000-0000-4000-8000-000000000f02";
@@ -76,9 +79,6 @@ const terms = {
 beforeAll(async () => {
   db = await makeDb();
   const load = (f: string) => db.exec(readFileSync(`supabase/migrations/${f}.sql`, "utf8"));
-  await db.exec(
-    "CREATE TABLE test_company_plans(company_id uuid PRIMARY KEY,plan text); CREATE FUNCTION public.mcp_company_tier(_company uuid) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$ SELECT plan FROM test_company_plans WHERE company_id=_company $$; CREATE FUNCTION public.get_user_tier(uuid) RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'circle'::text $$;",
-  );
   const pages = readFileSync("supabase/migrations/20261021120000_athena_report_pages.sql", "utf8");
   const leaderStart = pages.indexOf("CREATE OR REPLACE FUNCTION public.mcp_is_company_leader");
   await db.exec(
@@ -87,8 +87,6 @@ beforeAll(async () => {
       pages.indexOf("TO authenticated;", leaderStart) + "TO authenticated;".length,
     ),
   );
-  await load("20261021190000_athena_team_invites");
-  await load("20261022120000_athena_account_team_privacy_terms");
   await load("20261023070000_athena_board_links");
   await load("20261023220000_athena_submittal_log");
   await load("20261024010000_athena_submittal_chase");
@@ -98,11 +96,55 @@ beforeAll(async () => {
   await load("20261021000000_athena_file_shares");
   await load("20261028120000_athena_submittal_packages");
   await load("20261029120000_athena_submittal_record_page");
-  await load("20261031120000_athena_file_upload");
+  await load("20261030120000_athena_package_build_identity");
+  const drawings = readFileSync(
+    "supabase/migrations/20261027130000_athena_drawing_versions.sql",
+    "utf8",
+  );
+  await db.exec(drawings.slice(0, drawings.indexOf("CREATE FUNCTION public.mcp_drawing_records")));
+  await db.exec(
+    "CREATE TABLE test_company_plans(company_id uuid PRIMARY KEY,plan text); CREATE FUNCTION public.mcp_company_tier(_company uuid) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$ SELECT plan FROM test_company_plans WHERE company_id=_company $$;",
+  );
+  await load("20261025140000_athena_request_package_records");
+  await load("20261025150000_athena_change_order_packages");
+  await load("20261025153000_athena_change_execution_tie");
+  await load("20261022200000_athena_estimating");
+  await load("20261022230000_athena_estimating_bid");
+  await db.exec("ALTER FUNCTION public.mcp_estimate_guard(uuid) VOLATILE");
+  for (const sql of gbbSql()) await db.exec(sql);
+  await load("20261020213000_athena_living_reports");
+  await load("20261023020000_athena_superintendent");
+  await load("20261104130000_athena_progress_photo_remove");
+  await load("20261104170000_athena_customer_portal");
+  await load("20261104200000_athena_proposal_choice_stage");
+  await load("20261104200100_athena_portal_choice_stage");
+  await load("20261101120001_athena_project_billing_evidence");
+  await load("20261030140000_athena_sov_contract_total_guard");
+  for (const f of [
+    "0057_sov_payment_applications",
+    "0058_payment_application_contract_basis",
+    "0059_conversational_payment_drafts",
+    "0082_athena_portal_pay_apps",
+    "0085_athena_portal_pay_app_client_number",
+  ])
+    await db.exec(readFileSync(`drizzle/migrations/${f}.sql`, "utf8"));
+  await load("20261105150000_athena_gbb_change_terms");
+  await db.exec(
+    "CREATE FUNCTION public.mcp_role_allowed(_company uuid, _role text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$",
+  );
+  await load("20261105180000_athena_job_notices");
+  await load("20261105200000_athena_notices_owner_fallback");
+  await load("20261105181000_athena_portal_messages");
+  await load("20261105190000_athena_client_payments");
   await db.exec(readFileSync("drizzle/migrations/0035_accounting_purchase_orders.sql", "utf8"));
   await load("20261105170000_athena_job_contracts");
-  await load("20261101120001_athena_project_billing_evidence");
-  await load("20261105233000_athena_precon");
+  await load("20261106110000_athena_service_calls");
+  await load("20261106120000_athena_precon");
+  // The rollback drops what the migration added and keeps the table; the migration then applies again cleanly.
+  await db.exec(
+    readFileSync("supabase/rollbacks/20261106120000_athena_precon.rollback.sql", "utf8"),
+  );
+  await load("20261106120000_athena_precon");
 
   for (const user of [owner, contracts, superUser, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -242,9 +284,50 @@ describe.sequential("pre-construction agreements", () => {
     );
   });
 
-  it("links the agreement's invoices and shows what was paid", async () => {
-    const first = invoice({ document_number: "PC-2731-1", net_due_cents: 850_000 });
-    await billing("invoice", first);
+  it("sends installment 1 to the client page as a bill with no fee build-up, and shows what was paid", async () => {
+    const share = (p: Record<string, unknown>) => fn("mcp_precon_invoice_share", [job, p]);
+    await expect(share({ expected_version: 7 })).rejects.toThrow(/changed since/);
+    await expect(share({ expected_version: 8, due_on: "2020-01-01" })).rejects.toThrow(
+      /due date from today/,
+    );
+    const r = await share({ expected_version: 8 });
+    expect(r).toMatchObject({ number: "PC-2731-1", amount_cents: 850_000, recipients: [] });
+    expect(r.agreement.version).toBe(9);
+    expect(r.agreement.invoices).toEqual([
+      expect.objectContaining({ number: "PC-2731-1", status: "submitted", net_due_cents: 850_000 }),
+    ]);
+    const item = (
+      await db.query<{ kind: string; view: J; ref_id: string }>(
+        "SELECT kind, view, ref_id FROM mcp_portal_items WHERE job_id=$1",
+        [job],
+      )
+    ).rows;
+    expect(item).toHaveLength(1);
+    expect(item[0]!.kind).toBe("service_invoice");
+    expect(item[0]!.ref_id).toBe(r.invoice_id);
+    const view = serviceInvoiceViewSchema.parse(item[0]!.view);
+    expect(view).toMatchObject({
+      stage: "bill",
+      work_order: "Pre-construction agreement",
+      totals: { subtotal_cents: 850_000, credit_cents: 0, current_due_cents: 850_000 },
+      lines: [
+        {
+          description: "Pre-construction agreement, payment 1 of 2 (at signing)",
+          detail: "Final drawings you own · A schedule and a fixed-price estimate",
+          amount_cents: 850_000,
+        },
+      ],
+    });
+    expect(view.note).toBe(
+      "You own the drawings. If you hire us to build within 90 days of the final drawings, the full $17,000 is credited to the construction contract.",
+    );
+    // The owner never sees the contractor's cost build-up.
+    const shown = JSON.stringify(view);
+    for (const hidden of ["Coastline", "Constructability", "125", "10000", "markup"])
+      expect(shown).not.toContain(hidden);
+    // Installment 2 waits for final drawings.
+    await expect(share({ expected_version: 9 })).rejects.toThrow(/due at final drawings/);
+    // A pay application can't be linked as the agreement's invoice.
     const payApp = invoice({
       kind: "pay_application",
       document_number: "PA-1",
@@ -252,23 +335,19 @@ describe.sequential("pre-construction agreements", () => {
     });
     await billing("invoice", payApp);
     await expect(
-      step({ action: "link_invoice", expected_version: 8, invoice_id: payApp.id }),
+      step({ action: "link_invoice", expected_version: 9, invoice_id: payApp.id }),
     ).rejects.toThrow(/agreement's own invoice/);
-    let r = await step({ action: "link_invoice", expected_version: 8, invoice_id: first.id });
-    expect(r.agreement.invoices).toHaveLength(1);
-    expect(r.agreement.invoices[0]).toMatchObject({
-      number: "PC-2731-1",
-      status: "submitted",
-      net_due_cents: 850_000,
-      paid_cents: 0,
+    const again = await step({
+      action: "link_invoice",
+      expected_version: 9,
+      invoice_id: r.invoice_id,
     });
-    r = await step({ action: "link_invoice", expected_version: 9, invoice_id: first.id });
-    expect(r.already).toBe(true);
+    expect(again.already).toBe(true);
     const receipt = {
       request_id: crypto.randomUUID(),
       id: crypto.randomUUID(),
-      receipt_date: "2026-11-08",
-      effective_date: "2026-11-08",
+      receipt_date: "2026-11-04",
+      effective_date: "2026-11-04",
       source: "Check 1041 (test)",
       amount_cents: 850_000,
     };
@@ -277,16 +356,17 @@ describe.sequential("pre-construction agreements", () => {
       request_id: crypto.randomUUID(),
       id: crypto.randomUUID(),
       receipt_id: receipt.id,
-      invoice_id: first.id,
-      effective_date: "2026-11-08",
+      invoice_id: r.invoice_id,
+      effective_date: "2026-11-04",
       source: "Check 1041 (test)",
       amount_cents: 850_000,
     });
     const g = await get();
     expect(g.agreement.invoices[0].paid_cents).toBe(850_000);
+    expect(g.portal_customers).toEqual([]);
   });
 
-  it("final drawings start the estimate and the 90-day credit window", async () => {
+  it("final drawings start the estimate, the 90-day credit window and installment 2", async () => {
     await step({ action: "hours", expected_version: 9, hours: 41.5 });
     const r = await step({ action: "drawings_approved", expected_version: 10, on: "2026-11-01" });
     expect(r.agreement).toMatchObject({
@@ -295,6 +375,12 @@ describe.sequential("pre-construction agreements", () => {
       credit_until: "2027-01-30",
     });
     expect(Number(r.agreement.hours_used)).toBe(41.5);
+    const second = await fn("mcp_precon_invoice_share", [job, { expected_version: 11 }]);
+    expect(second).toMatchObject({ number: "PC-2731-2", amount_cents: 850_000 });
+    expect(second.agreement.invoices).toHaveLength(2);
+    await expect(fn("mcp_precon_invoice_share", [job, { expected_version: 12 }])).rejects.toThrow(
+      /already billed/,
+    );
   });
 
   it("the prime contract moves the phase to proposal and then contract", async () => {
@@ -313,44 +399,56 @@ describe.sequential("pre-construction agreements", () => {
     expect(id).toBeTruthy();
   });
 
-  it("applies the credit to the first pay application and closes as won", async () => {
-    const pa = invoice({
-      kind: "pay_application",
-      document_number: "Pay App 1",
-      invoice_date: "2027-02-01",
-      effective_date: "2027-02-01",
-      gross_cents: 9_124_000,
-      withheld_cents: 912_400,
-      released_cents: 0,
-      net_due_cents: 8_211_600,
+  it("links the deductive credit change order and closes as won", async () => {
+    expect((await get()).agreement).toMatchObject({ contract_sov: false, credit_change: null });
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','01-general',$2::jsonb,'known','member_answer',$3)",
+      [job, JSON.stringify({ description: "General conditions", billable_value: 912400 }), owner],
+    );
+    expect((await get()).agreement.contract_sov).toBe(true);
+    const wrong = crypto.randomUUID();
+    const credit = crypto.randomUUID();
+    for (const [id, number, cents, t] of [
+      [wrong, "PCO-007", -100_000, 7],
+      [credit, "PCO-008", -1_700_000, 8],
+    ] as const) {
+      const tr = crypto.randomUUID();
+      await db.query(
+        "INSERT INTO mcp_transmittals(id,company_id,job_id,number) VALUES($1,$2,$3,$4)",
+        [tr, company, job, t],
+      );
+      await db.query(
+        "INSERT INTO mcp_submittals(id,company_id,job_id,number,revision,transmittal_id,spec_section,title,submittal_type,status,ball_in_court) VALUES($1,$2,$3,$4,0,$5,'01 26 00','Pre-construction credit','other','submitted','owner')",
+        [id, company, job, number, tr],
+      );
+      await db.query(
+        "INSERT INTO mcp_change_orders(submittal_id,job_id,details) VALUES($1,$2,$3::jsonb)",
+        [id, job, JSON.stringify({ state: "priced", total_cents: cents })],
+      );
+    }
+    const v = (await get()).agreement.version;
+    await expect(
+      step({ action: "link_credit", expected_version: v, change_order_id: wrong }),
+    ).rejects.toThrow(/should total -\$17,000.00 \(it totals -\$1,000.00\)/);
+    await expect(
+      step({ action: "link_credit", expected_version: v, change_order_id: crypto.randomUUID() }),
+    ).rejects.toThrow(/isn't on this job/);
+    const r = await step({ action: "link_credit", expected_version: v, change_order_id: credit });
+    expect(r.agreement.credit_change).toMatchObject({
+      id: credit,
+      number: "PCO-008",
+      state: "priced",
+      total_cents: -1_700_000,
     });
-    await billing("invoice", pa);
-    const credit = invoice({
-      kind: "credit",
-      credit_for: pa.id,
-      status: "posted",
-      document_number: "PC-CREDIT-2731",
-      invoice_date: "2027-02-01",
-      effective_date: "2027-02-01",
-      source: "Pre-construction fee credit",
-      net_due_cents: 1_700_000,
-      gross_cents: undefined,
-      withheld_cents: undefined,
-      released_cents: undefined,
-    });
-    await billing("invoice", credit);
-    const r = await step({ action: "link_credit", expected_version: 11, invoice_id: credit.id });
-    expect(r.agreement.credit_invoice).toMatchObject({
-      number: "PC-CREDIT-2731",
-      kind: "credit",
-      net_due_cents: 1_700_000,
-    });
-    const won = await step({ action: "won", expected_version: 12, on: "2026-11-03" });
+    await expect(
+      step({ action: "link_credit", expected_version: v + 1, change_order_id: wrong }),
+    ).rejects.toThrow(/already on change order PCO-008/);
+    const won = await step({ action: "won", expected_version: v + 1, on: "2026-11-03" });
     expect(won.agreement).toMatchObject({ status: "closed", outcome: "won", phase: "contract" });
-    await expect(step({ action: "sent", expected_version: 13 })).rejects.toThrow(/closed/);
-    const re = await step({ action: "reopen", expected_version: 13 });
+    await expect(step({ action: "sent", expected_version: v + 2 })).rejects.toThrow(/closed/);
+    const re = await step({ action: "reopen", expected_version: v + 2 });
     expect(re.agreement).toMatchObject({ status: "signed", outcome: null });
-    const lost = await step({ action: "lost", expected_version: 14 });
+    const lost = await step({ action: "lost", expected_version: v + 3 });
     expect(lost.agreement).toMatchObject({ outcome: "lost", phase: "closed" });
   });
 });

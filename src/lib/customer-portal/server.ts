@@ -5,6 +5,7 @@ import { newToken, TOKEN_RE, tokenHash } from "../mcp/file-share";
 import { codeEmail, decisionEmail, type PortalEmail } from "./email";
 import {
   approvalStatement,
+  workOrderPrice,
   choiceTerms,
   inviteOpenSchema,
   portalMessagesSchema,
@@ -53,6 +54,13 @@ export function choiceNextForPm(
   if (r.under_contract === false)
     return "The job has no contract value on file yet, so this is a proposal approval, not a change order. Carry the package total into the contract.";
   return null;
+}
+
+/** The PM's next step after the customer decides on a work order. */
+export function workOrderNextForPm(decision: string, label: string): string {
+  return decision === "approved"
+    ? `The customer approved ${label}. Do the work, then log the time, materials and the customer's sign-off in Athena so the bill goes out.`
+    : `The customer declined ${label}. Talk with them, then revise the work order or close the call.`;
 }
 
 /** The PM's next step after the customer decides on a pay application. The page never certifies it or changes billing. */
@@ -399,7 +407,9 @@ export async function handlePortal(
     const sec = section(q.get("s"));
     // Opening Messages marks the team's replies read; every other page only counts them for the tab.
     page.messages = await loadMessages(deps, access, sessionHash!, sec === "messages");
-    if (sec === "billing") page.payments = await loadPayments(deps, access, sessionHash!);
+    // A service call's page counts unpaid bills on every tab, so it reads payments everywhere.
+    if (sec === "billing" || view.items.some((i) => i.kind === "service_invoice"))
+      page.payments = await loadPayments(deps, access, sessionHash!);
     const brandLogo = await logoFor(deps, access);
     const step = q.get("step");
     const e = q.get("e");
@@ -467,10 +477,17 @@ export async function handlePortal(
   const item = view.items.find((i) => i.id === f.item);
   if (!item) return redirect(`${self}?e=not_open`);
   const sec: PortalSection =
-    item.kind === "change_order" ? "changes" : item.kind === "pay_app" ? "billing" : "selections";
+    item.kind === "change_order"
+      ? "changes"
+      : item.kind === "pay_app" || item.kind === "service_invoice"
+        ? "billing"
+        : item.kind === "work_order"
+          ? "work"
+          : "selections";
   const at = (extra: Record<string, string>) =>
     `${self}?${new URLSearchParams({ s: sec, i: item.id, ...extra }).toString()}`;
-  if (item.decision) return redirect(at({ e: "not_open" }));
+  // A service bill is paid, never decided.
+  if (item.decision || item.kind === "service_invoice") return redirect(at({ e: "not_open" }));
   const choice =
     item.kind === "selection" &&
     (f.choice === "good" || f.choice === "better" || f.choice === "best")
@@ -525,7 +542,7 @@ export async function handlePortal(
         ),
       );
     const validKind =
-      ((item.kind === "change_order" || item.kind === "pay_app") &&
+      ((item.kind === "change_order" || item.kind === "pay_app" || item.kind === "work_order") &&
         (decision === "approved" || decision === "declined")) ||
       (item.kind === "selection" && decision === "chosen" && choice !== null);
     if (!validKind || typed.length < 2 || typed.length > 120) return back("invalid");
@@ -545,27 +562,38 @@ export async function handlePortal(
               price: displayPrice(item.view.price_cents, "USD"),
               scheduleDays: item.view.schedule_days,
             })
-          : item.kind === "pay_app"
+          : item.kind === "work_order"
             ? approvalStatement({
-                kind: "pay_app",
+                kind: "work_order",
                 company,
                 label,
-                price: displayPrice(item.view.totals.current_due_cents, "USD"),
-                periodEnd: longDate(item.view.period_end),
+                price: workOrderPrice(item.view),
               })
-            : (() => {
-                const pk = item.view.proposal.packages.find((k) => k.tier === choice)!;
-                const terms = choiceTerms(view.job.under_contract, pk, item.view.proposal.currency);
-                return approvalStatement({
-                  kind: "selection",
+            : item.kind === "pay_app"
+              ? approvalStatement({
+                  kind: "pay_app",
                   company,
                   label,
-                  price: displayPrice(pk.total_cents, item.view.proposal.currency),
-                  choice: TIER_NAME[choice!],
-                  scheduleDays: terms.days,
-                  changeOrder: terms.changeOrder,
-                });
-              })();
+                  price: displayPrice(item.view.totals.current_due_cents, "USD"),
+                  periodEnd: longDate(item.view.period_end),
+                })
+              : (() => {
+                  const pk = item.view.proposal.packages.find((k) => k.tier === choice)!;
+                  const terms = choiceTerms(
+                    view.job.under_contract,
+                    pk,
+                    item.view.proposal.currency,
+                  );
+                  return approvalStatement({
+                    kind: "selection",
+                    company,
+                    label,
+                    price: displayPrice(pk.total_cents, item.view.proposal.currency),
+                    choice: TIER_NAME[choice!],
+                    scheduleDays: terms.days,
+                    changeOrder: terms.changeOrder,
+                  });
+                })();
     const note = (f.note ?? "").trim().slice(0, 2000) || null;
     const res = await deps
       .rpc("mcp_portal_decide", {
@@ -592,7 +620,9 @@ export async function handlePortal(
           ? choiceNextForPm(r, item)
           : item.kind === "pay_app"
             ? payAppNextForPm(decision!)
-            : null;
+            : item.kind === "work_order"
+              ? workOrderNextForPm(decision!, label)
+              : null;
       // The job notice tells the team (board, account page, morning brief) and emails the people the PM chose. The
       // PM gets the old decision email only when the notice can't be recorded, so nobody is emailed twice.
       const recorded = await recordDecisionNotice(deps, access, sessionHash, r, {

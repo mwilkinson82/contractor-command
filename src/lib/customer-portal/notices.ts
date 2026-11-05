@@ -48,20 +48,29 @@ export function decisionNotice(a: {
     });
   } else {
     const verb = a.decision === "approved" ? "approved" : "declined";
-    kind = `${item.kind === "pay_app" ? "pay_app" : "co"}_${verb}`;
+    kind = `${item.kind === "pay_app" ? "pay_app" : item.kind === "work_order" ? "wo" : "co"}_${verb}`;
     title = `${a.customer} ${verb} ${a.label}`;
     facts =
-      item.kind === "pay_app"
+      item.kind === "work_order"
         ? clean({
             decision: verb,
-            amount_cents: item.view.totals.current_due_cents,
-            period_end: item.view.period_end,
+            basis: item.view.basis,
+            amount_cents: item.view.totals.estimate_cents,
+            cap_cents: item.view.totals.cap_cents,
           })
-        : clean({
-            decision: verb,
-            amount_cents: item.view.price_cents,
-            days: item.view.schedule_days,
-          });
+        : item.kind === "service_invoice"
+          ? clean({ decision: verb, amount_cents: item.view.totals.current_due_cents })
+          : item.kind === "pay_app"
+            ? clean({
+                decision: verb,
+                amount_cents: item.view.totals.current_due_cents,
+                period_end: item.view.period_end,
+              })
+            : clean({
+                decision: verb,
+                amount_cents: item.view.price_cents,
+                days: item.view.schedule_days,
+              });
   }
   const detail = [a.note ? `Their note: ${a.note}` : null, a.next].filter(Boolean).join("\n\n");
   return {
@@ -74,7 +83,7 @@ export function decisionNotice(a: {
     refTable: "mcp_portal_decisions",
     refId: r.decision_id,
     facts,
-    boardPage: item.kind === "pay_app" ? "billing" : "cos",
+    boardPage: item.kind === "pay_app" ? "billing" : item.kind === "work_order" ? "service" : "cos",
     dedupeKey: `portal-decision:${r.decision_id}`,
   };
 }

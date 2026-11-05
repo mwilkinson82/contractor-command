@@ -24,6 +24,7 @@ import { detailAnchor } from "@/lib/mcp/plain-label";
 import { AthenaBrand, AthenaFooter } from "./AthenaBrand";
 import { JobHomeNotifications, NotificationsBell, NotificationsNavLink } from "./JobHomeWhatsNew";
 import { JobHomeChangeOrders } from "./JobHomeChangeOrders";
+import { JobHomePricing } from "./JobHomePricing";
 import { JobHomeMessages } from "./JobHomeMessages";
 import { JobNoticeEmailSettings } from "./JobNoticeEmailSettings";
 import {
@@ -807,6 +808,7 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
             </section>
             {session && full ? (
               <>
+                <JobHomePricing jobId={jobId} />
                 <JobHomeChangeOrders jobId={jobId} token={token} />
                 <JobHomeMessages jobId={jobId} token={token} />
                 <JobNoticeEmailSettings jobId={jobId} token={token} />
