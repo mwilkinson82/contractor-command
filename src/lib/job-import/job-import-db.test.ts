@@ -97,10 +97,10 @@ beforeAll(async () => {
   );
   await load("20261105100000_athena_job_logs");
   // The two copies of each migration must stay identical.
-  expect(readFileSync("drizzle/migrations/0079_athena_job_import_whole_job.sql", "utf8")).toBe(
+  expect(readFileSync("drizzle/migrations/0086_athena_job_import_whole_job.sql", "utf8")).toBe(
     readFileSync("supabase/migrations/20261105090000_athena_job_import_whole_job.sql", "utf8"),
   );
-  expect(readFileSync("drizzle/migrations/0080_athena_job_logs.sql", "utf8")).toBe(
+  expect(readFileSync("drizzle/migrations/0087_athena_job_logs.sql", "utf8")).toBe(
     readFileSync("supabase/migrations/20261105100000_athena_job_logs.sql", "utf8"),
   );
   for (const user of [owner, outsider]) {

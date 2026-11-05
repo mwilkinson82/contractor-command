@@ -68,7 +68,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("drizzle/migrations/0035_accounting_purchase_orders.sql", "utf8"));
   await load("20261105170000_athena_job_contracts");
   // The two copies of the migration must stay identical.
-  expect(readFileSync("drizzle/migrations/0088_athena_job_contracts.sql", "utf8")).toBe(
+  expect(readFileSync("drizzle/migrations/0089_athena_job_contracts.sql", "utf8")).toBe(
     readFileSync("supabase/migrations/20261105170000_athena_job_contracts.sql", "utf8"),
   );
 
