@@ -647,20 +647,27 @@ describe("customer emails", () => {
     expect(invite.html).not.toContain("Customer page");
     expect(invite.html).toContain('href="https://app.meetathena.io/c/i/x"');
     expect(code.html).toContain(">Your sign-in code</h1>");
-    expect(code.html).toMatch(/letter-spacing:8px[^>]*>123456<\/p>/);
+    expect(code.html).toMatch(
+      /letter-spacing:8px[^>]*><span class="gm-screen"><span class="gm-diff">123456</,
+    );
   });
-  it("keep their blue and white in the Gmail phone apps' dark mode", () => {
+  it("stay readable in the Gmail phone apps' dark mode, with the button and code kept blue and white", () => {
     expect(invite.html).toContain('<meta name="supported-color-schemes" content="light">');
     expect(invite.html).toContain('<body class="body"');
-    expect(invite.html).toContain("background-image:linear-gradient(#FFFFFF,#FFFFFF)");
-    expect(invite.html).toContain(
-      `background-image:linear-gradient(${ATHENA_BLUE},${ATHENA_BLUE})`,
+    // No forced-white background: on iOS it stays white while Gmail flips the text pale on top of it.
+    expect(invite.html).not.toContain("linear-gradient(#FFFFFF");
+    expect(code.html).not.toContain("linear-gradient(#F2F6FF");
+    // Button and code sit on locked blue panels, from the style block (Android) and inline (iOS).
+    expect(invite.html).toMatch(
+      /\.ath-panel\{[^}]*background-image:linear-gradient\(#1D4ED8,#1D4ED8\)/,
     );
     expect(invite.html).toMatch(/u \+ \.body \.gm-screen\{[^}]*mix-blend-mode:screen/);
     expect(invite.html).toContain(
       '<span class="gm-screen"><span class="gm-diff">Open your project page</span></span>',
     );
-    expect(code.html).toContain("background-image:linear-gradient(#F2F6FF,#F2F6FF)");
+    expect(code.html).toMatch(
+      /class="ath-panel"[^>]*background-image:linear-gradient\(#1D4ED8,#1D4ED8\)[^>]*><span class="gm-screen"><span class="gm-diff">123456<\/span><\/span><\/td>/,
+    );
   });
   it("show the contractor's saved logo when there is one, and only an https one", () => {
     const base = {
