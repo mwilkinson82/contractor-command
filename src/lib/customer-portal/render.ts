@@ -4,9 +4,11 @@
 import { optionNames } from "../selections/model";
 import { displayPrice } from "../selections/format";
 import { COMPARE_CSS, renderCompare } from "../selections/compare-page";
+import { timeLabel, timeSentence } from "../selections/change-terms";
 import { ATHENA_SUPPORT_MAILTO } from "../login-copy";
 import {
   approvalStatement,
+  choiceTerms,
   maskEmail,
   payAppLabel,
   TIER_NAME,
@@ -219,6 +221,7 @@ h4:first-child{margin-top:0}
 .sum span{color:var(--body)}
 .sum b{font-variant-numeric:tabular-nums;font-weight:650}
 .form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
+.time-note{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--soft);font-weight:600}
 .statement{margin-top:14px;padding:12px 14px;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--soft);font-size:13.5px}
 @media (max-width:1000px){.grid-home,.co-cols{grid-template-columns:minmax(0,1fr)}.rail{grid-template-columns:repeat(2,minmax(0,1fr))}.photos{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){
@@ -790,6 +793,17 @@ function choiceNext(
   const cur = (c: number) => displayPrice(c, v.currency);
   const co = p.contractor.name;
   const pm = p.contractor.pm_name ? `${p.contractor.pm_name} at ${co}` : co;
+  const terms = choiceTerms(p.job.under_contract, pk, v.currency);
+  if (terms.changeOrder)
+    return `<section class="panel next-steps"><h2>${done ? "What happens next" : "What happens when you confirm"}</h2><ol>${[
+      done
+        ? `${pm} has your signed change order.`
+        : "You confirm with the code we email you and your typed name.",
+      `${done ? "You approved" : "Confirming approves"} a change order to your contract for ${terms.changeOrder.difference}. ${timeSentence(terms.days)}`,
+      `${co} orders ${TIER_NAME[tier]} and adds the change order to your contract.`,
+    ]
+      .map((x) => `<li>${esc(x)}</li>`)
+      .join("")}</ol></section>`;
   const steps: string[] = done
     ? [`${pm} has your signed choice.`]
     : [`You confirm with the code we email you and your typed name.`];
@@ -826,21 +840,29 @@ function selectionDetail(
   if (!i.decision && pickedTier) {
     const pk = v.packages.find((k) => k.tier === pickedTier)!;
     const base = pickedTier === v.base_tier;
+    const terms = choiceTerms(p.job.under_contract, pk, v.currency);
     const statement = approvalStatement({
       kind: "selection",
       company: p.contractor.name,
       label: v.title,
       price: cur(pk.total_cents),
       choice: TIER_NAME[pickedTier],
+      scheduleDays: terms.days,
+      changeOrder: terms.changeOrder,
     });
+    // Right before the code: the time this change needs, stated plainly.
+    const timeNote =
+      terms.changeOrder || terms.days > 0
+        ? `<p class="time-note">${esc(timeSentence(terms.days))}</p>`
+        : "";
     const lines = v.selections
       .map((s) => {
         const op = s.options[pickedTier];
         return `<div><span>${esc(s.title)}</span><b>${esc([op.manufacturer, op.model].filter(Boolean).join(" ") || op.description)}</b></div>`;
       })
       .join("");
-    const form = `<form method="post" class="panel"><h2>Sign your choice</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p>${hidden(p, { action: "decide", item: i.id, decision: "chosen", choice: pickedTier, fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "selections", { i: i.id }))}">Back to compare</a><button class="btn" type="submit">Confirm my choice</button></div></form>`;
-    const review = `<section class="panel"><p class="eyebrow">You're choosing</p><h2>${esc(v.title)}: ${TIER_NAME[pickedTier]}</h2><div class="sum"><div><span>Package total</span><b>${esc(cur(pk.total_cents))}</b></div><div><span>${base ? "Change from base" : "Difference from base"}</span><b>${base ? "Included" : esc(`${pk.difference_cents > 0 ? "+" : ""}${cur(pk.difference_cents)}`)}</b></div>${lines}</div></section>`;
+    const form = `<form method="post" class="panel"><h2>${terms.changeOrder ? "Approve your change order" : "Sign your choice"}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p>${timeNote}${hidden(p, { action: "decide", item: i.id, decision: "chosen", choice: pickedTier, fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "selections", { i: i.id }))}">Back to compare</a><button class="btn" type="submit">${terms.changeOrder ? "Approve change order" : "Confirm my choice"}</button></div></form>`;
+    const review = `<section class="panel"><p class="eyebrow">You're choosing</p><h2>${esc(v.title)}: ${TIER_NAME[pickedTier]}</h2><div class="sum"><div><span>Package total</span><b>${esc(cur(pk.total_cents))}</b></div><div><span>${base ? "Change from base" : terms.changeOrder ? "Change order" : "Difference from base"}</span><b>${base ? "Included" : esc(`${pk.difference_cents > 0 ? "+" : ""}${cur(pk.difference_cents)}`)}</b></div>${base ? "" : `<div><span>Time</span><b>${esc(timeLabel(terms.days))}</b></div>`}${!base && pk.added_cents ? `<div><span>${esc(pk.added_note || "Added cost")}</span><b>${esc(cur(pk.added_cents))}</b></div>` : ""}${lines}</div></section>`;
     return `${back}<div class="co-cols"><div class="stack">${review}${choiceNext(p, v, pickedTier, false)}</div><aside class="stack">${form}</aside></div>`;
   }
   const shown = chosen

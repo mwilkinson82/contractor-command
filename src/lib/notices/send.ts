@@ -5,7 +5,7 @@ import type { PortalEmail } from "@/lib/customer-portal/email";
  * Job notices: one record for every client and field action on a job (a customer approving a change order, a
  * client question, an architect returning a submittal, a supplier confirming a look-ahead date, a sub signing).
  * The record feeds the project board's "What's new", the account page and the morning brief, and emails the
- * people the job's PM chose for that kind of notice (supabase/migrations/20261105150000_athena_job_notices.sql).
+ * people the job's PM chose for that kind of notice (supabase/migrations/20261105151500_athena_job_notices.sql).
  */
 export const NOTICE_TOPICS = [
   "client_decision",

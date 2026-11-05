@@ -5,6 +5,7 @@ import { newToken, TOKEN_RE, tokenHash } from "../mcp/file-share";
 import { codeEmail, decisionEmail, type PortalEmail } from "./email";
 import {
   approvalStatement,
+  choiceTerms,
   inviteOpenSchema,
   portalViewSchema,
   TIER_NAME,
@@ -30,6 +31,8 @@ export function choiceNextForPm(
     under_contract?: boolean;
     difference_cents?: number | null;
     change_order_number?: string | null;
+    co_number?: string | null;
+    schedule_days?: number | null;
   },
   item: PortalView["items"][number],
 ): string | null {
@@ -37,7 +40,7 @@ export function choiceNextForPm(
   const diff =
     typeof r.difference_cents === "number" ? displayPrice(r.difference_cents, currency) : null;
   if (r.change_order_number)
-    return `The job is under contract, so Athena drafted change order ${r.change_order_number} for the package difference${diff ? ` of ${diff}` : ""} with the signed choice attached. Price it and send it to the customer for approval.`;
+    return `The job is under contract, so the customer's signed choice approved change order ${r.co_number ? `${r.co_number} (${r.change_order_number})` : r.change_order_number} for the package difference${diff ? ` of ${diff}` : ""}${typeof r.schedule_days === "number" ? `, ${r.schedule_days > 0 ? `with ${r.schedule_days} added ${r.schedule_days === 1 ? "day" : "days"}` : "with no added time"}` : ""}. Add it to the contract in Athena so billing picks it up.`;
   if (r.under_contract)
     return "The job is under contract and this package is already in the contract price, so no change order was drafted.";
   if (r.under_contract === false)
@@ -464,16 +467,19 @@ export async function handlePortal(
                 price: displayPrice(item.view.totals.current_due_cents, "USD"),
                 periodEnd: longDate(item.view.period_end),
               })
-            : approvalStatement({
-                kind: "selection",
-                company,
-                label,
-                price: displayPrice(
-                  item.view.proposal.packages.find((k) => k.tier === choice)!.total_cents,
-                  item.view.proposal.currency,
-                ),
-                choice: TIER_NAME[choice!],
-              });
+            : (() => {
+                const pk = item.view.proposal.packages.find((k) => k.tier === choice)!;
+                const terms = choiceTerms(view.job.under_contract, pk, item.view.proposal.currency);
+                return approvalStatement({
+                  kind: "selection",
+                  company,
+                  label,
+                  price: displayPrice(pk.total_cents, item.view.proposal.currency),
+                  choice: TIER_NAME[choice!],
+                  scheduleDays: terms.days,
+                  changeOrder: terms.changeOrder,
+                });
+              })();
     const note = (f.note ?? "").trim().slice(0, 2000) || null;
     const res = await deps
       .rpc("mcp_portal_decide", {
@@ -499,6 +505,7 @@ export async function handlePortal(
         under_contract?: boolean;
         difference_cents?: number | null;
         change_order_number?: string | null;
+        schedule_days?: number | null;
       };
       if (r.pm_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.pm_email))
         await deps.send(
