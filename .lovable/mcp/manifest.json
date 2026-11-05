@@ -2243,6 +2243,7 @@
                 "lump_sum",
                 "unit_price",
                 "cost_plus",
+                "time_and_material",
                 "gmp"
               ]
             },
@@ -6300,8 +6301,8 @@
           "openWorldHint": true
         },
         "inputSchema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "properties": {
             "job_number": {
               "type": "string",
@@ -6317,6 +6318,44 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 64
+            },
+            "weeks": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            },
+            "group": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "filters": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "value_ids": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    }
+                  }
+                },
+                "required": [
+                  "code_id",
+                  "value_ids"
+                ]
+              }
             },
             "expires_in_days": {
               "type": "integer",

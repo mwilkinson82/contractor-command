@@ -1671,6 +1671,113 @@ function lookItems(m: Model, t0: number, t1: number, group: LookGroup): Item[] {
   return withCodes(items);
 }
 
+export type LookaheadPlanFilter = { code_id: string; value_ids: string[] };
+export type LookaheadPlanItem =
+  | { kind: "group"; label: string; color: string | null }
+  | {
+      kind: "act";
+      id: string;
+      name: string;
+      start: number | null;
+      finish: number | null;
+      rd: number | null;
+      tf: number | null;
+      critical: boolean;
+      milestone: boolean;
+      started: boolean;
+      party: string | null;
+      bs: number | null;
+      bf: number | null;
+    };
+export type LookaheadPlan = {
+  /** Data date and the day after the window ends (ms, UTC midnight). */
+  dd: number;
+  t1: number;
+  weeks: number;
+  groupLabel: string;
+  filterLines: string[];
+  partyLabel: string | null;
+  items: LookaheadPlanItem[];
+  count: number;
+  works: (t: number) => boolean;
+};
+const lookKey = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, " ");
+/**
+ * The lookahead the page shows, as plain data for the PDF: the same window from the data date, the same groups
+ * (total float, start, WBS or any code) and the code filters stacked. Codes and values match by id or by name.
+ */
+export function lookaheadPlan(
+  input: GanttInput,
+  opts: { weeks?: number; group?: string | null; filters?: LookaheadPlanFilter[] },
+): { ok: true; plan: LookaheadPlan } | { ok: false; message: string } {
+  const full = ganttModel({ ...input, layout: null });
+  if (full.dd === null || !full.rows.length) return { ok: false, message: "This job has no saved, dated schedule with a data date yet." };
+  const dd = full.dd;
+  const weeks = Math.min(6, Math.max(1, Math.round(opts.weeks ?? 2)));
+  const t1 = dd + weeks * 7 * DAY;
+  const codes = input.control.activity_codes ?? [];
+  const findCode = (q: string) => codes.findIndex((c) => lookKey(c.id) === lookKey(q) || lookKey(c.name) === lookKey(q));
+  const g = lookKey(opts.group ?? "float");
+  let mode: LookGroup;
+  let groupLabel: string;
+  if (["float", "total float", "tf"].includes(g)) [mode, groupLabel] = ["float", "By total float"];
+  else if (["start", "date", "start date"].includes(g)) [mode, groupLabel] = ["date", "By start"];
+  else if (g === "wbs") [mode, groupLabel] = ["wbs", "By WBS"];
+  else {
+    const ci = findCode(opts.group ?? "");
+    if (ci < 0)
+      return { ok: false, message: `There's no grouping or activity code called "${opts.group}". Group by total float, start, WBS${codes.length ? ` or a code: ${codes.map((c) => c.name).join(", ")}` : ""}.` };
+    [mode, groupLabel] = [`code${ci}`, `By ${codes[ci].name}`];
+  }
+  const allow: Set<string>[] = [];
+  const filterLines: string[] = [];
+  for (const f of opts.filters ?? []) {
+    const ci = findCode(f.code_id);
+    if (ci < 0) return { ok: false, message: `There's no activity code called "${f.code_id}" on this schedule${codes.length ? `. Codes: ${codes.map((c) => c.name).join(", ")}` : ""}.` };
+    const code = codes[ci];
+    const vis = f.value_ids.map((q) => ({ q, vi: code.values.findIndex((v) => lookKey(v.id) === lookKey(q) || lookKey(v.name) === lookKey(q)) }));
+    const bad = vis.find((v) => v.vi < 0);
+    if (bad) return { ok: false, message: `${code.name} has no value called "${bad.q}". Values: ${code.values.map((v) => v.name).join(", ")}.` };
+    if (!vis.length) continue;
+    allow.push(new Set(vis.map((v) => `v${ci}_${v.vi}`)));
+    filterLines.push(`${code.name}: ${vis.map((v) => code.values[v.vi].name).join(", ")}`);
+  }
+  const passes = (r: GanttRow) => allow.every((set) => r.codeTokens.some((t) => set.has(t)));
+  const party =
+    full.codeCols.find((c) => /sub|trade|vendor|company/i.test(`${c.code} ${c.label}`) && c.label !== "Responsible party") ??
+    full.codeCols[0];
+  const items: LookaheadPlanItem[] = [];
+  let count = 0;
+  for (const it of lookItems(full, dd, t1, mode)) {
+    if (it.kind === "group") {
+      if (it.kids.some(passes)) items.push({ kind: "group", label: it.label, color: it.color ?? null });
+      continue;
+    }
+    const r = it.r;
+    if (!passes(r)) continue;
+    count++;
+    items.push({
+      kind: "act",
+      id: r.a.id,
+      name: r.a.name,
+      start: r.start,
+      finish: r.finish,
+      rd: r.a.remaining_duration ?? r.a.duration ?? null,
+      tf: r.tf,
+      critical: r.critical,
+      milestone: r.milestone,
+      started: r.started,
+      party: party ? codeValueName(input.control, r.a.id, party.code) || null : null,
+      bs: r.bs,
+      bf: day(r.base?.finish),
+    });
+  }
+  return {
+    ok: true,
+    plan: { dd, t1, weeks, groupLabel, filterLines, partyLabel: party?.label ?? null, items, count, works: full.projectCal.works },
+  };
+}
+
 /**
  * The lookahead as a Gantt: 1 to 6 weeks from the data date, picked on the page, grouped by float path or in
  * start order. Same bars, logic and baseline as the full schedule, on a day scale. CSS only.

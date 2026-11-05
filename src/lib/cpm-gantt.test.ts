@@ -15,11 +15,13 @@ import {
   logicChanges,
   logicChangesHtml,
   lookaheadGanttHtml,
+  lookaheadPlan,
   milestoneHtml,
   viewItems,
   workDaysBetween,
 } from "./cpm-gantt";
 import { startStatus, startVariance } from "./schedule-layouts";
+import { cpmLookaheadPdf } from "./mcp/lookahead-pdf";
 import {
   renderReportBody,
   renderReportDocument,
@@ -384,6 +386,40 @@ describe("round 3: start status, lookahead Gantt, reports", () => {
     expect(html).toContain("End of lookahead period");
     expect(html).toContain('data-window-end-line="true"');
     expect(html).toContain('data-date-marker="true"');
+  });
+
+  it("plans the lookahead PDF like the page: weeks, groups and stacked code filters", () => {
+    const i = input();
+    i.control.activity_codes = [
+      { id: "party", name: "Responsible party", values: [{ id: "self", name: "Self-perform" }, { id: "sub", name: "Subcontractor" }] },
+      { id: "subco", name: "Subcontractor", values: [{ id: "bay", name: "Bayline Drywall" }, { id: "iron", name: "Ironbark Plumbing" }] },
+    ];
+    i.control.code_values = { B: { party: "sub", subco: "bay" }, C: { party: "sub", subco: "iron" }, X: { party: "self" }, Y: { party: "sub", subco: "bay" } };
+    const two = lookaheadPlan(i, { weeks: 2 });
+    if (!two.ok) throw new Error(two.message);
+    expect(two.plan.weeks).toBe(2);
+    expect(two.plan.t1 - two.plan.dd).toBe(14 * 86_400_000);
+    expect(two.plan.groupLabel).toBe("By total float");
+    expect(two.plan.items[0]).toMatchObject({ kind: "group", label: "Total float 0 WD · critical" });
+    // The party column names the sub, not the Responsible party split.
+    expect(two.plan.partyLabel).toBe("Subcontractor");
+    const bySub = lookaheadPlan(i, { weeks: 3, group: "subcontractor", filters: [{ code_id: "Responsible party", value_ids: ["sub"] }] });
+    if (!bySub.ok) throw new Error(bySub.message);
+    const groups = bySub.plan.items.filter((it) => it.kind === "group").map((it) => it.label);
+    expect(groups).toContain("Subcontractor: Bayline Drywall");
+    expect(bySub.plan.items.some((it) => it.kind === "act" && it.id === "X")).toBe(false);
+    expect(bySub.plan.filterLines).toEqual(["Responsible party: Subcontractor"]);
+    const one = lookaheadPlan(i, { weeks: 3, filters: [{ code_id: "subco", value_ids: ["Ironbark Plumbing"] }] });
+    if (!one.ok) throw new Error(one.message);
+    expect(one.plan.items.filter((it) => it.kind === "act").map((it) => (it as { id: string }).id)).toEqual(["C"]);
+    expect(lookaheadPlan(i, { group: "Location" })).toMatchObject({ ok: false });
+    expect(lookaheadPlan(i, { filters: [{ code_id: "Subcontractor", value_ids: ["Acme"] }] })).toMatchObject({ ok: false });
+    const pdf = cpmLookaheadPdf({ title: "Fictional job", plan: bySub.plan, acts: i.data.activities as never, items: [] });
+    const head = new TextDecoder("latin1").decode(pdf.slice(0, 8));
+    expect(head.startsWith("%PDF-")).toBe(true);
+    const body = new TextDecoder("latin1").decode(pdf);
+    expect(body).toContain("End of lookahead period");
+    expect(body).toContain("Three-Week Lookahead");
   });
 
   it("lists logic changes against the baseline", () => {
