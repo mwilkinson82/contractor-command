@@ -99,10 +99,21 @@ function Field({
 export function CompanyBoardLinkCard({
   companyId,
   profile,
+  loading = false,
+  companyName = null,
 }: {
   companyId: string | null;
   profile: CompanyProfile | null;
+  /** True until the member's company has loaded, so a slow first load never reads as "no company". */
+  loading?: boolean;
+  companyName?: string | null;
 }) {
+  if (loading && !isCompanyId(companyId))
+    return (
+      <div className="aa-card" role="status">
+        <Loader2 size={16} className="aa-spin" /> Loading your company…
+      </div>
+    );
   if (!isCompanyId(companyId))
     return (
       <div className="aa-card">
@@ -112,7 +123,7 @@ export function CompanyBoardLinkCard({
         </p>
       </div>
     );
-  const name = profile?.name?.trim() || "Your company";
+  const name = profile?.name?.trim() || companyName?.trim() || "Your company";
   return (
     <section className="aa-card" aria-labelledby="aa-company-board-title">
       <div className="aa-row" style={{ justifyContent: "flex-start", gap: 14 }}>

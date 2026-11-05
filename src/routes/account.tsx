@@ -564,10 +564,23 @@ function AccountPage() {
         profile={athenaProfile}
         billing={athenaBilling}
         company={
-          <CompanyBoardLinkCard companyId={athenaCompanyId} profile={companyProfile.profile} />
+          <CompanyBoardLinkCard
+            companyId={athenaCompanyId}
+            profile={companyProfile.profile}
+            companyName={athena.state?.companyName ?? null}
+            loading={athena.loading && !athena.state}
+          />
         }
         team={<AthenaTeamSection {...athena} inviteEmailEnabled={inviteEmailEnabled} />}
-        payments={<ClientPaymentsSection key={athenaCompanyId ?? "none"} companyId={athenaCompanyId} />}
+        payments={
+          athena.loading && !athena.state ? (
+            <div className="aa-card" role="status">
+              <Loader2 size={16} className="aa-spin" /> Loading client payments…
+            </div>
+          ) : (
+            <ClientPaymentsSection key={athenaCompanyId ?? "none"} companyId={athenaCompanyId} />
+          )
+        }
         projects={<ProjectHomes />}
         notices={<AccountNotices />}
         noticeCount={accountNotices.data?.filter((n) => !n.read).length ?? null}
