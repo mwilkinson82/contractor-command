@@ -88,7 +88,49 @@ export type FocusData = {
   contract_total: number | null;
   /** Daily report dates (YYYY-MM-DD) saved in the last few weeks. */
   dailies: string[] | null;
+  /** The job's submittal log, current revision of each number. Null when it couldn't be read. */
+  submittals?: FocusSubmittal[] | null;
 };
+
+export type FocusSubmittal = {
+  number: string;
+  revision: number;
+  title: string;
+  status: string;
+  ball: string | null;
+  ball_name: string | null;
+  due: string | null;
+};
+
+const SUBMITTAL_DONE = new Set(["approved", "approved_as_noted", "closed", "void"]);
+
+/** Current revision of each submittal number, with its due date (due back, else required by). */
+export function focusSubmittals(rows: unknown): FocusSubmittal[] | null {
+  if (!Array.isArray(rows)) return null;
+  const latest = new Map<string, FocusSubmittal>();
+  for (const raw of rows) {
+    const r = obj(raw);
+    const number = str(r?.number);
+    if (!r || !number) continue;
+    const row: FocusSubmittal = {
+      number,
+      revision: num(r.revision) ?? 0,
+      title: str(r.title) ?? "Submittal",
+      status: str(r.status) ?? "not_started",
+      ball: str(r.ball_in_court),
+      ball_name: str(r.ball_in_court_name),
+      due: day(r.due_back) ?? day(r.required_by),
+    };
+    const key = number.toLowerCase();
+    const prev = latest.get(key);
+    if (!prev || row.revision >= prev.revision) latest.set(key, row);
+  }
+  return [...latest.values()];
+}
+
+/** Submittals still moving: not approved, closed or void. */
+export const openSubmittals = (rows: FocusSubmittal[] | null | undefined): FocusSubmittal[] =>
+  (rows ?? []).filter((row) => !SUBMITTAL_DONE.has(row.status));
 
 type Call = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
 
@@ -274,7 +316,7 @@ export async function loadFocusData(sb: Sb, job: BriefJob, today: string): Promi
     });
   const since = new Date(`${today}T00:00:00Z`);
   since.setUTCDate(since.getUTCDate() - 400);
-  const [cpm, ior, cos, buyout, pay, contract, dailies] = await Promise.all([
+  const [cpm, ior, cos, buyout, pay, contract, dailies, submittals] = await Promise.all([
     job.scope === "contract" ? null : rpc("mcp_living_report_get", { _job: job.job_id, _type: "cpm", _version: null }),
     full ? rpc("mcp_living_report_get", { _job: job.job_id, _type: "ior", _version: null }) : null,
     job.scope === "super" ? null : rpc("mcp_change_rows", { _job: job.job_id }),
@@ -288,6 +330,12 @@ export async function loadFocusData(sb: Sb, job: BriefJob, today: string): Promi
           if (res.error || !Array.isArray(res.data)) return null;
           return (res.data as { report_date?: string }[]).map((row) => day(row.report_date)).filter((d): d is string => !!d);
         }),
+    job.scope === "super"
+      ? null
+      : quiet(async () => {
+          const res = await sb.from("mcp_submittals").select("number, revision, title, status, ball_in_court, ball_in_court_name, due_back, required_by").eq("job_id", job.job_id).limit(500);
+          return res.error ? null : focusSubmittals(res.data);
+        }),
   ]);
   return {
     cpm: focusCpm(cpm),
@@ -297,6 +345,7 @@ export async function loadFocusData(sb: Sb, job: BriefJob, today: string): Promi
     pay: full ? focusPay(pay) : null,
     contract_total: full ? contract : null,
     dailies: dailies ?? null,
+    submittals: submittals ?? null,
   };
 }
 
