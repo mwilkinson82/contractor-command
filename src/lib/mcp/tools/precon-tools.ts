@@ -5,7 +5,7 @@
 // Written only by mcp_precon_save and mcp_precon_step; invoices and credits are ordinary billing evidence.
 import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { dbError, run, type Sb } from "../guard";
+import { dbError, isMissingFunction, run, type Sb } from "../guard";
 import { resolveSubmittalJob } from "./submittal-tools";
 import type { CardModel, CardSection } from "../cards/model";
 import { renderHtml } from "../cards/html";
@@ -214,7 +214,13 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
       a: Record<string, unknown>,
     ) => PromiseLike<{ data: T; error: { message?: string } | null }>
   )(fn, args);
-  if (error) dbError(error);
+  if (error) {
+    if (isMissingFunction(error as { message?: string; code?: string }))
+      throw new ToolError(
+        "Pre-construction isn't turned on for this account yet. Nothing was changed.",
+      );
+    dbError(error as { message: string });
+  }
   return data;
 }
 
