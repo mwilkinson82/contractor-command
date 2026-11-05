@@ -220,3 +220,11 @@ describe("PM morning brief", () => {
     }
   });
 });
+
+import { NOT_A_FIRST_NAME } from "./morning-brief-focus";
+describe("brief greeting names", () => {
+  it("skips account labels like Athena Reviewer and QA", () => {
+    for (const label of ["Athena", "QA", "Reviewer", "test"]) expect(NOT_A_FIRST_NAME.test(label)).toBe(true);
+    for (const name of ["Marshall", "Dana", "Athenas"]) expect(NOT_A_FIRST_NAME.test(name)).toBe(false);
+  });
+});

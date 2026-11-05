@@ -46,7 +46,7 @@ export function plainLabel(text: string): Plain {
   const uuid = body.match(UUID)?.[0] ?? null;
   if (RAW_CELL.test(body.trim())) body = "";
   body = body.replace(UUID, " ");
-  body = body.replace(/\s+/g, " ").replace(/[,\s]*·[,\s]*·/g, " · ").replace(/^[,·\s-]+|[,·\s-]+$/g, "").trim();
+  body = body.replace(/\s+/g, " ").replace(/[,\s]*·[,\s]*·/g, " · ").replace(/^(?:[,·\s]|-(?![$\d.]))+|[,·\s-]+$/g, "").trim();
   return {
     label: body || "Item",
     href: link?.[2] ?? null,

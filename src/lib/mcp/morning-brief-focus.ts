@@ -333,7 +333,7 @@ export async function loadFocusData(sb: Sb, job: BriefJob, today: string): Promi
     job.scope === "super"
       ? null
       : quiet(async () => {
-          const res = await sb.from("mcp_submittals").select("number, revision, title, status, ball_in_court, ball_in_court_name, due_back, required_by").eq("job_id", job.job_id).limit(500);
+          const res = await sb.from("mcp_submittals").select("number, revision, title, status, ball_in_court, ball_in_court_name, due_back, required_by").eq("job_id", job.job_id).eq("package_purpose", "approval").limit(500);
           return res.error ? null : focusSubmittals(res.data);
         }),
   ]);
@@ -364,6 +364,9 @@ export function pickFocusJobs(jobs: BriefJob[], max = 3): BriefJob[] {
 }
 
 /** The member's first name for the greeting, from their own member row. */
+/** Names that are an account label, not a person: "Athena Reviewer", "QA", "Test", "Admin". */
+export const NOT_A_FIRST_NAME = /^(athena|qa|test|tester|reviewer|admin|user|demo|support)$/i;
+
 export async function memberFirstName(sb: Sb): Promise<string | null> {
   return quiet(async () => {
     const auth = (sb as unknown as { auth?: { getUser?: () => Promise<{ data?: { user?: { id?: string } | null } }> } }).auth;
@@ -373,6 +376,6 @@ export async function memberFirstName(sb: Sb): Promise<string | null> {
     if (res.error || !Array.isArray(res.data)) return null;
     const name = (res.data as { display_name?: string | null }[]).map((row) => row.display_name?.trim()).find(Boolean);
     const first = name?.split(/\s+/)[0]?.replace(/[^\p{L}\p{M}'-]/gu, "");
-    return first && first.length <= 30 ? first : null;
+    return first && first.length <= 30 && !NOT_A_FIRST_NAME.test(first) ? first : null;
   });
 }

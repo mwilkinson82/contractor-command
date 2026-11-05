@@ -131,3 +131,18 @@ describe("PM tools become cards", () => {
     expect(nested.title).not.toBe("Result");
   });
 });
+
+describe("negative money in cells", () => {
+  it("keeps the minus sign on credits", () => {
+    expect(plainLabel("-$68.00").label).toBe("-$68.00");
+    expect(plainLabel("-3,128").label).toBe("-3,128");
+    expect(plainLabel("- item").label).toBe("item");
+    const card: CardModel = {
+      state: "result",
+      title: "Credit",
+      sections: [{ heading: "Lines", kind: "table", columns: ["Line", "Rate", "Amount"], rows: [{ cells: ["credit", "-$68.00", "-$3,128.00"] }] }],
+    } as CardModel;
+    expect(renderHtml(card)).toContain("-$68.00");
+    expect(renderMarkdown(card)).toContain("-$3,128.00");
+  });
+});
