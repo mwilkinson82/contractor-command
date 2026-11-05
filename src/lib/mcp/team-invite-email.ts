@@ -22,13 +22,13 @@ export function buildInviteEmail(a: { to: string; inviteeName: string; ownerName
     `Hi ${a.inviteeName},`,
     "",
     `${a.ownerName} added you to ${a.companyName} on Athena as ${a.roleLabel}.`,
-    `Sign in with this email address at ${INVITE_SIGNIN_URL}. We'll email you a sign-in link; no password needed.`,
+    `Sign in with this email address at ${INVITE_SIGNIN_URL}. We'll email you a sign-in code; no password needed.`,
     "Once you're signed in, connect Athena in your AI assistant and your jobs will be there.",
   ].join("\n");
   const html = `<div style="font-family:system-ui,sans-serif;color:#111827;max-width:520px">
 <p>Hi ${esc(a.inviteeName)},</p><p>${esc(a.ownerName)} added you to <strong>${esc(a.companyName)}</strong> on Athena as ${esc(a.roleLabel)}.</p>
 <p><a href="${INVITE_SIGNIN_URL}" style="background:#2563EB;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Athena</a></p>
-<p style="color:#6B7280">Use this email address. We'll email you a sign-in link; no password needed.</p></div>`;
+<p style="color:#6B7280">Use this email address. We'll email you a sign-in code; no password needed.</p></div>`;
   return { to: a.to, from, subject, text, html };
 }
 

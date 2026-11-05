@@ -282,7 +282,12 @@ describe("connect Terms", () => {
 
 describe("no vendor names on the new member-facing pieces", () => {
   it("team section, account page messages and consent copy stay clean", () => {
-    const files = ["src/components/account/team-section.tsx", "src/lib/account-team.ts"];
+    const files = [
+      "src/components/account/team-section.tsx",
+      "src/components/account/athena-team-section.tsx",
+      "src/components/account/client-payments-section.tsx",
+      "src/lib/account-team.ts",
+    ];
     for (const f of files) {
       const visible = readFileSync(f, "utf8")
         .split("\n")
