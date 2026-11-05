@@ -810,6 +810,22 @@ describe("Overwatch schedule on its own calendar", () => {
     ]);
   });
 
+  it("asks which date is the contract completion when Overwatch's project date disagrees with its baseline", () => {
+    const v = x();
+    v.project.baseline_completion_date = "2027-01-19";
+    const plan = planImport(fromOverwatch(v), { job_exists: false });
+    const ask = plan.fixes.find((f) => f.includes("Which is the contract completion date?"));
+    expect(ask).toContain("Overwatch's project completion is Jan 19, 2027");
+    expect(ask).toContain("its baseline activities finish Apr 4, 2026");
+    expect(JSON.stringify(reviewCard(plan, "2717", true))).toContain(
+      "Which is the contract completion date?",
+    );
+    v.project.baseline_completion_date = "2026-04-06";
+    expect(planImport(fromOverwatch(v), { job_exists: false }).fixes.join(" ")).not.toContain(
+      "Which is the contract completion date?",
+    );
+  });
+
   it("uses Overwatch's own status date from its latest schedule update, never the import day", () => {
     const v = x();
     v.exported_at = "2026-11-05T04:11:47.869Z";

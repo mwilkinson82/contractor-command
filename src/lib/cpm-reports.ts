@@ -232,7 +232,11 @@ export function scheduleHealth(input: GanttInput): HealthCheck[] {
     activity_ids: [],
   });
   // CPLI = (critical path length + float to the contract or baseline finish) / critical path length.
-  const target = m.cc ?? m.baselineFinish;
+  // A contract completion that disagrees with the baseline finish waits to be confirmed, so the
+  // index is measured to the baseline finish rather than to a date that may hide delay.
+  const mismatch = ganttSummary(m).completionMismatch !== null;
+  const useContract = m.cc !== null && !mismatch;
+  const target = useContract ? m.cc : m.baselineFinish;
   if (dd !== null && m.forecast !== null && target !== null) {
     const cpl = workDaysBetween(dd, m.forecast, m.projectCal);
     const tf = workDaysBetween(m.forecast, target, m.projectCal);
@@ -245,7 +249,11 @@ export function scheduleHealth(input: GanttInput): HealthCheck[] {
       of: cpl,
       value: cpli,
       status: cpli === null || cpli >= 0.95 ? "pass" : "fail",
-      note: `Measured to the ${m.cc !== null ? "contract completion" : "baseline finish"}.`,
+      note: useContract
+        ? "Measured to the contract completion."
+        : mismatch
+          ? "Measured to the baseline finish, because the contract completion on file disagrees with it."
+          : "Measured to the baseline finish.",
       activity_ids: [],
     });
   } else
@@ -290,14 +298,31 @@ export function scheduleNarrative(input: GanttInput): string[] {
   const out: string[] = [];
   const ddText = m.dd === null ? "the saved data date" : `the ${shortDay(m.dd)} data date`;
   if (m.forecast !== null) {
-    const against =
-      s.versusContract !== null
-        ? ` That is ${s.versusContract === 0 ? "on" : `${wd(s.versusContract)} ${s.versusContract > 0 ? "after" : "before"}`} the contract completion of ${shortDay(m.cc)}.`
-        : s.versusBaseline !== null
-          ? ` That is ${s.versusBaseline === 0 ? "on" : `${wd(s.versusBaseline)} ${s.versusBaseline > 0 ? "after" : "before"}`} the baseline finish of ${shortDay(m.baselineFinish)}.`
-          : " No contract completion or baseline is saved to measure it against.";
+    const rel = (n: number, what: string) =>
+      n === 0 ? `on ${what}` : `${wd(n)} ${n > 0 ? "after" : "before"} ${what}`;
+    // Lead with the logic-driven forecast against the plan, so delay shows whatever the contract says.
+    const parts: string[] = [];
+    const same = m.cc !== null && m.cc === m.baselineFinish;
+    if (s.versusBaseline !== null)
+      parts.push(
+        `That is ${rel(s.versusBaseline, `the baseline finish${same ? " and contract completion" : ""} of ${shortDay(m.baselineFinish)}`)}${s.versusBaseline > 0 ? ", a delay" : ""}.`,
+      );
+    if (same) {
+      // Both yardsticks are the same date, so one sentence covers them.
+    } else if (s.completionMismatch !== null)
+      parts.push(
+        `The contract completion on file, ${shortDay(m.cc)}, is ${wd(s.completionMismatch)} ${s.completionMismatch > 0 ? "after" : "before"} that baseline finish, so it isn't used to measure delay until the contract date is confirmed.`,
+      );
+    else if (s.versusContract !== null)
+      parts.push(
+        s.versusBaseline !== null
+          ? `Against the contract completion of ${shortDay(m.cc)}, it is ${s.versusContract === 0 ? "on time" : `${wd(s.versusContract)} ${s.versusContract > 0 ? "late" : "early"}`}.`
+          : `That is ${rel(s.versusContract, `the contract completion of ${shortDay(m.cc)}`)}.`,
+      );
+    if (!parts.length)
+      parts.push("No contract completion or baseline is saved to measure it against.");
     out.push(
-      `As of ${ddText}, the schedule forecasts completion on ${shortDay(m.forecast)}.${against}`,
+      `As of ${ddText}, the schedule forecasts completion on ${shortDay(m.forecast)}, driven by its logic and recorded progress. ${parts.join(" ")}`,
     );
   }
   if (m.prior) {
