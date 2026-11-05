@@ -128,7 +128,7 @@ export const teamInvite = defineTool({
 export const teamUpdateMember = defineTool({
   name: "team_update_member",
   title: "Change a person's role or job access",
-  description: "Changes a person's role or job access.",
+  description: "Changes a person's company role or which jobs they can open, and never makes anyone a job's PM (for \"make X the PM on job N\", call intake with section job_settings, the job_number and pm instead).",
   inputSchema: { company_id: companyId, person: person.optional(), user_id: z.string().uuid().optional(), role: z.string().trim().min(1).max(40).optional(), job_numbers: jobNumbers, confirmed },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   handler: (args, ctx) =>

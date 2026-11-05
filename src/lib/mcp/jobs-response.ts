@@ -3,7 +3,8 @@ import { companyChoiceLabel } from "./company-choice";
 export type JobsResponseGroup = {
   id?: string;
   name: string;
-  jobs: { job_number: string; name: string | null }[];
+  /** no_pm: the job has no PM Athena can email, so client approvals and notices go to the owner. */
+  jobs: { job_number: string; name: string | null; no_pm?: boolean }[];
 };
 
 /** Literal source text in a portable chat response; no links, HTML, or invented statuses. */
@@ -25,6 +26,12 @@ export function jobsResponseText(
     `**Jobs:** ${counts.jobs} · **Companies:** ${counts.companies}`,
   ];
   if (!groups.length) return [...lines, "", "No accessible company on file."].join("\n");
+  const noPm = groups.flatMap((g) => g.jobs.filter((j) => j.no_pm));
+  if (noPm.length)
+    lines.push(
+      "",
+      `**No PM set:** ${noPm.length === 1 ? "1 job" : `${noPm.length} jobs`}. Client approvals and notices on ${noPm.length === 1 ? "it" : "those"} email the company owner until you name a PM.`,
+    );
   for (const group of groups) {
     lines.push("", `### ${literal(companyChoiceLabel(group, groups))}`);
     if (!group.jobs.length) {
@@ -35,7 +42,9 @@ export function jobsResponseText(
       if (index) lines.push("", "---");
       const name = job.name?.trim();
       lines.push("", `**${name ? literal(name) : `Job ${literal(job.job_number)}`}**`);
-      if (name) lines.push("", `Job ${literal(job.job_number)}`);
+      const pmFlag = job.no_pm ? " · No PM set" : "";
+      if (name) lines.push("", `Job ${literal(job.job_number)}${pmFlag}`);
+      else if (pmFlag) lines.push("", "No PM set");
     }
   }
   return lines.join("\n");

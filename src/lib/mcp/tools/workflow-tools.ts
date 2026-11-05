@@ -18,6 +18,7 @@ import { itemClosureKey, itemClosurePreview, itemClosureOutcome } from "../item-
 import { displayRef, isUuid, itemRef, lookaheadRef, matchRef, parseLookaheadRef, parseQuestionRef, questionRef, shortRef } from "../refs";
 import { findDelayTerms, termDue, type DeadlineRow } from "../delays";
 import { draftGuidance, draftIdentityText, type PmIdentity } from "../drafts";
+import { pmSetupNext, readTeammates } from "../pm-setup";
 import { guide, EMAIL_TO_LABEL_REQUIRED, SHARE_OPTIONS_REQUIRED, REPORT_SHARE_ASK, REPORT_SHARE_STRUCTURED, CHART_PALETTE, JOB_SETUP_SOFTWARE_BLOCK, SOV_CHART_RULE, SOV_PRESENTATION_LEAD, sovChart, sovRequiredTop, sovDeliveryAsk, sovDeliveryBlock, sovDeliveryStructured, JOB_SOFTWARE_ASK, PROJECT_SOFTWARE_KEY, PROJECT_SOFTWARE_POSITION } from "../visible";
 import { withoutClaims } from "../internal-claims";
 import { LOOKAHEAD_EMAIL_LINE } from "../email-safety";
@@ -78,12 +79,14 @@ export function jobCreatedText(input: {
   jobName: string;
   restrictTo?: string[] | null;
   pm?: string | null;
+  pmLines?: string[];
 }): string {
   const pm = input.pm?.trim() || null;
   const restricted = input.restrictTo?.length ? ` Restricted to: ${input.restrictTo.join(", ")}.` : "";
+  const extra = input.pmLines?.length ? ` ${input.pmLines.join(" ")}` : "";
   const pmLine = pm
-    ? `PM: ${pm}. Open items default to this PM.`
-    : `PM: not set yet. Ask who the PM is and record it with intake section "job_settings" (pm); open items default to the job's PM.`;
+    ? `PM: ${pm}. Open items default to this PM.${extra}`
+    : `PM: not set yet. Ask who the PM is before anything else and record it with intake section "job_settings" (pm); open items default to the job's PM.${extra}`;
   return `${input.jobNumber} – Job created in ${input.companyName}: ${input.jobName}.${restricted}\n${pmLine}\nNext: intake section "scope" (step 0). Ask the member for job type, owner/client type, sector and pricing model; never assume them.`;
 }
 
@@ -306,7 +309,7 @@ async function syncClauseItems(sb: Sb, job: Job, saved: ClauseRow[]): Promise<It
 export const intake = defineTool({
   name: "intake",
   title: "Job setup intake",
-  description: "Records a job and its setup, and for a draft, what-if or proposed SOV call this intake tool with the argument sov_copy set to \"draft\" (sov_copy is an intake argument, not a separate tool; never build one yourself) and say saved only after it returns \"Saved in Athena\".",
+  description: "Records a job and its setup, including the job's PM (for \"make X the PM on job N\", call section job_settings with pm and any pm_email; this is the only way to set a job's PM), and for a draft, what-if or proposed SOV call this intake tool with the argument sov_copy set to \"draft\" (sov_copy is an intake argument, not a separate tool; never build one yourself) and say saved only after it returns \"Saved in Athena\".",
   inputSchema: {
     section: z.enum(["create_job", "job_settings", "scope", "contract", "deadline", "handoff", "budget", "warranty", "open_item", "lookahead", "delay_event", "clauses"]),
     job_number: jobNumber,
@@ -439,20 +442,27 @@ export const intake = defineTool({
         });
         if (r.duplicate) throw new ToolError(`Job ${args.job_number} already exists in this company. Use a different number, e.g. ${r.suggestion}. Nothing was created.`);
         let pmName = args.pm?.trim() || null;
+        let pmSaved: { pm?: string | null; pm_email?: string | null; pm_is_member?: boolean } | null = null;
         if (r.job_id && (pmName || args.pm_email || args.pm_title || args.time_zone)) {
-          const saved = await rpc<{ pm?: string | null }>(sb, "mcp_job_settings", {
+          const saved = await rpc<{ pm?: string | null; pm_email?: string | null; pm_is_member?: boolean }>(sb, "mcp_job_settings", {
             _job: r.job_id,
             _time_zone: args.time_zone ?? null,
             _pm_name: pmName,
             _pm_email: args.pm_email ?? null,
             _pm_title: args.pm_title ?? null,
           });
+          pmSaved = saved;
           if (saved?.pm) pmName = saved.pm;
         }
-        return {
-          ...text(jobCreatedText({ jobNumber: args.job_number, companyName, jobName: args.job_name, restrictTo: args.restrict_to, pm: pmName })),
+        const pmNext = pmSetupNext(
+          { pm: pmName, pm_email: pmSaved?.pm_email ?? null, pm_is_member: pmSaved?.pm_is_member === true },
+          await readTeammates(sb, choice.companyId),
+          args.pm,
+        );
+        return guide({
+          ...text(jobCreatedText({ jobNumber: args.job_number, companyName, jobName: args.job_name, restrictTo: args.restrict_to, pm: pmName, pmLines: pmNext.lines })),
           structuredContent: { job_id: r.job_id!, job_number: args.job_number, company_id: choice.companyId, company_name: companyName, pm: pmName },
-        };
+        }, ...pmNext.guidance);
       }
       const job = await resolveJob(sb, args.job_number, args.company_id, "write");
       const P = prefix(job);
@@ -472,12 +482,15 @@ export const intake = defineTool({
           r = full.data as Settings;
         }
         const co = await sb.from("mcp_companies").select("name").eq("id", job.company_id).maybeSingle();
+        const pmNext = args.pm || args.pm_email
+          ? pmSetupNext({ pm: r.pm, pm_email: r.pm_email ?? null, pm_is_member: r.pm_is_member !== false }, await readTeammates(sb, job.company_id), args.pm)
+          : { lines: [], guidance: [] };
         const pmLine = r.pm ? `${r.pm}${r.pm_is_member === false ? " (not an Athena user; saved as a contact with no Athena access)" : ""}${r.pm_email ? ` <${r.pm_email}>` : ""}` : "unassigned";
         const id: PmIdentity = { name: r.pm, email: r.pm_email ?? null, title: r.pm_title ?? null, isMember: r.pm_is_member !== false };
         return guide({
-          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}${r.pm ? `\nOpen items that were unassigned now read Accountable: ${r.pm} (PM). To assign an item to the PM, pass the name only.` : ""}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
+          ...text(`${P}Job settings saved. Time zone: ${r.time_zone ?? "unknown"} | PM: ${pmLine}${pmNext.lines.length ? `\n${pmNext.lines.join("\n")}` : ""}${r.pm ? `\nOpen items that were unassigned now read Accountable: ${r.pm} (PM). To assign an item to the PM, pass the name only.` : ""}\n\n${draftIdentityText(id, { name: co.data?.name ?? null })}`),
           structuredContent: { time_zone: r.time_zone, pm: r.pm, pm_email: r.pm_email ?? null, pm_title: r.pm_title ?? null, pm_is_member: r.pm_is_member ?? true },
-        }, ...draftGuidance(id, { name: co.data?.name ?? null }));
+        }, ...pmNext.guidance, ...draftGuidance(id, { name: co.data?.name ?? null }));
       }
 
       if (args.section === "delay_event") {

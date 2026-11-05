@@ -1974,7 +1974,7 @@
       {
         "name": "intake",
         "title": "Job setup intake",
-        "description": "Records a job and its setup, and for a draft, what-if or proposed SOV call this intake tool with the argument sov_copy set to \"draft\" (sov_copy is an intake argument, not a separate tool; never build one yourself) and say saved only after it returns \"Saved in Athena\".",
+        "description": "Records a job and its setup, including the job's PM (for \"make X the PM on job N\", call section job_settings with pm and any pm_email; this is the only way to set a job's PM), and for a draft, what-if or proposed SOV call this intake tool with the argument sov_copy set to \"draft\" (sov_copy is an intake argument, not a separate tool; never build one yourself) and say saved only after it returns \"Saved in Athena\".",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -6489,7 +6489,7 @@
       {
         "name": "team_update_member",
         "title": "Change a person's role or job access",
-        "description": "Changes a person's role or job access.",
+        "description": "Changes a person's company role or which jobs they can open, and never makes anyone a job's PM (for \"make X the PM on job N\", call intake with section job_settings, the job_number and pm instead).",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,

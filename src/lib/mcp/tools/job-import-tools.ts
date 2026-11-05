@@ -13,6 +13,7 @@ import {
   rememberCompany,
 } from "../jobs";
 import { guide } from "../visible";
+import { pmReachable, pmSetupNext, readTeammates } from "../pm-setup";
 import { drawingFile } from "../drawing-file-input";
 import { fetchAllowedFile } from "../file-upload";
 import { FileRejected } from "../file-share";
@@ -124,6 +125,33 @@ export function readExport(args: {
   });
 }
 
+/** The PM question after an import, or null when the job's PM can already be emailed. */
+async function importPmAsk(
+  sb: Sb,
+  result: Record<string, unknown>,
+): Promise<{ note: string; ask: string } | null> {
+  const jobId = typeof result.job_id === "string" ? result.job_id : null;
+  if (!jobId) return null;
+  const { data, error } = await sb
+    .from("mcp_jobs")
+    .select("company_id, pm_name, pm_email, pm_user_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const j = data as {
+    company_id: string;
+    pm_name: string | null;
+    pm_email: string | null;
+    pm_user_id: string | null;
+  };
+  if (pmReachable(j)) return null;
+  const next = pmSetupNext(
+    { pm: j.pm_name, pm_email: j.pm_email, pm_is_member: false },
+    await readTeammates(sb, j.company_id),
+  );
+  return { note: next.lines.join(" "), ask: next.guidance.join(" ") };
+}
+
 /** The job number the Overwatch export carries itself, before any number named at import time. */
 export function overwatchJobNumber(exportText: string | undefined): string | null {
   try {
@@ -223,10 +251,14 @@ export const jobImport = defineTool({
         });
         const jobNumber = String(result.job_number ?? args.job_number ?? "");
         const card = appliedCard(result, jobNumber, args.source ?? "overwatch");
+        // Client approvals and notices email the job's PM, so a job that came in without one gets the PM question.
+        const pmAsk = await importPmAsk(sb, result);
         return cardResult(
           card,
           { written: !result.already_applied, result },
-          "Show this card. Do not add text after it.",
+          pmAsk
+            ? `Show this card. Then, in one short line, say: "${pmAsk.note}" and ask the PM question: ${pmAsk.ask}`
+            : "Show this card. Do not add text after it.",
         );
       }
 

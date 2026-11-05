@@ -136,6 +136,7 @@ beforeAll(async () => {
     "CREATE FUNCTION public.mcp_role_allowed(_company uuid, _role text) RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$",
   );
   await load("20261105180000_athena_job_notices");
+  await load("20261105200000_athena_notices_owner_fallback");
   await load("20261105181000_athena_portal_messages");
 
   for (const user of [owner, pm, outsider]) {
@@ -1512,6 +1513,45 @@ describe.sequential("client messages", () => {
     expect(after.length).toBe(before + 1);
     expect(after.at(-1)).toMatchObject({ author_kind: "team", body: "Paint starts Monday." });
     await expect(tool({ job_number: "2716", action: "messages_list" }, outsider)).rejects.toThrow();
+  });
+
+  it("emails the owner every notice the PM would get when the job has no PM", async () => {
+    const noPm = "00000000-0000-4000-8000-000000000c29";
+    await db.query(
+      "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone) VALUES($1,$2,$3,'2719','No PM Yet','America/Chicago')",
+      [noPm, owner, company],
+    );
+    const record = async (jobId: string, key: string) =>
+      (
+        await server("mcp_job_notice_record", [
+          jobId,
+          "client_decision",
+          "co_approved",
+          "Lee Park approved CO-001",
+          null,
+          "Lee Park",
+          null,
+          null,
+          "{}",
+          "cos",
+          key,
+        ])
+      ).recipients.map((r: J) => r.email);
+    // With a PM, a client's decision goes to the PM only.
+    expect(await record(job2, "fallback-1")).toEqual(["02@example.com"]);
+    // No PM at all, or a PM saved as a name with no email: the owner gets it.
+    expect(await record(noPm, "fallback-2")).toEqual(["01@example.com"]);
+    await db.query("UPDATE mcp_jobs SET pm_name='Sam Contact' WHERE id=$1", [noPm]);
+    expect(await record(noPm, "fallback-3")).toEqual(["01@example.com"]);
+    // An owner's own choice on the job still wins.
+    await member("mcp_job_notice_prefs_set", [noPm, "owner", "client_decision", false]);
+    expect(await record(noPm, "fallback-4")).toEqual([]);
+    await db.query("DELETE FROM mcp_job_notice_prefs WHERE job_id=$1", [noPm]);
+    // Once the PM has an email, the owner goes back to client messages only.
+    await db.query("UPDATE mcp_jobs SET pm_email='sam@example.com' WHERE id=$1", [noPm]);
+    expect(await record(noPm, "fallback-5")).toEqual(["sam@example.com"]);
+    const prefs = await member("mcp_job_notice_prefs_get", [noPm]);
+    expect(prefs.prefs.find((p: J) => p.role === "owner" && p.topic === "client_decision").email).toBe(false);
   });
 });
 
