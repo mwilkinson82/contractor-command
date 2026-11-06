@@ -100,7 +100,10 @@ export function YourPhoto({ userId, name }: { userId: string | null; name: strin
     if (r.error) setMsg({ tone: "bad", text: "The photo didn't come off. Try again." });
     else {
       setUrl(null);
-      setMsg({ tone: "ok", text: "Photo removed. Clients see your initials instead." });
+      setMsg({
+        tone: "ok",
+        text: "Photo removed. Clients see your company logo, or your initials if there is no logo.",
+      });
     }
     setBusy(false);
   }
@@ -122,7 +125,8 @@ export function YourPhoto({ userId, name }: { userId: string | null; name: strin
         <span className="aa-flabel">Your photo</span>
         <span className="aa-hint">
           Clients see it on the client page of the jobs you run, so they know who their project
-          manager is. {PHOTO_RULE}
+          manager is. Without one, they see your company logo. {PHOTO_RULE} You can also send your
+          photo to Athena in ChatGPT and ask it to set your photo.
         </span>
         <div className="aa-row" style={{ justifyContent: "flex-start", gap: 8 }}>
           <input

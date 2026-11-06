@@ -809,6 +809,24 @@ describe("Home keeps its full look with what Athena has", () => {
     expect(await homeOf(bare())).toContain('<span class="avatar" aria-hidden="true">PL</span>');
   });
 
+  it("shows the company logo in Your team when the PM has no photo, initials only without either", async () => {
+    const withLogo = async (photo: string | null) => {
+      const { d } = deps({ view: bare() });
+      d.logo = async () => "https://cdn.example.com/northline-logo.png";
+      d.signHeadshot = async () => photo;
+      return (await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)).text();
+    };
+    const html = await withLogo(null);
+    expect(html).toContain(
+      '<img class="avatar logo" src="https://cdn.example.com/northline-logo.png" alt="Northline Builders"',
+    );
+    expect(html).not.toContain('<span class="avatar" aria-hidden="true">PL</span>');
+    // The PM's own photo still wins over the logo.
+    const photo = await withLogo("https://storage.example.com/signed/pm.jpg");
+    expect(photo).toContain('<img class="avatar" src="https://storage.example.com/signed/pm.jpg"');
+    expect(photo).not.toContain('class="avatar logo"');
+  });
+
   it("keeps the milestone ring and phases when the schedule is shared", async () => {
     const html = await homeOf(bare({ milestones: view().milestones }));
     expect(html).toContain("<b>0/2</b>milestones done");

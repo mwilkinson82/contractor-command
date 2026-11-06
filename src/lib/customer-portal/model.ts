@@ -469,6 +469,8 @@ export type PortalPage = Omit<PortalView, "photos" | "status" | "contractor"> & 
   contractor: Omit<PortalView["contractor"], "pm_photo_path"> & {
     /** A short-lived signed link to the PM's photo, or null to show initials. */
     pm_photo_url?: string | null;
+    /** The contractor's saved logo, https only; "Your team" shows it when the PM has no photo. Set by the page. */
+    logo_url?: string | null;
   };
   photos: SignedPhoto[];
   access_id: string;

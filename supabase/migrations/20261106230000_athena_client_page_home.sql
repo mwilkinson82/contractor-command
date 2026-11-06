@@ -33,8 +33,8 @@ DO $$ BEGIN
 END $$;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('athena-people', 'athena-people', false, 3145728, ARRAY['image/jpeg', 'image/png', 'image/webp'])
-ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 3145728, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+VALUES ('athena-people', 'athena-people', false, 8388608, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 8388608, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
 
 -- A member reads and writes only their own folder. The page server reads with the service role.
 DROP POLICY IF EXISTS "athena people own read" ON storage.objects;

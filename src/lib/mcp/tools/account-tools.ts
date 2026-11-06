@@ -70,6 +70,10 @@ const ALIASES: Record<string, AccountSection> = {
   "add seats": "team",
   projects: "projects",
   jobs: "projects",
+  photo: "overview",
+  "my photo": "overview",
+  "profile photo": "overview",
+  headshot: "overview",
 };
 
 /** Maps what the member said to an account section; anything unknown opens the overview. */
@@ -142,7 +146,14 @@ export const accountLink = defineTool({
           return guide(
             {
               ...text(renderMarkdown(card)),
-              structuredContent: { url: boardUrl, section, page: "company", requires_session: true, card, html: renderHtml(card) },
+              structuredContent: {
+                url: boardUrl,
+                section,
+                page: "company",
+                requires_session: true,
+                card,
+                html: renderHtml(card),
+              },
             },
             "Return the complete Markdown reply and its link. Company details and the logo are edited on the company board.",
           );

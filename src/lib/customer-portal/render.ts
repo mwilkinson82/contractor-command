@@ -330,6 +330,7 @@ const PORTAL_CSS = `
 .team{display:flex;align-items:center;gap:14px}
 .team .avatar{width:56px;height:56px;font-size:16px;box-shadow:0 0 0 3px var(--white),0 0 0 4px var(--line)}
 .team img.avatar{object-fit:cover;background:var(--head)}
+.team img.avatar.logo{object-fit:contain;background:#fff;padding:7px}
 .cp-team-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px!important}
 .cp-stand{display:grid;gap:14px}
 .cp-stand-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
@@ -771,9 +772,13 @@ function contactPanel(p: PortalPage): string {
   const c = p.contractor;
   if (!c.pm_name && !c.pm_email) return "";
   const who = c.pm_name || c.name;
+  // The PM's own photo; without one, the company's logo; initials only when there is neither (Marshall, Nov 6).
+  const logo = safeLogo(c.logo_url);
   const face = safePhoto(c.pm_photo_url)
     ? `<img class="avatar" src="${esc(c.pm_photo_url!)}" alt="${esc(who)}" referrerpolicy="no-referrer">`
-    : `<span class="avatar" aria-hidden="true">${esc(initials(who))}</span>`;
+    : logo
+      ? `<img class="avatar logo" src="${esc(logo)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">`
+      : `<span class="avatar" aria-hidden="true">${esc(initials(who))}</span>`;
   return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team">${face}<div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div><p class="sub cp-team-acts"><a class="btn" href="${esc(href(p, "messages"))}">Send a message</a>${c.pm_email ? `<a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a>` : ""}</p></section>`;
 }
 
@@ -1967,6 +1972,7 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
 }
 
 export function renderPortal(p: PortalPage, o: PortalOpts): string {
+  p = { ...p, contractor: { ...p.contractor, logo_url: safeLogo(o.logo) } };
   // A tab this page doesn't show (the Agreement tab before anything is shared) opens Home.
   if (!sectionsFor(p).includes(o.section)) o = { ...o, section: "home" };
   const waitingBy = (...kinds: PortalItem["kind"][]) =>
