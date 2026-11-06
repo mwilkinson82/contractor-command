@@ -278,6 +278,13 @@ const PO_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 const ORDER: Record<ContractKind, number> = { prime: 0, subcontract: 1, supplier: 2, other: 3 };
 
 /**
+ * Shown when the job's contract list can't be read. A failed read is never shown as an empty list,
+ * so a member never takes "No contracts on this job yet" to mean their contract wasn't saved.
+ */
+export const CONTRACTS_UNAVAILABLE =
+  "Contracts saved in Athena couldn't load right now, so none are listed here. Refresh the page, or ask Athena for this job's contracts.";
+
+/**
  * `contracts` is mcp_job_contract_rows (null when unavailable), `pos` is
  * mcp_project_purchase_orders_get, `setupValue` is the contract value from job setup in
  * dollars (the board's existing reading), used only when no prime contract is recorded.

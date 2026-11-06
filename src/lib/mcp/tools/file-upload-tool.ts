@@ -30,6 +30,11 @@ import {
   type UploadPurpose,
 } from "../file-upload";
 import { findPackagePiece, pieceRef } from "../submittal-package";
+import {
+  uploadedContractListing,
+  type JobContract,
+  type JobContractsPayload,
+} from "./job-contract-tools";
 import { submittalRpc } from "./submittal-package-tools";
 import { prepareReadable, type ReadableSource } from "../document-readable";
 import { guide } from "../visible";
@@ -941,6 +946,20 @@ async function saveBytes(
       }
     }
     const label = session.purpose === "contract" ? "Contract" : "Specification";
+    // A stored contract file is the job's contract source, not a row on the job's contract list.
+    // Say where it stands so the member isn't left looking at an empty Contracts section.
+    let listing: ReturnType<typeof uploadedContractListing> | null = null;
+    if (session.purpose === "contract") {
+      let contracts: JobContract[] | null = null;
+      try {
+        contracts = (
+          await rpc<JobContractsPayload>(sb, "mcp_job_contract_rows", { _job: job.job_id })
+        ).contracts;
+      } catch {
+        contracts = null;
+      }
+      listing = uploadedContractListing(contracts, saved.id);
+    }
     const read = saved.body_chars
       ? `Text read from the file: ${saved.body_chars.toLocaleString()} characters${saved.truncated ? ", which is the most kept for clause checks" : ""}.`
       : "No text could be read from the file. The file is stored.";
@@ -952,6 +971,7 @@ async function saveBytes(
         : readableState === "failed"
           ? "Complete readable document preparation failed. Original is stored; use explicit prepare_readable to retry. Cached text may be incomplete."
           : "",
+      listing?.member ?? "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -968,6 +988,7 @@ async function saveBytes(
       body_chars: saved.body_chars,
       truncated: saved.truncated,
       size_bytes: bytes.length,
+      ...(listing ? { contract_list: listing.contract_list, next_step: listing.host } : {}),
     };
   }
   structured = {

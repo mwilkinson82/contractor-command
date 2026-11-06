@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  CONTRACTS_UNAVAILABLE,
   STAGES,
   commercialNextStep,
   contractsOverview,
@@ -668,17 +669,17 @@ export function ContractsSection({
                   </tbody>
                 </table>
               </div>
-            ) : (
+            ) : o.recordAvailable ? (
               <p className="jb-empty">No contracts on this job yet.</p>
-            )}
+            ) : null}
             {c.posFailed ? (
               <p className="jh-small">
                 Purchase orders are unavailable right now, so none are listed.
               </p>
             ) : null}
             {!o.recordAvailable ? (
-              <p className="jh-small">
-                Signed contracts saved from chat show here once the contracts record is turned on.
+              <p className="jb-empty" role="status">
+                {CONTRACTS_UNAVAILABLE}
               </p>
             ) : null}
             <h3 style={{ margin: "18px 0 0", fontSize: 14, color: "#18314f" }}>Add a contract</h3>
