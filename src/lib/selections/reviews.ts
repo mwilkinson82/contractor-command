@@ -18,10 +18,19 @@ export function canonical(value: unknown): string {
 // and price. Assumptions are notes and can change freely.
 const optionKey = (o: Option) => canonical({ ...o, price_reviewed_on: null, assumptions: null });
 
+/**
+ * The base basis Athena writes when a contracted job's board starts from the contract value.
+ * That base is the signed contract, so repricing the base tier's options doesn't change it.
+ */
+export const CONTRACT_VALUE_BASIS = "Current contract value";
+
 // What the reviewed base price covers: it already includes the base tier's
-// option on every selection, so any change to those changes the base.
+// option on every selection, so any change to those changes the base. A base
+// that is the contract value covers only the amount and the base tier.
 const baseKey = (b: Board) =>
-  canonical({
+  b.proposal.base_basis === CONTRACT_VALUE_BASIS
+    ? canonical({ price: b.proposal.base_price_cents, tier: b.proposal.base_tier, contract: true })
+    : canonical({
     price: b.proposal.base_price_cents,
     tier: b.proposal.base_tier,
     selections: b.selections

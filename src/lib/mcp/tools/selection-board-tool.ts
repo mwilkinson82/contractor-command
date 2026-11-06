@@ -29,7 +29,12 @@ import {
   type CustomerProposal,
 } from "../../selections/proposal";
 import { money, percent, signed } from "../../selections/format";
-import { canonical, enforceReviews, type ReviewGrant } from "../../selections/reviews";
+import {
+  canonical,
+  CONTRACT_VALUE_BASIS,
+  enforceReviews,
+  type ReviewGrant,
+} from "../../selections/reviews";
 import {
   estimateLineOptions,
   lineOptionsText,
@@ -58,10 +63,53 @@ import { todayIn } from "../deadlines";
 import { guide } from "../visible";
 import { newToken, tokenHash, TOKEN_RE } from "../file-share";
 import { PAGE_ORIGIN, shareExpiry, SHARE_MAX_DAYS } from "../../report-pages";
+import { setupContractValue } from "../contract-value";
 
 const NOT_INSTALLED = "Selections storage is not installed yet. Nothing was saved.";
 const NO_RECORD_CHANGE =
   "No contract, budget, SOV, billing or accounting record was changed, and the estimate was not written.";
+
+/**
+ * The job's contract value from job setup, in cents, when the job is under contract (the same
+ * facts gbb_job_under_contract reads). On a contracted job the contract is the base the options
+ * change, so a new board starts from it instead of asking the member to invent a base price.
+ * Null when there is no known value or it can't be read.
+ */
+async function contractBaseCents(sb: Sb, jobId: string): Promise<number | null> {
+  try {
+    const { data, error } = await (
+      sb as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => {
+              in: (
+                k: string,
+                v: string[],
+              ) => Promise<{
+                data: { module: string; key: string; value: unknown; status?: string }[] | null;
+                error: unknown;
+              }>;
+            };
+          };
+        };
+      }
+    )
+      .from("mcp_job_facts")
+      .select("module, key, value, status")
+      .eq("job_id", jobId)
+      .in("module", ["contract", "budget", "job", "setup"]);
+    if (error || !data) return null;
+    const value = setupContractValue(data.filter((f) => f.status === "known"));
+    if (value === null || !(value > 0)) return null;
+    const cents = Math.round(value * 100);
+    return cents <= 999_999_999_999 ? cents : null;
+  } catch {
+    return null;
+  }
+}
 
 async function call(sb: Sb, name: string, args: Record<string, unknown>): Promise<unknown> {
   const result = await (
@@ -1037,6 +1085,26 @@ export const selectionBoard = defineTool({
               ...next,
               proposal: { ...next.proposal, change_terms: current!.board.proposal.change_terms },
             };
+        }
+
+        // A contracted job starts its board from the contract value: the options change the
+        // contract, so the member never has to make up a base price.
+        if (
+          next &&
+          next.proposal.base_price_cents === null &&
+          (args.action === "start" || args.action === "save_comparison")
+        ) {
+          const base = await contractBaseCents(sb, job.job_id);
+          if (base !== null) {
+            next.currency = next.currency ?? "USD";
+            next.proposal.base_price_cents = base;
+            next.proposal.base_basis = CONTRACT_VALUE_BASIS;
+            next.proposal.base_reviewed_on = today;
+            grant = { ...grant, base: true };
+            brief.push(
+              `Base price set to the current contract value, ${money(base, next.currency)}, because the job is under contract. Each upgrade shows as a change to it.`,
+            );
+          }
         }
 
         // Only a confirmed review in this call can set a review date; a change

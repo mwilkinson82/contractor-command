@@ -13,10 +13,21 @@ const fixture = vi.hoisted(() => ({
   lines: [] as unknown[],
   gaps: [] as unknown[],
   verdicts: [] as unknown[],
+  facts: [] as unknown[],
 }));
 vi.mock("./guard", () => ({
   run: async (_n: string, _c: unknown, _o: unknown, fn: (sb: unknown) => unknown) =>
     fn({
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => ({
+            in: async () => {
+              fixture.calls.push({ name: `from:${table}`, args: {} });
+              return { data: fixture.facts, error: null };
+            },
+          }),
+        }),
+      }),
       rpc: async (name: string, args: Record<string, unknown>) => {
         fixture.calls.push({ name, args });
         if (name === "mcp_estimate_get")
@@ -92,6 +103,7 @@ beforeEach(() => {
   fixture.version = 0;
   fixture.gaps = [];
   fixture.verdicts = [];
+  fixture.facts = [];
   fixture.lines = [
     { line_no: 1, item: "Type E 24x48 lay-in LED fixtures", qty: 6, unit: "ea", sheet: "E1" },
     { line_no: 3, item: "Type A black track heads", qty: 9, unit: "ea", sheet: "E1" },
@@ -120,6 +132,7 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     expect(fixture.calls.map((c) => c.name)).toEqual([
       "mcp_residential_selections_get",
       "mcp_estimate_get",
+      "from:mcp_job_facts",
       "mcp_residential_selections_save",
     ]);
     const board = lastSaved();
@@ -152,6 +165,41 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     expect(JSON.stringify(r.structuredContent)).toContain(
       "put the option's product name as the markdown link",
     );
+  });
+
+  it("starts a contracted job's board from the contract value, so no base price is made up", async () => {
+    fixture.facts = [
+      { module: "contract", key: "contract_value", value: 480000, status: "known" },
+    ];
+    const r = await callBoard({ action: "save_comparison", comparison, confirmed: true });
+    const board = lastSaved();
+    expect(board.currency).toBe("USD");
+    expect(board.proposal).toMatchObject({
+      base_price_cents: 48_000_000,
+      base_basis: "Current contract value",
+    });
+    expect(board.proposal.base_reviewed_on).not.toBeNull();
+    expect(r.content[0].text).toContain("Base price set to the current contract value");
+    expect(proposalBlockers(board)).not.toContain("Set the base proposal price.");
+    expect(proposalBlockers(board)).not.toContain("Review the base proposal price.");
+
+    // Pricing the base tier later keeps the contract base reviewed.
+    fixture.board = board;
+    fixture.version = 1;
+    await callBoard({
+      action: "apply_markup",
+      expected_version: 1,
+      markup_pct: 10,
+      cost_basis: "found",
+      confirmed: true,
+    });
+    expect(lastSaved().proposal.base_reviewed_on).not.toBeNull();
+  });
+
+  it("leaves the base price to the member when the job has no contract value", async () => {
+    fixture.facts = [{ module: "contract", key: "contract_value", value: null, status: "unknown" }];
+    await callBoard({ action: "save_comparison", comparison, confirmed: true });
+    expect(lastSaved().proposal.base_price_cents).toBeNull();
   });
 
   it("refuses a line that is not on the saved takeoff", async () => {
