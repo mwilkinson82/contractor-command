@@ -216,6 +216,86 @@ async function rpc<T>(sb: Sb, fn: string, args: Record<string, unknown>): Promis
   return data;
 }
 
+/**
+ * After a contract file is uploaded: where it stands on the job's contract list. The upload stores the
+ * file as the job's contract source; it is not a contract row, so the job board's Contracts section
+ * shows nothing until it is listed with job_contracts. Null contracts means the list couldn't be read.
+ */
+export function uploadedContractListing(
+  contracts: JobContract[] | null,
+  documentId: string,
+): {
+  contract_list: "listed" | "link_to_prime" | "not_listed" | "unknown";
+  member: string;
+  host: string;
+} {
+  const live = (contracts ?? []).filter((c) => c.status !== "void");
+  if (live.some((c) => c.document_id === documentId))
+    return {
+      contract_list: "listed",
+      member: "It's on the job's contract list.",
+      host: "This file is already linked to a contract on the job's contract list.",
+    };
+  const prime = live.find((c) => c.kind === "prime");
+  if (contracts && prime && !prime.document_id)
+    return {
+      contract_list: "link_to_prime",
+      member: `It isn't linked to the prime contract with ${prime.counterparty} yet, so the job board's Contracts section doesn't show the file.`,
+      host: `Ask the member whether this file is the prime contract with ${prime.counterparty}. On yes, call job_contracts action save with contract_id ${prime.id}, expected_version ${prime.version}, document_id ${documentId} and a reason. If it's a different contract, save a new one with document_id ${documentId} and source upload after the member confirms who it's with, the kind, the value and whether it's signed.`,
+    };
+  if (contracts)
+    return {
+      contract_list: "not_listed",
+      member:
+        "It isn't on the job's contract list yet, so the job board's Contracts section doesn't show it. Tell me who it's with, the value and whether it's signed, and I'll add it.",
+      host: `This stored file is the job's prime contract source (the member's contract with their client). Read who it is with, the value and the dates from the file, show them to the member, and after they confirm call job_contracts action save with kind prime, document_id ${documentId} and source upload. Never mark it sent or signed unless the member said so.`,
+    };
+  return {
+    contract_list: "unknown",
+    member:
+      "Ask me to add it to the job's contract list so it shows in Contracts on the job board.",
+    host: `List the job's contracts with job_contracts. If this file isn't linked to one, offer to save it with document_id ${documentId} and source upload after the member confirms the details.`,
+  };
+}
+
+/** Said after a save whose follow-up list read failed: the save itself stands. */
+export const LIST_UNAVAILABLE_AFTER_SAVE =
+  "The contract is saved. The full contract list couldn't load just now, so only this contract is shown. List the job's contracts again to see them all.";
+/** Said when a plain list can't be read. Nothing was changed. */
+export const LIST_UNAVAILABLE =
+  "Athena couldn't read this job's contract list just now. Nothing was changed. Try again in a moment.";
+
+/**
+ * The job's contracts after a list or a save. After a save the row is already written, so a failed
+ * list read returns the saved contract alone instead of an error: the member must never be told a
+ * save failed when it didn't (a retry would then hit "already has a prime contract").
+ */
+export async function readContracts(
+  sb: Sb,
+  job: { job_id: string; job_number: string; name: string },
+  saved: SavedContract | null,
+): Promise<JobContractsPayload & { list_unavailable?: boolean }> {
+  try {
+    return await rpc<JobContractsPayload>(sb, "mcp_job_contract_rows", { _job: job.job_id });
+  } catch (e) {
+    if (!saved) {
+      if (e instanceof ToolError) throw e;
+      throw new ToolError(LIST_UNAVAILABLE);
+    }
+    const { contract_id, changed, previous_status, status_changed, ...row } = saved;
+    void changed;
+    void previous_status;
+    void status_changed;
+    return {
+      job_id: job.job_id,
+      job_number: job.job_number,
+      job_name: job.name,
+      contracts: [{ ...row, id: row.id ?? contract_id }],
+      list_unavailable: true,
+    };
+  }
+}
+
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const text = (max: number) => z.string().trim().max(max);
 
@@ -225,7 +305,7 @@ export const jobContracts = defineTool({
   description:
     "Lists or saves the contracts on a job: the prime contract with the client, subcontracts, supplier contracts and POs, and other agreements, with who each is with, the scope or trade it covers (tag), cost code, value, status (draft, sent, signed, void), dates and the saved original. " +
     "When a member drops in or names a contract in chat, read from the document who it is with, its kind, scope, value and dates, show them to the member, and save only after the member confirms. Never mark a contract sent or signed, or give a sent or signed date, unless the member said so. " +
-    "To change a saved contract, list first and pass its contract_id, the expected_version you listed and a reason; only the fields you send change, and null clears one. Link document_id only to a document project_documents lists on this job. " +
+    "To change a saved contract, list first and pass its contract_id, the expected_version you listed and a reason; only the fields you send change, and null clears one. Link document_id only to a document project_documents lists on this job. When the member attaches the contract file, store it first with file_upload purpose contract on this job, then save the contract here with that document_id; a stored file alone doesn't show in Contracts. " +
     "Saved contracts show in the Contracts section of the job board (project home, /r/job/<job id>/home#contracts); give the member the board_url this tool returns, never a link you build. After saving, walk the member to the next step on the card (for example: Want to tag it to a cost code? Upload the signed copy?). Nothing is sent to anyone.",
   inputSchema: {
     action: z.enum(["list", "save"]),
@@ -311,16 +391,21 @@ export const jobContracts = defineTool({
             }
           }
         }
-        const payload = await rpc<JobContractsPayload>(sb, "mcp_job_contract_rows", {
-          _job: job.job_id,
-        });
+        const payload = await readContracts(sb, job, saved);
         // Only full job access gets a signed board link; contract-only roles open the board signed in.
-        const board =
-          job.scope === "full"
-            ? await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope)
-            : {};
-        const boardUrl = contractsBoardUrl(board.field);
+        // A link that can't be minted never turns a good save or read into an error.
+        let boardUrl: string | null = null;
+        if (job.scope === "full") {
+          try {
+            const board = await signedJobPages((fn, a) => sb.rpc(fn, a), job.job_id, job.scope);
+            boardUrl = contractsBoardUrl(board.field);
+          } catch {
+            boardUrl = null;
+          }
+        }
         const card = jobContractsCard(payload, saved, boardUrl);
+        if (payload.list_unavailable)
+          card.next_move = `${card.next_move} ${LIST_UNAVAILABLE_AFTER_SAVE}`;
         return {
           content: [{ type: "text" as const, text: renderMarkdown(card) }],
           structuredContent: {
