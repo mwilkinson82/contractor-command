@@ -138,6 +138,43 @@ describe("pre-con card", () => {
     );
   });
 
+  it("shows the owner's check note to the contractor", () => {
+    const paying = {
+      ...base,
+      invoices: [inv(1, 0)],
+      checks: [
+        {
+          invoice_id: "i1",
+          item_id: "p1",
+          requested_at: "2026-11-06T00:47:43Z",
+          note: " Come by my office and collect it tomorrow morning. ",
+          pickup_on: null,
+          pickup_window: null,
+          pickup_place: null,
+          pickup_by: null,
+        },
+      ],
+    };
+    expect(preconNextStep(paying)).toBe(
+      'Erin Hartwell is paying invoice PC-2731-1 for $8,500 by check. Their note: "Come by my office and collect it tomorrow morning." When will you collect it?',
+    );
+    const card = preconCard({
+      status: "ok",
+      job_id: "j",
+      job_number: "2731",
+      job_name: "Hartwell Residence",
+      agreement: paying,
+    });
+    const invoices = card.sections!.find((x) => x.heading === "Invoices")!;
+    expect(invoices.rows[0]!.cells.at(-1)).toBe(
+      'Owner paying by check, pickup not set yet. Their note: "Come by my office and collect it tomorrow morning."',
+    );
+    const quiet = { ...paying, checks: [{ ...paying.checks[0]!, note: null }] };
+    expect(preconNextStep(quiet)).toBe(
+      "Erin Hartwell is paying invoice PC-2731-1 for $8,500 by check. When will you collect it?",
+    );
+  });
+
   it("a job with no agreement offers to start one", () => {
     const card = preconCard({ status: "none", job_id: "j", job_number: "2732", job_name: "Plain" });
     expect(card.next_move).toMatch(/Want to start/);

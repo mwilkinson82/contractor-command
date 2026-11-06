@@ -248,7 +248,9 @@ function checkLabel(a: PreconAgreement, invoiceId: string): string | null {
   if (!c) return null;
   if (c.pickup_on)
     return `Check pickup ${c.pickup_on}${c.pickup_window ? `, ${c.pickup_window}` : ""}`;
-  return c.requested_at ? "Owner paying by check, pickup not set yet" : null;
+  if (!c.requested_at) return null;
+  const note = c.note?.trim();
+  return `Owner paying by check, pickup not set yet${note ? `. Their note: "${note}"` : ""}`;
 }
 
 /** The agreement as the owner would see it on their page, for reading the terms back before saving or sending. */

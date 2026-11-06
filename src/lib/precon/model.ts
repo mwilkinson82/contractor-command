@@ -254,7 +254,7 @@ export function preconNextStep(a: PreconAgreement | null | undefined): string {
   }
   const waiting = checkWaiting(a);
   if (waiting)
-    return `${a.signed_name ?? "The owner"} is paying invoice ${waiting.invoice.number} for ${usd(waiting.invoice.net_due_cents)} by check. When will you collect it?`;
+    return `${a.signed_name ?? "The owner"} is paying invoice ${waiting.invoice.number} for ${usd(waiting.invoice.net_due_cents)} by check.${waiting.check.note?.trim() ? ` Their note: "${waiting.check.note.trim()}"` : ""} When will you collect it?`;
   const next = nextInstallment(a);
   if (next)
     return `Send payment ${next.index} for ${usd(next.amount_cents)}, due ${next.words}, to the owner's client page?`;
