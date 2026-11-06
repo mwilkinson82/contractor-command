@@ -67,6 +67,7 @@ vi.mock("./jobs", () => ({
   named: () => "2810",
 }));
 import { selectionBoard, selectionProposal } from "./tools/selection-board-tool";
+import { splitGuidance } from "./visible";
 
 type Response = { content: { text: string }[]; structuredContent: Record<string, unknown> };
 const callBoard = (args: Record<string, unknown>) =>
@@ -757,7 +758,7 @@ describe("each step up costs more than the tier below it", () => {
         ],
       }),
     ).rejects.toThrow(
-      /Not saved: each step up has to cost more.*Better H-8010-CS is USD 36\.95 at Example Supply, the same as Good H-7010-CS at USD 36\.95\. Find a Better in this finish priced above USD 36\.95 and under Best's USD 341\.95.*save only after they say yes/,
+      /Not saved: each step up has to cost more.*Better H-8010-CS is USD 36\.95 at Example Supply, the same as Good H-7010-CS at USD 36\.95 each\. Find a Better in this finish priced above USD 36\.95 and under Best's USD 341\.95 each.*save only after they say yes/,
     );
     expect(saves()).toHaveLength(0);
   });
@@ -778,7 +779,9 @@ describe("each step up costs more than the tier below it", () => {
           },
         ],
       }),
-    ).rejects.toThrow(/Best C is USD 80\.00 at Example Supply, less than Better B at USD 90\.00/);
+    ).rejects.toThrow(
+      /Best C is USD 80\.00 at Example Supply, less than Better B at USD 90\.00 each/,
+    );
     expect(saves()).toHaveLength(0);
   });
 
@@ -863,4 +866,25 @@ it("keeps the customer view locked while a step up sells for the same as the tie
   expect(JSON.stringify(r.structuredContent)).toMatch(
     /\(Better\): sells for the same as Good .*so the customer sees no upgrade/,
   );
+});
+
+it("keeps the whole step-up refusal in what the member's AI reads", async () => {
+  const err = await callBoard({
+    action: "save_comparison",
+    confirmed: true,
+    comparison: [
+      {
+        estimate_line_ref: "T-3",
+        options: {
+          good: juno("H-7010-CS", 3695, "Bullet track head, black finish"),
+          better: juno("H-8010-CS", 3695, "Charge track head, black finish"),
+          best: juno("H-1023F-930", 34195, "Exterminator II track head, black finish"),
+        },
+      },
+    ],
+  }).catch((e: Error) => e);
+  const { visible } = splitGuidance((err as Error).message);
+  expect(visible).toContain("Better H-8010-CS is USD 36.95 at Example Supply");
+  expect(visible).toContain("Find a Better in this finish priced above USD 36.95");
+  expect(visible).toContain("Search the web for that product yourself");
 });

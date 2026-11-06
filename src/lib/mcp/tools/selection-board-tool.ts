@@ -590,15 +590,15 @@ function stepUpRefusal(board: Board, gaps: StepUpGap[], changing?: OptionName) {
     const s = findSelection(board, g.id);
     const lo = s.options[g.lower];
     const hi = s.options[g.higher];
-    const fact = `${g.title}: ${tierLabel(g.higher)} ${hi.model || hi.description} is ${money(g.high, code)}${hi.found_at ? ` at ${hi.found_at}` : ""}, ${g.high === g.low ? "the same as" : "less than"} ${tierLabel(g.lower)} ${lo.model || lo.description} at ${money(g.low, code)}`;
+    const fact = `${g.title}: ${tierLabel(g.higher)} ${hi.model || hi.description} is ${money(g.high, code)}${hi.found_at ? ` at ${hi.found_at}` : ""}, ${g.high === g.low ? "the same as" : "less than"} ${tierLabel(g.lower)} ${lo.model || lo.description} at ${money(g.low, code)} each`;
     if (changing === g.lower)
-      return `${fact}. Find a ${tierLabel(g.lower)} in this finish priced under ${money(g.high, code)}`;
+      return `${fact}. Find a ${tierLabel(g.lower)} in this finish priced under ${money(g.high, code)} each`;
     const above = g.higher === "better" ? s.options.best.found_price_cents : null;
     const ceiling =
-      above !== null && above > g.low ? ` and under Best's ${money(above, code)}` : "";
-    return `${fact}. Find a ${tierLabel(g.higher)} in this finish priced above ${money(g.low, code)}${ceiling}`;
+      above !== null && above > g.low ? ` and under Best's ${money(above, code)} each` : "";
+    return `${fact}. Find a ${tierLabel(g.higher)} in this finish priced above ${money(g.low, code)}${ceiling || " each"}`;
   });
-  return `Not saved: each step up has to cost more than the tier below it, or the customer sees a $0 upgrade. ${lines.join(". ")}. Search the web for that product yourself and read its page for this finish's photo and price; don't ask the member to find one. Then show the member the corrected Good, Better, Best with each tier's web price and seller, say which product you replaced and why, and save only after they say yes. Never lower or invent a price to make the ladder work.`;
+  return `Not saved: each step up has to cost more than the tier below it, or the customer sees a $0 upgrade. ${lines.join(". ")}. Search the web for that product yourself and read its page for this finish's photo and price; the member shouldn't have to find it. Then show the member the corrected Good, Better, Best with each tier's web price and seller, say which product you replaced and why, and save only after they say yes. Never lower or invent a price to make the ladder work.`;
 }
 
 const findSelection = (board: Board, id: string) => {
@@ -922,7 +922,7 @@ export const selectionBoard = defineTool({
           ].filter(Boolean);
           if (miss.length)
             throw new ToolError(
-              `Not saved: ${s.title} (${tierLabel(args.tier)}) ${placed.model || placed.description} has no ${miss.join(" or ")}, and its pages didn't show one. Every option the customer compares needs a real photo and a web price. Don't ask the member about this: read that product's page for this finish, or pick the next comparable product from a seller that lists both, and call propose_option again. Never invent a photo or a price.`,
+              `Not saved: ${s.title} (${tierLabel(args.tier)}) ${placed.model || placed.description} has no ${miss.join(" or ")}, and its pages didn't show one. Every option the customer compares needs a real photo and a web price. The member shouldn't have to handle this: read that product's page for this finish, or pick the next comparable product from a seller that lists both, and call propose_option again. Never invent a photo or a price.`,
             );
           const flat = stepUpGaps(next!, "found_price_cents", [s.id]).filter(
             (g) => g.lower === args.tier || g.higher === args.tier,
