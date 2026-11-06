@@ -53,6 +53,7 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 import { AccountNotices, useAccountNotices } from "@/components/account/account-notices";
+import { YourPhoto } from "@/components/account/your-photo";
 
 const LOGO_BUCKET = "company-logos";
 
@@ -491,12 +492,15 @@ function AccountPage() {
     const team = athena.state?.team;
     const seatsNow = athena.state?.seats;
     const athenaProfile = (
-      <dl className="aa-kv">
-        <dt>Name</dt>
-        <dd>{personName || "Not set"}</dd>
-        <dt>Email</dt>
-        <dd>{profile?.email ?? user?.email ?? "Not set"}</dd>
-      </dl>
+      <>
+        <dl className="aa-kv">
+          <dt>Name</dt>
+          <dd>{personName || "Not set"}</dd>
+          <dt>Email</dt>
+          <dd>{profile?.email ?? user?.email ?? "Not set"}</dd>
+        </dl>
+        <YourPhoto userId={user?.id ?? null} name={personName || (user?.email ?? "")} />
+      </>
     );
     const athenaBilling = (
       <div className="aa-grid2">

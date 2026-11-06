@@ -389,7 +389,7 @@ describe("customer page", () => {
         expect(html.replace(COMPARE_CSS, ""), `${s} .${cls}`).not.toMatch(
           new RegExp(`(?<![\\w-])\\.${cls}(?![\\w-])`),
         );
-      expect(html, s).toContain("linear-gradient(160deg,#2f6cf2,#1a47c7)");
+      expect(html, s).toContain("linear-gradient(200deg,#5c9bff 0%,#3b7df6 42%,#2563eb 100%)");
       expect(html, s).toContain("Powered by Athena");
       expect(html, s).not.toContain("secret-path");
       expect(html, s).toContain('aria-current="page"');
@@ -730,6 +730,92 @@ const withPayApps = () => {
   );
   return v;
 };
+
+describe("Home keeps its full look with what Athena has", () => {
+  const bare = (extra: Record<string, unknown> = {}) => ({
+    ...view(),
+    contractor: {
+      ...view().contractor,
+      pm_photo_path: "11111111-2222-4333-8444-555555555555/me.jpg",
+    },
+    job: { ...view().job, completion_date: null },
+    updates: [],
+    milestones: [],
+    items: [],
+    dailies: [
+      {
+        date: "2026-11-05",
+        weather: "Clear",
+        manpower: "6",
+        work: ["Pulled feeders to panel LP-2", null],
+      },
+      { date: "2026-11-04", weather: "Rain", manpower: null, work: ["Set switchgear pad forms"] },
+    ],
+    progress: { contract_cents: 48_000_000, approved_cents: 4_680_000 },
+    ...extra,
+  });
+  const homeOf = async (v: unknown, headshot?: (p: string) => Promise<string | null>) => {
+    const { d } = deps({ view: v });
+    if (headshot) d.signHeadshot = headshot;
+    return (await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)).text();
+  };
+
+  it("fills the hero, Where the job stands and Money at a glance from approved work, with no schedule or pay app shared", async () => {
+    const signed: string[] = [];
+    const html = await homeOf(bare(), async (p) => {
+      signed.push(p);
+      return "https://storage.example.com/signed/pm.jpg";
+    });
+    // Ring and snapshot: 46,800 of 480,000 approved is 10%.
+    expect(html).toContain('<div class="ring" style="--p:10"');
+    expect(html).toContain("<b>10%</b>of the work approved");
+    expect(html).toContain("<span>Work approved</span><b>$46,800.00</b>");
+    expect(html).toContain("<span>Contract</span><b>$480,000.00</b>");
+    expect(html).not.toContain("Not set");
+    expect(html).not.toContain("Planned finish");
+    expect(html).toContain("keeps this page current");
+    // Main column: the field log stands in for a weekly update; progress stands in for milestones.
+    expect(html).toContain("This week on your project");
+    expect(html).toContain("Pulled feeders to panel LP-2");
+    expect(html).toContain("Crew of 6");
+    expect(html).toContain("Where the job stands");
+    expect(html).toContain("$46,800.00 of $480,000.00 approved");
+    expect(html).toContain("once Northline Builders shares the schedule");
+    // Rail: money from approved work, and the PM's own photo, signed by the server.
+    expect(html).toContain("Money at a glance");
+    expect(html).toContain("<span>Approved so far</span><b>$46,800.00</b>");
+    expect(html).toContain("<span>Remaining</span><b>$433,200.00</b>");
+    expect(signed).toEqual(["11111111-2222-4333-8444-555555555555/me.jpg"]);
+    expect(html).toContain(
+      '<img class="avatar" src="https://storage.example.com/signed/pm.jpg" alt="Pat Lee"',
+    );
+    expect(html).not.toContain('me.jpg"');
+    expect(html).not.toContain("11111111-2222");
+  });
+
+  it("shows initials when the photo can't be signed, and plain notes when the job has no contract value yet", async () => {
+    const html = await homeOf(bare({ progress: null, dailies: [] }), async () => {
+      throw new Error("storage down");
+    });
+    expect(html).toContain('<span class="avatar" aria-hidden="true">PL</span><div><b>Pat Lee</b>');
+    expect(html).not.toContain('<div class="ring"');
+    expect(html).not.toContain("Money at a glance");
+    expect(html).toContain("<span>Planned finish</span><b>Being scheduled</b>");
+    expect(html).toContain("posts a short update here each week");
+    expect(html).toContain(
+      "Schedule milestones show here once Northline Builders shares the schedule.",
+    );
+    // Without the page server's signer at all, the page still renders with initials.
+    expect(await homeOf(bare())).toContain('<span class="avatar" aria-hidden="true">PL</span>');
+  });
+
+  it("keeps the milestone ring and phases when the schedule is shared", async () => {
+    const html = await homeOf(bare({ milestones: view().milestones }));
+    expect(html).toContain("<b>0/2</b>milestones done");
+    expect(html).toContain('<ol class="phases"');
+    expect(html).not.toContain("of the work approved");
+  });
+});
 
 describe("billing: pay applications", () => {
   it("renders the Billing tab, home money panel and every billing view with phone and tablet rules", async () => {

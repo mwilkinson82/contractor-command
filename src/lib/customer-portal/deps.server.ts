@@ -6,6 +6,7 @@ import { isCompanyLogoUrl } from "../payment-applications/brand";
 import type { PortalDeps } from "./server";
 
 const PHOTO_BUCKET = "athena-progress";
+const PEOPLE_BUCKET = "athena-people";
 type Env = Record<string, string | undefined>;
 const runtimeEnv = (): Env => (globalThis as { process?: { env?: Env } }).process?.env ?? {};
 const env = (names: string[]) => {
@@ -47,6 +48,10 @@ export const liveDeps: PortalDeps = {
     const { data } = await service().storage.from(PHOTO_BUCKET).createSignedUrls(paths, 3600);
     for (const row of data ?? []) if (row.path && row.signedUrl) out.set(row.path, row.signedUrl);
     return out;
+  },
+  signHeadshot: async (path) => {
+    const { data } = await service().storage.from(PEOPLE_BUCKET).createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
   },
   send: (m) => sendPortalEmail(m),
   emailOn: () => portalEmailEnabled(),

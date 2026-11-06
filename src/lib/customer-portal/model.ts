@@ -326,7 +326,14 @@ export const portalViewSchema = z
     status: z.literal("ok"),
     customer: z.object({ name: z.string(), email: z.string() }).strict(),
     contractor: z
-      .object({ name: z.string(), pm_name: nstr, pm_title: nstr, pm_email: nstr })
+      .object({
+        name: z.string(),
+        pm_name: nstr,
+        pm_title: nstr,
+        pm_email: nstr,
+        /** The PM's own photo in the private athena-people bucket. The page server signs it; it never reaches the page. */
+        pm_photo_path: nstr.optional(),
+      })
       .strict(),
     job: z
       .object({
@@ -340,6 +347,15 @@ export const portalViewSchema = z
         kind: z.enum(["project", "service"]).optional(),
       })
       .strict(),
+    /** The contract and the work the owner has approved so far (certified bills less credits). Null without a contract value. */
+    progress: z
+      .object({
+        contract_cents: z.number().int().positive(),
+        approved_cents: z.number().int().nonnegative(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     updates: z
       .array(z.object({ week_of: isoDate, title: z.string(), body: z.string() }).strict())
       .max(12),
@@ -449,7 +465,11 @@ export const portalPaymentsSchema = z.object({
 });
 export type PortalPayments = Omit<z.infer<typeof portalPaymentsSchema>, "status">;
 
-export type PortalPage = Omit<PortalView, "photos" | "status"> & {
+export type PortalPage = Omit<PortalView, "photos" | "status" | "contractor"> & {
+  contractor: Omit<PortalView["contractor"], "pm_photo_path"> & {
+    /** A short-lived signed link to the PM's photo, or null to show initials. */
+    pm_photo_url?: string | null;
+  };
   photos: SignedPhoto[];
   access_id: string;
   csrf: string;
