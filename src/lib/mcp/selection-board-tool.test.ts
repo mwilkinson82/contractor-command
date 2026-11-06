@@ -101,7 +101,7 @@ describe("selection tools", () => {
       cost_cents: null,
       price_cents: null,
       price_reviewed_on: null,
-      assumptions: "Retail list price; no distributor quote yet.",
+      assumptions: "",
     });
     expect(save.args._expected_version).toBe(3);
   });

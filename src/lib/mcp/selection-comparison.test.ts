@@ -243,7 +243,7 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
             best: {
               description: "Other panel",
               photo_url: "https://img.example.com/other.jpg",
-              found_price_cents: 9900,
+              found_price_cents: 29900,
             },
           },
         },
@@ -737,4 +737,130 @@ it("won't place a proposed option with no photo or web price on any of its pages
     }),
   ).rejects.toThrow(/Not saved: .*PX-9 has no product photo or web price.*next comparable product/);
   expect(saves()).toHaveLength(0);
+});
+
+describe("each step up costs more than the tier below it", () => {
+  it("won't save a Better that sells for the same as Good, and sends the AI for a real step up", async () => {
+    await expect(
+      callBoard({
+        action: "save_comparison",
+        confirmed: true,
+        comparison: [
+          {
+            estimate_line_ref: "T-3",
+            options: {
+              good: juno("H-7010-CS", 3695, "Bullet track head, black finish"),
+              better: juno("H-8010-CS", 3695, "Charge track head, black finish"),
+              best: juno("H-1023F-930", 34195, "Exterminator II track head, black finish"),
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      /Not saved: each step up has to cost more.*Better H-8010-CS is USD 36\.95 at Example Supply, the same as Good H-7010-CS at USD 36\.95\. Find a Better in this finish priced above USD 36\.95 and under Best's USD 341\.95.*save only after they say yes/,
+    );
+    expect(saves()).toHaveLength(0);
+  });
+
+  it("won't save a Best priced under Better", async () => {
+    await expect(
+      callBoard({
+        action: "save_comparison",
+        confirmed: true,
+        comparison: [
+          {
+            estimate_line_ref: "T-3",
+            options: {
+              good: juno("A", 3000, "Good head"),
+              better: juno("B", 9000, "Better head"),
+              best: juno("C", 8000, "Best head"),
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(/Best C is USD 80\.00 at Example Supply, less than Better B at USD 90\.00/);
+    expect(saves()).toHaveLength(0);
+  });
+
+  it("saves a ladder that steps up, with each option's own web price and seller", async () => {
+    await callBoard({
+      action: "save_comparison",
+      confirmed: true,
+      comparison: [{ estimate_line_ref: "T-3", options: trackOptions }],
+    });
+    const s = lastSaved().selections[0];
+    expect(
+      [s.options.good, s.options.better, s.options.best].map((o) => [
+        o.found_price_cents,
+        o.found_at,
+        o.source_url,
+      ]),
+    ).toEqual([
+      [6351, "Example Supply", "https://www.example-supply.com/R600L%20G2"],
+      [7777, "Example Supply", "https://www.example-supply.com/R606L"],
+      [21986, "Example Supply", "https://www.example-supply.com/T254L%20G2"],
+    ]);
+  });
+
+  it("won't swap in a single tier that flattens the ladder", async () => {
+    await callBoard({
+      action: "save_comparison",
+      confirmed: true,
+      comparison: [{ estimate_line_ref: "T-3", options: trackOptions }],
+    });
+    fixture.board = lastSaved();
+    fixture.version = 1;
+    const s = fixture.board.selections[0];
+    await expect(
+      callBoard({
+        action: "propose_option",
+        expected_version: 1,
+        selection_id: s.id,
+        tier: "better",
+        candidate: juno("R600L-X", 6351, "Same-price head"),
+      }),
+    ).rejects.toThrow(/Better R600L-X is USD 63\.51.*the same as Good R600L G2/);
+    expect(saves()).toHaveLength(1);
+  });
+
+  it("drops the old product's pricing note when a new product takes the tier", async () => {
+    await callBoard({
+      action: "save_comparison",
+      confirmed: true,
+      comparison: [{ estimate_line_ref: "T-3", options: trackOptions }],
+    });
+    fixture.board = lastSaved();
+    fixture.board.selections[0].options.better.assumptions =
+      "Cost is the found web price at Example Supply (R606L, $77.77); 10% markup.";
+    fixture.version = 1;
+    const s = fixture.board.selections[0];
+    await callBoard({
+      action: "propose_option",
+      expected_version: 1,
+      selection_id: s.id,
+      tier: "better",
+      candidate: juno("R610L", 10595, "Baffled cylinder head"),
+    });
+    expect(lastSaved().selections[0].options.better).toMatchObject({
+      model: "R610L",
+      found_price_cents: 10595,
+      assumptions: "",
+      price_cents: null,
+    });
+  });
+});
+
+it("keeps the customer view locked while a step up sells for the same as the tier below", async () => {
+  const board = willowCreekTypeE();
+  const s = board.selections[0];
+  s.options.better.price_cents = s.options.good.price_cents;
+  fixture.board = board;
+  fixture.version = 3;
+  const r = await (
+    selectionProposal as unknown as { handler: (a: unknown, c: unknown) => Promise<Response> }
+  ).handler({ job_number: "2810", action: "preview" }, {});
+  expect(r.structuredContent.ready).toBe(false);
+  expect(JSON.stringify(r.structuredContent)).toMatch(
+    /\(Better\): sells for the same as Good .*so the customer sees no upgrade/,
+  );
 });

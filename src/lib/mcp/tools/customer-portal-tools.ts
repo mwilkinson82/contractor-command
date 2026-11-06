@@ -19,6 +19,8 @@ import { MESSAGE_MAX, replyToClient } from "../../customer-portal/messages";
 import { longDate } from "../../customer-portal/render";
 import { companyLogoUrl } from "../document-email-brand";
 import { displayPrice } from "../../selections/format";
+import { proposalBlockers } from "../../selections/proposal";
+import type { Board } from "../../selections/model";
 
 const INVITE_DEFAULT_DAYS = 14;
 
@@ -545,6 +547,13 @@ export const customerPortal = defineTool({
           if (!board.board?.proposal?.change_terms?.reviewed_on)
             throw new ToolError(
               "First confirm the extra time and added cost for each upgrade with selection_board set_change_terms (show its card; both are 0 unless the member changes them). The customer reads them right before they sign. Nothing was shared.",
+            );
+          // The same checks as the proposal preview: a missing price or photo, or a step up that
+          // costs the customer no more than the tier below it, never reaches the client page.
+          const blockers = proposalBlockers(board.board as unknown as Board);
+          if (blockers.length)
+            throw new ToolError(
+              `Nothing was shared. Fix these first, then preview again with selection_proposal: ${blockers.join(" ")}`,
             );
           const r = await rpc<{ item_id: string; title: string; fingerprint: string } & Shared>(
             sb,
