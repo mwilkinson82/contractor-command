@@ -14,6 +14,16 @@
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
+-- Stop before changing anything when the client page view isn't the one this migration was written against
+-- (20261106130000_athena_precon_signing), or this migration already ran.
+DO $$ DECLARE fp text; BEGIN
+  SELECT md5(p.prosrc) INTO fp FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'mcp_portal_view';
+  IF fp IS DISTINCT FROM '1e76ae37218afbcfe5b1ccfcf05d9582' AND fp IS DISTINCT FROM 'e34e7b856b9859ef9158375e0136869c' THEN
+    RAISE EXCEPTION 'mcp_portal_view changed since 20261106130000 (fingerprint %); review this migration before applying.', fp;
+  END IF;
+END $$;
+
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS photo_path text;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_photo_path_check') THEN
