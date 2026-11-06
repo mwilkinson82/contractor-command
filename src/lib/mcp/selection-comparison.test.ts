@@ -811,9 +811,10 @@ describe("each step up costs more than the tier below it", () => {
       confirmed: true,
       comparison: [{ estimate_line_ref: "T-3", options: trackOptions }],
     });
-    fixture.board = lastSaved();
+    const board = lastSaved();
+    fixture.board = board;
     fixture.version = 1;
-    const s = fixture.board.selections[0];
+    const s = board.selections[0];
     await expect(
       callBoard({
         action: "propose_option",
@@ -832,11 +833,12 @@ describe("each step up costs more than the tier below it", () => {
       confirmed: true,
       comparison: [{ estimate_line_ref: "T-3", options: trackOptions }],
     });
-    fixture.board = lastSaved();
-    fixture.board.selections[0].options.better.assumptions =
+    const board = lastSaved();
+    fixture.board = board;
+    board.selections[0].options.better.assumptions =
       "Cost is the found web price at Example Supply (R606L, $77.77); 10% markup.";
     fixture.version = 1;
-    const s = fixture.board.selections[0];
+    const s = board.selections[0];
     await callBoard({
       action: "propose_option",
       expected_version: 1,
