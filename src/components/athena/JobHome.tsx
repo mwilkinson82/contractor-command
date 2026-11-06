@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Shovel } from "lucide-react";
+import { Lock, Shovel } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { openBoardPage } from "@/lib/board-link.functions";
@@ -67,6 +68,8 @@ type Job = { id: string; job_number: string; name: string | null; company_id: st
 /** A home composes existing scoped board reads; it never saves a separate dashboard. */
 export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const { session, loading } = useAuth();
+  // A board opened from a link in a browser that isn't signed in (an AI's own browser) offers one sign-in for the money.
+  const [moneySignIn, setMoneySignIn] = useState(false);
   const open = useServerFn(openBoardPage);
   const visible = usePageVisible();
   const read = async (page: BoardPage): Promise<PagePayload> => {
@@ -225,6 +228,15 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       <main className="job-home">
         <p role="status">Loading project…</p>
       </main>
+    );
+  if (moneySignIn && !session)
+    return (
+      <BoardSignIn
+        returnTo={`/r/job/${jobId}/home`}
+        title="Sign in to see this job's money"
+        lede={`Contract value, payments, budget and margin for ${base?.job_number ? `job ${base.job_number}` : "this job"} show once you sign in. You'll come straight back to this board.`}
+        onBack={() => setMoneySignIn(false)}
+      />
     );
   if (!base)
     return projectReadRecovery(!!session, field.error) === "sign-in" ? (
@@ -591,7 +603,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 <JobHomeNotifications jobId={jobId} token={token} />
               </section>
             ) : null}
-            {full ? (
+            {full && !session ? (
+              <MoneySignInPrompt company={base.company} onSignIn={() => setMoneySignIn(true)} />
+            ) : full ? (
               <section aria-label="Contract and customer payments">
                 <div className="jh-metrics jh-metrics-fit">
                   <article className="jh-metric">
@@ -1098,4 +1112,50 @@ function morePrompts(job: string, full: boolean) {
     },
   ];
   return all.filter((p) => full || !p.full);
+}
+
+/**
+ * Shown in place of the money cards when the board was opened from a link in a browser that isn't
+ * signed in, such as ChatGPT's, Claude's or Manus's own browser. Nothing financial is read or shown
+ * until the member signs in; a signed-in member who isn't on the company still sees no money.
+ */
+export function MoneySignInPrompt({
+  company,
+  onSignIn,
+}: {
+  company?: string;
+  onSignIn: () => void;
+}) {
+  const hidden = [
+    "Contract value",
+    "Paid to date",
+    "Outstanding payments",
+    "Cost budget",
+    "Gross margin",
+  ];
+  return (
+    <section className="jh-money-signin" aria-labelledby="jh-money-signin-title">
+      <div className="jh-money-signin-icon" aria-hidden="true">
+        <Lock size={18} />
+      </div>
+      <div className="jh-money-signin-body">
+        <h2 id="jh-money-signin-title">Sign in to see this job's money</h2>
+        <p>
+          This browser isn't signed in to Athena yet. Job money shows only to signed-in members of{" "}
+          {company?.trim() || "your company"}.
+        </p>
+        <ul className="jh-money-signin-list" aria-label="Shown after you sign in">
+          {hidden.map((h) => (
+            <li key={h}>{h}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="jh-money-signin-action">
+        <button type="button" className="jh-money-signin-button" onClick={onSignIn}>
+          Sign in
+        </button>
+        <span>We email you a code. No password.</span>
+      </div>
+    </section>
+  );
 }

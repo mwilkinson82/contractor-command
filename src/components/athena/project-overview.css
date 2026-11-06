@@ -796,3 +796,259 @@
     width: 100%;
   }
 }
+
+/* One sign-in prompt in place of the money cards when this browser isn't signed in (Nov 6 2026). */
+.jh-money-signin {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 20px;
+  padding: 20px 22px;
+  background: #fff;
+  border: 1px solid #d4dfed;
+  border-left: 4px solid #2563eb;
+  border-radius: 10px;
+}
+.jh-money-signin-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: #e8f0fe;
+  color: #2563eb;
+}
+.jh-money-signin-body h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1c3654;
+}
+.jh-money-signin-body p {
+  margin: 0;
+  font-size: 13px;
+  color: #5b718c;
+}
+.jh-money-signin-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.jh-money-signin-list li {
+  padding: 4px 10px;
+  border: 1px solid #d4dfed;
+  border-radius: 999px;
+  background: #f4f8fe;
+  font-size: 12px;
+  color: #36506f;
+}
+.jh-money-signin-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.jh-money-signin-action span {
+  font-size: 12px;
+  color: #5b718c;
+}
+.job-home .jh-money-signin-button {
+  min-height: 44px;
+  min-width: 140px;
+  padding: 10px 22px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.job-home .jh-money-signin-button:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+.job-home .jh-money-signin-button:focus-visible {
+  outline: 3px solid #377bd2;
+  outline-offset: 3px;
+}
+@media (max-width: 1100px) {
+  .jh-money-signin {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .jh-money-signin-action {
+    grid-column: 2;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    text-align: left;
+  }
+}
+@media (max-width: 560px) {
+  .jh-money-signin {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+  .jh-money-signin-action {
+    grid-column: auto;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .job-home .jh-money-signin-button {
+    width: 100%;
+  }
+}
+
+/* Design pass (Nov 6 2026, from Marshall): white pages like meetathena.io, open items as their own
+   cards, and every real button reads as a button. Kept quiet: felt more than seen. */
+.job-home {
+  background: #fff;
+}
+.jh-shell {
+  background: #fff;
+  border-color: #e3e9f1;
+  box-shadow: 0 1px 2px rgba(16, 40, 80, 0.04);
+}
+.jh-navwrap,
+.jh-nav {
+  background: #f8fafc;
+}
+.jh-navwrap {
+  border-right: 1px solid #e3e9f1;
+}
+.jh-nav a:hover,
+.jh-group summary:hover {
+  background: #eef3f9;
+}
+.jh-nav a[aria-current] {
+  background: #e7effb;
+}
+.jh-separate,
+.jh-scope {
+  background: #f6f8fb;
+  border: 1px solid #e3e9f1;
+}
+.jh-panel,
+.jh-metric,
+.jh-card {
+  border-color: #e0e7f0;
+}
+
+/* Buttons: a soft shadow and a clear edge, so they read as things to press. */
+.jh-button {
+  border-color: #b7cbe6;
+  color: #1f56b0;
+  box-shadow: 0 1px 2px rgba(16, 40, 80, 0.08);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.job-home a.jh-button {
+  color: #1f56b0;
+}
+.jh-button:hover {
+  background: #f2f7ff;
+  border-color: #7fa3d6;
+  box-shadow: 0 2px 6px rgba(16, 40, 80, 0.12);
+}
+.jh-button-quiet {
+  background: #fff;
+  border-color: #cbdaee;
+  font-weight: 600;
+}
+.jh-button-quiet:hover {
+  background: #f2f7ff;
+}
+
+/* A status, never a button: plain text with a dot, no box. */
+.jh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  color: #3f5875;
+  font-size: 12px;
+  font-weight: 600;
+}
+.jh-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8aa2c0;
+  flex: none;
+}
+
+/* Open items: each one its own card, with room between them and larger type. */
+.jh-item {
+  margin-top: 12px;
+  padding: 16px 18px;
+  border: 1px solid #e0e7f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 40, 80, 0.04);
+}
+.jh-item:last-child {
+  border: 1px solid #e0e7f0;
+  padding-bottom: 16px;
+}
+.jh-item > strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #1c3654;
+}
+.jh-item > p {
+  font-size: 13px;
+  margin: 6px 0 12px;
+}
+.job-home .jh-item > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #b7cbe6;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f56b0;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(16, 40, 80, 0.08);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.job-home .jh-item > a:hover {
+  background: #f2f7ff;
+  border-color: #7fa3d6;
+}
+.jh-item details {
+  margin-top: 10px;
+}
+.jh-routines .jh-small,
+.jh-routines details {
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .jh-navwrap {
+    border-right: 0;
+  }
+  .jh-item {
+    padding: 14px;
+  }
+  .job-home .jh-item > a {
+    width: 100%;
+    justify-content: center;
+  }
+}
