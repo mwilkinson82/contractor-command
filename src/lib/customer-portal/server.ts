@@ -168,6 +168,22 @@ const ERRORS: Record<string, string> = {
     "That way to pay isn't available for this amount. Try the other one, or ask your project team.",
   pay_error: "We couldn't open the payment page. Nothing was charged. Try again in a moment.",
 };
+/** Minutes until another code can be sent, when the database says. */
+const waitParam = (x: unknown): Record<string, string> => {
+  const m = x && typeof x === "object" ? (x as { retry_minutes?: unknown }).retry_minutes : null;
+  return typeof m === "number" && Number.isFinite(m) && m > 0 ? { wait: String(Math.ceil(m)) } : {};
+};
+function slowMessage(wait: string | null): string {
+  const m = wait && /^\d{1,4}$/.test(wait) ? Number(wait) : 0;
+  if (!m) return ERRORS.slow!;
+  const when =
+    m >= 120
+      ? `in about ${Math.round(m / 60)} hours`
+      : m >= 60
+        ? "in about an hour"
+        : `in ${m} ${m === 1 ? "minute" : "minutes"}`;
+  return `We've sent several codes in a short time. You can ask for another one ${when}. A code you already have still works until it expires.`;
+}
 const FLASH: Record<string, string> = {
   sent: "Message sent. Your project team will reply here, and we'll email you when they do.",
   approved: "Approved. Your contractor has been told, and the record is below.",
@@ -299,7 +315,11 @@ export async function handleInvite(
     return html(
       renderInvite(info, step, {
         sent: url.searchParams.get("sent") === "1",
-        error: e ? (ERRORS[e] ?? null) : null,
+        error: e
+          ? e === "slow"
+            ? slowMessage(url.searchParams.get("wait"))
+            : (ERRORS[e] ?? null)
+          : null,
         logo: brandLogo,
       }),
     );
@@ -323,7 +343,10 @@ export async function handleInvite(
       })
       .catch(() => null);
     const st = status(issued);
-    if (st === "slow_down") return redirect(`${self}?step=code&e=slow`);
+    if (st === "slow_down")
+      return redirect(
+        `${self}?${new URLSearchParams({ step: "code", e: "slow", ...waitParam(issued) }).toString()}`,
+      );
     if (st !== "ok")
       return html(renderGone(st === "error" ? "error" : st, info.company, brandLogo), 410);
     const sent = await deps.send(
@@ -450,7 +473,10 @@ async function pageSignIn(
       .catch(() => null);
     const st = status(issued);
     if (st === "mismatch") return redirect(at("step=signin&e=email"));
-    if (st === "slow_down") return redirect(at("step=signin&e=slow"));
+    if (st === "slow_down")
+      return redirect(
+        at(new URLSearchParams({ step: "signin", e: "slow", ...waitParam(issued) }).toString()),
+      );
     if (st !== "ok") return goneFor(st === "error" ? "error" : st, access);
     const info = issued as { email: string; name: string; company: string; job_name: string };
     const sent = await deps.send(
@@ -512,7 +538,11 @@ export async function handlePortal(
       return html(
         renderPageSignIn(q.get("step") === "code" ? "code" : "email", {
           back: backQuery(q),
-          error: e ? (ERRORS[e] ?? null) : null,
+          error: e
+            ? e === "slow"
+              ? slowMessage(url.searchParams.get("wait"))
+              : (ERRORS[e] ?? null)
+            : null,
           sent: q.get("sent") === "1",
           logo,
           company: brand?.company ?? null,
@@ -563,18 +593,23 @@ export async function handlePortal(
         section: sec,
         about: about && UUID.safeParse(about).success ? about : null,
         item: q.get("i") && UUID.safeParse(q.get("i")).success ? q.get("i") : null,
-        step: step === "confirm" || step === "decline" || step === "check" ? step : null,
+        step:
+          step === "confirm" || step === "decline" || step === "check" || step === "review"
+            ? step
+            : null,
         choice: q.get("choice"),
-        error: e ? (ERRORS[e] ?? null) : null,
+        error: e ? (e === "slow" ? slowMessage(q.get("wait")) : (ERRORS[e] ?? null)) : null,
         flash: ok
           ? ok === "check"
             ? `Sent. ${view.contractor.name} will set a date to collect your check.`
             : (FLASH[ok] ?? null)
           : q.get("sent") === "1"
             ? "We emailed you a 6-digit code."
-            : q.get("paid") === "1" && sec === "billing"
-              ? PAID_FLASH
-              : null,
+            : q.get("sent") === "earlier"
+              ? "Use the code we already emailed you. It still works, for any package."
+              : q.get("paid") === "1" && sec === "billing"
+                ? PAID_FLASH
+                : null,
         logo: brandLogo,
       }),
     );
@@ -650,6 +685,18 @@ export async function handlePortal(
   if (f.action === "start") {
     if (item.kind === "selection" && !choice) return redirect(at({ e: "invalid" }));
     if (!deps.emailOn()) return html(renderGone("email_off"), 503);
+    // A code already emailed for this item and still good is used again, so changing a pick never spends a new one.
+    if (f.fresh !== "1") {
+      const pending = await deps
+        .rpc("mcp_portal_code_pending", {
+          _access: access,
+          _session_hash: sessionHash,
+          _item: item.id,
+        })
+        .catch(() => null);
+      if (status(pending) === "ok")
+        return redirect(at({ step: "confirm", sent: "earlier", ...(choice ? { choice } : {}) }));
+    }
     const code = sixDigits(deps.randomInt);
     const issued = await deps
       .rpc("mcp_portal_code_issue", {
@@ -662,7 +709,10 @@ export async function handlePortal(
       })
       .catch(() => null);
     const st = status(issued);
-    if (st === "slow_down") return redirect(at({ e: "slow" }));
+    if (st === "slow_down")
+      return redirect(
+        at({ e: "slow", ...waitParam(issued), ...(choice ? { choice, step: "review" } : {}) }),
+      );
     if (st === "not_open") return redirect(at({ e: "not_open" }));
     if (st !== "ok") return goneFor(st, access);
     const sent = await deps.send(

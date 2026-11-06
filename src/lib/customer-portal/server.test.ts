@@ -123,6 +123,8 @@ function deps(
             }
           : { status: "unknown" };
       if (fn === "mcp_portal_code_issue") return over.issue ?? { status: "ok" };
+      if (fn === "mcp_portal_code_pending" && !(over.rpcs && fn in over.rpcs))
+        return { status: "none" };
       if (fn === "mcp_portal_sign_in") return { status: "ok", access_id: ACCESS };
       if (fn === "mcp_portal_view")
         return args._session_hash === (await tokenHash(SESSION))
@@ -587,6 +589,45 @@ describe("customer page", () => {
     );
     expect(r.headers.get("location")).toBe(`/c/${ACCESS}?s=changes&i=${CO}&step=confirm&e=wrong`);
     expect(mail).toHaveLength(0);
+  });
+
+  it("reuses a code that is still good when the customer changes their pick, and says how long to wait", async () => {
+    const csrf = await csrfFor(SESSION);
+    const start = (d: PortalDeps, choice: string, extra: Record<string, string> = {}) =>
+      post(
+        `/c/${ACCESS}`,
+        { action: "start", item: SEL, choice, csrf, ...extra },
+        { cookie: true },
+      ).then((r) => handlePortal(r, ACCESS, d));
+    // A code from a minute ago still works: switching to Best sends nothing new.
+    const reuse = deps({ rpcs: { mcp_portal_code_pending: { status: "ok" } } });
+    const again = await start(reuse.d, "best");
+    expect(again.headers.get("location")).toBe(
+      `/c/${ACCESS}?s=selections&i=${SEL}&step=confirm&sent=earlier&choice=best`,
+    );
+    expect(reuse.calls.some((c) => c.fn === "mcp_portal_code_issue")).toBe(false);
+    expect(reuse.mail).toHaveLength(0);
+    const page = await (
+      await handlePortal(req(again.headers.get("location")!, { cookie: true }), ACCESS, reuse.d)
+    ).text();
+    expect(page).toContain("Use the code we already emailed you");
+    expect(page).toContain('name="fresh" value="1"');
+    expect(page).toContain("Email me a new code");
+    // Asking for a new one on purpose skips the reuse.
+    const fresh = await start(reuse.d, "best", { fresh: "1" });
+    expect(fresh.headers.get("location")).toContain("sent=1");
+    expect(reuse.mail).toHaveLength(1);
+    // Too many: the customer stays on their pick and is told when to try again.
+    const slow = deps({ issue: { status: "slow_down", retry_minutes: 12 } });
+    const r = await start(slow.d, "best");
+    expect(r.headers.get("location")).toBe(
+      `/c/${ACCESS}?s=selections&i=${SEL}&e=slow&wait=12&choice=best&step=review`,
+    );
+    const banner = await (
+      await handlePortal(req(r.headers.get("location")!, { cookie: true }), ACCESS, slow.d)
+    ).text();
+    expect(banner).toContain("You can ask for another one in 12 minutes.");
+    expect(banner).toContain('class="gbb pick-t3"');
   });
 
   it("declines without a code and chooses a package with one", async () => {
@@ -1108,8 +1149,20 @@ describe("package choice follows the job's contract stage", () => {
     const html = await page(false);
     expect(html).toContain("its total becomes your proposal price");
     expect(html).toContain("Choose Better");
-    expect(html).toContain('name="action" value="start"');
+    // Choosing only opens the pick's review: no code is asked for from the compare page.
+    expect(html).not.toContain('name="action" value="start"');
+    expect(html).toContain(`step=review&amp;choice=better`);
     expect(html).not.toMatch(/change order/i);
+    const review = await page(false, `/c/${ACCESS}?s=selections&i=${SEL}&step=review&choice=best`);
+    expect(review).toContain('class="gbb pick-t3"');
+    expect(review).toContain("Your pick");
+    expect(review).toContain(">Selected</span>");
+    expect(review).toContain("Confirm Best");
+    expect(review).toContain("Email me a code to confirm");
+    expect(review).toContain('name="action" value="start"');
+    expect(review).toContain('name="choice" value="best"');
+    expect(review).toContain(`step=review&amp;choice=better`);
+    expect(review).not.toMatch(/change order/i);
     expect(html).not.toMatch(/<a [^>]*href="https:\/\/lighting/);
     const confirm = await page(
       false,

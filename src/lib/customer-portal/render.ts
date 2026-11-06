@@ -157,6 +157,8 @@ h1{margin:0;font-size:clamp(24px,3.2vw,32px);line-height:1.15;font-weight:700;le
 .btn.secondary{background:var(--white);color:var(--ink);border-color:var(--field)}
 .btn.secondary:hover{background:var(--soft);border-color:var(--underline);box-shadow:none}
 .btn.block{width:100%}
+.resend{margin:0;padding:0 4px}
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer}
 .miles{list-style:none;margin:0;padding:0;display:grid}
 .miles li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0;border-top:1px solid var(--rule);font-size:13.5px}
 .miles li:first-child{border-top:0;padding-top:0}
@@ -568,8 +570,8 @@ export function renderGone(
 export type PortalOpts = {
   section: PortalSection;
   item?: string | null;
-  /** confirm: approve or sign with the emailed code; decline; check: tell the contractor you're paying by check. */
-  step?: "confirm" | "decline" | "check" | null;
+  /** review: a picked package, highlighted, before any code; confirm: approve or sign with the emailed code; decline; check: tell the contractor you're paying by check. */
+  step?: "confirm" | "decline" | "check" | "review" | null;
   choice?: string | null;
   flash?: string | null;
   error?: string | null;
@@ -1057,12 +1059,26 @@ function selectionDetail(
   const chosen = i.decision?.choice ?? null;
   const back = `<p><a href="${esc(href(p, "selections"))}">All selections</a></p>`;
   const pickedTier =
-    o.step === "confirm" && optionNames.includes(o.choice as never)
+    (o.step === "confirm" || o.step === "review") && optionNames.includes(o.choice as never)
       ? (o.choice as (typeof optionNames)[number])
       : null;
-  if (!i.decision && pickedTier) {
+  const pickSummary = (
+    tier: (typeof optionNames)[number],
+    eyebrow: "Your pick" | "You're choosing",
+  ) => {
+    const pk = v.packages.find((k) => k.tier === tier)!;
+    const base = tier === v.base_tier;
+    const terms = choiceTerms(p.job.under_contract, pk, v.currency);
+    const lines = v.selections
+      .map((s) => {
+        const op = s.options[tier];
+        return `<div><span>${esc(s.title)}</span><b>${esc([op.manufacturer, op.model].filter(Boolean).join(" ") || op.description)}</b></div>`;
+      })
+      .join("");
+    return `<section class="panel"><p class="eyebrow">${eyebrow}</p><h2>${esc(v.title)}: ${TIER_NAME[tier]}</h2><div class="sum"><div><span>Package total</span><b>${esc(cur(pk.total_cents))}</b></div><div><span>${base ? "Change from base" : terms.changeOrder ? "Change order" : "Difference from base"}</span><b>${base ? "Included" : esc(`${pk.difference_cents > 0 ? "+" : ""}${cur(pk.difference_cents)}`)}</b></div>${base ? "" : `<div><span>Time</span><b>${esc(timeLabel(terms.days))}</b></div>`}${!base && pk.added_cents ? `<div><span>${esc(pk.added_note || "Added cost")}</span><b>${esc(cur(pk.added_cents))}</b></div>` : ""}${lines}</div></section>`;
+  };
+  if (!i.decision && pickedTier && o.step === "confirm") {
     const pk = v.packages.find((k) => k.tier === pickedTier)!;
-    const base = pickedTier === v.base_tier;
     const terms = choiceTerms(p.job.under_contract, pk, v.currency);
     const statement = approvalStatement({
       kind: "selection",
@@ -1078,16 +1094,11 @@ function selectionDetail(
       terms.changeOrder || terms.days > 0
         ? `<p class="time-note">${esc(timeSentence(terms.days))}</p>`
         : "";
-    const lines = v.selections
-      .map((s) => {
-        const op = s.options[pickedTier];
-        return `<div><span>${esc(s.title)}</span><b>${esc([op.manufacturer, op.model].filter(Boolean).join(" ") || op.description)}</b></div>`;
-      })
-      .join("");
-    const form = `<form method="post" class="panel"><h2>${terms.changeOrder ? "Approve your change order" : "Sign your choice"}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p>${timeNote}${hidden(p, { action: "decide", item: i.id, decision: "chosen", choice: pickedTier, fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "selections", { i: i.id }))}">Back to compare</a><button class="btn" type="submit">${terms.changeOrder ? "Approve change order" : "Confirm my choice"}</button></div></form>`;
-    const review = `<section class="panel"><p class="eyebrow">You're choosing</p><h2>${esc(v.title)}: ${TIER_NAME[pickedTier]}</h2><div class="sum"><div><span>Package total</span><b>${esc(cur(pk.total_cents))}</b></div><div><span>${base ? "Change from base" : terms.changeOrder ? "Change order" : "Difference from base"}</span><b>${base ? "Included" : esc(`${pk.difference_cents > 0 ? "+" : ""}${cur(pk.difference_cents)}`)}</b></div>${base ? "" : `<div><span>Time</span><b>${esc(timeLabel(terms.days))}</b></div>`}${!base && pk.added_cents ? `<div><span>${esc(pk.added_note || "Added cost")}</span><b>${esc(cur(pk.added_cents))}</b></div>` : ""}${lines}</div></section>`;
-    return `${back}<div class="co-cols"><div class="stack">${review}${choiceNext(p, v, pickedTier, false)}</div><aside class="stack">${form}</aside></div>`;
+    const form = `<form method="post" class="panel"><h2>${terms.changeOrder ? "Approve your change order" : "Sign your choice"}</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}. It works for any package on this page.</p>${timeNote}${hidden(p, { action: "decide", item: i.id, decision: "chosen", choice: pickedTier, fingerprint: i.fingerprint })}<div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement">${esc(statement)}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "selections", { i: i.id, step: "review", choice: pickedTier }))}">Change my pick</a><button class="btn" type="submit">${terms.changeOrder ? "Approve change order" : "Confirm my choice"}</button></div></form>`;
+    const resend = `<form method="post" class="resend">${hidden(p, { action: "start", item: i.id, choice: pickedTier, fresh: "1" })}<p class="fine">No email? <button class="linkish" type="submit">Email me a new code</button></p></form>`;
+    return `${back}<div class="co-cols"><div class="stack">${pickSummary(pickedTier, "You're choosing")}${choiceNext(p, v, pickedTier, false)}</div><aside class="stack">${form}${resend}</aside></div>`;
   }
+  const picked = !i.decision && pickedTier && o.step === "review" ? pickedTier : null;
   const shown = chosen
     ? { ...v, accepted: { tier: chosen, recorded_on: i.decision!.decided_at.slice(0, 10) } }
     : v;
@@ -1095,14 +1106,23 @@ function selectionDetail(
     company: p.contractor.name,
     underContract: p.job.under_contract ?? null,
     eyebrow: `Selections · shared ${longDate(i.shared_on)}`,
+    picked,
+    // Picking a package only highlights it and opens its review. No code is sent until the customer asks for one.
     action: i.decision
       ? undefined
       : (tier) =>
-          `<form method="post">${hidden(p, { action: "start", item: i.id, choice: tier })}<button class="btn${tier === v.base_tier ? "" : " ghost"}" type="submit">Choose ${TIER_NAME[tier]}</button></form>`,
+          tier === picked
+            ? `<span class="btn on" aria-current="true">Selected</span>`
+            : `<a class="btn${!picked && tier === v.base_tier ? "" : " ghost"}" href="${esc(href(p, "selections", { i: i.id, step: "review", choice: tier }))}">Choose ${TIER_NAME[tier]}</a>`,
     note: i.decision
       ? null
-      : "Choosing asks for a code we email you and your typed name. Nothing is final until you confirm.",
+      : "Pick a package to review it. Nothing is final until you confirm it with a code we email you and your typed name.",
   });
+  if (picked) {
+    const confirm = `<section class="panel actions"><h2>Confirm ${TIER_NAME[picked]}</h2><p class="sub">Nothing is final yet. Next we email a 6-digit code to ${esc(maskEmail(p.customer.email))}, and you sign with it and your typed name.</p><form method="post">${hidden(p, { action: "start", item: i.id, choice: picked })}<button class="btn block" type="submit">Email me a code to confirm</button></form><a class="btn secondary block" href="${esc(href(p, "selections", { i: i.id }))}">Change my pick</a>${askLink(p, i)}</section>`;
+    const backAsk = `<p class="cp-backrow"><a href="${esc(href(p, "selections"))}">All selections</a></p>`;
+    return `${backAsk}<div class="stack"><div class="co-cols"><div class="stack">${pickSummary(picked, "Your pick")}${choiceNext(p, v, picked, false)}</div><aside class="stack">${confirm}</aside></div><section class="panel gbb-panel">${compare}</section></div>`;
+  }
   const foot = [v.valid_until ? `Prices valid until ${longDate(v.valid_until)}.` : "", v.terms]
     .filter(Boolean)
     .join("\n\n");
