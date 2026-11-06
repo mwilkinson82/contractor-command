@@ -66,6 +66,12 @@ export const COMPARE_CSS = `
 .gbb .th .tm{font-size:12px;color:var(--ink-2)}
 .gbb .th .gbb-act{margin-top:10px}
 .gbb .th.chosen .nm::after{content:"  ✓";color:var(--gold)}
+.gbb.pick-t1 .t1,.gbb.pick-t2 .t2,.gbb.pick-t3 .t3{background:#eef4ff}
+.gbb.pick-t1 .th.t1,.gbb.pick-t2 .th.t2,.gbb.pick-t3 .th.t3{border-radius:18px 18px 0 0;box-shadow:inset 0 3px 0 #2563eb;padding:10px 6px 12px}
+.gbb.pick-t1 .col.t1,.gbb.pick-t2 .col.t2,.gbb.pick-t3 .col.t3{border-radius:18px;padding:12px 6px 18px}
+.gbb .th .tag.pk{color:#2563eb}
+.gbb .btn.on{background:#2563eb;color:#fff;cursor:default}
+.gbb .btn.on:hover{opacity:1;transform:none}
 .gbb .btn{display:inline-block;border:0;cursor:pointer;background:var(--brand);color:var(--brand-ink);text-decoration:none;font:500 14px/1.2 inherit;font-family:inherit;padding:8px 18px;border-radius:999px;transition:transform .2s ease,opacity .2s}
 .gbb .btn:hover{opacity:.86;transform:translateY(-1px)}
 .gbb .btn.ghost{background:transparent;color:var(--brand);box-shadow:inset 0 0 0 1px var(--rule-2)}
@@ -125,6 +131,8 @@ export type CompareOpts = {
   action?: (tier: OptionName) => string | null;
   /** Shown under the intro when there is no action, e.g. where to sign. */
   note?: string | null;
+  /** The package the customer is looking at before they confirm: its column is highlighted. */
+  picked?: OptionName | null;
   eyebrow?: string | null;
 };
 
@@ -147,19 +155,31 @@ export function packageExtras(
     : time;
 }
 
-const tierTag = (v: CustomerProposal, tier: OptionName, chosen: OptionName | null) =>
-  chosen === tier ? "Your choice" : tier === v.base_tier ? "Included" : "";
+const tierTag = (
+  v: CustomerProposal,
+  tier: OptionName,
+  chosen: OptionName | null,
+  picked: OptionName | null = null,
+) =>
+  chosen === tier
+    ? "Your choice"
+    : picked === tier
+      ? "Your pick"
+      : tier === v.base_tier
+        ? "Included"
+        : "";
 
 /** The comparison body. The caller supplies the page shell and the footer. */
 export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
   const chosen = v.accepted?.tier ?? null;
+  const picked = chosen ? null : (o.picked ?? null);
   const price = (c: number) => displayPrice(c, v.currency);
   const plus = (c: number) => (c > 0 ? `+${price(c)}` : price(c));
   const pin = v.packages
     .map((k, i) => {
       const base = k.tier === v.base_tier;
       const act = o.action?.(k.tier) ?? null;
-      return `<div class="th t${i + 1}${chosen === k.tier ? " chosen" : ""}"><span class="tag${chosen === k.tier ? " rec" : ""}">${tierTag(v, k.tier, chosen)}</span><span class="nm">${TIER_LABEL[k.tier]}</span><span class="tot">${esc(price(k.total_cents))}</span><span class="dl">${base ? "Your base price" : `${esc(plus(k.difference_cents))} ${k.difference_cents >= 0 ? "upgrade" : "change"}`}</span>${base ? "" : `<span class="tm">${esc(packageExtras(k, price))}</span>`}${act ? `<div class="gbb-act">${act}</div>` : ""}</div>`;
+      return `<div class="th t${i + 1}${chosen === k.tier ? " chosen" : ""}"><span class="tag${chosen === k.tier ? " rec" : picked === k.tier ? " pk" : ""}">${tierTag(v, k.tier, chosen, picked)}</span><span class="nm">${TIER_LABEL[k.tier]}</span><span class="tot">${esc(price(k.total_cents))}</span><span class="dl">${base ? "Your base price" : `${esc(plus(k.difference_cents))} ${k.difference_cents >= 0 ? "upgrade" : "change"}`}</span>${base ? "" : `<span class="tm">${esc(packageExtras(k, price))}</span>`}${act ? `<div class="gbb-act">${act}</div>` : ""}</div>`;
     })
     .join("");
   const lines = v.selections
@@ -216,7 +236,8 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
     })
     .join("");
   const hero = `<section class="gbb-hero">${o.eyebrow ? `<p class="eyebrow">${esc(o.eyebrow)}</p>` : ""}<h1>${esc(v.title)}</h1>${v.intro ? `<p class="intro">${esc(v.intro)}</p>` : ""}<p class="how">${esc(howUpgradesWork(v, o.underContract))}</p>${chosen ? `<p class="chosen-note">You chose ${TIER_LABEL[chosen]}</p>` : o.note ? `<p class="how">${esc(o.note)}</p>` : ""}</section>`;
-  return `<div class="gbb"><input class="pr-in" type="radio" name="gbb-pair" id="pr-gb" checked><input class="pr-in" type="radio" name="gbb-pair" id="pr-bB"><input class="pr-in" type="radio" name="gbb-pair" id="pr-gB">${hero}<div class="pair"><div class="seg" role="radiogroup" aria-label="Packages to compare"><label for="pr-gb">Good · Better</label><label for="pr-bB">Better · Best</label><label for="pr-gB">Good · Best</label></div></div><div class="pin cols">${pin}</div><div>${lines}</div></div>`;
+  const pickClass = picked ? ` pick-t${optionNames.indexOf(picked) + 1}` : "";
+  return `<div class="gbb${pickClass}"><input class="pr-in" type="radio" name="gbb-pair" id="pr-gb" checked><input class="pr-in" type="radio" name="gbb-pair" id="pr-bB"><input class="pr-in" type="radio" name="gbb-pair" id="pr-gB">${hero}<div class="pair"><div class="seg" role="radiogroup" aria-label="Packages to compare"><label for="pr-gb">Good · Better</label><label for="pr-bB">Better · Best</label><label for="pr-gB">Good · Best</label></div></div><div class="pin cols">${pin}</div><div>${lines}</div></div>`;
 }
 
 /** The contractor's own header: their monogram and name lead; Athena stays in the footer corner. */
