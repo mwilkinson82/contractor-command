@@ -333,3 +333,100 @@ describe("client-page entries name the client (20261106170000)", () => {
     expect(by("PCO 4 approved")).toMatchObject({ by: "Owner Olive", by_group: "client" });
   });
 });
+
+describe("the pre-con bill issued at signing is Athena's (20261106190000)", () => {
+  let c: PGlite;
+  const sql = (f: string) =>
+    readFileSync(join(process.cwd(), `supabase/migrations/${f}.sql`), "utf8");
+  const all = async () =>
+    (await c.query<{ f: Feed }>("SELECT mcp_project_record_feed($1, NULL, NULL) AS f", [JOB]))
+      .rows[0].f.events;
+  // The two lines the migration patches, exactly as the pre-con signing migration wrote them.
+  const BILL_LINE = `PERFORM mcp_private.rec(j.id, jsonb_build_object('amount_cents', amt, 'portal_item', it.id, 'payment', idx), 'user', NULL, NULL);`;
+  const SIGN_LINE = `bill := mcp_private.precon_bill_next(ag, j, NULL);`;
+
+  beforeAll(async () => {
+    c = new PGlite();
+    await c.exec(STUB);
+    await c.exec(`
+      CREATE SCHEMA mcp_private;
+      ALTER TABLE mcp_project_record_events ADD COLUMN payload jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE mcp_project_record_events ALTER COLUMN occurred_at SET DEFAULT now();
+      CREATE TABLE mcp_portal_access (id uuid PRIMARY KEY, name text);
+      CREATE TABLE mcp_portal_decisions (id uuid PRIMARY KEY, access_id uuid);
+      CREATE TABLE mcp_precon_agreements (id uuid PRIMARY KEY, job_id uuid);
+      -- Stand-in for mcp_project_record_add: stores the PM as the member, as auth.uid() does on the client page.
+      CREATE FUNCTION mcp_private.rec(_job uuid, _payload jsonb, _actor text, _a text, _b text) RETURNS void LANGUAGE sql AS $$
+        INSERT INTO mcp_project_record_events (company_id, job_id, actor, actor_id, kind, title, summary, payload)
+        VALUES ('${CO}', _job, _actor, CASE WHEN _actor = 'user' THEN '${PM}'::uuid END, 'precon_invoice_share',
+          'Pre-construction invoice PC-' || (_payload->>'payment'), 's', _payload) $$;
+      CREATE FUNCTION mcp_private.precon_bill_next(_a mcp_precon_agreements, j mcp_jobs, _due date) RETURNS text
+      LANGUAGE plpgsql AS $$
+      DECLARE amt bigint := 500000; idx int := (SELECT count(*) + 1 FROM mcp_project_record_events WHERE kind = 'precon_invoice_share'); it record;
+      BEGIN
+        SELECT gen_random_uuid() AS id INTO it;
+        ${BILL_LINE}
+        RETURN 'ok';
+      END $$;
+      CREATE FUNCTION mcp_portal_precon_sign(_access uuid, _session_hash text, _item uuid, _decision text, _code_hash text, _typed_name text,
+        _consent text, _statement text, _fingerprint text, _note text, _ip text, _user_agent text) RETURNS jsonb
+      LANGUAGE plpgsql AS $$
+      DECLARE ag mcp_precon_agreements; j mcp_jobs; bill text;
+      BEGIN
+        SELECT * INTO j FROM mcp_jobs WHERE id = '${JOB}';
+        INSERT INTO mcp_project_record_events (company_id, job_id, actor, actor_id, kind, title, summary, counterparty_name)
+        VALUES ('${CO}', j.id, 'user', '${PM}', 'precon_signed', 'Agreement signed', 's', _typed_name);
+        BEGIN
+          ${SIGN_LINE}
+        EXCEPTION WHEN OTHERS THEN bill := NULL;
+        END;
+        RETURN jsonb_build_object('status', 'ok');
+      END $$;
+    `);
+    await c.exec(sql("20261105230000_athena_project_record_feed"));
+    await c.exec(SEED);
+    // Already stored: a signature and its bill in one transaction, then a bill the PM sent later.
+    await c.exec(`
+      INSERT INTO mcp_project_record_events (company_id, job_id, occurred_at, actor, actor_id, kind, title, summary, counterparty_name) VALUES
+        ('${CO}', '${JOB}', '2026-11-06 00:46:21Z', 'user', '${PM}', 'precon_signed', 'Old signing', 's', 'Pat Rivera'),
+        ('${CO}', '${JOB}', '2026-11-06 00:46:21Z', 'user', '${PM}', 'precon_invoice_share', 'Old bill at signing', 's', NULL),
+        ('${CO}', '${JOB}', '2026-11-07 15:00Z', 'user', '${PM}', 'precon_invoice_share', 'Bill the PM sent', 's', NULL);
+    `);
+    await c.exec(sql("20261106170000_athena_record_client_actor"));
+    await c.exec(sql("20261106190000_athena_record_auto_bill"));
+    // Running it again changes nothing.
+    await c.exec(sql("20261106190000_athena_record_auto_bill"));
+  });
+
+  it("patches the lines the pre-con signing migration actually has", () => {
+    const signing = sql("20261106130000_athena_precon_signing");
+    expect(signing).toContain(SIGN_LINE);
+    expect(signing).toContain(
+      `jsonb_build_object('amount_cents', amt, 'portal_item', it.id, 'payment', idx), 'user', NULL, NULL);`,
+    );
+  });
+
+  it("shows a bill already stored at signing as Athena's, and the PM's own bill as theirs", async () => {
+    const ev = await all();
+    const by = (t: string) => ev.find((e) => e.title === t)!;
+    expect(by("Old bill at signing")).toMatchObject({ by: "Athena", by_group: "athena" });
+    expect(by("Old signing")).toMatchObject({ by: "Pat Rivera", by_group: "client" });
+    expect(by("Bill the PM sent")).toMatchObject({ by: "Pat PM", by_group: "team" });
+  });
+
+  it("stores the bill a signature issues as Athena's, and only that one", async () => {
+    await c.exec(
+      "SELECT mcp_portal_precon_sign(NULL, NULL, NULL, 'signed', NULL, 'Pat Rivera', NULL, NULL, NULL, NULL, NULL, NULL)",
+    );
+    const signed = await c.query<{ actor: string; actor_id: string | null }>(
+      "SELECT actor, actor_id FROM mcp_project_record_events WHERE kind = 'precon_invoice_share' AND payload ? 'payment'",
+    );
+    expect(signed.rows).toEqual([{ actor: "athena", actor_id: null }]);
+    // In the same session afterward, a bill the contractor sends is theirs again.
+    await c.exec("SELECT mcp_private.precon_bill_next(NULL, NULL, NULL)");
+    const later = await c.query<{ actor: string }>(
+      "SELECT actor FROM mcp_project_record_events WHERE kind = 'precon_invoice_share' AND payload ? 'payment' ORDER BY payload->>'payment'",
+    );
+    expect(later.rows.map((r) => r.actor)).toEqual(["athena", "user"]);
+  });
+});
