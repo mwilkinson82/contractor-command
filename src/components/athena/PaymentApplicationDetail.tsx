@@ -1,5 +1,6 @@
 import { accountingRecordUrl } from "@/lib/accounting-record-target";
 import { appMoney } from "@/lib/payment-applications/model";
+import { viewerStamp } from "@/lib/project-record-feed";
 import type { SavedApplication } from "@/lib/payment-applications/workflow";
 export function PaymentApplicationDetail({
   saved,
@@ -155,7 +156,9 @@ export function PaymentApplicationDetail({
         </p>
       ))}
       <p>
-        {saved.recorded_at === "Not saved yet" ? "Not saved yet." : `Saved ${saved.recorded_at}.`}{" "}
+        {saved.recorded_at === "Not saved yet"
+          ? "Not saved yet."
+          : `Saved ${viewerStamp(saved.recorded_at)}.`}{" "}
         {a.reason}
       </p>
       <p>
