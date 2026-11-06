@@ -163,7 +163,7 @@ export const JOB_SOFTWARE_ASK =
 export const JOB_SOFTWARE_TOOL_FOLLOWUP =
   "Do you want me to create the job there, or is it already set up?";
 export const JOB_SOFTWARE_NONE_FOLLOWUP =
-  "No problem. I can build the schedule of values and the CPM schedule right here in chat, or as an Excel file you can keep. Which would you like?";
+  "No problem. I can build the schedule of values and the CPM schedule with you right here and save them to this job in Athena, so they show on your job board. I can also give you an Excel copy to keep. Want to start there?";
 
 /** Hidden guidance on job-setup next_question results. Instruction text only: no new field, nothing stored by Athena. */
 export const JOB_SETUP_SOFTWARE_BLOCK = [
@@ -173,8 +173,8 @@ export const JOB_SETUP_SOFTWARE_BLOCK = [
   "- If the member says yes, create it in their tool: use your browser (or the member's browser) to open the tool, have the MEMBER sign in themselves (never ask for or type a password), then create the job and build the SOV, the CPM schedule, cost loading and billing there from Athena's job data. Confirm each screen with the member before saving anything.",
   "- Primavera P6: big contracts often require a P6 schedule. If the member picks P6, offer (a) to generate an XER file from Athena's SOV and contract dates for them to import into P6, or (b) if you have desktop control of their computer (for example ChatGPT desktop), to build the schedule directly in P6 with them watching. The member opens and signs in to P6 themselves.",
   "- If the job already exists there: open it, compare it to Athena's SOV and schedule, and list the differences. Don't overwrite anything without a yes.",
-  "- If there's no tool, or you have no browser: offer to build it in chat (tables and charts) or in Excel (an SOV sheet, a schedule sheet and a cost-loaded billing forecast). Work through the choice with the member one question at a time.",
-  "- Athena only supplies the job data; you do the building. Never say Athena created, built or set up anything.",
+  "- If there's no tool, or you have no browser: build it with the member in chat and save it to this job in Athena once they approve (SOV with intake section budget and sov_lines; CPM with living_report_save report_type cpm), so it shows on their job board. An Excel copy (an SOV sheet, a schedule sheet and a cost-loaded billing forecast) is an extra, never instead of the save. Work through it with the member one question at a time.",
+  "- In the member's outside tool, Athena only supplies the job data and you do the building there. Never say Athena created, built or set up anything in that tool.",
   "- Record the answer with answer check_key project_software (tool name in detail), and keep it in this chat too; use the same place for every later step. Don't record it in job settings or an open item.",
   "- Keep it plain: one question at a time, no technical notes.",
 ].join("\n");

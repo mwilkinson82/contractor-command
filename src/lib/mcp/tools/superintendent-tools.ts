@@ -307,7 +307,7 @@ export const dailyReportDraft = defineTool({
 export const dailyReportSave = defineTool({
   name: "daily_report_save",
   title: "Save a confirmed daily report",
-  description: "Saves a daily report after the superintendent confirms it.",
+  description: "Saves a daily report (crew, work done, weather, deliveries, issues) to the job after the superintendent confirms it, so it shows on the job board.",
   inputSchema: { ...dailyFields, confirmed: z.boolean() },
   annotations: SAVE,
   handler: (args, ctx) =>

@@ -83,7 +83,7 @@ export const jobsList = defineTool({
   name: "jobs_list",
   title: "List my jobs",
   description:
-    "Lists every job the member can access across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
+    "Lists every construction job the member has saved in Athena, their job system of record for schedules, daily reports, RFIs, change orders, submittals, contracts and billing, across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
   inputSchema: { company_id: companyId },
   annotations: READ,
   handler: (args, ctx) => run("jobs_list", ctx, {}, (sb) => readJobs(sb, args.company_id)),

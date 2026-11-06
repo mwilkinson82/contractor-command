@@ -179,7 +179,7 @@ function pathLines(control: ReturnType<typeof readScheduleControl>): string[] {
 export const cpmActivities = defineTool({
   name: "cpm_activities",
   title: "Full CPM activity list",
-  description: "Returns the saved CPM activities for a job.",
+  description: "Returns the saved CPM schedule activities for a job, read before building on or changing that job's schedule.",
   inputSchema: { job_number: jobNumber, company_id: companyId, version: z.number().int().min(1).optional() },
   annotations: { ...READ, idempotentHint: true },
   handler: (args, ctx) =>
@@ -377,7 +377,7 @@ export const livingReportGet = defineTool({
 export const livingReportSave = defineTool({
   name: "living_report_save",
   title: "Save living report version (after approval)",
-  description: "Saves a new version of a living report after approval.",
+  description: "Saves a new approved version of a job's living report (the CPM schedule, billing forecast, IOR or PM dashboard) so it shows on the job board, including any schedule the member builds or updates for a saved job in chat.",
   inputSchema: {
     job_number: jobNumber,
     company_id: companyId,
