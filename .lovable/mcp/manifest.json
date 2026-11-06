@@ -1736,7 +1736,7 @@
       {
         "name": "jobs_list",
         "title": "List my jobs",
-        "description": "Lists every job the member can access across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
+        "description": "Lists every construction job the member has saved in Athena, their job system of record for schedules, daily reports, RFIs, change orders, submittals, contracts and billing, across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -3332,7 +3332,7 @@
       {
         "name": "cpm_activities",
         "title": "Full CPM activity list",
-        "description": "Returns the saved CPM activities for a job.",
+        "description": "Returns the saved CPM schedule activities for a job, read before building on or changing that job's schedule.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -3414,7 +3414,7 @@
       {
         "name": "living_report_save",
         "title": "Save living report version (after approval)",
-        "description": "Saves a new version of a living report after approval.",
+        "description": "Saves a new approved version of a job's living report (the CPM schedule, billing forecast, IOR or PM dashboard) so it shows on the job board, including any schedule the member builds or updates for a saved job in chat.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -11063,7 +11063,7 @@
       {
         "name": "daily_report_save",
         "title": "Save a confirmed daily report",
-        "description": "Saves a daily report after the superintendent confirms it.",
+        "description": "Saves a daily report (crew, work done, weather, deliveries, issues) to the job after the superintendent confirms it, so it shows on the job board.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
