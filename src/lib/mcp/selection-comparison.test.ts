@@ -168,9 +168,7 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
   });
 
   it("starts a contracted job's board from the contract value, so no base price is made up", async () => {
-    fixture.facts = [
-      { module: "contract", key: "contract_value", value: 480000, status: "known" },
-    ];
+    fixture.facts = [{ module: "contract", key: "contract_value", value: 480000, status: "known" }];
     const r = await callBoard({ action: "save_comparison", comparison, confirmed: true });
     const board = lastSaved();
     expect(board.currency).toBe("USD");

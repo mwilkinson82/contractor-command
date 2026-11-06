@@ -31,12 +31,12 @@ const baseKey = (b: Board) =>
   b.proposal.base_basis === CONTRACT_VALUE_BASIS
     ? canonical({ price: b.proposal.base_price_cents, tier: b.proposal.base_tier, contract: true })
     : canonical({
-    price: b.proposal.base_price_cents,
-    tier: b.proposal.base_tier,
-    selections: b.selections
-      .map((s) => [s.id.toLowerCase(), s.quantity, s.options[b.proposal.base_tier].price_cents])
-      .sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1)),
-  });
+        price: b.proposal.base_price_cents,
+        tier: b.proposal.base_tier,
+        selections: b.selections
+          .map((s) => [s.id.toLowerCase(), s.quantity, s.options[b.proposal.base_tier].price_cents])
+          .sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1)),
+      });
 
 export type ReviewGrant = {
   option?: { id: string; tier: OptionName };
