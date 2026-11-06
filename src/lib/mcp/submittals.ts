@@ -172,11 +172,16 @@ export function dueBackDate(submittedOn: string | null | undefined, reviewDays: 
  * or required-by has passed and it has not been submitted.
  */
 export function submittalOverdue(
-  row: Pick<SubmittalRecord, "required_by" | "submitted_on" | "due_back" | "returned_on">,
+  row: Pick<SubmittalRecord, "required_by" | "submitted_on" | "due_back" | "returned_on"> & { status?: string | null },
   today: string,
 ): boolean {
   const dueBack = (row.due_back ?? "").slice(0, 10);
   const required = (row.required_by ?? "").slice(0, 10);
+  // Sent back to revise and resubmit, or rejected: the resubmittal is ours and late once its due date passes.
+  if (row.status === "revise_and_resubmit" || row.status === "rejected") {
+    const due = dueBack || required;
+    return /^\d{4}-\d{2}-\d{2}$/.test(due) && due < today;
+  }
   const pastDueBack = /^\d{4}-\d{2}-\d{2}$/.test(dueBack) && dueBack < today && !row.returned_on;
   const pastRequired = /^\d{4}-\d{2}-\d{2}$/.test(required) && required < today && !row.submitted_on;
   return pastDueBack || pastRequired;

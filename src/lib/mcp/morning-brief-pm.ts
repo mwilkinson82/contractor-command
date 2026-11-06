@@ -571,7 +571,9 @@ function movesFor(c: Ctx, sections: BriefSectionDoc[]): BriefDoc["moves"] {
   const cpm = c.focus.cpm;
   if (c.stale && cpm?.data_date) items.push({ lead: "Update the schedule.", rest: `The last update is from ${md(cpm.data_date)}.` });
   const crit = cpm?.acts.find((a) => !a.milestone && remainingOf(a) && a.critical && a.start && a.start <= addDays(c.asOf, 6) && (a.finish ?? "") >= c.asOf);
-  if (crit) items.push({ lead: `Lock the ${crit.party === "self" ? "crew" : crit.subco ?? "sub"} on ${crit.name.toLowerCase()}.`, rest: "It's on the critical path with zero float." });
+  // Name a crew or sub only when the schedule codes one; a review or another party's activity is pushed, not "locked".
+  const critLead = !crit ? "" : crit.party === "self" ? `Lock the crew on ${crit.name.toLowerCase()}.` : crit.subco || crit.party === "sub" ? `Lock ${crit.subco ?? "the sub"} on ${crit.name.toLowerCase()}.` : `Keep ${crit.name.toLowerCase()} moving.`;
+  if (crit) items.push({ lead: critLead, rest: "It's on the critical path with zero float." });
   const buyout = sections.flatMap((s) => s.blocks).find((b): b is Extract<BriefBlock, { type: "callouts" }> => b.type === "callouts" && b.items.some((i) => i.title.includes("not bought out")));
   if (buyout) items.push({ lead: "Buy out the next sub.", rest: buyout.items.find((i) => i.title.includes("not bought out"))!.text.split(". ")[0] + "." });
   const unsent = (c.focus.cos ?? []).filter((x) => (x.state === "draft" || x.state === "priced") && (x.total ?? 0) > 0);

@@ -55,7 +55,8 @@ export function chaseIsDue(row: ChaseRow, today: string): boolean {
 
 export function chaseFromSubmittal(row: SubmittalRecord, today: string): ChaseRow | null {
   const missing = missingPackage(row.package_items);
-  const overdue = submittalOverdue(row, today);
+  // A late resubmittal is our own work, not someone to chase, so chases keep the reviewer-side rule.
+  const overdue = submittalOverdue({ ...row, status: null }, today);
   const contact = (row.package_items ?? []).find((item) => item.chase_email && item.required !== false && (!RECEIVED.has(item.status) || !item.file_ref?.trim()))
     ?? (row.package_items ?? []).find((item) => item.chase_email);
   const chase: ChaseRow = {
