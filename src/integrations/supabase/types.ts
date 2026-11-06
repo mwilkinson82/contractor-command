@@ -10373,6 +10373,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          photo_path: string | null
           updated_at: string
         }
         Insert: {
@@ -10380,6 +10381,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          photo_path?: string | null
           updated_at?: string
         }
         Update: {
@@ -10387,6 +10389,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          photo_path?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -13005,6 +13008,7 @@ export type Database = {
       mcp_precon_save: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_precon_step: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_precon_terms_save: { Args: { _job: string; _p: Json }; Returns: Json }
+      mcp_profile_photo_set: { Args: { _path: string }; Returns: Json }
       mcp_progress_photo_create: {
         Args: {
           _activity: string
