@@ -14,7 +14,7 @@ import "./widget-bridge";
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import { ATHENA_VERSION } from "./server-info-branding";
 import { GREETING_RULE } from "./greeting";
-import { JOB_RECORD_RULE } from "./job-record-rule";
+import { JOB_RECORD_LEAD, JOB_RECORD_RULE } from "./job-record-rule";
 import { COMPANY_BOARD_ROUTE_RULE, PROJECT_HOME_ROUTE_RULE } from "./board-url";
 import { EMAIL_DRAFT_ONLY_RULE } from "./email-safety";
 import { REFUSAL_RULE, secureTool } from "./security";
@@ -116,6 +116,7 @@ export default defineMcp({
   version: ATHENA_VERSION,
   instructions:
     REFUSAL_RULE +
+    JOB_RECORD_LEAD +
     PRIVATE_CHAT_SHARE_RULE +
     PROJECT_HOME_ROUTE_RULE +
     COMPANY_BOARD_ROUTE_RULE +

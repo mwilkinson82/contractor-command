@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { JOB_RECORD_RULE } from "./job-record-rule";
+import { JOB_RECORD_LEAD, JOB_RECORD_RULE } from "./job-record-rule";
+import { REFUSAL_RULE } from "./security";
 import { ATHENA_TOOLS } from "./index";
 import { JOB_SETUP_SOFTWARE_BLOCK, JOB_SOFTWARE_NONE_FOLLOWUP } from "./visible";
 
@@ -8,6 +9,15 @@ describe("job work reaches Athena without the trigger phrase", () => {
   it("sits among the first routing rules so a truncated instructions block keeps it", () => {
     const idx = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
     expect(idx).toContain("    GAP_CHECK_ROUTE_RULE +\n    JOB_RECORD_RULE +\n");
+  });
+
+  it("leads right after the refusal so it sits inside the first 512 characters", () => {
+    // OpenAI's MCP server guide asks for the most important instructions in the first 512 characters.
+    const idx = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+    expect(idx).toContain("    REFUSAL_RULE +\n    JOB_RECORD_LEAD +\n");
+    expect(REFUSAL_RULE.length + JOB_RECORD_LEAD.length).toBeLessThan(512);
+    expect(JOB_RECORD_LEAD).toContain("without waiting for them to say Athena or Hey Athena");
+    expect(JOB_RECORD_LEAD).toContain("save the result to the job");
   });
 
   it("names only tools Athena really has", () => {
