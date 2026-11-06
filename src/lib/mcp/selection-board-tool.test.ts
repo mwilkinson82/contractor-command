@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setPageFetch } from "../selections/product-page";
 import { willowCreekTypeE } from "../selections/__fixtures__/willow-creek-type-e";
 
 const fixture = vi.hoisted(() => ({
@@ -41,6 +42,7 @@ const callProposal = (args: Record<string, unknown>) =>
     selectionProposal as unknown as { handler: (a: unknown, c: unknown) => Promise<Response> }
   ).handler({ job_number: "2810", ...args }, {});
 beforeEach(() => {
+  setPageFetch(async () => new Response("", { status: 404 }));
   fixture.calls = [];
   fixture.data = { version: 3, board: willowCreekTypeE(), scope: "full" };
   fixture.byName = {};
@@ -85,7 +87,12 @@ describe("selection tools", () => {
       expected_version: 3,
       selection_id: "6f1d2c34-8b1a-4f0e-9c4d-2a7b5e9d1c01",
       tier: "good",
-      candidate: { description: "Another panel", source_url: "https://example.com/p" },
+      candidate: {
+        description: "Another panel",
+        source_url: "https://example.com/p",
+        photo_url: "https://example.com/p.jpg",
+        found_price_cents: 9900,
+      },
     });
     const save = fixture.calls.find((c) => c.name === "mcp_residential_selections_save")!;
     const saved = save.args._board as ReturnType<typeof willowCreekTypeE>;

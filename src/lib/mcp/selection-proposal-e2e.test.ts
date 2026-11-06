@@ -10,6 +10,7 @@ import { makeDb } from "../../../tests/mcp-roles/db";
 import { fakeClient } from "../../../tests/mcp-roles/fake-supabase";
 import { changeTermsBoardSql, choiceStageSql, gbbSql } from "../../../tests/selections/sql";
 import { openProposalShare } from "../selection-proposal-share.server";
+import { setPageFetch } from "../selections/product-page";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
 vi.mock("./guard", async (importOriginal) => {
@@ -48,6 +49,8 @@ const proposal = (args: Record<string, unknown>, user = owner) => {
 };
 
 beforeAll(async () => {
+  // No seller pages on the network in tests: a missing photo or price stays missing.
+  setPageFetch(async () => new Response("", { status: 404 }));
   db = await makeDb();
   who.db = db;
   await db.exec(readFileSync("supabase/migrations/20261022200000_athena_estimating.sql", "utf8"));

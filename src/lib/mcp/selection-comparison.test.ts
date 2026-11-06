@@ -5,6 +5,7 @@ import { estimateLineOptions, lineOptionsFlag } from "../selections/estimate-opt
 import { withEstimateOptions } from "./estimate-options";
 import { looksLikeOptionsComparison } from "./file-share";
 import { customerProposal, proposalBlockers } from "../selections/proposal";
+import { setPageFetch } from "../selections/product-page";
 
 const fixture = vi.hoisted(() => ({
   calls: [] as { name: string; args: Record<string, unknown> }[],
@@ -65,7 +66,7 @@ vi.mock("./jobs", () => ({
   jobTimeZone: async () => "UTC",
   named: () => "2810",
 }));
-import { selectionBoard } from "./tools/selection-board-tool";
+import { selectionBoard, selectionProposal } from "./tools/selection-board-tool";
 
 type Response = { content: { text: string }[]; structuredContent: Record<string, unknown> };
 const callBoard = (args: Record<string, unknown>) =>
@@ -83,6 +84,7 @@ const juno = (model: string, cents: number, description: string) => ({
   specifications: "3000K · 90 CRI",
   product_url: `https://www.acuitybrands.com/products/detail/${model}`,
   source_url: `https://www.example-supply.com/${model}`,
+  photo_url: `https://img.example.com/${model}.jpg`,
   found_price_cents: cents,
   found_at: "Example Supply",
   found_on: "2026-11-04",
@@ -98,6 +100,7 @@ const comparison = [
 ];
 
 beforeEach(() => {
+  setPageFetch(async () => new Response("", { status: 404 }));
   fixture.calls = [];
   fixture.board = emptyBoard();
   fixture.version = 0;
@@ -153,12 +156,10 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
     // Every option's links are in the text, so a host that draws no card still shows them.
     const text = r.content[0].text;
     expect(text).toContain(
-      "Good Juno R600L G2: Product page: https://www.acuitybrands.com/products/detail/R600L%20G2 · Photo: none saved",
+      "Good Juno R600L G2: Product page: https://www.acuitybrands.com/products/detail/R600L%20G2 · Photo: https://img.example.com/R600L%20G2.jpg",
     );
     expect(text).toContain("Price read on (internal): https://www.example-supply.com/R600L");
-    expect(text).toMatch(
-      /Missing links: Good has no photo; Better has no photo; Best has no photo/,
-    );
+    expect(text).not.toContain("Missing links");
     expect(text).toContain(
       "Good: [Juno R600L G2](https://www.acuitybrands.com/products/detail/R600L%20G2)",
     );
@@ -239,7 +240,11 @@ describe("saving a Good, Better, Best comparison to the estimate", () => {
           options: {
             good: same("good"),
             better: same("better"),
-            best: { description: "Other panel" },
+            best: {
+              description: "Other panel",
+              photo_url: "https://img.example.com/other.jpg",
+              found_price_cents: 9900,
+            },
           },
         },
       ],
@@ -577,4 +582,159 @@ describe("removing a selection", () => {
     expect(lastSaved().selections).toHaveLength(0);
     expect(r.content[0].text).toContain('Removed "Type A / A1 Track Lighting" from T-1.');
   });
+});
+
+// A seller that answers like a Shopify store for one product and blocks everything else.
+const shopify = (product: unknown) =>
+  setPageFetch(async (url) =>
+    url === "https://shop.example.com/products/th-24.json"
+      ? new Response(JSON.stringify({ product }), { status: 200 })
+      : new Response("Blocked", { status: 403 }),
+  );
+const th24 = {
+  title: "TH-24 track head",
+  variants: [
+    { title: "Black", sku: "TH-24-BK", price: "341.95", image_id: 1 },
+    { title: "White", sku: "TH-24-WT", price: "341.95", image_id: 2 },
+  ],
+  images: [
+    { id: 1, src: "https://cdn.example.com/th-24-bk.jpg" },
+    { id: 2, src: "https://cdn.example.com/th-24-wt.jpg" },
+  ],
+};
+
+describe("every saved option gets a real photo and a web price", () => {
+  const withGap = () => [
+    {
+      estimate_line_ref: "T-4",
+      options: {
+        ...trackOptions,
+        best: {
+          description: "TH-24 track head, white finish",
+          manufacturer: "Example",
+          model: "TH-24",
+          product_url: "https://shop.example.com/products/th-24",
+          source_url: "https://blocked.example.com/th-24",
+        },
+      },
+    },
+  ];
+
+  it("reads a missing photo and price from the option's own seller page", async () => {
+    shopify(th24);
+    const r = await callBoard({
+      action: "save_comparison",
+      comparison: withGap(),
+      confirmed: true,
+    });
+    expect(lastSaved().selections[0].options.best).toMatchObject({
+      photo_url: "https://cdn.example.com/th-24-wt.jpg",
+      found_price_cents: 34195,
+      found_at: "shop.example.com",
+      source_url: "https://shop.example.com/products/th-24",
+      price_cents: null,
+    });
+    expect(r.content[0].text).toContain(
+      "Type A1 white track heads (Best): product photo and web price read from its seller page.",
+    );
+  });
+
+  it("saves nothing when no page shows one, and sends the AI to a seller or product that does", async () => {
+    shopify({ ...th24, variants: th24.variants.filter((v) => v.title === "Black") });
+    await expect(
+      callBoard({ action: "save_comparison", comparison: withGap(), confirmed: true }),
+    ).rejects.toThrow(
+      /Not saved: every option needs a real product photo and a web price.*TH-24: no product photo or web price.*next comparable product/,
+    );
+    expect(saves()).toHaveLength(0);
+  });
+
+  it("completes the missing option before the customer preview, at the member's found-price markup", async () => {
+    await callBoard({ action: "save_comparison", comparison, confirmed: true, currency: "USD" });
+    fixture.board = lastSaved();
+    fixture.version = 1;
+    await callBoard({
+      action: "apply_markup",
+      expected_version: 1,
+      markup_pct: 10,
+      cost_basis: "found",
+      confirmed: true,
+    });
+    const b = lastSaved();
+    b.proposal = {
+      ...b.proposal,
+      title: "Track lighting upgrade",
+      base_price_cents: 48_000_000,
+      base_reviewed_on: "2026-11-06",
+      change_terms: {
+        good: { schedule_days: 0, added_cents: 0, added_note: "" },
+        better: { schedule_days: 0, added_cents: 0, added_note: "" },
+        best: { schedule_days: 0, added_cents: 0, added_note: "" },
+        reviewed_on: "2026-11-06",
+      },
+    };
+    // The member's AI saved the white Best with no photo and no price.
+    b.selections[1].options.best = {
+      ...b.selections[1].options.best,
+      description: "TH-24 track head, white finish",
+      model: "TH-24",
+      product_url: "https://shop.example.com/products/th-24",
+      source_url: null,
+      photo_url: null,
+      found_price_cents: null,
+      cost_cents: null,
+      price_cents: null,
+      price_reviewed_on: null,
+      assumptions: "",
+    };
+    fixture.board = b;
+    fixture.version = 5;
+    fixture.calls = [];
+    shopify(th24);
+    const r = await (
+      selectionProposal as unknown as { handler: (a: unknown, c: unknown) => Promise<Response> }
+    ).handler({ job_number: "2810", action: "preview" }, {});
+    expect(r.structuredContent).toMatchObject({ ready: true, version: 6 });
+    const best = lastSaved().selections[1].options.best;
+    expect(best).toMatchObject({
+      photo_url: "https://cdn.example.com/th-24-wt.jpg",
+      found_price_cents: 34195,
+      cost_cents: 34195,
+      price_cents: 37615,
+      assumptions: "Cost is the found web price at shop.example.com; 10% markup.",
+    });
+    expect(best.price_reviewed_on).not.toBeNull();
+    // The member's confirmed prices and no-added-time terms stand.
+    expect(lastSaved().selections[0].options.good.price_reviewed_on).not.toBeNull();
+    expect(lastSaved().proposal.change_terms?.reviewed_on).not.toBeNull();
+    expect(r.content[0].text).toContain("priced at your 10% markup on the web price");
+  });
+
+  it("leaves a price it can't find for the AI to source, without asking the member", async () => {
+    fixture.board = { ...emptyBoard(), currency: "USD" };
+    const r = await (
+      selectionProposal as unknown as { handler: (a: unknown, c: unknown) => Promise<Response> }
+    ).handler({ job_number: "2810", action: "preview" }, {});
+    expect(r.structuredContent.ready).toBe(false);
+    expect(JSON.stringify(r.structuredContent)).toContain("Don't show this list to the member");
+  });
+});
+
+it("won't place a proposed option with no photo or web price on any of its pages", async () => {
+  fixture.board = willowCreekTypeE();
+  fixture.version = 3;
+  await expect(
+    callBoard({
+      action: "propose_option",
+      expected_version: 3,
+      selection_id: TYPE_E_ID,
+      tier: "best",
+      candidate: {
+        description: "Panel from a blocked seller",
+        model: "PX-9",
+        source_url: "https://blocked.example.com/px-9",
+      },
+    }),
+  ).rejects.toThrow(/Not saved: .*PX-9 has no product photo or web price.*next comparable product/);
+  expect(saves()).toHaveLength(0);
 });

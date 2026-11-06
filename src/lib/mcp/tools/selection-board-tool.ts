@@ -53,6 +53,7 @@ import {
   type CheckGap,
 } from "../../selections/line-checks";
 import { suggestLines, type LineCandidate } from "../../selections/line-candidates";
+import { boardFoundMarkup, fillFromPages, type Filled } from "../../selections/product-page";
 import { proposalNextSteps, type PortalState } from "../../selections/proposal-next-steps";
 import { timeLabel, timeSentence } from "../../selections/change-terms";
 import type { CardModel } from "../cards/model";
@@ -360,6 +361,56 @@ const OPTION_LINKS_GUIDANCE =
  * Each saved option's links, listed in the reply text so a host that draws no
  * card (Claude) still shows them, and a note for any option missing one.
  */
+/** One line per option Athena completed from its seller page. */
+function filledBrief(filled: Filled[]): string[] {
+  return filled.map(
+    (f) =>
+      `${f.title} (${tierLabel(f.tier)}): ${[f.photo && "product photo", f.price && "web price"].filter(Boolean).join(" and ")} read from its seller page.`,
+  );
+}
+
+/**
+ * Before the customer preview: fill each missing photo or price from the option's own seller
+ * page, and price a newly found option with the one found-price markup the member already put
+ * on every other option. Saves only when something was filled; otherwise returns the board as is.
+ */
+async function completeForPreview(
+  sb: Sb,
+  jobId: string,
+  saved: { version: number; board: Board },
+  today: string,
+): Promise<{ version: number; board: Board; filled: string[] }> {
+  const next = structuredClone(saved.board);
+  const markup = boardFoundMarkup(next);
+  const filled = await fillFromPages(next, today);
+  if (!filled.length) return { ...saved, filled: [] };
+  const grantOptions: { id: string; tier: OptionName }[] = [];
+  const lines = filledBrief(filled);
+  for (const f of filled) {
+    const o = findSelection(next, f.id).options[f.tier];
+    if (f.price && o.price_cents === null && markup !== null && o.found_price_cents !== null) {
+      o.cost_cents = o.found_price_cents;
+      o.price_cents = Math.round((o.found_price_cents * (100 + markup)) / 100);
+      o.price_reviewed_on = today;
+      o.assumptions = `Cost is the found web price at ${o.found_at}; ${markup}% markup.`;
+      grantOptions.push({ id: f.id, tier: f.tier });
+      lines.push(
+        `${f.title} (${tierLabel(f.tier)}): priced at your ${markup}% markup on the web price.`,
+      );
+    } else if (o.price_reviewed_on !== null && !f.price)
+      grantOptions.push({ id: f.id, tier: f.tier });
+  }
+  // A product-only swap the member confirmed as no added time or cost stays that way when a
+  // missing price is filled; anything else is confirmed again.
+  const terms = changeTermsOf(next);
+  const zeroTerms =
+    terms.reviewed_on !== null &&
+    optionNames.every((t) => terms[t].schedule_days === 0 && terms[t].added_cents === 0);
+  const guarded = enforceReviews(saved.board, next, { options: grantOptions, terms: zeroTerms });
+  const result = await saveBoard(sb, jobId, saved.version, guarded.board);
+  return { ...result, filled: lines };
+}
+
 function linkBrief(s: Selection, tiers: readonly OptionName[] = optionNames): string[] {
   const out: string[] = [];
   const missing: string[] = [];
@@ -844,6 +895,18 @@ export const selectionBoard = defineTool({
             assumptions: s.options[args.tier].assumptions,
           };
           if (s.selected === args.tier) s.selected = null;
+          brief.push(
+            ...filledBrief(await fillFromPages(next!, today, [{ id: s.id, tier: args.tier }])),
+          );
+          const placed = s.options[args.tier];
+          const miss = [
+            !placed.photo_url?.startsWith("https://") && "product photo",
+            placed.found_price_cents === null && "web price",
+          ].filter(Boolean);
+          if (miss.length)
+            throw new ToolError(
+              `Not saved: ${s.title} (${tierLabel(args.tier)}) ${placed.model || placed.description} has no ${miss.join(" or ")}, and its pages didn't show one. Every option the customer compares needs a real photo and a web price. Don't ask the member about this: read that product's page for this finish, or pick the next comparable product from a seller that lists both, and call propose_option again. Never invent a photo or a price.`,
+            );
           brief.push(...linkBrief(s, [args.tier]));
         } else if (args.action === "save_comparison") {
           if (!args.comparison?.length)
@@ -910,6 +973,32 @@ export const selectionBoard = defineTool({
               ...linkBrief(s),
             );
           }
+          // Every option the customer will compare needs its real photo and a web price. Read
+          // what the member's AI left out from the option's own seller page; a gap that page
+          // can't fill sends the AI to the next comparable product instead of saving a hole.
+          const touched = args.comparison.flatMap((c) => {
+            const s = next!.selections.find((x) => x.estimate_line_ref === c.estimate_line_ref)!;
+            return optionNames.map((tier) => ({ id: s.id, tier }));
+          });
+          const filled = await fillFromPages(next!, today, touched);
+          brief.push(...filledBrief(filled));
+          const gaps = touched.flatMap(({ id, tier }) => {
+            const s = findSelection(next!, id);
+            const o = s.options[tier];
+            const miss = [
+              !o.photo_url?.startsWith("https://") && "product photo",
+              o.found_price_cents === null && "web price",
+            ].filter(Boolean);
+            return miss.length
+              ? [
+                  `${s.title} (${tierLabel(tier)}) ${o.model || o.description}: no ${miss.join(" or ")}`,
+                ]
+              : [];
+          });
+          if (gaps.length)
+            throw new ToolError(
+              `Not saved: every option needs a real product photo and a web price, and these pages didn't show one. ${gaps.join("; ")}. Don't ask the member about this. For each, read that product's page for this finish (photo_url is the direct image of this finish, found_price_cents the listed unit price) or pick the next comparable product from a seller that lists both, then call save_comparison again with the same yes. Never invent a photo or a price.`,
+            );
           if (args.base_tier) next!.proposal.base_tier = args.base_tier;
           if (args.currency && !next!.currency) next!.currency = args.currency;
         } else if (args.action === "review_price") {
@@ -1278,8 +1367,14 @@ export const selectionProposal = defineTool({
           );
         }
 
-        const saved = await readBoard(sb, job.job_id);
+        let saved = await readBoard(sb, job.job_id);
         if (args.action === "preview") {
+          let filledLines: string[] = [];
+          if (proposalBlockers(saved.board).length) {
+            const done = await completeForPreview(sb, job.job_id, saved, today);
+            saved = { ...saved, version: done.version, board: done.board };
+            filledLines = done.filled;
+          }
           const blockers = proposalBlockers(saved.board);
           if (blockers.length)
             return guide(
@@ -1296,7 +1391,7 @@ export const selectionProposal = defineTool({
                   blockers,
                 } as unknown as JsonValueInput,
               },
-              "Help the member fix these with selection_board. Nothing was shared.",
+              "Nothing was shared. Don't show this list to the member as the answer. Fix what you can now, then preview again in the same reply: for a missing photo or price, read that product's page for its finish, or pick the next comparable product from a seller that lists both, and save it with selection_board propose_option; price it with apply_markup using the markup the member already gave. Ask the member only for what needs their own word, like a title or their cost.",
             );
           const view = customerProposal(saved.board, saved.version);
           const steps = proposalNextSteps(
@@ -1310,6 +1405,13 @@ export const selectionProposal = defineTool({
               ...text(
                 [
                   `${named(job)} · Customer view preview (board v${saved.version}). This is exactly what the customer sees; no costs, margin or notes.`,
+                  ...(filledLines.length
+                    ? [
+                        "",
+                        "Completed from the seller pages before this preview (internal):",
+                        ...filledLines,
+                      ]
+                    : []),
                   "",
                   ...customerText(view),
                   "",
