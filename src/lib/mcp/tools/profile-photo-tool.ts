@@ -1,7 +1,7 @@
 // Nov 2026: a member sets their own photo by sending it to Athena in chat. The photo shows in "Your team" on the
 // client page of every job they run as PM (Marshall, Nov 6: "so they get a picture of who their project manager
-// is"). It sits in the private athena-people bucket under the member's own folder, the same place the account page's
-// "Your photo" upload puts it, and the client page server signs it for each visit.
+// is"). Athena's server stores it in the member's own people/ folder of the private athena-progress bucket, the same
+// place the account page's "Your photo" upload puts it, and the client page server signs it for each visit.
 import { ToolError, defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { fetchAllowedFile } from "../file-upload";
@@ -11,8 +11,9 @@ import { run, text } from "../guard";
 import { guide } from "../visible";
 import { PHOTO_MAX_BYTES, photoImageInfo, sniffPhoto } from "../../photo-file";
 import { ACCOUNT_URL } from "./account-tools";
+import { personPhotoPath } from "../../people-photo";
+import { dropPersonPhoto, storePersonPhoto } from "../../people-photo.server";
 
-const BUCKET = "athena-people";
 /** A face is recognizable well below a site photo's size, but a thumbnail copy is not the real picture. */
 const MIN_EDGE = 200;
 const SAVE = {
@@ -103,16 +104,13 @@ export const profilePhoto = defineTool({
         throw new ToolError(
           `That's a small preview (${image.width} × ${image.height} pixels), not the photo itself. Attach the original. Nothing was saved. ${onAccountPage}`,
         );
-      const path = `${me}/photo-${crypto.randomUUID()}.${sniffed.ext}`;
-      const up = await sb.storage
-        .from(BUCKET)
-        .upload(path, bytes, { contentType: sniffed.mime, upsert: false });
-      if (up.error)
+      const path = personPhotoPath(me, crypto.randomUUID(), sniffed.ext);
+      if (!(await storePersonPhoto(path, bytes, sniffed.mime)))
         throw new ToolError(`The photo wasn't stored. Nothing was saved. ${onAccountPage}`);
       try {
         await set(path);
       } catch (e) {
-        await sb.storage.from(BUCKET).remove([path]);
+        await dropPersonPhoto(path);
         throw e;
       }
       return guide(

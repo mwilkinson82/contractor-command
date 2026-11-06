@@ -1,7 +1,7 @@
 -- Rollback for 20261106230000_athena_client_page_home.sql.
 -- 1. Puts mcp_portal_view back exactly as 20261106130000_athena_precon_signing defined it (no PM photo, no progress).
 -- 2. Drops the photo setter and the two client page helpers.
--- 3. Kept, because they are members' own data: profiles.photo_path, the athena-people bucket, its files and policies.
+-- 3. Kept, because they are members' own data: profiles.photo_path and the photo files under people/ in athena-progress.
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 

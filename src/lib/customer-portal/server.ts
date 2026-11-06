@@ -94,7 +94,7 @@ export function payAppNextForPm(decision: string): string {
 export type PortalDeps = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
   signPhotos: (paths: string[]) => Promise<Map<string, string>>;
-  /** Signs the PM's own photo (athena-people bucket). Absent or failing: the page shows initials. */
+  /** Signs the PM's own photo (people/ in athena-progress). Absent or failing: the page shows initials. */
   signHeadshot?: (path: string) => Promise<string | null>;
   send: (m: PortalEmail) => Promise<"sent" | "off" | "failed">;
   emailOn: () => boolean;

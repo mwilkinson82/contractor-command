@@ -331,7 +331,7 @@ export const portalViewSchema = z
         pm_name: nstr,
         pm_title: nstr,
         pm_email: nstr,
-        /** The PM's own photo in the private athena-people bucket. The page server signs it; it never reaches the page. */
+        /** The PM's own photo in the people/ folder of the private athena-progress bucket. The page server signs it; it never reaches the page. */
         pm_photo_path: nstr.optional(),
       })
       .strict(),

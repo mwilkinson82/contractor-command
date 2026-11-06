@@ -1,8 +1,10 @@
 -- Client page Home: the project manager's photo and where the money stands, so Home always has its full look.
 --
--- * profiles.photo_path: a member's own photo, in the private athena-people bucket under their user id. Members set
---   it on their account page (mcp_profile_photo_set). The client page shows the job PM's photo in "Your team"; the
---   page server signs the path, so the client never gets a storage path.
+-- * profiles.photo_path: a member's own photo, kept in the existing private athena-progress bucket under
+--   people/<their user id>/. No new bucket and no storage policy: only Athena's server reads or writes that folder
+--   (member storage policies there only reach company/job paths). Members set it on their account page or by
+--   sending it to Athena in chat (mcp_profile_photo_set). The client page shows the job PM's photo in "Your team";
+--   the page server signs the path, so the client never gets a storage path.
 -- * mcp_private.portal_pm_photo: the photo of the job's PM (pm_user_id, or else the company member whose email is
 --   the job's PM email). Only a member of the job's company counts.
 -- * mcp_private.portal_progress: the contract (original contract value plus approved or executed change orders,
@@ -28,36 +30,18 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS photo_path text;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_photo_path_check') THEN
     ALTER TABLE public.profiles ADD CONSTRAINT profiles_photo_path_check
-      CHECK (photo_path IS NULL OR photo_path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[A-Za-z0-9._-]{1,80}$');
+      CHECK (photo_path IS NULL OR photo_path ~ '^people/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[A-Za-z0-9._-]{1,80}$');
   END IF;
 END $$;
 
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('athena-people', 'athena-people', false, 8388608, ARRAY['image/jpeg', 'image/png', 'image/webp'])
-ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 8388608, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
-
--- A member reads and writes only their own folder. The page server reads with the service role.
-DROP POLICY IF EXISTS "athena people own read" ON storage.objects;
-CREATE POLICY "athena people own read" ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'athena-people' AND split_part(name, '/', 1) = auth.uid()::text);
-DROP POLICY IF EXISTS "athena people own insert" ON storage.objects;
-CREATE POLICY "athena people own insert" ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'athena-people' AND split_part(name, '/', 1) = auth.uid()::text);
-DROP POLICY IF EXISTS "athena people own update" ON storage.objects;
-CREATE POLICY "athena people own update" ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'athena-people' AND split_part(name, '/', 1) = auth.uid()::text)
-  WITH CHECK (bucket_id = 'athena-people' AND split_part(name, '/', 1) = auth.uid()::text);
-DROP POLICY IF EXISTS "athena people own delete" ON storage.objects;
-CREATE POLICY "athena people own delete" ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'athena-people' AND split_part(name, '/', 1) = auth.uid()::text);
-
--- Sets or clears the signed-in member's own photo. The path must sit in their own folder.
+-- Sets or clears the signed-in member's own photo. The path must sit in their own folder, people/<user id>/.
 CREATE OR REPLACE FUNCTION public.mcp_profile_photo_set(_path text) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE me uuid := auth.uid(); p text := nullif(btrim(coalesce(_path, '')), '');
 BEGIN
   IF me IS NULL THEN RAISE EXCEPTION 'MCP_BAD:Sign in to set your photo.'; END IF;
-  IF p IS NOT NULL AND (split_part(p, '/', 1) <> me::text OR p !~ '^[0-9a-f-]{36}/[A-Za-z0-9._-]{1,80}$') THEN
+  IF p IS NOT NULL AND (split_part(p, '/', 1) <> 'people' OR split_part(p, '/', 2) <> me::text
+      OR p !~ '^people/[0-9a-f-]{36}/[A-Za-z0-9._-]{1,80}$') THEN
     RAISE EXCEPTION 'MCP_BAD:That photo isn''t in your own folder.';
   END IF;
   UPDATE public.profiles SET photo_path = p, updated_at = now() WHERE id = me;

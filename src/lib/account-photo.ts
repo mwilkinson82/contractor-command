@@ -18,6 +18,3 @@ export function checkPhotoFile(file: {
     return { ok: false, error: "That picture is over 20 MB. Choose a smaller one." };
   return { ok: true };
 }
-
-/** Where the photo goes: the member's own folder, which is the only place the storage rules let them write. */
-export const photoPath = (userId: string, id: string) => `${userId}/photo-${id}.jpg`;

@@ -231,27 +231,29 @@ describe.sequential("client page Home", () => {
   });
 
   it("shows the PM's own photo, and only for a member of the job's company", async () => {
-    // The PM sets their photo; another folder or a bare name is refused.
-    await expect(call(pm, "mcp_profile_photo_set", [`${owner}/photo-x.jpg`])).rejects.toThrow(
-      /own folder/,
-    );
-    await expect(call(pm, "mcp_profile_photo_set", ["not-a-path"])).rejects.toThrow(/own folder/);
-    expect(await call(pm, "mcp_profile_photo_set", [`${pm}/photo-1.jpg`])).toEqual({
+    // The PM sets their photo; another member's folder, a path outside people/ or a bare name is refused.
+    for (const bad of [`people/${owner}/photo-x.jpg`, `${pm}/photo-x.jpg`, "not-a-path"])
+      await expect(call(pm, "mcp_profile_photo_set", [bad])).rejects.toThrow(/own folder/);
+    // The column itself only holds people/ paths.
+    await expect(
+      db.query("UPDATE public.profiles SET photo_path=$2 WHERE id=$1", [pm, `${pm}/photo-x.jpg`]),
+    ).rejects.toThrow(/profiles_photo_path_check/);
+    expect(await call(pm, "mcp_profile_photo_set", [`people/${pm}/photo-1.jpg`])).toEqual({
       status: "ok",
-      photo_path: `${pm}/photo-1.jpg`,
+      photo_path: `people/${pm}/photo-1.jpg`,
     });
     // Matched by the job's PM email, with no PM user on the job.
-    expect((await view()).contractor.pm_photo_path).toBe(`${pm}/photo-1.jpg`);
+    expect((await view()).contractor.pm_photo_path).toBe(`people/${pm}/photo-1.jpg`);
     // Someone outside the company with that email never shows.
     await db.query("UPDATE public.profiles SET photo_path=$2 WHERE id=$1", [
       outsider,
-      `${outsider}/photo-2.jpg`,
+      `people/${outsider}/photo-2.jpg`,
     ]);
     await db.query("UPDATE mcp_jobs SET pm_email='03@example.com' WHERE id=$1", [job]);
     expect((await view()).contractor.pm_photo_path).toBeNull();
     // The job's PM user wins, whatever the email says.
     await db.query("UPDATE mcp_jobs SET pm_user_id=$2 WHERE id=$1", [job, pm]);
-    expect((await view()).contractor.pm_photo_path).toBe(`${pm}/photo-1.jpg`);
+    expect((await view()).contractor.pm_photo_path).toBe(`people/${pm}/photo-1.jpg`);
     // Clearing it shows initials again.
     expect((await call(pm, "mcp_profile_photo_set", [null])).photo_path).toBeNull();
     expect((await view()).contractor.pm_photo_path).toBeNull();
