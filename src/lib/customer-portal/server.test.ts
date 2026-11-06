@@ -793,6 +793,29 @@ describe("Home keeps its full look with what Athena has", () => {
     expect(html).not.toContain("11111111-2222");
   });
 
+  it("keeps each day's work full width and puts a written crew breakdown under the work, not by the date", async () => {
+    const html = await homeOf(
+      bare({
+        dailies: [
+          {
+            date: "2026-11-03",
+            weather: "Clear",
+            manpower: "Electrical: 2 workers x 8 hours = 16 person-hours",
+            work: ["Installed approximately 1,000 LF duct bank in northeast section."],
+          },
+        ],
+      }),
+    );
+    // Day rows are the direct children; the work items inside them aren't laid out as rows.
+    expect(html).toContain(".cp-field>li{display:grid");
+    expect(html).not.toContain(".cp-field li{display:grid");
+    expect(html).not.toContain("Crew of Electrical");
+    expect(html).toContain(
+      '<p class="cp-crew">Crew: Electrical: 2 workers x 8 hours = 16 person-hours</p>',
+    );
+    expect(html).toContain("<span>Tuesday</span>");
+  });
+
   it("shows initials when the photo can't be signed, and plain notes when the job has no contract value yet", async () => {
     const html = await homeOf(bare({ progress: null, dailies: [] }), async () => {
       throw new Error("storage down");
