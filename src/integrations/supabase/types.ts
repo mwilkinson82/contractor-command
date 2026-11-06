@@ -11040,6 +11040,83 @@ export type Database = {
           },
         ]
       }
+      support_replies: {
+        Row: {
+          attempts: number
+          body: string
+          brand: string
+          created_at: string
+          error: string | null
+          from_address: string
+          id: string
+          idempotency_key: string
+          in_reply_to: string | null
+          lease_until: string | null
+          mode: string
+          provider_email_id: string | null
+          provider_message_id: string | null
+          references_header: string | null
+          sent_at: string | null
+          staff_user_id: string
+          state: string
+          subject: string
+          ticket_id: string
+          to_email: string
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          brand: string
+          created_at?: string
+          error?: string | null
+          from_address: string
+          id?: string
+          idempotency_key: string
+          in_reply_to?: string | null
+          lease_until?: string | null
+          mode: string
+          provider_email_id?: string | null
+          provider_message_id?: string | null
+          references_header?: string | null
+          sent_at?: string | null
+          staff_user_id: string
+          state?: string
+          subject: string
+          ticket_id: string
+          to_email: string
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          brand?: string
+          created_at?: string
+          error?: string | null
+          from_address?: string
+          id?: string
+          idempotency_key?: string
+          in_reply_to?: string | null
+          lease_until?: string | null
+          mode?: string
+          provider_email_id?: string | null
+          provider_message_id?: string | null
+          references_header?: string | null
+          sent_at?: string | null
+          staff_user_id?: string
+          state?: string
+          subject?: string
+          ticket_id?: string
+          to_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_ticket_counters: {
         Row: {
           brand: string
@@ -11445,6 +11522,21 @@ export type Database = {
         Args: { _kind: string; _message_id: string; _payload: Json }
         Returns: Json
       }
+      claim_support_reply: {
+        Args: {
+          _body: string
+          _from_address: string
+          _idempotency_key: string
+          _in_reply_to: string
+          _mode: string
+          _references: string
+          _staff_user_id: string
+          _subject: string
+          _ticket_id: string
+          _to_email: string
+        }
+        Returns: Json
+      }
       complete_support_delivery: {
         Args: {
           _kind: string
@@ -11487,6 +11579,16 @@ export type Database = {
           _message_id: string
           _result: string
           _token: string
+        }
+        Returns: undefined
+      }
+      finish_support_reply: {
+        Args: {
+          _error: string
+          _provider_email_id: string
+          _provider_message_id: string
+          _reply_id: string
+          _result: string
         }
         Returns: undefined
       }
