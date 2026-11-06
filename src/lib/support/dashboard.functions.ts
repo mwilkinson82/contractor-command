@@ -5,7 +5,13 @@ export const readSupportDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { ticketId?: string; page: number }) =>
     z
-      .object({ ticketId: z.string().uuid().optional(), page: z.number().int().min(0).max(100000) })
+      .object({
+        // A ticket's id, or its number (ATH-0008) so a link can name the ticket people see.
+        ticketId: z
+          .union([z.string().uuid(), z.string().regex(/^(ATH|CIR)-[0-9]{4,}$/)])
+          .optional(),
+        page: z.number().int().min(0).max(100000),
+      })
       .parse(data),
   )
   .handler(async ({ data, context }) => {

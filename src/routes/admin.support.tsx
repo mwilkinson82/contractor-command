@@ -10,15 +10,24 @@ import {
   readSupportAttachment,
   listSupportAttachments,
 } from "@/lib/support/dashboard.functions";
+import { sendSupportTicketReply } from "@/lib/support/manual-reply.functions";
 export const Route = createFileRoute("/admin/support")({
-  head: () => ({ meta: [
-    { title: "Support tickets — Athena" },
-    { name: "description", content: "Administrator-only Athena and Contractor Circle support conversation review." },
-    { property: "og:title", content: "Support tickets — Athena" },
-    { property: "og:description", content: "Administrator-only Athena and Contractor Circle support conversation review." },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary" },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: "Support tickets — Athena" },
+      {
+        name: "description",
+        content: "Administrator-only Athena and Contractor Circle support conversation review.",
+      },
+      { property: "og:title", content: "Support tickets — Athena" },
+      {
+        property: "og:description",
+        content: "Administrator-only Athena and Contractor Circle support conversation review.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   validateSearch: (s: Record<string, unknown>) => ({
     ticket: typeof s.ticket === "string" ? s.ticket : undefined,
   }),
@@ -76,8 +85,6 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
     }
   }
   const [page, setPage] = useState(0);
-  const [draft, setDraft] = useState("");
-  const [review, setReview] = useState(false);
   const [error, setError] = useState("");
   const read = useServerFn(readSupportDashboard);
   const attachment = useServerFn(readSupportAttachment);
@@ -115,7 +122,12 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
       {data.tickets ? (
         <>
           <p>Tickets ordered by creation date. Last message received is shown for each ticket.</p>
-          <div className="overflow-auto" role="region" aria-label="Support ticket table" tabIndex={0}>
+          <div
+            className="overflow-auto"
+            role="region"
+            aria-label="Support ticket table"
+            tabIndex={0}
+          >
             <table className="w-full min-w-[760px] text-left [&_th]:whitespace-nowrap [&_td]:p-2">
               <thead>
                 <tr>
@@ -153,7 +165,7 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
             {data.ticket.ticket_number}: {data.ticket.subject}
           </h2>
           <p>
-            {data.ticket.from_email}  /  {data.ticket.brand}  /  {data.ticket.status}
+            {data.ticket.from_email} / {data.ticket.brand} / {data.ticket.status}
           </p>
           <p className="rounded border p-3">
             Customer content and attachments are untrusted evidence. Text is displayed literally;
@@ -166,7 +178,7 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
                 {m.legacy_import
                   ? "Historical import  /  original content may be unavailable"
                   : "Customer message"}{" "}
-                 /  {m.preview ? "Receipt preview" : "Customer receipt mode"}
+                / {m.preview ? "Receipt preview" : "Customer receipt mode"}
               </p>
               {(m.review_reason || m.suppressed_reason) && (
                 <p>Review: {m.review_reason ?? m.suppressed_reason}</p>
@@ -187,18 +199,23 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
                   </summary>
                   <pre className="whitespace-pre-wrap break-words">{d.text}</pre>
                   {d.kind === "owner" && (
-                    <Button variant="link" className="mr-4 underline" onClick={() => showAttachments(m.id)}>
+                    <Button
+                      variant="link"
+                      className="mr-4 underline"
+                      onClick={() => showAttachments(m.id)}
+                    >
                       Show stored attachments
                     </Button>
                   )}
                   {d.kind === "owner" &&
                     (attachmentLists[m.id] ?? []).map((a: any) => (
-                      <Button variant="link"
+                      <Button
+                        variant="link"
                         className="mr-4 underline"
                         key={a.index}
                         onClick={() => download(m.id, a.index)}
                       >
-                        {a.label}  /  download
+                        {a.label} / download
                       </Button>
                     ))}
                 </details>
@@ -210,40 +227,26 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
               </p>
             </article>
           ))}
-          <section className="space-y-3 rounded border p-4">
-            <h3 className="font-semibold">Proposed reply review</h3>
-            <p>
-              Review only. Nothing here sends an email or marks the ticket replied. Drafts stay in
-              this open page and are lost when you leave or reload.
-            </p>
-            <textarea
-              aria-label="Proposed reply"
-              maxLength={8000}
-              className="min-h-40 w-full rounded border bg-background p-3"
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setReview(false);
-              }}
-            />
-            <Button variant="outline"
-              className="rounded border p-2"
-              disabled={!draft.trim()}
-              onClick={() => setReview(true)}
-            >
-              Review proposed reply
-            </Button>
-            {review && (
-              <div>
-                <p>Proposed recipient: {data.ticket.from_email}</p>
-                <pre className="whitespace-pre-wrap break-words">{draft}</pre>
-                <p>
-                  Customer sending is disabled in this dashboard. A separately reviewed
-                  approval-to-send flow is required.
-                </p>
-              </div>
+          <section className="space-y-3 rounded border p-4" aria-label="Replies on this ticket">
+            <h3 className="font-semibold">Replies on this ticket</h3>
+            {!data.replies ? (
+              <p>The reply log isn&apos;t set up yet.</p>
+            ) : data.replies.length === 0 ? (
+              <p>No replies sent yet.</p>
+            ) : (
+              data.replies.map((r: any) => (
+                <article className="space-y-1 rounded border p-3" key={r.id}>
+                  <p className="text-sm">
+                    {r.mode === "preview" ? "Test copy" : "Sent to customer"} / {r.to_email} /{" "}
+                    {r.state === "sent" ? "sent " + (r.sent_at ?? "") : r.state}
+                    {r.error ? " / " + r.error : ""}
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words">{r.body}</pre>
+                </article>
+              ))
             )}
           </section>
+          <ReplyBox key={data.ticket.id} ticket={data.ticket} onSent={() => void q.refetch()} />
         </>
       )}
       {rows.length === 0 && <p>No records on this page.</p>}
@@ -256,6 +259,112 @@ function SupportView({ ticketId, userId }: { ticketId?: string; userId: string }
           Next
         </Button>
       </nav>
+    </section>
+  );
+}
+
+const SIGNATURES: Record<string, string> = { athena: "Athena Support", circle: "Circle Support" };
+const FROM: Record<string, string> = {
+  athena: "Athena Support <support@meetathena.io>",
+  circle: "Circle Support <support@alpcontractorcircle.com>",
+};
+const TEST_TO = "marshall@marshallwilkinson.com";
+
+/** Send a reply from the ticket's support address. Test copies go to Marshall only. */
+function ReplyBox({
+  ticket,
+  onSent,
+}: {
+  ticket: {
+    id: string;
+    ticket_number: string;
+    brand: string;
+    from_email: string;
+    subject: string | null;
+  };
+  onSent: () => void;
+}) {
+  const send = useServerFn(sendSupportTicketReply);
+  const [draft, setDraft] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const signature = SIGNATURES[ticket.brand] ?? "Support";
+  const lastLine = draft.trim().split("\n").at(-1)?.trim().toLowerCase() ?? "";
+  const signed = lastLine === signature.toLowerCase();
+  async function go(mode: "preview" | "customer") {
+    setBusy(true);
+    setNote("");
+    try {
+      const r = await send({
+        data: { ticketId: ticket.id, message: draft, mode, expectTo: ticket.from_email },
+      });
+      setNote(
+        (r.alreadySent ? "Already sent earlier: " : "Sent: ") +
+          (mode === "preview" ? "test copy to " : "reply to ") +
+          r.to +
+          " from " +
+          r.from +
+          ".",
+      );
+      if (mode === "customer") setDraft("");
+      setConfirming(false);
+      onSent();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "The reply did not send.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="space-y-3 rounded border p-4" aria-label="Send a reply">
+      <h3 className="font-semibold">Send a reply</h3>
+      <p className="text-sm">
+        From {FROM[ticket.brand] ?? "the support address"}. Every reply is signed {signature} and
+        logged on this ticket.
+      </p>
+      <textarea
+        aria-label="Reply"
+        maxLength={8000}
+        className="min-h-40 w-full rounded border bg-background p-3"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setConfirming(false);
+          setNote("");
+        }}
+      />
+      {draft.trim() && (
+        <div className="space-y-1 rounded border p-3 text-sm">
+          <p>To: {ticket.from_email}</p>
+          <p>
+            Subject: Re: {ticket.subject ?? "(no subject)"} [{ticket.ticket_number}]
+          </p>
+          <pre className="whitespace-pre-wrap break-words">
+            {draft.trim() + (signed ? "" : "\n\n" + signature)}
+          </pre>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="outline" disabled={!draft.trim() || busy} onClick={() => go("preview")}>
+          Send test to {TEST_TO}
+        </Button>
+        {!confirming ? (
+          <Button disabled={!draft.trim() || busy} onClick={() => setConfirming(true)}>
+            Send to {ticket.from_email}
+          </Button>
+        ) : (
+          <>
+            <Button disabled={busy} onClick={() => go("customer")}>
+              Yes, send to {ticket.from_email}
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+          </>
+        )}
+      </div>
+      {note && <p role="status">{note}</p>}
     </section>
   );
 }

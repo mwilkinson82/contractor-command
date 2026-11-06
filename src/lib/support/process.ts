@@ -4,7 +4,7 @@ import {
   sha256Hex,
   SupportDeliveryError,
 } from "./resend-send.ts";
-import type { SupportTicketStore } from "./store.ts";
+import type { SupportReplyMode, SupportReplyStore, SupportTicketStore } from "./store.ts";
 import { renderManualSupportReply, renderSupportAutoreply, escapeHtml } from "./template.ts";
 import { ownerCopy } from "./owner-copy.ts";
 import {
@@ -50,6 +50,7 @@ export type ManualReplyResult = {
   to: string;
   preview: boolean;
   resendId: string | null;
+  alreadySent: boolean;
 };
 
 async function getReceived(
@@ -250,42 +251,127 @@ export async function processSupportInbound(
   };
 }
 
+/** Folds Message-IDs into one References header, oldest first, newest kept when long. */
+export function referencesHeader(ids: string[]): string | null {
+  const unique = [...new Set(ids)];
+  const kept: string[] = [];
+  let length = 0;
+  for (const id of unique.reverse()) {
+    if (kept.length >= 20 || length + id.length + 1 > 7000) break;
+    kept.unshift(id);
+    length += id.length + 1;
+  }
+  return kept.length ? kept.join(" ") : null;
+}
+
+/**
+ * Staff reply on a ticket, sent from that ticket's support address and signed by it.
+ * preview sends the exact email to Marshall only. customer sends it to the ticket's
+ * sender, and only when the caller names that same address (what the page showed).
+ */
 export async function sendManualSupportReply(opts: {
   ticketId: string;
   message: string;
+  mode: SupportReplyMode;
+  expectTo?: string | null;
+  staffUserId: string;
   apiKey: string;
   store: SupportTicketStore;
-  env?: NodeJS.ProcessEnv;
+  replies: SupportReplyStore;
   fetchImpl?: typeof fetch;
 }): Promise<ManualReplyResult> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
   const ticket = await opts.store.get(opts.ticketId);
   if (!ticket) throw new Error("Ticket not found");
   const inbox = inboxByBrand(ticket.brand);
   if (!inbox) throw new Error("Invalid support brand");
-  const from = bareAddress(ticket.from_email);
-  if (!isEmailAddress(from) || SUPPORT_ADDRESS_INDEX[from] || from.startsWith("mailer-daemon@"))
+  const customer = bareAddress(ticket.from_email);
+  if (
+    !isEmailAddress(customer) ||
+    SUPPORT_ADDRESS_INDEX[customer] ||
+    customer.startsWith("mailer-daemon@")
+  )
     throw new Error("Refusing to reply to this sender");
   const message = opts.message.split("\u0000").join("").trim();
   if (!message) throw new Error("Message is empty");
-  const rendered = renderManualSupportReply({ inbox, ticketNumber: ticket.ticket_number, message });
+  if (message.length > 8000) throw new Error("Message is too long");
+  const preview = opts.mode === "preview";
+  if (!preview && bareAddress(opts.expectTo ?? "") !== customer)
+    throw new Error("The ticket's recipient changed. Reload the ticket and check the reply.");
+  const to = preview ? SUPPORT_PREVIEW_TO : customer;
   assertSupportFrom(inbox.from);
-  const sent = await postResendEmail(
-    opts.apiKey,
-    opts.fetchImpl ?? fetch,
-    {
-      from: inbox.from,
-      to: [SUPPORT_PREVIEW_TO],
-      subject: autoreplySubject(ticket.subject, ticket.ticket_number),
-      ...rendered,
-      headers: { ...threadHeaders(ticket.message_id), "X-ALP-Support-Mail": "manual-preview" },
-    },
-    "support-manual-preview/" + ticket.id + "/" + (await sha256Hex(message)).slice(0, 32),
-  );
-  return {
+  const context = await opts.replies.threadContext(ticket.id);
+  const inReplyTo = context.customerMessageIds.at(-1) ?? ticket.message_id ?? null;
+  const references = referencesHeader([
+    ...(ticket.message_id ? [ticket.message_id] : []),
+    ...context.customerMessageIds,
+    ...context.receiptMessageIds,
+    ...context.replyMessageIds,
+  ]);
+  const subject = autoreplySubject(ticket.subject, ticket.ticket_number);
+  const rendered = renderManualSupportReply({
+    inbox,
+    ticketNumber: ticket.ticket_number,
+    message,
+  });
+  const idempotencyKey =
+    "support-reply/" + ticket.id + "/" + opts.mode + "/" + (await sha256Hex(message)).slice(0, 32);
+  const claim = await opts.replies.claim({
+    ticketId: ticket.id,
+    staffUserId: opts.staffUserId,
+    mode: opts.mode,
+    to,
+    from: inbox.from,
+    subject,
+    body: message,
+    inReplyTo,
+    references,
+    idempotencyKey,
+  });
+  const result = {
     ticketNumber: ticket.ticket_number,
     from: inbox.from,
-    to: SUPPORT_PREVIEW_TO,
-    preview: true,
-    resendId: sent.id,
+    to,
+    preview,
   };
+  if (claim.state === "sent")
+    return { ...result, resendId: claim.providerEmailId, alreadySent: true };
+  if (claim.state === "busy")
+    throw new Error("This reply is already sending. Refresh in a minute.");
+  if (claim.state === "review")
+    throw new Error(
+      "This reply needs a check before it can be sent again. Change the text to send a new one.",
+    );
+  const payload: Record<string, unknown> = {
+    from: inbox.from,
+    to: [to],
+    subject,
+    ...rendered,
+    headers: {
+      ...(inReplyTo ? { "In-Reply-To": inReplyTo } : {}),
+      ...(references ? { References: references } : {}),
+      "X-ALP-Support-Mail": preview ? "reply-preview" : "reply",
+    },
+  };
+  let providerEmailId = claim.providerEmailId;
+  try {
+    if (!providerEmailId) {
+      providerEmailId = (await postResendEmail(opts.apiKey, fetchImpl, payload, idempotencyKey)).id;
+      await opts.replies.finish(claim.id, "accepted", providerEmailId, null, null);
+    }
+  } catch (err) {
+    const retryable = !(err instanceof SupportDeliveryError) || err.retryable;
+    const reason = err instanceof Error ? err.message : String(err);
+    await opts.replies.finish(claim.id, retryable ? "failed" : "review", null, null, reason);
+    throw new Error("The reply did not send: " + reason);
+  }
+  // The delivered Message-ID threads the customer's next reply; missing it never unsends.
+  let deliveredId: string | null = null;
+  try {
+    deliveredId = await getDeliveredMessageId(opts.apiKey, fetchImpl, providerEmailId, payload);
+  } catch {
+    deliveredId = null;
+  }
+  await opts.replies.finish(claim.id, "sent", providerEmailId, deliveredId, null);
+  return { ...result, resendId: providerEmailId, alreadySent: false };
 }
