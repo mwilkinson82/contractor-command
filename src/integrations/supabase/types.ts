@@ -12747,6 +12747,27 @@ export type Database = {
         Args: { _access: string; _mark_read: boolean; _session_hash: string }
         Returns: Json
       }
+      mcp_portal_page_code_issue: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _email: string
+          _ip: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_portal_page_sign_in: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _ip: string
+          _remember: boolean
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
       mcp_portal_pay_app_name: {
         Args: { _application: string; _job: string; _number: string }
         Returns: Json
