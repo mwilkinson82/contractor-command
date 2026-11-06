@@ -106,6 +106,15 @@ describe("PM morning brief", () => {
     expect(titles).toContain("Your other jobs");
   });
 
+  it("names the sub on a critical first move, and pushes an uncoded review instead of locking a sub", () => {
+    expect(build().doc.moves?.items.map((m) => m.lead)).toContain("Lock Bayline Drywall on drywall hang and finish.");
+    const review = { ...FOCUS, cpm: { ...FOCUS.cpm!, acts: [act({ id: "R1", name: "Architect review – long-lead gear", start: "2026-06-22", finish: "2026-07-03", critical: true, total_float: 0, party: null, remaining: 7 })] } };
+    const { doc } = buildPmBrief({ jobs: [JOB], focus: new Map([[JOB.job_id, review]]), now: NOW, firstName: "Marshall" });
+    const leads = doc.moves?.items.map((m) => m.lead) ?? [];
+    expect(leads).toContain("Keep architect review – long-lead gear moving.");
+    expect(leads.join(" ")).not.toContain("Lock the sub");
+  });
+
   it("asks about today's risk, lists change orders and keeps the inbox heading", () => {
     const { doc, card } = build();
     const risks = JSON.stringify(doc.sections[2]);

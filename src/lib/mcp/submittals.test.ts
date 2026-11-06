@@ -60,6 +60,11 @@ describe("submittal dates, overdue, and package", () => {
     expect(submittalOverdue(row({ id: "a", number: "001", revision: 0, returned_on: "2026-10-18" }), TODAY)).toBe(false);
     expect(submittalOverdue(row({ id: "b", number: "002", revision: 0, submitted_on: null, due_back: null, required_by: "2026-10-10" }), TODAY)).toBe(true);
     expect(submittalOverdue(row({ id: "c", number: "003", revision: 0, due_back: "2026-11-03", required_by: "2026-11-01", submitted_on: "2026-10-20" }), TODAY)).toBe(false);
+    // Returned for revise and resubmit: the resubmittal is ours and late once its due date has passed.
+    expect(submittalOverdue({ status: "revise_and_resubmit", due_back: "2026-10-10", required_by: null, submitted_on: "2026-09-20", returned_on: "2026-10-01" }, TODAY)).toBe(true);
+    expect(submittalOverdue({ status: "rejected", due_back: null, required_by: "2026-10-10", submitted_on: "2026-09-20", returned_on: "2026-10-01" }, TODAY)).toBe(true);
+    expect(submittalOverdue({ status: "revise_and_resubmit", due_back: "2099-01-01", required_by: null, submitted_on: "2026-09-20", returned_on: "2026-10-01" }, TODAY)).toBe(false);
+    expect(submittalOverdue({ status: "approved", due_back: "2026-10-10", required_by: null, submitted_on: "2026-09-20", returned_on: "2026-10-01" }, TODAY)).toBe(false);
   });
 
   it("treats an empty package as not complete and a received required set as complete", () => {
