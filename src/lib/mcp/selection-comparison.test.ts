@@ -719,3 +719,22 @@ describe("every saved option gets a real photo and a web price", () => {
     expect(JSON.stringify(r.structuredContent)).toContain("Don't show this list to the member");
   });
 });
+
+it("won't place a proposed option with no photo or web price on any of its pages", async () => {
+  fixture.board = willowCreekTypeE();
+  fixture.version = 3;
+  await expect(
+    callBoard({
+      action: "propose_option",
+      expected_version: 3,
+      selection_id: TYPE_E_ID,
+      tier: "best",
+      candidate: {
+        description: "Panel from a blocked seller",
+        model: "PX-9",
+        source_url: "https://blocked.example.com/px-9",
+      },
+    }),
+  ).rejects.toThrow(/Not saved: .*PX-9 has no product photo or web price.*next comparable product/);
+  expect(saves()).toHaveLength(0);
+});

@@ -898,6 +898,15 @@ export const selectionBoard = defineTool({
           brief.push(
             ...filledBrief(await fillFromPages(next!, today, [{ id: s.id, tier: args.tier }])),
           );
+          const placed = s.options[args.tier];
+          const miss = [
+            !placed.photo_url?.startsWith("https://") && "product photo",
+            placed.found_price_cents === null && "web price",
+          ].filter(Boolean);
+          if (miss.length)
+            throw new ToolError(
+              `Not saved: ${s.title} (${tierLabel(args.tier)}) ${placed.model || placed.description} has no ${miss.join(" or ")}, and its pages didn't show one. Every option the customer compares needs a real photo and a web price. Don't ask the member about this: read that product's page for this finish, or pick the next comparable product from a seller that lists both, and call propose_option again. Never invent a photo or a price.`,
+            );
           brief.push(...linkBrief(s, [args.tier]));
         } else if (args.action === "save_comparison") {
           if (!args.comparison?.length)
