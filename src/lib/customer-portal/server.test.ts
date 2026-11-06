@@ -267,12 +267,102 @@ describe("invite link", () => {
 });
 
 describe("customer page", () => {
-  it("needs a session", async () => {
-    const { d } = deps();
-    const r = await handlePortal(req(`/c/${ACCESS}`), ACCESS, d);
-    expect(r.status).toBe(401);
-    expect(await r.text()).toContain("You&#39;re signed out");
+  it("signs a signed-out customer in on the page and brings them back to what they opened", async () => {
+    const issued = {
+      status: "ok",
+      email: "rosa@example.com",
+      name: "Rosa Delgado",
+      company: "Northline Builders",
+      job_name: "Harbor Point Dental",
+    };
+    const { d, calls, mail } = deps({
+      rpcs: {
+        mcp_portal_page_code_issue: issued,
+        mcp_portal_page_sign_in: { status: "ok", access_id: ACCESS },
+      },
+    });
+    // "Review and sign" opens the agreement; signed out, it asks for the email right there.
+    const at = `/c/${ACCESS}?s=agreement&i=${CO}`;
+    const r = await handlePortal(req(at), ACCESS, d);
+    const page = await r.text();
+    expect(r.status).toBe(200);
+    expect(page).toContain("Sign in to your project page");
+    expect(page).toContain('name="email"');
+    expect(page).toContain(`value="s=agreement&amp;i=${CO}"`);
+    expect(page).not.toContain("signed out");
+    expect(page).not.toContain("invite");
+    // The email gets a code only through the server function, which checks it is the invited address.
+    const sent = await handlePortal(
+      await post(`/c/${ACCESS}`, {
+        action: "page_send_code",
+        email: "Rosa@Example.com",
+        back: `s=agreement&i=${CO}`,
+      }),
+      ACCESS,
+      d,
+    );
+    expect(sent.status).toBe(303);
+    expect(sent.headers.get("location")).toBe(`/c/${ACCESS}?s=agreement&i=${CO}&step=code&sent=1`);
+    const issue = calls.find((c) => c.fn === "mcp_portal_page_code_issue")!;
+    expect(issue.args._email).toBe("Rosa@Example.com");
+    expect(issue.args._code_hash).toBe(await codeHash(ACCESS, "123456"));
+    expect(mail[0]!.to).toBe("rosa@example.com");
+    expect(mail[0]!.subject).toContain("123456");
+    const codeStep = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement&i=${CO}&step=code&sent=1`), ACCESS, d)
+    ).text();
+    expect(codeStep).toContain("We sent a 6-digit code");
+    // The code signs them in and lands them on the agreement, with the page's own cookie.
+    const signed = await handlePortal(
+      await post(`/c/${ACCESS}`, {
+        action: "page_verify",
+        code: "123 456",
+        back: `s=agreement&i=${CO}`,
+      }),
+      ACCESS,
+      d,
+    );
+    expect(signed.status).toBe(303);
+    expect(signed.headers.get("location")).toBe(`/c/${ACCESS}?s=agreement&i=${CO}`);
+    expect(signed.headers.get("set-cookie")).toMatch(
+      new RegExp(
+        `^athena_portal=[A-Za-z0-9_-]{43}; Path=/c/${ACCESS}; HttpOnly; Secure; SameSite=Lax$`,
+      ),
+    );
     expect((await handlePortal(req("/c/not-a-uuid"), "not-a-uuid", d)).status).toBe(404);
+  });
+
+  it("sends no code to another address, and keeps only a real section and item to come back to", async () => {
+    const { d, mail } = deps({ rpcs: { mcp_portal_page_code_issue: { status: "mismatch" } } });
+    const r = await handlePortal(
+      await post(`/c/${ACCESS}`, {
+        action: "page_send_code",
+        email: "someone@else.com",
+        back: "s=agreement&i=not-a-uuid&next=https://evil.example",
+      }),
+      ACCESS,
+      d,
+    );
+    expect(r.headers.get("location")).toBe(`/c/${ACCESS}?s=agreement&step=signin&e=email`);
+    expect(mail).toHaveLength(0);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement&step=signin&e=email`), ACCESS, d)
+    ).text();
+    expect(page).toContain("That isn&#39;t the email this page was shared with");
+    // A post from another site never reaches sign-in.
+    expect(
+      (
+        await handlePortal(
+          await post(
+            `/c/${ACCESS}`,
+            { action: "page_send_code", email: "rosa@example.com" },
+            { origin: "https://evil.example" },
+          ),
+          ACCESS,
+          d,
+        )
+      ).status,
+    ).toBe(403);
   });
 
   it("renders every section in the Athena blue client look, with signed photos and no storage paths or scripts", async () => {

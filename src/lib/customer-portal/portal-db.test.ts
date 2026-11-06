@@ -138,6 +138,7 @@ beforeAll(async () => {
   await load("20261105180000_athena_job_notices");
   await load("20261105200000_athena_notices_owner_fallback");
   await load("20261105181000_athena_portal_messages");
+  await load("20261106160000_athena_portal_page_sign_in");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -774,6 +775,77 @@ describe.sequential("customer page", () => {
       r.change_order_id,
     ]);
     expect(hist.rows).toEqual([{ action: "approve" }]);
+  });
+
+  it("signs in on the page with the invited email and a code, with no invite link", async () => {
+    const pageSession = await tokenHash("Q1".repeat(21) + "z");
+    // Server-only, like every customer function.
+    await expect(
+      member("mcp_portal_page_code_issue", [access, "rosa@example.com", hex(40), null, null]),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      member("mcp_portal_page_sign_in", [access, hex(40), pageSession, false, null, null]),
+    ).rejects.toThrow(/permission denied/);
+    // Another address gets no code, and the try is logged.
+    expect(
+      await server("mcp_portal_page_code_issue", [access, "eve@example.com", hex(40), null, null]),
+    ).toEqual({ status: "mismatch" });
+    const before = await db.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM mcp_portal_codes WHERE access_id=$1",
+      [access],
+    );
+    // The invited address, in any case, gets one.
+    const code = "246802";
+    expect(
+      await server("mcp_portal_page_code_issue", [
+        access,
+        " Rosa@Example.com ",
+        await codeHash(access, code),
+        null,
+        null,
+      ]),
+    ).toMatchObject({ status: "ok", email: "rosa@example.com", job_name: "Harbor Point Dental" });
+    const after = await db.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM mcp_portal_codes WHERE access_id=$1",
+      [access],
+    );
+    expect(after.rows[0]!.n).toBe(before.rows[0]!.n + 1);
+    expect(
+      (
+        await server("mcp_portal_page_sign_in", [
+          access,
+          await codeHash(access, "000000"),
+          pageSession,
+          false,
+          null,
+          null,
+        ])
+      ).status,
+    ).toBe("wrong");
+    expect(
+      await server("mcp_portal_page_sign_in", [
+        access,
+        await codeHash(access, code),
+        pageSession,
+        false,
+        "1.2.3.4",
+        "test",
+      ]),
+    ).toMatchObject({ status: "ok", access_id: access });
+    expect((await server("mcp_portal_view", [access, pageSession, null, null])).status).toBe("ok");
+    // A used code doesn't work twice.
+    expect(
+      (
+        await server("mcp_portal_page_sign_in", [
+          access,
+          await codeHash(access, code),
+          hex(41),
+          false,
+          null,
+          null,
+        ])
+      ).status,
+    ).toBe("expired");
   });
 
   it("closes the page when the inviter loses full access, and when access is revoked", async () => {
@@ -1551,7 +1623,9 @@ describe.sequential("client messages", () => {
     await db.query("UPDATE mcp_jobs SET pm_email='sam@example.com' WHERE id=$1", [noPm]);
     expect(await record(noPm, "fallback-5")).toEqual(["sam@example.com"]);
     const prefs = await member("mcp_job_notice_prefs_get", [noPm]);
-    expect(prefs.prefs.find((p: J) => p.role === "owner" && p.topic === "client_decision").email).toBe(false);
+    expect(
+      prefs.prefs.find((p: J) => p.role === "owner" && p.topic === "client_decision").email,
+    ).toBe(false);
   });
 });
 

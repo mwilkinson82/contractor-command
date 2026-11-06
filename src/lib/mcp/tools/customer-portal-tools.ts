@@ -125,6 +125,22 @@ export function emailedLine(email: string, res: string): string {
       : `The email to ${email} failed.`;
 }
 
+/** Where a notice lands on the customer's page. Signed out, the page signs them in there and keeps the place. */
+const NOTICE_SECTION = {
+  change_order: "changes",
+  selection: "selections",
+  pay_app: "billing",
+  work_order: "work",
+  service_invoice: "billing",
+  precon_agreement: "agreement",
+} as const;
+export const noticeLink = (
+  access: string,
+  kind: "update" | "decision",
+  item?: keyof typeof NOTICE_SECTION,
+) =>
+  `${portalUrl(access)}?s=${kind === "update" ? "updates" : item ? NOTICE_SECTION[item] : "home"}`;
+
 async function notify(
   recipients: Recipient[],
   jobName: string,
@@ -151,7 +167,7 @@ async function notify(
         name: r.name,
         company,
         jobName,
-        link: portalUrl(access),
+        link: noticeLink(access, kind, item),
         kind,
         label,
         logo,

@@ -458,6 +458,32 @@ export function renderInvite(
   );
 }
 
+/**
+ * Sign in on the customer page itself, when a customer opens any link from their emails while signed out. They give
+ * their email, get a 6-digit code, and land on what they opened. `back` is the page's own query (section and item),
+ * carried through so they come back to it.
+ */
+export function renderPageSignIn(
+  step: "email" | "code",
+  opts: {
+    back: string;
+    error?: string | null;
+    sent?: boolean;
+    company?: string | null;
+    logo?: string | null;
+  } = {
+    back: "",
+  },
+): string {
+  const err = opts.error ? `<p class="as-err" role="alert">${esc(opts.error)}</p>` : "";
+  const back = `<input type="hidden" name="back" value="${esc(opts.back)}">`;
+  const inner =
+    step === "email"
+      ? `<h1>Sign in to your project page</h1><p class="as-sub">Enter the email address this page was shared with. We'll email you a 6-digit code. No password needed.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_send_code">${back}<div class="as-field"><label class="as-label" for="email">Email</label><input class="as-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="320" required autofocus></div><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button></form>`
+      : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent a 6-digit code to your email." : "Enter the 6-digit code from your email."} It works for 10 minutes.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_verify">${back}<div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><p class="as-note">No code? Check your spam folder, or <a class="as-link" href="?${esc(opts.back ? `${opts.back}&` : "")}step=signin">send a new one</a>.</p>`;
+  return doc("Sign in", signinShell(opts.company ?? null, inner, opts.logo ?? null), "signin");
+}
+
 const GONE: Record<string, [string, string]> = {
   unknown: [
     "This link isn't valid",
