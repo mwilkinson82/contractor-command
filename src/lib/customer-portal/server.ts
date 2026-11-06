@@ -94,6 +94,8 @@ export function payAppNextForPm(decision: string): string {
 export type PortalDeps = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
   signPhotos: (paths: string[]) => Promise<Map<string, string>>;
+  /** Signs the PM's own photo (athena-people bucket). Absent or failing: the page shows initials. */
+  signHeadshot?: (path: string) => Promise<string | null>;
   send: (m: PortalEmail) => Promise<"sent" | "off" | "failed">;
   emailOn: () => boolean;
   randomInt?: () => number;
@@ -526,8 +528,14 @@ export async function handlePortal(
     const signed = paths.length
       ? await deps.signPhotos(paths).catch(() => new Map<string, string>())
       : new Map<string, string>();
+    const { pm_photo_path, ...contractor } = view.contractor;
+    const headshot =
+      pm_photo_path && deps.signHeadshot
+        ? await deps.signHeadshot(pm_photo_path).catch(() => null)
+        : null;
     const page: PortalPage = {
       ...view,
+      contractor: { ...contractor, pm_photo_url: headshot },
       photos: view.photos.map((p) => ({
         id: p.id,
         taken_on: p.taken_on,

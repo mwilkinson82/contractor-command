@@ -21947,6 +21947,50 @@
           "additionalProperties": false
         },
         "outputSchema": null
+      },
+      {
+        "name": "profile_photo",
+        "title": "Set my photo",
+        "description": "Sets or removes the member's own profile photo, the picture of them that clients see in 'Your team' on the client page of the jobs they run as PM. Pass the photo attached in chat as file. Without a file it returns the account page link where they can add one. Only the member's own photo, never someone else's.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            },
+            "remove": {
+              "description": "true to take the photo off; clients then see the company logo",
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
       }
     ]
   }

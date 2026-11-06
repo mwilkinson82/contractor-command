@@ -24,6 +24,7 @@ const FILE_TOOLS = new Set([
   "job_cost_original",
   "job_import",
   "progress_photo_save",
+  "profile_photo",
 ]);
 export function drawingFileMeta(name: string): Record<string, unknown> {
   return FILE_TOOLS.has(name) ? { "openai/fileParams": ["file"] } : {};

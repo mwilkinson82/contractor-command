@@ -128,13 +128,18 @@ export function CompanyBoardLinkCard({
     <section className="aa-card" aria-labelledby="aa-company-board-title">
       <div className="aa-row" style={{ justifyContent: "flex-start", gap: 14 }}>
         <span className="aa-logo-box" aria-hidden="true">
-          {profile?.logo_url ? <img src={profile.logo_url} alt="" /> : companyInitials(profile?.name)}
+          {profile?.logo_url ? (
+            <img src={profile.logo_url} alt="" />
+          ) : (
+            companyInitials(profile?.name)
+          )}
         </span>
         <div>
           <h2 id="aa-company-board-title">{name} company board</h2>
           <p className="aa-lede">
-            Your company details and logo live on your company board now, with your profile, kinds of work, labor
-            rules and the tools you use. Team, plan and billing stay here on your account page.
+            Your company details and logo live on your company board now, with your profile, kinds
+            of work, labor rules and the tools you use. Team, plan and billing stay here on your
+            account page.
           </p>
         </div>
       </div>

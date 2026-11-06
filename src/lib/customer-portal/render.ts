@@ -264,37 +264,37 @@ h4:first-child{margin-top:0}
 const PORTAL_CSS = `
 /* Client page shell: Athena blue hero with a blueprint grid, pinned glass tabs, white cards. */
 .pt{--tabs-h:57px}
-.cp-hero{position:relative;color:#f4f7fd;overflow:hidden;isolation:isolate;background:#1a47c7}
-.cp-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(900px 420px at 85% 0%,rgba(140,190,255,.55),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),linear-gradient(160deg,#2f6cf2,#1a47c7)}
+.cp-hero{position:relative;color:#fff;overflow:hidden;isolation:isolate;background:#2563eb}
+.cp-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(1000px 480px at 88% -10%,rgba(190,220,255,.7),transparent 62%),radial-gradient(700px 360px at 0% 110%,rgba(30,80,220,.35),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.09) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.09) 0 1px,transparent 1px 32px),linear-gradient(200deg,#5c9bff 0%,#3b7df6 42%,#2563eb 100%)}
 .cp-hero a,.cp-hero .linkbtn{color:#fff;text-decoration-color:rgba(255,255,255,.45)}
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:18px;padding-bottom:18px}
 .cp-co{display:flex;align-items:center;gap:12px;min-width:0}
-.cp-co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#1a47c7;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
+.cp-co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#2563eb;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
 .cp-co-img{display:block;height:44px;width:auto;max-width:min(200px,44vw);object-fit:contain;padding:6px 10px;border-radius:11px;background:#fff;flex:none}
 .cp-co-word{display:grid;line-height:1.2;min-width:0}
 .cp-co-word b{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cp-co-sub{font-size:12px;color:#dbe6ff}
-.who{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#dbe6ff}
+.cp-co-sub{font-size:12px;color:#eef4ff}
+.who{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#eef4ff}
 .who-name{display:flex;align-items:center;gap:8px}
 .who .avatar{background:rgba(255,255,255,.16);color:#fff}
 .hero-in{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;align-items:center;padding-top:22px;padding-bottom:44px}
-.h-eyebrow{margin:0;font:600 10.5px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#e4edff}
+.h-eyebrow{margin:0;font:600 10.5px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#f2f6ff}
 .cp-hero h1{font-size:46px;line-height:1.04;font-weight:650;letter-spacing:-.035em;margin:10px 0 12px;color:#fff;text-wrap:balance}
-.lede{margin:0 0 18px;font-size:16px;color:#dbe6ff;max-width:46ch}
+.lede{margin:0 0 18px;font-size:16px;color:#f2f6ff;max-width:48ch}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);color:#fff}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);color:#fff}
 .chip i{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.22)}
 .chip.attn i{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
-.snap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:center;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 20px 50px rgba(8,25,80,.18);border-radius:20px;padding:20px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.snap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:center;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3),0 20px 50px rgba(8,25,80,.16);border-radius:20px;padding:20px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .snap.no-ring{grid-template-columns:minmax(0,1fr)}
 .ring{--p:0;position:relative;width:132px;height:132px;border-radius:50%;display:grid;place-items:center;animation:ringin 1.2s cubic-bezier(.2,.7,.2,1) both}
-.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(#fff calc(var(--p)*1%),rgba(255,255,255,.22) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px));mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px))}
-.ring div{position:relative;text-align:center;font-size:11.5px;color:#dbe6ff;line-height:1.3;max-width:96px}
+.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(#fff calc(var(--p)*1%),rgba(255,255,255,.26) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px));mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px))}
+.ring div{position:relative;text-align:center;font-size:11.5px;color:#f2f6ff;line-height:1.3;max-width:96px}
 .ring b{display:block;font-size:30px;font-weight:650;letter-spacing:-.03em;line-height:1;color:#fff;margin-bottom:3px}
 @property --p{syntax:"<number>";inherits:true;initial-value:0}
 @keyframes ringin{from{--p:0}}
 .snap-rows{display:grid;gap:10px;min-width:0}
-.snap-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#dbe6ff;border-bottom:1px solid rgba(255,255,255,.22);padding-bottom:8px}
+.snap-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#f2f6ff;border-bottom:1px solid rgba(255,255,255,.28);padding-bottom:8px}
 .snap-row:last-child{border:0;padding:0}
 .snap-row b{color:#fff;font-weight:600;text-align:right}
 .peek{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
@@ -328,7 +328,24 @@ const PORTAL_CSS = `
 .phases span{display:block;font-size:12px;color:var(--muted)}
 .phases li.next b{color:var(--accent-ink)}
 .team{display:flex;align-items:center;gap:14px}
-.team .avatar{width:46px;height:46px;font-size:14px}
+.team .avatar{width:56px;height:56px;font-size:16px;box-shadow:0 0 0 3px var(--white),0 0 0 4px var(--line)}
+.team img.avatar{object-fit:cover;background:var(--head)}
+.team img.avatar.logo{object-fit:contain;background:#fff;padding:7px}
+.cp-team-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px!important}
+.cp-stand{display:grid;gap:14px}
+.cp-stand-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.cp-stand-top b{font-size:34px;font-weight:650;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
+.cp-stand-top span{font-size:13px;color:var(--body)}
+.cp-stand-bar{height:12px;border-radius:999px;background:var(--line);overflow:hidden}
+.cp-stand-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#5c9bff,var(--accent));animation:grow 1.1s cubic-bezier(.2,.7,.2,1) both}
+@keyframes grow{from{width:0}}
+.cp-field{list-style:none;margin:0;padding:0;display:grid}
+.cp-field li{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}
+.cp-field li:first-child{border-top:0;padding-top:0}
+.cp-field .d{font-weight:600;font-size:13.5px}
+.cp-field .d span{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.cp-field ul{margin:0;padding-left:16px;color:var(--body);font-size:13.5px}
+@media (max-width:640px){.cp-field li{grid-template-columns:minmax(0,1fr)}.cp-stand-top b{font-size:28px}}
 .team b{display:block;font-weight:600}
 .team span{font-size:13px;color:var(--body)}
 .photos.thumbs{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -358,7 +375,7 @@ body:has(.lb-slide:target){overflow:hidden}
 .lb-next{right:12px;top:50%;transform:translateY(-50%)}
 .lb-x{top:12px;right:12px;font-size:28px}
 @media (max-width:640px){.lb-slide{padding:56px 10px 20px}.lb-slide img{max-height:calc(100dvh - 190px);border-radius:8px}.lb-nav{display:none}.lb-slide figcaption{font-size:13px;padding:0 6px}}
-@media (prefers-reduced-motion:reduce){.ring,.panel,.cp-act,.btn,.photo img,.peek img,.lb{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){.ring,.cp-stand-bar i,.panel,.cp-act,.btn,.photo img,.peek img,.lb{animation:none!important;transition:none!important}}
 `;
 
 // Sign-in, code and notice screens wear meetathena.io's web look: white with the site's faint blue fade at the top,
@@ -740,10 +757,29 @@ function milestoneList(p: PortalPage, limit?: number): string {
     .join("")}</ul>`;
 }
 
+/** Only an https link reaches an img tag. */
+const safePhoto = (u: string | null | undefined): boolean =>
+  !!u && /^https:\/\/[^\s"'<>]+$/.test(u);
+
+/** Share of the contract the owner has approved, 0 to 100, from certified bills only. */
+function approvedPct(p: PortalPage): number | null {
+  const g = p.progress;
+  if (!g || g.contract_cents <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((g.approved_cents / g.contract_cents) * 100)));
+}
+
 function contactPanel(p: PortalPage): string {
   const c = p.contractor;
   if (!c.pm_name && !c.pm_email) return "";
-  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team"><span class="avatar" aria-hidden="true">${esc(initials(c.pm_name || c.name))}</span><div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div><p class="sub cp-team-acts"><a class="btn" href="${esc(href(p, "messages"))}">Send a message</a>${c.pm_email ? `<a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a>` : ""}</p></section>`;
+  const who = c.pm_name || c.name;
+  // The PM's own photo; without one, the company's logo; initials only when there is neither (Marshall, Nov 6).
+  const logo = safeLogo(c.logo_url);
+  const face = safePhoto(c.pm_photo_url)
+    ? `<img class="avatar" src="${esc(c.pm_photo_url!)}" alt="${esc(who)}" referrerpolicy="no-referrer">`
+    : logo
+      ? `<img class="avatar logo" src="${esc(logo)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">`
+      : `<span class="avatar" aria-hidden="true">${esc(initials(who))}</span>`;
+  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team">${face}<div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div><p class="sub cp-team-acts"><a class="btn" href="${esc(href(p, "messages"))}">Send a message</a>${c.pm_email ? `<a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a>` : ""}</p></section>`;
 }
 
 /** "Ask a question about this": opens Messages with the item already linked. Never inside a signing form. */
@@ -816,18 +852,44 @@ function phases(p: PortalPage): string {
   return `<section class="panel"><div class="panel-head"><h2>Where the job stands</h2><a class="meta" href="${esc(href(p, "schedule"))}">Full schedule</a></div><ol class="phases" style="--n:${shown.length}">${items}</ol></section>`;
 }
 
+/** No weekly update yet: the last few days from the field (date, weather, crew, work done), as the Updates tab shows them. */
+function fieldPanel(p: PortalPage): string {
+  const days = p.dailies.filter((d) => d.work.some((w) => !!w && !!w.trim())).slice(0, 3);
+  const head = `<div class="panel-head"><h2>This week on your project</h2>${days.length ? `<a class="meta" href="${esc(href(p, "updates"))}">All updates</a>` : ""}</div>`;
+  if (!days.length)
+    return `<section class="panel">${head}<p class="empty">${esc(`${p.contractor.name} posts a short update here each week, with what got done and what's next.`)}</p></section>`;
+  const rows = days
+    .map((d) => {
+      const work = d.work.filter((w): w is string => !!w && !!w.trim()).slice(0, 4);
+      const crew = d.manpower ? `Crew of ${d.manpower}` : "";
+      return `<li><div class="d">${esc(shortDate(d.date))}<span>${esc([dayName(d.date), crew].filter(Boolean).join(" · "))}</span></div><ul>${work.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></li>`;
+    })
+    .join("");
+  return `<section class="panel">${head}<ul class="cp-field">${rows}</ul></section>`;
+}
+
+/** No schedule shared: where the job stands by the work the owner has approved, or a plain note. */
+function standPanel(p: PortalPage): string {
+  const pct = approvedPct(p);
+  const head = `<div class="panel-head"><h2>Where the job stands</h2><a class="meta" href="${esc(href(p, "schedule"))}">Schedule</a></div>`;
+  const note = `<p class="fine">${esc(`Schedule milestones show here once ${p.contractor.name} shares the schedule.`)}</p>`;
+  if (pct === null) return `<section class="panel">${head}${note}</section>`;
+  const g = p.progress!;
+  return `<section class="panel">${head}<div class="cp-stand"><div class="cp-stand-top"><b>${pct}%</b><span>${esc(`${usd(g.approved_cents)} of ${usd(g.contract_cents)} approved`)}</span></div><div class="cp-stand-bar" role="img" aria-label="${esc(`${pct} percent of the contract approved`)}"><i style="width:${pct}%"></i></div>${note}</div></section>`;
+}
+
 function home(p: PortalPage): string {
   const latest = p.updates[0];
   const pm = p.contractor.pm_name;
   const update = latest
     ? `<section class="panel"><div class="panel-head"><h2>${esc(latest.title)}</h2><a class="meta" href="${esc(href(p, "updates"))}">All updates</a></div><div class="prose">${paras(latest.body)}</div><div class="byline"><span class="avatar" aria-hidden="true">${esc(initials(pm || p.contractor.name))}</span>${esc([pm ? `${pm}, ${p.contractor.pm_title || "project manager"}` : p.contractor.name, `week of ${longDate(latest.week_of)}`].join(" · "))}</div></section>`
-    : `<section class="panel"><div class="panel-head"><h2>This week on your project</h2></div><p class="empty">${esc(p.contractor.name)} hasn't posted an update yet.</p></section>`;
+    : fieldPanel(p);
   const shown = p.photos.filter((ph) => ph.url);
   const photos = shown.length
     ? `<section class="panel"><div class="panel-head"><h2>Latest photos</h2><a class="meta" href="${esc(href(p, "photos"))}">See all ${shown.length}</a></div>${photoGrid(shown.slice(0, 2), "thumbs")}</section>`
     : "";
   const coming = `<section class="panel"><div class="panel-head"><h2>Coming up</h2><a class="meta" href="${esc(href(p, "schedule"))}">Schedule</a></div>${milestoneList(p, 4)}</section>`;
-  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p)}</div><aside class="rail">${moneyPanel(p)}${contactPanel(p)}${photos}${coming}</aside></div>`;
+  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p) || standPanel(p)}</div><aside class="rail">${moneyPanel(p)}${contactPanel(p)}${photos}${coming}</aside></div>`;
 }
 
 function updates(p: PortalPage): string {
@@ -1410,10 +1472,18 @@ function contractCard(i: PayApp): string {
   return `<section class="panel cp-contract"><div class="panel-head"><h2>Your contract</h2><span class="meta">${esc(`As of ${itemLabel(i)}`)}</span></div><dl class="cp-kv">${rows}</dl></section>`;
 }
 
+/** Home rail without a shared pay application: the contract and what the owner has approved so far. */
+function progressMoney(p: PortalPage): string {
+  const g = p.progress;
+  if (!g) return "";
+  const rest = Math.max(0, g.contract_cents - g.approved_cents);
+  return `<section class="panel cp-money"><div class="panel-head"><h2>Money at a glance</h2><a class="meta" href="${esc(href(p, "billing"))}">Billing</a></div><p class="cp-big">${esc(usd(g.contract_cents))}<span>Contract total</span></p><div class="cp-bar cp-tall" role="img" aria-label="${esc(`Approved ${usd(g.approved_cents)}, remaining ${usd(rest)}, of ${usd(g.contract_cents)}`)}"><span class="cp-seg cp-prev" style="width:${width(g.approved_cents, g.contract_cents)}"></span><span class="cp-seg cp-rest" style="width:${width(rest, g.contract_cents)}"></span></div><ul class="cp-legend"><li><i class="cp-prev"></i><span>Approved so far</span><b>${esc(usd(g.approved_cents))}</b></li><li><i class="cp-rest"></i><span>Remaining</span><b>${esc(usd(rest))}</b></li></ul></section>`;
+}
+
 /** Home rail: the contract total and where the money stands, from shared pay applications only. */
 function moneyPanel(p: PortalPage): string {
   const latest = payApps(p)[0];
-  if (!latest) return "";
+  if (!latest) return progressMoney(p);
   const v = latest.view;
   const t = v.totals;
   const total = v.contract_total_cents;
@@ -1856,25 +1926,43 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
     ? latest.title
     : next
       ? `Next up: ${next.name}, ${longDate(next.date)}.`
-      : `Your private project page from ${c.name}.`;
+      : `${c.name} keeps this page current: weekly updates, photos, the schedule, billing and anything that needs your decision.`;
   const chips = [
     waiting
       ? `<span class="chip attn"><i></i>${waiting} ${waiting === 1 ? "decision" : "decisions"} waiting</span>`
       : `<span class="chip"><i></i>Up to date</span>`,
     latest ? `<span class="chip">Update posted ${esc(shortDate(latest.week_of))}</span>` : "",
+    p.photos.some((ph) => ph.url)
+      ? `<span class="chip">${(() => {
+          const n = p.photos.filter((ph) => ph.url).length;
+          return `${n} site ${n === 1 ? "photo" : "photos"}`;
+        })()}</span>`
+      : "",
   ].join("");
   const total = p.milestones.length;
   const done = p.milestones.filter((m) => m.done).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
+  const approved = approvedPct(p);
   const ring = total
     ? `<div class="ring" style="--p:${pct}" role="img" aria-label="${done} of ${total} milestones done"><div><b>${done}/${total}</b>milestones done</div></div>`
-    : "";
+    : approved !== null
+      ? `<div class="ring" style="--p:${approved}" role="img" aria-label="${approved} percent of the contract approved"><div><b>${approved}%</b>of the work approved</div></div>`
+      : "";
+  const g = p.progress;
   const rows = [
+    g
+      ? `<div class="snap-row"><span>Work approved</span><b>${esc(usd(g.approved_cents))}</b></div>`
+      : "",
+    g
+      ? `<div class="snap-row"><span>Contract</span><b>${esc(usd(g.contract_cents))}</b></div>`
+      : "",
     next ? `<div class="snap-row"><span>Next milestone</span><b>${esc(next.name)}</b></div>` : "",
     next
       ? `<div class="snap-row"><span>Next date</span><b>${esc(longDate(next.date))}</b></div>`
       : "",
-    `<div class="snap-row"><span>Planned finish</span><b>${esc(longDate(p.job.completion_date) || "Not set")}</b></div>`,
+    p.job.completion_date || (!g && !next)
+      ? `<div class="snap-row"><span>Planned finish</span><b>${esc(longDate(p.job.completion_date) || "Being scheduled")}</b></div>`
+      : "",
   ].join("");
   const pics = p.photos.filter((ph) => ph.url).slice(0, 2);
   const peek = pics.length
@@ -1884,6 +1972,7 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
 }
 
 export function renderPortal(p: PortalPage, o: PortalOpts): string {
+  p = { ...p, contractor: { ...p.contractor, logo_url: safeLogo(o.logo) } };
   // A tab this page doesn't show (the Agreement tab before anything is shared) opens Home.
   if (!sectionsFor(p).includes(o.section)) o = { ...o, section: "home" };
   const waitingBy = (...kinds: PortalItem["kind"][]) =>

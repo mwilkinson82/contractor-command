@@ -1624,3 +1624,15 @@ details.aa-card > summary {
     max-width: none;
   }
 }
+/* Your photo: a round face, the same drop zone as the company logo. */
+.aa-photo-drop {
+  margin-top: 16px;
+}
+.aa-photo-box {
+  border-radius: 50%;
+  background: #e9f0fe;
+  color: #1e48c4;
+}
+.aa-photo-box img {
+  object-fit: cover;
+}
