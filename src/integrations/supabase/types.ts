@@ -12804,6 +12804,10 @@ export type Database = {
         }
         Returns: Json
       }
+      mcp_portal_code_pending: {
+        Args: { _access: string; _item: string; _session_hash: string }
+        Returns: Json
+      }
       mcp_portal_decide: {
         Args: {
           _access: string
