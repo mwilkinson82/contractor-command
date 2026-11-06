@@ -70,3 +70,17 @@ describe("2701 (Harbor Point): recipient named after the delivery method", () =>
     expect(recipientIn("Subcontractor shall give written notice within five days after the start of the event.")).toBeNull();
   });
 });
+
+describe("days that run after your own notice", () => {
+  it("non-payment: the 7 days are a wait after the notice, not a deadline to give it", () => {
+    const text = "If Subcontractor is not paid when due, Subcontractor shall give Contractor written notice of non-payment. If payment is not made within seven (7) calendar days after that notice, Subcontractor may suspend work upon a further three (3) days' written notice.";
+    const s = noticeRequirements([
+      c("5.4", text, { heading: "Notice of non-payment", category: "nonpayment_notice", n_days: 7, day_type: "calendar", trigger_desc: "after that notice, Subcontractor may suspend work upon a further three (3) days' written notice" }),
+      c("8.2", "Subcontractor shall give the Contractor written notice of any event that may delay its work within seven (7) calendar days after the event begins.", { category: "delay_notice", n_days: 7, day_type: "calendar", trigger_desc: "after the event begins" }),
+    ]);
+    const t = s.lines.join("\n");
+    expect(t).toContain("- Non-payment: give written notice once you aren't paid when due (§5.4); if payment isn't made within 7 calendar days after that notice, Subcontractor may suspend work upon a further three (3) days' written notice. It goes to Contractor (§5.4).");
+    expect(t).not.toContain("notice within 7 calendar days after that notice");
+    expect(t).toContain("- Delays: notice within 7 calendar days after the event begins (§8.2)");
+  });
+});
