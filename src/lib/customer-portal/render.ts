@@ -340,12 +340,14 @@ const PORTAL_CSS = `
 .cp-stand-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#5c9bff,var(--accent));animation:grow 1.1s cubic-bezier(.2,.7,.2,1) both}
 @keyframes grow{from{width:0}}
 .cp-field{list-style:none;margin:0;padding:0;display:grid}
-.cp-field li{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}
-.cp-field li:first-child{border-top:0;padding-top:0}
+.cp-field>li{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}
+.cp-field>li:first-child{border-top:0;padding-top:0}
 .cp-field .d{font-weight:600;font-size:13.5px}
 .cp-field .d span{display:block;font-weight:400;font-size:12px;color:var(--muted)}
 .cp-field ul{margin:0;padding-left:16px;color:var(--body);font-size:13.5px}
-@media (max-width:640px){.cp-field li{grid-template-columns:minmax(0,1fr)}.cp-stand-top b{font-size:28px}}
+.cp-field ul li+li{margin-top:4px}
+.cp-field .cp-crew{margin:6px 0 0;font-size:12px;color:var(--muted)}
+@media (max-width:640px){.cp-field>li{grid-template-columns:minmax(0,1fr)}.cp-stand-top b{font-size:28px}}
 .team b{display:block;font-weight:600}
 .team span{font-size:13px;color:var(--body)}
 .photos.thumbs{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -861,8 +863,12 @@ function fieldPanel(p: PortalPage): string {
   const rows = days
     .map((d) => {
       const work = d.work.filter((w): w is string => !!w && !!w.trim()).slice(0, 4);
-      const crew = d.manpower ? `Crew of ${d.manpower}` : "";
-      return `<li><div class="d">${esc(shortDate(d.date))}<span>${esc([dayName(d.date), crew].filter(Boolean).join(" · "))}</span></div><ul>${work.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></li>`;
+      // A head count reads "Crew of 6" by the date; a written crew breakdown goes under the work, in full.
+      const m = d.manpower?.trim() ?? "";
+      const count = /^\d{1,4}$/.test(m);
+      const crew = count ? `Crew of ${m}` : "";
+      const crewNote = m && !count ? `<p class="cp-crew">${esc(`Crew: ${m}`)}</p>` : "";
+      return `<li><div class="d">${esc(shortDate(d.date))}<span>${esc([dayName(d.date), crew].filter(Boolean).join(" · "))}</span></div><div><ul>${work.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>${crewNote}</div></li>`;
     })
     .join("");
   return `<section class="panel">${head}<ul class="cp-field">${rows}</ul></section>`;
