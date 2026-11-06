@@ -93,6 +93,7 @@ vi.mock("@/lib/support/dashboard.functions", () => ({
   readSupportAttachment: state.calls,
   listSupportAttachments: state.calls,
 }));
+vi.mock("@/lib/support/manual-reply.functions", () => ({ sendSupportTicketReply: state.calls }));
 vi.mock("@/lib/magic-link.functions", () => ({ requestMemberMagicLink: state.calls }));
 vi.mock("@/lib/client-payments.functions", () => ({
   getClientPaymentsSetup: state.calls,
@@ -470,6 +471,16 @@ describe("board and account responsive fixtures", () => {
                 brand: "athena",
                 status: "open",
               },
+              replies: [
+                {
+                  id: id + "-reply",
+                  mode: "customer",
+                  to_email: "synthetic@example.invalid",
+                  state: "sent",
+                  body: long,
+                  sent_at: day,
+                },
+              ],
               messages: [
                 {
                   id,

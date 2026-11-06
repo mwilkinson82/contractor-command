@@ -77,3 +77,41 @@ export type SupportTicketStore = {
     result: "sent" | "retry" | "review",
   ): Promise<void>;
 };
+
+export type SupportReplyMode = "preview" | "customer";
+
+/** Message-IDs already in the customer's thread, oldest first. */
+export type SupportThreadContext = {
+  customerMessageIds: string[];
+  receiptMessageIds: string[];
+  replyMessageIds: string[];
+};
+
+export type SupportReplyClaimInput = {
+  ticketId: string;
+  staffUserId: string;
+  mode: SupportReplyMode;
+  to: string;
+  from: string;
+  subject: string;
+  body: string;
+  inReplyTo: string | null;
+  references: string | null;
+  idempotencyKey: string;
+};
+
+export type SupportReplyStore = {
+  threadContext(ticketId: string): Promise<SupportThreadContext>;
+  claim(input: SupportReplyClaimInput): Promise<{
+    state: "ready" | "sent" | "busy" | "review";
+    id: string;
+    providerEmailId: string | null;
+  }>;
+  finish(
+    replyId: string,
+    result: "accepted" | "sent" | "failed" | "review",
+    providerEmailId: string | null,
+    providerMessageId: string | null,
+    error: string | null,
+  ): Promise<void>;
+};

@@ -4,6 +4,7 @@ import type { SupportBrand } from "./ticket.ts";
 import type {
   OpenedSupportTicket,
   OpenTicketInput,
+  SupportReplyStore,
   SupportTicket,
   SupportTicketStore,
 } from "./store.ts";
@@ -178,5 +179,104 @@ export const supabaseSupportStore: SupportTicketStore = {
       _result: result,
     });
     if (error) throw new Error("Unable to record support delivery outcome");
+  },
+};
+
+type Row = Record<string, unknown>;
+
+// Thread reads are plain ordered selects; the typed client is loosened only here.
+async function rows(
+  table: string,
+  columns: string,
+  ticketId: string,
+  order: string,
+): Promise<Row[]> {
+  const query = (
+    supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => { order: (k: string) => Promise<{ data: unknown; error: RpcError }> };
+        };
+      };
+    }
+  )
+    .from(table)
+    .select(columns)
+    .eq("ticket_id", ticketId)
+    .order(order);
+  const { data, error } = await query;
+  if (error) throw new Error("Support thread unavailable");
+  return Array.isArray(data) ? (data as Row[]) : [];
+}
+
+const MESSAGE_ID_RE = /^<[^<>\s]{1,996}>$/;
+function messageIds(list: unknown[]): string[] {
+  return list.filter((v): v is string => typeof v === "string" && MESSAGE_ID_RE.test(v));
+}
+
+export const supabaseSupportReplyStore: SupportReplyStore = {
+  async threadContext(ticketId) {
+    const messages = await rows(
+      "support_messages",
+      "message_id,receipt_message_id,ack_sent_at,preview,legacy_import,received_at",
+      ticketId,
+      "received_at",
+    );
+    const replies = await rows(
+      "support_replies",
+      "provider_message_id,state,mode,created_at",
+      ticketId,
+      "created_at",
+    );
+    return {
+      customerMessageIds: messageIds(messages.map((m) => m.message_id)),
+      // Only receipts the customer actually received belong in their thread.
+      receiptMessageIds: messageIds(
+        messages
+          .filter((m) => m.ack_sent_at && m.preview === false && m.legacy_import !== true)
+          .map((m) => m.receipt_message_id),
+      ),
+      replyMessageIds: messageIds(
+        replies
+          .filter((r) => r.state === "sent" && r.mode === "customer")
+          .map((r) => r.provider_message_id),
+      ),
+    };
+  },
+  async claim(input) {
+    const { data, error } = await client().rpc("claim_support_reply", {
+      _ticket_id: input.ticketId,
+      _staff_user_id: input.staffUserId,
+      _mode: input.mode,
+      _to_email: input.to,
+      _from_address: input.from,
+      _subject: input.subject,
+      _body: input.body,
+      _in_reply_to: input.inReplyTo,
+      _references: input.references,
+      _idempotency_key: input.idempotencyKey,
+    });
+    if (error) throw new Error("Unable to record the support reply");
+    const row = firstRow(data);
+    if (!row || !["ready", "sent", "busy", "review"].includes(String(row.state)))
+      throw new Error("Invalid support reply claim");
+    return {
+      state: row.state as "ready" | "sent" | "busy" | "review",
+      id: String(row.id),
+      providerEmailId: asNullable(row.provider_email_id),
+    };
+  },
+  async finish(replyId, result, providerEmailId, providerMessageId, error) {
+    const res = await client().rpc("finish_support_reply", {
+      _reply_id: replyId,
+      _result: result,
+      _provider_email_id: providerEmailId,
+      _provider_message_id: providerMessageId,
+      _error: error,
+    });
+    if (res.error) throw new Error("Unable to record the support reply outcome");
   },
 };

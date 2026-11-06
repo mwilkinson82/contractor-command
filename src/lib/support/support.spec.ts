@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { sendManualSupportReply, processSupportInbound } from "./process.ts";
-import type { OpenedSupportTicket, SupportTicketStore } from "./store.ts";
+import type {
+  OpenedSupportTicket,
+  SupportReplyClaimInput,
+  SupportReplyStore,
+  SupportThreadContext,
+  SupportTicketStore,
+} from "./store.ts";
 import { renderSupportAutoreply } from "./template.ts";
 import {
   autoreplySubject,
@@ -467,63 +473,221 @@ describe("processSupportInbound", () => {
   });
 });
 
-describe("sendManualSupportReply", () => {
-  it("replies on the ticket thread from the support address and honors the preview flag", async () => {
-    const store = memoryStore();
-    await store.open({
-      resendEmailId: "em_1",
-      brand: "athena",
-      fromEmail: "pat@example.com",
-      subject: "Gate code",
-      messageId: "<gate@example.com>",
-      receivedAt: "2026-10-28T12:00:00.000Z",
-      rawSummary: "The gate code changed.",
-    });
-    const ticket = store.rows[0]!;
-    const sends: Array<Record<string, unknown>> = [];
-    const fetchImpl = (async (_url: string, init?: RequestInit) => {
-      sends.push(JSON.parse(String(init?.body)));
-      return new Response(JSON.stringify({ id: "manual_1" }), { status: 200 });
-    }) as typeof fetch;
+function memoryReplies(context: Partial<SupportThreadContext> = {}) {
+  const rows = new Map<
+    string,
+    {
+      id: string;
+      input: SupportReplyClaimInput;
+      state: string;
+      providerEmailId: string | null;
+      providerMessageId: string | null;
+      error: string | null;
+    }
+  >();
+  const store: SupportReplyStore = {
+    async threadContext() {
+      return {
+        customerMessageIds: context.customerMessageIds ?? [],
+        receiptMessageIds: context.receiptMessageIds ?? [],
+        replyMessageIds: context.replyMessageIds ?? [],
+      };
+    },
+    async claim(input) {
+      const existing = rows.get(input.idempotencyKey);
+      if (existing) {
+        if (existing.state === "sent" || existing.state === "review")
+          return {
+            state: existing.state as "sent" | "review",
+            id: existing.id,
+            providerEmailId: existing.providerEmailId,
+          };
+        existing.state = "sending";
+        return { state: "ready", id: existing.id, providerEmailId: existing.providerEmailId };
+      }
+      const row = {
+        id: "reply-" + (rows.size + 1),
+        input,
+        state: "sending",
+        providerEmailId: null,
+        providerMessageId: null,
+        error: null,
+      };
+      rows.set(input.idempotencyKey, row);
+      return { state: "ready", id: row.id, providerEmailId: null };
+    },
+    async finish(id, result, providerEmailId, providerMessageId, error) {
+      const row = [...rows.values()].find((r) => r.id === id)!;
+      if (result !== "accepted") row.state = result;
+      row.providerEmailId = providerEmailId ?? row.providerEmailId;
+      row.providerMessageId = providerMessageId ?? row.providerMessageId;
+      row.error = error;
+    },
+  };
+  return { store, rows };
+}
 
-    const preview = await sendManualSupportReply({
+function replyResend(status = 200) {
+  const sends: Array<Record<string, unknown>> = [];
+  const keys: string[] = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      sends.push(JSON.parse(String(init.body)));
+      keys.push(String((init.headers as Record<string, string>)["Idempotency-Key"]));
+      if (status !== 200) return new Response("{}", { status });
+      return new Response(JSON.stringify({ id: "reply_" + sends.length }), { status: 200 });
+    }
+    const last = sends.at(-1)!;
+    return new Response(
+      JSON.stringify({
+        id: String(url).split("/").at(-1),
+        from: last.from,
+        to: last.to,
+        message_id: "<delivered-" + sends.length + "@resend.dev>",
+      }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+  return { sends, keys, fetchImpl };
+}
+
+async function gateTicket() {
+  const store = memoryStore();
+  await store.open({
+    resendEmailId: "em_1",
+    brand: "athena",
+    fromEmail: "pat@example.com",
+    subject: "Gate code",
+    messageId: "<gate@example.com>",
+    receivedAt: "2026-10-28T12:00:00.000Z",
+    rawSummary: "The gate code changed.",
+  });
+  return { store, ticket: store.rows[0]! };
+}
+
+describe("sendManualSupportReply", () => {
+  it("sends a test copy to Marshall only, from support, signed Athena Support, and logs it", async () => {
+    const { store, ticket } = await gateTicket();
+    const replies = memoryReplies();
+    const { sends, fetchImpl } = replyResend();
+    const result = await sendManualSupportReply({
       ticketId: ticket.id,
-      message: "Please <b>see</b> the gate.",
+      message: "Please <b>see</b> the gate.\n\nThe code is 1234.",
+      mode: "preview",
+      staffUserId: "staff-1",
       apiKey: "re_test",
       store,
-      env: {},
+      replies: replies.store,
       fetchImpl,
     });
-    expect(preview).toMatchObject({
+    expect(result).toMatchObject({
       ticketNumber: "ATH-0001",
       from: "Athena Support <support@meetathena.io>",
       to: SUPPORT_PREVIEW_TO,
       preview: true,
-      resendId: "manual_1",
+      resendId: "reply_1",
+      alreadySent: false,
     });
+    expect(sends).toHaveLength(1);
+    expect(sends[0]?.to).toEqual([SUPPORT_PREVIEW_TO]);
     expect(sends[0]?.subject).toBe("Re: Gate code [ATH-0001]");
     expect(sends[0]?.headers).toMatchObject({
       "In-Reply-To": "<gate@example.com>",
       References: "<gate@example.com>",
-      "X-ALP-Support-Mail": "manual-preview",
+      "X-ALP-Support-Mail": "reply-preview",
     });
     expect(sends[0]?.headers).not.toHaveProperty("Auto-Submitted");
-    expect(String(sends[0]?.html)).toContain("Please &lt;b&gt;see&lt;/b&gt; the gate.");
-    expect(String(sends[0]?.html)).not.toContain("<b>see</b>");
+    expect(sends[0]).not.toHaveProperty("cc");
+    expect(sends[0]).not.toHaveProperty("bcc");
+    expect(sends[0]).not.toHaveProperty("reply_to");
+    const html = String(sends[0]?.html);
+    expect(html).toContain("Please &lt;b&gt;see&lt;/b&gt; the gate.");
+    expect(html).not.toContain("<b>see</b>");
+    expect(html).toContain(">Athena Support</p>");
+    expect(String(sends[0]?.text)).toMatch(/The code is 1234\.\n\nAthena Support\n/);
     expect(String(sends[0]?.from)).not.toMatch(/marshall@/i);
-    expect(ticket.status).toBe("open");
+    const row = [...replies.rows.values()][0]!;
+    expect(row).toMatchObject({ state: "sent", providerEmailId: "reply_1" });
+    expect(row.input).toMatchObject({
+      mode: "preview",
+      to: SUPPORT_PREVIEW_TO,
+      staffUserId: "staff-1",
+    });
+    expect(row.providerMessageId).toBe("<delivered-1@resend.dev>");
+  });
 
-    const live = await sendManualSupportReply({
+  it("sends to the customer only when the page named that same address, threaded on the ticket", async () => {
+    const { store, ticket } = await gateTicket();
+    const replies = memoryReplies({
+      customerMessageIds: ["<gate@example.com>", "<followup@example.com>"],
+      receiptMessageIds: ["<receipt-1@resend.dev>"],
+    });
+    const { sends, fetchImpl } = replyResend();
+    const base = {
       ticketId: ticket.id,
-      message: "The code is posted.",
+      message: "Fixed it on our side.\n\nAthena Support",
+      mode: "customer" as const,
+      staffUserId: "staff-1",
       apiKey: "re_test",
       store,
-      env: { ATHENA_SUPPORT_ACK_LIVE: "true" },
+      replies: replies.store,
       fetchImpl,
+    };
+    await expect(sendManualSupportReply({ ...base, expectTo: null })).rejects.toThrow(/recipient/);
+    await expect(sendManualSupportReply({ ...base, expectTo: "someone@else.com" })).rejects.toThrow(
+      /recipient/,
+    );
+    expect(sends).toHaveLength(0);
+    const result = await sendManualSupportReply({ ...base, expectTo: "Pat@Example.com" });
+    expect(result).toMatchObject({ to: "pat@example.com", preview: false, alreadySent: false });
+    expect(sends[0]?.to).toEqual(["pat@example.com"]);
+    expect(sends[0]?.headers).toMatchObject({
+      "In-Reply-To": "<followup@example.com>",
+      References: "<gate@example.com> <followup@example.com> <receipt-1@resend.dev>",
+      "X-ALP-Support-Mail": "reply",
     });
-    expect(live.to).toBe(SUPPORT_PREVIEW_TO);
-    expect(live.preview).toBe(true);
-    expect(ticket.status).toBe("open");
+    // Already signed: the signature is not doubled.
+    expect(String(sends[0]?.text).match(/Athena Support/g)?.length).toBe(2);
+
+    const again = await sendManualSupportReply({ ...base, expectTo: "pat@example.com" });
+    expect(again.alreadySent).toBe(true);
+    expect(sends).toHaveLength(1);
+  });
+
+  it("never sends from Marshall or to a support address, and records a failed send", async () => {
+    const { store, ticket } = await gateTicket();
+    ticket.from_email = "support@meetathena.io";
+    const replies = memoryReplies();
+    const { sends, fetchImpl } = replyResend();
+    await expect(
+      sendManualSupportReply({
+        ticketId: ticket.id,
+        message: "Hi",
+        mode: "preview",
+        staffUserId: "staff-1",
+        apiKey: "re_test",
+        store,
+        replies: replies.store,
+        fetchImpl,
+      }),
+    ).rejects.toThrow(/Refusing/);
+    expect(sends).toHaveLength(0);
+
+    ticket.from_email = "pat@example.com";
+    const failing = replyResend(422);
+    await expect(
+      sendManualSupportReply({
+        ticketId: ticket.id,
+        message: "Hi",
+        mode: "preview",
+        staffUserId: "staff-1",
+        apiKey: "re_test",
+        store,
+        replies: replies.store,
+        fetchImpl: failing.fetchImpl,
+      }),
+    ).rejects.toThrow(/did not send/);
+    expect([...replies.rows.values()][0]?.state).toBe("review");
   });
 });
 

@@ -44,12 +44,14 @@ export async function supportDashboard(
       ),
     };
   }
+  const byNumber = /^(ATH|CIR)-[0-9]{4,}$/.test(ticketId);
   const ticket = await client
     .from("support_tickets")
     .select("id,ticket_number,brand,from_email,subject,status,received_at,raw_summary")
-    .eq("id", ticketId)
+    .eq(byNumber ? "ticket_number" : "id", ticketId)
     .maybeSingle();
   if (ticket.error || !ticket.data) throw new Error("Ticket unavailable");
+  ticketId = String(ticket.data.id);
   const messages = await client
     .from("support_messages")
     .select(
@@ -60,25 +62,34 @@ export async function supportDashboard(
     .order("id")
     .range(page * 50, page * 50 + 49);
   if (messages.error) throw new Error("Support conversations unavailable");
+  const withDeliveries = await Promise.all(
+    (messages.data ?? []).map(async (m: any) => {
+      const d = await client
+        .from("support_deliveries")
+        .select("kind,state,text:payload->>text")
+        .eq("message_id", m.id);
+      if (d.error) throw new Error("Delivery evidence unavailable");
+      return {
+        ...m,
+        deliveries: (d.data ?? []).map((v: any) => ({
+          kind: v.kind,
+          state: v.state,
+          text: typeof v.text === "string" ? v.text : "",
+        })),
+      };
+    }),
+  );
+  // Staff replies sent on this ticket. A missing table (SQL not applied yet) leaves the
+  // page readable and only hides the log.
+  const replies = await client
+    .from("support_replies")
+    .select("id,mode,to_email,state,body,error,created_at,sent_at")
+    .eq("ticket_id", ticketId)
+    .order("created_at");
   return {
     ticket: ticket.data,
-    messages: await Promise.all(
-      (messages.data ?? []).map(async (m: any) => {
-        const d = await client
-          .from("support_deliveries")
-          .select("kind,state,text:payload->>text")
-          .eq("message_id", m.id);
-        if (d.error) throw new Error("Delivery evidence unavailable");
-        return {
-          ...m,
-          deliveries: (d.data ?? []).map((v: any) => ({
-            kind: v.kind,
-            state: v.state,
-            text: typeof v.text === "string" ? v.text : "",
-          })),
-        };
-      }),
-    ),
+    messages: withDeliveries,
+    replies: replies?.error ? null : (replies?.data ?? []),
   };
 }
 export async function supportAttachment(
