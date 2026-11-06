@@ -5,6 +5,25 @@
 import { oauthReturnPath } from "./oauth-return-path";
 import { hostedPageName, isUuid, JOB_PAGES } from "./report-pages";
 
+/**
+ * Every /r/job/<id>/<page> board the route serves. The sign-in return accepts exactly these,
+ * so a signed-out visit to any of them gets the email form, never a dead end.
+ */
+export const JOB_BOARD_PAGES = [
+  "payment-applications",
+  "home",
+  "estimate",
+  "gap-check",
+  "billing-records",
+  "purchase-orders",
+  "buyout",
+  "accounting",
+  "production",
+  "daily-log",
+  "record",
+  ...JOB_PAGES,
+] as const;
+
 export const BOARD_SIGN_IN_TITLE = "Sign in to keep this board open";
 
 const PARSE_ORIGIN = "https://app.invalid";
@@ -52,17 +71,7 @@ export function boardSignInReturn(value: unknown): string | undefined {
   }
   if (parts.length !== 4) return undefined;
   const page = hostedPageName(parts[3]);
-  if (
-    page !== "payment-applications" &&
-    page !== "home" &&
-    page !== "billing-records" &&
-    page !== "purchase-orders" &&
-    page !== "accounting" &&
-    page !== "production" &&
-    !(JOB_PAGES as readonly string[]).includes(page) &&
-    !isRequestLog
-  )
-    return undefined;
+  if (!(JOB_BOARD_PAGES as readonly string[]).includes(page) && !isRequestLog) return undefined;
   return `/r/job/${jobId}/${page}${search ? `?${search}` : ""}${hash}`;
 }
 

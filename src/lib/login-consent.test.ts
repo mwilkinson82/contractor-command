@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { athenaCodeSignInDestination, completeAthenaCodeSignIn } from "./athena-code-sign-in";
+import {
+  athenaCodeSignInDestination,
+  completeAthenaCodeSignIn,
+  completeAthenaPasswordSignIn,
+} from "./athena-code-sign-in";
 
 const CONSENT = "/oauth/consent?authorization_id=synthetic";
 const CONSENT_WITH_QUERY = "/oauth/consent?authorization_id=synthetic&next=approve";
@@ -40,7 +44,9 @@ const route = Route as unknown as {
 };
 
 function page(props?: { initialCodeSent?: boolean }) {
-  const node = props ? createElement<{ initialCodeSent?: boolean }>(LoginForm, props) : createElement(route.component);
+  const node = props
+    ? createElement<{ initialCodeSent?: boolean }>(LoginForm, props)
+    : createElement(route.component);
   return renderToStaticMarkup(node);
 }
 
@@ -63,6 +69,9 @@ describe("consent login uses the emailed code", () => {
     expect(html).not.toContain("Use password instead");
     expect(html).not.toContain('type="password"');
     expect(html).not.toMatch(/magic link/i);
+    // Reviewers and members with a password can switch to it; the code stays the default.
+    expect(html).toContain('data-signin="use-password"');
+    expect(html).toContain("Sign in with a password");
   });
 
   it("shows the 8-digit code entry and still no magic-link button", () => {
@@ -188,5 +197,59 @@ describe("consent redirect after the code verifies", () => {
     expect(skipped.ok).toBe(false);
     expect(verify).toHaveBeenCalledTimes(1);
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe("password sign-in on Athena's login", () => {
+  it("signs in with the password and returns to the consent page", async () => {
+    const assign = vi.fn();
+    const signIn = vi.fn(async () => ({ error: null }));
+    const result = await completeAthenaPasswordSignIn({
+      email: " reviewer@example.com ",
+      password: "secret-pass",
+      redirectTo: CONSENT_WITH_QUERY,
+      onAthenaHost: true,
+      signIn,
+      assign,
+    });
+    expect(signIn).toHaveBeenCalledWith({ email: "reviewer@example.com", password: "secret-pass" });
+    expect(result).toEqual({ ok: true, destination: CONSENT_WITH_QUERY });
+    expect(assign).toHaveBeenCalledWith(CONSENT_WITH_QUERY);
+  });
+
+  it("stays on the form when the password is wrong or missing", async () => {
+    const assign = vi.fn();
+    const wrong = await completeAthenaPasswordSignIn({
+      email: "reviewer@example.com",
+      password: "nope",
+      redirectTo: CONSENT,
+      onAthenaHost: true,
+      signIn: async () => ({ error: { message: "Invalid login credentials" } }),
+      assign,
+    });
+    expect(wrong.ok).toBe(false);
+    const empty = await completeAthenaPasswordSignIn({
+      email: "reviewer@example.com",
+      password: "",
+      redirectTo: CONSENT,
+      onAthenaHost: true,
+      signIn: async () => ({ error: null }),
+      assign,
+    });
+    expect(empty).toEqual({ ok: false, message: "Enter your email and password." });
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("never follows an off-site redirect after a password sign-in", async () => {
+    const assign = vi.fn();
+    const result = await completeAthenaPasswordSignIn({
+      email: "reviewer@example.com",
+      password: "secret-pass",
+      redirectTo: "//evil.example/steal",
+      onAthenaHost: true,
+      signIn: async () => ({ error: null }),
+      assign,
+    });
+    expect(result.ok && result.destination.startsWith("//")).toBe(false);
   });
 });

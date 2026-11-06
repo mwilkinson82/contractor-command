@@ -25,9 +25,17 @@ export type LoginCopyInput = {
   fromConnect: boolean;
   magicRequested: boolean;
   email?: string;
+  /** Athena only: the member chose to sign in with a password. */
+  password?: boolean;
 };
 
-export function loginCopy({ athena, fromConnect, magicRequested, email = "" }: LoginCopyInput) {
+export function loginCopy({
+  athena,
+  fromConnect,
+  magicRequested,
+  email = "",
+  password = false,
+}: LoginCopyInput) {
   const title =
     magicRequested && !athena
       ? "Request received."
@@ -43,7 +51,9 @@ export function loginCopy({ athena, fromConnect, magicRequested, email = "" }: L
         : "Type the 8-digit code from the email. Each code works once."
       : `If this address is eligible and email delivery is available, you will receive a secure sign-in link. Check the spelling of ${email}, or sign in with your password.`
     : athena
-      ? "No password required. Use the email associated with your Athena account."
+      ? password
+        ? "Use the email and password for your Athena account."
+        : "No password required. Use the email associated with your Athena account."
       : "No password required. Use the email associated with your membership.";
   return { title, subtitle };
 }

@@ -71,6 +71,10 @@ export function proposalBlockers(input: Board): string[] {
       else if (option.price_reviewed_on === null)
         blockers.push(`${where}: review the customer price.`);
     }
+  for (const gap of stepUpGaps(board, "price_cents"))
+    blockers.push(
+      `${gap.title} (${TIER_LABEL[gap.higher]}): sells for ${gap.high === gap.low ? "the same as" : "less than"} ${TIER_LABEL[gap.lower]} (${money(gap.high)} vs ${money(gap.low)} each), so the customer sees no upgrade. Pick a ${TIER_LABEL[gap.higher]} product whose web price for this finish is above ${TIER_LABEL[gap.lower]}'s.`,
+    );
   if (blockers.length === 0) {
     const totals = packageTotals(board);
     if (optionNames.some((tier) => totals[tier].total_cents === null))
@@ -78,6 +82,51 @@ export function proposalBlockers(input: Board): string[] {
   }
   return blockers;
 }
+
+export type StepUpGap = {
+  id: string;
+  title: string;
+  lower: OptionName;
+  higher: OptionName;
+  low: number;
+  high: number;
+};
+
+/**
+ * Where a step up doesn't cost more than the tier below it: Better at or under Good, or Best at or
+ * under Better, by sell price or by the web price found for that finish. The customer would see a
+ * $0 (or negative) upgrade, so neither a save nor a share lets one through.
+ */
+export function stepUpGaps(
+  board: Board,
+  field: "price_cents" | "found_price_cents",
+  only?: string[],
+): StepUpGap[] {
+  const gaps: StepUpGap[] = [];
+  for (const s of board.selections) {
+    if (only && !only.some((id) => id.toLowerCase() === s.id.toLowerCase())) continue;
+    for (const [lower, higher] of [
+      ["good", "better"],
+      ["better", "best"],
+    ] as const) {
+      const low = s.options[lower][field];
+      const high = s.options[higher][field];
+      if (
+        s.options[lower].description &&
+        s.options[higher].description &&
+        low !== null &&
+        high !== null &&
+        high <= low
+      )
+        gaps.push({ id: s.id, title: s.title, lower, higher, low, high });
+    }
+  }
+  return gaps;
+}
+
+const money = (cents: number) =>
+  "$" +
+  (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 type Totals =
   | { total_cents: number; difference_cents: number }

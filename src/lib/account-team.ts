@@ -52,6 +52,15 @@ export function planLabel(tier: string | null | undefined): string {
   if (!tier) return "No Athena plan yet";
   return PLAN_LABEL[tier] ?? tier.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+/** Athena's own pages name every plan as an Athena plan; Circle tiers read as the Athena team plan. */
+const ATHENA_PLAN_LABEL: Record<string, string> = {
+  circle: "Athena Team",
+  hardcore: "Athena Team",
+};
+export function athenaPlanLabel(tier: string | null | undefined): string {
+  if (tier && ATHENA_PLAN_LABEL[tier]) return ATHENA_PLAN_LABEL[tier];
+  return planLabel(tier);
+}
 /** Only Athena plans have a fixed list price; Circle rates vary (and comps pay nothing), so none is shown. */
 export function planRate(tier: string | null | undefined): string | null {
   return tier ? (PLAN_RATE[tier] ?? null) : null;

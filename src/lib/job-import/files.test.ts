@@ -223,3 +223,25 @@ describe("the job's contract and spec files in an export", () => {
     expect(read.documents.map((d) => d.kind)).toEqual(["contract"]);
   });
 });
+
+describe("Overwatch export with its documents", () => {
+  it("reads the job file and saves the contract and specs from Overwatch's folders", async () => {
+    const json = JSON.stringify({ format: "overwatch.job_export", format_version: 2, project: {} });
+    const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
+    const read = await readImportFile(
+      zip({
+        "overwatch-job-2717-for-athena.json": json,
+        "Prime Contracts/Signed_Final_v3.pdf": pdf,
+        "Prime Contracts/Exhibit B.pdf": pdf,
+        "Specifications/Spec Book Vol 1.pdf": pdf,
+      }),
+      "overwatch-job-2717-for-athena.zip",
+    );
+    expect(read.overwatch).toBe(json);
+    expect(read.documents.map((d) => [d.name, d.kind])).toEqual([
+      ["Prime Contracts/Signed_Final_v3.pdf", "contract"],
+      ["Specifications/Spec Book Vol 1.pdf", "spec"],
+    ]);
+    expect(read.other.map((o) => o.name)).toEqual(["Prime Contracts/Exhibit B.pdf"]);
+  });
+});

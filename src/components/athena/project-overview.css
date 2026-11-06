@@ -179,10 +179,16 @@
   font-weight: 500;
   margin: 0 0 8px;
 }
+.jh-metric {
+  container-type: inline-size;
+}
+/* A figure shrinks with its card instead of breaking mid-number; words still wrap at spaces. */
 .jh-metric > strong {
   font-size: clamp(23px, 2.25vw, 32px);
+  font-size: clamp(18px, 11.5cqi, 32px);
   line-height: 1.25;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 .jh-metric p,
@@ -324,20 +330,20 @@
   font-size: 12px;
 }
 .jh-routines {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
-.jh-routines .jh-panel-body {
+.jh-routines .jh-routines-body {
   display: flex;
   gap: 12px 20px;
   align-items: center;
   flex-wrap: wrap;
 }
-.jh-routines details {
+.jh-routines-body > details {
   flex: 1;
   min-width: 200px;
   margin: 0;
 }
-.jh-routines .jh-panel-body > a:last-child {
+.jh-routines-body > a:last-child {
   font-size: 12px;
 }
 .jh-grid {
@@ -460,11 +466,11 @@
   .jh-panel > h2 {
     padding: 15px 16px;
   }
-  .jh-routines .jh-panel-body {
+  .jh-routines .jh-routines-body {
     align-items: flex-start;
     flex-direction: column;
   }
-  .jh-routines details {
+  .jh-routines-body > details {
     min-width: 0;
   }
   .jh-actions .jh-button {
@@ -483,5 +489,310 @@
   }
   .jh-actions {
     flex-direction: column;
+  }
+}
+
+/* Grouped left menu: every board link, in groups that open on click. */
+.jh-navwrap {
+  position: relative;
+  background: #e9f0f8;
+  min-width: 0;
+}
+.jh-nav-groups {
+  gap: 2px;
+}
+.jh-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c3654;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: background 0.15s;
+}
+.jh-group summary::-webkit-details-marker {
+  display: none;
+}
+.jh-group summary:hover {
+  background: #dfeafa;
+}
+.jh-group[open] > summary {
+  color: #245fbd;
+}
+.jh-chev {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.18s ease;
+}
+.jh-group[open] .jh-chev {
+  transform: rotate(90deg);
+}
+.jh-group-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 8px 10px;
+  margin-left: 6px;
+  border-left: 2px solid #d4dfed;
+}
+.jh-nav .jh-group-links a {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 9px 10px;
+}
+
+/* Title row: the job name with its phase pills to the right. */
+.jh-titlebar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  min-width: 0;
+}
+.jh-phase {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.jh-phase-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5b718c;
+}
+.jb-stages.jb-stages-compact,
+.jb-stages.jb-stages-compact[data-precon="true"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.jb-stages.jb-stages-compact li {
+  min-width: 0;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+.jb-stages.jb-stages-compact li b {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.jb-stages.jb-stages-compact li[data-state="done"] {
+  background: #e7f5ee;
+  border-color: #bfe3cf;
+}
+.jb-stages.jb-stages-compact li[data-state="now"] {
+  background: #245fbd;
+  border-color: #245fbd;
+  box-shadow: 0 0 0 0 rgba(36, 95, 189, 0.45);
+  animation: jh-phase-pulse 2.4s ease-out infinite;
+}
+.jb-stages.jb-stages-compact li[data-state="now"] b {
+  color: #fff;
+}
+.jb-stages.jb-stages-compact li:hover {
+  transform: translateY(-1px);
+}
+@keyframes jh-phase-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(36, 95, 189, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(36, 95, 189, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(36, 95, 189, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jb-stages.jb-stages-compact li[data-state="now"] {
+    animation: none;
+  }
+  .jb-stages.jb-stages-compact li,
+  .jh-chev {
+    transition: none;
+  }
+}
+
+/* Money row: customer money plus the IOR budget and margin. */
+/* Three customer-money cards, then the two IOR cards, each row filling the width, so figures never wrap mid-number. */
+.jh-metrics.jh-metrics-fit {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.jh-metrics-fit > .jh-metric {
+  grid-column: span 2;
+}
+.jh-metrics-fit > .jh-metric:nth-child(n + 4) {
+  grid-column: span 3;
+}
+/* Tablet: two cards a row (outstanding payments takes a full row), so figures stay large. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .jh-metrics.jh-metrics-fit {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .jh-metrics-fit > .jh-metric,
+  .jh-metrics-fit > .jh-metric:nth-child(n + 4) {
+    grid-column: auto;
+  }
+  .jh-metrics-fit > .jh-metric:nth-child(3) {
+    grid-column: span 2;
+  }
+}
+.jh-hero .jh-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* More Athena can do: asks the member copies into their Athena chat. */
+.jh-more {
+  margin: 0 0 18px;
+}
+.jh-more .jh-panel-body > p {
+  margin: 0 0 10px;
+}
+.jh-more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.jh-more-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border: 1px solid #e1e9f3;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.jh-more-list li > div {
+  display: grid;
+  gap: 2px;
+}
+.jh-more-list li > div strong {
+  color: #1c3654;
+  font-size: 13px;
+}
+.jh-more-list li > div span {
+  font-size: 12px;
+  color: #5b718c;
+}
+.jh-more-list li > span {
+  flex: none;
+}
+
+/* Dig deeper on this project. */
+.jh-dig-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jh-dig-title svg {
+  color: #245fbd;
+}
+.jh-dig-group {
+  margin: 0 0 18px;
+}
+.jh-dig-group h3 {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5b718c;
+  margin: 0 0 10px;
+}
+
+@media (max-width: 760px) {
+  /* The menu becomes a row of group buttons; an open group drops its links under the row. */
+  .jh-navwrap {
+    border-bottom: 1px solid #d4dfed;
+    z-index: 5;
+  }
+  .jh-nav.jh-nav-groups {
+    border-bottom: 0;
+    scrollbar-width: none;
+  }
+  .jh-group {
+    flex: none;
+  }
+  .jh-group summary {
+    white-space: nowrap;
+    border: 1px solid #c9d8ec;
+    background: #fff;
+    border-radius: 999px;
+    padding: 8px 14px;
+  }
+  .jh-group[open] > summary {
+    background: #245fbd;
+    border-color: #245fbd;
+    color: #fff;
+  }
+  .jh-chev {
+    transform: rotate(90deg);
+  }
+  .jh-group[open] .jh-chev {
+    transform: rotate(-90deg);
+  }
+  .jh-group-links {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: calc(100% + 4px);
+    margin: 0;
+    padding: 8px;
+    border: 1px solid #d4dfed;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(28, 54, 84, 0.18);
+    z-index: 20;
+  }
+  .jh-nav .jh-group-links a {
+    white-space: normal;
+    color: #1c3654;
+  }
+  .jh-metrics.jh-metrics-fit {
+    grid-template-columns: 1fr;
+  }
+  .jh-metrics-fit > .jh-metric,
+  .jh-metrics-fit > .jh-metric:nth-child(n + 4) {
+    grid-column: auto;
+  }
+  .jh-titlebar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .jh-phase {
+    flex-wrap: wrap;
+  }
+  .jh-more-list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .jh-more-list li > span .jb-btn {
+    width: 100%;
   }
 }

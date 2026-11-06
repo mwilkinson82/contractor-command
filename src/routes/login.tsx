@@ -10,7 +10,7 @@ import { athenaPageReturn } from "@/lib/athena-page-return";
 import { oauthReturnPath, oauthConsentReturn } from "@/lib/oauth-return-path";
 import { onAthenaHost, currentHostname } from "@/lib/athena-host-current";
 import { isLovableHost } from "@/lib/athena-host";
-import { completeAthenaCodeSignIn } from "@/lib/athena-code-sign-in";
+import { completeAthenaCodeSignIn, completeAthenaPasswordSignIn } from "@/lib/athena-code-sign-in";
 import {
   ATHENA_RESEND_SECONDS,
   ATHENA_SUPPORT_MAILTO,
@@ -195,6 +195,25 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
     }
   }
 
+  async function onAthenaPasswordSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !isHydrated) return;
+    setBusy(true);
+    setErr(null);
+    const result = await completeAthenaPasswordSignIn({
+      email,
+      password,
+      redirectTo,
+      onAthenaHost: onAthenaHost(),
+      signIn: (input) => boundedStep("session", () => supabase.auth.signInWithPassword(input)),
+      assign: (url) => window.location.assign(url),
+    });
+    if (!result.ok) {
+      setErr(result.message);
+      setBusy(false);
+    }
+  }
+
   async function onPasswordSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (busy || !isHydrated) return;
@@ -227,6 +246,7 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
     fromConnect,
     magicRequested: athenaBrand ? codeSent : magicRequested,
     email,
+    password: athenaBrand && mode === "password",
   });
 
   if (athenaBrand) {
@@ -297,6 +317,57 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
               .
             </div>
           </form>
+        ) : mode === "password" ? (
+          <form onSubmit={onAthenaPasswordSubmit} className="space-y-5" data-signin="password">
+            <AuthField
+              id="email"
+              label="Work email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="name@company.com"
+              autoComplete="email"
+              required
+              autoFocus
+            />
+            <AuthField
+              id="password"
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              placeholder="Your password"
+              autoComplete="current-password"
+              required
+              hint={
+                <Link
+                  to="/forgot-password"
+                  className="text-[12px] text-clay hover:underline"
+                  data-signin="set-password"
+                >
+                  Forgot or never set a password?
+                </Link>
+              }
+            />
+            {err && <p className="text-[12px] text-[color:var(--danger-warm)]">{err}</p>}
+            <AuthSubmit
+              busy={busy || !isHydrated}
+              label="Sign in"
+              busyLabel={busy ? "Signing in" : "Sign in"}
+            />
+            <button
+              type="button"
+              className="mx-auto block min-h-[44px] text-[12px] font-medium text-clay hover:underline"
+              onClick={() => {
+                setErr(null);
+                setPassword("");
+                setMode("magic");
+              }}
+              data-signin="use-code"
+            >
+              Email me a sign-in code instead
+            </button>
+          </form>
         ) : (
           <form onSubmit={onAthenaEmailSubmit} className="space-y-5" data-signin="email-code">
             <AuthField
@@ -316,6 +387,17 @@ export function LoginForm({ initialCodeSent = false }: { initialCodeSent?: boole
               label="Email me a sign-in code"
               busyLabel={busy ? "Sending code" : "Email me a sign-in code"}
             />
+            <button
+              type="button"
+              className="mx-auto block min-h-[44px] text-[12px] font-medium text-clay hover:underline"
+              onClick={() => {
+                setErr(null);
+                setMode("password");
+              }}
+              data-signin="use-password"
+            >
+              Sign in with a password
+            </button>
             <p className="text-center text-[12px] text-foreground/75" data-signin="new-member">
               New to Athena?{" "}
               <a className="font-medium text-clay hover:underline" href={ATHENA_TRIAL_URL}>

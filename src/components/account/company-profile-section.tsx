@@ -99,10 +99,21 @@ function Field({
 export function CompanyBoardLinkCard({
   companyId,
   profile,
+  loading = false,
+  companyName = null,
 }: {
   companyId: string | null;
   profile: CompanyProfile | null;
+  /** True until the member's company has loaded, so a slow first load never reads as "no company". */
+  loading?: boolean;
+  companyName?: string | null;
 }) {
+  if (loading && !isCompanyId(companyId))
+    return (
+      <div className="aa-card" role="status">
+        <Loader2 size={16} className="aa-spin" /> Loading your company…
+      </div>
+    );
   if (!isCompanyId(companyId))
     return (
       <div className="aa-card">
@@ -112,18 +123,23 @@ export function CompanyBoardLinkCard({
         </p>
       </div>
     );
-  const name = profile?.name?.trim() || "Your company";
+  const name = profile?.name?.trim() || companyName?.trim() || "Your company";
   return (
     <section className="aa-card" aria-labelledby="aa-company-board-title">
       <div className="aa-row" style={{ justifyContent: "flex-start", gap: 14 }}>
         <span className="aa-logo-box" aria-hidden="true">
-          {profile?.logo_url ? <img src={profile.logo_url} alt="" /> : companyInitials(profile?.name)}
+          {profile?.logo_url ? (
+            <img src={profile.logo_url} alt="" />
+          ) : (
+            companyInitials(profile?.name)
+          )}
         </span>
         <div>
           <h2 id="aa-company-board-title">{name} company board</h2>
           <p className="aa-lede">
-            Your company details and logo live on your company board now, with your profile, kinds of work, labor
-            rules and the tools you use. Team, plan and billing stay here on your account page.
+            Your company details and logo live on your company board now, with your profile, kinds
+            of work, labor rules and the tools you use. Team, plan and billing stay here on your
+            account page.
           </p>
         </div>
       </div>

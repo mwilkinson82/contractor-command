@@ -60,7 +60,7 @@ const LINES = new Set(
   ]).map((line) => line.trim()),
 );
 const ORDER =
-  /^(?:REQUIRED VIEW\b|Card shown\. Do not add text|REQUIRED: (?:Draw this bar chart now|Any email card|end the reply with the SOV delivery question|Always keep the heading From your inbox and calendar))/;
+  /^(?:REQUIRED VIEW\b|Card shown\. (?:Do not add text|Give your own short read)|REQUIRED: (?:Draw this bar chart now|Any email card|end the reply with the SOV delivery question|Always keep the heading From your inbox and calendar))/;
 const DISPLAY_BLOCK =
   /^(?:HOUSE STYLE \(for the assistant|The morning card leads\.|To produce the SOV file, use structuredContent\.sov exactly)/;
 const HTML_DOCUMENT = /(<!doctype\s+html\b[\s\S]*?<\/html\s*>)/gi;

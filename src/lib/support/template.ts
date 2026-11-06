@@ -113,6 +113,18 @@ export function renderSupportAutoreply(input: {
   });
 }
 
+/** Staff reply paragraphs: blank lines split paragraphs, and the inbox signs every reply. */
+export function staffReplyParagraphs(inbox: SupportInbox, message: string): string[] {
+  const paragraphs = message
+    .replace(/\r\n?/g, "\n")
+    .split(/\n[ \t]*\n+/)
+    .map((paragraph) => paragraph.replace(/[ \t]+$/gm, "").trim())
+    .filter(Boolean);
+  const lastLine = (paragraphs.at(-1) ?? "").split("\n").at(-1)?.trim().toLowerCase() ?? "";
+  if (lastLine !== inbox.product.toLowerCase()) paragraphs.push(inbox.product);
+  return paragraphs;
+}
+
 export function renderManualSupportReply(input: {
   inbox: SupportInbox;
   ticketNumber: string;
@@ -123,7 +135,10 @@ export function renderManualSupportReply(input: {
     ticketNumber: input.ticketNumber,
     heading: "Following up",
     preview: `Following up on ${input.ticketNumber}.`,
-    paragraphs: [input.message, `Your ticket number is ${input.ticketNumber}.`],
+    paragraphs: [
+      ...staffReplyParagraphs(input.inbox, input.message),
+      `Your ticket number is ${input.ticketNumber}.`,
+    ],
     footer: "Reply to this email if you need to add anything. It stays on this ticket.",
   });
 }

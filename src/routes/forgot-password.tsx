@@ -4,9 +4,18 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { requestPasswordReset } from "@/lib/password-reset.functions";
 import { AuthCard, AuthField, AuthSubmit } from "@/components/auth/auth-card";
+import { onAthenaHost } from "@/lib/athena-host-current";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "Reset password — ALP Contractor Circle" }] }),
+  head: () => ({
+    meta: [
+      {
+        title: onAthenaHost()
+          ? "Set your password — Athena"
+          : "Reset password — ALP Contractor Circle",
+      },
+    ],
+  }),
   component: ForgotPasswordPage,
 });
 
@@ -16,6 +25,7 @@ function ForgotPasswordPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const athena = onAthenaHost();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +49,7 @@ function ForgotPasswordPage() {
   if (sent) {
     return (
       <AuthCard
+        brand={athena ? "athena" : "hub"}
         title="Check your inbox."
         subtitle={`If an account exists for ${email}, a reset link is on its way.`}
       >
@@ -60,8 +71,13 @@ function ForgotPasswordPage() {
 
   return (
     <AuthCard
-      title="Reset password."
-      subtitle="Enter the email on your account. We'll send a secure link."
+      brand={athena ? "athena" : "hub"}
+      title={athena ? "Set or reset your password." : "Reset password."}
+      subtitle={
+        athena
+          ? "Enter your Athena email. We'll send a secure link to choose a password."
+          : "Enter the email on your account. We'll send a secure link."
+      }
     >
       <form onSubmit={onSubmit} className="space-y-6">
         <AuthField

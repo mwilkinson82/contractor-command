@@ -3,7 +3,8 @@ import { AccountingRecordPage } from "@/components/athena/AccountingRecordPage";
 import { accountingContextDates, accountingTargetFromSearch } from "@/lib/accounting-record-target";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ReportPageView } from "@/components/athena/ReportPage";
-import { JOB_PAGES, hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
+import { hostedPageName, isUuid, type AnyPage } from "@/lib/report-pages";
+import { JOB_BOARD_PAGES } from "@/lib/board-sign-in";
 import { PurchaseOrdersPage } from "@/components/athena/PurchaseOrdersPage";
 import { ProductionReportPage } from "@/components/athena/ProductionReportPage";
 import { AccountingReportPage } from "@/components/athena/AccountingReportPage";
@@ -12,6 +13,7 @@ import { JobHome } from "@/components/athena/JobHome";
 import { JobEstimatePage } from "@/components/athena/JobEstimatePage";
 import { GapCheckPage } from "@/components/athena/GapCheckPage";
 import { DailyRangeReportPage } from "@/components/athena/DailyRangeReportPage";
+import { ProjectRecordPage } from "@/components/athena/ProjectRecordPage";
 import { readBoardToken } from "@/lib/mcp/board-url";
 
 export const Route = createFileRoute("/r/job/$jobId/$page")({
@@ -25,20 +27,7 @@ export const Route = createFileRoute("/r/job/$jobId/$page")({
   },
   beforeLoad: ({ params }) => {
     const page = hostedPageName(params.page);
-    if (
-      !isUuid(params.jobId) ||
-      (page !== "payment-applications" &&
-        page !== "home" &&
-        page !== "estimate" &&
-        page !== "gap-check" &&
-        page !== "billing-records" &&
-        page !== "purchase-orders" &&
-        page !== "buyout" &&
-        page !== "accounting" &&
-        page !== "production" &&
-        page !== "daily-log" &&
-        !(JOB_PAGES as readonly string[]).includes(page))
-    )
+    if (!isUuid(params.jobId) || !(JOB_BOARD_PAGES as readonly string[]).includes(page))
       throw notFound();
   },
   component: JobReportPage,
@@ -69,6 +58,8 @@ function JobReportPage() {
         photos={search.photos}
       />
     );
+  if (hostedPageName(page) === "record")
+    return <ProjectRecordPage jobId={jobId} from={search.from} to={search.to} />;
   if (hostedPageName(page) === "accounting") {
     let selected = null;
     let recordDates = {};

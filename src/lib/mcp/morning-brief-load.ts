@@ -6,7 +6,8 @@ import { audit } from "./jobs";
 import {
   briefSettingsFrom,
   buildMorningBrief,
-  ensureBriefCard,
+  jobToday,
+  MORNING_BRIEF_DEFAULTS,
   parseBriefingTime,
   presentBrief,
   settingsCard,
@@ -22,7 +23,10 @@ import {
 import { normalizeRole } from "./team";
 import { listedJobs } from "./tools/workflow-tools";
 import { ToolError } from "@lovable.dev/mcp-js";
-import { chaseBriefRows, type ChaseRow } from "./submittal-chase";
+import { type ChaseRow } from "./submittal-chase";
+import { buildPmBrief } from "./morning-brief-pm";
+import { loadFocusData, memberFirstName, pickFocusJobs, type FocusData } from "./morning-brief-focus";
+import { renderBriefHtml } from "./cards/brief-html";
 import { loadNoticeBrief } from "./notice-brief";
 
 type RawItem = {
@@ -275,32 +279,79 @@ async function markBriefShown(sb: Sb): Promise<void> {
   }
 }
 
-export async function loadMorningBrief(sb: Sb, companyId?: string, scope?: BriefJobScope) {
-  const loaded = await loadBriefJobs(sb, companyId, scope);
-  let settings: BriefSettings | undefined;
+async function briefSettingsQuiet(sb: Sb): Promise<BriefSettings | undefined> {
   try {
     const res = await sb.rpc("mcp_morning_brief_settings_get");
-    if (!res.error && res.data && typeof res.data === "object") settings = briefSettingsFrom(res.data as BriefSettings);
+    if (!res.error && res.data && typeof res.data === "object") return briefSettingsFrom(res.data as BriefSettings);
   } catch {
-    settings = undefined;
+    /* defaults */
   }
-  const built = buildMorningBrief({ jobs: loaded.jobs, hasCompany: loaded.hasCompany, settings });
-  // Client approvals and questions since the last brief lead the job side. A missing notice feed adds nothing.
-  const since = await loadNoticeBrief(sb as never, { jobId: scope?.job_id });
-  if (since) built.card.sections = [since, ...(built.card.sections ?? [])];
-  built.card = ensureBriefCard(built.card);
+  return undefined;
+}
+
+async function chaseRowsQuiet(sb: Sb, scope?: BriefJobScope): Promise<ChaseRow[]> {
   try {
     const due = await sb.rpc("mcp_submittal_chase_due");
-    if (!due.error && Array.isArray(due.data) && due.data.length) {
-      const chases = due.data as ChaseRow[];
-      // The chase feed is global too. Scope by job identity, never by an ambiguous number.
-      const rows = chaseBriefRows(scope ? chases.filter((row) => row.job_id === scope.job_id) : chases);
-      const overdue = rows.filter((row) => row.flag === "overdue").length;
-      built.card.sections = [...(built.card.sections ?? []), { heading: "Chases", kind: "list", rows }];
-      built.card.kpis = [...(built.card.kpis ?? []), { label: "Chases", value: String(rows.length), flag: overdue ? "overdue" : null }];
-    }
+    if (due.error || !Array.isArray(due.data)) return [];
+    const chases = due.data as ChaseRow[];
+    // The chase feed is global. Scope by job identity, never by an ambiguous number, and keep one row per submittal.
+    const seen = new Set<string>();
+    return (scope ? chases.filter((row) => row.job_id === scope.job_id) : chases).filter((row) => {
+      const key = row.submittal_id || `${row.job_id}:${row.number}:${row.revision}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   } catch {
-    /* a missing chase feed never blocks the brief */
+    return [];
+  }
+}
+
+/**
+ * The PM brief (Nov 5): yesterday, today and this week from the schedule, risks, change orders and
+ * open items, money, other jobs, and "What don't I know yet?". Shared by the morning_brief tool and
+ * the /today page. Read-only.
+ */
+export async function composePmBrief(
+  sb: Sb,
+  input: {
+    companyId?: string;
+    scope?: BriefJobScope;
+    now?: Date;
+    settings?: BriefSettings;
+    /** Jobs already read from the member's own feed (the daily email). Skips the table reads. */
+    preloaded?: { hasCompany: boolean; jobs: BriefJob[] };
+    /** false leaves out notices (the daily email reads as the member without their sign-in). */
+    notices?: boolean;
+  },
+) {
+  const now = input.now ?? new Date();
+  const loaded = input.preloaded ?? (await loadBriefJobs(sb, input.companyId, input.scope));
+  const stored = input.settings ?? (await briefSettingsQuiet(sb));
+  // With no saved time zone, read the morning in the jobs' own zone.
+  const zone = loaded.jobs.find((job) => job.time_zone)?.time_zone;
+  const settings: BriefSettings = stored ?? { ...MORNING_BRIEF_DEFAULTS, time_zone: zone ?? MORNING_BRIEF_DEFAULTS.time_zone };
+  const focusJobs = input.scope ? loaded.jobs.filter((job) => job.job_id === input.scope!.job_id).slice(0, 1) : pickFocusJobs(loaded.jobs, 1);
+  const focus = new Map<string, FocusData>();
+  await Promise.all(
+    focusJobs.map(async (job) => {
+      focus.set(job.job_id, await loadFocusData(sb, job, jobToday(job.time_zone, now)));
+    }),
+  );
+  const [chases, notices, firstName] = await Promise.all([
+    chaseRowsQuiet(sb, input.scope),
+    input.notices === false ? Promise.resolve(null) : loadNoticeBrief(sb as never, { jobId: input.scope?.job_id }).catch(() => null),
+    memberFirstName(sb),
+  ]);
+  const built = buildPmBrief({ jobs: loaded.jobs, focus, settings, now, firstName, chases, notices: notices ?? null });
+  return { ...built, hasCompany: loaded.hasCompany, settings };
+}
+
+export async function loadMorningBrief(sb: Sb, companyId?: string, scope?: BriefJobScope) {
+  const built = await composePmBrief(sb, { companyId, scope });
+  if (!built.hasCompany) {
+    const legacy = buildMorningBrief({ jobs: [], hasCompany: false, settings: built.settings });
+    return presentBrief(legacy.card);
   }
   try {
     await audit(sb, null, "morning_brief", "view_morning_brief", null);
@@ -308,7 +359,7 @@ export async function loadMorningBrief(sb: Sb, companyId?: string, scope?: Brief
     /* audit never blocks the brief */
   }
   await markBriefShown(sb);
-  return presentBrief(built.card);
+  return presentBrief(built.card, renderBriefHtml(built.doc));
 }
 
 export async function readBriefSettings(sb: Sb): Promise<BriefSettings> {

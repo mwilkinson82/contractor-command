@@ -6399,6 +6399,27 @@ export type Database = {
           },
         ]
       }
+      mcp_morning_brief_email_sends: {
+        Row: {
+          created_at: string
+          message_id: string | null
+          sent_on: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          message_id?: string | null
+          sent_on: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          message_id?: string | null
+          sent_on?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mcp_morning_brief_sends: {
         Row: {
           body: string
@@ -6422,6 +6443,7 @@ export type Database = {
       }
       mcp_morning_brief_settings: {
         Row: {
+          email_enabled: boolean
           enabled: boolean
           send_local: string
           time_zone: string
@@ -6429,6 +6451,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          email_enabled?: boolean
           enabled?: boolean
           send_local?: string
           time_zone?: string
@@ -6436,6 +6459,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          email_enabled?: boolean
           enabled?: boolean
           send_local?: string
           time_zone?: string
@@ -7093,6 +7117,86 @@ export type Database = {
           },
         ]
       }
+      mcp_portal_check_requests: {
+        Row: {
+          access_id: string | null
+          company_id: string
+          created_at: string
+          id: string
+          item_id: string
+          job_id: string
+          note: string | null
+          pickup_by: string | null
+          pickup_on: string | null
+          pickup_place: string | null
+          pickup_set_at: string | null
+          pickup_set_by: string | null
+          pickup_window: string | null
+          requested_at: string | null
+        }
+        Insert: {
+          access_id?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          item_id: string
+          job_id: string
+          note?: string | null
+          pickup_by?: string | null
+          pickup_on?: string | null
+          pickup_place?: string | null
+          pickup_set_at?: string | null
+          pickup_set_by?: string | null
+          pickup_window?: string | null
+          requested_at?: string | null
+        }
+        Update: {
+          access_id?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          job_id?: string
+          note?: string | null
+          pickup_by?: string | null
+          pickup_on?: string | null
+          pickup_place?: string | null
+          pickup_set_at?: string | null
+          pickup_set_by?: string | null
+          pickup_window?: string | null
+          requested_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_portal_check_requests_access_id_fkey"
+            columns: ["access_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_check_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_check_requests_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: true
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_portal_check_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_portal_codes: {
         Row: {
           access_id: string
@@ -7142,6 +7246,7 @@ export type Database = {
           access_id: string
           choice: string | null
           code_verified: boolean
+          consent: string | null
           decided_at: string
           decision: string
           email: string
@@ -7158,6 +7263,7 @@ export type Database = {
           access_id: string
           choice?: string | null
           code_verified: boolean
+          consent?: string | null
           decided_at?: string
           decision: string
           email: string
@@ -7174,6 +7280,7 @@ export type Database = {
           access_id?: string
           choice?: string | null
           code_verified?: boolean
+          consent?: string | null
           decided_at?: string
           decision?: string
           email?: string
@@ -7606,6 +7713,7 @@ export type Database = {
           billing: string
           closed_on: string | null
           company_id: string
+          construction_line: boolean
           created_at: string
           created_by: string
           credit: boolean
@@ -7625,9 +7733,13 @@ export type Database = {
           job_id: string
           note: string | null
           outcome: string | null
+          own_terms: Json
           owner_owns_drawings: boolean
+          payments: Json
+          portal_item_id: string | null
           price_cents: number
           sent_on: string | null
+          signed_decision_id: string | null
           signed_name: string | null
           signed_on: string | null
           signed_via: string | null
@@ -7641,6 +7753,7 @@ export type Database = {
           billing?: string
           closed_on?: string | null
           company_id: string
+          construction_line?: boolean
           created_at?: string
           created_by?: string
           credit?: boolean
@@ -7660,9 +7773,13 @@ export type Database = {
           job_id: string
           note?: string | null
           outcome?: string | null
+          own_terms?: Json
           owner_owns_drawings?: boolean
+          payments?: Json
+          portal_item_id?: string | null
           price_cents?: number
           sent_on?: string | null
+          signed_decision_id?: string | null
           signed_name?: string | null
           signed_on?: string | null
           signed_via?: string | null
@@ -7676,6 +7793,7 @@ export type Database = {
           billing?: string
           closed_on?: string | null
           company_id?: string
+          construction_line?: boolean
           created_at?: string
           created_by?: string
           credit?: boolean
@@ -7695,9 +7813,13 @@ export type Database = {
           job_id?: string
           note?: string | null
           outcome?: string | null
+          own_terms?: Json
           owner_owns_drawings?: boolean
+          payments?: Json
+          portal_item_id?: string | null
           price_cents?: number
           sent_on?: string | null
+          signed_decision_id?: string | null
           signed_name?: string | null
           signed_on?: string | null
           signed_via?: string | null
@@ -7727,6 +7849,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "mcp_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_precon_agreements_portal_item_id_fkey"
+            columns: ["portal_item_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mcp_precon_agreements_signed_decision_id_fkey"
+            columns: ["signed_decision_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_portal_decisions"
             referencedColumns: ["id"]
           },
         ]
@@ -10237,6 +10373,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          photo_path: string | null
           updated_at: string
         }
         Insert: {
@@ -10244,6 +10381,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          photo_path?: string | null
           updated_at?: string
         }
         Update: {
@@ -10251,6 +10389,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          photo_path?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -10904,6 +11043,83 @@ export type Database = {
           },
         ]
       }
+      support_replies: {
+        Row: {
+          attempts: number
+          body: string
+          brand: string
+          created_at: string
+          error: string | null
+          from_address: string
+          id: string
+          idempotency_key: string
+          in_reply_to: string | null
+          lease_until: string | null
+          mode: string
+          provider_email_id: string | null
+          provider_message_id: string | null
+          references_header: string | null
+          sent_at: string | null
+          staff_user_id: string
+          state: string
+          subject: string
+          ticket_id: string
+          to_email: string
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          brand: string
+          created_at?: string
+          error?: string | null
+          from_address: string
+          id?: string
+          idempotency_key: string
+          in_reply_to?: string | null
+          lease_until?: string | null
+          mode: string
+          provider_email_id?: string | null
+          provider_message_id?: string | null
+          references_header?: string | null
+          sent_at?: string | null
+          staff_user_id: string
+          state?: string
+          subject: string
+          ticket_id: string
+          to_email: string
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          brand?: string
+          created_at?: string
+          error?: string | null
+          from_address?: string
+          id?: string
+          idempotency_key?: string
+          in_reply_to?: string | null
+          lease_until?: string | null
+          mode?: string
+          provider_email_id?: string | null
+          provider_message_id?: string | null
+          references_header?: string | null
+          sent_at?: string | null
+          staff_user_id?: string
+          state?: string
+          subject?: string
+          ticket_id?: string
+          to_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_ticket_counters: {
         Row: {
           brand: string
@@ -11309,6 +11525,21 @@ export type Database = {
         Args: { _kind: string; _message_id: string; _payload: Json }
         Returns: Json
       }
+      claim_support_reply: {
+        Args: {
+          _body: string
+          _from_address: string
+          _idempotency_key: string
+          _in_reply_to: string
+          _mode: string
+          _references: string
+          _staff_user_id: string
+          _subject: string
+          _ticket_id: string
+          _to_email: string
+        }
+        Returns: Json
+      }
       complete_support_delivery: {
         Args: {
           _kind: string
@@ -11351,6 +11582,16 @@ export type Database = {
           _message_id: string
           _result: string
           _token: string
+        }
+        Returns: undefined
+      }
+      finish_support_reply: {
+        Args: {
+          _error: string
+          _provider_email_id: string
+          _provider_message_id: string
+          _reply_id: string
+          _result: string
         }
         Returns: undefined
       }
@@ -11606,6 +11847,10 @@ export type Database = {
         Returns: Json
       }
       mcp_board_link_revoke: { Args: { _token_hash: string }; Returns: Json }
+      mcp_brief_as_user: {
+        Args: { _args: Json; _fn: string; _user: string }
+        Returns: Json
+      }
       mcp_buyout_get: {
         Args: { _company: string; _job?: string }
         Returns: Json
@@ -12457,6 +12702,21 @@ export type Database = {
       mcp_member_role: { Args: { _company: string }; Returns: string }
       mcp_morning_brief_candidates: { Args: never; Returns: Json }
       mcp_morning_brief_card_status: { Args: never; Returns: Json }
+      mcp_morning_brief_email_candidates: { Args: never; Returns: Json }
+      mcp_morning_brief_email_claim: {
+        Args: { _day: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_email_get: { Args: never; Returns: Json }
+      mcp_morning_brief_email_release: {
+        Args: { _day: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_email_sent: {
+        Args: { _day: string; _id: string; _user: string }
+        Returns: Json
+      }
+      mcp_morning_brief_email_set: { Args: { _on: boolean }; Returns: Json }
       mcp_morning_brief_feed: { Args: never; Returns: Json }
       mcp_morning_brief_feed_for: { Args: { _user: string }; Returns: Json }
       mcp_morning_brief_mark_sent: {
@@ -12522,6 +12782,17 @@ export type Database = {
       mcp_pm_email_in: { Args: { _s: string }; Returns: string }
       mcp_pm_label: { Args: { _job: string }; Returns: string }
       mcp_portal_brand: { Args: { _access: string }; Returns: Json }
+      mcp_portal_check_request: {
+        Args: {
+          _access: string
+          _ip: string
+          _item: string
+          _note: string
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
       mcp_portal_code_issue: {
         Args: {
           _access: string
@@ -12581,6 +12852,27 @@ export type Database = {
         Args: { _access: string; _mark_read: boolean; _session_hash: string }
         Returns: Json
       }
+      mcp_portal_page_code_issue: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _email: string
+          _ip: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
+      mcp_portal_page_sign_in: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _ip: string
+          _remember: boolean
+          _session_hash: string
+          _user_agent: string
+        }
+        Returns: Json
+      }
       mcp_portal_pay_app_name: {
         Args: { _application: string; _job: string; _number: string }
         Returns: Json
@@ -12630,6 +12922,23 @@ export type Database = {
       }
       mcp_portal_post_update: {
         Args: { _body: string; _job: string; _title: string; _week_of: string }
+        Returns: Json
+      }
+      mcp_portal_precon_sign: {
+        Args: {
+          _access: string
+          _code_hash: string
+          _consent: string
+          _decision: string
+          _fingerprint: string
+          _ip: string
+          _item: string
+          _note: string
+          _session_hash: string
+          _statement: string
+          _typed_name: string
+          _user_agent: string
+        }
         Returns: Json
       }
       mcp_portal_revoke: {
@@ -12683,13 +12992,23 @@ export type Database = {
         Args: { _item: string; _job: string }
         Returns: Json
       }
+      mcp_precon_check_pickup: {
+        Args: { _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_precon_get: { Args: { _job: string }; Returns: Json }
       mcp_precon_invoice_share: {
         Args: { _job: string; _p: Json }
         Returns: Json
       }
+      mcp_precon_portal_send: {
+        Args: { _job: string; _p: Json }
+        Returns: Json
+      }
       mcp_precon_save: { Args: { _job: string; _p: Json }; Returns: Json }
       mcp_precon_step: { Args: { _job: string; _p: Json }; Returns: Json }
+      mcp_precon_terms_save: { Args: { _job: string; _p: Json }; Returns: Json }
+      mcp_profile_photo_set: { Args: { _path: string }; Returns: Json }
       mcp_progress_photo_create: {
         Args: {
           _activity: string
@@ -12770,6 +13089,10 @@ export type Database = {
             }
             Returns: string
           }
+      mcp_project_record_feed: {
+        Args: { _from: string; _job: string; _to: string }
+        Returns: Json
+      }
       mcp_project_record_search: {
         Args: {
           _from: string
@@ -12806,6 +13129,34 @@ export type Database = {
       }
       mcp_push_test_targets: { Args: { _job: string }; Returns: Json }
       mcp_rate_hit: { Args: { _limit?: number }; Returns: boolean }
+      mcp_record_ev: {
+        Args: {
+          _at: string
+          _by: string
+          _by_group: string
+          _by_role: string
+          _happened: string
+          _how: string
+          _id: string
+          _kind: string
+          _ref_id: string
+          _ref_table: string
+          _src: string
+          _summary: string
+          _title: string
+          _to: string
+          _type: string
+        }
+        Returns: Json
+      }
+      mcp_record_role: {
+        Args: { _company: string; _user: string }
+        Returns: string
+      }
+      mcp_record_who: {
+        Args: { _company: string; _job: string; _user: string }
+        Returns: string
+      }
       mcp_reenable: {
         Args: { _job: string; _scope: string; _target: string }
         Returns: Json

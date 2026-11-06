@@ -7,7 +7,7 @@ import {
   SOV_PRESENTATION_LEAD,
   VISIBLE_STYLE_LINE,
 } from "../visible";
-import { CARD_SHOWN, CARD_SHOWN_PICK } from "./silence";
+import { CARD_SHOWN, CARD_SHOWN_PICK, LEGACY_CARD_SHOWN } from "./silence";
 import { EMAIL_CARD_RULE } from "../email-safety";
 import { EMAIL_DRAFT_ARTIFACT_LINE, EMAIL_DRAFT_VIEW_SPEC } from "../views";
 import { outsideFencedBlocks } from "./verbatim";
@@ -19,6 +19,7 @@ const DISPLAY_GUIDANCE = new Set<string>([
   HOST_DISPLAY_BLOCK,
   CARD_SHOWN,
   CARD_SHOWN_PICK,
+  LEGACY_CARD_SHOWN,
   SOV_CHART_RULE,
   EMAIL_CARD_RULE,
 ]);
@@ -39,7 +40,10 @@ export function claudeCardText(text: string): string {
       .replace(/^REQUIRED VIEW[^\n]*$/gm, "")
       .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
       .replace(/<!doctype html[\s\S]*$/gi, "")
-      .replace(/^Card shown\. Do not add text(?:; wait for the user's pick)?\.?$/gm, "")
+      .replace(
+        /^Card shown\. (?:Do not add text(?:; wait for the user's pick)?|Give your own short read and one next step; do not repeat the card line by line)\.?$/gm,
+        "",
+      )
       .split("\n")
       .filter((line) => line.trim() !== VISIBLE_STYLE_LINE && !EMAIL_VIEW_LINES.has(line.trim()))
       .join("\n")

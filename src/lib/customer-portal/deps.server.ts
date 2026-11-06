@@ -6,6 +6,7 @@ import { isCompanyLogoUrl } from "../payment-applications/brand";
 import type { PortalDeps } from "./server";
 
 const PHOTO_BUCKET = "athena-progress";
+import { PEOPLE_BUCKET, isPersonPhotoPath } from "../people-photo";
 type Env = Record<string, string | undefined>;
 const runtimeEnv = (): Env => (globalThis as { process?: { env?: Env } }).process?.env ?? {};
 const env = (names: string[]) => {
@@ -48,6 +49,12 @@ export const liveDeps: PortalDeps = {
     for (const row of data ?? []) if (row.path && row.signedUrl) out.set(row.path, row.signedUrl);
     return out;
   },
+  signHeadshot: async (path) => {
+    // Only a member photo in people/, never any other file in the bucket.
+    if (!isPersonPhotoPath(path)) return null;
+    const { data } = await service().storage.from(PEOPLE_BUCKET).createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  },
   send: (m) => sendPortalEmail(m),
   emailOn: () => portalEmailEnabled(),
   // Paying an approved pay application through the contractor's connected Stripe account. Loaded on use: the
@@ -66,5 +73,20 @@ export const liveDeps: PortalDeps = {
     const data = await liveDeps.rpc("mcp_portal_brand", { _access: access });
     const url = (data as { logo_url?: unknown } | null)?.logo_url;
     return typeof url === "string" && backend && isCompanyLogoUrl(url, backend) ? url : null;
+  },
+  // The contractor's name and the job this link opens, for the signed-out sign-in page.
+  brand: async (access) => {
+    const data = (await liveDeps.rpc("mcp_portal_brand", { _access: access })) as Record<
+      string,
+      unknown
+    > | null;
+    const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+    return data
+      ? {
+          company: text(data.name),
+          job_number: text(data.job_number),
+          job_name: text(data.job_name),
+        }
+      : null;
   },
 };

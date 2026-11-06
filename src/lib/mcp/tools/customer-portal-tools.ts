@@ -19,6 +19,8 @@ import { MESSAGE_MAX, replyToClient } from "../../customer-portal/messages";
 import { longDate } from "../../customer-portal/render";
 import { companyLogoUrl } from "../document-email-brand";
 import { displayPrice } from "../../selections/format";
+import { proposalBlockers } from "../../selections/proposal";
+import type { Board } from "../../selections/model";
 
 const INVITE_DEFAULT_DAYS = 14;
 
@@ -116,6 +118,31 @@ function messagesText(head: string, l: JobMessages): string {
 const SAFE =
   "The customer page shows only what is shared: weekly updates you post, photos marked customer-safe, a daily summary (date, weather, crew, work done; no issues, delays, safety notes or costs), schedule milestones, and the change orders, selections and pay applications you share.";
 
+/** One full sentence per recipient, so it reads cleanly after the note it follows. */
+export function emailedLine(email: string, res: string): string {
+  return res === "sent"
+    ? `Emailed ${email}.`
+    : res === "off"
+      ? `Didn't email ${email}: customer email is off.`
+      : `The email to ${email} failed.`;
+}
+
+/** Where a notice lands on the customer's page. Signed out, the page signs them in there and keeps the place. */
+const NOTICE_SECTION = {
+  change_order: "changes",
+  selection: "selections",
+  pay_app: "billing",
+  work_order: "work",
+  service_invoice: "billing",
+  precon_agreement: "agreement",
+} as const;
+export const noticeLink = (
+  access: string,
+  kind: "update" | "decision",
+  item?: keyof typeof NOTICE_SECTION,
+) =>
+  `${portalUrl(access)}?s=${kind === "update" ? "updates" : item ? NOTICE_SECTION[item] : "home"}`;
+
 async function notify(
   recipients: Recipient[],
   jobName: string,
@@ -124,7 +151,13 @@ async function notify(
   label: string | undefined,
   accessFor: (r: Recipient) => string | null,
   logo: string | null = null,
-  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice",
+  item?:
+    | "change_order"
+    | "selection"
+    | "pay_app"
+    | "work_order"
+    | "service_invoice"
+    | "precon_agreement",
 ) {
   const out: string[] = [];
   for (const r of recipients) {
@@ -136,7 +169,7 @@ async function notify(
         name: r.name,
         company,
         jobName,
-        link: portalUrl(access),
+        link: noticeLink(access, kind, item),
         kind,
         label,
         logo,
@@ -144,9 +177,7 @@ async function notify(
         nonce: newToken(),
       }),
     );
-    out.push(
-      `${r.email}: ${res === "sent" ? "emailed" : res === "off" ? "not emailed (customer email is off)" : "email failed"}`,
-    );
+    out.push(emailedLine(r.email, res));
   }
   return out;
 }
@@ -517,6 +548,13 @@ export const customerPortal = defineTool({
             throw new ToolError(
               "First confirm the extra time and added cost for each upgrade with selection_board set_change_terms (show its card; both are 0 unless the member changes them). The customer reads them right before they sign. Nothing was shared.",
             );
+          // The same checks as the proposal preview: a missing price or photo, or a step up that
+          // costs the customer no more than the tier below it, never reaches the client page.
+          const blockers = proposalBlockers(board.board as unknown as Board);
+          if (blockers.length)
+            throw new ToolError(
+              `Nothing was shared. Fix these first, then preview again with selection_proposal: ${blockers.join(" ")}`,
+            );
           const r = await rpc<{ item_id: string; title: string; fingerprint: string } & Shared>(
             sb,
             "mcp_portal_share_selection",
@@ -620,7 +658,13 @@ export async function notifyAll(
   kind: "update" | "decision",
   label?: string,
   logo: string | null = null,
-  item?: "change_order" | "selection" | "pay_app" | "work_order" | "service_invoice",
+  item?:
+    | "change_order"
+    | "selection"
+    | "pay_app"
+    | "work_order"
+    | "service_invoice"
+    | "precon_agreement",
 ): Promise<string[]> {
   return notify(
     r.recipients,

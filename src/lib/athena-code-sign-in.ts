@@ -67,3 +67,36 @@ export async function completeAthenaCodeSignIn(args: {
   args.assign(destination);
   return { ok: true, destination };
 }
+
+type SignInWithPassword = (input: {
+  email: string;
+  password: string;
+}) => Promise<{ error: { message?: string } | null }>;
+
+const PASSWORD_MISSING = "Enter your email and password.";
+const PASSWORD_REJECTED = "That email and password didn't match. Try again or use an emailed code.";
+
+/**
+ * Password sign-in on Athena's own login, for accounts that set a password (for example an app
+ * directory reviewer). It lands on the same place the emailed code would, consent return included.
+ */
+export async function completeAthenaPasswordSignIn(args: {
+  email: string;
+  password: string;
+  redirectTo: string | undefined;
+  onAthenaHost: boolean;
+  signIn: SignInWithPassword;
+  assign: (url: string) => void;
+}): Promise<{ ok: true; destination: string } | { ok: false; message: string }> {
+  const email = args.email.trim();
+  if (!email || !args.password) return { ok: false, message: PASSWORD_MISSING };
+  try {
+    const { error } = await args.signIn({ email, password: args.password });
+    if (error) return { ok: false, message: PASSWORD_REJECTED };
+  } catch {
+    return { ok: false, message: PASSWORD_REJECTED };
+  }
+  const destination = athenaCodeSignInDestination(args.redirectTo, args.onAthenaHost);
+  args.assign(destination);
+  return { ok: true, destination };
+}

@@ -12,6 +12,7 @@ import {
   inviteSavedMessage,
   loadAccountTeam,
   planLabel,
+  athenaPlanLabel,
   planRate,
   recordTermsAcceptance,
   removeMember,
@@ -54,6 +55,8 @@ describe("plan line", () => {
     expect(planLabel("athena_pm")).toBe("Athena PM");
     expect(planLabel("athena_office")).toBe("Athena Office");
     expect(planLabel(null)).toBe("No Athena plan yet");
+    expect(athenaPlanLabel("circle")).toBe("Athena Team");
+    expect(athenaPlanLabel("athena_office")).toBe("Athena Office");
     expect(planRate("athena_office")).toBe("$397 / month");
     expect(planRate("circle")).toBeNull(); // comps and Circle rates vary, so no price is shown
   });
@@ -205,7 +208,7 @@ describe("team writes use the same database functions as the chat tools", () => 
       role: "pm",
       jobs: [],
     });
-    expect(r).toEqual({ ok: false, error: expect.stringContaining("$49 per seat per month") });
+    expect(r).toEqual({ ok: false, error: expect.stringContaining("seat limit (6 of 6") });
   });
   it("update and remove pass owner checks through to the database", async () => {
     const { db, calls } = fakeDb({

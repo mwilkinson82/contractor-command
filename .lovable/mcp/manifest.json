@@ -13,7 +13,7 @@
   "mcp": {
     "server": {
       "name": "athena",
-      "version": "0.8.26",
+      "version": "0.8.27",
       "title": "Athena powered by ALP, construction agents"
     },
     "tools": [
@@ -1736,7 +1736,7 @@
       {
         "name": "jobs_list",
         "title": "List my jobs",
-        "description": "Lists every job the member can access across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
+        "description": "Lists every construction job the member has saved in Athena, their job system of record for schedules, daily reports, RFIs, change orders, submittals, contracts and billing, across all their companies, grouped by company, or filters to an explicitly named company without changing their current company.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -3332,7 +3332,7 @@
       {
         "name": "cpm_activities",
         "title": "Full CPM activity list",
-        "description": "Returns the saved CPM activities for a job.",
+        "description": "Returns the saved CPM schedule activities for a job, read before building on or changing that job's schedule.",
         "annotations": {
           "readOnlyHint": true,
           "openWorldHint": false,
@@ -3414,7 +3414,7 @@
       {
         "name": "living_report_save",
         "title": "Save living report version (after approval)",
-        "description": "Saves a new version of a living report after approval.",
+        "description": "Saves a new approved version of a job's living report (the CPM schedule, billing forecast, IOR or PM dashboard) so it shows on the job board, including any schedule the member builds or updates for a saved job in chat.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -7079,7 +7079,7 @@
       {
         "name": "team_add_seats",
         "title": "Add seats",
-        "description": "Gives the company owner the account page link where they add seats at $49 per seat per month.",
+        "description": "Gives the company owner the account page link where they add seats.",
         "annotations": {
           "readOnlyHint": true,
           "destructiveHint": false,
@@ -11063,7 +11063,7 @@
       {
         "name": "daily_report_save",
         "title": "Save a confirmed daily report",
-        "description": "Saves a daily report after the superintendent confirms it.",
+        "description": "Saves a daily report (crew, work done, weather, deliveries, issues) to the job after the superintendent confirms it, so it shows on the job board.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": true,
@@ -20907,7 +20907,7 @@
       {
         "name": "job_contracts",
         "title": "Job contracts",
-        "description": "Lists or saves the contracts on a job: the prime contract with the client, subcontracts, supplier contracts and POs, and other agreements, with who each is with, the scope or trade it covers (tag), cost code, value, status (draft, sent, signed, void), dates and the saved original. When a member drops in or names a contract in chat, read from the document who it is with, its kind, scope, value and dates, show them to the member, and save only after the member confirms. Never mark a contract sent or signed, or give a sent or signed date, unless the member said so. To change a saved contract, list first and pass its contract_id, the expected_version you listed and a reason; only the fields you send change, and null clears one. Link document_id only to a document project_documents lists on this job. Saved contracts show in the Contracts section of the job board (project home, /r/job/<job id>/home#contracts); give the member the board_url this tool returns, never a link you build. After saving, walk the member to the next step on the card (for example: Want to tag it to a cost code? Upload the signed copy?). Nothing is sent to anyone.",
+        "description": "Lists or saves the contracts on a job: the prime contract with the client, subcontracts, supplier contracts and POs, and other agreements, with who each is with, the scope or trade it covers (tag), cost code, value, status (draft, sent, signed, void), dates and the saved original. When a member drops in or names a contract in chat, read from the document who it is with, its kind, scope, value and dates, show them to the member, and save only after the member confirms. Never mark a contract sent or signed, or give a sent or signed date, unless the member said so. To change a saved contract, list first and pass its contract_id, the expected_version you listed and a reason; only the fields you send change, and null clears one. Link document_id only to a document project_documents lists on this job. When the member attaches the contract file, store it first with file_upload purpose contract on this job, then save the contract here with that document_id; a stored file alone doesn't show in Contracts. Saved contracts show in the Contracts section of the job board (project home, /r/job/<job id>/home#contracts); give the member the board_url this tool returns, never a link you build. After saving, walk the member to the next step on the card (for example: Want to tag it to a cost code? Upload the signed copy?). Nothing is sent to anyone.",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -21649,7 +21649,7 @@
       {
         "name": "precon",
         "title": "Pre-construction",
-        "description": "The pre-construction agreement on a job: a contractor sells the owner the design phase before there are drawings to price. The price is the designer's fee (architect, draftsman, engineer) plus an optional markup, plus the contractor's own hours (coordination, constructability, schedule and lead times, means and methods, the estimate) at one hourly rate. Athena computes the price; never type one. The owner keeps the drawings. Billing is in full at signing, or split half at signing and half at final drawings. An optional credit applies the fee to the construction contract if the owner signs within a window of days after final drawings. Actions: get; save (terms, before signing, with expected_version from get, 0 for a new agreement); step (sent, signed with the signer's name, drawings_approved, hours as a running total, won, lost, reopen); issue_invoice (sends the next installment to the owner's client page as a bill they can pay by card or bank, with no fee build-up on it); apply_credit (the fee credit goes on the construction contract as a deductive change order the owner approves: without change_order_id it says how to make it with change_order_record, with one it links it). Pre-con is optional per job: only start one when the member says this job has a pre-construction agreement. Read every amount, date and name from what the member says; never mark the agreement sent or signed, or the drawings approved, unless the member said so. issue_invoice reaches the owner and apply_credit changes the job's money: show the member what goes out first and call with confirmed true only after their yes. After each call, walk the member to the next step on the card (for example: Did the owner sign it? Send invoice 2 for $8,500 to the owner's client page? Add the pre-con credit to the contract as a change order?).",
+        "description": "The pre-construction agreement on a job: a contractor sells the owner the design phase before there are drawings to price. The price is the designer's fee (architect, draftsman, engineer) plus an optional markup, plus the contractor's own hours (coordination, constructability, schedule and lead times, means and methods, the estimate) at one hourly rate. Athena computes the price; never type one. The owner keeps the drawings. Billing is in full at signing, or split half at signing and half at final drawings. An optional credit applies the fee to the construction contract if the owner signs within a window of days after final drawings. Actions: get; save (terms, before signing, with expected_version from get, 0 for a new agreement); step (sent, signed with the signer's name, drawings_approved, hours as a running total, won, lost, reopen); issue_invoice (sends the next installment to the owner's client page as a bill they can pay by card or bank, with no fee build-up on it); apply_credit (the fee credit goes on the construction contract as a deductive change order the owner approves: without change_order_id it says how to make it with change_order_record, with one it links it). Pre-con is optional per job: only start one when the member says this job has a pre-construction agreement. Read every amount, date and name from what the member says; never mark the agreement sent or signed, or the drawings approved, unless the member said so. issue_invoice reaches the owner and apply_credit changes the job's money: show the member what goes out first and call with confirmed true only after their yes. Owners sign on their client page: terms saves this agreement's own payments (each an amount in cents and when it's due: signing, final_drawings, date with on, or step with when in the owner's words like \"when you approve the schematic design\"; they must add up to the price), the contractor's own extra terms (own_terms, up to 10 sentences, word for word) and whether to show the standard construction line. Every agreement's terms are different, so ask the member for the payments and anything else they want in it before sending; read them back exactly as the owner will see them and save with confirmed true only on their yes. send_to_client_page puts the agreement on the owner's client page to sign (due_on is the sign-by date), and emails them; the owner reads what they get, who draws it, the payments and the terms (never the fee build-up), agrees to sign electronically, and signs with a code we email them and their typed name. Changing the terms after sending takes it off their page until it's sent again. Show the member who gets it and call with confirmed true only after their yes. When an owner says they're paying a pre-con bill by check, check_pickup sets when the contractor collects it (on, pickup_window like \"9:00 to 10:00 AM\", pickup_place, pickup_by); the owner sees it on their page and by email. Read it back and call with confirmed true only after the member's yes. Record the check itself as a payment once it's in hand. After each call, walk the member to the next step on the card (for example: Did the owner sign it? Send invoice 2 for $8,500 to the owner's client page? Add the pre-con credit to the contract as a change order?).",
         "annotations": {
           "readOnlyHint": false,
           "destructiveHint": false,
@@ -21667,7 +21667,10 @@
                 "save",
                 "step",
                 "issue_invoice",
-                "apply_credit"
+                "apply_credit",
+                "terms",
+                "send_to_client_page",
+                "check_pickup"
               ]
             },
             "job_number": {
@@ -21862,6 +21865,77 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
+            "payments": {
+              "description": "terms: the owner's payments in order; they must add up to the agreement price.",
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "amount_cents": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "due": {
+                    "type": "string",
+                    "enum": [
+                      "signing",
+                      "final_drawings",
+                      "date",
+                      "step"
+                    ]
+                  },
+                  "on": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "when": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "amount_cents",
+                  "due"
+                ]
+              }
+            },
+            "own_terms": {
+              "description": "terms: the contractor's own extra terms, word for word.",
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              }
+            },
+            "construction_line": {
+              "description": "terms: show the line that building needs its own construction contract. Default true.",
+              "type": "boolean"
+            },
+            "invoice_id": {
+              "description": "check_pickup: the pre-con invoice; default the one the owner is paying by check.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "pickup_window": {
+              "description": "check_pickup: the time, like 9:00 to 10:00 AM.",
+              "type": "string",
+              "maxLength": 60
+            },
+            "pickup_place": {
+              "description": "check_pickup: where, like the job site.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "pickup_by": {
+              "description": "check_pickup: who collects it.",
+              "type": "string",
+              "maxLength": 120
+            },
             "confirmed": {
               "type": "boolean"
             }
@@ -21870,6 +21944,50 @@
             "action",
             "job_number"
           ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "profile_photo",
+        "title": "Set my photo",
+        "description": "Sets or removes the member's own profile photo, the picture of them that clients see in 'Your team' on the client page of the jobs they run as PM. Pass the photo attached in chat as file. Without a file it returns the account page link where they can add one. Only the member's own photo, never someone else's.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "file": {
+              "type": "object",
+              "properties": {
+                "download_url": {
+                  "type": "string"
+                },
+                "file_id": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                },
+                "file_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "download_url",
+                "file_id"
+              ]
+            },
+            "remove": {
+              "description": "true to take the photo off; clients then see the company logo",
+              "type": "boolean"
+            }
+          },
           "additionalProperties": false
         },
         "outputSchema": null

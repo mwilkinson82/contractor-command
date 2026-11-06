@@ -368,3 +368,51 @@ describe("job contracts", () => {
     expect((await rows(owner, job2)).contracts).toEqual([]);
   });
 });
+
+// ATH-0008: PostgREST runs a STABLE RPC in a READ ONLY transaction. The membership gate locks a
+// Contractor Circle member's provisioning rows, so the contracts list failed for those members.
+describe.sequential("the contracts list as PostgREST calls it", () => {
+  const asPostgrest = (fn: string, user = owner) =>
+    db.transaction(async (tx) => {
+      const v = (
+        await tx.query<{ v: string }>(
+          "SELECT provolatile::text AS v FROM pg_proc WHERE oid = to_regprocedure($1)",
+          [`public.${fn}(uuid)`],
+        )
+      ).rows[0].v;
+      await tx.exec(`SET TRANSACTION ${v === "v" ? "READ WRITE" : "READ ONLY"}`);
+      await tx.query("SELECT set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({
+          sub: user,
+          email: `${user.slice(-2)}@example.com`,
+          role: "authenticated",
+        }),
+      ]);
+      await tx.exec("SET LOCAL ROLE authenticated");
+      return (await tx.query<{ data: J }>(`SELECT public.${fn}($1) AS data`, [job])).rows[0].data;
+    });
+
+  it("reproduces the read-only failure for a member whose gate locks a row, then reads after the fix", async () => {
+    // Model the production Circle sync, which locks the member's provisioning row.
+    await db.exec(
+      "CREATE OR REPLACE FUNCTION public.mcp_gate() RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN PERFORM 1 FROM public.test_active_members WHERE user_id=auth.uid() FOR UPDATE; RETURN EXISTS(SELECT 1 FROM public.test_active_members WHERE user_id=auth.uid()); END $$;",
+    );
+    await expect(asPostgrest("mcp_job_contract_rows")).rejects.toMatchObject({
+      code: "25006",
+      message: "cannot execute SELECT FOR UPDATE in a read-only transaction",
+    });
+    // POs were already volatile, which is why the board showed an empty Contracts section.
+    await expect(asPostgrest("mcp_project_purchase_orders_get")).resolves.toBeTruthy();
+
+    await db.exec(
+      readFileSync("supabase/migrations/20261106200000_athena_member_read_transactions.sql", "utf8")
+        .split("\n")
+        .filter((line) => /^ALTER FUNCTION public\.mcp_job_contract_rows\(/.test(line))
+        .join("\n"),
+    );
+    const list = await asPostgrest("mcp_job_contract_rows");
+    expect(list.contracts.length).toBeGreaterThan(0);
+    // Every check stays: an outsider is still refused.
+    await expect(asPostgrest("mcp_job_contract_rows", outsider)).rejects.toThrow(/MCP_NO_JOB/);
+  });
+});

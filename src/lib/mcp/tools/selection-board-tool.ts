@@ -25,11 +25,18 @@ import {
   estimateCarry,
   packageTotals,
   proposalBlockers,
+  stepUpGaps,
   TIER_LABEL,
   type CustomerProposal,
+  type StepUpGap,
 } from "../../selections/proposal";
 import { money, percent, signed } from "../../selections/format";
-import { canonical, enforceReviews, type ReviewGrant } from "../../selections/reviews";
+import {
+  canonical,
+  CONTRACT_VALUE_BASIS,
+  enforceReviews,
+  type ReviewGrant,
+} from "../../selections/reviews";
 import {
   estimateLineOptions,
   lineOptionsText,
@@ -48,6 +55,7 @@ import {
   type CheckGap,
 } from "../../selections/line-checks";
 import { suggestLines, type LineCandidate } from "../../selections/line-candidates";
+import { boardFoundMarkup, fillFromPages, type Filled } from "../../selections/product-page";
 import { proposalNextSteps, type PortalState } from "../../selections/proposal-next-steps";
 import { timeLabel, timeSentence } from "../../selections/change-terms";
 import type { CardModel } from "../cards/model";
@@ -58,10 +66,53 @@ import { todayIn } from "../deadlines";
 import { guide } from "../visible";
 import { newToken, tokenHash, TOKEN_RE } from "../file-share";
 import { PAGE_ORIGIN, shareExpiry, SHARE_MAX_DAYS } from "../../report-pages";
+import { setupContractValue } from "../contract-value";
 
 const NOT_INSTALLED = "Selections storage is not installed yet. Nothing was saved.";
 const NO_RECORD_CHANGE =
   "No contract, budget, SOV, billing or accounting record was changed, and the estimate was not written.";
+
+/**
+ * The job's contract value from job setup, in cents, when the job is under contract (the same
+ * facts gbb_job_under_contract reads). On a contracted job the contract is the base the options
+ * change, so a new board starts from it instead of asking the member to invent a base price.
+ * Null when there is no known value or it can't be read.
+ */
+async function contractBaseCents(sb: Sb, jobId: string): Promise<number | null> {
+  try {
+    const { data, error } = await (
+      sb as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => {
+              in: (
+                k: string,
+                v: string[],
+              ) => Promise<{
+                data: { module: string; key: string; value: unknown; status?: string }[] | null;
+                error: unknown;
+              }>;
+            };
+          };
+        };
+      }
+    )
+      .from("mcp_job_facts")
+      .select("module, key, value, status")
+      .eq("job_id", jobId)
+      .in("module", ["contract", "budget", "job", "setup"]);
+    if (error || !data) return null;
+    const value = setupContractValue(data.filter((f) => f.status === "known"));
+    if (value === null || !(value > 0)) return null;
+    const cents = Math.round(value * 100);
+    return cents <= 999_999_999_999 ? cents : null;
+  } catch {
+    return null;
+  }
+}
 
 async function call(sb: Sb, name: string, args: Record<string, unknown>): Promise<unknown> {
   const result = await (
@@ -312,6 +363,56 @@ const OPTION_LINKS_GUIDANCE =
  * Each saved option's links, listed in the reply text so a host that draws no
  * card (Claude) still shows them, and a note for any option missing one.
  */
+/** One line per option Athena completed from its seller page. */
+function filledBrief(filled: Filled[]): string[] {
+  return filled.map(
+    (f) =>
+      `${f.title} (${tierLabel(f.tier)}): ${[f.photo && "product photo", f.price && "web price"].filter(Boolean).join(" and ")} read from its seller page.`,
+  );
+}
+
+/**
+ * Before the customer preview: fill each missing photo or price from the option's own seller
+ * page, and price a newly found option with the one found-price markup the member already put
+ * on every other option. Saves only when something was filled; otherwise returns the board as is.
+ */
+async function completeForPreview(
+  sb: Sb,
+  jobId: string,
+  saved: { version: number; board: Board },
+  today: string,
+): Promise<{ version: number; board: Board; filled: string[] }> {
+  const next = structuredClone(saved.board);
+  const markup = boardFoundMarkup(next);
+  const filled = await fillFromPages(next, today);
+  if (!filled.length) return { ...saved, filled: [] };
+  const grantOptions: { id: string; tier: OptionName }[] = [];
+  const lines = filledBrief(filled);
+  for (const f of filled) {
+    const o = findSelection(next, f.id).options[f.tier];
+    if (f.price && o.price_cents === null && markup !== null && o.found_price_cents !== null) {
+      o.cost_cents = o.found_price_cents;
+      o.price_cents = Math.round((o.found_price_cents * (100 + markup)) / 100);
+      o.price_reviewed_on = today;
+      o.assumptions = `Cost is the found web price at ${o.found_at}; ${markup}% markup.`;
+      grantOptions.push({ id: f.id, tier: f.tier });
+      lines.push(
+        `${f.title} (${tierLabel(f.tier)}): priced at your ${markup}% markup on the web price.`,
+      );
+    } else if (o.price_reviewed_on !== null && !f.price)
+      grantOptions.push({ id: f.id, tier: f.tier });
+  }
+  // A product-only swap the member confirmed as no added time or cost stays that way when a
+  // missing price is filled; anything else is confirmed again.
+  const terms = changeTermsOf(next);
+  const zeroTerms =
+    terms.reviewed_on !== null &&
+    optionNames.every((t) => terms[t].schedule_days === 0 && terms[t].added_cents === 0);
+  const guarded = enforceReviews(saved.board, next, { options: grantOptions, terms: zeroTerms });
+  const result = await saveBoard(sb, jobId, saved.version, guarded.board);
+  return { ...result, filled: lines };
+}
+
 function linkBrief(s: Selection, tiers: readonly OptionName[] = optionNames): string[] {
   const out: string[] = [];
   const missing: string[] = [];
@@ -469,17 +570,35 @@ function placeCandidate(
   candidate: z.infer<typeof candidateSchema>,
 ) {
   const old = s.options[tier];
-  const next: Option = {
-    ...blankOption(),
-    ...candidateSchema.parse(candidate),
-    assumptions: old.assumptions,
-  };
+  const next: Option = { ...blankOption(), ...candidateSchema.parse(candidate) };
   if (old.description && sameProduct(old, next)) {
     next.cost_cents = old.cost_cents;
     next.price_cents = old.price_cents;
     next.price_reviewed_on = old.price_reviewed_on;
+    next.assumptions = old.assumptions;
   } else if (s.selected === tier) s.selected = null;
   s.options[tier] = next;
+}
+
+/**
+ * The refusal for a tier whose web price isn't above the one below it. `changing` is the tier the
+ * AI just replaced, so the ask names the product to swap: a cheaper Good or a dearer step up.
+ */
+function stepUpRefusal(board: Board, gaps: StepUpGap[], changing?: OptionName) {
+  const code = board.currency || "USD";
+  const lines = gaps.map((g) => {
+    const s = findSelection(board, g.id);
+    const lo = s.options[g.lower];
+    const hi = s.options[g.higher];
+    const fact = `${g.title}: ${tierLabel(g.higher)} ${hi.model || hi.description} is ${money(g.high, code)}${hi.found_at ? ` at ${hi.found_at}` : ""}, ${g.high === g.low ? "the same as" : "less than"} ${tierLabel(g.lower)} ${lo.model || lo.description} at ${money(g.low, code)} each`;
+    if (changing === g.lower)
+      return `${fact}. Find a ${tierLabel(g.lower)} in this finish priced under ${money(g.high, code)} each`;
+    const above = g.higher === "better" ? s.options.best.found_price_cents : null;
+    const ceiling =
+      above !== null && above > g.low ? ` and under Best's ${money(above, code)} each` : "";
+    return `${fact}. Find a ${tierLabel(g.higher)} in this finish priced above ${money(g.low, code)}${ceiling || " each"}`;
+  });
+  return `Not saved: each step up has to cost more than the tier below it, or the customer sees a $0 upgrade. ${lines.join(". ")}. Search the web for that product yourself and read its page for this finish's photo and price; the member shouldn't have to find it. Then show the member the corrected Good, Better, Best with each tier's web price and seller, say which product you replaced and why, and save only after they say yes. Never lower or invent a price to make the ladder work.`;
 }
 
 const findSelection = (board: Board, id: string) => {
@@ -789,13 +908,29 @@ export const selectionBoard = defineTool({
               "Send selection_id, tier and the candidate product. Nothing was saved.",
             );
           const s = findSelection(next!, args.selection_id);
-          // A new product clears any reviewed price: the contractor reviews again.
-          s.options[args.tier] = {
-            ...blankOption(),
-            ...candidateSchema.parse(args.candidate),
-            assumptions: s.options[args.tier].assumptions,
-          };
+          // A new product clears any reviewed price and the note on how it was priced: the
+          // contractor reviews again, and an old note would describe the old product's price.
+          s.options[args.tier] = { ...blankOption(), ...candidateSchema.parse(args.candidate) };
           if (s.selected === args.tier) s.selected = null;
+          brief.push(
+            ...filledBrief(await fillFromPages(next!, today, [{ id: s.id, tier: args.tier }])),
+          );
+          const placed = s.options[args.tier];
+          const miss = [
+            !placed.photo_url?.startsWith("https://") && "product photo",
+            placed.found_price_cents === null && "web price",
+          ].filter(Boolean);
+          if (miss.length)
+            throw new ToolError(
+              `Not saved: ${s.title} (${tierLabel(args.tier)}) ${placed.model || placed.description} has no ${miss.join(" or ")}, and its pages didn't show one. Every option the customer compares needs a real photo and a web price. The member shouldn't have to handle this: read that product's page for this finish, or pick the next comparable product from a seller that lists both, and call propose_option again. Never invent a photo or a price.`,
+            );
+          const flat = stepUpGaps(next!, "found_price_cents", [s.id]).filter(
+            (g) => g.lower === args.tier || g.higher === args.tier,
+          );
+          if (flat.length)
+            throw new ToolError(
+              `${stepUpRefusal(next!, flat, args.tier)} If you're replacing more than one tier on this line, send all three together with save_comparison.`,
+            );
           brief.push(...linkBrief(s, [args.tier]));
         } else if (args.action === "save_comparison") {
           if (!args.comparison?.length)
@@ -862,6 +997,40 @@ export const selectionBoard = defineTool({
               ...linkBrief(s),
             );
           }
+          // Every option the customer will compare needs its real photo and a web price. Read
+          // what the member's AI left out from the option's own seller page; a gap that page
+          // can't fill sends the AI to the next comparable product instead of saving a hole.
+          const touched = args.comparison.flatMap((c) => {
+            const s = next!.selections.find((x) => x.estimate_line_ref === c.estimate_line_ref)!;
+            return optionNames.map((tier) => ({ id: s.id, tier }));
+          });
+          const filled = await fillFromPages(next!, today, touched);
+          brief.push(...filledBrief(filled));
+          const gaps = touched.flatMap(({ id, tier }) => {
+            const s = findSelection(next!, id);
+            const o = s.options[tier];
+            const miss = [
+              !o.photo_url?.startsWith("https://") && "product photo",
+              o.found_price_cents === null && "web price",
+            ].filter(Boolean);
+            return miss.length
+              ? [
+                  `${s.title} (${tierLabel(tier)}) ${o.model || o.description}: no ${miss.join(" or ")}`,
+                ]
+              : [];
+          });
+          if (gaps.length)
+            throw new ToolError(
+              `Not saved: every option needs a real product photo and a web price, and these pages didn't show one. ${gaps.join("; ")}. Don't ask the member about this. For each, read that product's page for this finish (photo_url is the direct image of this finish, found_price_cents the listed unit price) or pick the next comparable product from a seller that lists both, then call save_comparison again with the same yes. Never invent a photo or a price.`,
+            );
+          // Each step up has to cost more than the tier below it, judged on the web price found for
+          // that finish, so a flat or backwards ladder never reaches a proposal.
+          const flat = stepUpGaps(
+            next!,
+            "found_price_cents",
+            touched.map((t) => t.id),
+          );
+          if (flat.length) throw new ToolError(stepUpRefusal(next!, flat));
           if (args.base_tier) next!.proposal.base_tier = args.base_tier;
           if (args.currency && !next!.currency) next!.currency = args.currency;
         } else if (args.action === "review_price") {
@@ -1039,6 +1208,26 @@ export const selectionBoard = defineTool({
             };
         }
 
+        // A contracted job starts its board from the contract value: the options change the
+        // contract, so the member never has to make up a base price.
+        if (
+          next &&
+          next.proposal.base_price_cents === null &&
+          (args.action === "start" || args.action === "save_comparison")
+        ) {
+          const base = await contractBaseCents(sb, job.job_id);
+          if (base !== null) {
+            next.currency = next.currency ?? "USD";
+            next.proposal.base_price_cents = base;
+            next.proposal.base_basis = CONTRACT_VALUE_BASIS;
+            next.proposal.base_reviewed_on = today;
+            grant = { ...grant, base: true };
+            brief.push(
+              `Base price set to the current contract value, ${money(base, next.currency)}, because the job is under contract. Each upgrade shows as a change to it.`,
+            );
+          }
+        }
+
         // Only a confirmed review in this call can set a review date; a change
         // to what an earlier review covers marks it not reviewed again.
         const guarded = current && next ? enforceReviews(current.board, next, grant) : null;
@@ -1210,8 +1399,14 @@ export const selectionProposal = defineTool({
           );
         }
 
-        const saved = await readBoard(sb, job.job_id);
+        let saved = await readBoard(sb, job.job_id);
         if (args.action === "preview") {
+          let filledLines: string[] = [];
+          if (proposalBlockers(saved.board).length) {
+            const done = await completeForPreview(sb, job.job_id, saved, today);
+            saved = { ...saved, version: done.version, board: done.board };
+            filledLines = done.filled;
+          }
           const blockers = proposalBlockers(saved.board);
           if (blockers.length)
             return guide(
@@ -1228,7 +1423,7 @@ export const selectionProposal = defineTool({
                   blockers,
                 } as unknown as JsonValueInput,
               },
-              "Help the member fix these with selection_board. Nothing was shared.",
+              "Nothing was shared. Don't show this list to the member as the answer. Fix what you can now, then preview again in the same reply: for a missing photo or price, read that product's page for its finish, or pick the next comparable product from a seller that lists both, and save it with selection_board propose_option; price it with apply_markup using the markup the member already gave. Ask the member only for what needs their own word, like a title or their cost.",
             );
           const view = customerProposal(saved.board, saved.version);
           const steps = proposalNextSteps(
@@ -1242,6 +1437,13 @@ export const selectionProposal = defineTool({
               ...text(
                 [
                   `${named(job)} · Customer view preview (board v${saved.version}). This is exactly what the customer sees; no costs, margin or notes.`,
+                  ...(filledLines.length
+                    ? [
+                        "",
+                        "Completed from the seller pages before this preview (internal):",
+                        ...filledLines,
+                      ]
+                    : []),
                   "",
                   ...customerText(view),
                   "",

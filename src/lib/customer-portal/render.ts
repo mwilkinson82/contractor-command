@@ -11,10 +11,16 @@ import {
   choiceTerms,
   maskEmail,
   payAppLabel,
+  preconConsent,
+  preconDueLabel,
+  preconStatement,
+  preconTerms,
   TIER_NAME,
+  wholePrice,
   workOrderPrice,
   type ChangeOrderView,
   type InviteOpen,
+  type PortalCheck,
   type PayAppView,
   type ServiceInvoiceView,
   type WorkOrderView,
@@ -24,6 +30,7 @@ import {
 
 export const PORTAL_SECTIONS = [
   "home",
+  "agreement",
   "updates",
   "photos",
   "schedule",
@@ -36,6 +43,7 @@ export const PORTAL_SECTIONS = [
 export type PortalSection = (typeof PORTAL_SECTIONS)[number];
 const SECTION_LABEL: Record<PortalSection, string> = {
   home: "Home",
+  agreement: "Agreement",
   updates: "Updates",
   photos: "Photos",
   schedule: "Schedule",
@@ -256,37 +264,37 @@ h4:first-child{margin-top:0}
 const PORTAL_CSS = `
 /* Client page shell: Athena blue hero with a blueprint grid, pinned glass tabs, white cards. */
 .pt{--tabs-h:57px}
-.cp-hero{position:relative;color:#f4f7fd;overflow:hidden;isolation:isolate;background:#1a47c7}
-.cp-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(900px 420px at 85% 0%,rgba(140,190,255,.55),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.075) 0 1px,transparent 1px 32px),linear-gradient(160deg,#2f6cf2,#1a47c7)}
+.cp-hero{position:relative;color:#fff;overflow:hidden;isolation:isolate;background:#2563eb}
+.cp-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(1000px 480px at 88% -10%,rgba(190,220,255,.7),transparent 62%),radial-gradient(700px 360px at 0% 110%,rgba(30,80,220,.35),transparent 60%),repeating-linear-gradient(0deg,rgba(255,255,255,.09) 0 1px,transparent 1px 32px),repeating-linear-gradient(90deg,rgba(255,255,255,.09) 0 1px,transparent 1px 32px),linear-gradient(200deg,#5c9bff 0%,#3b7df6 42%,#2563eb 100%)}
 .cp-hero a,.cp-hero .linkbtn{color:#fff;text-decoration-color:rgba(255,255,255,.45)}
 .brandbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:18px;padding-bottom:18px}
 .cp-co{display:flex;align-items:center;gap:12px;min-width:0}
-.cp-co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#1a47c7;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
+.cp-co-logo{width:40px;height:40px;border-radius:11px;background:#fff;color:#2563eb;display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em;flex:none}
 .cp-co-img{display:block;height:44px;width:auto;max-width:min(200px,44vw);object-fit:contain;padding:6px 10px;border-radius:11px;background:#fff;flex:none}
 .cp-co-word{display:grid;line-height:1.2;min-width:0}
 .cp-co-word b{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cp-co-sub{font-size:12px;color:#dbe6ff}
-.who{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#dbe6ff}
+.cp-co-sub{font-size:12px;color:#eef4ff}
+.who{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#eef4ff}
 .who-name{display:flex;align-items:center;gap:8px}
 .who .avatar{background:rgba(255,255,255,.16);color:#fff}
 .hero-in{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:40px;align-items:center;padding-top:22px;padding-bottom:44px}
-.h-eyebrow{margin:0;font:600 10.5px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#e4edff}
+.h-eyebrow{margin:0;font:600 10.5px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#f2f6ff}
 .cp-hero h1{font-size:46px;line-height:1.04;font-weight:650;letter-spacing:-.035em;margin:10px 0 12px;color:#fff;text-wrap:balance}
-.lede{margin:0 0 18px;font-size:16px;color:#dbe6ff;max-width:46ch}
+.lede{margin:0 0 18px;font-size:16px;color:#f2f6ff;max-width:48ch}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);color:#fff}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);color:#fff}
 .chip i{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.22)}
 .chip.attn i{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
-.snap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:center;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 20px 50px rgba(8,25,80,.18);border-radius:20px;padding:20px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.snap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:center;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3),0 20px 50px rgba(8,25,80,.16);border-radius:20px;padding:20px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .snap.no-ring{grid-template-columns:minmax(0,1fr)}
 .ring{--p:0;position:relative;width:132px;height:132px;border-radius:50%;display:grid;place-items:center;animation:ringin 1.2s cubic-bezier(.2,.7,.2,1) both}
-.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(#fff calc(var(--p)*1%),rgba(255,255,255,.22) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px));mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px))}
-.ring div{position:relative;text-align:center;font-size:11.5px;color:#dbe6ff;line-height:1.3;max-width:96px}
+.ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(#fff calc(var(--p)*1%),rgba(255,255,255,.26) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px));mask:radial-gradient(farthest-side,transparent calc(100% - 12px),#000 calc(100% - 11px))}
+.ring div{position:relative;text-align:center;font-size:11.5px;color:#f2f6ff;line-height:1.3;max-width:96px}
 .ring b{display:block;font-size:30px;font-weight:650;letter-spacing:-.03em;line-height:1;color:#fff;margin-bottom:3px}
 @property --p{syntax:"<number>";inherits:true;initial-value:0}
 @keyframes ringin{from{--p:0}}
 .snap-rows{display:grid;gap:10px;min-width:0}
-.snap-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#dbe6ff;border-bottom:1px solid rgba(255,255,255,.22);padding-bottom:8px}
+.snap-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#f2f6ff;border-bottom:1px solid rgba(255,255,255,.28);padding-bottom:8px}
 .snap-row:last-child{border:0;padding:0}
 .snap-row b{color:#fff;font-weight:600;text-align:right}
 .peek{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
@@ -320,7 +328,26 @@ const PORTAL_CSS = `
 .phases span{display:block;font-size:12px;color:var(--muted)}
 .phases li.next b{color:var(--accent-ink)}
 .team{display:flex;align-items:center;gap:14px}
-.team .avatar{width:46px;height:46px;font-size:14px}
+.team .avatar{width:56px;height:56px;font-size:16px;box-shadow:0 0 0 3px var(--white),0 0 0 4px var(--line)}
+.team img.avatar{object-fit:cover;background:var(--head)}
+.team img.avatar.logo{object-fit:contain;background:#fff;padding:7px}
+.cp-team-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px!important}
+.cp-stand{display:grid;gap:14px}
+.cp-stand-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.cp-stand-top b{font-size:34px;font-weight:650;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
+.cp-stand-top span{font-size:13px;color:var(--body)}
+.cp-stand-bar{height:12px;border-radius:999px;background:var(--line);overflow:hidden}
+.cp-stand-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#5c9bff,var(--accent));animation:grow 1.1s cubic-bezier(.2,.7,.2,1) both}
+@keyframes grow{from{width:0}}
+.cp-field{list-style:none;margin:0;padding:0;display:grid}
+.cp-field>li{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 16px;padding:12px 0;border-top:1px solid var(--rule)}
+.cp-field>li:first-child{border-top:0;padding-top:0}
+.cp-field .d{font-weight:600;font-size:13.5px}
+.cp-field .d span{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.cp-field ul{margin:0;padding-left:16px;color:var(--body);font-size:13.5px}
+.cp-field ul li+li{margin-top:4px}
+.cp-field .cp-crew{margin:6px 0 0;font-size:12px;color:var(--muted)}
+@media (max-width:640px){.cp-field>li{grid-template-columns:minmax(0,1fr)}.cp-stand-top b{font-size:28px}}
 .team b{display:block;font-weight:600}
 .team span{font-size:13px;color:var(--body)}
 .photos.thumbs{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -350,46 +377,51 @@ body:has(.lb-slide:target){overflow:hidden}
 .lb-next{right:12px;top:50%;transform:translateY(-50%)}
 .lb-x{top:12px;right:12px;font-size:28px}
 @media (max-width:640px){.lb-slide{padding:56px 10px 20px}.lb-slide img{max-height:calc(100dvh - 190px);border-radius:8px}.lb-nav{display:none}.lb-slide figcaption{font-size:13px;padding:0 6px}}
-@media (prefers-reduced-motion:reduce){.ring,.panel,.cp-act,.btn,.photo img,.peek img,.lb{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){.ring,.cp-stand-bar i,.panel,.cp-act,.btn,.photo img,.peek img,.lb{animation:none!important;transition:none!important}}
 `;
 
-// Sign-in, code and notice screens match Athena's own sign-in card (src/components/auth/auth-card.tsx, brand
-// "athena"): pale blue ground, white card, short blue rule, serif title, mono labels, blue button. The contractor's
-// name sits beside the small Athena mark up top; the signed-in page keeps its own quieter look.
+// Sign-in, code and notice screens wear meetathena.io's web look: white with the site's faint blue fade at the top,
+// the Athena lockup, Inter Tight headings, blue mono labels and a blue pill button. The contractor and the job sit
+// under the lockup so a client knows who sent them; the signed-in page keeps its own quieter look.
 const SIGNIN_CSS = `
-.as{min-height:100vh;background:#DBEAFE;color:#1F2329;padding:40px max(16px,env(safe-area-inset-left)) 48px max(16px,env(safe-area-inset-right));font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:14px}
+.as{min-height:100vh;background:#fff linear-gradient(#F5F8FF 0,#fff 420px) no-repeat;color:#1F2329;padding:40px max(16px,env(safe-area-inset-left)) 48px max(16px,env(safe-area-inset-right));font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;font-size:14px}
 .as-wrap{width:100%;max-width:32rem;margin:0 auto}
 .as-brand{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;text-align:center}
+.as-lockup{display:block;height:30px;width:auto;margin-bottom:22px}
+.as-proj{margin-top:4px;font-size:14px;line-height:1.35;color:#4B5563;max-width:100%;overflow-wrap:anywhere}
 .as-logo{display:block;max-width:220px;max-height:56px;width:auto;height:auto}
 .as-co{display:grid;justify-items:center;line-height:1.15;min-width:0;max-width:100%}
-.as-co b{font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;font-weight:600;font-size:22px;letter-spacing:-.011em;max-width:100%;color:#1F2329;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.as-co span{margin-top:5px;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#1D4ED8}
-.as-card{margin-top:36px;background:#fff;border:1px solid #2563EB33;border-radius:16px;box-shadow:0 1px 2px #0F1E3D0F;padding:24px}
-.as-rule{width:40px;height:4px;background:#2563EB;margin-bottom:24px}
-.as-hi{margin:0 0 8px;font-size:14px;line-height:1.5;color:#5B5F68}
-.as h1{margin:0;font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:27px;line-height:1.15;letter-spacing:-.01em;color:#1F2329;text-wrap:balance}
-.as-sub{margin:12px 0 0;font-size:14px;line-height:1.6;color:#5B5F68}
-.as-job{margin-top:22px;padding:14px 16px;border:1px solid #E4E1D6;border-radius:12px;background:#F8FAFF;display:grid;gap:4px}
-.as-label{display:block;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#76736B}
-.as-job b{font-size:15px;font-weight:600;color:#1F2329}
+.as-co b{font-family:"Inter Tight","Inter",system-ui,sans-serif;font-weight:700;font-size:24px;letter-spacing:-.02em;max-width:100%;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.as-co span{margin-top:8px;font:400 11px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#2563EB}
+.as-card{margin-top:36px;background:#fff;border:1px solid #E5E7EB;border-radius:20px;box-shadow:0 24px 60px rgba(30,95,237,.08),0 2px 6px rgba(17,24,39,.04);padding:24px}
+.as-hi{margin:0 0 8px;font-size:15px;line-height:1.5;color:#4B5563}
+.as h1{margin:0;font-family:"Inter Tight","Inter",system-ui,sans-serif;font-weight:700;font-size:28px;line-height:1.15;letter-spacing:-.03em;color:#111827;text-wrap:balance}
+.as-sub{margin:12px 0 0;font-size:15px;line-height:1.6;color:#4B5563}
+.as-job{margin-top:22px;padding:14px 16px;border:1px solid #E5E7EB;border-radius:12px;background:#F5F8FF;display:grid;gap:4px}
+.as-label{display:block;font:400 11px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#2563EB}
+.as-job b{font-size:15px;font-weight:600;color:#111827}
 .as-form{margin-top:26px;display:grid;gap:18px}
 .as-field{display:grid;gap:8px}
-.as-input{width:100%;height:56px;padding:0 14px;border:1px solid #E4E1D6;border-radius:8px;background:#fff;color:#1F2329;outline:none;font:600 26px/1 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.5em;text-align:center;padding-left:calc(14px + .5em);font-variant-numeric:tabular-nums}
-.as-input:focus{border-color:#1D4ED8;box-shadow:0 0 0 3px #2563EB26}
-.as-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#3F434B;cursor:pointer}
+.as-input{width:100%;height:56px;padding:0 14px;border:1px solid #E5E7EB;border-radius:12px;background:#fff;color:#111827;outline:none;font:600 26px/1 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.5em;text-align:center;padding-left:calc(14px + .5em);font-variant-numeric:tabular-nums}
+.as-input.email{height:52px;font:400 16px/1.4 "Inter","Segoe UI",system-ui,sans-serif;letter-spacing:normal;text-align:left;padding-left:14px;font-variant-numeric:normal}
+.as-input:focus{border-color:#2563EB;box-shadow:0 0 0 3px #2563EB26}
+.as-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#4B5563;cursor:pointer}
 .as-check input{width:17px;height:17px;margin:1px 0 0;accent-color:#2563EB;flex:none}
-.as-btn{display:inline-flex;align-items:center;justify-content:center;width:100%;height:44px;padding:0 20px;border:0;border-radius:8px;background:#2563EB;color:#fff;font:600 13px/1 "Archivo","Helvetica Neue",Arial,sans-serif;cursor:pointer;text-decoration:none}
+.as-btn{display:inline-flex;align-items:center;justify-content:center;width:100%;height:48px;padding:0 22px;border:0;border-radius:999px;background:#2563EB;color:#fff;font:600 14px/1 "Inter","Segoe UI",system-ui,sans-serif;cursor:pointer;text-decoration:none}
 .as-btn:hover{background:#1D4ED8}
 .as-btn:focus-visible,.as-link:focus-visible,.as-input:focus-visible{outline:3px solid #1D4ED8;outline-offset:2px}
-.as-note{margin:0;font-size:12px;line-height:1.55;color:#76736B}
-.as-link{border:0;background:none;padding:0;font:inherit;font-weight:600;color:#1D4ED8;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
-.as-err{margin:20px 0 0;padding:11px 14px;border:1px solid #F3C8D0;border-radius:10px;background:#FFF3F5;color:#B91C1C;font-size:13px;font-weight:600}
-.as-foot{margin-top:28px;padding-top:18px;border-top:1px solid #E4E1D6;display:flex;align-items:center;gap:8px;font-size:12px;color:#76736B}
+.as-note{margin:0;font-size:12px;line-height:1.55;color:#6B7280}
+.as-link{border:0;background:none;padding:0;font:inherit;font-weight:600;color:#2563EB;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.as-err{margin:20px 0 0;padding:11px 14px;border:1px solid #F3C8D0;border-radius:12px;background:#FFF3F5;color:#B91C1C;font-size:13px;font-weight:600}
+.as-foot{margin-top:28px;padding-top:18px;border-top:1px solid #E5E7EB;display:flex;align-items:center;gap:8px;font-size:12px;color:#6B7280}
 .as-foot svg{width:22px;height:16px;flex:none;overflow:visible}
-.as-help{margin:22px 0 0;text-align:center;font-size:12px;line-height:1.7;color:#3F434B}.as-help a{color:#1D4ED8;text-decoration:underline;text-underline-offset:3px}
-@media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:29px}}
-@media (max-width:380px){.as-co b{font-size:19px}.as h1{font-size:24px}}
+.as-help{margin:22px 0 0;text-align:center;font-size:12px;line-height:1.7;color:#4B5563}.as-help a{color:#2563EB;text-decoration:underline;text-underline-offset:3px}
+@media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:30px}}
+@media (max-width:380px){.as-co b{font-size:20px}.as h1{font-size:25px}}
 `;
+
+// Athena's own lockup, the same file the Athena sign-in and account pages show, served from this app.
+const ATHENA_LOCKUP = "/brand/athena/athena-lockup-blue.svg";
 
 // The Athena A for the "Powered by Athena" corner line, inlined so the page needs no image request. Solid Athena
 // blue so the A reads whole at footer size (the lockup's pale crossbar disappears on white).
@@ -403,21 +435,30 @@ export const safeLogo = (url: string | null | undefined): string | null =>
  * The Athena-styled shell for sign-in and notice screens. Client-facing, so the contractor leads up top (their saved
  * logo, or their name in type) and Athena is the small A and "Powered by Athena" in the card's footer.
  */
-function signinShell(company: string | null, inner: string, logo: string | null = null): string {
+function signinShell(
+  company: string | null,
+  inner: string,
+  logo: string | null = null,
+  job: { number: string | null; name: string | null } | null = null,
+): string {
   const src = safeLogo(logo);
+  const jobLine = job?.name
+    ? `<span class="as-proj">${job.number ? `Job ${esc(job.number)} · ` : ""}${esc(job.name)}</span>`
+    : "";
+  const athena = `<img class="as-lockup" src="${ATHENA_LOCKUP}" alt="Athena" width="109" height="30">`;
   const brand = company
-    ? `<div class="as-brand">${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : `<span class="as-co"><b>${esc(company)}</b></span>`}<span class="as-co"><span>Client page</span></span></div>`
-    : `<div class="as-brand"><span class="as-co"><span>Client page</span></span></div>`;
+    ? `<div class="as-brand">${athena}${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : ""}<span class="as-co"><b>${esc(company)}</b><span>Client page</span></span>${jobLine}</div>`
+    : `<div class="as-brand">${athena}<span class="as-co"><span>Client page</span></span>${jobLine}</div>`;
   const support = `Trouble signing in? <a href="${esc(ATHENA_SUPPORT_MAILTO)}">Email Athena support</a>.`;
   const help = company
     ? `<p class="as-help">Questions about your project? Contact ${esc(company)}.<br>${support}</p>`
     : `<p class="as-help">${support}</p>`;
-  return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
+  return `<main class="as"><div class="as-wrap">${brand}<section class="as-card">${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
 }
 
 const FONTS_PORTAL = "family=Inter:wght@400;500;600;700";
 const FONTS_SIGNIN =
-  "family=Archivo:wght@400;500;600;700&family=Inter:wght@600&family=JetBrains+Mono:wght@600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500";
+  "family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&family=JetBrains+Mono:wght@400;600";
 
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
@@ -445,7 +486,42 @@ export function renderInvite(
       : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent" : "Enter"} a 6-digit code to ${masked}. It works for 10 minutes.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="verify"><div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><p class="as-note">No code? Check your spam folder, or <button class="as-link" type="submit">send a new one</button>.</p></form>`;
   return doc(
     `${info.job_name} · Sign in`,
-    signinShell(info.company, inner, opts.logo ?? null),
+    signinShell(info.company, inner, opts.logo ?? null, null),
+    "signin",
+  );
+}
+
+/**
+ * Sign in on the customer page itself, when a customer opens any link from their emails while signed out. They give
+ * their email, get a 6-digit code, and land on what they opened. `back` is the page's own query (section and item),
+ * carried through so they come back to it.
+ */
+export function renderPageSignIn(
+  step: "email" | "code",
+  opts: {
+    back: string;
+    error?: string | null;
+    sent?: boolean;
+    company?: string | null;
+    logo?: string | null;
+    job_number?: string | null;
+    job_name?: string | null;
+  } = {
+    back: "",
+  },
+): string {
+  const err = opts.error ? `<p class="as-err" role="alert">${esc(opts.error)}</p>` : "";
+  const back = `<input type="hidden" name="back" value="${esc(opts.back)}">`;
+  const inner =
+    step === "email"
+      ? `<h1>Sign in to your project page</h1><p class="as-sub">Enter the email address this page was shared with. We'll email you a 6-digit code. No password needed.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_send_code">${back}<div class="as-field"><label class="as-label" for="email">Email</label><input class="as-input email" id="email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="320" required autofocus></div><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button></form>`
+      : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent a 6-digit code to your email." : "Enter the 6-digit code from your email."} It works for 10 minutes.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_verify">${back}<div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><p class="as-note">No code? Check your spam folder, or <a class="as-link" href="?${esc(opts.back ? `${opts.back}&` : "")}step=signin">send a new one</a>.</p>`;
+  return doc(
+    opts.job_name ? `${opts.job_name} · Sign in` : "Sign in",
+    signinShell(opts.company ?? null, inner, opts.logo ?? null, {
+      number: opts.job_number ?? null,
+      name: opts.job_name ?? null,
+    }),
     "signin",
   );
 }
@@ -492,7 +568,8 @@ export function renderGone(
 export type PortalOpts = {
   section: PortalSection;
   item?: string | null;
-  step?: "confirm" | "decline" | null;
+  /** confirm: approve or sign with the emailed code; decline; check: tell the contractor you're paying by check. */
+  step?: "confirm" | "decline" | "check" | null;
   choice?: string | null;
   flash?: string | null;
   error?: string | null;
@@ -510,7 +587,7 @@ const itemLabel = (i: PortalItem) =>
     ? `${i.view.number} · ${i.view.title}`
     : i.kind === "pay_app"
       ? payAppLabel(i.view.number)
-      : i.kind === "service_invoice"
+      : i.kind === "service_invoice" || i.kind === "precon_agreement"
         ? i.view.title
         : i.view.proposal.title;
 const SECTION_OF: Record<PortalItem["kind"], PortalSection> = {
@@ -519,6 +596,7 @@ const SECTION_OF: Record<PortalItem["kind"], PortalSection> = {
   pay_app: "billing",
   work_order: "work",
   service_invoice: "billing",
+  precon_agreement: "agreement",
 };
 /** A service call's page: work orders and their bills, no schedule, change orders or selections. */
 const isService = (p: PortalPage) => p.job.kind === "service";
@@ -551,6 +629,7 @@ const ICON = {
   pay_app: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M14 11.2c-.4-.6-1.1-.9-2-.9-1.1 0-2 .6-2 1.4s.9 1.2 2 1.4 2 .6 2 1.4-.9 1.4-2 1.4c-.9 0-1.6-.4-2-.9M12 9.3v1M12 15.9v1"/></svg>`,
   work_order: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L4 16.7 7.3 20l5.3-5.3a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>`,
   service_invoice: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M14 11.2c-.4-.6-1.1-.9-2-.9-1.1 0-2 .6-2 1.4s.9 1.2 2 1.4 2 .6 2 1.4-.9 1.4-2 1.4c-.9 0-1.6-.4-2-.9M12 9.3v1M12 15.9v1"/></svg>`,
+  precon_agreement: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 15.5h3"/><path d="M13.5 19.5l5.8-5.8a1.4 1.4 0 0 1 2 2l-5.8 5.8-2.6.6z"/></svg>`,
 } as const;
 
 /** Whole days from today to a due date, for the "Reply by" chip. */
@@ -582,7 +661,9 @@ function decideBox(p: PortalPage): string {
               ? `Work order · ${i.view.basis_label} · ${woShort(i.view)}`
               : i.kind === "service_invoice"
                 ? `Bill · ${usd(billDue(p, i))} due`
-                : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
+                : i.kind === "precon_agreement"
+                  ? `Design and pre-construction · ${wholePrice(i.view.price_cents)}`
+                  : `Choose a package · from ${usd(Math.min(...i.view.proposal.packages.map((k) => k.total_cents)))}`;
       const verb =
         i.kind === "change_order" || i.kind === "work_order"
           ? "Reply"
@@ -590,8 +671,12 @@ function decideBox(p: PortalPage): string {
             ? "Approve"
             : i.kind === "service_invoice"
               ? "Pay"
-              : "Choose";
-      return `<div class="cp-act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(itemLabel(i))}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">Review</a></div>`;
+              : i.kind === "precon_agreement"
+                ? "Sign"
+                : "Choose";
+      const title = i.kind === "precon_agreement" ? "Pre-construction agreement" : itemLabel(i);
+      const go = i.kind === "precon_agreement" ? "Review and sign" : "Review";
+      return `<div class="cp-act"><span class="ico">${ICON[i.kind]}</span><div><h3>${esc(title)}</h3><span class="meta">${esc(what)}</span>${dueChip(p, i.due_on, verb)}</div><a class="btn" href="${esc(href(p, section, { i: i.id }))}">${go}</a></div>`;
     })
     .join("");
   return `<section class="panel decide"><div class="panel-head"><h2>Needs your attention</h2><span class="meta">${waiting.length} ${waiting.length === 1 ? "item" : "items"}</span></div><div class="cp-acts">${rows}</div></section>`;
@@ -674,10 +759,29 @@ function milestoneList(p: PortalPage, limit?: number): string {
     .join("")}</ul>`;
 }
 
+/** Only an https link reaches an img tag. */
+const safePhoto = (u: string | null | undefined): boolean =>
+  !!u && /^https:\/\/[^\s"'<>]+$/.test(u);
+
+/** Share of the contract the owner has approved, 0 to 100, from certified bills only. */
+function approvedPct(p: PortalPage): number | null {
+  const g = p.progress;
+  if (!g || g.contract_cents <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((g.approved_cents / g.contract_cents) * 100)));
+}
+
 function contactPanel(p: PortalPage): string {
   const c = p.contractor;
   if (!c.pm_name && !c.pm_email) return "";
-  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team"><span class="avatar" aria-hidden="true">${esc(initials(c.pm_name || c.name))}</span><div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div><p class="sub cp-team-acts"><a class="btn" href="${esc(href(p, "messages"))}">Send a message</a>${c.pm_email ? `<a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a>` : ""}</p></section>`;
+  const who = c.pm_name || c.name;
+  // The PM's own photo; without one, the company's logo; initials only when there is neither (Marshall, Nov 6).
+  const logo = safeLogo(c.logo_url);
+  const face = safePhoto(c.pm_photo_url)
+    ? `<img class="avatar" src="${esc(c.pm_photo_url!)}" alt="${esc(who)}" referrerpolicy="no-referrer">`
+    : logo
+      ? `<img class="avatar logo" src="${esc(logo)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">`
+      : `<span class="avatar" aria-hidden="true">${esc(initials(who))}</span>`;
+  return `<section class="panel"><div class="panel-head"><h2>Your team</h2></div><div class="team">${face}<div><b>${esc(c.pm_name || c.name)}</b><span>${esc([c.pm_title || "Project manager", c.name].filter(Boolean).join(" · "))}</span></div></div><p class="sub cp-team-acts"><a class="btn" href="${esc(href(p, "messages"))}">Send a message</a>${c.pm_email ? `<a class="btn secondary" href="mailto:${esc(c.pm_email)}">Email ${esc((c.pm_name || c.name).split(/\s+/)[0]!)}</a>` : ""}</p></section>`;
 }
 
 /** "Ask a question about this": opens Messages with the item already linked. Never inside a signing form. */
@@ -750,18 +854,48 @@ function phases(p: PortalPage): string {
   return `<section class="panel"><div class="panel-head"><h2>Where the job stands</h2><a class="meta" href="${esc(href(p, "schedule"))}">Full schedule</a></div><ol class="phases" style="--n:${shown.length}">${items}</ol></section>`;
 }
 
+/** No weekly update yet: the last few days from the field (date, weather, crew, work done), as the Updates tab shows them. */
+function fieldPanel(p: PortalPage): string {
+  const days = p.dailies.filter((d) => d.work.some((w) => !!w && !!w.trim())).slice(0, 3);
+  const head = `<div class="panel-head"><h2>This week on your project</h2>${days.length ? `<a class="meta" href="${esc(href(p, "updates"))}">All updates</a>` : ""}</div>`;
+  if (!days.length)
+    return `<section class="panel">${head}<p class="empty">${esc(`${p.contractor.name} posts a short update here each week, with what got done and what's next.`)}</p></section>`;
+  const rows = days
+    .map((d) => {
+      const work = d.work.filter((w): w is string => !!w && !!w.trim()).slice(0, 4);
+      // A head count reads "Crew of 6" by the date; a written crew breakdown goes under the work, in full.
+      const m = d.manpower?.trim() ?? "";
+      const count = /^\d{1,4}$/.test(m);
+      const crew = count ? `Crew of ${m}` : "";
+      const crewNote = m && !count ? `<p class="cp-crew">${esc(`Crew: ${m}`)}</p>` : "";
+      return `<li><div class="d">${esc(shortDate(d.date))}<span>${esc([dayName(d.date), crew].filter(Boolean).join(" · "))}</span></div><div><ul>${work.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>${crewNote}</div></li>`;
+    })
+    .join("");
+  return `<section class="panel">${head}<ul class="cp-field">${rows}</ul></section>`;
+}
+
+/** No schedule shared: where the job stands by the work the owner has approved, or a plain note. */
+function standPanel(p: PortalPage): string {
+  const pct = approvedPct(p);
+  const head = `<div class="panel-head"><h2>Where the job stands</h2><a class="meta" href="${esc(href(p, "schedule"))}">Schedule</a></div>`;
+  const note = `<p class="fine">${esc(`Schedule milestones show here once ${p.contractor.name} shares the schedule.`)}</p>`;
+  if (pct === null) return `<section class="panel">${head}${note}</section>`;
+  const g = p.progress!;
+  return `<section class="panel">${head}<div class="cp-stand"><div class="cp-stand-top"><b>${pct}%</b><span>${esc(`${usd(g.approved_cents)} of ${usd(g.contract_cents)} approved`)}</span></div><div class="cp-stand-bar" role="img" aria-label="${esc(`${pct} percent of the contract approved`)}"><i style="width:${pct}%"></i></div>${note}</div></section>`;
+}
+
 function home(p: PortalPage): string {
   const latest = p.updates[0];
   const pm = p.contractor.pm_name;
   const update = latest
     ? `<section class="panel"><div class="panel-head"><h2>${esc(latest.title)}</h2><a class="meta" href="${esc(href(p, "updates"))}">All updates</a></div><div class="prose">${paras(latest.body)}</div><div class="byline"><span class="avatar" aria-hidden="true">${esc(initials(pm || p.contractor.name))}</span>${esc([pm ? `${pm}, ${p.contractor.pm_title || "project manager"}` : p.contractor.name, `week of ${longDate(latest.week_of)}`].join(" · "))}</div></section>`
-    : `<section class="panel"><div class="panel-head"><h2>This week on your project</h2></div><p class="empty">${esc(p.contractor.name)} hasn't posted an update yet.</p></section>`;
+    : fieldPanel(p);
   const shown = p.photos.filter((ph) => ph.url);
   const photos = shown.length
     ? `<section class="panel"><div class="panel-head"><h2>Latest photos</h2><a class="meta" href="${esc(href(p, "photos"))}">See all ${shown.length}</a></div>${photoGrid(shown.slice(0, 2), "thumbs")}</section>`
     : "";
   const coming = `<section class="panel"><div class="panel-head"><h2>Coming up</h2><a class="meta" href="${esc(href(p, "schedule"))}">Schedule</a></div>${milestoneList(p, 4)}</section>`;
-  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p)}</div><aside class="rail">${moneyPanel(p)}${contactPanel(p)}${photos}${coming}</aside></div>`;
+  return `<div class="grid-home"><div class="stack">${decideBox(p)}${update}${phases(p) || standPanel(p)}</div><aside class="rail">${moneyPanel(p)}${contactPanel(p)}${photos}${coming}</aside></div>`;
 }
 
 function updates(p: PortalPage): string {
@@ -811,10 +945,12 @@ function receipt(i: PortalItem): string {
   const what =
     d.decision === "approved"
       ? "Approved"
-      : d.decision === "declined"
-        ? "Declined"
-        : `Chose ${TIER_NAME[d.choice ?? "good"]}`;
-  return `<div class="receipt"><div class="receipt-top${d.decision === "declined" ? " declined" : ""}">${esc(what)}</div><dl><div><dt>By</dt><dd>${esc(d.typed_name)}</dd></div><div><dt>When</dt><dd>${esc(new Date(d.decided_at).toUTCString().replace("GMT", "UTC"))}</dd></div>${d.code_verified ? `<div><dt>Confirmed</dt><dd>With a code emailed to you</dd></div>` : ""}${d.note ? `<div><dt>Your note</dt><dd>${esc(d.note)}</dd></div>` : ""}<div><dt>Document fingerprint</dt><dd class="mono">${esc(i.fingerprint)}</dd></div></dl></div>`;
+      : d.decision === "signed"
+        ? "Signed"
+        : d.decision === "declined"
+          ? "Declined"
+          : `Chose ${TIER_NAME[d.choice ?? "good"]}`;
+  return `<div class="receipt"><div class="receipt-top${d.decision === "declined" ? " declined" : ""}">${esc(what)}</div><dl><div><dt>By</dt><dd>${esc(d.typed_name)}</dd></div><div><dt>When</dt><dd>${esc(new Date(d.decided_at).toUTCString().replace("GMT", "UTC"))}</dd></div>${d.code_verified ? `<div><dt>Confirmed</dt><dd>With a code emailed to you</dd></div>` : ""}${d.decision === "signed" ? `<div><dt>Electronic signing</dt><dd>You agreed to do this electronically</dd></div>` : ""}${d.note ? `<div><dt>Your note</dt><dd>${esc(d.note)}</dd></div>` : ""}<div><dt>Document fingerprint</dt><dd class="mono">${esc(i.fingerprint)}</dd></div></dl></div>`;
 }
 
 function coSummary(v: ChangeOrderView): string {
@@ -978,6 +1114,116 @@ function selectionDetail(
   return `${backAsk}<div class="stack">${done}<section class="panel gbb-panel">${compare}${foot ? `<div class="close-fine">${paras(foot)}</div>` : ""}</section></div>`;
 }
 
+// ---------- pre-construction agreement: the owner reads it, signs it or declines it ----------
+
+type Precon = Extract<PortalItem, { kind: "precon_agreement" }>;
+const precons = (p: PortalPage): Precon[] =>
+  p.items
+    .filter((i): i is Precon => i.kind === "precon_agreement")
+    .sort((a, b) => b.shared_on.localeCompare(a.shared_on));
+/** The pre-con agreement's own bills on this page, first payment first. */
+const preconBills = (p: PortalPage): ServiceBill[] =>
+  serviceBills(p)
+    .filter((b) => b.view.work_order === "Pre-construction agreement")
+    .reverse();
+
+function preconPill(i: Precon): string {
+  const d = i.decision;
+  if (!d) return `<span class="pill wait">Needs your signature</span>`;
+  return d.decision === "signed"
+    ? `<span class="pill ok">${esc(`Signed ${longDate(d.decided_at)}`)}</span>`
+    : `<span class="pill neutral">${esc(`Declined ${longDate(d.decided_at)}`)}</span>`;
+}
+
+/** The agreement as the owner reads it: what they get, who draws it, how they pay, and the terms they sign. */
+function preconMain(p: PortalPage, i: Precon): string {
+  const v = i.view;
+  const d = i.decision;
+  const third = d
+    ? [d.decision === "signed" ? "Signed" : "Declined", longDate(d.decided_at)]
+    : ["Sign by", i.due_on ? longDate(i.due_on) : "No date"];
+  const sum = `<dl class="co-sum"><div><dt>Price</dt><dd>${esc(wholePrice(v.price_cents))}</dd></div><div><dt>Design time</dt><dd>${esc(v.design_days ? `About ${v.design_days} days` : "As agreed")}</dd></div><div><dt>${esc(third[0])}</dt><dd>${esc(third[1])}</dd></div></dl>`;
+  const inc = v.includes.length
+    ? `<div style="margin-top:18px"><h4>What you get</h4><ul class="inc">${v.includes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`
+    : "";
+  const who = v.design_partner
+    ? `<div style="margin-top:18px"><h4>Who draws it</h4><div class="prose"><p>${esc(`${v.design_partner}${v.design_role ? `, ${v.design_role}` : ""}, working with ${p.contractor.name}.`)}</p></div></div>`
+    : "";
+  const n = v.payments.length;
+  const pays = serviceLines(
+    v.payments.map((x) => ({
+      description: n === 1 ? "Payment" : `Payment ${x.index}`,
+      detail: preconDueLabel(x),
+      amount_cents: x.amount_cents,
+    })),
+    [["Agreement total", usd(v.price_cents), "cp-total"]],
+  );
+  const terms = preconTerms(v, p.contractor.name, p.job.name);
+  return `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`Pre-construction agreement · sent ${longDate(i.shared_on)}`)}</p><h2>${esc(itemLabel(i))}</h2></div>${preconPill(i)}</div>${sum}${inc}${who}</section><section class="panel"><div class="panel-head"><h2>How you pay</h2><span class="meta">${esc(n === 1 ? "1 payment" : `${n} payments`)}</span></div>${pays}<p class="fine sv-terms">Each payment shows on this page when it's due.</p></section><section class="panel"><div class="panel-head"><h2>The terms</h2><span class="meta">What you sign</span></div><ol class="terms">${terms.map((t) => `<li><b>${esc(t.heading)}.</b> ${esc(t.text)}</li>`).join("")}</ol></section>`;
+}
+
+/** After signing: the first bill to pay, or where things stand. */
+function preconNext(p: PortalPage, i: Precon): string {
+  const bills = preconBills(p);
+  const due = bills.find((b) => billOpen(p, b));
+  const partner = i.view.design_partner ?? p.contractor.name;
+  const copy = `<p class="fine">${esc(`We emailed a copy of what you signed to ${p.customer.email}.`)}</p>`;
+  if (due) {
+    const idx = bills.indexOf(due) + 1;
+    const amt = wholePrice(billDue(p, due));
+    const line =
+      idx === 1
+        ? `Payment 1 for ${amt} is ready. Once it's paid, ${partner} starts the design.`
+        : `Payment ${idx} for ${amt} is ready to pay.`;
+    return `<section class="panel actions"><h2>What happens next</h2><p class="sub">${esc(line)}</p><a class="btn block" href="${esc(href(p, "billing", { i: due.id }))}">${esc(`Pay ${amt}`)}</a>${askLink(p, i)}${copy}</section>`;
+  }
+  const line = bills.length
+    ? "You're paid up for now. The next payment shows here when it's due."
+    : `${p.contractor.name} will put your first payment on this page.`;
+  return `<section class="panel actions"><h2>What happens next</h2><p class="sub">${esc(line)}</p>${askLink(p, i)}${copy}</section>`;
+}
+
+function preconDetail(p: PortalPage, i: Precon, o: PortalOpts): string {
+  const v = i.view;
+  const co = p.contractor.name;
+  const price = wholePrice(v.price_cents);
+  const first = v.payments[0]!;
+  let side: string;
+  if (i.decision?.decision === "signed") side = `${receipt(i)}${preconNext(p, i)}`;
+  else if (i.decision)
+    side = `${receipt(i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
+  else if (o.step === "confirm")
+    side = `<form method="post" class="panel"><h2>Sign the agreement</h2><p class="sub">We emailed a 6-digit code to ${esc(maskEmail(p.customer.email))}.</p><div class="sum"><div><span>Price</span><b>${esc(usd(v.price_cents))}</b></div><div><span>${esc(`Due ${first.due === "signing" ? "when you sign" : "first"}`)}</span><b>${esc(usd(first.amount_cents))}</b></div></div>${hidden(p, { action: "decide", item: i.id, decision: "signed", fingerprint: i.fingerprint })}<p class="statement" style="margin-top:22px">${esc(preconConsent(co, p.customer.email))}</p><label class="check"><input type="checkbox" name="consent" value="1" required> I agree to do this electronically</label><div class="field"><label for="code">Code from your email</label><input class="input code" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><p class="statement" style="margin-top:22px">${esc(preconStatement(co, p.job.name, price))}</p><label class="check"><input type="checkbox" name="agree" value="1" required> I agree</label><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "agreement", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Sign agreement</button></div></form>`;
+  else if (o.step === "decline")
+    side = `<form method="post" class="panel"><h2>Decline the agreement</h2><p class="sub">${esc(`${co} will see your note and follow up.`)}</p>${hidden(p, { action: "decide", item: i.id, decision: "declined", fingerprint: i.fingerprint })}<div class="field"><label for="note">What would you like changed? (optional)</label><textarea class="textarea" id="note" name="note" maxlength="2000"></textarea></div><div class="field"><label for="typed_name">Type your full name</label><input class="input" id="typed_name" name="typed_name" autocomplete="name" minlength="2" maxlength="120" required></div><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "agreement", { i: i.id }))}">Cancel</a><button class="btn" type="submit">Decline agreement</button></div></form>`;
+  else
+    side = `<section class="panel actions"><h2>Your decision</h2><form method="post">${hidden(p, { action: "start", item: i.id })}<button class="btn block" type="submit">Sign the agreement</button></form><a class="btn secondary block" href="${esc(href(p, "agreement", { i: i.id, step: "decline" }))}">Decline</a>${askLink(p, i)}<p class="fine">Signing asks for a code we email you and your typed name. Your signature is recorded with the date and time.</p></section>`;
+  const others = precons(p).filter((x) => x.id !== i.id);
+  const earlier = others.length
+    ? `<section class="panel"><div class="panel-head"><h2>${others.length === 1 ? "Other version" : "Other versions"}</h2></div>${others
+        .map(
+          (x) =>
+            `<div class="rec"><div><h3>${esc(`Sent ${longDate(x.shared_on)}`)}</h3><div class="meta">${esc(wholePrice(x.view.price_cents))}</div></div><div class="right">${preconPill(x)}<a class="btn secondary" href="${esc(href(p, "agreement", { i: x.id }))}">View</a></div></div>`,
+        )
+        .join("")}</section>`
+    : "";
+  const back = `<p><a href="${esc(href(p, "home"))}">Back to home</a></p>`;
+  return `${back}<div class="co-cols"><div class="stack">${preconMain(p, i)}</div><aside class="stack">${side}${earlier}</aside></div>`;
+}
+
+/** The Agreement tab: the agreement asked for (by link), else the one waiting to be signed, else the latest. */
+function agreement(p: PortalPage, o: PortalOpts): string {
+  const all = precons(p);
+  const it =
+    (o.item ? all.find((x) => x.id === o.item) : null) ??
+    all.find((x) => !x.decision) ??
+    all.find((x) => x.decision?.decision === "signed") ??
+    all[0];
+  if (!it)
+    return `<section class="panel"><div class="panel-head"><h2>Agreement</h2></div><p class="empty">No agreement shared with you yet.</p></section>`;
+  return preconDetail(p, it, o);
+}
+
 // ---------- billing: shared pay applications ----------
 
 type PayApp = Extract<PortalItem, { kind: "pay_app" }>;
@@ -1092,10 +1338,58 @@ function paidBox(x: PortalPayment): string {
   return `<section class="panel pp"><div class="pp-done"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div><b>${x.status === "refunded" ? "Refunded" : "Paid"}</b><span>${esc(line)}</span></div></div>${test}<p class="fine">Stripe emailed your receipt. Questions about it go to your project team.</p></section>`;
 }
 
+/** The Pay by bank and Pay by card buttons, when the contractor's own Stripe is set up and takes this amount. */
+function onlineButtons(p: PortalPage, i: Payable, due = i.view.totals.current_due_cents): string {
+  const pay = p.payments;
+  if (!pay?.accepting || due <= 0) return "";
+  const cardOk = pay.card && due <= pay.card_max_cents;
+  const btn = (method: "bank" | "card", label: string, primary: boolean) =>
+    `<form method="post">${hidden(p, { action: "pay", item: i.id, method })}<button class="btn${primary ? "" : " secondary"} block" type="submit">${label}</button></form>`;
+  return [
+    pay.bank ? btn("bank", "Pay by bank", true) : "",
+    cardOk ? btn("card", "Pay by card", !pay.bank) : "",
+  ].join("");
+}
+
+/** Bills the owner can pay by check from this page (pre-construction bills for now). */
+const checkable = (p: PortalPage, i: ServiceBill) => (p.check_items ?? []).includes(i.id);
+const checkFor = (p: PortalPage, i: ServiceBill): PortalCheck | null =>
+  p.checks?.find((c) => c.item_id === i.id) ?? null;
+
+/** No online payments here: tell the contractor you're paying by check. */
+function checkOnlyBox(p: PortalPage, i: ServiceBill): string {
+  const co = p.contractor.name;
+  return `<section class="panel pp"><div class="panel-head"><h2>${esc(`Pay ${usd(billDue(p, i))}`)}</h2></div><p class="sub">${esc(`${co} takes checks for this bill. Tell them you're paying by check and they'll set a time to collect it.`)}</p><div class="pp-btns"><a class="btn block" href="${esc(href(p, "billing", { i: i.id, step: "check" }))}">Pay by check</a></div><p class="fine">${esc(`Make the check out to ${co}.`)}</p></section>`;
+}
+
+/** The owner said they're paying by check: waiting on a date, or the pickup the contractor set. */
+function checkBox(p: PortalPage, i: ServiceBill, c: PortalCheck): string {
+  const co = p.contractor.name;
+  const amount = `<div><span>Amount</span><b>${esc(usd(billDue(p, i)))}</b></div>`;
+  if (!c.pickup_on)
+    return `<section class="panel pp"><div class="panel-head"><h2>Paying by check</h2><span class="pill wait">Waiting on a date</span></div><div class="sum">${amount}</div><p class="ck-note">${esc(`You told ${co} you're paying by check. They'll set a date to collect it, and you'll see it here and by email.`)}</p>${c.note ? `<p class="fine">${esc(`Your note: ${c.note}`)}</p>` : ""}${askLink(p, i)}</section>`;
+  const who = c.pickup_by ? `<b>${esc(c.pickup_by)}</b> from ${esc(co)}` : esc(co);
+  const where = c.pickup_place ? ` at ${esc(c.pickup_place)}` : "";
+  return `<section class="panel pp"><div class="panel-head"><h2>Paying by check</h2><span class="pill neutral">Pickup set</span></div><div class="sum">${amount}<div><span>Collected on</span><b>${esc(dayName(c.pickup_on))}, ${esc(longDate(c.pickup_on))}</b></div>${c.pickup_window ? `<div><span>Time</span><b>${esc(c.pickup_window)}</b></div>` : ""}</div><p class="ck-note">${who} will collect it${where}. This bill shows paid once they record the check.</p><a class="btn secondary block" href="${esc(href(p, "messages", { about: i.id }))}#write">Ask about the pickup</a></section>`;
+}
+
+/** The form that tells the contractor you're paying by check. */
+function checkForm(p: PortalPage, i: ServiceBill): string {
+  const co = p.contractor.name;
+  return `<form method="post" class="panel"><h2>Pay by check</h2><p class="sub">${esc(`${co} gets a note that you're paying by check, then sets a date to collect it. You'll see the date here and by email.`)}</p><div class="sum"><div><span>Amount</span><b>${esc(usd(billDue(p, i)))}</b></div><div><span>Bill</span><b>${esc(i.view.number)}</b></div></div>${hidden(p, { action: "check_request", item: i.id })}<div class="field"><label for="note">Good days and times to collect it (optional)</label><textarea class="textarea" id="note" name="note" maxlength="1000"></textarea></div><div class="form-actions"><a class="btn secondary" href="${esc(href(p, "billing", { i: i.id }))}">Cancel</a><button class="btn" type="submit">${esc(`Send to ${co}`)}</button></div></form>`;
+}
+
 /** Pay an approved pay application by bank or card, on a Stripe page for the contractor's own account. */
 function payBox(p: PortalPage, i: Payable): string {
   const pay = p.payments;
-  // A pay application is paid once approved; a service bill is paid as it stands.
+  // A bill the owner can pay by check: once they've said so, the check panel takes over; with no online
+  // payments set up, paying by check is the way to pay.
+  if (i.kind === "service_invoice" && checkable(p, i) && billOpen(p, i)) {
+    const chk = checkFor(p, i);
+    if (chk?.requested_at || chk?.pickup_on) return checkBox(p, i, chk);
+    const online = pay ? onlineButtons(p, i) : "";
+    if (!online) return checkOnlyBox(p, i);
+  }
   if (!pay || (i.kind === "pay_app" && i.decision?.decision !== "approved")) return "";
   const state = payState(p, i);
   if (state?.kind === "online" && state.x.status !== "refunded") return paidBox(state.x);
@@ -1105,13 +1399,12 @@ function payBox(p: PortalPage, i: Payable): string {
   if (!pay.accepting || due <= 0)
     return part ? recordedBox(p, part, due) : state?.kind === "online" ? paidBox(state.x) : "";
   const cardOk = pay.card && due <= pay.card_max_cents;
-  const btn = (method: "bank" | "card", label: string, primary: boolean) =>
-    `<form method="post">${hidden(p, { action: "pay", item: i.id, method })}<button class="btn${primary ? "" : " secondary"} block" type="submit">${label}</button></form>`;
-  const buttons = [
-    pay.bank ? btn("bank", "Pay by bank", true) : "",
-    cardOk ? btn("card", "Pay by card", !pay.bank) : "",
-  ].join("");
-  if (!buttons) return part ? recordedBox(p, part, due) : "";
+  const online = onlineButtons(p, i, due);
+  const byCheck = i.kind === "service_invoice" && checkable(p, i);
+  const buttons = byCheck
+    ? `${online}<a class="btn secondary block" href="${esc(href(p, "billing", { i: i.id, step: "check" }))}">Pay by check</a>`
+    : online;
+  if (!online) return part ? recordedBox(p, part, due) : "";
   const last = p.payments?.payments.find((x) => x.item_id === i.id);
   const failed =
     last?.status === "failed"
@@ -1124,9 +1417,11 @@ function payBox(p: PortalPage, i: Payable): string {
     pay.card && !cardOk
       ? `<p class="fine">${esc(`Card payments are open up to ${usd(pay.card_max_cents)}, so pay this one by bank.`)}</p>`
       : "";
-  const how = pay.bank
-    ? "You'll finish on a secure Stripe page. Bank payments take a few business days to clear."
-    : "You'll finish on a secure Stripe page.";
+  const how = `${
+    pay.bank
+      ? "You'll finish on a secure Stripe page. Bank payments take a few business days to clear."
+      : "You'll finish on a secure Stripe page."
+  }${byCheck ? " Paying by check? Tell us here and we'll set a time to collect it." : ""}`;
   const received = part
     ? `<p class="pp-line">${esc(`${recordedLine(part)} ${usd(due)} is left to pay.`)}</p>`
     : "";
@@ -1183,10 +1478,18 @@ function contractCard(i: PayApp): string {
   return `<section class="panel cp-contract"><div class="panel-head"><h2>Your contract</h2><span class="meta">${esc(`As of ${itemLabel(i)}`)}</span></div><dl class="cp-kv">${rows}</dl></section>`;
 }
 
+/** Home rail without a shared pay application: the contract and what the owner has approved so far. */
+function progressMoney(p: PortalPage): string {
+  const g = p.progress;
+  if (!g) return "";
+  const rest = Math.max(0, g.contract_cents - g.approved_cents);
+  return `<section class="panel cp-money"><div class="panel-head"><h2>Money at a glance</h2><a class="meta" href="${esc(href(p, "billing"))}">Billing</a></div><p class="cp-big">${esc(usd(g.contract_cents))}<span>Contract total</span></p><div class="cp-bar cp-tall" role="img" aria-label="${esc(`Approved ${usd(g.approved_cents)}, remaining ${usd(rest)}, of ${usd(g.contract_cents)}`)}"><span class="cp-seg cp-prev" style="width:${width(g.approved_cents, g.contract_cents)}"></span><span class="cp-seg cp-rest" style="width:${width(rest, g.contract_cents)}"></span></div><ul class="cp-legend"><li><i class="cp-prev"></i><span>Approved so far</span><b>${esc(usd(g.approved_cents))}</b></li><li><i class="cp-rest"></i><span>Remaining</span><b>${esc(usd(rest))}</b></li></ul></section>`;
+}
+
 /** Home rail: the contract total and where the money stands, from shared pay applications only. */
 function moneyPanel(p: PortalPage): string {
   const latest = payApps(p)[0];
-  if (!latest) return "";
+  if (!latest) return progressMoney(p);
   const v = latest.view;
   const t = v.totals;
   const total = v.contract_total_cents;
@@ -1258,7 +1561,11 @@ type WorkOrder = Extract<PortalItem, { kind: "work_order" }>;
 
 /** The tabs a page shows: a service call shows only what a service customer uses. */
 function sectionsFor(p: PortalPage): readonly PortalSection[] {
-  if (!isService(p)) return PORTAL_SECTIONS;
+  // The Agreement tab shows once a pre-construction agreement has been shared.
+  if (!isService(p))
+    return p.items.some((i) => i.kind === "precon_agreement")
+      ? PORTAL_SECTIONS
+      : PORTAL_SECTIONS.filter((s) => s !== "agreement");
   return p.photos.some((ph) => ph.url)
     ? ["home", "work", "billing", "photos", "messages"]
     : ["home", "work", "billing", "messages"];
@@ -1283,6 +1590,10 @@ function billOpen(p: PortalPage, i: ServiceBill): boolean {
   return billDue(p, i) > 0;
 }
 function billPill(p: PortalPage, i: ServiceBill): string {
+  const chk = billOpen(p, i) ? checkFor(p, i) : null;
+  if (chk?.pickup_on)
+    return `<span class="pill neutral">${esc(`Check pickup ${shortDate(chk.pickup_on)}`)}</span>`;
+  if (chk?.requested_at) return `<span class="pill neutral">Paying by check</span>`;
   return (
     paidPill(p, i) ??
     (billOpen(p, i) ? `<span class="pill wait">Due</span>` : `<span class="pill ok">Paid</span>`)
@@ -1452,7 +1763,7 @@ function serviceBilling(p: PortalPage): string {
   return `<div class="grid-home"><div class="stack">${head}${payBox(p, due)}${history}</div><aside class="rail">${contactPanel(p)}</aside></div>`;
 }
 
-function serviceBillDetail(p: PortalPage, i: ServiceBill): string {
+function serviceBillDetail(p: PortalPage, i: ServiceBill, o: PortalOpts): string {
   const v = i.view;
   const back = `<p><a href="${esc(href(p, "billing"))}">All billing</a></p>`;
   const signed = v.signoff
@@ -1460,7 +1771,11 @@ function serviceBillDetail(p: PortalPage, i: ServiceBill): string {
     : "";
   const sum = `<dl class="co-sum"><div><dt>Due</dt><dd>${esc(usd(v.totals.current_due_cents))}</dd></div><div><dt>${esc(v.work_order ? "Work order" : "For")}</dt><dd>${esc(v.work_order ?? "Service call")}</dd></div><div><dt>Pay by</dt><dd>${esc(i.due_on ? longDate(i.due_on) : "On receipt")}</dd></div></dl>`;
   const main = `<section class="panel"><div class="co-head"><div><p class="eyebrow">${esc(`${v.stage === "fee" ? "Service call fee" : "Bill"} · sent ${longDate(i.shared_on)}${v.site_address ? ` · ${v.site_address}` : ""}`)}</p><h2>${esc(itemLabel(i))}</h2></div>${billPill(p, i)}</div>${sum}${v.issue ? `<div style="margin-top:18px"><h4>${esc(v.stage === "fee" ? "What you called about" : "The work")}</h4><div class="prose">${paras(v.issue)}</div></div>` : ""}</section><section class="panel"><div class="panel-head"><h2>What you're paying for</h2></div>${serviceLines(v.lines, billTotals(v))}${v.note ? `<p class="fine sv-terms">${esc(v.note)}</p>` : ""}${signed}</section>`;
-  const side = `${payBox(p, i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
+  const asking =
+    o.step === "check" && checkable(p, i) && billOpen(p, i) && !checkFor(p, i)?.requested_at;
+  const side = asking
+    ? checkForm(p, i)
+    : `${payBox(p, i)}<section class="panel actions"><h2>Questions?</h2>${askLink(p, i)}</section>`;
   return `${back}<div class="co-cols"><div class="stack">${main}</div><aside class="stack">${side}</aside></div>`;
 }
 
@@ -1474,6 +1789,12 @@ const SERVICE_CSS = `
 .sv-line span:not(.cp-money){display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
 .sv-line .cp-money{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .sv-terms{margin-top:14px!important}
+/* Pre-construction agreement: what you get and the terms you sign. */
+.inc{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--body);overflow-wrap:anywhere}
+.terms{margin:0;padding-left:20px;display:grid;gap:10px;color:var(--body);max-width:70ch;overflow-wrap:anywhere}
+.terms b{color:var(--ink)}
+.ck-note{margin:12px 0 0;font-size:13.5px;color:var(--body)}
+.ck-note b{color:var(--ink)}
 .sv-sign{display:flex;gap:8px;align-items:center;margin:14px 0 0;font-size:13.5px;color:var(--ok-ink)}
 .sv-sign svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 @media (max-width:640px){.sv-line{padding:11px 13px}}
@@ -1572,6 +1893,8 @@ function body(p: PortalPage, o: PortalOpts): string {
       return `<section class="panel"><div class="panel-head"><h2>Photos</h2><span class="meta">${p.photos.length} shared</span></div>${photoGrid(p.photos)}</section>`;
     case "schedule":
       return `<div class="grid-home"><section class="panel"><div class="panel-head"><h2>Milestones</h2>${p.job.completion_date ? `<span class="meta">Planned finish ${esc(longDate(p.job.completion_date))}</span>` : ""}</div>${milestoneList(p)}</section><aside class="rail">${contactPanel(p)}</aside></div>`;
+    case "agreement":
+      return agreement(p, o);
     case "changes":
       return it?.kind === "change_order" ? changeOrderDetail(p, it, o) : changeOrderList(p);
     case "work":
@@ -1582,7 +1905,7 @@ function body(p: PortalPage, o: PortalOpts): string {
       return it?.kind === "pay_app"
         ? payAppDetail(p, it, o)
         : it?.kind === "service_invoice"
-          ? serviceBillDetail(p, it)
+          ? serviceBillDetail(p, it, o)
           : isService(p) || (serviceBills(p).length > 0 && !payApps(p).length)
             ? serviceBilling(p)
             : billing(p);
@@ -1609,25 +1932,43 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
     ? latest.title
     : next
       ? `Next up: ${next.name}, ${longDate(next.date)}.`
-      : `Your private project page from ${c.name}.`;
+      : `${c.name} keeps this page current: weekly updates, photos, the schedule, billing and anything that needs your decision.`;
   const chips = [
     waiting
       ? `<span class="chip attn"><i></i>${waiting} ${waiting === 1 ? "decision" : "decisions"} waiting</span>`
       : `<span class="chip"><i></i>Up to date</span>`,
     latest ? `<span class="chip">Update posted ${esc(shortDate(latest.week_of))}</span>` : "",
+    p.photos.some((ph) => ph.url)
+      ? `<span class="chip">${(() => {
+          const n = p.photos.filter((ph) => ph.url).length;
+          return `${n} site ${n === 1 ? "photo" : "photos"}`;
+        })()}</span>`
+      : "",
   ].join("");
   const total = p.milestones.length;
   const done = p.milestones.filter((m) => m.done).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
+  const approved = approvedPct(p);
   const ring = total
     ? `<div class="ring" style="--p:${pct}" role="img" aria-label="${done} of ${total} milestones done"><div><b>${done}/${total}</b>milestones done</div></div>`
-    : "";
+    : approved !== null
+      ? `<div class="ring" style="--p:${approved}" role="img" aria-label="${approved} percent of the contract approved"><div><b>${approved}%</b>of the work approved</div></div>`
+      : "";
+  const g = p.progress;
   const rows = [
+    g
+      ? `<div class="snap-row"><span>Work approved</span><b>${esc(usd(g.approved_cents))}</b></div>`
+      : "",
+    g
+      ? `<div class="snap-row"><span>Contract</span><b>${esc(usd(g.contract_cents))}</b></div>`
+      : "",
     next ? `<div class="snap-row"><span>Next milestone</span><b>${esc(next.name)}</b></div>` : "",
     next
       ? `<div class="snap-row"><span>Next date</span><b>${esc(longDate(next.date))}</b></div>`
       : "",
-    `<div class="snap-row"><span>Planned finish</span><b>${esc(longDate(p.job.completion_date) || "Not set")}</b></div>`,
+    p.job.completion_date || (!g && !next)
+      ? `<div class="snap-row"><span>Planned finish</span><b>${esc(longDate(p.job.completion_date) || "Being scheduled")}</b></div>`
+      : "",
   ].join("");
   const pics = p.photos.filter((ph) => ph.url).slice(0, 2);
   const peek = pics.length
@@ -1637,6 +1978,9 @@ function hero(p: PortalPage, waiting: number, logo: string | null = null): strin
 }
 
 export function renderPortal(p: PortalPage, o: PortalOpts): string {
+  p = { ...p, contractor: { ...p.contractor, logo_url: safeLogo(o.logo) } };
+  // A tab this page doesn't show (the Agreement tab before anything is shared) opens Home.
+  if (!sectionsFor(p).includes(o.section)) o = { ...o, section: "home" };
   const waitingBy = (...kinds: PortalItem["kind"][]) =>
     p.items.filter((i) => kinds.includes(i.kind) && open(p, i)).length;
   const count: Partial<Record<PortalSection, number>> = {
@@ -1644,6 +1988,7 @@ export function renderPortal(p: PortalPage, o: PortalOpts): string {
     work: waitingBy("work_order"),
     selections: waitingBy("selection"),
     billing: waitingBy("pay_app", "service_invoice"),
+    agreement: waitingBy("precon_agreement"),
     messages: o.section === "messages" ? 0 : (p.messages?.unread ?? 0),
   };
   const tabs = sectionsFor(p)

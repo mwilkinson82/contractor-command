@@ -282,7 +282,9 @@ describe("morning brief migration", () => {
     expect(sql).not.toMatch(/resend|sendTransactional|mailto:/i);
     const route = readFileSync("src/routes/api/athena/morning-brief.ts", "utf8");
     const push = readFileSync("src/lib/mcp/morning-brief-push.ts", "utf8");
+    // The daily email lives in its own gated sender; the route itself never talks to an email provider.
     expect(route).not.toMatch(/resend|sendTransactional|mailto:/i);
+    expect(route).toContain("briefEmailEnabled()");
     expect(push).not.toMatch(/resend|sendTransactional|mailto:/i);
     expect(route).toContain('body.action === "dispatch"');
   });

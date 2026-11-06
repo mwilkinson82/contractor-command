@@ -96,7 +96,14 @@ const view = () => ({
   ],
 });
 
-function deps(over: Partial<{ view: unknown; decide: unknown; issue: unknown }> = {}) {
+function deps(
+  over: Partial<{
+    view: unknown;
+    decide: unknown;
+    issue: unknown;
+    rpcs: Record<string, unknown>;
+  }> = {},
+) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
   const mail: PortalEmail[] = [];
   let n = 0;
@@ -123,6 +130,7 @@ function deps(over: Partial<{ view: unknown; decide: unknown; issue: unknown }> 
           : { status: "signed_out" };
       if (fn === "mcp_portal_decide")
         return over.decide ?? { status: "ok", decision_id: "d1", pm_email: "pat@example.com" };
+      if (over.rpcs && fn in over.rpcs) return over.rpcs[fn];
       return { status: "ok" };
     },
     signPhotos: async (paths) =>
@@ -190,11 +198,18 @@ describe("invite link", () => {
     expect(html).toContain("r***@example.com");
     expect(html).not.toContain("rosa@example.com");
     expect(html).not.toMatch(/<script/i);
-    // Sign-in wears Athena's own sign-in card: pale blue ground, blue rule and button, the mark beside the contractor.
+    // Sign-in wears meetathena.io's web look: white with a faint blue fade, Inter Tight headings, a blue pill button.
     expect(html).toContain('class="as-card"');
-    expect(html).toContain("#DBEAFE");
-    // Client-facing: the contractor leads up top in Inter; Athena is the small A and line in the card footer.
-    expect(html).toMatch(/<div class="as-brand"><span class="as-co"><b>[^<]+<\/b>/);
+    expect(html).toContain("linear-gradient(#F5F8FF 0,#fff 420px)");
+    expect(html).not.toContain("#DBEAFE");
+    expect(html).toContain("border-radius:999px");
+    expect(html).toContain("family=Inter+Tight");
+    expect(html).not.toContain('class="as-rule"');
+    // Client-facing: Athena's own lockup on top so it can't pass for a spoof, then the contractor; Athena is also
+    // the small A and line in the card footer.
+    expect(html).toMatch(
+      /<div class="as-brand"><img class="as-lockup" src="\/brand\/athena\/athena-lockup-blue\.svg" alt="Athena"[^>]*><span class="as-co"><b>[^<]+<\/b>/,
+    );
     expect(html).toMatch(/class="as-foot"><svg[^>]*>.*<\/svg><span>Powered by Athena<\/span>/);
     expect(html.match(/<svg/g)).toHaveLength(1);
     expect(html).toContain("family=Inter");
@@ -259,12 +274,104 @@ describe("invite link", () => {
 });
 
 describe("customer page", () => {
-  it("needs a session", async () => {
-    const { d } = deps();
-    const r = await handlePortal(req(`/c/${ACCESS}`), ACCESS, d);
-    expect(r.status).toBe(401);
-    expect(await r.text()).toContain("You&#39;re signed out");
+  it("signs a signed-out customer in on the page and brings them back to what they opened", async () => {
+    const issued = {
+      status: "ok",
+      email: "rosa@example.com",
+      name: "Rosa Delgado",
+      company: "Northline Builders",
+      job_name: "Harbor Point Dental",
+    };
+    const { d, calls, mail } = deps({
+      rpcs: {
+        mcp_portal_page_code_issue: issued,
+        mcp_portal_page_sign_in: { status: "ok", access_id: ACCESS },
+      },
+    });
+    // "Review and sign" opens the agreement; signed out, it asks for the email right there.
+    const at = `/c/${ACCESS}?s=agreement&i=${CO}`;
+    const r = await handlePortal(req(at), ACCESS, d);
+    const page = await r.text();
+    expect(r.status).toBe(200);
+    expect(page).toContain("Sign in to your project page");
+    expect(page).toContain('name="email"');
+    expect(page).toContain(`value="s=agreement&amp;i=${CO}"`);
+    expect(page).not.toContain("signed out");
+    expect(page).not.toContain("invite");
+    // The email box takes normal text; only the 6-digit code box is big and spaced.
+    expect(page).toContain('<input class="as-input email" id="email"');
+    // The email gets a code only through the server function, which checks it is the invited address.
+    const sent = await handlePortal(
+      await post(`/c/${ACCESS}`, {
+        action: "page_send_code",
+        email: "Rosa@Example.com",
+        back: `s=agreement&i=${CO}`,
+      }),
+      ACCESS,
+      d,
+    );
+    expect(sent.status).toBe(303);
+    expect(sent.headers.get("location")).toBe(`/c/${ACCESS}?s=agreement&i=${CO}&step=code&sent=1`);
+    const issue = calls.find((c) => c.fn === "mcp_portal_page_code_issue")!;
+    expect(issue.args._email).toBe("Rosa@Example.com");
+    expect(issue.args._code_hash).toBe(await codeHash(ACCESS, "123456"));
+    expect(mail[0]!.to).toBe("rosa@example.com");
+    expect(mail[0]!.subject).toContain("123456");
+    const codeStep = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement&i=${CO}&step=code&sent=1`), ACCESS, d)
+    ).text();
+    expect(codeStep).toContain("We sent a 6-digit code");
+    // The code signs them in and lands them on the agreement, with the page's own cookie.
+    const signed = await handlePortal(
+      await post(`/c/${ACCESS}`, {
+        action: "page_verify",
+        code: "123 456",
+        back: `s=agreement&i=${CO}`,
+      }),
+      ACCESS,
+      d,
+    );
+    expect(signed.status).toBe(303);
+    expect(signed.headers.get("location")).toBe(`/c/${ACCESS}?s=agreement&i=${CO}`);
+    expect(signed.headers.get("set-cookie")).toMatch(
+      new RegExp(
+        `^athena_portal=[A-Za-z0-9_-]{43}; Path=/c/${ACCESS}; HttpOnly; Secure; SameSite=Lax$`,
+      ),
+    );
     expect((await handlePortal(req("/c/not-a-uuid"), "not-a-uuid", d)).status).toBe(404);
+  });
+
+  it("sends no code to another address, and keeps only a real section and item to come back to", async () => {
+    const { d, mail } = deps({ rpcs: { mcp_portal_page_code_issue: { status: "mismatch" } } });
+    const r = await handlePortal(
+      await post(`/c/${ACCESS}`, {
+        action: "page_send_code",
+        email: "someone@else.com",
+        back: "s=agreement&i=not-a-uuid&next=https://evil.example",
+      }),
+      ACCESS,
+      d,
+    );
+    expect(r.headers.get("location")).toBe(`/c/${ACCESS}?s=agreement&step=signin&e=email`);
+    expect(mail).toHaveLength(0);
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement&step=signin&e=email`), ACCESS, d)
+    ).text();
+    expect(page).toContain("That isn&#39;t the email this page was shared with");
+    // A post from another site never reaches sign-in.
+    expect(
+      (
+        await handlePortal(
+          await post(
+            `/c/${ACCESS}`,
+            { action: "page_send_code", email: "rosa@example.com" },
+            { origin: "https://evil.example" },
+          ),
+          ACCESS,
+          d,
+        )
+      ).status,
+    ).toBe(403);
   });
 
   it("renders every section in the Athena blue client look, with signed photos and no storage paths or scripts", async () => {
@@ -282,7 +389,7 @@ describe("customer page", () => {
         expect(html.replace(COMPARE_CSS, ""), `${s} .${cls}`).not.toMatch(
           new RegExp(`(?<![\\w-])\\.${cls}(?![\\w-])`),
         );
-      expect(html, s).toContain("linear-gradient(160deg,#2f6cf2,#1a47c7)");
+      expect(html, s).toContain("linear-gradient(200deg,#5c9bff 0%,#3b7df6 42%,#2563eb 100%)");
       expect(html, s).toContain("Powered by Athena");
       expect(html, s).not.toContain("secret-path");
       expect(html, s).toContain('aria-current="page"');
@@ -623,6 +730,133 @@ const withPayApps = () => {
   );
   return v;
 };
+
+describe("Home keeps its full look with what Athena has", () => {
+  const bare = (extra: Record<string, unknown> = {}) => ({
+    ...view(),
+    contractor: {
+      ...view().contractor,
+      pm_photo_path: "11111111-2222-4333-8444-555555555555/me.jpg",
+    },
+    job: { ...view().job, completion_date: null },
+    updates: [],
+    milestones: [],
+    items: [],
+    dailies: [
+      {
+        date: "2026-11-05",
+        weather: "Clear",
+        manpower: "6",
+        work: ["Pulled feeders to panel LP-2", null],
+      },
+      { date: "2026-11-04", weather: "Rain", manpower: null, work: ["Set switchgear pad forms"] },
+    ],
+    progress: { contract_cents: 48_000_000, approved_cents: 4_680_000 },
+    ...extra,
+  });
+  const homeOf = async (v: unknown, headshot?: (p: string) => Promise<string | null>) => {
+    const { d } = deps({ view: v });
+    if (headshot) d.signHeadshot = headshot;
+    return (await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)).text();
+  };
+
+  it("fills the hero, Where the job stands and Money at a glance from approved work, with no schedule or pay app shared", async () => {
+    const signed: string[] = [];
+    const html = await homeOf(bare(), async (p) => {
+      signed.push(p);
+      return "https://storage.example.com/signed/pm.jpg";
+    });
+    // Ring and snapshot: 46,800 of 480,000 approved is 10%.
+    expect(html).toContain('<div class="ring" style="--p:10"');
+    expect(html).toContain("<b>10%</b>of the work approved");
+    expect(html).toContain("<span>Work approved</span><b>$46,800.00</b>");
+    expect(html).toContain("<span>Contract</span><b>$480,000.00</b>");
+    expect(html).not.toContain("Not set");
+    expect(html).not.toContain("Planned finish");
+    expect(html).toContain("keeps this page current");
+    // Main column: the field log stands in for a weekly update; progress stands in for milestones.
+    expect(html).toContain("This week on your project");
+    expect(html).toContain("Pulled feeders to panel LP-2");
+    expect(html).toContain("Crew of 6");
+    expect(html).toContain("Where the job stands");
+    expect(html).toContain("$46,800.00 of $480,000.00 approved");
+    expect(html).toContain("once Northline Builders shares the schedule");
+    // Rail: money from approved work, and the PM's own photo, signed by the server.
+    expect(html).toContain("Money at a glance");
+    expect(html).toContain("<span>Approved so far</span><b>$46,800.00</b>");
+    expect(html).toContain("<span>Remaining</span><b>$433,200.00</b>");
+    expect(signed).toEqual(["11111111-2222-4333-8444-555555555555/me.jpg"]);
+    expect(html).toContain(
+      '<img class="avatar" src="https://storage.example.com/signed/pm.jpg" alt="Pat Lee"',
+    );
+    expect(html).not.toContain('me.jpg"');
+    expect(html).not.toContain("11111111-2222");
+  });
+
+  it("keeps each day's work full width and puts a written crew breakdown under the work, not by the date", async () => {
+    const html = await homeOf(
+      bare({
+        dailies: [
+          {
+            date: "2026-11-03",
+            weather: "Clear",
+            manpower: "Electrical: 2 workers x 8 hours = 16 person-hours",
+            work: ["Installed approximately 1,000 LF duct bank in northeast section."],
+          },
+        ],
+      }),
+    );
+    // Day rows are the direct children; the work items inside them aren't laid out as rows.
+    expect(html).toContain(".cp-field>li{display:grid");
+    expect(html).not.toContain(".cp-field li{display:grid");
+    expect(html).not.toContain("Crew of Electrical");
+    expect(html).toContain(
+      '<p class="cp-crew">Crew: Electrical: 2 workers x 8 hours = 16 person-hours</p>',
+    );
+    expect(html).toContain("<span>Tuesday</span>");
+  });
+
+  it("shows initials when the photo can't be signed, and plain notes when the job has no contract value yet", async () => {
+    const html = await homeOf(bare({ progress: null, dailies: [] }), async () => {
+      throw new Error("storage down");
+    });
+    expect(html).toContain('<span class="avatar" aria-hidden="true">PL</span><div><b>Pat Lee</b>');
+    expect(html).not.toContain('<div class="ring"');
+    expect(html).not.toContain("Money at a glance");
+    expect(html).toContain("<span>Planned finish</span><b>Being scheduled</b>");
+    expect(html).toContain("posts a short update here each week");
+    expect(html).toContain(
+      "Schedule milestones show here once Northline Builders shares the schedule.",
+    );
+    // Without the page server's signer at all, the page still renders with initials.
+    expect(await homeOf(bare())).toContain('<span class="avatar" aria-hidden="true">PL</span>');
+  });
+
+  it("shows the company logo in Your team when the PM has no photo, initials only without either", async () => {
+    const withLogo = async (photo: string | null) => {
+      const { d } = deps({ view: bare() });
+      d.logo = async () => "https://cdn.example.com/northline-logo.png";
+      d.signHeadshot = async () => photo;
+      return (await handlePortal(req(`/c/${ACCESS}`, { cookie: true }), ACCESS, d)).text();
+    };
+    const html = await withLogo(null);
+    expect(html).toContain(
+      '<img class="avatar logo" src="https://cdn.example.com/northline-logo.png" alt="Northline Builders"',
+    );
+    expect(html).not.toContain('<span class="avatar" aria-hidden="true">PL</span>');
+    // The PM's own photo still wins over the logo.
+    const photo = await withLogo("https://storage.example.com/signed/pm.jpg");
+    expect(photo).toContain('<img class="avatar" src="https://storage.example.com/signed/pm.jpg"');
+    expect(photo).not.toContain('class="avatar logo"');
+  });
+
+  it("keeps the milestone ring and phases when the schedule is shared", async () => {
+    const html = await homeOf(bare({ milestones: view().milestones }));
+    expect(html).toContain("<b>0/2</b>milestones done");
+    expect(html).toContain('<ol class="phases"');
+    expect(html).not.toContain("of the work approved");
+  });
+});
 
 describe("billing: pay applications", () => {
   it("renders the Billing tab, home money panel and every billing view with phone and tablet rules", async () => {
@@ -1818,5 +2052,250 @@ describe("paying an approved pay application online", () => {
   it("thanks the customer when Stripe sends them back", async () => {
     const { html } = await page(payDeps().d, `/c/${ACCESS}?s=billing&i=${PAY_OLD}&paid=1`);
     expect(html).toContain("Stripe is confirming your payment");
+  });
+});
+
+const PRECON = "00000000-0000-4000-8000-0000000000e1";
+const BILL = "00000000-0000-4000-8000-0000000000e2";
+const preconView = (extra: Record<string, unknown> = {}) => ({
+  ...view(),
+  items: [
+    {
+      id: PRECON,
+      kind: "precon_agreement",
+      shared_on: "2026-11-05",
+      due_on: "2026-11-12",
+      fingerprint: FP,
+      view: {
+        title: "Pre-construction agreement · Harbor Point Dental",
+        price_cents: 1_700_000,
+        design_partner: "Rivera Architecture",
+        design_role: "Architect",
+        design_days: 35,
+        includes: ["Schematic design", "Construction drawings"],
+        payments: [
+          { index: 1, amount_cents: 500_000, due: "signing", on: null, when: null },
+          {
+            index: 2,
+            amount_cents: 1_200_000,
+            due: "step",
+            on: null,
+            when: "when you approve the schematic design",
+          },
+        ],
+        owner_owns_drawings: true,
+        credit_days: 90,
+        own_terms: ["Two rounds of design changes are included."],
+        construction_line: true,
+      },
+      decision: null,
+    },
+  ],
+  ...extra,
+});
+
+describe("pre-construction agreement", () => {
+  it("shows the Agreement tab with the contractor's terms and never the fee build-up", async () => {
+    const { d } = deps({ view: preconView() });
+    const html = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement&i=${PRECON}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(html).toContain(">Agreement<");
+    expect(html).toContain("Rivera Architecture");
+    expect(html).toContain("Two rounds of design changes are included.");
+    expect(html).toContain("when you approve the schematic design");
+    expect(html).toContain("Sign the agreement");
+    expect(html).not.toMatch(/hourly|markup|design fee/i);
+    expect(html).not.toMatch(/<script/i);
+    // Without anything shared, the tab doesn't show and the link opens Home.
+    const { d: d2 } = deps();
+    const plain = await (
+      await handlePortal(req(`/c/${ACCESS}?s=agreement`, { cookie: true }), ACCESS, d2)
+    ).text();
+    expect(plain).not.toContain("?s=agreement");
+  });
+
+  it("signs with consent, a code and the typed name, then sends the owner their copy", async () => {
+    const { d, calls, mail } = deps({
+      view: preconView(),
+      rpcs: {
+        mcp_portal_precon_sign: {
+          status: "ok",
+          decision_id: "pd1",
+          decided_at: "2026-11-05T20:30:00Z",
+          customer: "Rosa Delgado",
+          customer_email: "rosa@example.com",
+          job_id: "j1",
+          job_name: "Harbor Point Dental",
+          job_number: "2715",
+          pm_email: "pat@example.com",
+          pm_name: "Pat Lee",
+          label: "Pre-construction agreement",
+          signed_on: "2026-11-05",
+          bill: { item_id: BILL, number: "PC-2715-1", amount_cents: 500_000 },
+        },
+      },
+    });
+    const csrf = await csrfFor(SESSION);
+    const confirm = await (
+      await handlePortal(
+        req(`/c/${ACCESS}?s=agreement&i=${PRECON}&step=confirm&sent=1`, { cookie: true }),
+        ACCESS,
+        d,
+      )
+    ).text();
+    expect(confirm).toContain('name="consent"');
+    expect(confirm).toContain("I agree to do this electronically");
+    const base = {
+      action: "decide",
+      item: PRECON,
+      decision: "signed",
+      fingerprint: FP,
+      typed_name: "Rosa Delgado",
+      code: "123456",
+      agree: "1",
+      csrf,
+    };
+    const noConsent = await handlePortal(
+      await post(`/c/${ACCESS}`, base, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(noConsent.headers.get("location")).toContain("e=consent");
+    expect(calls.some((c) => c.fn === "mcp_portal_precon_sign")).toBe(false);
+
+    const ok = await handlePortal(
+      await post(`/c/${ACCESS}`, { ...base, consent: "1" }, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(ok.headers.get("location")).toContain("ok=signed");
+    const signed = calls.find((c) => c.fn === "mcp_portal_precon_sign")!.args;
+    expect(signed).toMatchObject({
+      _decision: "signed",
+      _typed_name: "Rosa Delgado",
+      _fingerprint: FP,
+      _code_hash: await codeHash(ACCESS, "123456"),
+    });
+    expect(signed._consent).toContain("sign this agreement electronically");
+    expect(signed._statement).toContain("$17,000");
+    const copy = mail.find((m) => m.to === "rosa@example.com")!;
+    expect(copy).toBeTruthy();
+    expect(copy.text).toContain("Two rounds of design changes are included.");
+    expect(copy.text).toContain("Rosa Delgado");
+    expect(mail.some((m) => m.to === "pat@example.com")).toBe(true);
+  });
+
+  it("lets the owner say they're paying a bill by check, and shows the pickup once it's set", async () => {
+    const bill = {
+      id: BILL,
+      kind: "service_invoice",
+      shared_on: "2026-11-05",
+      due_on: null,
+      fingerprint: FP,
+      view: {
+        number: "PC-2715-1",
+        stage: "bill",
+        title: "Pre-construction payment 1 of 2 · Harbor Point Dental",
+        work_order: "Pre-construction agreement",
+        site_address: null,
+        issue: null,
+        lines: [{ description: "Payment 1", detail: null, amount_cents: 500_000 }],
+        signoff: null,
+        totals: { subtotal_cents: 500_000, credit_cents: 0, current_due_cents: 500_000 },
+        note: null,
+      },
+      decision: null,
+    };
+    const v = preconView();
+    const { d, calls } = deps({
+      view: { ...v, items: [...v.items, bill], check_items: [BILL] },
+      rpcs: {
+        mcp_portal_check_request: {
+          status: "ok",
+          request_id: "cr1",
+          again: false,
+          job_id: "j1",
+          job_name: "Harbor Point Dental",
+          job_number: "2715",
+          customer: "Rosa Delgado",
+          pm_email: "pat@example.com",
+          number: "PC-2715-1",
+          label: "PC-2715-1",
+          amount_cents: 500_000,
+          note: null,
+        },
+      },
+    });
+    const page = await (
+      await handlePortal(req(`/c/${ACCESS}?s=billing&i=${BILL}`, { cookie: true }), ACCESS, d)
+    ).text();
+    expect(page).toContain("Pay by check");
+    expect(page).not.toContain("Pay by card");
+    const csrf = await csrfFor(SESSION);
+    const r = await handlePortal(
+      await post(`/c/${ACCESS}`, { action: "check_request", item: BILL, csrf }, { cookie: true }),
+      ACCESS,
+      d,
+    );
+    expect(r.headers.get("location")).toContain("ok=check");
+    expect(calls.some((c) => c.fn === "mcp_portal_check_request")).toBe(true);
+
+    const set = deps({
+      view: {
+        ...v,
+        items: [...v.items, bill],
+        check_items: [BILL],
+        checks: [
+          {
+            item_id: BILL,
+            requested_at: "2026-11-05T21:00:00Z",
+            note: null,
+            pickup_on: "2026-11-10",
+            pickup_window: "9:00 to 10:00 AM",
+            pickup_place: "the job site",
+            pickup_by: "Pat Lee",
+          },
+        ],
+      },
+    });
+    const after = await (
+      await handlePortal(req(`/c/${ACCESS}?s=billing&i=${BILL}`, { cookie: true }), ACCESS, set.d)
+    ).text();
+    expect(after).toContain("9:00 to 10:00 AM");
+    expect(after).toContain("Pat Lee");
+  });
+});
+
+describe("signed-out sign-in page identifies who it belongs to", () => {
+  it("shows Athena's lockup, the contractor and the job, and never the invitee's email", async () => {
+    const { d } = deps();
+    d.brand = async () => ({
+      company: "Northline Builders",
+      job_number: "2715",
+      job_name: "Harbor Point Dental",
+    });
+    const r = await handlePortal(req(`/c/${ACCESS}?s=selections`), ACCESS, d);
+    const page = await r.text();
+    expect(r.status).toBe(200);
+    expect(page).toContain("Sign in to your project page");
+    expect(page).toMatch(
+      /<img class="as-lockup" src="\/brand\/athena\/athena-lockup-blue\.svg" alt="Athena"/,
+    );
+    expect(page).toContain("<b>Northline Builders</b><span>Client page</span>");
+    expect(page).toContain('<span class="as-proj">Job 2715 · Harbor Point Dental</span>');
+    expect(page).toContain("<title>Harbor Point Dental · Sign in</title>");
+    expect(page).not.toContain("rosa@example.com");
+  });
+
+  it("still shows Athena's lockup when the brand can't be read", async () => {
+    const { d } = deps();
+    d.brand = async () => {
+      throw new Error("down");
+    };
+    const page = await (await handlePortal(req(`/c/${ACCESS}`), ACCESS, d)).text();
+    expect(page).toContain('<div class="as-brand"><img class="as-lockup"');
+    expect(page).toContain("<span>Client page</span>");
+    expect(page).not.toContain('class="as-proj"');
   });
 });

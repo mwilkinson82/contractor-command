@@ -120,6 +120,16 @@ export function noticeRequirements(clauses: C[], o: { noticeFlagNo?: boolean } =
     if (!who && e !== "cure") noWho.push(NOUN[e]);
     const whenTxt = when ? `notice ${when}` : "the contract doesn't say when notice must be given";
     const whoTxt = who ? `it goes to ${who}` : when ? "the contract doesn't say who it goes to" : "or who it goes to";
+    // "If payment is not made within 7 days after that notice, ... may suspend": the days run after your notice; they aren't a deadline for it.
+    const afterOwn = withTiming && /^after (?:that|such|this|said|the) (?:written )?notice\b/i.test(withTiming.trigger_desc ?? "");
+    if (afterOwn && withTiming) {
+      const then = (withTiming.trigger_desc ?? "").replace(/^[^,]*,?\s*/, "").replace(/[.;]\s*$/, "");
+      const lead = e === "nonpayment" ? "give written notice once you aren't paid when due" : `give written notice of ${NOUN[e]}`;
+      const wait = e === "nonpayment" ? `if payment isn't made within ${withTiming.n_days} ${withTiming.day_type ? `${withTiming.day_type} ` : ""}days after that notice` : `${withTiming.n_days} ${withTiming.day_type ? `${withTiming.day_type} ` : ""}days run after that notice`;
+      lines.push(`- ${LABEL[e]}: ${lead} (§${withTiming.section}); ${wait}${then ? `, ${then}` : ""}. ${who ? `It goes to ${who}` : "The contract doesn't say who it goes to"}.`);
+      cs.forEach((c) => lines.push(`    ${quote(c)}`));
+      continue;
+    }
     if (e === "cure") lines.push(`- ${LABEL[e]}: this is a notice you receive; ${withTiming ? `you must cure ${timing(withTiming)} (§${withTiming.section})` : "the contract doesn't say how long you have to cure"}.`);
     else lines.push(`- ${LABEL[e]}: ${whenTxt}${!when && !who ? ` ${whoTxt}` : `; ${whoTxt}`}.${!when ? ` The clause${cs.length > 1 ? "s" : ""} below cover${cs.length > 1 ? "" : "s"} ${NOUN[e]} but set${cs.length > 1 ? "" : "s"} no notice deadline.` : ""}`);
     cs.forEach((c) => lines.push(`    ${quote(c)}`));

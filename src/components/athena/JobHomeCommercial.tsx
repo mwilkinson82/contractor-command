@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  CONTRACTS_UNAVAILABLE,
   STAGES,
   commercialNextStep,
   contractsOverview,
@@ -117,13 +118,22 @@ const PRECON_STAGES = [
   ["Design", "Drawings"],
 ] as const;
 
-export function StageStrip({ stage, precon }: { stage: number; precon?: boolean }) {
+export function StageStrip({
+  stage,
+  precon,
+  compact,
+}: {
+  stage: number;
+  precon?: boolean;
+  /** Pills only, for the job title's Phase row. */
+  compact?: boolean;
+}) {
   const stages = precon ? [...PRECON_STAGES, ...STAGES] : STAGES;
   return (
     <ol
-      className="jb-stages"
+      className={`jb-stages${compact ? " jb-stages-compact" : ""}`}
       data-precon={precon ? "true" : undefined}
-      aria-label="Where this job stands"
+      aria-label={compact ? "Phase" : "Where this job stands"}
     >
       {stages.map(([name, detail], i) => (
         <li
@@ -135,7 +145,7 @@ export function StageStrip({ stage, precon }: { stage: number; precon?: boolean 
             {i < stage ? "✓ " : ""}
             {name}
           </b>
-          {detail}
+          {compact ? null : detail}
         </li>
       ))}
     </ol>
@@ -659,17 +669,17 @@ export function ContractsSection({
                   </tbody>
                 </table>
               </div>
-            ) : (
+            ) : o.recordAvailable ? (
               <p className="jb-empty">No contracts on this job yet.</p>
-            )}
+            ) : null}
             {c.posFailed ? (
               <p className="jh-small">
                 Purchase orders are unavailable right now, so none are listed.
               </p>
             ) : null}
             {!o.recordAvailable ? (
-              <p className="jh-small">
-                Signed contracts saved from chat show here once the contracts record is turned on.
+              <p className="jb-empty" role="status">
+                {CONTRACTS_UNAVAILABLE}
               </p>
             ) : null}
             <h3 style={{ margin: "18px 0 0", fontSize: 14, color: "#18314f" }}>Add a contract</h3>

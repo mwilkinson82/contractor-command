@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { createBillingPortalSession, submitBillingQuestion } from "@/lib/billing.functions";
 import { TeamSection, useAccountTeam } from "@/components/account/team-section";
-import { planLabel, planRate, seatSummary } from "@/lib/account-team";
+import { athenaPlanLabel, planLabel, planRate, seatSummary } from "@/lib/account-team";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +53,7 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import { AthenaStartTip } from "@/components/athena/start-tip";
 import { MorningBriefPushBar } from "@/components/athena/MorningBriefPushBar";
 import { AccountNotices, useAccountNotices } from "@/components/account/account-notices";
+import { YourPhoto } from "@/components/account/your-photo";
 
 const LOGO_BUCKET = "company-logos";
 
@@ -127,12 +128,11 @@ function ProjectHomes() {
       <div className="aa-card">
         <h2>No projects yet</h2>
         <p>
-          In your connected chat, send “{FIRST_JOB_MESSAGE}” Athena walks you through it, and your saved
-          projects appear here.
+          In your connected chat, send “{FIRST_JOB_MESSAGE}” Athena walks you through it, and your
+          saved projects appear here.
         </p>
         <p>
-          Haven't put Athena in your AI yet?{" "}
-          <a href={CONNECT_GUIDE_URL}>Show me how to connect</a>
+          Haven't put Athena in your AI yet? <a href={CONNECT_GUIDE_URL}>Show me how to connect</a>
         </p>
       </div>
     );
@@ -162,6 +162,11 @@ function AccountPage() {
   const athena = useAccountTeam();
   const tier = athena.state?.seats?.tier ?? null;
   const rate = planRate(tier);
+  // A sign-in can leave the profile name as the email; show the person's team name instead.
+  const memberName =
+    athena.state?.team?.members.find((m) => m.user_id === user?.id)?.display_name?.trim() || null;
+  const personName =
+    profile?.full_name && !profile.full_name.includes("@") ? profile.full_name : memberName;
   const athenaHost = onAthenaHost();
   const accountNotices = useAccountNotices(athenaHost);
   const athenaCompanyId = athenaHost ? (athena.state?.companyId ?? null) : null;
@@ -487,12 +492,15 @@ function AccountPage() {
     const team = athena.state?.team;
     const seatsNow = athena.state?.seats;
     const athenaProfile = (
-      <dl className="aa-kv">
-        <dt>Name</dt>
-        <dd>{profile?.full_name || "Not set"}</dd>
-        <dt>Email</dt>
-        <dd>{profile?.email ?? user?.email ?? "Not set"}</dd>
-      </dl>
+      <>
+        <dl className="aa-kv">
+          <dt>Name</dt>
+          <dd>{personName || "Not set"}</dd>
+          <dt>Email</dt>
+          <dd>{profile?.email ?? user?.email ?? "Not set"}</dd>
+        </dl>
+        <YourPhoto userId={user?.id ?? null} name={personName || (user?.email ?? "")} />
+      </>
     );
     const athenaBilling = (
       <div className="aa-grid2">
@@ -500,7 +508,7 @@ function AccountPage() {
           <h2>Your plan</h2>
           <dl className="aa-kv" style={{ marginTop: 14 }}>
             <dt>Plan</dt>
-            <dd>{athena.loading ? "Loading…" : planLabel(tier)}</dd>
+            <dd>{athena.loading ? "Loading…" : athenaPlanLabel(tier)}</dd>
             {rate ? (
               <>
                 <dt>Rate</dt>
@@ -526,7 +534,7 @@ function AccountPage() {
     );
     return (
       <AthenaAccountLayout
-        name={profile?.full_name ?? null}
+        name={personName}
         email={profile?.email ?? user?.email ?? null}
         companyName={companyProfile.profile?.name ?? athena.state?.companyName ?? null}
         companyLogoUrl={companyProfile.profile?.logo_url ?? null}
@@ -540,7 +548,7 @@ function AccountPage() {
           name: companyProfile.profile?.name ?? athena.state?.companyName ?? null,
           status: companyProfile.loading ? "loading" : companyProfile.error ? "error" : "ready",
         }}
-        plan={athena.loading ? "Loading plan…" : planLabel(tier)}
+        plan={athena.loading ? "Loading plan…" : athenaPlanLabel(tier)}
         seats={athena.loading ? "Loading seats…" : seatSummary(seatsNow)}
         teamLoading={athena.loading}
         teamError={!athena.loading && athena.state === null}
@@ -564,10 +572,23 @@ function AccountPage() {
         profile={athenaProfile}
         billing={athenaBilling}
         company={
-          <CompanyBoardLinkCard companyId={athenaCompanyId} profile={companyProfile.profile} />
+          <CompanyBoardLinkCard
+            companyId={athenaCompanyId}
+            profile={companyProfile.profile}
+            companyName={athena.state?.companyName ?? null}
+            loading={athena.loading && !athena.state}
+          />
         }
         team={<AthenaTeamSection {...athena} inviteEmailEnabled={inviteEmailEnabled} />}
-        payments={<ClientPaymentsSection key={athenaCompanyId ?? "none"} companyId={athenaCompanyId} />}
+        payments={
+          athena.loading && !athena.state ? (
+            <div className="aa-card" role="status">
+              <Loader2 size={16} className="aa-spin" /> Loading client payments…
+            </div>
+          ) : (
+            <ClientPaymentsSection key={athenaCompanyId ?? "none"} companyId={athenaCompanyId} />
+          )
+        }
         projects={<ProjectHomes />}
         notices={<AccountNotices />}
         noticeCount={accountNotices.data?.filter((n) => !n.read).length ?? null}

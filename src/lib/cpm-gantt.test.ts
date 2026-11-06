@@ -391,6 +391,18 @@ describe("round 3: start status, lookahead Gantt, reports", () => {
     expect(html).toContain('data-date-marker="true"');
   });
 
+  it("reads on a narrow phone: chips keep their label clear, names wrap, the timeline says it scrolls", () => {
+    const html = lookaheadGanttHtml(input());
+    // Marshall's Z Fold (Nov 5): chip values overlapped their labels and bars ran off with no cue.
+    expect(html).toContain(".cpml .ath-chip>span{flex:none");
+    expect(html).toContain("min-width:0");
+    expect(html).toContain("Swipe the timeline sideways to the end line");
+    // Names wrap to two lines and a cue shows while more timeline sits to the right (shared Gantt styles).
+    const base = ganttHtml(input());
+    expect(base).toContain("-webkit-line-clamp:2");
+    expect(base).toContain("animation-timeline:--cpm-x");
+  });
+
   it("lookahead full screen, timescale zoom and one-window redraw (Marshall, Nov 5)", () => {
     const base = lookaheadGanttHtml(input());
     expect(base).toContain('id="cpml-fs"');

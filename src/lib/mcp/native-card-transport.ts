@@ -174,7 +174,7 @@ const GROK_PLAIN_TOOLS = new Set([
 ]);
 /** Lines Grok Bot would show the member. Matched on a whole line, outside fenced member text. */
 const GROK_INSTRUCTION_LINE =
-  /^(?:REQUIRED VIEW\b.*|REQUIRED: Any email card\b.*|Card shown\. Do not add text(?:; wait for the user's pick)?\.?)$/;
+  /^(?:REQUIRED VIEW\b.*|REQUIRED: Any email card\b.*|Card shown\. (?:Do not add text(?:; wait for the user's pick)?|Give your own short read and one next step; do not repeat the card line by line)\.?)$/;
 
 function hasUiCapability(capabilities: unknown): boolean {
   const caps = obj(capabilities);
@@ -258,7 +258,10 @@ export function stripInlineCardHtml(text: string): string {
       .replace(/REQUIRED VIEW: render this HTML card as-is\.[^\n]*/g, "")
       .replace(/<!doctype html[\s\S]*?<\/html>/gi, "")
       .replace(/<!doctype html[\s\S]*$/gi, "")
-      .replace(/Card shown\. Do not add text(?:; wait for the user's pick)?\.?/g, "")
+      .replace(
+        /Card shown\. (?:Do not add text(?:; wait for the user's pick)?|Give your own short read and one next step; do not repeat the card line by line)\.?/g,
+        "",
+      )
       .replace(/\n{3,}/g, "\n\n"),
   ).trim();
 }

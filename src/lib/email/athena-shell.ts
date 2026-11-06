@@ -22,10 +22,13 @@ export const EMAIL_NAVY = "#0F1E3D";
 /** The button's blue, the same blue as the design. */
 export const EMAIL_PANEL = EMAIL_BLUE;
 const CODE_BOX = "#F2F6FF";
-const SLATE = "#3B4A66";
-const MUTED = "#6B7488";
-const LINE = "#E3E8F2";
-const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+export const EMAIL_SLATE = "#3B4A66";
+export const EMAIL_MUTED = "#6B7488";
+export const EMAIL_LINE = "#E3E8F2";
+const SLATE = EMAIL_SLATE;
+const MUTED = EMAIL_MUTED;
+const LINE = EMAIL_LINE;
+export const EMAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const BRAND_FONT =
   "Inter,'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif";
 
@@ -61,6 +64,10 @@ export type EmailFrame = {
   heading: string;
   /** Paragraphs, already escaped. */
   lines: string[];
+  /** Finished HTML under the paragraphs, already escaped. Used by the morning brief. */
+  body?: string;
+  /** Card width in px. 520 unless set. */
+  width?: number;
   button?: { label: string; href: string };
   code?: string;
   /** Small print above the rule, already escaped. */
@@ -90,10 +97,10 @@ export function emailShell(f: EmailFrame): string {
   const code = f.code
     ? `<p style="margin:8px 0 4px;padding:14px 18px;border:1px solid ${LINE};border-radius:10px;background-color:${CODE_BOX};color:${EMAIL_NAVY};font-family:Menlo,Consolas,monospace;font-size:30px;line-height:36px;font-weight:700;letter-spacing:8px;text-align:center">${esc(f.code)}</p>`
     : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(f.heading)}</title><style>${EMAIL_HEAD_CSS}</style></head><body class="body" style="margin:0;padding:32px 12px;background-color:#FFFFFF;font-family:${FONT}">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(f.heading)}</title><style>${EMAIL_HEAD_CSS}</style></head><body class="body" style="margin:0;padding:32px 12px;background-color:#FFFFFF;font-family:${EMAIL_FONT}">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(f.preview)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="background-color:#FFFFFF"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:520px;border:1px solid ${LINE};border-radius:14px;background-color:#FFFFFF;border-collapse:separate">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width:${f.width ?? 520}px;border:1px solid ${LINE};border-radius:14px;background-color:#FFFFFF;border-collapse:separate">
 <tr><td style="padding:32px 36px 0">
 ${top(f.brand)}
 <p style="margin:14px 0 0;color:${EMAIL_BLUE};font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase">${esc(f.tagline)}</p>
@@ -101,6 +108,7 @@ ${top(f.brand)}
 <tr><td style="padding:8px 36px 32px">
 <h1 style="margin:18px 0 12px;color:${EMAIL_NAVY};font-size:26px;line-height:32px;font-weight:800">${esc(f.heading)}</h1>
 ${f.lines.map(p).join("\n")}
+${f.body ?? ""}
 ${button}
 ${code}
 ${f.after ? `<p style="margin:16px 0 0;color:${SLATE};font-size:13px;line-height:21px">${f.after}</p>` : ""}

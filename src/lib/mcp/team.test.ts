@@ -168,7 +168,8 @@ describe("seats", () => {
     const r = await call(teamInvite, { email: "new@example.test", name: "Nia", role: "pm", confirmed: true });
     expect(r.structuredContent).toMatchObject({ invited: false, seat_limit_reached: true, seats_used: 2, seat_limit: 2 });
     expect(r.content[0].text).toMatch(/seat limit \(2 of 2/);
-    expect(r.content[0].text).toMatch(/\$49 per seat per month/);
+    expect(r.content[0].text).toMatch(/add seats on the Athena account page/);
+    expect(r.content[0].text).not.toMatch(/\$\d/);
     expect(sends).toHaveLength(0);
     expect(db.pending).toHaveLength(0);
   });
@@ -191,7 +192,7 @@ describe("seats", () => {
     expect(r.structuredContent.checkout).toBeNull();
     expect(r.structuredContent.url).toBe("https://app.meetathena.io/account#team");
     expect(r.content[0].text).toMatch(/To add 2 seats, open Team & access/);
-    expect(r.content[0].text).toMatch(/\$49 per seat per month/);
+    expect(r.content[0].text).not.toMatch(/\$\d/);
     expect(r.content[0].text).not.toMatch(/stripe|checkout\.stripe/i);
   });
 });

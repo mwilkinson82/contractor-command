@@ -2,7 +2,13 @@
 // that checks the session hash; the page server holds no customer data of its own. Dependencies are injected so
 // tests run without a database or email.
 import { newToken, TOKEN_RE, tokenHash } from "../mcp/file-share";
-import { codeEmail, decisionEmail, type PortalEmail } from "./email";
+import {
+  checkTeamEmail,
+  codeEmail,
+  decisionEmail,
+  preconCopyEmail,
+  type PortalEmail,
+} from "./email";
 import {
   approvalStatement,
   workOrderPrice,
@@ -10,8 +16,13 @@ import {
   inviteOpenSchema,
   portalMessagesSchema,
   portalPaymentsSchema,
+  portalUrl,
   portalViewSchema,
+  preconConsent,
+  preconStatement,
+  preconTerms,
   TIER_NAME,
+  wholePrice,
   UUID,
   type PortalPage,
   type PortalPayments,
@@ -20,7 +31,16 @@ import {
 import type { OpenCheckoutResult, PayMethod } from "../client-payments/checkout";
 import { recordJobNotice, type NoticeDeps } from "../notices/send";
 import { MESSAGE_MAX } from "./messages";
-import { decisionNotice, messageNotice, type DecideResult, type PostedMessage } from "./notices";
+import {
+  checkNotice,
+  decisionNotice,
+  messageNotice,
+  preconNotice,
+  type CheckRequested,
+  type DecideResult,
+  type PostedMessage,
+  type PreconSigned,
+} from "./notices";
 import {
   itemLabel,
   longDate,
@@ -28,6 +48,7 @@ import {
   PORTAL_SECTIONS,
   renderGone,
   renderInvite,
+  renderPageSignIn,
   renderPortal,
   type PortalSection,
 } from "./render";
@@ -73,11 +94,18 @@ export function payAppNextForPm(decision: string): string {
 export type PortalDeps = {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<unknown>;
   signPhotos: (paths: string[]) => Promise<Map<string, string>>;
+  /** Signs the PM's own photo (people/ in athena-progress). Absent or failing: the page shows initials. */
+  signHeadshot?: (path: string) => Promise<string | null>;
   send: (m: PortalEmail) => Promise<"sent" | "off" | "failed">;
   emailOn: () => boolean;
   randomInt?: () => number;
   /** The contractor's saved logo for this customer's page, an https URL, or null. Optional: name-only without it. */
   logo?: (access: string) => Promise<string | null>;
+  /**
+   * Who the signed-out sign-in page belongs to: the contractor's name and the job this access link opens, so the
+   * customer can tell it's really their contractor and project. Optional: the page shows "Client page" without it.
+   */
+  brand?: (access: string) => Promise<PortalBrand | null>;
   /**
    * Records job notices for the customer's decisions and messages (service role). Without it a decision emails the
    * job's PM directly, as before, and a message is kept but tells no one.
@@ -94,6 +122,14 @@ export type PortalDeps = {
     method: PayMethod;
   }) => Promise<OpenCheckoutResult>;
 };
+
+export type PortalBrand = {
+  company: string | null;
+  job_number: string | null;
+  job_name: string | null;
+};
+const brandFor = (deps: PortalDeps, access: string): Promise<PortalBrand | null> =>
+  deps.brand ? deps.brand(access).catch(() => null) : Promise.resolve(null);
 
 const logoFor = (deps: PortalDeps, access: string): Promise<string | null> =>
   deps.logo ? deps.logo(access).catch(() => null) : Promise.resolve(null);
@@ -113,12 +149,15 @@ const ERRORS: Record<string, string> = {
   locked: "Too many tries on that code. Send yourself a new one.",
   expired: "That code has expired. Send yourself a new one.",
   slow: "Too many codes requested. Wait a few minutes and try again.",
+  email:
+    "That isn't the email this page was shared with. Use the address your contractor sent it to.",
   send: "We couldn't send the email. Try again in a moment.",
   changed:
     "This changed since you opened it, so nothing was recorded. Your contractor will share the current version.",
   not_open: "This is no longer waiting on you.",
   invalid: "Something was missing. Check the form and try again.",
   agree: "Tick the box to agree before you confirm.",
+  consent: "Tick the box to agree to do this electronically before you sign.",
   msg_invalid: "Write a message of up to 4,000 characters, then send it.",
   msg_slow: "You've sent a lot of messages in the last hour. Wait a little, then send this one.",
   pay_not_approved: "Approve this pay application first, then you can pay it here.",
@@ -134,6 +173,7 @@ const FLASH: Record<string, string> = {
   approved: "Approved. Your contractor has been told, and the record is below.",
   declined: "Declined. Your contractor has been told and will follow up.",
   chosen: "Your choice is recorded. Your contractor has been told.",
+  signed: "Signed. A copy is on its way to your email.",
 };
 const PAID_FLASH =
   "Thanks. Stripe is confirming your payment, and this page shows it once they do. You'll also get a receipt from Stripe.";
@@ -373,6 +413,84 @@ function goneFor(st: string, access: string): Response {
 const section = (s: string | null): PortalSection =>
   (PORTAL_SECTIONS as readonly string[]).includes(s ?? "") ? (s as PortalSection) : "home";
 
+/** The page's own place (section and item), kept through sign-in so the customer lands where they were going. */
+export function backQuery(q: URLSearchParams): string {
+  const out = new URLSearchParams();
+  const s = q.get("s");
+  if (s && section(s) !== "home") out.set("s", s);
+  const i = q.get("i");
+  if (i && UUID.safeParse(i).success) out.set("i", i);
+  return out.toString();
+}
+
+/** Sign in on the page itself: email, then a 6-digit code, then back to what they opened. */
+async function pageSignIn(
+  req: Request,
+  access: string,
+  f: Record<string, string>,
+  deps: PortalDeps,
+): Promise<Response> {
+  const back = backQuery(new URLSearchParams(f.back ?? ""));
+  const self = `/c/${access}`;
+  const at = (extra: string) => `${self}?${back ? `${back}&` : ""}${extra}`;
+  if (f.action === "page_send_code") {
+    if (!deps.emailOn())
+      return html(renderGone("email_off", null, await logoFor(deps, access)), 503);
+    const email = (f.email ?? "").trim().slice(0, 320);
+    if (!email) return redirect(at("step=signin&e=email"));
+    const code = sixDigits(deps.randomInt);
+    const issued = await deps
+      .rpc("mcp_portal_page_code_issue", {
+        _access: access,
+        _email: email,
+        _code_hash: await codeHash(access, code),
+        _ip: clientIp(req),
+        _user_agent: ua(req),
+      })
+      .catch(() => null);
+    const st = status(issued);
+    if (st === "mismatch") return redirect(at("step=signin&e=email"));
+    if (st === "slow_down") return redirect(at("step=signin&e=slow"));
+    if (st !== "ok") return goneFor(st === "error" ? "error" : st, access);
+    const info = issued as { email: string; name: string; company: string; job_name: string };
+    const sent = await deps.send(
+      codeEmail({
+        to: info.email,
+        name: info.name,
+        company: info.company,
+        jobName: info.job_name,
+        code,
+        purpose: "sign_in",
+        logo: await logoFor(deps, access),
+        nonce: newToken(),
+      }),
+    );
+    return redirect(sent === "sent" ? at("step=code&sent=1") : at("step=signin&e=send"));
+  }
+  const code = (f.code ?? "").replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(code)) return redirect(at("step=code&e=wrong"));
+  const session = newToken();
+  const remember = f.remember === "1";
+  const res = await deps
+    .rpc("mcp_portal_page_sign_in", {
+      _access: access,
+      _code_hash: await codeHash(access, code),
+      _session_hash: await tokenHash(session),
+      _remember: remember,
+      _ip: clientIp(req),
+      _user_agent: ua(req),
+    })
+    .catch(() => null);
+  const st = status(res);
+  if (st === "ok")
+    return redirect(back ? `${self}?${back}` : self, {
+      "set-cookie": sessionCookie(access, session, remember),
+    });
+  if (st === "wrong" || st === "locked" || st === "expired")
+    return redirect(at(`step=code&e=${st}`));
+  return goneFor(st === "error" ? "error" : st, access);
+}
+
 export async function handlePortal(
   req: Request,
   access: string,
@@ -386,13 +504,38 @@ export async function handlePortal(
 
   if (req.method === "GET" || req.method === "HEAD") {
     const view = await loadView(deps, access, sessionHash, req);
+    // Signed out: sign in right here and come back to the same place, never "find your invite email".
+    if (view === "signed_out") {
+      const q = url.searchParams;
+      const e = q.get("e");
+      const [logo, brand] = await Promise.all([logoFor(deps, access), brandFor(deps, access)]);
+      return html(
+        renderPageSignIn(q.get("step") === "code" ? "code" : "email", {
+          back: backQuery(q),
+          error: e ? (ERRORS[e] ?? null) : null,
+          sent: q.get("sent") === "1",
+          logo,
+          company: brand?.company ?? null,
+          job_number: brand?.job_number ?? null,
+          job_name: brand?.job_name ?? null,
+        }),
+        200,
+        session ? { "set-cookie": clearCookie(access) } : {},
+      );
+    }
     if (typeof view === "string") return goneFor(view, access);
     const paths = view.photos.map((p) => p.storage_path);
     const signed = paths.length
       ? await deps.signPhotos(paths).catch(() => new Map<string, string>())
       : new Map<string, string>();
+    const { pm_photo_path, ...contractor } = view.contractor;
+    const headshot =
+      pm_photo_path && deps.signHeadshot
+        ? await deps.signHeadshot(pm_photo_path).catch(() => null)
+        : null;
     const page: PortalPage = {
       ...view,
+      contractor: { ...contractor, pm_photo_url: headshot },
       photos: view.photos.map((p) => ({
         id: p.id,
         taken_on: p.taken_on,
@@ -420,11 +563,13 @@ export async function handlePortal(
         section: sec,
         about: about && UUID.safeParse(about).success ? about : null,
         item: q.get("i") && UUID.safeParse(q.get("i")).success ? q.get("i") : null,
-        step: step === "confirm" || step === "decline" ? step : null,
+        step: step === "confirm" || step === "decline" || step === "check" ? step : null,
         choice: q.get("choice"),
         error: e ? (ERRORS[e] ?? null) : null,
         flash: ok
-          ? (FLASH[ok] ?? null)
+          ? ok === "check"
+            ? `Sent. ${view.contractor.name} will set a date to collect your check.`
+            : (FLASH[ok] ?? null)
           : q.get("sent") === "1"
             ? "We emailed you a 6-digit code."
             : q.get("paid") === "1" && sec === "billing"
@@ -438,8 +583,10 @@ export async function handlePortal(
   if (req.method !== "POST")
     return new Response(null, { status: 405, headers: { allow: "GET, POST" } });
   if (!sameOrigin(req)) return new Response("Forbidden", { status: 403 });
-  if (!session || !sessionHash) return goneFor("signed_out", access);
   const f = await form(req);
+  if (f.action === "page_send_code" || f.action === "page_verify")
+    return pageSignIn(req, access, f, deps);
+  if (!session || !sessionHash) return redirect(`${self}?step=signin`);
   if (f.csrf !== (await csrfFor(session))) return new Response("Forbidden", { status: 403 });
 
   if (f.action === "sign_out") {
@@ -483,9 +630,15 @@ export async function handlePortal(
         ? "billing"
         : item.kind === "work_order"
           ? "work"
-          : "selections";
+          : item.kind === "precon_agreement"
+            ? "agreement"
+            : "selections";
   const at = (extra: Record<string, string>) =>
     `${self}?${new URLSearchParams({ s: sec, i: item.id, ...extra }).toString()}`;
+  if (f.action === "check_request") {
+    if (item.kind !== "service_invoice") return redirect(at({ e: "not_open" }));
+    return checkRequest(req, access, sessionHash, f, deps, view, item, at);
+  }
   // A service bill is paid, never decided.
   if (item.decision || item.kind === "service_invoice") return redirect(at({ e: "not_open" }));
   const choice =
@@ -528,6 +681,9 @@ export async function handlePortal(
     if (sent !== "sent") return redirect(at({ e: "send" }));
     return redirect(at({ step: "confirm", sent: "1", ...(choice ? { choice } : {}) }));
   }
+
+  if (f.action === "decide" && item.kind === "precon_agreement")
+    return preconDecide(req, access, sessionHash, f, deps, view, item, at);
 
   if (f.action === "decide") {
     const decision = f.decision;
@@ -657,6 +813,162 @@ export async function handlePortal(
     return goneFor(st, access);
   }
   return redirect(self);
+}
+
+// ---------- pre-construction agreements: sign or decline, and pay by check ----------
+
+type Item = PortalView["items"][number];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const utc = (iso: string) => new Date(iso).toUTCString().replace("GMT", "UTC");
+
+/**
+ * The owner signs or declines the agreement. Signing needs their consent to do business electronically, a fresh
+ * emailed code, their typed name and the statement; the consent and statement words are stored with the signature.
+ */
+async function preconDecide(
+  req: Request,
+  access: string,
+  sessionHash: string,
+  f: Record<string, string>,
+  deps: PortalDeps,
+  view: PortalView,
+  item: Extract<Item, { kind: "precon_agreement" }>,
+  at: (extra: Record<string, string>) => string,
+): Promise<Response> {
+  const self = `/c/${access}`;
+  const decision = f.decision === "signed" || f.decision === "declined" ? f.decision : null;
+  const signing = decision === "signed";
+  const back = (e: string) => redirect(at({ step: signing ? "confirm" : "decline", e }));
+  const typed = (f.typed_name ?? "").trim().replace(/\s+/g, " ");
+  if (!decision || typed.length < 2 || typed.length > 120) return back("invalid");
+  if (signing && f.consent !== "1") return back("consent");
+  if (signing && f.agree !== "1") return back("agree");
+  const code = (f.code ?? "").replace(/\s+/g, "");
+  if (signing && !/^\d{6}$/.test(code)) return back("wrong");
+  const company = view.contractor.name;
+  const v = item.view;
+  const consent = signing ? preconConsent(company, view.customer.email) : null;
+  const statement = signing
+    ? preconStatement(company, view.job.name, wholePrice(v.price_cents))
+    : `I decline the pre-construction agreement from ${company} for ${view.job.name}.`;
+  const note = signing ? null : (f.note ?? "").trim().slice(0, 2000) || null;
+  const res = await deps
+    .rpc("mcp_portal_precon_sign", {
+      _access: access,
+      _session_hash: sessionHash,
+      _item: item.id,
+      _decision: decision,
+      _code_hash: signing ? await codeHash(access, code) : null,
+      _typed_name: typed,
+      _consent: consent,
+      _statement: statement,
+      _fingerprint: f.fingerprint ?? "",
+      _note: note,
+      _ip: clientIp(req),
+      _user_agent: ua(req),
+    })
+    .catch(() => null);
+  const st = status(res);
+  if (st === "wrong" || st === "locked" || st === "expired" || st === "invalid") return back(st);
+  if (st === "changed" || st === "not_open")
+    return redirect(`${self}?${new URLSearchParams({ s: "agreement", e: st }).toString()}`);
+  if (st !== "ok") return goneFor(st, access);
+  const r = res as PreconSigned;
+  const notified = deps.notice
+    ? (await recordJobNotice(deps.notice, preconNotice(r, { decision, note })).catch(
+        () => null,
+      )) !== null
+    : false;
+  if (!notified && r.pm_email && EMAIL_RE.test(r.pm_email))
+    await deps.send(
+      decisionEmail({
+        to: r.pm_email,
+        customer: view.customer.name,
+        jobName: view.job.name,
+        jobNumber: view.job.number,
+        label: "the pre-construction agreement",
+        decision: signing ? "approved" : "declined",
+        choice: null,
+        note,
+        reference: `Customer page decision ${r.decision_id}`,
+        next: signing
+          ? preconNextForPm(r)
+          : "Read their note, change the terms with Athena and send it again.",
+      }),
+    );
+  if (signing)
+    await deps.send(
+      preconCopyEmail({
+        to: view.customer.email,
+        name: view.customer.name,
+        company,
+        jobName: view.job.name,
+        signedOn: longDate(r.signed_on ?? r.decided_at),
+        terms: preconTerms(v, company, view.job.name),
+        typedName: typed,
+        signedAt: utc(r.decided_at),
+        fingerprint: item.fingerprint,
+        consent: consent!,
+        statement,
+        link: `${portalUrl(access)}?s=agreement`,
+        logo: await logoFor(deps, access),
+        decisionId: r.decision_id,
+      }),
+    );
+  return redirect(at({ ok: decision }));
+}
+
+/** What the team does next once the owner signed. */
+export function preconNextForPm(r: Pick<PreconSigned, "bill">): string {
+  return r.bill
+    ? `Payment 1, invoice ${r.bill.number} for ${wholePrice(r.bill.amount_cents)}, is on their page to pay. The job moves to Design.`
+    : "Send payment 1 to their client page when it's due. The job moves to Design.";
+}
+
+/** The owner tells the contractor they're paying a bill by check. */
+async function checkRequest(
+  req: Request,
+  access: string,
+  sessionHash: string,
+  f: Record<string, string>,
+  deps: PortalDeps,
+  view: PortalView,
+  item: Extract<Item, { kind: "service_invoice" }>,
+  at: (extra: Record<string, string>) => string,
+): Promise<Response> {
+  const note = (f.note ?? "").trim().slice(0, 1000) || null;
+  const res = await deps
+    .rpc("mcp_portal_check_request", {
+      _access: access,
+      _session_hash: sessionHash,
+      _item: item.id,
+      _note: note,
+      _ip: clientIp(req),
+      _user_agent: ua(req),
+    })
+    .catch(() => null);
+  const st = status(res);
+  if (st === "invalid") return redirect(at({ step: "check", e: "invalid" }));
+  if (st === "not_open") return redirect(at({ e: "not_open" }));
+  if (st !== "ok") return goneFor(st, access);
+  const r = res as CheckRequested;
+  const notified = deps.notice
+    ? (await recordJobNotice(deps.notice, checkNotice(r)).catch(() => null)) !== null
+    : false;
+  if (!notified && r.pm_email && EMAIL_RE.test(r.pm_email))
+    await deps.send(
+      checkTeamEmail({
+        to: r.pm_email,
+        customer: view.customer.name,
+        jobName: view.job.name,
+        jobNumber: view.job.number,
+        number: r.number,
+        amount: wholePrice(r.amount_cents),
+        note: r.note,
+        reference: r.request_id,
+      }),
+    );
+  return redirect(at({ ok: "check" }));
 }
 
 // ---------- notices and messages ----------

@@ -10,6 +10,7 @@ import { makeDb } from "../../../tests/mcp-roles/db";
 import { fakeClient } from "../../../tests/mcp-roles/fake-supabase";
 import { changeTermsBoardSql, choiceStageSql, gbbSql } from "../../../tests/selections/sql";
 import { openProposalShare } from "../selection-proposal-share.server";
+import { setPageFetch } from "../selections/product-page";
 
 const who = vi.hoisted(() => ({ user: "", db: null as unknown }));
 vi.mock("./guard", async (importOriginal) => {
@@ -48,6 +49,8 @@ const proposal = (args: Record<string, unknown>, user = owner) => {
 };
 
 beforeAll(async () => {
+  // No seller pages on the network in tests: a missing photo or price stays missing.
+  setPageFetch(async () => new Response("", { status: 404 }));
   db = await makeDb();
   who.db = db;
   await db.exec(readFileSync("supabase/migrations/20261022200000_athena_estimating.sql", "utf8"));
@@ -353,7 +356,7 @@ describe.sequential("Good, Better, Best from takeoff line to recorded choice", (
       expected_version: version,
       selection_id: selectionId,
       tier: "good",
-      candidate: candidate(4),
+      candidate: { ...candidate(4), found_price_cents: 4000 },
     });
     version = r.structuredContent.version;
     expect(r.structuredContent.board.proposal.base_reviewed_on).toBeNull();
