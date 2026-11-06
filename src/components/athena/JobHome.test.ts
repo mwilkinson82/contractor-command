@@ -51,7 +51,7 @@ vi.mock("./BoardSignIn", () => ({
   BoardSignIn: ({ returnTo }: { returnTo: string }) =>
     React.createElement("div", null, `Sign in: ${returnTo}`),
 }));
-import { JobHome, iorFigures } from "./JobHome";
+import { JobHome, hideAmounts, iorFigures } from "./JobHome";
 import { ProjectHomeLinks } from "./ProjectHomeLinks";
 const job = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";
@@ -427,5 +427,24 @@ describe("IOR budget and margin on the money row", () => {
     });
     expect(read).toMatchObject({ state: "read", version: 4, costKnown: true, cost: 80_000_000 });
     if (read?.state === "read") expect(read.pct).toBeCloseTo(20, 5);
+  });
+});
+
+describe("hideAmounts", () => {
+  it("drops a bracketed dollar figure from a signed-out open item title", () => {
+    expect(
+      hideAmounts(
+        "2717 – Review the IOR risk: Cabinets misassembled and damaged on delivery ($20,000 held)",
+      ),
+    ).toBe("2717 – Review the IOR risk: Cabinets misassembled and damaged on delivery");
+  });
+  it("replaces a loose dollar figure and leaves other numbers", () => {
+    expect(hideAmounts("Collect $9,500.25 on job 2717 by 6/28")).toBe(
+      "Collect an amount on job 2717 by 6/28",
+    );
+    expect(hideAmounts("Unpaid $12k retainage")).toBe("Unpaid an amount retainage");
+  });
+  it("leaves a title with no money alone", () => {
+    expect(hideAmounts("Submit RFI 126 response")).toBe("Submit RFI 126 response");
   });
 });

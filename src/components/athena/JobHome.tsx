@@ -284,7 +284,8 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
         (base.items ?? []).map((item, i) => ({
           ...item,
           id: item.id || String(i),
-          action: item.action || "Item",
+          // Signed out (a board link opened in an AI's own browser): no dollar amounts in titles either.
+          action: session ? item.action || "Item" : hideAmounts(item.action || "Item"),
         })),
       )
     : null;
@@ -1119,6 +1120,15 @@ function morePrompts(job: string, full: boolean) {
  * signed in, such as ChatGPT's, Claude's or Manus's own browser. Nothing financial is read or shown
  * until the member signs in; a signed-in member who isn't on the company still sees no money.
  */
+/** Removes dollar amounts from text shown to a browser that isn't signed in. */
+export function hideAmounts(text: string): string {
+  const amount = String.raw`-?\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?`;
+  return text
+    .replace(new RegExp(String.raw`\s*\([^()]*` + amount + String.raw`[^()]*\)`, "g"), "")
+    .replace(new RegExp(amount, "g"), "an amount")
+    .trim();
+}
+
 export function MoneySignInPrompt({
   company,
   onSignIn,
