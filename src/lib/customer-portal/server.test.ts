@@ -201,10 +201,13 @@ describe("invite link", () => {
     // Sign-in wears Athena's own sign-in card: pale blue ground, blue rule and button, the mark beside the contractor.
     expect(html).toContain('class="as-card"');
     expect(html).toContain("#DBEAFE");
-    // Client-facing: the contractor leads up top in Inter; Athena is the small A and line in the card footer.
-    expect(html).toMatch(/<div class="as-brand"><span class="as-co"><b>[^<]+<\/b>/);
+    // Client-facing: Athena's mark on top so it can't pass for a spoof, then the contractor in Inter; Athena is
+    // also the small A and line in the card footer.
+    expect(html).toMatch(
+      /<div class="as-brand"><div class="as-athena"><svg[^>]*>.*?<\/svg><span>Athena<\/span><\/div><span class="as-co"><b>[^<]+<\/b>/,
+    );
     expect(html).toMatch(/class="as-foot"><svg[^>]*>.*<\/svg><span>Powered by Athena<\/span>/);
-    expect(html.match(/<svg/g)).toHaveLength(1);
+    expect(html.match(/<svg/g)).toHaveLength(2);
     expect(html).toContain("family=Inter");
     // It reads as the contractor's own invite to this job, on a client page.
     expect(html).toMatch(/<h1>[^<]+ invites you to your [^<]+ project page<\/h1>/);
@@ -291,6 +294,8 @@ describe("customer page", () => {
     expect(page).toContain(`value="s=agreement&amp;i=${CO}"`);
     expect(page).not.toContain("signed out");
     expect(page).not.toContain("invite");
+    // The email box takes normal text; only the 6-digit code box is big and spaced.
+    expect(page).toContain('<input class="as-input email" id="email"');
     // The email gets a code only through the server function, which checks it is the invited address.
     const sent = await handlePortal(
       await post(`/c/${ACCESS}`, {
@@ -2128,5 +2133,36 @@ describe("pre-construction agreement", () => {
     ).text();
     expect(after).toContain("9:00 to 10:00 AM");
     expect(after).toContain("Pat Lee");
+  });
+});
+
+describe("signed-out sign-in page identifies who it belongs to", () => {
+  it("shows Athena's mark, the contractor and the job, and never the invitee's email", async () => {
+    const { d } = deps();
+    d.brand = async () => ({
+      company: "Northline Builders",
+      job_number: "2715",
+      job_name: "Harbor Point Dental",
+    });
+    const r = await handlePortal(req(`/c/${ACCESS}?s=selections`), ACCESS, d);
+    const page = await r.text();
+    expect(r.status).toBe(200);
+    expect(page).toContain("Sign in to your project page");
+    expect(page).toMatch(/<div class="as-athena"><svg[^>]*>.*?<\/svg><span>Athena<\/span><\/div>/);
+    expect(page).toContain("<b>Northline Builders</b><span>Client page</span>");
+    expect(page).toContain('<span class="as-proj">Job 2715 · Harbor Point Dental</span>');
+    expect(page).toContain("<title>Harbor Point Dental · Sign in</title>");
+    expect(page).not.toContain("rosa@example.com");
+  });
+
+  it("still shows Athena's mark when the brand can't be read", async () => {
+    const { d } = deps();
+    d.brand = async () => {
+      throw new Error("down");
+    };
+    const page = await (await handlePortal(req(`/c/${ACCESS}`), ACCESS, d)).text();
+    expect(page).toContain('<div class="as-brand"><div class="as-athena">');
+    expect(page).toContain("<span>Client page</span>");
+    expect(page).not.toContain('class="as-proj"');
   });
 });

@@ -368,6 +368,9 @@ const SIGNIN_CSS = `
 .as{min-height:100vh;background:#DBEAFE;color:#1F2329;padding:40px max(16px,env(safe-area-inset-left)) 48px max(16px,env(safe-area-inset-right));font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:14px}
 .as-wrap{width:100%;max-width:32rem;margin:0 auto}
 .as-brand{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;text-align:center}
+.as-athena{display:flex;align-items:center;gap:7px;margin-bottom:14px;font:600 14px/1 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;letter-spacing:-.01em;color:#1F2329}
+.as-athena svg{width:24px;height:18px;flex:none;overflow:visible}
+.as-proj{margin-top:4px;font-size:14px;line-height:1.35;color:#3F434B;max-width:100%;overflow-wrap:anywhere}
 .as-logo{display:block;max-width:220px;max-height:56px;width:auto;height:auto}
 .as-co{display:grid;justify-items:center;line-height:1.15;min-width:0;max-width:100%}
 .as-co b{font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;font-weight:600;font-size:22px;letter-spacing:-.011em;max-width:100%;color:#1F2329;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -383,6 +386,7 @@ const SIGNIN_CSS = `
 .as-form{margin-top:26px;display:grid;gap:18px}
 .as-field{display:grid;gap:8px}
 .as-input{width:100%;height:56px;padding:0 14px;border:1px solid #E4E1D6;border-radius:8px;background:#fff;color:#1F2329;outline:none;font:600 26px/1 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.5em;text-align:center;padding-left:calc(14px + .5em);font-variant-numeric:tabular-nums}
+.as-input.email{font:400 16px/1.4 "Archivo","Helvetica Neue",Arial,sans-serif;letter-spacing:normal;text-align:left;padding-left:14px;font-variant-numeric:normal}
 .as-input:focus{border-color:#1D4ED8;box-shadow:0 0 0 3px #2563EB26}
 .as-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#3F434B;cursor:pointer}
 .as-check input{width:17px;height:17px;margin:1px 0 0;accent-color:#2563EB;flex:none}
@@ -411,11 +415,20 @@ export const safeLogo = (url: string | null | undefined): string | null =>
  * The Athena-styled shell for sign-in and notice screens. Client-facing, so the contractor leads up top (their saved
  * logo, or their name in type) and Athena is the small A and "Powered by Athena" in the card's footer.
  */
-function signinShell(company: string | null, inner: string, logo: string | null = null): string {
+function signinShell(
+  company: string | null,
+  inner: string,
+  logo: string | null = null,
+  job: { number: string | null; name: string | null } | null = null,
+): string {
   const src = safeLogo(logo);
+  const jobLine = job?.name
+    ? `<span class="as-proj">${job.number ? `Job ${esc(job.number)} · ` : ""}${esc(job.name)}</span>`
+    : "";
+  const athena = `<div class="as-athena">${ATHENA_A}<span>Athena</span></div>`;
   const brand = company
-    ? `<div class="as-brand">${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : `<span class="as-co"><b>${esc(company)}</b></span>`}<span class="as-co"><span>Client page</span></span></div>`
-    : `<div class="as-brand"><span class="as-co"><span>Client page</span></span></div>`;
+    ? `<div class="as-brand">${athena}${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : ""}<span class="as-co"><b>${esc(company)}</b><span>Client page</span></span>${jobLine}</div>`
+    : `<div class="as-brand">${athena}<span class="as-co"><span>Client page</span></span>${jobLine}</div>`;
   const support = `Trouble signing in? <a href="${esc(ATHENA_SUPPORT_MAILTO)}">Email Athena support</a>.`;
   const help = company
     ? `<p class="as-help">Questions about your project? Contact ${esc(company)}.<br>${support}</p>`
@@ -453,7 +466,7 @@ export function renderInvite(
       : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent" : "Enter"} a 6-digit code to ${masked}. It works for 10 minutes.</p>${job}${err}<form method="post" class="as-form"><input type="hidden" name="action" value="verify"><div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><form method="post" class="as-form"><input type="hidden" name="action" value="send_code"><p class="as-note">No code? Check your spam folder, or <button class="as-link" type="submit">send a new one</button>.</p></form>`;
   return doc(
     `${info.job_name} · Sign in`,
-    signinShell(info.company, inner, opts.logo ?? null),
+    signinShell(info.company, inner, opts.logo ?? null, null),
     "signin",
   );
 }
@@ -471,6 +484,8 @@ export function renderPageSignIn(
     sent?: boolean;
     company?: string | null;
     logo?: string | null;
+    job_number?: string | null;
+    job_name?: string | null;
   } = {
     back: "",
   },
@@ -479,9 +494,16 @@ export function renderPageSignIn(
   const back = `<input type="hidden" name="back" value="${esc(opts.back)}">`;
   const inner =
     step === "email"
-      ? `<h1>Sign in to your project page</h1><p class="as-sub">Enter the email address this page was shared with. We'll email you a 6-digit code. No password needed.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_send_code">${back}<div class="as-field"><label class="as-label" for="email">Email</label><input class="as-input" id="email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="320" required autofocus></div><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button></form>`
+      ? `<h1>Sign in to your project page</h1><p class="as-sub">Enter the email address this page was shared with. We'll email you a 6-digit code. No password needed.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_send_code">${back}<div class="as-field"><label class="as-label" for="email">Email</label><input class="as-input email" id="email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="320" required autofocus></div><button class="as-btn" type="submit">Email me a sign-in code&nbsp;&rarr;</button></form>`
       : `<h1>Check your email</h1><p class="as-sub">${opts.sent ? "We sent a 6-digit code to your email." : "Enter the 6-digit code from your email."} It works for 10 minutes.</p>${err}<form method="post" class="as-form"><input type="hidden" name="action" value="page_verify">${back}<div class="as-field"><label class="as-label" for="code">6-digit code</label><input class="as-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div><label class="as-check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device for 30 days</label><button class="as-btn" type="submit">Sign in&nbsp;&rarr;</button></form><p class="as-note">No code? Check your spam folder, or <a class="as-link" href="?${esc(opts.back ? `${opts.back}&` : "")}step=signin">send a new one</a>.</p>`;
-  return doc("Sign in", signinShell(opts.company ?? null, inner, opts.logo ?? null), "signin");
+  return doc(
+    opts.job_name ? `${opts.job_name} · Sign in` : "Sign in",
+    signinShell(opts.company ?? null, inner, opts.logo ?? null, {
+      number: opts.job_number ?? null,
+      name: opts.job_name ?? null,
+    }),
+    "signin",
+  );
 }
 
 const GONE: Record<string, [string, string]> = {

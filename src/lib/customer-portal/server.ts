@@ -100,6 +100,11 @@ export type PortalDeps = {
   /** The contractor's saved logo for this customer's page, an https URL, or null. Optional: name-only without it. */
   logo?: (access: string) => Promise<string | null>;
   /**
+   * Who the signed-out sign-in page belongs to: the contractor's name and the job this access link opens, so the
+   * customer can tell it's really their contractor and project. Optional: the page shows "Client page" without it.
+   */
+  brand?: (access: string) => Promise<PortalBrand | null>;
+  /**
    * Records job notices for the customer's decisions and messages (service role). Without it a decision emails the
    * job's PM directly, as before, and a message is kept but tells no one.
    */
@@ -115,6 +120,14 @@ export type PortalDeps = {
     method: PayMethod;
   }) => Promise<OpenCheckoutResult>;
 };
+
+export type PortalBrand = {
+  company: string | null;
+  job_number: string | null;
+  job_name: string | null;
+};
+const brandFor = (deps: PortalDeps, access: string): Promise<PortalBrand | null> =>
+  deps.brand ? deps.brand(access).catch(() => null) : Promise.resolve(null);
 
 const logoFor = (deps: PortalDeps, access: string): Promise<string | null> =>
   deps.logo ? deps.logo(access).catch(() => null) : Promise.resolve(null);
@@ -493,12 +506,16 @@ export async function handlePortal(
     if (view === "signed_out") {
       const q = url.searchParams;
       const e = q.get("e");
+      const [logo, brand] = await Promise.all([logoFor(deps, access), brandFor(deps, access)]);
       return html(
         renderPageSignIn(q.get("step") === "code" ? "code" : "email", {
           back: backQuery(q),
           error: e ? (ERRORS[e] ?? null) : null,
           sent: q.get("sent") === "1",
-          logo: await logoFor(deps, access),
+          logo,
+          company: brand?.company ?? null,
+          job_number: brand?.job_number ?? null,
+          job_name: brand?.job_name ?? null,
         }),
         200,
         session ? { "set-cookie": clearCookie(access) } : {},
