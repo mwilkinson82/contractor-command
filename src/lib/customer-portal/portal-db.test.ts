@@ -139,6 +139,7 @@ beforeAll(async () => {
   await load("20261105200000_athena_notices_owner_fallback");
   await load("20261105181000_athena_portal_messages");
   await load("20261106160000_athena_portal_page_sign_in");
+  await load("20261106233000_athena_portal_code_reuse");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -636,6 +637,47 @@ describe.sequential("customer page", () => {
     expect(shared.view.proposal.packages).toHaveLength(3);
     expect(JSON.stringify(shared.view)).not.toMatch(/cost_cents|found_price|assumptions/);
     const code = await codeHash(access, "222222");
+    // Sign-in codes never block a choice: five today don't count against this item's codes.
+    await db.query(
+      "INSERT INTO mcp_portal_codes(access_id,purpose,code_hash,expires_at) SELECT $1,'sign_in',$2,now() FROM generate_series(1,5)",
+      [access, hex(300)],
+    );
+    const pending = () => server("mcp_portal_code_pending", [access, sessionHash, shared.item_id]);
+    expect((await pending()).status).toBe("none");
+    for (let i = 0; i < 5; i++)
+      expect(
+        (
+          await server("mcp_portal_code_issue", [
+            access,
+            "decide",
+            hex(310 + i),
+            null,
+            sessionHash,
+            shared.item_id,
+          ])
+        ).status,
+      ).toBe("ok");
+    // A code is still good, so the page reuses it; another session never sees it.
+    expect(await pending()).toMatchObject({ status: "ok" });
+    expect((await server("mcp_portal_code_pending", [access, hex(5), shared.item_id])).status).toBe(
+      "none",
+    );
+    // The sixth code for the same item in 15 minutes waits, and says for how long.
+    const slow = await server("mcp_portal_code_issue", [
+      access,
+      "decide",
+      hex(320),
+      null,
+      sessionHash,
+      shared.item_id,
+    ]);
+    expect(slow.status).toBe("slow_down");
+    expect(slow.retry_minutes).toBeGreaterThanOrEqual(14);
+    expect(slow.retry_minutes).toBeLessThanOrEqual(15);
+    await db.query(
+      "UPDATE mcp_portal_codes SET created_at = now() - interval '2 days' WHERE access_id = $1",
+      [access],
+    );
     await server("mcp_portal_code_issue", [
       access,
       "decide",
@@ -2059,6 +2101,27 @@ describe.sequential("client payments", () => {
     expect(
       (await db.query("SELECT to_regclass('public.mcp_portal_payments') AS t")).rows[0],
     ).toEqual({ t: null });
+    await db.exec(`BEGIN; ${up}; COMMIT;`);
+  });
+
+  it("code limits apply twice, roll back cleanly and apply again", async () => {
+    const up = readFileSync(
+      "supabase/migrations/20261106233000_athena_portal_code_reuse.sql",
+      "utf8",
+    );
+    const down = readFileSync(
+      "supabase/rollbacks/20261106233000_athena_portal_code_reuse.rollback.sql",
+      "utf8",
+    );
+    await db.exec(`BEGIN; ${up}; COMMIT;`);
+    await db.exec(`BEGIN; ${down}; COMMIT;`);
+    expect(
+      (
+        await db.query(
+          "SELECT to_regprocedure('public.mcp_portal_code_pending(uuid,text,uuid)') AS f",
+        )
+      ).rows[0],
+    ).toEqual({ f: null });
     await db.exec(`BEGIN; ${up}; COMMIT;`);
   });
 });
