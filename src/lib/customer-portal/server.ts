@@ -48,6 +48,7 @@ import {
   PORTAL_SECTIONS,
   renderGone,
   renderInvite,
+  renderPageSignIn,
   renderPortal,
   type PortalSection,
 } from "./render";
@@ -133,6 +134,8 @@ const ERRORS: Record<string, string> = {
   locked: "Too many tries on that code. Send yourself a new one.",
   expired: "That code has expired. Send yourself a new one.",
   slow: "Too many codes requested. Wait a few minutes and try again.",
+  email:
+    "That isn't the email this page was shared with. Use the address your contractor sent it to.",
   send: "We couldn't send the email. Try again in a moment.",
   changed:
     "This changed since you opened it, so nothing was recorded. Your contractor will share the current version.",
@@ -395,6 +398,84 @@ function goneFor(st: string, access: string): Response {
 const section = (s: string | null): PortalSection =>
   (PORTAL_SECTIONS as readonly string[]).includes(s ?? "") ? (s as PortalSection) : "home";
 
+/** The page's own place (section and item), kept through sign-in so the customer lands where they were going. */
+export function backQuery(q: URLSearchParams): string {
+  const out = new URLSearchParams();
+  const s = q.get("s");
+  if (s && section(s) !== "home") out.set("s", s);
+  const i = q.get("i");
+  if (i && UUID.safeParse(i).success) out.set("i", i);
+  return out.toString();
+}
+
+/** Sign in on the page itself: email, then a 6-digit code, then back to what they opened. */
+async function pageSignIn(
+  req: Request,
+  access: string,
+  f: Record<string, string>,
+  deps: PortalDeps,
+): Promise<Response> {
+  const back = backQuery(new URLSearchParams(f.back ?? ""));
+  const self = `/c/${access}`;
+  const at = (extra: string) => `${self}?${back ? `${back}&` : ""}${extra}`;
+  if (f.action === "page_send_code") {
+    if (!deps.emailOn())
+      return html(renderGone("email_off", null, await logoFor(deps, access)), 503);
+    const email = (f.email ?? "").trim().slice(0, 320);
+    if (!email) return redirect(at("step=signin&e=email"));
+    const code = sixDigits(deps.randomInt);
+    const issued = await deps
+      .rpc("mcp_portal_page_code_issue", {
+        _access: access,
+        _email: email,
+        _code_hash: await codeHash(access, code),
+        _ip: clientIp(req),
+        _user_agent: ua(req),
+      })
+      .catch(() => null);
+    const st = status(issued);
+    if (st === "mismatch") return redirect(at("step=signin&e=email"));
+    if (st === "slow_down") return redirect(at("step=signin&e=slow"));
+    if (st !== "ok") return goneFor(st === "error" ? "error" : st, access);
+    const info = issued as { email: string; name: string; company: string; job_name: string };
+    const sent = await deps.send(
+      codeEmail({
+        to: info.email,
+        name: info.name,
+        company: info.company,
+        jobName: info.job_name,
+        code,
+        purpose: "sign_in",
+        logo: await logoFor(deps, access),
+        nonce: newToken(),
+      }),
+    );
+    return redirect(sent === "sent" ? at("step=code&sent=1") : at("step=signin&e=send"));
+  }
+  const code = (f.code ?? "").replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(code)) return redirect(at("step=code&e=wrong"));
+  const session = newToken();
+  const remember = f.remember === "1";
+  const res = await deps
+    .rpc("mcp_portal_page_sign_in", {
+      _access: access,
+      _code_hash: await codeHash(access, code),
+      _session_hash: await tokenHash(session),
+      _remember: remember,
+      _ip: clientIp(req),
+      _user_agent: ua(req),
+    })
+    .catch(() => null);
+  const st = status(res);
+  if (st === "ok")
+    return redirect(back ? `${self}?${back}` : self, {
+      "set-cookie": sessionCookie(access, session, remember),
+    });
+  if (st === "wrong" || st === "locked" || st === "expired")
+    return redirect(at(`step=code&e=${st}`));
+  return goneFor(st === "error" ? "error" : st, access);
+}
+
 export async function handlePortal(
   req: Request,
   access: string,
@@ -408,6 +489,21 @@ export async function handlePortal(
 
   if (req.method === "GET" || req.method === "HEAD") {
     const view = await loadView(deps, access, sessionHash, req);
+    // Signed out: sign in right here and come back to the same place, never "find your invite email".
+    if (view === "signed_out") {
+      const q = url.searchParams;
+      const e = q.get("e");
+      return html(
+        renderPageSignIn(q.get("step") === "code" ? "code" : "email", {
+          back: backQuery(q),
+          error: e ? (ERRORS[e] ?? null) : null,
+          sent: q.get("sent") === "1",
+          logo: await logoFor(deps, access),
+        }),
+        200,
+        session ? { "set-cookie": clearCookie(access) } : {},
+      );
+    }
     if (typeof view === "string") return goneFor(view, access);
     const paths = view.photos.map((p) => p.storage_path);
     const signed = paths.length
@@ -462,8 +558,10 @@ export async function handlePortal(
   if (req.method !== "POST")
     return new Response(null, { status: 405, headers: { allow: "GET, POST" } });
   if (!sameOrigin(req)) return new Response("Forbidden", { status: 403 });
-  if (!session || !sessionHash) return goneFor("signed_out", access);
   const f = await form(req);
+  if (f.action === "page_send_code" || f.action === "page_verify")
+    return pageSignIn(req, access, f, deps);
+  if (!session || !sessionHash) return redirect(`${self}?step=signin`);
   if (f.csrf !== (await csrfFor(session))) return new Response("Forbidden", { status: 403 });
 
   if (f.action === "sign_out") {
