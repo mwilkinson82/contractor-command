@@ -68,8 +68,8 @@ ${s} .ath-menu-box input[type=checkbox]{accent-color:${c.pressed};margin:0}
 ${s} .ath-menu-title{padding:4px 9px 2px;color:${c.muted};font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 ${s} .ath-chip{position:relative;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:999px;border:1px solid ${c.line};background:#fff;color:${c.ink};font-weight:600;font-size:12.5px;white-space:nowrap;cursor:pointer;flex:0 0 auto;transition:background .12s,border-color .12s,box-shadow .12s}
 ${s} .ath-chip:hover{background:${c.hover};border-color:${c.lineStrong}}
-${s} .ath-chip>span{color:${c.muted};font-weight:600}
-${s} .ath-chip select{appearance:none;-webkit-appearance:none;border:0;background:transparent;font:inherit;color:inherit;padding:0 16px 0 0;margin:0;cursor:pointer;max-width:200px;text-overflow:ellipsis;field-sizing:content}
+${s} .ath-chip>span{flex:none;color:${c.muted};font-weight:600}
+${s} .ath-chip select{appearance:none;-webkit-appearance:none;border:0;background:transparent;font:inherit;color:inherit;padding:0 16px 0 0;margin:0;min-width:0;cursor:pointer;max-width:200px;text-overflow:ellipsis;field-sizing:content}
 ${s} .ath-chip select:focus{outline:none}
 ${s} .ath-chip:focus-within{outline:2px solid ${c.focus};outline-offset:2px}
 ${s} .ath-chip .ath-caret{position:absolute;right:10px;pointer-events:none;color:${c.ink2}}
