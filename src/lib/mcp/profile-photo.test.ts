@@ -20,21 +20,18 @@ vi.mock("./guard", () => ({
         state.rpcs.push([fn, args]);
         return { data: state.rpcError ? null : { status: "ok" }, error: state.rpcError };
       },
-      storage: {
-        from: (bucket: string) => ({
-          upload: async (path: string, _b: Uint8Array, o: { contentType: string }) => {
-            if (bucket !== "athena-people") throw new Error(`wrong bucket ${bucket}`);
-            if (!state.uploadError) state.uploads.push({ path, type: o.contentType });
-            return { error: state.uploadError };
-          },
-          remove: async (paths: string[]) => {
-            state.removed.push(...paths);
-            return { error: null };
-          },
-        }),
-      },
     }),
   text: (b: string) => ({ content: [{ type: "text", text: b }] }),
+}));
+// Athena's server stores the photo (service role); the member's own sign-in only saves it on their profile.
+vi.mock("../people-photo.server", () => ({
+  storePersonPhoto: async (path: string, _b: Uint8Array, type: string) => {
+    if (!state.uploadError) state.uploads.push({ path, type });
+    return !state.uploadError;
+  },
+  dropPersonPhoto: async (path: string) => {
+    state.removed.push(path);
+  },
 }));
 vi.mock("./visible", async () => {
   const actual = await vi.importActual<typeof import("./visible")>("./visible");
@@ -76,11 +73,11 @@ describe("profile_photo", () => {
     const r = await handle({ file: attached(testJpeg(800, 800)) });
     expect(r.structuredContent).toMatchObject({ saved: true, width: 800, height: 800 });
     expect(state.uploads).toHaveLength(1);
-    expect(state.uploads[0]!.path).toMatch(new RegExp(`^${ME}/photo-[0-9a-f-]{36}\\.jpg$`));
+    expect(state.uploads[0]!.path).toMatch(new RegExp(`^people/${ME}/photo-[0-9a-f-]{36}\\.jpg$`));
     expect(state.uploads[0]!.type).toBe("image/jpeg");
     expect(state.rpcs).toEqual([["mcp_profile_photo_set", { _path: state.uploads[0]!.path }]]);
     expect(r.content[0]!.text).toContain("Your team");
-    expect(r.content[0]!.text).not.toMatch(/oaiusercontent|athena-people|33333333/);
+    expect(r.content[0]!.text).not.toMatch(/oaiusercontent|athena-progress|people\/|33333333/);
   });
 
   it("gives the account page link when the chat can't pass the photo", async () => {

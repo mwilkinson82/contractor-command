@@ -6,7 +6,7 @@ import { isCompanyLogoUrl } from "../payment-applications/brand";
 import type { PortalDeps } from "./server";
 
 const PHOTO_BUCKET = "athena-progress";
-const PEOPLE_BUCKET = "athena-people";
+import { PEOPLE_BUCKET, isPersonPhotoPath } from "../people-photo";
 type Env = Record<string, string | undefined>;
 const runtimeEnv = (): Env => (globalThis as { process?: { env?: Env } }).process?.env ?? {};
 const env = (names: string[]) => {
@@ -50,6 +50,8 @@ export const liveDeps: PortalDeps = {
     return out;
   },
   signHeadshot: async (path) => {
+    // Only a member photo in people/, never any other file in the bucket.
+    if (!isPersonPhotoPath(path)) return null;
     const { data } = await service().storage.from(PEOPLE_BUCKET).createSignedUrl(path, 3600);
     return data?.signedUrl ?? null;
   },

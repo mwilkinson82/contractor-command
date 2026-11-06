@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkPhotoFile, photoPath } from "./account-photo";
+import { checkPhotoFile } from "./account-photo";
+import { isPersonPhotoPath, personPhotoPath } from "./people-photo";
 
 describe("member photo", () => {
   it("takes phone and web pictures up to 20 MB, and nothing else", () => {
@@ -13,8 +14,20 @@ describe("member photo", () => {
 
   it("puts the photo in the member's own folder, in the shape the database accepts", () => {
     const user = "11111111-2222-4333-8444-555555555555";
-    const p = photoPath(user, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
-    expect(p.split("/")[0]).toBe(user);
-    expect(p).toMatch(/^[0-9a-f-]{36}\/[A-Za-z0-9._-]{1,80}$/);
+    const p = personPhotoPath(user, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "jpg");
+    expect(p).toBe(`people/${user}/photo-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.jpg`);
+    expect(p).toMatch(/^people\/[0-9a-f-]{36}\/[A-Za-z0-9._-]{1,80}$/);
+    expect(isPersonPhotoPath(p, user)).toBe(true);
+  });
+
+  it("never treats another member's folder or a job file as a member photo", () => {
+    const user = "11111111-2222-4333-8444-555555555555";
+    const other = "99999999-2222-4333-8444-555555555555";
+    expect(isPersonPhotoPath(`people/${other}/photo-a.jpg`, user)).toBe(false);
+    expect(isPersonPhotoPath(`people/${other}/photo-a.jpg`)).toBe(true);
+    expect(isPersonPhotoPath(`${user}/photo-a.jpg`)).toBe(false);
+    expect(isPersonPhotoPath(`people/${user}/../x.jpg`)).toBe(false);
+    expect(isPersonPhotoPath(`${user}/${other}/progress/a.jpg`)).toBe(false);
+    expect(isPersonPhotoPath(null)).toBe(false);
   });
 });

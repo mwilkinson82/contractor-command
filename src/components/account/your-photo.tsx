@@ -1,18 +1,19 @@
 // "Your photo" on the account page. A member's own photo shows on the client page of every job they run as PM, so the
-// client sees who their project manager is. The photo sits in the private athena-people bucket under the member's
-// own folder; the client page server signs it for each visit.
+// client sees who their project manager is. The browser makes a small square JPEG; Athena's server stores it in the
+// member's own private folder and saves it on their profile. The client page server signs it for each visit.
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Trash2, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { PHOTO_RULE, checkPhotoFile, photoPath } from "@/lib/account-photo";
+import { PHOTO_RULE, checkPhotoFile } from "@/lib/account-photo";
+import { getMyPhoto, removeMyPhoto, saveMyPhoto } from "@/lib/people-photo.functions";
 
-const BUCKET = "athena-people";
-
-type Rpc = (
-  fn: string,
-  args: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>;
-const rpc = supabase.rpc as unknown as Rpc;
+async function base64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 
 /** Shrinks the picture to a 512 px square JPEG in the browser, so any phone photo uploads small and the same way. */
 async function squareJpeg(file: File): Promise<Blob> {
@@ -39,25 +40,14 @@ export function YourPhoto({ userId, name }: { userId: string | null; name: strin
   const [msg, setMsg] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const getFn = useServerFn(getMyPhoto);
+  const saveFn = useServerFn(saveMyPhoto);
+  const removeFn = useServerFn(removeMyPhoto);
+
   async function load() {
     if (!userId) return;
-    const { data } = await (
-      supabase.from("profiles") as unknown as {
-        select: (c: string) => {
-          eq: (
-            k: string,
-            v: string,
-          ) => { maybeSingle: () => Promise<{ data: { photo_path?: string | null } | null }> };
-        };
-      }
-    )
-      .select("photo_path")
-      .eq("id", userId)
-      .maybeSingle();
-    const path = data?.photo_path ?? null;
-    if (!path) return setUrl(null);
-    const signed = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
-    setUrl(signed.data?.signedUrl ?? null);
+    const r = await getFn().catch(() => ({ url: null }));
+    setUrl(r.url);
   }
   useEffect(() => {
     void load();
@@ -72,15 +62,9 @@ export function YourPhoto({ userId, name }: { userId: string | null; name: strin
     setBusy(true);
     try {
       const jpeg = await squareJpeg(file);
-      const path = photoPath(userId, crypto.randomUUID());
-      const up = await supabase.storage
-        .from(BUCKET)
-        .upload(path, jpeg, { contentType: "image/jpeg", upsert: false });
-      if (up.error)
-        throw new Error("The photo didn't upload. Check your connection and try again.");
-      const r = await rpc("mcp_profile_photo_set", { _path: path });
-      if (r.error) throw new Error("The photo uploaded, but it didn't save. Try again.");
-      await load();
+      const r = await saveFn({ data: { jpeg: await base64(jpeg) } });
+      if (!r.ok) throw new Error(r.error);
+      setUrl(r.url);
       setMsg({
         tone: "ok",
         text: "Photo saved. Your clients see it on the client page of your jobs.",
@@ -96,8 +80,8 @@ export function YourPhoto({ userId, name }: { userId: string | null; name: strin
   async function remove() {
     setBusy(true);
     setMsg(null);
-    const r = await rpc("mcp_profile_photo_set", { _path: null });
-    if (r.error) setMsg({ tone: "bad", text: "The photo didn't come off. Try again." });
+    const r = await removeFn().catch(() => ({ ok: false }));
+    if (!r.ok) setMsg({ tone: "bad", text: "The photo didn't come off. Try again." });
     else {
       setUrl(null);
       setMsg({
