@@ -778,6 +778,13 @@
       "when": 1793929533954,
       "tag": "0110_athena_record_auto_precon_bill",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1793980161958,
+      "tag": "0111_athena_member_read_transactions",
+      "breakpoints": true
     }
   ]
 }
