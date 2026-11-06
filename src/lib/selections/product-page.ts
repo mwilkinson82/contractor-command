@@ -119,10 +119,13 @@ export function fromShopify(
     const same = variants.filter((v) => (v.sku ?? "").toUpperCase().startsWith(model));
     if (same.length) variants = same;
   }
+  const ofModel = variants.length;
   if (hint.finish) {
     const f = hint.finish;
     variants = variants.filter((v) => hasFinish(`${v.title ?? ""} ${v.sku ?? ""}`, f));
   }
+  // Every variant of this model is this finish (often a single-finish product): its photos all show it.
+  const onlyThisFinish = variants.length > 0 && variants.length === ofModel;
   const prices = [...new Set(variants.map((v) => toCents(v.price)))];
   const price_cents = variants.length && prices.length === 1 ? prices[0] : null;
   const images = p.images ?? [];
@@ -130,11 +133,11 @@ export function fromShopify(
   let photo =
     images.find((i) => i.id !== undefined && ids.has(i.id)) ??
     (hint.finish
-      ? images.find(
+      ? (images.find(
           (i) =>
             hasFinish(`${i.alt ?? ""} ${i.src ?? ""}`, hint.finish!) &&
             !otherFinish(i.alt ?? "", hint.finish!),
-        )
+        ) ?? (onlyThisFinish ? images[0] : undefined))
       : images[0]);
   if (!variants.length) photo = undefined;
   return { photo_url: httpsImage(photo?.src), price_cents };

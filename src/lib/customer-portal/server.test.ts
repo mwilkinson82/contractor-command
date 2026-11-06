@@ -198,16 +198,20 @@ describe("invite link", () => {
     expect(html).toContain("r***@example.com");
     expect(html).not.toContain("rosa@example.com");
     expect(html).not.toMatch(/<script/i);
-    // Sign-in wears Athena's own sign-in card: pale blue ground, blue rule and button, the mark beside the contractor.
+    // Sign-in wears meetathena.io's web look: white with a faint blue fade, Inter Tight headings, a blue pill button.
     expect(html).toContain('class="as-card"');
-    expect(html).toContain("#DBEAFE");
-    // Client-facing: Athena's mark on top so it can't pass for a spoof, then the contractor in Inter; Athena is
-    // also the small A and line in the card footer.
+    expect(html).toContain("linear-gradient(#F5F8FF 0,#fff 420px)");
+    expect(html).not.toContain("#DBEAFE");
+    expect(html).toContain("border-radius:999px");
+    expect(html).toContain("family=Inter+Tight");
+    expect(html).not.toContain('class="as-rule"');
+    // Client-facing: Athena's own lockup on top so it can't pass for a spoof, then the contractor; Athena is also
+    // the small A and line in the card footer.
     expect(html).toMatch(
-      /<div class="as-brand"><div class="as-athena"><svg[^>]*>.*?<\/svg><span>Athena<\/span><\/div><span class="as-co"><b>[^<]+<\/b>/,
+      /<div class="as-brand"><img class="as-lockup" src="\/brand\/athena\/athena-lockup-blue\.svg" alt="Athena"[^>]*><span class="as-co"><b>[^<]+<\/b>/,
     );
     expect(html).toMatch(/class="as-foot"><svg[^>]*>.*<\/svg><span>Powered by Athena<\/span>/);
-    expect(html.match(/<svg/g)).toHaveLength(2);
+    expect(html.match(/<svg/g)).toHaveLength(1);
     expect(html).toContain("family=Inter");
     // It reads as the contractor's own invite to this job, on a client page.
     expect(html).toMatch(/<h1>[^<]+ invites you to your [^<]+ project page<\/h1>/);
@@ -2137,7 +2141,7 @@ describe("pre-construction agreement", () => {
 });
 
 describe("signed-out sign-in page identifies who it belongs to", () => {
-  it("shows Athena's mark, the contractor and the job, and never the invitee's email", async () => {
+  it("shows Athena's lockup, the contractor and the job, and never the invitee's email", async () => {
     const { d } = deps();
     d.brand = async () => ({
       company: "Northline Builders",
@@ -2148,20 +2152,22 @@ describe("signed-out sign-in page identifies who it belongs to", () => {
     const page = await r.text();
     expect(r.status).toBe(200);
     expect(page).toContain("Sign in to your project page");
-    expect(page).toMatch(/<div class="as-athena"><svg[^>]*>.*?<\/svg><span>Athena<\/span><\/div>/);
+    expect(page).toMatch(
+      /<img class="as-lockup" src="\/brand\/athena\/athena-lockup-blue\.svg" alt="Athena"/,
+    );
     expect(page).toContain("<b>Northline Builders</b><span>Client page</span>");
     expect(page).toContain('<span class="as-proj">Job 2715 · Harbor Point Dental</span>');
     expect(page).toContain("<title>Harbor Point Dental · Sign in</title>");
     expect(page).not.toContain("rosa@example.com");
   });
 
-  it("still shows Athena's mark when the brand can't be read", async () => {
+  it("still shows Athena's lockup when the brand can't be read", async () => {
     const { d } = deps();
     d.brand = async () => {
       throw new Error("down");
     };
     const page = await (await handlePortal(req(`/c/${ACCESS}`), ACCESS, d)).text();
-    expect(page).toContain('<div class="as-brand"><div class="as-athena">');
+    expect(page).toContain('<div class="as-brand"><img class="as-lockup"');
     expect(page).toContain("<span>Client page</span>");
     expect(page).not.toContain('class="as-proj"');
   });

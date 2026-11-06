@@ -226,3 +226,44 @@ describe("completing a board from its seller pages", () => {
     expect(seen.every((u) => !u.includes("7010") && !u.includes("8010"))).toBe(true);
   });
 });
+
+describe("single-finish Shopify products", () => {
+  it("takes the product photo when every variant is the option's finish", () => {
+    // Shaped like shopgps.com's Delta 22C351 product JSON (Nov 6, 2026): one Chrome variant, no variant image.
+    const p = {
+      variants: [{ title: "Chrome", sku: "22C351", price: "229.46", image_id: null }],
+      images: [
+        {
+          id: 9,
+          src: "https://cdn.shopify.com/s/files/1/0740/1144/3416/files/22C351-B1.png",
+          alt: null,
+        },
+      ],
+    };
+    expect(
+      fromShopify(p, {
+        model: "22C351",
+        finish: finishOf({ description: "In chrome.", specifications: "" }),
+      }),
+    ).toEqual({
+      photo_url: "https://cdn.shopify.com/s/files/1/0740/1144/3416/files/22C351-B1.png",
+      price_cents: 22946,
+    });
+  });
+
+  it("still won't guess a photo when the product comes in other finishes", () => {
+    const p = {
+      variants: [
+        { title: "Chrome", sku: "X-CH", price: "100.00", image_id: null },
+        { title: "Black", sku: "X-BL", price: "100.00", image_id: null },
+      ],
+      images: [{ id: 9, src: "https://cdn.example.com/x.png", alt: null }],
+    };
+    expect(
+      fromShopify(p, {
+        model: "X",
+        finish: finishOf({ description: "Chrome.", specifications: "" }),
+      }).photo_url,
+    ).toBeNull();
+  });
+});
