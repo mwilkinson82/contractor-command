@@ -260,3 +260,76 @@ describe("mcp_project_record_feed", () => {
     expect(r.rows[0]).toMatchObject({ a: true, anon: false, h: false });
   });
 });
+
+describe("client-page entries name the client (20261106170000)", () => {
+  const ACCESS = "00000000-0000-0000-0000-0000000000e1";
+  const DECISION = "00000000-0000-0000-0000-0000000000e2";
+  let c: PGlite;
+  const all = async () =>
+    (await c.query<{ f: Feed }>("SELECT mcp_project_record_feed($1, NULL, NULL) AS f", [JOB]))
+      .rows[0].f.events;
+
+  beforeAll(async () => {
+    c = new PGlite();
+    await c.exec(STUB);
+    await c.exec(`
+      CREATE SCHEMA mcp_private;
+      ALTER TABLE mcp_project_record_events ADD COLUMN payload jsonb NOT NULL DEFAULT '{}'::jsonb;
+      CREATE TABLE mcp_portal_access (id uuid PRIMARY KEY, name text);
+      CREATE TABLE mcp_portal_decisions (id uuid PRIMARY KEY, access_id uuid);
+      INSERT INTO mcp_portal_access VALUES ('${ACCESS}', 'Pat Rivera');
+      INSERT INTO mcp_portal_decisions VALUES ('${DECISION}', '${ACCESS}');
+    `);
+    const sql = (f: string) =>
+      readFileSync(join(process.cwd(), `supabase/migrations/${f}.sql`), "utf8");
+    await c.exec(sql("20261105230000_athena_project_record_feed"));
+    await c.exec(SEED);
+    // Client-page actions run as the inviting member, so these carry the PM's id.
+    await c.exec(`
+      INSERT INTO mcp_project_record_events (company_id, job_id, occurred_at, actor, actor_id, kind, title, summary, counterparty_name, payload) VALUES
+        ('${CO}', '${JOB}', '2026-11-06 00:46Z', 'user', '${PM}', 'precon_signed', 'Agreement signed on the client page', 's', 'Pat Rivera', '{}'),
+        ('${CO}', '${JOB}', '2026-11-06 00:47Z', 'user', '${PM}', 'precon_check_request', 'Owner paying PC-1 by check', 's', 'Pat Rivera', '{}'),
+        ('${CO}', '${JOB}', '2026-11-06 00:48Z', 'user', '${PM}', 'change_order_approve', 'PCO-9 approved on the page', 's', NULL, '{"portal_decision":"${DECISION}"}'),
+        ('${CO}', '${JOB}', '2026-11-06 00:49Z', 'user', '${PM}', 'pay_application_customer_approve', 'Pay app 3 approved', 's', NULL, '{"portal_decision":"not-a-uuid"}'),
+        ('${CO}', '${JOB}', '2026-11-06 00:50Z', 'user', '${PM}', 'precon_check_pickup', 'Check pickup set', 's', 'Pat Rivera', '{}'),
+        ('${CO}', '${JOB}', '2026-11-06 00:51Z', 'user', '${PM}', 'change_order_approve', 'PCO-10 approved by the PM', 's', NULL, '{}');
+    `);
+    const before = (await all()).find((e) => e.title === "Agreement signed on the client page")!;
+    expect(before).toMatchObject({ by: "Pat PM", by_group: "team" });
+    await c.exec(sql("20261106170000_athena_record_client_actor"));
+    // Running it again changes nothing.
+    await c.exec(sql("20261106170000_athena_record_client_actor"));
+  });
+
+  it("credits the client for what they did on their page", async () => {
+    const ev = await all();
+    const by = (t: string) => ev.find((e) => e.title === t)!;
+    for (const t of ["Agreement signed on the client page", "Owner paying PC-1 by check"])
+      expect(by(t)).toMatchObject({
+        by: "Pat Rivera",
+        by_group: "client",
+        by_role: "Client page",
+        how: "Client page",
+      });
+    expect(by("Owner paying PC-1 by check").to).toBeUndefined();
+    expect(by("PCO-9 approved on the page")).toMatchObject({
+      by: "Pat Rivera",
+      by_group: "client",
+    });
+    expect(by("Pay app 3 approved")).toMatchObject({ by: "Client", by_group: "client" });
+  });
+
+  it("keeps the contractor's own steps on the team", async () => {
+    const ev = await all();
+    const by = (t: string) => ev.find((e) => e.title === t)!;
+    expect(by("Check pickup set")).toMatchObject({
+      by: "Pat PM",
+      by_group: "team",
+      to: "Pat Rivera",
+    });
+    expect(by("PCO-10 approved by the PM")).toMatchObject({ by: "Pat PM", by_group: "team" });
+    expect(by("RFI 12 sent")).toMatchObject({ by: "Pat PM", by_group: "team" });
+    expect(by("Submittal 03 30 00-1 sent")).toMatchObject({ by: "Athena", by_group: "athena" });
+    expect(by("PCO 4 approved")).toMatchObject({ by: "Owner Olive", by_group: "client" });
+  });
+});
