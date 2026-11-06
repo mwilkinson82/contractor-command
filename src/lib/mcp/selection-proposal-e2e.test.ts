@@ -356,7 +356,7 @@ describe.sequential("Good, Better, Best from takeoff line to recorded choice", (
       expected_version: version,
       selection_id: selectionId,
       tier: "good",
-      candidate: candidate(4),
+      candidate: { ...candidate(4), found_price_cents: 4000 },
     });
     version = r.structuredContent.version;
     expect(r.structuredContent.board.proposal.base_reviewed_on).toBeNull();

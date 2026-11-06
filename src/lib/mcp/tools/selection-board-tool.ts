@@ -25,8 +25,10 @@ import {
   estimateCarry,
   packageTotals,
   proposalBlockers,
+  stepUpGaps,
   TIER_LABEL,
   type CustomerProposal,
+  type StepUpGap,
 } from "../../selections/proposal";
 import { money, percent, signed } from "../../selections/format";
 import {
@@ -568,17 +570,35 @@ function placeCandidate(
   candidate: z.infer<typeof candidateSchema>,
 ) {
   const old = s.options[tier];
-  const next: Option = {
-    ...blankOption(),
-    ...candidateSchema.parse(candidate),
-    assumptions: old.assumptions,
-  };
+  const next: Option = { ...blankOption(), ...candidateSchema.parse(candidate) };
   if (old.description && sameProduct(old, next)) {
     next.cost_cents = old.cost_cents;
     next.price_cents = old.price_cents;
     next.price_reviewed_on = old.price_reviewed_on;
+    next.assumptions = old.assumptions;
   } else if (s.selected === tier) s.selected = null;
   s.options[tier] = next;
+}
+
+/**
+ * The refusal for a tier whose web price isn't above the one below it. `changing` is the tier the
+ * AI just replaced, so the ask names the product to swap: a cheaper Good or a dearer step up.
+ */
+function stepUpRefusal(board: Board, gaps: StepUpGap[], changing?: OptionName) {
+  const code = board.currency || "USD";
+  const lines = gaps.map((g) => {
+    const s = findSelection(board, g.id);
+    const lo = s.options[g.lower];
+    const hi = s.options[g.higher];
+    const fact = `${g.title}: ${tierLabel(g.higher)} ${hi.model || hi.description} is ${money(g.high, code)}${hi.found_at ? ` at ${hi.found_at}` : ""}, ${g.high === g.low ? "the same as" : "less than"} ${tierLabel(g.lower)} ${lo.model || lo.description} at ${money(g.low, code)}`;
+    if (changing === g.lower)
+      return `${fact}. Find a ${tierLabel(g.lower)} in this finish priced under ${money(g.high, code)}`;
+    const above = g.higher === "better" ? s.options.best.found_price_cents : null;
+    const ceiling =
+      above !== null && above > g.low ? ` and under Best's ${money(above, code)}` : "";
+    return `${fact}. Find a ${tierLabel(g.higher)} in this finish priced above ${money(g.low, code)}${ceiling}`;
+  });
+  return `Not saved: each step up has to cost more than the tier below it, or the customer sees a $0 upgrade. ${lines.join(". ")}. Search the web for that product yourself and read its page for this finish's photo and price; don't ask the member to find one. Then show the member the corrected Good, Better, Best with each tier's web price and seller, say which product you replaced and why, and save only after they say yes. Never lower or invent a price to make the ladder work.`;
 }
 
 const findSelection = (board: Board, id: string) => {
@@ -888,12 +908,9 @@ export const selectionBoard = defineTool({
               "Send selection_id, tier and the candidate product. Nothing was saved.",
             );
           const s = findSelection(next!, args.selection_id);
-          // A new product clears any reviewed price: the contractor reviews again.
-          s.options[args.tier] = {
-            ...blankOption(),
-            ...candidateSchema.parse(args.candidate),
-            assumptions: s.options[args.tier].assumptions,
-          };
+          // A new product clears any reviewed price and the note on how it was priced: the
+          // contractor reviews again, and an old note would describe the old product's price.
+          s.options[args.tier] = { ...blankOption(), ...candidateSchema.parse(args.candidate) };
           if (s.selected === args.tier) s.selected = null;
           brief.push(
             ...filledBrief(await fillFromPages(next!, today, [{ id: s.id, tier: args.tier }])),
@@ -906,6 +923,13 @@ export const selectionBoard = defineTool({
           if (miss.length)
             throw new ToolError(
               `Not saved: ${s.title} (${tierLabel(args.tier)}) ${placed.model || placed.description} has no ${miss.join(" or ")}, and its pages didn't show one. Every option the customer compares needs a real photo and a web price. Don't ask the member about this: read that product's page for this finish, or pick the next comparable product from a seller that lists both, and call propose_option again. Never invent a photo or a price.`,
+            );
+          const flat = stepUpGaps(next!, "found_price_cents", [s.id]).filter(
+            (g) => g.lower === args.tier || g.higher === args.tier,
+          );
+          if (flat.length)
+            throw new ToolError(
+              `${stepUpRefusal(next!, flat, args.tier)} If you're replacing more than one tier on this line, send all three together with save_comparison.`,
             );
           brief.push(...linkBrief(s, [args.tier]));
         } else if (args.action === "save_comparison") {
@@ -999,6 +1023,14 @@ export const selectionBoard = defineTool({
             throw new ToolError(
               `Not saved: every option needs a real product photo and a web price, and these pages didn't show one. ${gaps.join("; ")}. Don't ask the member about this. For each, read that product's page for this finish (photo_url is the direct image of this finish, found_price_cents the listed unit price) or pick the next comparable product from a seller that lists both, then call save_comparison again with the same yes. Never invent a photo or a price.`,
             );
+          // Each step up has to cost more than the tier below it, judged on the web price found for
+          // that finish, so a flat or backwards ladder never reaches a proposal.
+          const flat = stepUpGaps(
+            next!,
+            "found_price_cents",
+            touched.map((t) => t.id),
+          );
+          if (flat.length) throw new ToolError(stepUpRefusal(next!, flat));
           if (args.base_tier) next!.proposal.base_tier = args.base_tier;
           if (args.currency && !next!.currency) next!.currency = args.currency;
         } else if (args.action === "review_price") {
