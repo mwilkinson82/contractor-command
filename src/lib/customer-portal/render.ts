@@ -361,47 +361,48 @@ body:has(.lb-slide:target){overflow:hidden}
 @media (prefers-reduced-motion:reduce){.ring,.panel,.cp-act,.btn,.photo img,.peek img,.lb{animation:none!important;transition:none!important}}
 `;
 
-// Sign-in, code and notice screens match Athena's own sign-in card (src/components/auth/auth-card.tsx, brand
-// "athena"): pale blue ground, white card, short blue rule, serif title, mono labels, blue button. The contractor's
-// name sits beside the small Athena mark up top; the signed-in page keeps its own quieter look.
+// Sign-in, code and notice screens wear meetathena.io's web look: white with the site's faint blue fade at the top,
+// the Athena lockup, Inter Tight headings, blue mono labels and a blue pill button. The contractor and the job sit
+// under the lockup so a client knows who sent them; the signed-in page keeps its own quieter look.
 const SIGNIN_CSS = `
-.as{min-height:100vh;background:#DBEAFE;color:#1F2329;padding:40px max(16px,env(safe-area-inset-left)) 48px max(16px,env(safe-area-inset-right));font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:14px}
+.as{min-height:100vh;background:#fff linear-gradient(#F5F8FF 0,#fff 420px) no-repeat;color:#1F2329;padding:40px max(16px,env(safe-area-inset-left)) 48px max(16px,env(safe-area-inset-right));font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;font-size:14px}
 .as-wrap{width:100%;max-width:32rem;margin:0 auto}
 .as-brand{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;text-align:center}
-.as-athena{display:flex;align-items:center;gap:7px;margin-bottom:14px;font:600 14px/1 "Inter","Segoe UI",system-ui,-apple-system,sans-serif;letter-spacing:-.01em;color:#1F2329}
-.as-athena svg{width:24px;height:18px;flex:none;overflow:visible}
-.as-proj{margin-top:4px;font-size:14px;line-height:1.35;color:#3F434B;max-width:100%;overflow-wrap:anywhere}
+.as-lockup{display:block;height:30px;width:auto;margin-bottom:22px}
+.as-proj{margin-top:4px;font-size:14px;line-height:1.35;color:#4B5563;max-width:100%;overflow-wrap:anywhere}
 .as-logo{display:block;max-width:220px;max-height:56px;width:auto;height:auto}
 .as-co{display:grid;justify-items:center;line-height:1.15;min-width:0;max-width:100%}
-.as-co b{font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;font-weight:600;font-size:22px;letter-spacing:-.011em;max-width:100%;color:#1F2329;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.as-co span{margin-top:5px;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#1D4ED8}
-.as-card{margin-top:36px;background:#fff;border:1px solid #2563EB33;border-radius:16px;box-shadow:0 1px 2px #0F1E3D0F;padding:24px}
-.as-rule{width:40px;height:4px;background:#2563EB;margin-bottom:24px}
-.as-hi{margin:0 0 8px;font-size:14px;line-height:1.5;color:#5B5F68}
-.as h1{margin:0;font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:27px;line-height:1.15;letter-spacing:-.01em;color:#1F2329;text-wrap:balance}
-.as-sub{margin:12px 0 0;font-size:14px;line-height:1.6;color:#5B5F68}
-.as-job{margin-top:22px;padding:14px 16px;border:1px solid #E4E1D6;border-radius:12px;background:#F8FAFF;display:grid;gap:4px}
-.as-label{display:block;font:600 9px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:#76736B}
-.as-job b{font-size:15px;font-weight:600;color:#1F2329}
+.as-co b{font-family:"Inter Tight","Inter",system-ui,sans-serif;font-weight:700;font-size:24px;letter-spacing:-.02em;max-width:100%;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.as-co span{margin-top:8px;font:400 11px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#2563EB}
+.as-card{margin-top:36px;background:#fff;border:1px solid #E5E7EB;border-radius:20px;box-shadow:0 24px 60px rgba(30,95,237,.08),0 2px 6px rgba(17,24,39,.04);padding:24px}
+.as-hi{margin:0 0 8px;font-size:15px;line-height:1.5;color:#4B5563}
+.as h1{margin:0;font-family:"Inter Tight","Inter",system-ui,sans-serif;font-weight:700;font-size:28px;line-height:1.15;letter-spacing:-.03em;color:#111827;text-wrap:balance}
+.as-sub{margin:12px 0 0;font-size:15px;line-height:1.6;color:#4B5563}
+.as-job{margin-top:22px;padding:14px 16px;border:1px solid #E5E7EB;border-radius:12px;background:#F5F8FF;display:grid;gap:4px}
+.as-label{display:block;font:400 11px/1.3 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#2563EB}
+.as-job b{font-size:15px;font-weight:600;color:#111827}
 .as-form{margin-top:26px;display:grid;gap:18px}
 .as-field{display:grid;gap:8px}
-.as-input{width:100%;height:56px;padding:0 14px;border:1px solid #E4E1D6;border-radius:8px;background:#fff;color:#1F2329;outline:none;font:600 26px/1 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.5em;text-align:center;padding-left:calc(14px + .5em);font-variant-numeric:tabular-nums}
-.as-input.email{font:400 16px/1.4 "Archivo","Helvetica Neue",Arial,sans-serif;letter-spacing:normal;text-align:left;padding-left:14px;font-variant-numeric:normal}
-.as-input:focus{border-color:#1D4ED8;box-shadow:0 0 0 3px #2563EB26}
-.as-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#3F434B;cursor:pointer}
+.as-input{width:100%;height:56px;padding:0 14px;border:1px solid #E5E7EB;border-radius:12px;background:#fff;color:#111827;outline:none;font:600 26px/1 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.5em;text-align:center;padding-left:calc(14px + .5em);font-variant-numeric:tabular-nums}
+.as-input.email{height:52px;font:400 16px/1.4 "Inter","Segoe UI",system-ui,sans-serif;letter-spacing:normal;text-align:left;padding-left:14px;font-variant-numeric:normal}
+.as-input:focus{border-color:#2563EB;box-shadow:0 0 0 3px #2563EB26}
+.as-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5;color:#4B5563;cursor:pointer}
 .as-check input{width:17px;height:17px;margin:1px 0 0;accent-color:#2563EB;flex:none}
-.as-btn{display:inline-flex;align-items:center;justify-content:center;width:100%;height:44px;padding:0 20px;border:0;border-radius:8px;background:#2563EB;color:#fff;font:600 13px/1 "Archivo","Helvetica Neue",Arial,sans-serif;cursor:pointer;text-decoration:none}
+.as-btn{display:inline-flex;align-items:center;justify-content:center;width:100%;height:48px;padding:0 22px;border:0;border-radius:999px;background:#2563EB;color:#fff;font:600 14px/1 "Inter","Segoe UI",system-ui,sans-serif;cursor:pointer;text-decoration:none}
 .as-btn:hover{background:#1D4ED8}
 .as-btn:focus-visible,.as-link:focus-visible,.as-input:focus-visible{outline:3px solid #1D4ED8;outline-offset:2px}
-.as-note{margin:0;font-size:12px;line-height:1.55;color:#76736B}
-.as-link{border:0;background:none;padding:0;font:inherit;font-weight:600;color:#1D4ED8;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
-.as-err{margin:20px 0 0;padding:11px 14px;border:1px solid #F3C8D0;border-radius:10px;background:#FFF3F5;color:#B91C1C;font-size:13px;font-weight:600}
-.as-foot{margin-top:28px;padding-top:18px;border-top:1px solid #E4E1D6;display:flex;align-items:center;gap:8px;font-size:12px;color:#76736B}
+.as-note{margin:0;font-size:12px;line-height:1.55;color:#6B7280}
+.as-link{border:0;background:none;padding:0;font:inherit;font-weight:600;color:#2563EB;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.as-err{margin:20px 0 0;padding:11px 14px;border:1px solid #F3C8D0;border-radius:12px;background:#FFF3F5;color:#B91C1C;font-size:13px;font-weight:600}
+.as-foot{margin-top:28px;padding-top:18px;border-top:1px solid #E5E7EB;display:flex;align-items:center;gap:8px;font-size:12px;color:#6B7280}
 .as-foot svg{width:22px;height:16px;flex:none;overflow:visible}
-.as-help{margin:22px 0 0;text-align:center;font-size:12px;line-height:1.7;color:#3F434B}.as-help a{color:#1D4ED8;text-decoration:underline;text-underline-offset:3px}
-@media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:29px}}
-@media (max-width:380px){.as-co b{font-size:19px}.as h1{font-size:24px}}
+.as-help{margin:22px 0 0;text-align:center;font-size:12px;line-height:1.7;color:#4B5563}.as-help a{color:#2563EB;text-decoration:underline;text-underline-offset:3px}
+@media (min-width:640px){.as{padding-top:64px;padding-bottom:64px}.as-card{padding:36px}.as h1{font-size:30px}}
+@media (max-width:380px){.as-co b{font-size:20px}.as h1{font-size:25px}}
 `;
+
+// Athena's own lockup, the same file the Athena sign-in and account pages show, served from this app.
+const ATHENA_LOCKUP = "/brand/athena/athena-lockup-blue.svg";
 
 // The Athena A for the "Powered by Athena" corner line, inlined so the page needs no image request. Solid Athena
 // blue so the A reads whole at footer size (the lockup's pale crossbar disappears on white).
@@ -425,7 +426,7 @@ function signinShell(
   const jobLine = job?.name
     ? `<span class="as-proj">${job.number ? `Job ${esc(job.number)} · ` : ""}${esc(job.name)}</span>`
     : "";
-  const athena = `<div class="as-athena">${ATHENA_A}<span>Athena</span></div>`;
+  const athena = `<img class="as-lockup" src="${ATHENA_LOCKUP}" alt="Athena" width="109" height="30">`;
   const brand = company
     ? `<div class="as-brand">${athena}${src ? `<img class="as-logo" src="${esc(src)}" alt="${esc(company)}">` : ""}<span class="as-co"><b>${esc(company)}</b><span>Client page</span></span>${jobLine}</div>`
     : `<div class="as-brand">${athena}<span class="as-co"><span>Client page</span></span>${jobLine}</div>`;
@@ -433,12 +434,12 @@ function signinShell(
   const help = company
     ? `<p class="as-help">Questions about your project? Contact ${esc(company)}.<br>${support}</p>`
     : `<p class="as-help">${support}</p>`;
-  return `<main class="as"><div class="as-wrap">${brand}<section class="as-card"><div class="as-rule" aria-hidden="true"></div>${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
+  return `<main class="as"><div class="as-wrap">${brand}<section class="as-card">${inner}<div class="as-foot">${ATHENA_A}<span>Powered by Athena</span></div></section>${help}</div></main>`;
 }
 
 const FONTS_PORTAL = "family=Inter:wght@400;500;600;700";
 const FONTS_SIGNIN =
-  "family=Archivo:wght@400;500;600;700&family=Inter:wght@600&family=JetBrains+Mono:wght@600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500";
+  "family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&family=JetBrains+Mono:wght@400;600";
 
 function doc(title: string, body: string, kind: "portal" | "signin" = "portal"): string {
   const fonts = kind === "signin" ? FONTS_SIGNIN : FONTS_PORTAL;
