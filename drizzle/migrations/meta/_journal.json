@@ -827,6 +827,13 @@
       "when": 1794018951549,
       "tag": "0117_athena_client_approved_co_joins_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1794032163180,
+      "tag": "0118_athena_client_approved_co_saved_by_inviter",
+      "breakpoints": true
     }
   ]
 }
