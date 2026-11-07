@@ -1189,7 +1189,7 @@ describe.sequential("customer page", () => {
         )
       ).rows[0]?.v ?? "0";
     const before = Number(await version());
-    const script = "supabase/scripts/20261107030000_change_order_sov_line_refile.sql";
+    const script = "supabase/scripts/20261107040000_change_order_sov_line_refile_v2.sql";
     notices.length = 0;
     await run(script);
     expect(notices.join("\n")).toContain(

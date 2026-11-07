@@ -1,3 +1,5 @@
+-- VERSION 2 of the change-order SOV line refile. It replaces 20261107030000_change_order_sov_line_refile.sql, whose
+-- in-place rename the SOV version check refuses. Run this file, never the old one.
 -- Data only. Run after migration 20261107030000 (the job's own division for change-order SOV lines), as its own step.
 -- A change order the client approved on their client page got its SOV line from the base line numbers' first two
 -- digits. Where the job's own division is another one (job 2810's electrical CO-001 sat at 01.001, under line 01
@@ -70,7 +72,7 @@ BEGIN
      WHERE submittal_id = r.submittal_id AND action = 'execute' AND snapshot->'execution'->>'sov_item' = r.key;
     moved := moved || (r.job_number || ' ' || r.number || ' ' || r.key || ' to ' || item);
   END LOOP;
-  RAISE NOTICE 'Change-order SOV lines moved to the job''s division: %. Left in place (already billed): %',
+  RAISE NOTICE 'Refile version 2. Change-order SOV lines moved to the job''s division: %. Left in place (already billed): %',
     CASE WHEN cardinality(moved) = 0 THEN 'none' ELSE array_to_string(moved, ', ') END,
     CASE WHEN cardinality(kept) = 0 THEN 'none' ELSE array_to_string(kept, ', ') END;
 END $refile$;
