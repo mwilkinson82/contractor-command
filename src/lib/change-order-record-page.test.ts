@@ -5,7 +5,11 @@ import {
   clientApproved,
   renderChangeOrderRecord,
 } from "./change-order-record-page";
-import { renderSubmittalRecordBody, type SubmittalRecordPayload } from "./submittal-record-page";
+import {
+  eventWho,
+  renderSubmittalRecordBody,
+  type SubmittalRecordPayload,
+} from "./submittal-record-page";
 import type { ChangeDetails } from "./mcp/change-orders";
 import { redactMoney } from "./board-redact";
 
@@ -181,5 +185,54 @@ describe("change order record page", () => {
     expect(html).toContain("Sign in with your job account to see prices.");
     expect(html).toContain("6 ea");
     expect(html).toContain("On the contract");
+  });
+
+  it("credits the client's own steps to the client, never to the member who invited them", () => {
+    const event = (id: string, kind: string, extra: Record<string, unknown>) => ({
+      id,
+      occurred_at: "2026-11-07T00:24:00Z",
+      actor: "user",
+      actor_name: "Marshall",
+      kind,
+      title: "PCO-001 · Better package",
+      summary: "Step",
+      ...extra,
+    });
+    const payload = {
+      page: "submittal",
+      job_id: JOB,
+      job_number: "2810",
+      number: "PCO-001",
+      time_zone: "America/New_York",
+      current: {
+        number: "PCO-001",
+        title: "Better package",
+        package_purpose: "change_order",
+        change_order_details: executed(),
+        change_order_history: [],
+      },
+      events: [
+        event("e3", "change_order_execute", {
+          actor_name: null,
+          payload: { submittal_id: "s", state: "executed", portal_decision: DECISION },
+        }),
+        event("e2", "change_order_approve", {
+          payload: { submittal_id: "s", state: "approved", portal_decision: DECISION },
+        }),
+        event("e1", "change_order_create", { payload: { submittal_id: "s" } }),
+      ],
+    } as unknown as SubmittalRecordPayload;
+    const html = renderSubmittalRecordBody(payload);
+    const line = (id: string) =>
+      html.slice(
+        html.indexOf(`id="event-${id}"`),
+        html.indexOf("</div></div>", html.indexOf(`id="event-${id}"`)),
+      );
+    expect(line("e3")).toContain("by the client");
+    expect(line("e2")).toContain("by the client");
+    expect(line("e1")).toContain("by Marshall");
+    expect(html).not.toContain("by a member");
+    expect(eventWho({ ...event("x", "rfi_send", {}), actor: "athena" } as never)).toBe("Athena");
+    expect(eventWho({ ...event("x", "rfi_send", {}), actor_name: null } as never)).toBe("a member");
   });
 });
