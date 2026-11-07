@@ -29,7 +29,8 @@ export function ChangeOrderLogPage({ jobId, token }: { jobId: string; token?: st
   });
   const linked = useQuery({
     queryKey: ["athena-request-log-link", jobId, "co", token ?? ""],
-    enabled: !loading && !!token,
+    // Change orders are money: a link alone never opens them, the sign-in below asks first.
+    enabled: !loading && !!token && !!session,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     retry: false,
@@ -107,7 +108,15 @@ export function ChangeOrderLogPage({ jobId, token }: { jobId: string; token?: st
           </button>
         </div>
       )}
-      <BoardSignIn returnTo={`${path}${token ? `?t=${encodeURIComponent(token)}` : ""}`} />
+      <BoardSignIn
+        returnTo={`${path}${token ? `?t=${encodeURIComponent(token)}` : ""}`}
+        {...(session
+          ? {}
+          : {
+              title: "Sign in to see this job's money",
+              lede: "Change orders show job money, so they open only for signed-in members of the company. You'll come straight back here.",
+            })}
+      />
     </main>
   );
 }

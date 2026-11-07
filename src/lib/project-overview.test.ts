@@ -128,6 +128,20 @@ describe("overview financial evidence", () => {
     expect(() => overviewPayments({ ...data, currency: "CAD" }, job, now)).toThrow();
     expect(() => overviewPayments(data, "other-job", now)).toThrow();
   });
+  it("reads through a later-dated pay app that was paid early instead of failing the board", () => {
+    const data = billing();
+    // Pay app dated at period end, paid before that date (job 2810's November pay app).
+    data.invoices[0].versions[0].invoice_date = "2026-11-30";
+    data.invoices[0].versions[0].effective_date = "2026-11-30";
+    data.receipt_reversals = [];
+    const result = overviewPayments(data, job, now);
+    const values = Object.fromEntries(result.metrics.map((m) => [m.key, m.cents]));
+    expect(result.asOf).toBe("2026-11-30");
+    expect(result.capturedAt).toBe(now.toISOString());
+    expect(values.receipts).toBe(60000);
+    expect(values.unpaid_invoices).toBe(50000);
+    expect(values.unapplied_receipts).toBe(20000);
+  });
   it("keeps setup / executed changes, SOV and IOR provenance distinct", () => {
     const facts = [
       { module: "setup", key: "contract_value", value: 1000 },
