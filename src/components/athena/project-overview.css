@@ -829,20 +829,9 @@
   font-size: 13px;
   color: #5b718c;
 }
-.jh-money-signin-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.jh-money-signin-list li {
-  padding: 4px 10px;
-  border: 1px solid #d4dfed;
-  border-radius: 999px;
-  background: #f4f8fe;
-  font-size: 12px;
+/* What signing in shows: one plain line of text, never chips that could read as buttons. */
+.jh-money-signin-body p.jh-money-signin-what {
+  margin-top: 8px;
   color: #36506f;
 }
 .jh-money-signin-action {

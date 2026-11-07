@@ -1136,13 +1136,6 @@ export function MoneySignInPrompt({
   company?: string;
   onSignIn: () => void;
 }) {
-  const hidden = [
-    "Contract value",
-    "Paid to date",
-    "Outstanding payments",
-    "Cost budget",
-    "Gross margin",
-  ];
   return (
     <section className="jh-money-signin" aria-labelledby="jh-money-signin-title">
       <div className="jh-money-signin-icon" aria-hidden="true">
@@ -1154,11 +1147,9 @@ export function MoneySignInPrompt({
           This browser isn't signed in to Athena yet. Job money shows only to signed-in members of{" "}
           {company?.trim() || "your company"}.
         </p>
-        <ul className="jh-money-signin-list" aria-label="Shown after you sign in">
-          {hidden.map((h) => (
-            <li key={h}>{h}</li>
-          ))}
-        </ul>
+        <p className="jh-money-signin-what">
+          Contract value, paid to date, outstanding payments, cost budget and gross margin.
+        </p>
       </div>
       <div className="jh-money-signin-action">
         <button type="button" className="jh-money-signin-button" onClick={onSignIn}>

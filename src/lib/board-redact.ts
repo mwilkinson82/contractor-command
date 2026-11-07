@@ -22,7 +22,7 @@ export function hideAmounts(text: string): string {
 
 // Money fields by name. Float, duration and count fields never match.
 const MONEY_KEY =
-  /^(?:contract_(?:total|value|amount|sum)|amount|.*_amount|.*_amounts|cost|.*_cost|cost_.*|price|.*_price|budget.*|.*_budget|billed.*|.*_billed|payments?|.*_payments?|retainage.*|.*_retainage|held|.*_held|margin.*|.*_margin|fee|.*_fee|fees|revenue.*|value_.*|.*_value|sell|.*_sell)$/i;
+  /^(?:contract_(?:total|value|amount|sum)|amount|.*_amount|.*_amounts|cost|.*_cost|cost_.*|price|.*_price|budget.*|.*_budget|billed.*|.*_billed|payments?|.*_payments?|retainage.*|.*_retainage|held|.*_held|margin.*|.*_margin|fee|.*_fee|fees|revenue.*|value_.*|.*_value|sell|.*_sell|.*_cents)$/i;
 
 /** A copy of a board payload with every dollar figure removed, for a viewer who isn't signed in. */
 export function redactMoney<T>(value: T): T {
