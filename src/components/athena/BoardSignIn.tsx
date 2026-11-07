@@ -19,7 +19,20 @@ const DANGER = "#B91C1C";
  * Athena email-code sign-in for a job board. The code is typed on this page.
  * After it works, the browser returns only to the validated board path.
  */
-export function BoardSignIn({ returnTo }: { returnTo: string }) {
+export function BoardSignIn({
+  returnTo,
+  title = BOARD_SIGN_IN_TITLE,
+  lede,
+  onBack,
+}: {
+  returnTo: string;
+  /** Heading; the board's own sign-in keeps BOARD_SIGN_IN_TITLE. */
+  title?: string;
+  /** One line under the heading saying why this sign-in is asked for. */
+  lede?: string;
+  /** When the board opened this sign-in itself, a way back to the board without signing in. */
+  onBack?: () => void;
+}) {
   const requestCode = useServerFn(requestMemberMagicLink);
   const safeReturn = signInReturn(returnTo);
   const [email, setEmail] = useState("");
@@ -106,8 +119,9 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
           style={{ display: "block", height: 40, width: "auto", margin: "0 0 24px" }}
         />
         <h1 style={{ margin: "0 0 12px", fontSize: 22, lineHeight: 1.3, color: NAVY }}>
-          {BOARD_SIGN_IN_TITLE}
+          {title}
         </h1>
+        {lede ? <p style={{ margin: "0 0 12px", lineHeight: 1.5, color: NAVY }}>{lede}</p> : null}
         <p style={{ margin: "0 0 20px", lineHeight: 1.5 }}>
           No password required. Use the email associated with your Athena account. We'll send a code
           you can type here.
@@ -250,6 +264,23 @@ export function BoardSignIn({ returnTo }: { returnTo: string }) {
         ) : (
           <p style={{ margin: 0 }}>This page can't be opened from here.</p>
         )}
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              marginTop: 20,
+              padding: 0,
+              border: 0,
+              background: "transparent",
+              color: BLUE,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            ← Back to the board
+          </button>
+        ) : null}
         <p style={{ margin: "24px 0 0", fontSize: 12, color: GRAY_SOFT }}>Athena powered by ALP</p>
       </main>
     </div>

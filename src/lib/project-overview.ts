@@ -86,20 +86,41 @@ export function overviewPayments(data: unknown, jobId: string, now = new Date())
     )
   )
     throw new Error("Financial source exceeds overview row limit. No partial totals.");
-  const report = buildAccountingReport(
-    {
-      jobId,
-      capturedAt: now.toISOString(),
-      billing,
-      budgets: [],
-      costs: { available: false, reason: "Open accounting for cost evidence." },
-      orders: { available: false, reason: "Open purchase orders for commitments." },
-    },
-    { asOf: now.toISOString().slice(0, 10) },
-  );
+  const today = now.toISOString().slice(0, 10);
+  const read = (asOf: string) =>
+    buildAccountingReport(
+      {
+        jobId,
+        capturedAt: asOf === today ? now.toISOString() : `${asOf}T00:00:00.000Z`,
+        billing,
+        budgets: [],
+        costs: { available: false, reason: "Open accounting for cost evidence." },
+        orders: { available: false, reason: "Open purchase orders for commitments." },
+      },
+      { asOf },
+    );
+  // A pay app dated at period end (e.g. Nov 30) can be submitted and paid before that date.
+  // Read through today first; if recorded evidence runs later and today's cut is
+  // inconsistent (a payment applied to a pay app dated later), read through the latest
+  // recorded date instead of blanking every money figure on the board.
+  const latest = [
+    ...billing.invoices.flatMap((i) =>
+      i.versions.flatMap((v) => [v.invoice_date, v.effective_date]),
+    ),
+    ...billing.receipts.map((r) => r.receipt_date),
+    ...billing.allocations.map((a) => a.effective_date),
+    ...billing.receipt_reversals.map((r) => r.effective_date),
+  ].reduce((max, d) => (d > max ? d : max), today);
+  let report: ReturnType<typeof buildAccountingReport>;
+  try {
+    report = read(today);
+  } catch (error) {
+    if (latest === today) throw error;
+    report = read(latest);
+  }
   return {
     asOf: report.asOf,
-    capturedAt: report.capturedAt,
+    capturedAt: now.toISOString(),
     currency: report.currency,
     metrics: report.metrics.filter((m) =>
       ["receipts", "unpaid_invoices", "unapplied_receipts", "retainage"].includes(m.key),

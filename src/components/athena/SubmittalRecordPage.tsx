@@ -1,4 +1,5 @@
 import { useMemo, useEffect } from "react";
+import { redactMoney } from "@/lib/board-redact";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -121,7 +122,10 @@ export function SubmittalRecordView({
   const payload =
     memberPayload ??
     (!linked.error && linked.data?.status === "ok"
-      ? (JSON.parse(linked.data.payload) as SubmittalRecordPayload)
+      ? // Read through a link alone (signed out): no dollar figures.
+        session
+        ? (JSON.parse(linked.data.payload) as SubmittalRecordPayload)
+        : redactMoney(JSON.parse(linked.data.payload) as SubmittalRecordPayload)
       : undefined);
   const html = useMemo(() => {
     const body = payload ? renderSubmittalRecordBody(payload) : "";

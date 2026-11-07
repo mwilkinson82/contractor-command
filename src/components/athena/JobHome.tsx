@@ -1,6 +1,8 @@
+import { useState } from "react";
+import { hideAmounts, isMoneyBoardPage, redactMoney } from "@/lib/board-redact";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Shovel } from "lucide-react";
+import { Lock, Shovel } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { openBoardPage } from "@/lib/board-link.functions";
@@ -67,6 +69,8 @@ type Job = { id: string; job_number: string; name: string | null; company_id: st
 /** A home composes existing scoped board reads; it never saves a separate dashboard. */
 export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const { session, loading } = useAuth();
+  // A board opened from a link in a browser that isn't signed in (an AI's own browser) offers one sign-in for the money.
+  const [moneySignIn, setMoneySignIn] = useState(false);
   const open = useServerFn(openBoardPage);
   const visible = usePageVisible();
   const read = async (page: BoardPage): Promise<PagePayload> => {
@@ -82,7 +86,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       )
         return result.data as PagePayload;
     }
-    if (token) {
+    // A link alone never reads a money page, and every dollar figure is dropped from the rest.
+    if (token && !session && !isMoneyBoardPage(page)) {
+      const result = await open({ data: { token, jobId, page } });
+      if (result.status === "ok") return redactMoney(JSON.parse(result.payload) as PagePayload);
+    } else if (token && session) {
       const result = await open({ data: { token, jobId, page } });
       if (result.status === "ok") return JSON.parse(result.payload) as PagePayload;
     }
@@ -115,8 +123,8 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const lookahead = useQuery(extra("lookahead"));
   const submittals = useQuery(extra("submittals"));
   const daily = useQuery(extra("daily"));
-  const billing = useQuery(extra("payapp", full));
-  const ior = useQuery(extra("ior", full));
+  const billing = useQuery(extra("payapp", full && !!session));
+  const ior = useQuery(extra("ior", full && !!session));
   const financial = useQuery({
     ...extra("field", false),
     queryKey: ["job-home", jobId, "financial", session?.user.id],
@@ -226,6 +234,15 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
         <p role="status">Loading project…</p>
       </main>
     );
+  if (moneySignIn && !session)
+    return (
+      <BoardSignIn
+        returnTo={`/r/job/${jobId}/home`}
+        title="Sign in to see this job's money"
+        lede={`Contract value, payments, budget and margin for ${base?.job_number ? `job ${base.job_number}` : "this job"} show once you sign in. You'll come straight back to this board.`}
+        onBack={() => setMoneySignIn(false)}
+      />
+    );
   if (!base)
     return projectReadRecovery(!!session, field.error) === "sign-in" ? (
       <BoardSignIn returnTo={`/r/job/${jobId}/home`} />
@@ -272,7 +289,8 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
         (base.items ?? []).map((item, i) => ({
           ...item,
           id: item.id || String(i),
-          action: item.action || "Item",
+          // Signed out (a board link opened in an AI's own browser): no dollar amounts in titles either.
+          action: session ? item.action || "Item" : hideAmounts(item.action || "Item"),
         })),
       )
     : null;
@@ -382,14 +400,16 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           },
           {
             title: "Billing forecast",
-            detail: state(
-              billing,
-              billing.data?.page === "payapp" && billing.data.report?.found
-                ? "View saved forecast"
-                : billing.data?.page === "payapp" && billing.data.report?.found === false
-                  ? "No billing forecast saved yet"
-                  : "Currently unavailable",
-            ),
+            detail: !session
+              ? "Sign in to see"
+              : state(
+                  billing,
+                  billing.data?.page === "payapp" && billing.data.report?.found
+                    ? "View saved forecast"
+                    : billing.data?.page === "payapp" && billing.data.report?.found === false
+                      ? "No billing forecast saved yet"
+                      : "Currently unavailable",
+                ),
             page: "payapp",
             group: "money",
           },
@@ -401,14 +421,16 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           },
           {
             title: "Indicated Outcome Report",
-            detail: state(
-              ior,
-              ior.data?.page === "ior" && ior.data.report?.found
-                ? "View saved IOR"
-                : ior.data?.page === "ior" && ior.data.report?.found === false
-                  ? "No IOR recorded yet"
-                  : "Currently unavailable",
-            ),
+            detail: !session
+              ? "Sign in to see"
+              : state(
+                  ior,
+                  ior.data?.page === "ior" && ior.data.report?.found
+                    ? "View saved IOR"
+                    : ior.data?.page === "ior" && ior.data.report?.found === false
+                      ? "No IOR recorded yet"
+                      : "Currently unavailable",
+                ),
             page: "ior",
             group: "money",
           },
@@ -591,7 +613,9 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
                 <JobHomeNotifications jobId={jobId} token={token} />
               </section>
             ) : null}
-            {full ? (
+            {full && !session ? (
+              <MoneySignInPrompt company={base.company} onSignIn={() => setMoneySignIn(true)} />
+            ) : full ? (
               <section aria-label="Contract and customer payments">
                 <div className="jh-metrics jh-metrics-fit">
                   <article className="jh-metric">
@@ -1098,4 +1122,41 @@ function morePrompts(job: string, full: boolean) {
     },
   ];
   return all.filter((p) => full || !p.full);
+}
+
+/**
+ * Shown in place of the money cards when the board was opened from a link in a browser that isn't
+ * signed in, such as ChatGPT's, Claude's or Manus's own browser. Nothing financial is read or shown
+ * until the member signs in; a signed-in member who isn't on the company still sees no money.
+ */
+export function MoneySignInPrompt({
+  company,
+  onSignIn,
+}: {
+  company?: string;
+  onSignIn: () => void;
+}) {
+  return (
+    <section className="jh-money-signin" aria-labelledby="jh-money-signin-title">
+      <div className="jh-money-signin-icon" aria-hidden="true">
+        <Lock size={18} />
+      </div>
+      <div className="jh-money-signin-body">
+        <h2 id="jh-money-signin-title">Sign in to see this job's money</h2>
+        <p>
+          This browser isn't signed in to Athena yet. Job money shows only to signed-in members of{" "}
+          {company?.trim() || "your company"}.
+        </p>
+        <p className="jh-money-signin-what">
+          Contract value, paid to date, outstanding payments, cost budget and gross margin.
+        </p>
+      </div>
+      <div className="jh-money-signin-action">
+        <button type="button" className="jh-money-signin-button" onClick={onSignIn}>
+          Sign in
+        </button>
+        <span>We email you a code. No password.</span>
+      </div>
+    </section>
+  );
 }
