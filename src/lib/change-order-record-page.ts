@@ -116,7 +116,8 @@ const CSS = `
   .cor-table td.item{grid-column:1/-1;font-weight:600}
   .cor-table td.num{text-align:left}
   .cor-table td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;color:var(--ink-2)}
-  .cor-table tfoot tr{display:flex;justify-content:space-between}
+  .cor-table tfoot tr{display:flex;justify-content:space-between;background:var(--wash)}
+  .cor-table tfoot td{width:auto;background:transparent}
   .cor-table tfoot td[data-label]::before{display:none}
   .cor-body,.cor-panel>h2{padding-left:16px;padding-right:16px}
 }`;
@@ -288,7 +289,10 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
     if (client)
       proof.push(["Emailed code", decision.email_code_verified ? "Verified" : "Not used", true]);
     if (execution?.sov_item) proof.push(["SOV line", execution.sov_item, true]);
-    for (const r of (d.references ?? []).filter((x) => proofRef(x.citation)))
+    for (const r of (d.references ?? []).filter(
+      (x) =>
+        proofRef(x.citation) && !(decision.reference && x.citation.startsWith(decision.reference)),
+    ))
       proof.push(["Reference", r.citation, false]);
     const proofHtml = proof.length
       ? `<details class="cor-proof"><summary>Approval proof</summary><dl>${proof
