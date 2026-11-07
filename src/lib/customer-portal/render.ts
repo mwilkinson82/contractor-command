@@ -1107,16 +1107,13 @@ function selectionDetail(
     underContract: p.job.under_contract ?? null,
     eyebrow: `Selections · shared ${longDate(i.shared_on)}`,
     picked,
-    // Picking a package only highlights it and opens its review. No code is sent until the customer asks for one.
-    action: i.decision
-      ? undefined
-      : (tier) =>
-          tier === picked
-            ? `<span class="btn on" aria-current="true">Selected</span>`
-            : `<a class="btn${!picked && tier === v.base_tier ? "" : " ghost"}" href="${esc(href(p, "selections", { i: i.id, step: "review", choice: tier }))}">Choose ${TIER_NAME[tier]}</a>`,
+    // Tap a package to highlight it in place, then Select opens its review. No code is sent until the customer asks for one.
+    pickable: i.decision
+      ? null
+      : { select: (tier) => href(p, "selections", { i: i.id, step: "review", choice: tier }) },
     note: i.decision
       ? null
-      : "Pick a package to review it. Nothing is final until you confirm it with a code we email you and your typed name.",
+      : `${p.job.under_contract ? "Your contract includes" : "Your price includes"} ${TIER_NAME[v.base_tier]}. Tap a package to compare it, then Select to review. Nothing is final until you confirm.`,
   });
   if (picked) {
     const confirm = `<section class="panel actions"><h2>Confirm ${TIER_NAME[picked]}</h2><p class="sub">Nothing is final yet. Next we email a 6-digit code to ${esc(maskEmail(p.customer.email))}, and you sign with it and your typed name.</p><form method="post">${hidden(p, { action: "start", item: i.id, choice: picked })}<button class="btn block" type="submit">Email me a code to confirm</button></form><a class="btn secondary block" href="${esc(href(p, "selections", { i: i.id }))}">Change my pick</a>${askLink(p, i)}</section>`;
