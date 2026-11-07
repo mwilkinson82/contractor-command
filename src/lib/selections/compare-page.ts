@@ -99,7 +99,7 @@ export const COMPARE_CSS = `
 .gbb .btn:hover{opacity:.86;transform:translateY(-1px)}
 .gbb .btn.ghost{background:transparent;color:var(--brand);box-shadow:inset 0 0 0 1px var(--rule-2)}
 .gbb .line{padding:44px 0 8px}
-.gbb .line-h{padding:0 var(--pad) 14px;display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:1px solid var(--rule-2);margin:0 0 28px}
+.gbb .line-h{padding:0 var(--pad) 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;border-bottom:1px solid var(--rule-2);margin:0 0 28px}
 .gbb .line-h h2{font-size:30px;font-weight:600;line-height:1.1;letter-spacing:-.03em;margin:0}
 .gbb .line-h span{font-size:14px;color:var(--ink-2);white-space:nowrap}
 .gbb .col{text-align:center;min-width:0}
