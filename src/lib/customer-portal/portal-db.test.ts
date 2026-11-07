@@ -867,6 +867,125 @@ describe.sequential("customer page", () => {
     expect(Math.round(Number(executed.rows[0]!.value) * 100)).toBe(486000 + best.difference_cents);
   });
 
+  it("a change order the client approved before the step joins its contract in the cleanup, with nobody signed in", async () => {
+    const read = (f: string) => readFileSync(f, "utf8");
+    // The client approves while the decision still leaves the change order approved (before 20261107010000).
+    await db.exec(
+      read(
+        "supabase/rollbacks/20261107010000_athena_client_approved_co_joins_contract.rollback.sql",
+      ),
+    );
+    await db.query(
+      "UPDATE mcp_private.residential_selection_boards SET body = jsonb_set(body, '{accepted}', 'null') WHERE job_id=$1",
+      [job],
+    );
+    const before = await member("mcp_residential_selections_get", [job]);
+    const board = willowCreekTypeE(true) as J;
+    board.proposal.change_terms = {
+      good: { schedule_days: 0, added_cents: 0, added_note: "" },
+      better: { schedule_days: 0, added_cents: 0, added_note: "" },
+      best: { schedule_days: 0, added_cents: 0, added_note: "" },
+      reviewed_on: "2026-11-05",
+    };
+    const saved = await member("mcp_residential_selections_save", [
+      job,
+      before.version,
+      JSON.stringify(board),
+    ]);
+    const shared = await member("mcp_portal_share_selection", [job, saved.version]);
+    const code = await codeHash(access, "444444");
+    await server("mcp_portal_code_issue", [
+      access,
+      "decide",
+      code,
+      null,
+      sessionHash,
+      shared.item_id,
+    ]);
+    const r = await server("mcp_portal_decide", [
+      access,
+      sessionHash,
+      shared.item_id,
+      "chosen",
+      "better",
+      code,
+      "Rosa Delgado",
+      "I choose Better.",
+      shared.fingerprint,
+      null,
+      null,
+      null,
+    ]);
+    expect(r).toMatchObject({ status: "ok", under_contract: true });
+    const details = async () =>
+      (
+        await db.query<{ details: J }>(
+          "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
+          [r.change_order_id],
+        )
+      ).rows[0]!.details as J;
+    const total = async () =>
+      Math.round(
+        Number(
+          (
+            await db.query<{ value: J }>(
+              "SELECT value FROM mcp_job_facts WHERE job_id=$1 AND module='contract' AND key='executed_change_orders'",
+              [job],
+            )
+          ).rows[0]!.value,
+        ) * 100,
+      );
+    expect((await details()).state).toBe("approved");
+    const executedBefore = await total();
+    const notices: string[] = [];
+    const run = (f: string) =>
+      db.exec(read(f), { onNotice: (n: J) => notices.push(String(n.message)) } as J);
+    // The first cleanup ran with nobody signed in, so the contract total had no one to save it and nothing moved.
+    await run("supabase/migrations/20261107010000_athena_client_approved_co_joins_contract.sql");
+    expect((await details()).state).toBe("approved");
+    expect(notices.join("\n")).toContain('"updated_by"');
+    // The fix names the inviting member, and the cleanup executes it.
+    notices.length = 0;
+    await run("supabase/migrations/20261107020000_athena_client_approved_co_saved_by_inviter.sql");
+    await run("supabase/scripts/20261107020000_client_approved_co_cleanup.sql");
+    expect(notices.join("\n")).toContain(
+      "Client-approved change orders added to their contracts: 1. Still approved: none",
+    );
+    const d = await details();
+    expect(d).toMatchObject({
+      state: "executed",
+      record_version: 2,
+      execution: {
+        authority: "client_signed_approval",
+        channel: "customer_page",
+        email_code_verified: true,
+      },
+    });
+    expect(d.execution.contract_after_cents - d.execution.contract_before_cents).toBe(
+      d.total_cents,
+    );
+    expect(await total()).toBe(executedBefore + d.total_cents);
+    const saver = await db.query<{ updated_by: string }>(
+      "SELECT updated_by FROM mcp_job_facts WHERE job_id=$1 AND module='contract' AND key='executed_change_orders'",
+      [job],
+    );
+    const inviter = await db.query<{ created_by: string }>(
+      "SELECT created_by FROM mcp_portal_access WHERE id=$1",
+      [access],
+    );
+    expect(saver.rows[0]!.updated_by).toBe(inviter.rows[0]!.created_by);
+    const hist = await db.query(
+      "SELECT action FROM mcp_change_history WHERE submittal_id=$1 ORDER BY record_version",
+      [r.change_order_id],
+    );
+    expect(hist.rows).toEqual([{ action: "approve" }, { action: "execute" }]);
+    // Running the cleanup again changes nothing.
+    notices.length = 0;
+    await run("supabase/scripts/20261107020000_client_approved_co_cleanup.sql");
+    expect(notices.join("\n")).toContain("added to their contracts: 0. Still approved: none");
+    expect(await total()).toBe(executedBefore + d.total_cents);
+  });
+
   it("signs in on the page with the invited email and a code, with no invite link", async () => {
     const pageSession = await tokenHash("Q1".repeat(21) + "z");
     // Server-only, like every customer function.

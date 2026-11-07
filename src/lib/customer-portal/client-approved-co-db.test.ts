@@ -131,4 +131,31 @@ describe.sequential("client-approved change orders join the contract, on the liv
       expect(r.rows[0].ok).toBe(false);
     }
   });
+
+  it("names who saved the contract facts, applies twice and rolls back to the earlier helper", async () => {
+    const fix = "supabase/migrations/20261107020000_athena_client_approved_co_saved_by_inviter.sql";
+    const back =
+      "supabase/rollbacks/20261107020000_athena_client_approved_co_saved_by_inviter.rollback.sql";
+    const helper = async () =>
+      (
+        await db.query<{ src: string }>(
+          "SELECT prosrc AS src FROM pg_proc WHERE proname = 'co_execute_client_approved'",
+        )
+      ).rows[0].src;
+    await db.exec(readFileSync(fix, "utf8"));
+    await db.exec(readFileSync(fix, "utf8"));
+    expect((await helper()).match(/'member_answer', true, actor\)/g)).toHaveLength(2);
+    expect(await helper()).toContain("updated_by = EXCLUDED.updated_by");
+    expect(calls(await decide())).toBe(2);
+    await db.exec(readFileSync(back, "utf8"));
+    expect(await helper()).not.toContain("updated_by");
+    await db.exec(readFileSync(fix, "utf8"));
+    for (const role of ["anon", "authenticated", "service_role"]) {
+      const r = await db.query<{ ok: boolean }>(
+        "SELECT has_function_privilege($1, 'mcp_private.co_execute_client_approved(uuid)', 'EXECUTE') AS ok",
+        [role],
+      );
+      expect(r.rows[0].ok).toBe(false);
+    }
+  });
 });
