@@ -820,6 +820,13 @@
       "when": 1794010768984,
       "tag": "0116_athena_board_link_no_money",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1794018951549,
+      "tag": "0117_athena_client_approved_co_joins_contract",
+      "breakpoints": true
     }
   ]
 }
