@@ -409,6 +409,8 @@ body:has(.lb-slide:target){overflow:hidden}
 .gbb #pk-t1:checked~.cmp .t1:is(.th,.col,.v),.gbb #pk-t2:checked~.cmp .t2:is(.th,.col,.v),.gbb #pk-t3:checked~.cmp .t3:is(.th,.col,.v){opacity:1;transform:none}
 .gbb .pk-in:checked~.cmp .line-h,.gbb .pk-in:checked~.cmp .row,.gbb .pk-in:checked~.cmp .pin{border-color:transparent}
 .gbb .pk-in:checked~.cmp .th .tag.pk{color:#2563eb}
+.gbb #pk-t1:checked~.cmp .pin .t1 .pk-go,.gbb #pk-t2:checked~.cmp .pin .t2 .pk-go,.gbb #pk-t3:checked~.cmp .pin .t3 .pk-go{display:none}
+.gbb #pk-t1:checked~.cmp .pin .t1 .pk-sel,.gbb #pk-t2:checked~.cmp .pin .t2 .pk-sel,.gbb #pk-t3:checked~.cmp .pin .t3 .pk-sel{display:inline-block;animation:gbb-pk .3s ease-out}
 .gbb .pk-in:focus-visible~.cmp .pk-go{outline:2px solid #2563eb;outline-offset:2px}
 @keyframes gbb-pk{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 .gbb .btn.on:hover{opacity:1;transform:none}
