@@ -88,7 +88,7 @@ export const COMPARE_CSS = `
 .gbb .cmp .th,.gbb .cmp .line .cols>.col,.gbb .cmp .row .v{transition:opacity .35s ease,transform .35s cubic-bezier(.2,.8,.2,1)}
 .gbb .pk-in:checked~.cmp .th,.gbb .pk-in:checked~.cmp .line .cols>.col,.gbb .pk-in:checked~.cmp .row .v{opacity:.45;transform:scale(.96)}
 .gbb #pk-t1:checked~.cmp .t1:is(.th,.col,.v),.gbb #pk-t2:checked~.cmp .t2:is(.th,.col,.v),.gbb #pk-t3:checked~.cmp .t3:is(.th,.col,.v){opacity:1;transform:none}
-.gbb .pk-in:checked~.cmp .line-h,.gbb .pk-in:checked~.cmp .row,.gbb .pk-in:checked~.cmp .pin{border-color:transparent}
+.gbb .pk-in:checked~.cmp .line,.gbb .pk-in:checked~.cmp .row,.gbb .pk-in:checked~.cmp .pin{border-color:transparent}
 .gbb .pk-in:checked~.cmp .th .tag.pk{color:#2563eb}
 .gbb #pk-t1:checked~.cmp .pin .t1 .pk-go,.gbb #pk-t2:checked~.cmp .pin .t2 .pk-go,.gbb #pk-t3:checked~.cmp .pin .t3 .pk-go{display:none}
 .gbb #pk-t1:checked~.cmp .pin .t1 .pk-sel,.gbb #pk-t2:checked~.cmp .pin .t2 .pk-sel,.gbb #pk-t3:checked~.cmp .pin .t3 .pk-sel{display:inline-block;animation:gbb-pk .3s ease-out}
@@ -99,9 +99,11 @@ export const COMPARE_CSS = `
 .gbb .btn:hover{opacity:.86;transform:translateY(-1px)}
 .gbb .btn.ghost{background:transparent;color:var(--brand);box-shadow:inset 0 0 0 1px var(--rule-2)}
 .gbb .line{padding:44px 0 8px}
-.gbb .line-h{padding:0 var(--pad) 14px;display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:1px solid var(--rule-2);margin:0 0 28px}
-.gbb .line-h h2{font-size:30px;font-weight:600;line-height:1.1;letter-spacing:-.03em;margin:0}
-.gbb .line-h span{font-size:14px;color:var(--ink-2);white-space:nowrap}
+.gbb .line+.line{border-top:1px solid var(--rule-2)}
+.gbb .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.gbb .sec{margin:0 0 18px}
+.gbb .sec-t{font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-.015em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere}
+.gbb .sec-q{font-size:13px;color:var(--ink-2);margin-top:2px;font-variant-numeric:tabular-nums}
 .gbb .col{text-align:center;min-width:0}
 .gbb .ph{display:block;aspect-ratio:4/3;overflow:hidden;margin:0 auto;max-width:300px}
 .gbb .ph img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
@@ -113,7 +115,7 @@ export const COMPARE_CSS = `
 .gbb .cap{font-size:13px;color:var(--ink-2);margin-top:6px;font-variant-numeric:tabular-nums}
 .gbb .row{border-top:1px solid var(--rule);padding-top:14px;padding-bottom:14px;margin-top:0}
 .gbb .rows{margin-top:36px}
-.gbb .row .k{grid-column:1/-1;font-size:12px;color:var(--ink-3);text-align:center;margin-bottom:4px}
+.gbb .row .k{font-size:12px;color:var(--ink-3);margin-bottom:4px;white-space:normal}
 .gbb .row .v{text-align:center;font-size:14.5px;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
 .gbb .row .v.dash{color:var(--ink-3)}
 .gbb .row ul{list-style:none;margin:0;padding:0}
@@ -139,7 +141,7 @@ export const COMPARE_CSS = `
   .gbb .pin{padding-top:12px;padding-bottom:12px}
   .gbb .th .nm{font-size:18px}.gbb .th .tot{font-size:14px}.gbb .th .dl{font-size:12px}
   .gbb .btn{font-size:13px;padding:7px 14px}
-  .gbb .line{padding-top:48px}.gbb .line-h{flex-direction:column;gap:4px;align-items:flex-start}.gbb .line-h h2{font-size:24px}
+  .gbb .line{padding-top:40px}.gbb .sec-t{font-size:14px}.gbb .sec-q{font-size:12px}
   .gbb .model{font-size:14px;min-height:3.6em}.gbb .big{font-size:26px}.gbb .big.inc{font-size:19px;line-height:26px}.gbb .cap{font-size:12px}
   .gbb .row .v{font-size:13.5px}
   .gbb #pr-gb:checked~* .t3,.gbb #pr-bB:checked~* .t1,.gbb #pr-gB:checked~* .t2{display:none}
@@ -222,6 +224,8 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
   const lines = v.selections
     .map((s) => {
       const qty = `${s.quantity.toLocaleString("en-US")} ${s.unit}`;
+      // The section name and quantity sit inside every column, so no text spans the highlighted card.
+      const sec = `<div class="sec" aria-hidden="true"><div class="sec-t">${esc(s.title)}</div><div class="sec-q">${esc(qty)}</div></div>`;
       const heads = optionNames
         .map((tier, i) => {
           const op = s.options[tier];
@@ -236,16 +240,18 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
                 : `<div class="big">${esc(plus(Math.round(diff / s.quantity)))}</div><div class="cap">per ${esc(s.unit)} · ${esc(plus(diff))} for all ${esc(qty)}</div>`;
           // A proposal cannot be shared without a photo on every option, so no empty box is drawn.
           const tag = pick ? `label for="pk-t${i + 1}"` : "div";
-          return `<${tag} class="col t${i + 1}">${photo ? `<span class="ph"><img src="${esc(photo)}" alt="${esc(name)}" loading="lazy" referrerpolicy="no-referrer"></span>` : ""}<div class="mfr">${esc(op.manufacturer || TIER_LABEL[tier])}</div><h3 class="model">${esc(op.model || op.description)}</h3>${num}</${pick ? "label" : "div"}>`;
+          return `<${tag} class="col t${i + 1}">${sec}${photo ? `<span class="ph"><img src="${esc(photo)}" alt="${esc(name)}" loading="lazy" referrerpolicy="no-referrer"></span>` : ""}<div class="mfr">${esc(op.manufacturer || TIER_LABEL[tier])}</div><h3 class="model">${esc(op.model || op.description)}</h3>${num}</${pick ? "label" : "div"}>`;
         })
         .join("");
       const row = (k: string, cell: (tier: OptionName) => string | null) =>
-        `<div class="row cols"><div class="k">${esc(k)}</div>${optionNames
+        `<div class="row cols">${optionNames
           .map((tier, i) => {
             const c = cell(tier);
+            // Each column carries its own label, so nothing spans the highlighted card.
+            const label = `<div class="k">${esc(k)}</div>`;
             return c
-              ? `<div class="v t${i + 1}">${c}</div>`
-              : `<div class="v dash t${i + 1}">—</div>`;
+              ? `<div class="v t${i + 1}">${label}${c}</div>`
+              : `<div class="v dash t${i + 1}">${label}—</div>`;
           })
           .join("")}</div>`;
       const has = (f: (tier: OptionName) => unknown) => optionNames.some((t) => !!f(t));
@@ -270,7 +276,7 @@ export function renderCompare(v: CustomerProposal, o: CompareOpts): string {
             )
           : "",
       ].join("");
-      return `<section class="line"><div class="line-h"><h2>${esc(s.title)}</h2><span>${esc(qty)} in every package</span></div><div class="cols">${heads}</div>${rows ? `<div class="rows">${rows}</div>` : ""}</section>`;
+      return `<section class="line"><h2 class="sr">${esc(s.title)}, ${esc(qty)} in every package</h2><div class="cols">${heads}</div>${rows ? `<div class="rows">${rows}</div>` : ""}</section>`;
     })
     .join("");
   const lead = chosen
