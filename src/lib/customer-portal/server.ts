@@ -168,14 +168,22 @@ const ERRORS: Record<string, string> = {
     "That way to pay isn't available for this amount. Try the other one, or ask your project team.",
   pay_error: "We couldn't open the payment page. Nothing was charged. Try again in a moment.",
 };
-/** Minutes until another code can be sent, when the database says. */
-const waitParam = (x: unknown): Record<string, string> => {
+/**
+ * Minutes until another code can be sent, when the database says, and the moment that wait ends (unix seconds), so a
+ * refresh or a saved address never shows the message after the wait is over.
+ */
+const waitParam = (x: unknown, now = Date.now()): Record<string, string> => {
   const m = x && typeof x === "object" ? (x as { retry_minutes?: unknown }).retry_minutes : null;
-  return typeof m === "number" && Number.isFinite(m) && m > 0 ? { wait: String(Math.ceil(m)) } : {};
+  return typeof m === "number" && Number.isFinite(m) && m > 0
+    ? { wait: String(Math.ceil(m)), until: String(Math.floor(now / 1000) + Math.ceil(m) * 60) }
+    : {};
 };
-function slowMessage(wait: string | null): string {
-  const m = wait && /^\d{1,4}$/.test(wait) ? Number(wait) : 0;
-  if (!m) return ERRORS.slow!;
+/** The "too many codes" message, with the minutes still left, or null once the wait is over or unknown. */
+export function slowMessage(q: URLSearchParams, now = Date.now()): string | null {
+  const until = q.get("until");
+  const end = until && /^\d{9,11}$/.test(until) ? Number(until) * 1000 : 0;
+  if (!end || end <= now) return null;
+  const m = Math.max(1, Math.ceil((end - now) / 60000));
   const when =
     m >= 120
       ? `in about ${Math.round(m / 60)} hours`
@@ -315,11 +323,7 @@ export async function handleInvite(
     return html(
       renderInvite(info, step, {
         sent: url.searchParams.get("sent") === "1",
-        error: e
-          ? e === "slow"
-            ? slowMessage(url.searchParams.get("wait"))
-            : (ERRORS[e] ?? null)
-          : null,
+        error: e ? (e === "slow" ? slowMessage(url.searchParams) : (ERRORS[e] ?? null)) : null,
         logo: brandLogo,
       }),
     );
@@ -538,11 +542,7 @@ export async function handlePortal(
       return html(
         renderPageSignIn(q.get("step") === "code" ? "code" : "email", {
           back: backQuery(q),
-          error: e
-            ? e === "slow"
-              ? slowMessage(url.searchParams.get("wait"))
-              : (ERRORS[e] ?? null)
-            : null,
+          error: e ? (e === "slow" ? slowMessage(url.searchParams) : (ERRORS[e] ?? null)) : null,
           sent: q.get("sent") === "1",
           logo,
           company: brand?.company ?? null,
@@ -598,7 +598,7 @@ export async function handlePortal(
             ? step
             : null,
         choice: q.get("choice"),
-        error: e ? (e === "slow" ? slowMessage(q.get("wait")) : (ERRORS[e] ?? null)) : null,
+        error: e ? (e === "slow" ? slowMessage(q) : (ERRORS[e] ?? null)) : null,
         flash: ok
           ? ok === "check"
             ? `Sent. ${view.contractor.name} will set a date to collect your check.`
