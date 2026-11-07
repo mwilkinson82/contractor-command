@@ -24,6 +24,7 @@ import {
   type SubmittalRecord,
 } from "./mcp/submittals";
 import { jobHeading } from "./mcp/job-label";
+import { changeOrderWhen, renderChangeOrderRecord } from "./change-order-record-page";
 import { kindLabel } from "./mcp/project-record";
 import { storedPiece } from "./mcp/submittal-package";
 import { esc } from "./report-pages";
@@ -268,14 +269,14 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[],
   );
 }
 
-function eventLine(e: RecordEventRow): string {
+function eventLine(e: RecordEventRow, when: (value: string) => string = day): string {
   const who = e.actor === "athena" ? "Athena" : e.actor_name?.trim() || "a member";
   const host = hostLabel(e.host);
   const through = host ? ` through ${host}` : "";
   // Only the member who had the chat gets the conversation link; a teammate would land in someone else's chat.
   const thread =
     e.thread_ref && e.mine && host ? ` · ${muted("Conversation reference on file")}` : "";
-  return `<div id="event-${esc(e.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div style="color:${NAVY}"><strong>${esc(e.title)}</strong> ${muted(`· ${esc(kindLabel(e.kind))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(e.summary)}</div><div style="font-size:12px;color:${G2};margin-top:2px">${esc(day(e.occurred_at))} · by ${esc(who)}${esc(through)}${thread}</div></div>`;
+  return `<div id="event-${esc(e.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div style="color:${NAVY}"><strong>${esc(e.title)}</strong> ${muted(`· ${esc(kindLabel(e.kind))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(e.summary)}</div><div style="font-size:12px;color:${G2};margin-top:2px">${esc(when(e.occurred_at))} · by ${esc(who)}${esc(through)}${thread}</div></div>`;
 }
 
 function mailHtml(mail: RecordMail[]): string {
@@ -402,6 +403,28 @@ function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
   ).join("") + (row.request_details.answer ? card(h2("ANSWER · CAPTURED") + `<p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.request_details.answer.text)}</p><p>From ${esc(row.request_details.answer.received_from)} · Received ${esc(submittalBuildTime(row.request_details.answer.received_at,p.time_zone_context ?? {job:p.time_zone}))}</p>`) : "") : "";
   const changeBody = purpose === "change_order" && row.change_order_details ? changeSections(row.change_order_details).map(section=>card(h2(section.heading.toUpperCase())+section.rows.map(r=>`<p style="overflow-wrap:anywhere">${r.cells.map(esc).join(" · ")}</p>`).join(""))).join("") : "";
   const changeHistory = purpose === "change_order" && row.change_order_history?.length ? card(h2("CHANGE-ORDER HISTORY") + row.change_order_history.map(h=>`<p>Version ${h.record_version} · ${esc(h.action)} · ${esc(submittalBuildTime(h.created_at,p.time_zone_context ?? {job:p.time_zone}))} · ${h.snapshot.total_cents == null ? "Not priced" : esc(changeMoney(h.snapshot.total_cents))}</p>`).join("")) : "";
+  if (purpose === "change_order" && row.change_order_details) {
+    const events = p.events ?? [];
+    const zones = p.time_zone_context ?? { job: p.time_zone };
+    const files = (p.packages ?? []).length ? filesHtml(p.packages ?? [], p.transmittals ?? [], zones) : "";
+    return renderChangeOrderRecord({
+      jobId: p.job_id,
+      jobNumber: p.job_number,
+      jobName: p.job_name,
+      number: row.number,
+      title: row.title,
+      details: row.change_order_details,
+      history: row.change_order_history ?? [],
+      zones,
+      readOnly: p.read_only === true,
+      files,
+      timeline: `${mailHtml(p.mail ?? [])}<section class="cor-panel"><h2>Timeline</h2><div class="cor-body">${
+        events.length
+          ? events.map((e) => eventLine(e, (v) => changeOrderWhen(v, zones))).join("")
+          : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`
+      }</div></section>`,
+    });
+  }
   const late = today ? submittalOverdue(row, today) : false;
   const who = row.ball_in_court_name?.trim()
     ? `${labelOf(BALL_LABEL, row.ball_in_court)}, ${row.ball_in_court_name.trim()}`
@@ -441,7 +464,7 @@ function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
   const timeline = card(
     h2("TIMELINE") +
       (events.length
-        ? events.map(eventLine).join("")
+        ? events.map((e) => eventLine(e)).join("")
         : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`),
   );
   const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes</p>`;

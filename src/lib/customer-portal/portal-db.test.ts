@@ -140,6 +140,7 @@ beforeAll(async () => {
   await load("20261105181000_athena_portal_messages");
   await load("20261106160000_athena_portal_page_sign_in");
   await load("20261106233000_athena_portal_code_reuse");
+  await load("20261107010000_athena_client_approved_co_joins_contract");
 
   for (const user of [owner, pm, outsider]) {
     await db.query("INSERT INTO auth.users(id,email) VALUES ($1,$2)", [
@@ -503,9 +504,20 @@ describe.sequential("customer page", () => {
         [submittal],
       )
     ).rows[0]!.details;
-    expect(co.state).toBe("approved");
+    // The client's signed approval puts the change order on the contract at once.
+    expect(co.state).toBe("executed");
     expect(co.co_number).toBe("CO-001");
-    expect(co.record_version).toBe(3);
+    expect(co.record_version).toBe(4);
+    expect(co.execution).toMatchObject({
+      by: "Rosa Delgado <rosa@example.com>",
+      channel: "customer_page",
+      authority: "client_signed_approval",
+      reference: `Customer page decision ${ok.decision_id}`,
+      email_code_verified: true,
+      sov_item: null,
+      contract_before_cents: null,
+      contract_after_cents: null,
+    });
     expect(co.decision).toMatchObject({
       by: "Rosa Delgado <rosa@example.com>",
       channel: "customer_page",
@@ -517,7 +529,27 @@ describe.sequential("customer page", () => {
       "SELECT action, actor_id FROM mcp_change_history WHERE submittal_id=$1 ORDER BY record_version",
       [submittal],
     );
-    expect(hist.rows.at(-1)).toEqual({ action: "approve", actor_id: owner });
+    expect(hist.rows.slice(-2)).toEqual([
+      { action: "approve", actor_id: owner },
+      { action: "execute", actor_id: owner },
+    ]);
+    const executed = await db.query<{ value: J }>(
+      "SELECT value FROM mcp_job_facts WHERE job_id=$1 AND module='contract' AND key='executed_change_orders'",
+      [job],
+    );
+    expect(Number(executed.rows[0]!.value)).toBe(4860);
+    const recorded = await db.query<{ kind: string; actor_id: string | null; payload: J }>(
+      "SELECT kind, actor_id, payload FROM mcp_project_record_events WHERE ref_id=$1 ORDER BY occurred_at",
+      [submittal],
+    );
+    expect(recorded.rows.slice(-2).map((e) => e.kind)).toEqual([
+      "change_order_approve",
+      "change_order_execute",
+    ]);
+    expect(recorded.rows.at(-1)).toMatchObject({
+      actor_id: null,
+      payload: { portal_decision: ok.decision_id, state: "executed" },
+    });
     const listed = await member("mcp_portal_list", [job]);
     expect(listed.items[0].decision).toMatchObject({
       decision: "approved",
@@ -788,9 +820,17 @@ describe.sequential("customer page", () => {
         [r.change_order_id],
       )
     ).rows[0]!.details as J;
-    // One approval: the signed pick is the change order approval, for the signed price and the stated time.
+    // One approval: the signed pick is the change order approval, for the signed price and the stated time,
+    // and it joins the contract at once.
     expect(co).toMatchObject({
-      state: "approved",
+      state: "executed",
+      record_version: 2,
+      execution: {
+        authority: "client_signed_approval",
+        channel: "customer_page",
+        contract_before_cents: 125000000 + 486000,
+        contract_after_cents: 125000000 + 486000 + best.difference_cents,
+      },
       origin: "owner",
       co_number: r.co_number,
       schedule_days: 2,
@@ -816,7 +856,15 @@ describe.sequential("customer page", () => {
     const hist = await db.query("SELECT action FROM mcp_change_history WHERE submittal_id=$1", [
       r.change_order_id,
     ]);
-    expect(hist.rows).toEqual([{ action: "approve" }]);
+    expect(hist.rows).toEqual(
+      expect.arrayContaining([{ action: "approve" }, { action: "execute" }]),
+    );
+    expect(hist.rows).toHaveLength(2);
+    const executed = await db.query<{ value: J }>(
+      "SELECT value FROM mcp_job_facts WHERE job_id=$1 AND module='contract' AND key='executed_change_orders'",
+      [job],
+    );
+    expect(Math.round(Number(executed.rows[0]!.value) * 100)).toBe(486000 + best.difference_cents);
   });
 
   it("signs in on the page with the invited email and a code, with no invite link", async () => {

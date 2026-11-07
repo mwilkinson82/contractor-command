@@ -147,6 +147,17 @@ beforeAll(async () => {
   await load("20261030130000_athena_submittal_log_approval_only");
   await load("20261030140000_athena_sov_contract_total_guard");
   await load("20261030150000_athena_sov_official_lock");
+  // Only the member-execution step of the client-approval migration; the client page isn't loaded here.
+  const joins = readFileSync(
+    "supabase/migrations/20261107010000_athena_client_approved_co_joins_contract.sql",
+    "utf8",
+  );
+  await db.exec(
+    joins.slice(
+      joins.indexOf("-- A member's execution adds"),
+      joins.indexOf("-- Change orders the client already approved"),
+    ),
+  );
   await db.exec(readFileSync("release-proposals/estimating-destination-versions.sql", "utf8"));
 });
 afterAll(async () => {

@@ -28,7 +28,18 @@ export type ChangeDetails = {
   total_cents: number | null;
   schedule_days?: number | null;
   decision?: { by: string; at: string; reference: string } | null;
-  execution?: { by: string; at: string; reference: string; sov_item: string } | null;
+  execution?: {
+    by: string;
+    at: string;
+    reference: string;
+    /** The SOV line the change was added on; none when the job had no base SOV. */
+    sov_item: string | null;
+    /** "customer_page" when the client's signed approval on their client page executed it. */
+    channel?: string;
+    authority?: string;
+    contract_before_cents?: number | null;
+    contract_after_cents?: number | null;
+  } | null;
   /** Set when the change order was made from the customer's own pick on their customer page. */
   customer_choice?: { tier: string; at: string; reference: string; fingerprint?: string } | null;
 };
@@ -39,6 +50,17 @@ export function lineRate(line: ChangeCostLine): string {
   const q = line.quantity;
   const each = q && q > 0 ? line.amount_cents / q : null;
   return each != null && Number.isInteger(each) ? changeMoney(each) : "Lump sum";
+}
+/** How the record says the change reached the contract. */
+export function executionLine(execution: NonNullable<ChangeDetails["execution"]>): string {
+  const sov = execution.sov_item ? ` · SOV ${execution.sov_item}` : "";
+  const after =
+    execution.contract_after_cents != null
+      ? ` · Contract value now ${changeMoney(execution.contract_after_cents)}`
+      : "";
+  return execution.channel === "customer_page"
+    ? `Added to the contract by the client's signed approval on the client page${sov}${after}`
+    : `Executed · ${execution.reference}${sov}${after}`;
 }
 /** Said wherever a change order came from the customer's own pick, so no reader compares it to an older preview. */
 export const SIGNED_VERSION_NOTE =
@@ -133,15 +155,7 @@ export function changeSections(details: ChangeDetails) {
         ...(details.decision
           ? [{ cells: [`Decision by ${details.decision.by} · ${details.decision.reference}`] }]
           : []),
-        ...(details.execution
-          ? [
-              {
-                cells: [
-                  `Executed · ${details.execution.reference} · SOV ${details.execution.sov_item}`,
-                ],
-              },
-            ]
-          : []),
+        ...(details.execution ? [{ cells: [executionLine(details.execution)] }] : []),
       ],
     },
   ];
@@ -264,7 +278,7 @@ export function changeLogCard(
         : []),
     ],
     next_move:
-      "A priced or approved proposal does not change billing. Execution is a separate confirmed action with its supporting reference.",
+      "A change order the client approves on their client page joins the contract at once. Any other approved change joins it when you execute it with its supporting reference.",
   };
   return {
     card,
