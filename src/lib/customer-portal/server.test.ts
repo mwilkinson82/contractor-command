@@ -627,7 +627,7 @@ describe("customer page", () => {
       await handlePortal(req(r.headers.get("location")!, { cookie: true }), ACCESS, slow.d)
     ).text();
     expect(banner).toContain("You can ask for another one in 12 minutes.");
-    expect(banner).toContain('class="gbb pick-t3"');
+    expect(banner).toContain('id="pk-t3" aria-label="Highlight Best" checked');
   });
 
   it("declines without a code and chooses a package with one", async () => {
@@ -1148,13 +1148,19 @@ describe("package choice follows the job's contract stage", () => {
   it("before a contract, choosing sets the proposal price and never says change order", async () => {
     const html = await page(false);
     expect(html).toContain("its total becomes your proposal price");
-    expect(html).toContain("Choose Better");
-    // Choosing only opens the pick's review: no code is asked for from the compare page.
+    // Tapping a package highlights it in place (no reload); only its Select button opens the review.
+    expect(html).toContain('<label class="btn ghost pk-go" for="pk-t2">Choose Better</label>');
+    expect(html).toContain(">Select Better</a>");
+    expect(html).toContain('<label for="pk-t2" class="col t2">');
+    expect(html).toContain('<div class="colbg" aria-hidden="true">');
+    expect(html).toContain("<h2>About this selection</h2>");
+    expect(html).not.toMatch(/id="pk-t\d"[^>]*checked/);
+    // No code is asked for from the compare page.
     expect(html).not.toContain('name="action" value="start"');
     expect(html).toContain(`step=review&amp;choice=better`);
     expect(html).not.toMatch(/change order/i);
     const review = await page(false, `/c/${ACCESS}?s=selections&i=${SEL}&step=review&choice=best`);
-    expect(review).toContain('class="gbb pick-t3"');
+    expect(review).toContain('id="pk-t3" aria-label="Highlight Best" checked');
     expect(review).toContain("Your pick");
     expect(review).toContain(">Selected</span>");
     expect(review).toContain("Confirm Best");
