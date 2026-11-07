@@ -269,8 +269,16 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[],
   );
 }
 
+/** Who took a step. A step the client took on their client page carries its portal decision: it reads "the client",
+ * never the member who invited them, whose account the page writes under. */
+export function eventWho(e: RecordEventRow): string {
+  if (e.actor === "athena") return "Athena";
+  if (e.payload && typeof e.payload.portal_decision === "string" && e.payload.portal_decision) return "the client";
+  return e.actor_name?.trim() || "a member";
+}
+
 function eventLine(e: RecordEventRow): string {
-  const who = e.actor === "athena" ? "Athena" : e.actor_name?.trim() || "a member";
+  const who = eventWho(e);
   const host = hostLabel(e.host);
   const through = host ? ` through ${host}` : "";
   // Only the member who had the chat gets the conversation link; a teammate would land in someone else's chat.
@@ -292,7 +300,7 @@ const CHANGE_EVENT: Record<string, string> = {
 
 /** A change order's own timeline: what happened, in plain words, at the job's local time. */
 function changeEventLine(e: RecordEventRow, when: (value: string) => string): string {
-  const who = e.actor === "athena" ? "Athena" : e.actor_name?.trim() || "a member";
+  const who = eventWho(e);
   const summary = e.summary.replace(/;?\s*commercial details require full job access\.?$/i, ".").replace(/\.\.$/, ".");
   return `<div id="event-${esc(e.id)}" style="padding:10px 0;border-top:1px solid ${G4}"><div style="color:${NAVY};font-weight:700">${esc(CHANGE_EVENT[e.kind] ?? kindLabel(e.kind))}</div><div style="font-size:13px;color:${G1};margin-top:2px">${esc(summary)}</div><div style="font-size:12px;color:${G2};margin-top:2px">${esc(when(e.occurred_at))} · by ${esc(who)}</div></div>`;
 }
