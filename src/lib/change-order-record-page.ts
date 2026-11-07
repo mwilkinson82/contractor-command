@@ -93,6 +93,11 @@ const CSS = `
 .cor-proof dt{font-weight:700}
 .cor-proof dd{margin:0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .cor-proof dd.plain{font-family:inherit}
+.cor-fold>summary{padding:14px 20px;font-size:16px;font-weight:700;cursor:pointer;list-style:none}
+.cor-fold>summary::-webkit-details-marker{display:none}
+.cor-fold>summary::after{content:" +";color:var(--accent)}
+.cor-fold[open]>summary{border-bottom:1px solid var(--rule)}
+.cor-fold[open]>summary::after{content:" −"}
 .cor-history{list-style:none;margin:0;padding:0}
 .cor-history li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:8px 0;border-top:1px solid var(--rule-2);font-size:13px}
 .cor-history li:first-child{border-top:0;padding-top:0}
@@ -298,14 +303,14 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
 
   const history = (input.history ?? []).slice().sort((a, b) => a.record_version - b.record_version);
   const historyHtml = history.length
-    ? `<section class="cor-panel"><h2>Record history</h2><div class="cor-body"><ul class="cor-history">${history
+    ? `<details class="cor-panel cor-fold"><summary>Record history · ${history.length} ${history.length === 1 ? "version" : "versions"}</summary><div class="cor-body"><ul class="cor-history">${history
         .map(
           (h) =>
             `<li><strong>${esc(ACTION_LABEL[h.action] ?? h.action)}</strong><span>${esc(when(h.created_at, zones, true))} · ${
               h.snapshot.total_cents == null ? "Not priced" : esc(signed(h.snapshot.total_cents))
             }</span></li>`,
         )
-        .join("")}</ul></div></section>`
+        .join("")}</ul></div></details>`
     : "";
 
   const logHref = input.jobId ? `/r/job/${input.jobId}/cos` : null;
