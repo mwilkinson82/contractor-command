@@ -18,6 +18,7 @@ import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { REFRESH_MS, usePageVisible } from "@/components/athena/ReportPage";
 import { SUBMITTAL_BUCKET } from "@/lib/mcp/submittal-package";
 import { SubmittalPieceUpload } from "./SubmittalPieceUpload";
+import { changeOrderDecided } from "@/lib/change-order-record-page";
 import {
   loadMemberSubmittalRecord,
   MemberRecordLookupError,
@@ -177,56 +178,59 @@ export function SubmittalRecordView({
           </p>
         ) : null}
         <div className="ath-page-embed" dangerouslySetInnerHTML={{ __html: html }} />
-        <section id="upload" className="ath-page-panel">
-          <h2>Upload a package piece</h2>
-          {memberPayload?.read_only === false ? (
-            <SubmittalPieceUpload
-              payload={memberPayload}
-              onSaved={() => {
-                void q.refetch();
-                if (token) void linked.refetch();
-              }}
-            />
-          ) : !session ? (
-            <>
-              <p style={{ marginBottom: 12 }}>
-                Sign in with your job account to upload. This board link remains read only.
-              </p>
-              <BoardSignIn returnTo={returnTo} />
-            </>
-          ) : q.isLoading || q.isFetching ? (
-            <p role="status">Checking your job upload access…</p>
-          ) : q.error ? (
-            <div>
-              <p role="alert">
-                Your signed-in account could not load this job's upload access. Retry, or sign in
-                with the account connected to Athena in your chat.
-              </p>
-              {q.error instanceof MemberRecordLookupError ? (
-                <details className="my-3 break-words text-sm">
-                  <summary>Upload access details</summary>
-                  <p>
-                    {q.error.diagnostic.rpc} · {q.error.diagnostic.code}
-                    {q.error.diagnostic.status ? ` · HTTP ${q.error.diagnostic.status}` : ""}
-                  </p>
-                  <p>{q.error.diagnostic.message}</p>
-                </details>
-              ) : null}
-              <button type="button" onClick={() => void q.refetch()} className="my-3">
-                Retry upload access
-              </button>
-              <BoardSignIn returnTo={returnTo} />
-            </div>
-          ) : (
-            <div>
-              <p>
-                This signed-in account has read-only access to the job. Uploads require full job
-                access. Sign in with the job account connected to Athena in your chat.
-              </p>
-              <BoardSignIn returnTo={returnTo} />
-            </div>
-          )}
-        </section>
+        {payload.current.package_purpose === "change_order" &&
+        changeOrderDecided(payload.current.change_order_details) ? null : (
+          <section id="upload" className="ath-page-panel">
+            <h2>Upload a package piece</h2>
+            {memberPayload?.read_only === false ? (
+              <SubmittalPieceUpload
+                payload={memberPayload}
+                onSaved={() => {
+                  void q.refetch();
+                  if (token) void linked.refetch();
+                }}
+              />
+            ) : !session ? (
+              <>
+                <p style={{ marginBottom: 12 }}>
+                  Sign in with your job account to upload. This board link remains read only.
+                </p>
+                <BoardSignIn returnTo={returnTo} />
+              </>
+            ) : q.isLoading || q.isFetching ? (
+              <p role="status">Checking your job upload access…</p>
+            ) : q.error ? (
+              <div>
+                <p role="alert">
+                  Your signed-in account could not load this job's upload access. Retry, or sign in
+                  with the account connected to Athena in your chat.
+                </p>
+                {q.error instanceof MemberRecordLookupError ? (
+                  <details className="my-3 break-words text-sm">
+                    <summary>Upload access details</summary>
+                    <p>
+                      {q.error.diagnostic.rpc} · {q.error.diagnostic.code}
+                      {q.error.diagnostic.status ? ` · HTTP ${q.error.diagnostic.status}` : ""}
+                    </p>
+                    <p>{q.error.diagnostic.message}</p>
+                  </details>
+                ) : null}
+                <button type="button" onClick={() => void q.refetch()} className="my-3">
+                  Retry upload access
+                </button>
+                <BoardSignIn returnTo={returnTo} />
+              </div>
+            ) : (
+              <div>
+                <p>
+                  This signed-in account has read-only access to the job. Uploads require full job
+                  access. Sign in with the job account connected to Athena in your chat.
+                </p>
+                <BoardSignIn returnTo={returnTo} />
+              </div>
+            )}
+          </section>
+        )}
       </AthenaPage>
     );
   }
