@@ -51,7 +51,8 @@ vi.mock("./BoardSignIn", () => ({
   BoardSignIn: ({ returnTo }: { returnTo: string }) =>
     React.createElement("div", null, `Sign in: ${returnTo}`),
 }));
-import { JobHome, hideAmounts, iorFigures } from "./JobHome";
+import { JobHome, iorFigures } from "./JobHome";
+import { hideAmounts } from "@/lib/board-redact";
 import { ProjectHomeLinks } from "./ProjectHomeLinks";
 const job = "22222222-2222-4222-8222-222222222222";
 const other = "33333333-3333-4333-8333-333333333333";

@@ -22,6 +22,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { openBoardPage } from "@/lib/board-link.functions";
 import { boardReturnForVisit } from "@/lib/board-sign-in";
 import { BOARD_PAGES } from "@/lib/mcp/board-link";
+import { isMoneyBoardPage, redactMoney } from "@/lib/board-redact";
 import { BoardSignIn } from "@/components/athena/BoardSignIn";
 import { ProjectReadUnavailable } from "@/components/athena/ProjectReadUnavailable";
 import { AthenaPage } from "@/components/athena/AthenaPage";
@@ -83,7 +84,8 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate, layo
   const openLink = useServerFn(openBoardPage);
   const { session, loading: authLoading } = useAuth();
   const datedDaily = page === "daily" && reportDate !== undefined;
-  const tokenPage = !datedDaily && (BOARD_PAGES as readonly string[]).includes(page) ? page : "";
+  // A link alone (no signed-in member) never opens a money page; the sign-in below asks first.
+  const tokenPage = !datedDaily && (BOARD_PAGES as readonly string[]).includes(page) && !isMoneyBoardPage(page) ? page : "";
   const visible = usePageVisible();
   const qc = useQueryClient();
   const query = reportPageQuery(page, jobId, companyId);
@@ -140,9 +142,9 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate, layo
   });
   // A rejected refresh must not render a previously cached member payload.
   const memberPayload = session && !q.error ? q.data?.payload : undefined;
-  const payload = memberPayload ?? (!linked.error && linked.data?.status === "ok"
-    ? (JSON.parse(linked.data.payload) as PagePayload)
-    : undefined);
+  // Read through a link alone, every dollar figure is dropped before anything renders.
+  const linkedPayload = useMemo(() => (!linked.error && linked.data?.status === "ok" ? redactMoney(JSON.parse(linked.data.payload) as PagePayload) : undefined), [linked.error, linked.data]);
+  const payload = memberPayload ?? linkedPayload;
   // renderReportBody escapes every value it prints. Re-rendered only when a new payload arrives.
   // A live token keeps sibling board links on the same token when the host adds utm params.
   const html = useMemo(() => {
@@ -206,6 +208,8 @@ export function ReportPageView({ page, jobId, companyId, token, reportDate, layo
     const location = typeof window === "undefined" ? undefined : `${window.location.pathname}${window.location.search}${window.location.hash}`;
     const datedLocation = datedDaily && jobId ? `/r/job/${jobId}/daily?date=${encodeURIComponent(reportDate!)}` : undefined;
     const returnTo = boardReturnForVisit(page, jobId, location ?? datedLocation);
+    if (returnTo && isMoneyBoardPage(page))
+      return <BoardSignIn returnTo={returnTo} title="Sign in to see this job's money" lede="This page shows job money, so it opens only for signed-in members of the company. You'll come straight back here." />;
     if (returnTo) return <BoardSignIn returnTo={returnTo} />;
     return (
       <div style={{ maxWidth: 480, margin: "15vh auto", background: "#fff", border: "1px solid #D1D5DB", borderRadius: 12, padding: 32, color: "#6B7280" }}>

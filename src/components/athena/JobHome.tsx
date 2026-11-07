@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { hideAmounts, isMoneyBoardPage, redactMoney } from "@/lib/board-redact";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Lock, Shovel } from "lucide-react";
@@ -85,7 +86,11 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
       )
         return result.data as PagePayload;
     }
-    if (token) {
+    // A link alone never reads a money page, and every dollar figure is dropped from the rest.
+    if (token && !session && !isMoneyBoardPage(page)) {
+      const result = await open({ data: { token, jobId, page } });
+      if (result.status === "ok") return redactMoney(JSON.parse(result.payload) as PagePayload);
+    } else if (token && session) {
       const result = await open({ data: { token, jobId, page } });
       if (result.status === "ok") return JSON.parse(result.payload) as PagePayload;
     }
@@ -118,8 +123,8 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
   const lookahead = useQuery(extra("lookahead"));
   const submittals = useQuery(extra("submittals"));
   const daily = useQuery(extra("daily"));
-  const billing = useQuery(extra("payapp", full));
-  const ior = useQuery(extra("ior", full));
+  const billing = useQuery(extra("payapp", full && !!session));
+  const ior = useQuery(extra("ior", full && !!session));
   const financial = useQuery({
     ...extra("field", false),
     queryKey: ["job-home", jobId, "financial", session?.user.id],
@@ -395,14 +400,16 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           },
           {
             title: "Billing forecast",
-            detail: state(
-              billing,
-              billing.data?.page === "payapp" && billing.data.report?.found
-                ? "View saved forecast"
-                : billing.data?.page === "payapp" && billing.data.report?.found === false
-                  ? "No billing forecast saved yet"
-                  : "Currently unavailable",
-            ),
+            detail: !session
+              ? "Sign in to see"
+              : state(
+                  billing,
+                  billing.data?.page === "payapp" && billing.data.report?.found
+                    ? "View saved forecast"
+                    : billing.data?.page === "payapp" && billing.data.report?.found === false
+                      ? "No billing forecast saved yet"
+                      : "Currently unavailable",
+                ),
             page: "payapp",
             group: "money",
           },
@@ -414,14 +421,16 @@ export function JobHome({ jobId, token }: { jobId: string; token?: string }) {
           },
           {
             title: "Indicated Outcome Report",
-            detail: state(
-              ior,
-              ior.data?.page === "ior" && ior.data.report?.found
-                ? "View saved IOR"
-                : ior.data?.page === "ior" && ior.data.report?.found === false
-                  ? "No IOR recorded yet"
-                  : "Currently unavailable",
-            ),
+            detail: !session
+              ? "Sign in to see"
+              : state(
+                  ior,
+                  ior.data?.page === "ior" && ior.data.report?.found
+                    ? "View saved IOR"
+                    : ior.data?.page === "ior" && ior.data.report?.found === false
+                      ? "No IOR recorded yet"
+                      : "Currently unavailable",
+                ),
             page: "ior",
             group: "money",
           },
@@ -1120,15 +1129,6 @@ function morePrompts(job: string, full: boolean) {
  * signed in, such as ChatGPT's, Claude's or Manus's own browser. Nothing financial is read or shown
  * until the member signs in; a signed-in member who isn't on the company still sees no money.
  */
-/** Removes dollar amounts from text shown to a browser that isn't signed in. */
-export function hideAmounts(text: string): string {
-  const amount = String.raw`-?\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?`;
-  return text
-    .replace(new RegExp(String.raw`\s*\([^()]*` + amount + String.raw`[^()]*\)`, "g"), "")
-    .replace(new RegExp(amount, "g"), "an amount")
-    .trim();
-}
-
 export function MoneySignInPrompt({
   company,
   onSignIn,

@@ -171,7 +171,8 @@ describe("board link page without a session", () => {
     state.linkQuery = { data: { status: "denied", payload: null }, isLoading: false, error: null };
     for (const page of ["ior", "payapp"] as const) {
       const html = renderPage(page, "super-token");
-      expect(html).toContain(BOARD_SIGN_IN_TITLE);
+      // Money pages never open from a link alone; signed out, they ask for a sign-in to see the money.
+      expect(html).toContain("Sign in to see this job&#x27;s money");
       expect(html).not.toContain("have access to this page");
       expect(html).not.toContain("Buy the switchgear");
     }
@@ -365,4 +366,22 @@ describe("board link page without a session", () => {
     expect(state.queryOptions.find((q) => q.queryKey[0] === "athena-board-link")!.enabled).toBe(false);
   });
 
+});
+
+describe("board opened from a link while signed out", () => {
+  it("drops dollar figures from the open items page", () => {
+    const priced = { ...items, items: [{ id: "1", action: "Review the IOR risk: Cabinets damaged ($20,000 held)", owner: "Vendor", due: "2026-06-28" }] } as PagePayload;
+    state.linkQuery = { data: { status: "ok", payload: JSON.stringify(priced) }, isLoading: false, error: null };
+    const html = renderPage("items", "full-token");
+    expect(html).toContain("Cabinets damaged");
+    expect(html).not.toContain("$20,000");
+  });
+
+  it("never reads the IOR or billing forecast through the link", () => {
+    for (const page of ["ior", "payapp"] as const) {
+      state.queryOptions = [];
+      renderPage(page, "full-token");
+      expect(state.queryOptions.find((q) => q.queryKey[0] === "athena-board-link")!.enabled).toBe(false);
+    }
+  });
 });

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { requestLogCard, type RequestKind, type RequestLogPayload } from "@/lib/mcp/request-log";
 import { openRequestLog } from "@/lib/request-log.functions";
 import { BoardSignIn } from "./BoardSignIn";
+import { redactMoney } from "@/lib/board-redact";
 import { AthenaPage, CardModelPage } from "./AthenaPage";
 import { readRequestLog, boundedRequestRead, type RequestLogRpc } from "@/lib/request-log-read";
 
@@ -43,7 +44,10 @@ export function RequestLogPage({
   const payload =
     (!member.error ? member.data : null) ??
     (linked.data?.status === "ok" && linked.data.payload
-      ? (JSON.parse(linked.data.payload) as RequestLogPayload)
+      ? // Read through a link alone (signed out): no dollar figures.
+        session
+        ? (JSON.parse(linked.data.payload) as RequestLogPayload)
+        : redactMoney(JSON.parse(linked.data.payload) as RequestLogPayload)
       : null);
   const path = `/r/job/${jobId}/${kind}s`;
   const board = `https://app.meetathena.io/r/job/${jobId}/submittals${token ? `?t=${encodeURIComponent(token)}` : ""}`;
