@@ -51,16 +51,55 @@ export function lineRate(line: ChangeCostLine): string {
   const each = q && q > 0 ? line.amount_cents / q : null;
   return each != null && Number.isInteger(each) ? changeMoney(each) : "Lump sum";
 }
-/** How the record says the change reached the contract. */
+/** How the record says the change reached the contract, as the change order page says it. The SOV line and the
+ * client's decision id sit with the approval proof on that page, never in this line. */
 export function executionLine(execution: NonNullable<ChangeDetails["execution"]>): string {
-  const sov = execution.sov_item ? ` · SOV ${execution.sov_item}` : "";
-  const after =
-    execution.contract_after_cents != null
-      ? ` · Contract value now ${changeMoney(execution.contract_after_cents)}`
-      : "";
-  return execution.channel === "customer_page"
-    ? `Added to the contract by the client's signed approval on the client page${sov}${after}`
-    : `Executed · ${execution.reference}${sov}${after}`;
+  const lead =
+    execution.channel === "customer_page"
+      ? "Added to the contract by the client's approval"
+      : "Added to the contract";
+  return execution.contract_before_cents != null && execution.contract_after_cents != null
+    ? `${lead}: ${changeMoney(execution.contract_before_cents)} → ${changeMoney(execution.contract_after_cents)}`
+    : execution.contract_after_cents != null
+      ? `${lead} · Contract value now ${changeMoney(execution.contract_after_cents)}`
+      : lead;
+}
+const UUID = /\s*\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+/** Record text without raw ids: "Signed package choice, customer page decision 92f3…" reads "Signed package choice,
+ * customer page decision". The ids stay in the saved record and on the page's approval proof. */
+export const withoutIds = (text: string) =>
+  text
+    .replace(UUID, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+/** A client's page decision is approval proof, not a construction reference: the card leaves it out, as the page does. */
+export const isApprovalProof = (citation: string) =>
+  /^Customer page decision\b/i.test(citation.trim());
+/** "Marshall Wilkinson <m@x.com>" reads "Marshall Wilkinson". */
+export const personName = (by: string | null | undefined) => {
+  const raw = (by ?? "").trim();
+  const m = /^(.*?)\s*<([^>]+)>$/.exec(raw);
+  return m ? m[1].trim() || "Not recorded" : raw || "Not recorded";
+};
+/** True when the client approved it on their client page. */
+const fromClientPage = (d: ChangeDetails) =>
+  (d.decision as { channel?: string } | null | undefined)?.channel === "customer_page";
+/** The state as the change order page names it. */
+export function changeStateLabel(d: ChangeDetails): string {
+  switch (d.state) {
+    case "executed":
+      return "On the contract";
+    case "approved":
+      return "Approved, not on the contract yet";
+    case "rejected":
+      return "Declined";
+    case "submitted":
+      return "Waiting on approval";
+    case "priced":
+      return "Priced, not sent";
+    default:
+      return "Draft, not sent";
+  }
 }
 /** Said wherever a change order came from the customer's own pick, so no reader compares it to an older preview. */
 export const SIGNED_VERSION_NOTE =
@@ -90,6 +129,22 @@ export type ChangeLogPayload = {
 };
 export const changeMoney = (cents: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+/** Drawing, spec, contract and condition references; a client's page decision is approval proof instead. */
+const constructionRefs = (details: ChangeDetails) =>
+  details.references.filter((ref) => !isApprovalProof(ref.citation));
+/** Who decided and how, by name only. A client's decision id and email sit with the page's approval proof. */
+function decisionLine(details: ChangeDetails): string {
+  const decision = details.decision as
+    | (NonNullable<ChangeDetails["decision"]> & { email_code_verified?: boolean })
+    | null
+    | undefined;
+  if (!decision) return "";
+  const verb = details.state === "rejected" ? "Declined" : "Approved";
+  if (fromClientPage(details))
+    return `${verb} by ${personName(decision.by)} on the client page${decision.email_code_verified ? " with an emailed code" : ""}, signed with their typed name`;
+  const ref = withoutIds(decision.reference ?? "");
+  return `${verb} by ${personName(decision.by)}${ref ? ` · ${ref}` : ""}`;
+}
 export function changeSections(details: ChangeDetails) {
   return [
     {
@@ -105,11 +160,21 @@ export function changeSections(details: ChangeDetails) {
     {
       heading: "References",
       kind: "list" as const,
-      rows: details.references.map((ref) => ({
-        cells: [requestReferenceText(ref)],
-        raw: true,
-        tone: "literal" as const,
-      })),
+      rows: constructionRefs(details).length
+        ? constructionRefs(details).map((ref) => ({
+            cells: [requestReferenceText(ref)],
+            raw: true,
+            tone: "literal" as const,
+          }))
+        : [
+            {
+              cells: [
+                fromClientPage(details)
+                  ? "The client's signed approval on their client page"
+                  : "None recorded",
+              ],
+            },
+          ],
     },
     {
       heading: "Pricing",
@@ -127,7 +192,7 @@ export function changeSections(details: ChangeDetails) {
                 ? `${(line.rate_basis_points ?? 0) / 100}% of direct costs`
                 : lineRate(line),
               changeMoney(line.amount_cents),
-              line.source,
+              withoutIds(line.source),
             ],
           }))
         : [{ cells: ["Not priced", "Rates and quantities needed", "", "", "", ""] }],
@@ -152,10 +217,12 @@ export function changeSections(details: ChangeDetails) {
         },
         ...(details.customer_choice ? [{ cells: [SIGNED_VERSION_NOTE] }] : []),
         ...(details.owner_number ? [{ cells: [`Owner's number: ${details.owner_number}`] }] : []),
-        ...(details.decision
-          ? [{ cells: [`Decision by ${details.decision.by} · ${details.decision.reference}`] }]
-          : []),
-        ...(details.execution ? [{ cells: [executionLine(details.execution)] }] : []),
+        ...(details.decision ? [{ cells: [decisionLine(details)] }] : []),
+        ...(details.state === "executed" && details.execution
+          ? [{ cells: [executionLine(details.execution)] }]
+          : details.state === "approved"
+            ? [{ cells: ["Approved. It joins the contract when it is executed."] }]
+            : []),
       ],
     },
   ];
@@ -174,6 +241,29 @@ export type ChangeExtras = {
   /** The job's contract type key, shown as a label. */
   contractType?: string | null;
 };
+const GENERAL_NEXT =
+  "A change order the client approves on their client page joins the contract at once. Any other approved change joins it when you execute it with its supporting reference.";
+/** What happens next for the one change order shown, read from its saved state; the general rule otherwise. */
+function nextMove(row: ChangeRow | null): string {
+  if (!row) return GENERAL_NEXT;
+  const d = row.change_order_details;
+  const name = d.co_number?.trim() || row.number;
+  if (d.state === "executed") {
+    const e = d.execution;
+    const how = e?.channel === "customer_page" ? " by the client's approval" : "";
+    const value =
+      e?.contract_before_cents != null && e.contract_after_cents != null
+        ? `: ${changeMoney(e.contract_before_cents)} → ${changeMoney(e.contract_after_cents)}`
+        : "";
+    return `${name} is on the contract${how}${value}. Nothing else to do.`;
+  }
+  if (d.state === "approved")
+    return `${name} is approved. It joins the contract when you execute it with its supporting reference.`;
+  return GENERAL_NEXT;
+}
+/** For the member's AI: an executed change order is already in the contract value and SOV. */
+export const EXECUTED_GUIDANCE =
+  "A change order whose status reads On the contract is executed: it is already in the contract value and has its own SOV line, as the board shows. Say so plainly. Never call change_order_record with action execute for it, and never say it is blocked, pending execution or not yet executed.";
 export function changeLogCard(
   payload: ChangeLogPayload,
   board: string | null,
@@ -230,9 +320,7 @@ export function changeLogCard(
               cells: [
                 `${[r.number, r.change_order_details.co_number].filter(Boolean).join(" / ")} · Revision ${r.revision} · Transmittal ${r.transmittal_number}`,
                 r.title,
-                ["draft", "priced"].includes(r.change_order_details.state)
-                  ? `${r.change_order_details.state === "priced" ? "Priced · " : ""}Draft, not sent`
-                  : r.change_order_details.state,
+                changeStateLabel(r.change_order_details),
                 [
                   r.change_order_details.total_cents == null
                     ? "Not priced"
@@ -244,7 +332,10 @@ export function changeLogCard(
                 r.change_order_details.due_date
                   ? `${r.change_order_details.due_date} · member target`
                   : "Due date needed",
-                r.change_order_details.references.map(requestReferenceText).join("; "),
+                constructionRefs(r.change_order_details).map(requestReferenceText).join("; ") ||
+                  (fromClientPage(r.change_order_details)
+                    ? "Client's signed approval"
+                    : "None recorded"),
               ],
               href: r.record_url,
               flag: r.overdue ? ("overdue" as const) : null,
@@ -277,8 +368,7 @@ export function changeLogCard(
           ]
         : []),
     ],
-    next_move:
-      "A change order the client approves on their client page joins the contract at once. Any other approved change joins it when you execute it with its supporting reference.",
+    next_move: nextMove(number && records.length === 1 ? records[0] : null),
   };
   return {
     card,

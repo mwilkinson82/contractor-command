@@ -986,6 +986,252 @@ describe.sequential("customer page", () => {
     expect(await total()).toBe(executedBefore + d.total_cents);
   });
 
+  it("files a change order under the job's own division and lets a member execute one on a numbered SOV", async () => {
+    const read = (f: string) => readFileSync(f, "utf8");
+    const notices: string[] = [];
+    const run = (f: string) =>
+      db.exec(read(f), { onNotice: (n: J) => notices.push(String(n.message)) } as J);
+    // A job whose SOV lines are numbered 01, 02 and whose trade (26, electrical) is in their cost codes.
+    const job3 = "00000000-0000-4000-8000-000000000c22";
+    await db.query(
+      "INSERT INTO mcp_jobs(id,user_id,company_id,job_number,name,time_zone,pm_name,pm_email,pm_user_id,sov_fee_pct) VALUES($1,$2,$3,'2718','Harbor Point Annex','America/Chicago','Pat Lee','pat@example.com',$4,0)",
+      [job3, owner, company, pm],
+    );
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'contract','contract_value','50000','known','member_answer',$2)",
+      [job3, owner],
+    );
+    for (const [key, value, code] of [
+      ["01", 10000, "26.01"],
+      ["02", 40000, "26.04"],
+    ] as const)
+      await db.query(
+        "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov',$2,$3::jsonb,'known','member_answer',$4)",
+        [
+          job3,
+          key,
+          JSON.stringify({ description: `Line ${key}`, billable_value: value, cost_codes: [code] }),
+          owner,
+        ],
+      );
+    // An approved change order, priced at $1,200.00, as a member's approval leaves it.
+    const approved = async (title: string) => {
+      const made = await member("mcp_change_record", [
+        job3,
+        "create",
+        JSON.stringify({
+          request_id: crypto.randomUUID(),
+          title,
+          condition: "Owner asked for it.",
+          scope: "Add the fixtures.",
+          references: [{ kind: "condition", citation: "Owner email Nov 6" }],
+          origin: "owner",
+          schedule_days: 0,
+        }),
+      ]);
+      await member("mcp_change_record", [
+        job3,
+        "price",
+        JSON.stringify({
+          request_id: crypto.randomUUID(),
+          submittal_id: made.saved_id,
+          expected_version: 1,
+          lines: [
+            {
+              category: "material",
+              description: "Fixtures",
+              quantity: 1,
+              unit_rate_cents: 120000,
+              source: "Quote 7",
+            },
+          ],
+        }),
+      ]);
+      await db.query(
+        `UPDATE mcp_change_orders SET details = details || jsonb_build_object('state','approved','record_version',3,
+           'decision',jsonb_build_object('by','Rosa Delgado','at','2026-11-06T12:00:00Z','reference','Owner email Nov 6'),'co_number','CO-0'||$2)
+         WHERE submittal_id=$1`,
+        [made.saved_id, title.slice(-2)],
+      );
+      return made.saved_id as string;
+    };
+    const execute = (id: string, extra: Record<string, unknown> = {}) =>
+      member("mcp_change_record", [
+        job3,
+        "execute",
+        JSON.stringify({
+          request_id: crypto.randomUUID(),
+          submittal_id: id,
+          expected_version: 3,
+          confirmed: true,
+          evidence: {
+            by: "Rosa Delgado",
+            at: "2026-11-06T12:00:00Z",
+            reference: "Owner email Nov 6",
+          },
+          ...extra,
+        }),
+      ]);
+    const first = await approved("Annex fixtures 01");
+    // Before: no division named is refused, and lines numbered 01, 02 are refused as an incomplete SOV.
+    await expect(execute(first)).rejects.toThrow(/two-digit SOV division/);
+    await expect(execute(first, { sov_division: "26" })).rejects.toThrow(
+      /Complete and verify every base SOV line/,
+    );
+    const fix = "supabase/migrations/20261107030000_athena_change_order_sov_division.sql";
+    await run(fix);
+    await run(fix);
+    // After: no division named, and the change lands on its own line in division 26.
+    await execute(first);
+    const line = async (id: string) =>
+      (
+        await db.query<{ key: string }>(
+          "SELECT key FROM mcp_job_facts WHERE job_id=$1 AND module='sov' AND value->>'executed_change_order'=$2",
+          [job3, id],
+        )
+      ).rows.map((r) => r.key);
+    expect(await line(first)).toEqual(["26.001"]);
+    const total = await db.query<{ value: J }>(
+      "SELECT value FROM mcp_job_facts WHERE job_id=$1 AND module='contract' AND key='executed_change_orders'",
+      [job3],
+    );
+    expect(Number(total.rows[0]!.value)).toBe(1200);
+    // A division the member names still wins.
+    const named = await approved("Annex fixtures 02");
+    await execute(named, { sov_division: "16" });
+    expect(await line(named)).toEqual(["16.001"]);
+    // The division the job's lines and codes name, for each kind of SOV.
+    const div = async (spec: string | null) =>
+      (
+        await db.query<{ d: string | null }>("SELECT mcp_private.co_sov_division($1,$2) AS d", [
+          job3,
+          spec,
+        ])
+      ).rows[0]!.d;
+    expect(await div(null)).toBe("26");
+    await db.query(
+      "UPDATE mcp_job_facts SET value = value - 'cost_codes' WHERE job_id=$1 AND module='sov' AND key IN ('01','02')",
+      [job3],
+    );
+    expect(await div("26 05 19")).toBe("26");
+    expect(await div(null)).toBe("01");
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,updated_by) VALUES($1,'sov','09.100','{\"description\":\"Drywall\",\"billable_value\":5}'::jsonb,'known','member_answer',$2)",
+      [job, owner],
+    );
+    expect(
+      (await db.query<{ d: string }>("SELECT mcp_private.co_sov_division($1,null) AS d", [job]))
+        .rows[0]!.d,
+    ).toBe("09");
+    await db.query("DELETE FROM mcp_job_facts WHERE job_id=$1 AND module='sov' AND key='09.100'", [
+      job,
+    ]);
+    await db.query(
+      "UPDATE mcp_job_facts SET value = value || '{\"cost_codes\":[\"26.01\"]}'::jsonb WHERE job_id=$1 AND module='sov' AND key IN ('01','02')",
+      [job3],
+    );
+
+    // A client-approved change order filed at 01.001 by the earlier helper moves to the job's division, once.
+    const misfiled = await approved("Annex fixtures 03");
+    await db.query(
+      `UPDATE mcp_change_orders SET details = details || jsonb_build_object('state','executed','record_version',4,
+         'execution',jsonb_build_object('by','Rosa Delgado','at','2026-11-06T12:00:00Z','reference','Customer page decision x','channel','customer_page','sov_item','01.001'))
+       WHERE submittal_id=$1`,
+      [misfiled],
+    );
+    await db.query(
+      "INSERT INTO mcp_change_history(submittal_id,job_id,record_version,action,snapshot,actor_id) SELECT submittal_id,job_id,4,'execute',details,$2 FROM mcp_change_orders WHERE submittal_id=$1",
+      [misfiled, owner],
+    );
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,internal_only,updated_by) VALUES($1,'sov','01.001',jsonb_build_object('description','CO-003 · Annex fixtures 03','billable_value',1200,'executed_change_order',$2::text,'fee_included',true),'known','member_answer',true,$3)",
+      [job3, misfiled, owner],
+    );
+    // Its line is locked to everyone else.
+    await expect(
+      db.query("UPDATE mcp_job_facts SET key='26.009' WHERE job_id=$1 AND key='01.001'", [job3]),
+    ).rejects.toThrow(/immutable/);
+    const script = "supabase/scripts/20261107030000_change_order_sov_line_refile.sql";
+    notices.length = 0;
+    await run(script);
+    expect(notices.join("\n")).toContain(
+      "Change-order SOV lines moved to the job's division: 2718 PCO-003 01.001 to 26.002. Left in place (already billed): none",
+    );
+    expect(await line(misfiled)).toEqual(["26.002"]);
+    const after = await db.query<{ details: J }>(
+      "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
+      [misfiled],
+    );
+    expect(after.rows[0]!.details.execution.sov_item).toBe("26.002");
+    const hist = await db.query<{ item: string }>(
+      "SELECT snapshot->'execution'->>'sov_item' AS item FROM mcp_change_history WHERE submittal_id=$1 AND action='execute'",
+      [misfiled],
+    );
+    expect(hist.rows).toEqual([{ item: "26.002" }]);
+    // The lock is back on, and a second run moves nothing.
+    await expect(
+      db.query("UPDATE mcp_job_facts SET key='26.009' WHERE job_id=$1 AND key='26.002'", [job3]),
+    ).rejects.toThrow(/immutable/);
+    notices.length = 0;
+    await run(script);
+    expect(notices.join("\n")).toContain(
+      "moved to the job's division: none. Left in place (already billed): none",
+    );
+
+    // A line already on a billing document recorded since stays where it is.
+    const billed = await approved("Annex fixtures 04");
+    await db.query(
+      `UPDATE mcp_change_orders SET details = details || jsonb_build_object('state','executed','record_version',4,
+         'execution',jsonb_build_object('channel','customer_page','sov_item','01.002')) WHERE submittal_id=$1`,
+      [billed],
+    );
+    await db.query(
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,internal_only,updated_by,updated_at) VALUES($1,'sov','01.002',jsonb_build_object('description','CO-004','billable_value',1200,'executed_change_order',$2::text),'known','member_answer',true,$3,now() - interval '1 day')",
+      [job3, billed, owner],
+    );
+    const inv = crypto.randomUUID();
+    await db.query(
+      "INSERT INTO mcp_billing_invoices(id,job_id,company_id,document_number,kind,created_by) VALUES($1,$2,$3,'INV-1','invoice',$4)",
+      [inv, job3, company, owner],
+    );
+    await db.query(
+      "INSERT INTO mcp_billing_invoice_versions(invoice_id,job_id,version,status,invoice_date,effective_date,source,net_due_cents,recorded_by) VALUES($1,$2,1,'draft','2026-11-06','2026-11-06','Invoice INV-1',0,$3)",
+      [inv, job3, owner],
+    );
+    notices.length = 0;
+    await run(script);
+    expect(notices.join("\n")).toContain("Left in place (already billed): 2718 PCO-004 at 01.002");
+    expect(await line(billed)).toEqual(["01.002"]);
+
+    // The rollback takes member execution back to how it was, and applies again cleanly.
+    await run("supabase/rollbacks/20261107030000_athena_change_order_sov_division.rollback.sql");
+    const src = async () =>
+      (
+        await db.query<{ src: string }>(
+          "SELECT prosrc AS src FROM pg_proc WHERE proname='mcp_change_record'",
+        )
+      ).rows[0]!.src;
+    expect(await src()).not.toContain("co_sov_division");
+    expect(await src()).toContain("f.key !~ '^[0-9]{2}\\.[0-9]{2,3}$'");
+    await run(fix);
+    expect((await src()).split("mcp_private.co_sov_division").length - 1).toBe(1);
+    // The fingerprints the Lovable check reads.
+    const md5 = await db.query<{ proname: string; h: string }>(
+      "SELECT proname, md5(prosrc) AS h FROM pg_proc WHERE proname IN ('co_sov_division','co_execute_client_approved') ORDER BY proname",
+    );
+    expect(md5.rows).toEqual([
+      { proname: "co_execute_client_approved", h: "9d03e1ce3052930eda1e523fc94a0196" },
+      { proname: "co_sov_division", h: "9e6d4a14d6e749d28789ca0147adb8b2" },
+    ]);
+    for (const role of ["anon", "authenticated", "service_role"]) {
+      const r = await db.query<{ ok: boolean }>(
+        "SELECT has_function_privilege($1, 'mcp_private.co_sov_division(uuid,text)', 'EXECUTE') AS ok",
+        [role],
+      );
+      expect(r.rows[0]!.ok).toBe(false);
+    }
+  });
+
   it("signs in on the page with the invited email and a code, with no invite link", async () => {
     const pageSession = await tokenHash("Q1".repeat(21) + "z");
     // Server-only, like every customer function.

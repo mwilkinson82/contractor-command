@@ -2,7 +2,12 @@ import { defineTool, ToolError } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { run, dbError, type Sb } from "../guard";
 import { resolveSubmittalJob, boardFor } from "./submittal-tools";
-import { changeLogCard, type ChangeExtras, type ChangeLogPayload } from "../change-orders";
+import {
+  changeLogCard,
+  EXECUTED_GUIDANCE,
+  type ChangeExtras,
+  type ChangeLogPayload,
+} from "../change-orders";
 /** For the member's AI: a change order made from the customer's pick is the record, whatever an older preview showed. */
 const SIGNED_CHOICE_GUIDANCE =
   "A change order made from the customer's pick on their customer page is built from the exact proposal version the customer signed. If an earlier preview in this conversation shows other products or prices, that preview was revised before the customer chose: the change order and the current selection_proposal preview are the record. Do not call it a difference or ask to reconcile it.";
@@ -53,11 +58,27 @@ async function changeExtras(sb: Sb, jobId: string): Promise<ChangeExtras> {
         : null,
   };
 }
-const reply = (view: ReturnType<typeof changeLogCard>, extra: Record<string, unknown> = {}) => ({
-  content: [{ type: "text" as const, text: renderMarkdown(view.card) }],
-  structuredContent: { ...view, ...extra, html: renderHtml(view.card) },
-  _meta: cardWidgetMeta,
-});
+/** What the member's AI must keep straight about the change orders on this card. */
+function guidanceFor(view: ReturnType<typeof changeLogCard>): string[] {
+  const shown = view.records.map((r) => r.change_order_details);
+  return [
+    ...(shown.some((d) => d.customer_choice) ? [SIGNED_CHOICE_GUIDANCE] : []),
+    ...(shown.some((d) => d.state === "executed") ? [EXECUTED_GUIDANCE] : []),
+  ];
+}
+const reply = (view: ReturnType<typeof changeLogCard>, extra: Record<string, unknown> = {}) => {
+  const guidance = guidanceFor(view);
+  return {
+    content: [{ type: "text" as const, text: renderMarkdown(view.card) }],
+    structuredContent: {
+      ...view,
+      ...extra,
+      ...(guidance.length ? { assistant_guidance: guidance } : {}),
+      html: renderHtml(view.card),
+    },
+    _meta: cardWidgetMeta,
+  };
+};
 export const changeOrderLog = defineTool({
   name: "change_order_log",
   title: "Change-order log and records",
@@ -90,11 +111,7 @@ export const changeOrderLog = defineTool({
           args.number,
           extras,
         );
-        const fromPick = view.records.some((r) => r.change_order_details.customer_choice);
-        return reply(view, {
-          job_id: job.job_id,
-          ...(fromPick ? { assistant_guidance: [SIGNED_CHOICE_GUIDANCE] } : {}),
-        });
+        return reply(view, { job_id: job.job_id });
       },
     ),
 });
@@ -102,7 +119,7 @@ export const changeOrderRecord = defineTool({
   name: "change_order_record",
   title: "Save a change-order package record",
   description:
-    "Creates a numbered PCO, saves sourced pricing, records a confirmed owner decision or execution, and reopens an issued proposal as a new revision. Execution adds a separate fee-inclusive SOV line; it does not alter earlier billing or the CPM. Attachments, PDF builds and approved delivery use the shared submittal package tools.",
+    "Creates a numbered PCO, saves sourced pricing, records a confirmed owner decision or execution, and reopens an issued proposal as a new revision. Execution adds a separate fee-inclusive SOV line; it does not alter earlier billing or the CPM. A change order the client approved on their client page is already executed: never execute it again. sov_division is optional: without it, Athena files the change under the division the job's SOV lines or their cost codes name. Attachments, PDF builds and approved delivery use the shared submittal package tools.",
   inputSchema: {
     ...ids,
     action: z.enum(["create", "edit", "price", "approve", "reject", "execute", "reopen"]),
@@ -163,7 +180,10 @@ export const changeOrderRecord = defineTool({
     sov_division: z
       .string()
       .regex(/^\d{2}$/)
-      .optional(),
+      .optional()
+      .describe(
+        "The two-digit division for the change's SOV line, only when the member names one. Leave it out otherwise.",
+      ),
     pricing_basis: z
       .enum(["lump_sum", "unit_price", "time_and_material", "hourly"])
       .optional()
