@@ -1151,13 +1151,71 @@ describe.sequential("customer page", () => {
     await expect(
       db.query("UPDATE mcp_job_facts SET key='26.009' WHERE job_id=$1 AND key='01.001'", [job3]),
     ).rejects.toThrow(/immutable/);
-    const script = "supabase/scripts/20261107030000_change_order_sov_line_refile.sql";
+    // The live database also has the SOV's version check (migration 0066): a saved SOV line changes only through a
+    // version-checked save. Install its pieces here, decoded from the migration itself.
+    const encoded = read("drizzle/migrations/0066_estimating_destination_versions.sql");
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let payload = encoded.match(/\$encoded_payload\$([\s\S]*?)\$encoded_payload\$/)![1]!;
+    (JSON.parse(encoded.match(/\$dictionary\$([\s\S]*?)\$dictionary\$/)![1]!) as string[]).forEach(
+      (w, i) => {
+        payload = payload.split("~" + alphabet[i]).join(w);
+      },
+    );
+    payload = payload.split("@ATHENA_LIMIT@").join("9" + "0".repeat(12));
+    const pieces = [
+      /CREATE TABLE mcp_private\.estimate_destination_revision[\s\S]*?\);/,
+      /CREATE TABLE mcp_private\.estimate_destination_write_ticket[\s\S]*?\n\);/,
+      ...[
+        "estimate_destination_lock",
+        "estimate_sov_flag_shape",
+        "estimate_sov_source",
+        "estimate_destination_changed",
+      ].map((fn) => new RegExp(`CREATE FUNCTION mcp_private\\.${fn}\\([\\s\\S]*?END \\$\\$;`)),
+      /CREATE TRIGGER estimate_destination_facts[\s\S]*?;/,
+      /CREATE TRIGGER estimate_destination_changes[\s\S]*?;/,
+    ].map((re) => payload.match(re)![0]);
+    await db.exec(pieces.join("\n"));
+    // Changing an executed line's number in place is what that check refuses, even with the executed-line lock lifted.
+    await db.exec("ALTER TABLE public.mcp_job_facts DISABLE TRIGGER mcp_executed_change_immutable");
+    await expect(
+      db.query("UPDATE mcp_job_facts SET key='26.009' WHERE job_id=$1 AND key='01.001'", [job3]),
+    ).rejects.toThrow(/Read the destination version and use a version-checked save/);
+    await db.exec("ALTER TABLE public.mcp_job_facts ENABLE TRIGGER mcp_executed_change_immutable");
+    const version = async () =>
+      (
+        await db.query<{ v: string }>(
+          "SELECT version::text AS v FROM mcp_private.estimate_destination_revision WHERE job_id=$1",
+          [job3],
+        )
+      ).rows[0]?.v ?? "0";
+    const before = Number(await version());
+    const script = "supabase/scripts/20261107040000_change_order_sov_line_refile_v2.sql";
     notices.length = 0;
     await run(script);
     expect(notices.join("\n")).toContain(
       "Change-order SOV lines moved to the job's division: 2718 PCO-003 01.001 to 26.002. Left in place (already billed): none",
     );
     expect(await line(misfiled)).toEqual(["26.002"]);
+    // It went through the version-checked path: the old number is gone, the job's version moved on, no ticket is left.
+    expect(
+      (
+        await db.query(
+          "SELECT 1 FROM mcp_job_facts WHERE job_id=$1 AND module='sov' AND key='01.001'",
+          [job3],
+        )
+      ).rows,
+    ).toEqual([]);
+    expect(Number(await version())).toBeGreaterThan(before);
+    expect(
+      (await db.query("SELECT 1 FROM mcp_private.estimate_destination_write_ticket")).rows,
+    ).toEqual([]);
+    expect(
+      (
+        await db.query<{ s: string | null }>(
+          "SELECT nullif(current_setting('request.jwt.claims', true), '') AS s",
+        )
+      ).rows[0]!.s,
+    ).toBeNull();
     const after = await db.query<{ details: J }>(
       "SELECT details FROM mcp_change_orders WHERE submittal_id=$1",
       [misfiled],
@@ -1171,7 +1229,14 @@ describe.sequential("customer page", () => {
     // The lock is back on, and a second run moves nothing.
     await expect(
       db.query("UPDATE mcp_job_facts SET key='26.009' WHERE job_id=$1 AND key='26.002'", [job3]),
-    ).rejects.toThrow(/immutable/);
+    ).rejects.toThrow(/version-checked save/);
+    expect(
+      (
+        await db.query<{ e: string }>(
+          "SELECT tgenabled AS e FROM pg_trigger WHERE tgname='mcp_executed_change_immutable'",
+        )
+      ).rows,
+    ).toEqual([{ e: "O" }]);
     notices.length = 0;
     await run(script);
     expect(notices.join("\n")).toContain(
@@ -1186,7 +1251,7 @@ describe.sequential("customer page", () => {
       [billed],
     );
     await db.query(
-      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,internal_only,updated_by,updated_at) VALUES($1,'sov','01.002',jsonb_build_object('description','CO-004','billable_value',1200,'executed_change_order',$2::text),'known','member_answer',true,$3,now() - interval '1 day')",
+      "INSERT INTO mcp_job_facts(job_id,module,key,value,status,source,internal_only,updated_by,updated_at) VALUES($1,'sov','01.002',jsonb_build_object('description','CO-004','billable_value',1200,'executed_change_order',$2::text,'fee_included',true),'known','member_answer',true,$3,now() - interval '1 day')",
       [job3, billed, owner],
     );
     const inv = crypto.randomUUID();
@@ -1215,6 +1280,9 @@ describe.sequential("customer page", () => {
     expect(await src()).toContain("f.key !~ '^[0-9]{2}\\.[0-9]{2,3}$'");
     await run(fix);
     expect((await src()).split("mcp_private.co_sov_division").length - 1).toBe(1);
+    await db.exec(
+      "DROP TRIGGER estimate_destination_facts ON public.mcp_job_facts; DROP TRIGGER estimate_destination_changes ON public.mcp_change_orders",
+    );
     // The fingerprints the Lovable check reads.
     const md5 = await db.query<{ proname: string; h: string }>(
       "SELECT proname, md5(prosrc) AS h FROM pg_proc WHERE proname IN ('co_sov_division','co_execute_client_approved') ORDER BY proname",

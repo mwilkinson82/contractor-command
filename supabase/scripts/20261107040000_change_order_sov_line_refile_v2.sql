@@ -1,3 +1,5 @@
+-- VERSION 2 of the change-order SOV line refile. It replaces 20261107030000_change_order_sov_line_refile.sql, whose
+-- in-place rename the SOV version check refuses. Run this file, never the old one.
 -- Data only. Run after migration 20261107030000 (the job's own division for change-order SOV lines), as its own step.
 -- A change order the client approved on their client page got its SOV line from the base line numbers' first two
 -- digits. Where the job's own division is another one (job 2810's electrical CO-001 sat at 01.001, under line 01
@@ -5,13 +7,18 @@
 -- record names the new line. Only the line's number changes: its amount, its description and the contract value
 -- stay exactly as they are. A line is left where it is once any pay application or billing document has been
 -- recorded on the job since the line was added, because that document already shows it under its number.
+-- The move goes through the SOV's version-checked save path (a write ticket in the saving member's name), so the
+-- job's destination version moves on like any other saved SOV change.
 -- Safe to run again: a line already in the job's division is skipped.
 DO $refile$
 DECLARE r record; todo jsonb; want text; item text; billed boolean; moved text[] := '{}'; kept text[] := '{}';
+  actor uuid; old_sub text; old_claims text; ticketed boolean := to_regclass('mcp_private.estimate_destination_write_ticket') IS NOT NULL;
 BEGIN
   -- Read the lines first, so no read of the facts is open while their lock is lifted below.
   SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.at), '[]'::jsonb) INTO todo FROM (
-    SELECT c.submittal_id, c.job_id, s.spec_section, s.number, j.job_number, f.id AS fact_id, f.key, f.updated_at, c.updated_at AS at
+    SELECT c.submittal_id, c.job_id, s.spec_section, s.number, j.job_number, f.id AS fact_id, f.key, f.updated_at,
+           coalesce(f.updated_by, (SELECT h.actor_id FROM public.mcp_change_history h WHERE h.submittal_id = c.submittal_id
+             AND h.actor_id IS NOT NULL ORDER BY h.record_version DESC LIMIT 1)) AS actor, c.updated_at AS at
       FROM public.mcp_change_orders c
       JOIN public.mcp_submittals s ON s.id = c.submittal_id
       JOIN public.mcp_jobs j ON j.id = c.job_id
@@ -20,7 +27,7 @@ BEGIN
      WHERE c.details->>'state' = 'executed' AND c.details->'execution'->>'channel' = 'customer_page') x;
   FOR r IN
     SELECT * FROM jsonb_to_recordset(todo) AS t(submittal_id uuid, job_id uuid, spec_section text, number text,
-      job_number text, fact_id uuid, key text, updated_at timestamptz)
+      job_number text, fact_id uuid, key text, updated_at timestamptz, actor uuid)
   LOOP
     want := mcp_private.co_sov_division(r.job_id, r.spec_section);
     CONTINUE WHEN want IS NULL OR left(r.key, 2) = want;
@@ -34,17 +41,38 @@ BEGIN
      WHERE NOT EXISTS (SELECT 1 FROM public.mcp_job_facts x WHERE x.job_id = r.job_id AND x.module = 'sov' AND x.key = want || '.' || lpad(n::text, 3, '0'))
      ORDER BY n LIMIT 1;
     CONTINUE WHEN item IS NULL;
-    -- An executed change's SOV line is locked; it opens only for this renumbering and locks again at once.
+    CONTINUE WHEN r.actor IS NULL;
+    -- The line under its new number, saved by the member who saved it before. Like any new change-order line, the
+    -- destination check holds it to its change order's source and price.
+    INSERT INTO public.mcp_job_facts (job_id, module, key, value, status, source, internal_only, updated_by, updated_at)
+    SELECT f.job_id, f.module, item, f.value, f.status, f.source, f.internal_only, r.actor, f.updated_at
+      FROM public.mcp_job_facts f WHERE f.id = r.fact_id;
+    -- The old number goes through the version-checked save path: a write ticket for this transaction, in that
+    -- member's name. The executed-line lock opens only for this one row and closes again at once.
+    old_sub := current_setting('request.jwt.claim.sub', true);
+    old_claims := current_setting('request.jwt.claims', true);
+    PERFORM set_config('request.jwt.claim.sub', r.actor::text, true);
+    PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', r.actor, 'role', 'authenticated')::text, true);
+    IF ticketed THEN
+      EXECUTE 'INSERT INTO mcp_private.estimate_destination_write_ticket (job_id, transaction_id, actor) VALUES ($1, txid_current(), $2)
+               ON CONFLICT (job_id, transaction_id) DO UPDATE SET actor = EXCLUDED.actor' USING r.job_id, r.actor;
+    END IF;
     ALTER TABLE public.mcp_job_facts DISABLE TRIGGER mcp_executed_change_immutable;
-    UPDATE public.mcp_job_facts SET key = item WHERE id = r.fact_id;
+    DELETE FROM public.mcp_job_facts WHERE id = r.fact_id;
     ALTER TABLE public.mcp_job_facts ENABLE TRIGGER mcp_executed_change_immutable;
+    IF ticketed THEN
+      EXECUTE 'DELETE FROM mcp_private.estimate_destination_write_ticket WHERE job_id = $1 AND transaction_id = txid_current()'
+        USING r.job_id;
+    END IF;
+    PERFORM set_config('request.jwt.claim.sub', coalesce(old_sub, ''), true);
+    PERFORM set_config('request.jwt.claims', coalesce(old_claims, ''), true);
     UPDATE public.mcp_change_orders SET details = jsonb_set(details, '{execution,sov_item}', to_jsonb(item))
      WHERE submittal_id = r.submittal_id;
     UPDATE public.mcp_change_history SET snapshot = jsonb_set(snapshot, '{execution,sov_item}', to_jsonb(item))
      WHERE submittal_id = r.submittal_id AND action = 'execute' AND snapshot->'execution'->>'sov_item' = r.key;
     moved := moved || (r.job_number || ' ' || r.number || ' ' || r.key || ' to ' || item);
   END LOOP;
-  RAISE NOTICE 'Change-order SOV lines moved to the job''s division: %. Left in place (already billed): %',
+  RAISE NOTICE 'Refile version 2. Change-order SOV lines moved to the job''s division: %. Left in place (already billed): %',
     CASE WHEN cardinality(moved) = 0 THEN 'none' ELSE array_to_string(moved, ', ') END,
     CASE WHEN cardinality(kept) = 0 THEN 'none' ELSE array_to_string(kept, ', ') END;
 END $refile$;
