@@ -118,6 +118,10 @@ function messagesText(head: string, l: JobMessages): string {
 const SAFE =
   "The customer page shows only what is shared: weekly updates you post, photos marked customer-safe, a daily summary (date, weather, crew, work done; no issues, delays, safety notes or costs), schedule milestones, and the change orders, selections and pay applications you share.";
 
+/** A taken-back item is an older version; the AI must never weigh a decision against it. */
+const TAKEN_BACK =
+  "A taken-back item is an earlier version the customer can no longer see. Judge a customer's decision, and any change order made from it, only against the version the customer chose, never against a taken-back version or an earlier preview.";
+
 /** One full sentence per recipient, so it reads cleanly after the note it follows. */
 export function emailedLine(email: string, res: string): string {
   return res === "sent"
@@ -258,7 +262,15 @@ export const customerPortal = defineTool({
               const state = d
                 ? `${d.decision === "chosen" ? `chose ${d.choice}` : d.decision} by ${d.typed_name} <${d.email}> on ${longDate(d.decided_at)} (${d.reference})${d.note ? ` · note: ${d.note}` : ""}`
                 : i.withdrawn_at
-                  ? "taken back"
+                  ? l.items.some(
+                      (n) =>
+                        n !== i &&
+                        n.kind === i.kind &&
+                        n.label === i.label &&
+                        n.shared_at > i.shared_at,
+                    )
+                    ? `taken back ${longDate(i.withdrawn_at)} and replaced by the later version below; the customer can no longer see it`
+                    : `taken back ${longDate(i.withdrawn_at)}; the customer can no longer see it`
                   : "waiting on the customer";
               return `- ${i.label} · shared ${longDate(i.shared_at)} · ${state} · item ${i.item_id}`;
             }),
@@ -268,6 +280,7 @@ export const customerPortal = defineTool({
           return guide(
             { ...text(lines.join("\n")), structuredContent: l as unknown as JsonValueInput },
             SAFE,
+            l.items.some((i) => i.withdrawn_at) ? TAKEN_BACK : "",
           );
         }
 

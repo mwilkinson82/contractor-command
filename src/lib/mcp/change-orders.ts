@@ -29,7 +29,20 @@ export type ChangeDetails = {
   schedule_days?: number | null;
   decision?: { by: string; at: string; reference: string } | null;
   execution?: { by: string; at: string; reference: string; sov_item: string } | null;
+  /** Set when the change order was made from the customer's own pick on their customer page. */
+  customer_choice?: { tier: string; at: string; reference: string; fingerprint?: string } | null;
 };
+/** A line's per-unit rate: the saved rate, the line amount over its quantity when that divides evenly, or a lump sum. */
+export function lineRate(line: ChangeCostLine): string {
+  if (line.unit_rate_cents != null) return changeMoney(line.unit_rate_cents);
+  if (!Number.isFinite(line.amount_cents)) return "Rate needed";
+  const q = line.quantity;
+  const each = q && q > 0 ? line.amount_cents / q : null;
+  return each != null && Number.isInteger(each) ? changeMoney(each) : "Lump sum";
+}
+/** Said wherever a change order came from the customer's own pick, so no reader compares it to an older preview. */
+export const SIGNED_VERSION_NOTE =
+  "Built from the exact version the customer signed on their customer page. Any earlier preview of this proposal was replaced before the customer chose.";
 export type ChangeRow = {
   id: string;
   number: string;
@@ -90,9 +103,7 @@ export function changeSections(details: ChangeDetails) {
                 : `${line.quantity ?? "Not recorded"} ${line.unit ?? ""}`.trim(),
               line.category === "markup"
                 ? `${(line.rate_basis_points ?? 0) / 100}% of direct costs`
-                : line.unit_rate_cents == null
-                  ? "Rate needed"
-                  : changeMoney(line.unit_rate_cents),
+                : lineRate(line),
               changeMoney(line.amount_cents),
               line.source,
             ],
@@ -117,6 +128,7 @@ export function changeSections(details: ChangeDetails) {
               : `Requested schedule change: ${details.schedule_days} days; no CPM adjustment made`,
           ],
         },
+        ...(details.customer_choice ? [{ cells: [SIGNED_VERSION_NOTE] }] : []),
         ...(details.owner_number ? [{ cells: [`Owner's number: ${details.owner_number}`] }] : []),
         ...(details.decision
           ? [{ cells: [`Decision by ${details.decision.by} · ${details.decision.reference}`] }]

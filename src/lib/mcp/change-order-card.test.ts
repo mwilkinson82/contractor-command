@@ -60,3 +60,66 @@ it("keeps the change log separate, links each record and preserves exact constru
   expect(renderMarkdown(empty.card)).toContain("No matching change orders. 1 on this log.");
   expect(empty.counts.shown).toBe(0);
 });
+it("a change order from the customer's pick shows its per-unit rate and says it matches the signed version", () => {
+  const p: ChangeLogPayload = {
+    job_id: "00000000-0000-4000-8000-000000000095",
+    job_number: "2810",
+    job_name: "Fictional Job",
+    today: "2026-11-07",
+    read_only: false,
+    records: [
+      {
+        id: "pick",
+        number: "PCO-001",
+        title: "Better package: Track lighting",
+        revision: 0,
+        transmittal_number: 1,
+        change_order_details: {
+          state: "approved",
+          record_version: 1,
+          co_number: "CO-001",
+          origin: "owner",
+          condition: "The customer chose Better on the customer page.",
+          scope: "Change from Good to Better.",
+          references: [],
+          lines: [
+            {
+              category: "material",
+              description: "White heads",
+              quantity: 18,
+              unit: "ea",
+              source: "Signed package choice",
+              amount_cents: 136620,
+            },
+            {
+              category: "material",
+              description: "Odd heads",
+              quantity: 7,
+              unit: "ea",
+              source: "Signed package choice",
+              amount_cents: 1000,
+            },
+            {
+              category: "other",
+              description: "Added labor",
+              source: "Signed package choice",
+              amount_cents: 5000,
+            },
+          ],
+          total_cents: 142620,
+          schedule_days: 0,
+          customer_choice: {
+            tier: "better",
+            at: "2026-11-07T00:24:04Z",
+            reference: "Customer page decision x",
+          },
+        },
+      },
+    ],
+  };
+  const md = renderMarkdown(changeLogCard(p, null, {}, "CO-001").card);
+  expect(md).toContain("$75.90");
+  expect(md).toContain("Lump sum");
+  expect(md).not.toContain("Rate needed");
+  expect(md).toContain("Built from the exact version the customer signed");
+});
