@@ -269,14 +269,32 @@ function filesHtml(packages: RecordPackage[], transmittals: RecordTransmittal[],
   );
 }
 
-function eventLine(e: RecordEventRow, when: (value: string) => string = day): string {
+function eventLine(e: RecordEventRow): string {
   const who = e.actor === "athena" ? "Athena" : e.actor_name?.trim() || "a member";
   const host = hostLabel(e.host);
   const through = host ? ` through ${host}` : "";
   // Only the member who had the chat gets the conversation link; a teammate would land in someone else's chat.
   const thread =
     e.thread_ref && e.mine && host ? ` · ${muted("Conversation reference on file")}` : "";
-  return `<div id="event-${esc(e.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div style="color:${NAVY}"><strong>${esc(e.title)}</strong> ${muted(`· ${esc(kindLabel(e.kind))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(e.summary)}</div><div style="font-size:12px;color:${G2};margin-top:2px">${esc(when(e.occurred_at))} · by ${esc(who)}${esc(through)}${thread}</div></div>`;
+  return `<div id="event-${esc(e.id)}" style="padding:8px 0;border-top:1px solid ${G4}"><div style="color:${NAVY}"><strong>${esc(e.title)}</strong> ${muted(`· ${esc(kindLabel(e.kind))}`)}</div><div style="font-size:12px;color:${G1};margin-top:2px">${esc(e.summary)}</div><div style="font-size:12px;color:${G2};margin-top:2px">${esc(day(e.occurred_at))} · by ${esc(who)}${esc(through)}${thread}</div></div>`;
+}
+
+const CHANGE_EVENT: Record<string, string> = {
+  change_order_create: "Change order started",
+  change_order_edit: "Scope edited",
+  change_order_price: "Priced",
+  change_order_reopen: "Reopened",
+  change_order_submit: "Sent for approval",
+  change_order_approve: "Approved",
+  change_order_reject: "Declined",
+  change_order_execute: "Added to the contract",
+};
+
+/** A change order's own timeline: what happened, in plain words, at the job's local time. */
+function changeEventLine(e: RecordEventRow, when: (value: string) => string): string {
+  const who = e.actor === "athena" ? "Athena" : e.actor_name?.trim() || "a member";
+  const summary = e.summary.replace(/;?\s*commercial details require full job access\.?$/i, ".").replace(/\.\.$/, ".");
+  return `<div id="event-${esc(e.id)}" style="padding:10px 0;border-top:1px solid ${G4}"><div style="color:${NAVY};font-weight:700">${esc(CHANGE_EVENT[e.kind] ?? kindLabel(e.kind))}</div><div style="font-size:13px;color:${G1};margin-top:2px">${esc(summary)}</div><div style="font-size:12px;color:${G2};margin-top:2px">${esc(when(e.occurred_at))} · by ${esc(who)}</div></div>`;
 }
 
 function mailHtml(mail: RecordMail[]): string {
@@ -420,7 +438,7 @@ function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
       files,
       timeline: `${mailHtml(p.mail ?? [])}<section class="cor-panel"><h2>Timeline</h2><div class="cor-body">${
         events.length
-          ? events.map((e) => eventLine(e, (v) => changeOrderWhen(v, zones))).join("")
+          ? events.map((e) => changeEventLine(e, (v) => changeOrderWhen(v, zones))).join("")
           : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`
       }</div></section>`,
     });
@@ -464,7 +482,7 @@ function renderSubmittalRecordContent(p: SubmittalRecordPayload): string {
   const timeline = card(
     h2("TIMELINE") +
       (events.length
-        ? events.map((e) => eventLine(e)).join("")
+        ? events.map(eventLine).join("")
         : `<p style="margin:0;color:${G1}">No events recorded yet.</p>`),
   );
   const foot = `<p style="margin:24px 0 0;font-size:12px;color:${G2}">Private to your company · updates as the record changes</p>`;
