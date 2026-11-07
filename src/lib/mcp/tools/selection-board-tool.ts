@@ -1459,6 +1459,7 @@ export const selectionProposal = defineTool({
               } as unknown as JsonValueInput,
             },
             "Show only this customer view. Do not add cost, margin, markup, found prices, assumptions or notes.",
+            `This is the current saved version (${saved.version}). It replaces any earlier preview of this proposal in the conversation: never compare a later customer decision or change order against an earlier preview.`,
             "Then walk the member through what comes next: end your reply with the next steps in the order given, as short choices they can tap, the first one as the main choice, each with its one-line detail. Don't leave the member to work out the process, and don't skip a step. Each step that changes, invites, sends or shares needs the member's yes first: for an invite, show the customer's name and email; for sending to the client page, say the customer will be emailed. Then do the step exactly as its how says, and after it offer the next one.",
             "The client page is where the customer chooses and approves: Send it to their client page is the main way to send a proposal. The view-only link is a secondary option for a quick look; never offer it as the way to get the customer's approval.",
           );
