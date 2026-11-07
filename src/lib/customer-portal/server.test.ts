@@ -620,14 +620,22 @@ describe("customer page", () => {
     // Too many: the customer stays on their pick and is told when to try again.
     const slow = deps({ issue: { status: "slow_down", retry_minutes: 12 } });
     const r = await start(slow.d, "best");
-    expect(r.headers.get("location")).toBe(
-      `/c/${ACCESS}?s=selections&i=${SEL}&e=slow&wait=12&choice=best&step=review`,
+    const loc = r.headers.get("location")!;
+    expect(loc).toMatch(
+      new RegExp(
+        `^/c/${ACCESS}\\?s=selections&i=${SEL}&e=slow&wait=12&until=\\d{10}&choice=best&step=review$`,
+      ),
     );
-    const banner = await (
-      await handlePortal(req(r.headers.get("location")!, { cookie: true }), ACCESS, slow.d)
-    ).text();
-    expect(banner).toContain("You can ask for another one in 12 minutes.");
+    const banner = await (await handlePortal(req(loc, { cookie: true }), ACCESS, slow.d)).text();
+    expect(banner).toMatch(/You can ask for another one in 1[12] minutes\./);
     expect(banner).toContain('id="pk-t3" aria-label="Highlight Best" checked');
+    // A refresh after the wait, or an old address with no end time, shows the page without the message.
+    const later = loc.replace(/until=\d+/, `until=${Math.floor(Date.now() / 1000) - 5}`);
+    for (const u of [later, `/c/${ACCESS}?s=selections&i=${SEL}&e=slow&choice=best&step=review`]) {
+      const t = await (await handlePortal(req(u, { cookie: true }), ACCESS, slow.d)).text();
+      expect(t).not.toContain("several codes");
+      expect(t).not.toContain("Too many codes");
+    }
   });
 
   it("declines without a code and chooses a package with one", async () => {
