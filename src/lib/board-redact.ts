@@ -10,13 +10,14 @@ export function isMoneyBoardPage(page: string): boolean {
   return (MONEY_BOARD_PAGES as readonly string[]).includes(page);
 }
 
-const AMOUNT = String.raw`-?\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?`;
+// "$9,500", "-$1.2M", and "+2,049.30 USD" as change orders from a client's package pick word it.
+const AMOUNT = String.raw`(?:-?\$\s?\d[\d,]*(?:\.\d+)?(?:\s?[kKmM]\b)?|[-+]?\d[\d,]*(?:\.\d+)?\s?USD\b)`;
 const BRACKETED = new RegExp(String.raw`\s*\([^()<>]*` + AMOUNT + String.raw`[^()<>]*\)`, "g");
 const LOOSE = new RegExp(AMOUNT, "g");
 
 /** Removes dollar amounts from text: "(… $20,000 held)" goes entirely, a loose "$9,500" becomes "an amount". */
 export function hideAmounts(text: string): string {
-  if (!text.includes("$")) return text;
+  if (!text.includes("$") && !/\dUSD\b|\d\sUSD\b/.test(text)) return text;
   return text.replace(BRACKETED, "").replace(LOOSE, "an amount").trim();
 }
 

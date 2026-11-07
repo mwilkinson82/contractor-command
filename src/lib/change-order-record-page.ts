@@ -194,13 +194,15 @@ function stateBadge(d: ChangeDetails): { text: string; tone: "" | "is-on" | "is-
   }
 }
 
-function pricingRow(line: ChangeCostLine): string {
+function pricingRow(line: ChangeCostLine, hidden: boolean): string {
   const markup = line.category === "markup";
   const qty = markup
     ? "Direct costs"
     : line.quantity != null
       ? `${line.quantity} ${line.unit ?? ""}`.trim()
       : "Lump sum";
+  if (hidden)
+    return `<tr><td class="item" data-label="Item">${esc(line.description)}</td><td data-label="Qty">${esc(qty)}</td></tr>`;
   const rate = markup ? `${(line.rate_basis_points ?? 0) / 100}%` : lineRate(line);
   return `<tr><td class="item" data-label="Item">${esc(line.description)}</td><td data-label="Qty">${esc(qty)}</td><td class="num" data-label="Rate">${esc(rate)}</td><td class="num" data-label="Total">${esc(changeMoney(line.amount_cents))}</td></tr>`;
 }
@@ -223,10 +225,13 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
   const job = jobHeading({ job_number: input.jobNumber ?? "", name: input.jobName ?? "" }, " ");
   const badge = stateBadge(d);
   const total = d.total_cents;
+  // Opened from a board link without signing in, the record arrives with every dollar figure removed.
+  const hidden = total === undefined;
+  const SIGN_IN = "Sign in to see";
   const days = d.schedule_days;
 
   // Tiles: amount, time, approval, contract.
-  const amountTile = `<div class="cor-tile"><h2>Amount</h2><strong>${total == null ? "Not priced" : esc(signed(total))}</strong><p>${d.lines.length ? `${d.lines.length} ${d.lines.length === 1 ? "line" : "lines"}` : "Rates and quantities needed"}</p></div>`;
+  const amountTile = `<div class="cor-tile"><h2>Amount</h2><strong>${hidden ? SIGN_IN : total == null ? "Not priced" : esc(signed(total))}</strong><p>${d.lines.length ? `${d.lines.length} ${d.lines.length === 1 ? "line" : "lines"}` : "Rates and quantities needed"}</p></div>`;
   const timeTile = `<div class="cor-tile"><h2>Time</h2><strong>${days == null ? "Not set" : `${days > 0 ? "+" : ""}${days} ${Math.abs(days) === 1 ? "day" : "days"}`}</strong><p>${days == null ? "Schedule impact not determined" : days === 0 ? "No added time" : "Added to the schedule"}</p></div>`;
   const decidedTile =
     decision && (d.state === "approved" || d.state === "executed")
@@ -238,7 +243,7 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
   const before = execution?.contract_before_cents;
   const contractTile =
     d.state === "executed"
-      ? `<div class="cor-tile"><h2>New contract value</h2><strong>${after != null ? esc(changeMoney(after)) : "Updated"}</strong><p>${before != null ? `Was ${esc(changeMoney(before))}` : "This change is on the contract"}</p></div>`
+      ? `<div class="cor-tile"><h2>New contract value</h2><strong>${hidden ? SIGN_IN : after != null ? esc(changeMoney(after)) : "Updated"}</strong><p>${!hidden && before != null ? `Was ${esc(changeMoney(before))}` : "This change is on the contract"}</p></div>`
       : `<div class="cor-tile"><h2>Contract value</h2><strong>No change yet</strong><p>${d.state === "approved" ? "Joins when executed" : d.state === "rejected" ? "Declined, no change" : "Joins once approved"}</p></div>`;
 
   // What changed: why, the change, and any drawing or spec references.
@@ -255,11 +260,11 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
 
   const pricing = `<section class="cor-panel"><h2>Pricing</h2>${
     d.lines.length
-      ? `<table class="cor-table"><thead><tr><th>Item</th><th>Qty</th><th class="num">Rate</th><th class="num">Total</th></tr></thead><tbody>${d.lines.map(pricingRow).join("")}</tbody>${
+      ? `<table class="cor-table"><thead><tr><th>Item</th><th>Qty</th>${hidden ? "" : '<th class="num">Rate</th><th class="num">Total</th>'}</tr></thead><tbody>${d.lines.map((l) => pricingRow(l, hidden)).join("")}</tbody>${
           total != null
             ? `<tfoot><tr><td colspan="3">Total</td><td class="num" data-label="Total">${esc(signed(total))}</td></tr></tfoot>`
             : ""
-        }</table>`
+        }</table>${hidden ? `<div class="cor-body"><p class="cor-text" style="color:var(--ink-2)">Sign in with your job account to see prices.</p></div>` : ""}`
       : `<div class="cor-body"><p class="cor-text" style="color:var(--ink-2)">Not priced yet. Rates and quantities are needed.</p></div>`
   }</section>`;
 
@@ -283,7 +288,7 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
           ? `<p class="cor-contract is-off">Approved. It joins the contract when it is executed.</p>`
           : "";
     const proof: [string, string, boolean][] = [];
-    if (who.email) proof.push(["Signed by", `${who.name} <${who.email}>`, true]);
+    if (who.email && !hidden) proof.push(["Signed by", `${who.name} <${who.email}>`, true]);
     if (decision.reference) proof.push(["Decision", decision.reference, false]);
     if (decision.fingerprint) proof.push(["Fingerprint", decision.fingerprint, false]);
     if (client)
@@ -310,8 +315,12 @@ export function renderChangeOrderRecord(input: ChangeOrderRecordInput): string {
     ? `<details class="cor-panel cor-fold"><summary>Record history · ${history.length} ${history.length === 1 ? "version" : "versions"}</summary><div class="cor-body"><ul class="cor-history">${history
         .map(
           (h) =>
-            `<li><strong>${esc(ACTION_LABEL[h.action] ?? h.action)}</strong><span>${esc(when(h.created_at, zones, true))} · ${
-              h.snapshot.total_cents == null ? "Not priced" : esc(signed(h.snapshot.total_cents))
+            `<li><strong>${esc(ACTION_LABEL[h.action] ?? h.action)}</strong><span>${esc(when(h.created_at, zones, true))}${
+              h.snapshot.total_cents === undefined
+                ? ""
+                : h.snapshot.total_cents == null
+                  ? " · Not priced"
+                  : ` · ${esc(signed(h.snapshot.total_cents))}`
             }</span></li>`,
         )
         .join("")}</ul></div></details>`

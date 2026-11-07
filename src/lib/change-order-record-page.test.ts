@@ -7,6 +7,7 @@ import {
 } from "./change-order-record-page";
 import { renderSubmittalRecordBody, type SubmittalRecordPayload } from "./submittal-record-page";
 import type { ChangeDetails } from "./mcp/change-orders";
+import { redactMoney } from "./board-redact";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
 const DECISION = "22222222-2222-4222-8222-222222222222";
@@ -156,5 +157,29 @@ describe("change order record page", () => {
     expect(html).toContain('data-change-order="PCO-001"');
     expect(html).toContain("New contract value");
     expect(html).not.toContain("Ball in court");
+  });
+
+  it("opened from a board link without signing in, shows no dollar figures and no client email", () => {
+    const d = redactMoney({
+      ...executed(),
+      scope: "Change to Better, approved by the customer for +2,049.30 USD.",
+    }) as ChangeDetails;
+    const html = renderChangeOrderRecord({
+      jobId: JOB,
+      number: "PCO-001",
+      title: "Better package",
+      details: d,
+      history: [
+        { record_version: 2, action: "execute", created_at: "2026-11-07T00:24:00Z", snapshot: d },
+      ],
+      zones: { job: "America/New_York" },
+      timeline: "",
+    });
+    expect(html).not.toMatch(/\$\d|USD|2,049|482,049|480,000/);
+    expect(html).not.toContain("pat@example.com");
+    expect(html).toContain("Sign in to see");
+    expect(html).toContain("Sign in with your job account to see prices.");
+    expect(html).toContain("6 ea");
+    expect(html).toContain("On the contract");
   });
 });
