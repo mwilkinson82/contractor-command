@@ -11846,6 +11846,10 @@ export type Database = {
         Args: { _job: string; _page: string; _token_hash: string }
         Returns: Json
       }
+      mcp_board_link_open_full: {
+        Args: { _job: string; _page: string; _token_hash: string }
+        Returns: Json
+      }
       mcp_board_link_revoke: { Args: { _token_hash: string }; Returns: Json }
       mcp_brief_as_user: {
         Args: { _args: Json; _fn: string; _user: string }
@@ -11894,6 +11898,10 @@ export type Database = {
       mcp_can_view_job: { Args: { _job: string }; Returns: boolean }
       mcp_canary_for: { Args: { _company: string }; Returns: string }
       mcp_change_log_open: {
+        Args: { _job: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_change_log_open_full: {
         Args: { _job: string; _token_hash: string }
         Returns: Json
       }
@@ -13199,6 +13207,10 @@ export type Database = {
         Args: { _job: string; _kind: string; _token_hash: string }
         Returns: Json
       }
+      mcp_request_log_open_full: {
+        Args: { _job: string; _kind: string; _token_hash: string }
+        Returns: Json
+      }
       mcp_request_package_content: { Args: { _details: Json }; Returns: Json }
       mcp_request_record: {
         Args: { _action: string; _job: string; _kind: string; _p: Json }
@@ -13416,6 +13428,10 @@ export type Database = {
         Returns: Json
       }
       mcp_submittal_record_open: {
+        Args: { _job: string; _number: string; _token_hash: string }
+        Returns: Json
+      }
+      mcp_submittal_record_open_full: {
         Args: { _job: string; _number: string; _token_hash: string }
         Returns: Json
       }
